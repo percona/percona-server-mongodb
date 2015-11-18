@@ -129,6 +129,8 @@ void IndexScan::initIndexScan() {
         bool startKeyInclusive;
         if (IndexBoundsBuilder::isSingleInterval(
                 _params.bounds, &startKey, &startKeyInclusive, &_endKey, &_endKeyInclusive)) {
+            _txn->SetLeftBounds(&startKey);
+            _txn->SetRightBounds(&_endKey);
             this->createCursor(cursorOptions, &cursor);
             _btreeCursor = static_cast<BtreeIndexCursor*>(_indexCursor.get());
 
