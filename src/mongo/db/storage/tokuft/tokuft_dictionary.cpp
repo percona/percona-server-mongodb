@@ -192,6 +192,17 @@ namespace mongo {
 
     KVDictionary::Cursor *TokuFTDictionary::getCursor(OperationContext *opCtx, const Slice &key, const int direction) const {
         try {
+            return new Cursor(*this, opCtx, key, direction);
+        } catch (ftcxx::ft_exception &e) {
+            // Will throw WriteConflictException if needed, discard status
+            statusFromTokuFTException(e);
+            // otherwise rethrow
+            throw;
+        }
+    }
+
+    KVDictionary::Cursor *TokuFTDictionary::getRangedCursor(OperationContext *opCtx, const Slice &key, const int direction) const {
+        try {
             if (OperationShouldPrelockCursor(opCtx)) {
                 return this->CreatePrelockedCursorWithRetryAndStartKey(opCtx, key, direction);
             }
@@ -205,7 +216,7 @@ namespace mongo {
         }
     }
 
-    KVDictionary::Cursor *TokuFTDictionary::getCursor(OperationContext *opCtx, const int direction) const {
+    KVDictionary::Cursor *TokuFTDictionary::getRangedCursor(OperationContext *opCtx, const int direction) const {
         try {
             if (OperationShouldPrelockCursor(opCtx)) {
                 return this->CreatePrelockedCursorWithRetry(opCtx, direction);

@@ -150,7 +150,9 @@ namespace mongo {
 
         virtual KVDictionary::Cursor *getCursor(OperationContext *opCtx, const Slice &key, const int direction = 1) const;
 
-        virtual KVDictionary::Cursor *getCursor(OperationContext *opCtx, const int direction = 1) const;
+        virtual KVDictionary::Cursor *getRangedCursor(OperationContext *opCtx, const Slice &key, const int direction = 1) const;
+
+        virtual KVDictionary::Cursor *getRangedCursor(OperationContext *opCtx, const int direction = 1) const;
 
         virtual const char *name() const { return "PerconaFT"; }
 

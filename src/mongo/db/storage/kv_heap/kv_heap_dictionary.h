@@ -117,7 +117,9 @@ namespace mongo {
 
         KVDictionary::Cursor *getCursor(OperationContext *opCtx, const Slice &key, const int direction = 1) const;
 
-        KVDictionary::Cursor *getCursor(OperationContext *opCtx, const int direction = 1) const;
+        KVDictionary::Cursor *getRangedCursor(OperationContext *opCtx, const Slice &key, const int direction = 1) const;
+
+        KVDictionary::Cursor *getRangedCursor(OperationContext *opCtx, const int direction = 1) const;
     };
 
 } // namespace mongo

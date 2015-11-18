@@ -146,7 +146,7 @@ namespace mongo {
 
         Map m;
         {
-            for (boost::scoped_ptr<KVDictionary::Cursor> cur(_metadataDict->getCursor(opCtx));
+            for (boost::scoped_ptr<KVDictionary::Cursor> cur(_metadataDict->getRangedCursor(opCtx));
                  cur->ok(); cur->advance(opCtx)) {
                 const std::string key(cur->currKey().data(), cur->currKey().size());
                 BSONObj data(cur->currVal().data());

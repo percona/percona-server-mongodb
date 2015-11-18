@@ -337,7 +337,9 @@ namespace mongo {
          */
         virtual Cursor *getCursor(OperationContext *opCtx, const Slice &key, const int direction = 1) const = 0;
 
-        virtual Cursor *getCursor(OperationContext *opCtx, const int direction = 1) const = 0;
+        virtual Cursor *getRangedCursor(OperationContext *opCtx, const Slice &key, const int direction = 1) const = 0;
+
+        virtual Cursor *getRangedCursor(OperationContext *opCtx, const int direction = 1) const = 0;
     };
 
 } // namespace mongo
