@@ -304,7 +304,9 @@ namespace mongo {
               _typeBits(),
               _savedLoc(),
               _initialized(false)
-        {}
+        {
+            _txn->SetCursorOrdering(&_ordering);
+        }
 
         virtual ~KVSortedDataInterfaceCursor() {}
 
