@@ -109,6 +109,8 @@ void IndexScan::initIndexScan() {
     /* NOTE: Had to move cursor creation AFTER setting of key bounds. */
 
     if (_params.bounds.isSimpleRange) {
+        _txn->SetLeftBounds(&_params.bounds.startKey);
+        _txn->SetRightBounds(&_params.bounds.endKey);
         this->createCursor(cursorOptions, &cursor);
 
         // Start at one key, end at another.
