@@ -167,7 +167,11 @@ namespace mongo {
         return new Cursor(_map, _cmp, key, direction);
     }
 
-    KVDictionary::Cursor *KVHeapDictionary::getCursor(OperationContext *opCtx, const int direction) const {
+    KVDictionary::Cursor *KVHeapDictionary::getRangedCursor(OperationContext *opCtx, const Slice &key, const int direction) const {
+        return new Cursor(_map, _cmp, key, direction);
+    }
+
+    KVDictionary::Cursor *KVHeapDictionary::getRangedCursor(OperationContext *opCtx, const int direction) const {
         return new Cursor(_map, _cmp, direction);
     }
 

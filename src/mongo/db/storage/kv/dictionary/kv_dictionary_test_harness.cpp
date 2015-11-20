@@ -256,7 +256,7 @@ namespace mongo {
                 Slice value;
                 const int direction = 1;
                 unsigned char i = 0;
-                for (scoped_ptr<KVDictionary::Cursor> c(db->getCursor(opCtx.get(), direction));
+                for (scoped_ptr<KVDictionary::Cursor> c(db->getRangedCursor(opCtx.get(), direction));
                      c->ok(); c->advance(opCtx.get()), i++) {
                     ASSERT( c->currKey().as<unsigned char>() == i );
                     ASSERT( c->currVal().as<unsigned char>() == i );
@@ -270,7 +270,7 @@ namespace mongo {
                 Slice value;
                 const int direction = -1;
                 unsigned char i = nKeys - 1;
-                for (scoped_ptr<KVDictionary::Cursor> c(db->getCursor(opCtx.get(), direction));
+                for (scoped_ptr<KVDictionary::Cursor> c(db->getRangedCursor(opCtx.get(), direction));
                      c->ok(); c->advance(opCtx.get()), i--) {
                     ASSERT( c->currKey().as<unsigned char>() == i );
                     ASSERT( c->currVal().as<unsigned char>() == i );
@@ -332,7 +332,7 @@ namespace mongo {
             {
                 const int direction = 1;
                 unsigned char i = 0;
-                for (scoped_ptr<KVDictionary::Cursor> c(db->getCursor(opCtx.get(), direction));
+                for (scoped_ptr<KVDictionary::Cursor> c(db->getRangedCursor(opCtx.get(), direction));
                      c->ok(); c->advance(opCtx.get()), i++) {
                     unsigned char k = c->currKey().as<unsigned char>();
                     ASSERT( remainingKeys.count(k) == 1 );
@@ -386,7 +386,7 @@ namespace mongo {
         {
             scoped_ptr<OperationContext> opCtx( harnessHelper->newOperationContext() );
             {
-                scoped_ptr<KVDictionary::Cursor> cursor( db->getCursor( opCtx.get(), 1 ) );
+                scoped_ptr<KVDictionary::Cursor> cursor( db->getRangedCursor( opCtx.get(), 1 ) );
                 for (unsigned char i = 0; i < nKeys; i++) {
                     cursor->seek( opCtx.get(), Slice::of(keys[i]) );
                     if ( i % 2 == 0 ) {
@@ -397,7 +397,7 @@ namespace mongo {
                 }
             }
             {
-                scoped_ptr<KVDictionary::Cursor> cursor( db->getCursor( opCtx.get(), -1 ) );
+                scoped_ptr<KVDictionary::Cursor> cursor( db->getRangedCursor( opCtx.get(), -1 ) );
                 for (unsigned char i = 1; i < nKeys; i++) {
                     cursor->seek(opCtx.get(), Slice::of(keys[i]));
                     if ( i % 2 == 0 ) {

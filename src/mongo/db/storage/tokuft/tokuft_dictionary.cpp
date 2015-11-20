@@ -28,6 +28,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/db/catalog/collection_options.h"
+#include "mongo/db/concurrency/write_conflict_exception.h"
 #include "mongo/db/index/index_descriptor.h"
 #include "mongo/db/storage/kv/dictionary/kv_sorted_data_impl.h"
 #include "mongo/db/storage/kv/slice.h"
@@ -80,13 +81,13 @@ namespace mongo {
         }
 
         int _getWriteFlags(OperationContext *opCtx, bool skipPessimisticLocking=false) {
-            return (skipPessimisticLocking || _isReplicaSetSecondary(opCtx))
+            return (skipPessimisticLocking || _isReplicaSetSecondary(opCtx) || opCtx->HasBounds())
                     ? DB_PRELOCKED_WRITE
                     : 0;
         }
 
         int _getReadFlags(OperationContext *opCtx, bool skipPessimisticLocking) {
-            return (skipPessimisticLocking || _getDBTxn(opCtx).is_read_only() || _isReplicaSetSecondary(opCtx))
+            return (skipPessimisticLocking || _getDBTxn(opCtx).is_read_only() || _isReplicaSetSecondary(opCtx) || opCtx->HasBounds())
                     ? DB_PRELOCKED | DB_PRELOCKED_WRITE
                     : 0;
         }
@@ -180,6 +181,15 @@ namespace mongo {
         _rangeOptimizer->updateMaxDeleted(leftId, sizeSaved, docsRemoved);
     }
 
+    static bool OperationShouldPrelockCursor(OperationContext *opCtx) {
+        const bool is_read_only = _getDBTxn(opCtx).is_read_only();
+        if (!is_read_only && opCtx->HasBounds()) {
+            return true;
+        }
+
+        return false;
+    }
+
     KVDictionary::Cursor *TokuFTDictionary::getCursor(OperationContext *opCtx, const Slice &key, const int direction) const {
         try {
             return new Cursor(*this, opCtx, key, direction);
@@ -191,8 +201,27 @@ namespace mongo {
         }
     }
 
-    KVDictionary::Cursor *TokuFTDictionary::getCursor(OperationContext *opCtx, const int direction) const {
+    KVDictionary::Cursor *TokuFTDictionary::getRangedCursor(OperationContext *opCtx, const Slice &key, const int direction) const {
         try {
+            if (OperationShouldPrelockCursor(opCtx)) {
+                return this->CreatePrelockedCursorWithRetryAndStartKey(opCtx, key, direction);
+            }
+
+            return new Cursor(*this, opCtx, key, direction);
+        } catch (ftcxx::ft_exception &e) {
+            // Will throw WriteConflictException if needed, discard status
+            statusFromTokuFTException(e);
+            // otherwise rethrow
+            throw;
+        }
+    }
+
+    KVDictionary::Cursor *TokuFTDictionary::getRangedCursor(OperationContext *opCtx, const int direction) const {
+        try {
+            if (OperationShouldPrelockCursor(opCtx)) {
+                return this->CreatePrelockedCursorWithRetry(opCtx, direction);
+            }
+
             return new Cursor(*this, opCtx, direction);
         } catch (ftcxx::ft_exception &e) {
             // Will throw WriteConflictException if needed, discard status
@@ -200,6 +229,70 @@ namespace mongo {
             // otherwise rethrow
             throw;
         }
+    }
+
+    KVDictionary::Cursor *TokuFTDictionary::CreatePrelockedCursorWithRetryAndStartKey(OperationContext *opCtx,
+                                                                                      const Slice &key,
+                                                                                      const int direction) const {
+        int attempt = 1;
+        do {
+            try {
+                return this->CreatePrelockedCursorWithStartKey(opCtx, key, direction);
+            } catch (ftcxx::ft_exception &e) {
+                if (e.code() == DB_LOCK_NOTGRANTED || e.code() == DB_LOCK_DEADLOCK) {
+                    WriteConflictException::logAndBackoff(attempt++, "getCusor", opCtx->getNS());
+                } else {
+                    throw;
+                }
+            }
+        } while (true);
+
+        return NULL;
+    }
+
+    KVDictionary::Cursor *TokuFTDictionary::CreatePrelockedCursorWithRetry(OperationContext *opCtx,
+                                                                           const int direction) const {
+        int attempt = 1;
+        do {
+            try {
+                return this->CreatePrelockedCursor(opCtx, direction);
+            } catch (ftcxx::ft_exception &e) {
+                if (e.code() == DB_LOCK_NOTGRANTED || e.code() == DB_LOCK_DEADLOCK) {
+                    WriteConflictException::logAndBackoff(attempt++, "getCusor", opCtx->getNS());
+                } else {
+                    throw;
+                }
+            }
+        } while (true);
+
+        return NULL;
+    }
+
+    KVDictionary::Cursor *TokuFTDictionary::CreatePrelockedCursorWithStartKey(OperationContext *opCtx,
+                                                                              const Slice &key,
+                                                                              const int direction) const {
+        const bool prelock = true;
+        return new Cursor(*this, opCtx, key, prelock, direction);
+    }
+
+    KVDictionary::Cursor *TokuFTDictionary::CreatePrelockedCursor(OperationContext *opCtx,
+                                                                  const int direction) const {
+        BSONObj left = *(opCtx->GetLeftBounds());
+        BSONObj right = *(opCtx->GetRightBounds());
+        const Ordering *ordering = opCtx->GetCursorOrdering();
+        if (direction == 1) {
+            return new Cursor(*this,
+                              opCtx,
+                              Slice::of(KeyString(left, *ordering, RecordId::min())),
+                              Slice::of(KeyString(right, *ordering, RecordId::max())),
+                              direction);
+        }
+
+        return new Cursor(*this,
+                          opCtx,
+                          Slice::of(KeyString(left, *ordering, RecordId::max())),
+                          Slice::of(KeyString(right, *ordering, RecordId::min())),
+                          direction);
     }
 
     KVDictionary::Stats TokuFTDictionary::getStats() const {
@@ -264,10 +357,50 @@ namespace mongo {
         advance(txn);
     }
 
+    TokuFTDictionary::Cursor::Cursor(const TokuFTDictionary &dict,
+                                     OperationContext *txn,
+                                     const Slice &key,
+                                     const bool prelock,
+                                     const int direction)
+        : _cur(dict.db().buffered_cursor(_getDBTxn(txn),
+                                         slice2ftslice(key),
+                                         dict.encoding(),
+                                         ftcxx::DB::NullFilter(),
+                                         0,
+                                         (direction == 1),
+                                         false,
+                                         prelock)),
+          _currKey(), _currVal(), _ok(false)
+    {
+        advance(txn);
+    }
+
     TokuFTDictionary::Cursor::Cursor(const TokuFTDictionary &dict, OperationContext *txn, const int direction)
         : _cur(dict.db().buffered_cursor(_getDBTxn(txn),
                                          dict.encoding(), ftcxx::DB::NullFilter(), 0, (direction == 1))),
           _currKey(), _currVal(), _ok(false)
+    {
+        advance(txn);
+    }
+
+    TokuFTDictionary::Cursor::Cursor(const TokuFTDictionary &dict,
+                                     OperationContext *txn,
+                                     const Slice &leftKey,
+                                     const Slice &rightKey,
+                                     const int direction)
+        // Call pre-locking cursor factory method:
+        : _cur(dict.db().buffered_cursor(_getDBTxn(txn),
+                                         slice2ftslice(leftKey),
+                                         slice2ftslice(rightKey),
+                                         dict.encoding(),
+                                         ftcxx::DB::NullFilter(),
+                                         0, // <- flags
+                                         (direction == 1),
+                                         false, // <-- end_exclusive (no idea)?
+                                         true)), // <-- prelocking),
+          _currKey(),
+          _currVal(),
+          _ok(false)
     {
         advance(txn);
     }

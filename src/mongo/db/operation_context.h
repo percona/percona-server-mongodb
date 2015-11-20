@@ -30,6 +30,7 @@
 
 #include "mongo/base/disallow_copying.h"
 #include "mongo/base/status.h"
+#include "mongo/db/document_locking_context.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/concurrency/locker.h"
 #include "mongo/db/concurrency/d_concurrency.h"
@@ -52,7 +53,7 @@ class StringData;
  * destruction it deassociates itself. At any time a client can be associated with at most one
  * OperationContext.
  */
-class OperationContext {
+class OperationContext : public DocumentLockingContext {
     MONGO_DISALLOW_COPYING(OperationContext);
 
 public:

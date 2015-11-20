@@ -94,8 +94,18 @@ namespace mongo {
         class Cursor : public KVDictionary::Cursor {
         public:
             Cursor(const TokuFTDictionary &dict, OperationContext *txn, const Slice &key, const int direction = 1);
+            Cursor(const TokuFTDictionary &dict,
+                   OperationContext *txn,
+                   const Slice &key,
+                   const bool prelock,
+                   const int direction = 1);
 
             Cursor(const TokuFTDictionary &dict, OperationContext *txn, const int direction = 1);
+            Cursor(const TokuFTDictionary &dict,
+                   OperationContext *txn,
+                   const Slice &leftKey,
+                   const Slice &rightKey,
+                   const int direction = 1);
 
             virtual bool ok() const;
 
@@ -140,7 +150,9 @@ namespace mongo {
 
         virtual KVDictionary::Cursor *getCursor(OperationContext *opCtx, const Slice &key, const int direction = 1) const;
 
-        virtual KVDictionary::Cursor *getCursor(OperationContext *opCtx, const int direction = 1) const;
+        virtual KVDictionary::Cursor *getRangedCursor(OperationContext *opCtx, const Slice &key, const int direction = 1) const;
+
+        virtual KVDictionary::Cursor *getRangedCursor(OperationContext *opCtx, const int direction = 1) const;
 
         virtual const char *name() const { return "PerconaFT"; }
 
@@ -159,6 +171,14 @@ namespace mongo {
         const ftcxx::DB &db() const { return _db; }
 
     private:
+        KVDictionary::Cursor *CreatePrelockedCursorWithRetryAndStartKey(OperationContext *opCtx,
+                                                                        const Slice &key,
+                                                                        const int direction) const;
+        KVDictionary::Cursor *CreatePrelockedCursorWithRetry(OperationContext *opCtx, const int direction = 1) const;
+        KVDictionary::Cursor *CreatePrelockedCursorWithStartKey(OperationContext *opCtx,
+                                                                const Slice &key,
+                                                                const int direction) const;
+        KVDictionary::Cursor *CreatePrelockedCursor(OperationContext *opCtx, const int direction = 1) const;
         Encoding encoding() const {
             return TokuFTDictionary::Encoding(_db.descriptor());
         }

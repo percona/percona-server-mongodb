@@ -180,7 +180,7 @@ namespace mongo {
                                         BSONObjBuilder* output) const {
         if (numKeysOut) {
             *numKeysOut = 0;
-            for (boost::scoped_ptr<KVDictionary::Cursor> cursor(_db->getCursor(txn));
+            for (boost::scoped_ptr<KVDictionary::Cursor> cursor(_db->getRangedCursor(txn));
                  cursor->ok(); cursor->advance(txn)) {
                 ++(*numKeysOut);
             }
@@ -188,7 +188,7 @@ namespace mongo {
     }
 
     bool KVSortedDataImpl::isEmpty( OperationContext* txn ) {
-        boost::scoped_ptr<KVDictionary::Cursor> cursor(_db->getCursor(txn));
+        boost::scoped_ptr<KVDictionary::Cursor> cursor(_db->getRangedCursor(txn));
         return !cursor->ok();
     }
 
@@ -239,7 +239,7 @@ namespace mongo {
             if (_cursor) {
                 return;
             }
-            _cursor.reset(_db->getCursor(_txn, _dir));
+            _cursor.reset(_db->getRangedCursor(_txn, _dir));
         }
 
         void invalidateCache() {
@@ -280,7 +280,7 @@ namespace mongo {
 
         bool _locate(const KeyString &ks) {
             invalidateCache();
-            _cursor.reset(_db->getCursor(_txn, Slice::of(ks), _dir));
+            _cursor.reset(_db->getRangedCursor(_txn, Slice::of(ks), _dir));
             return !isEOF() &&
                     ks.getSize() == _cursor->currKey().size() &&
                     memcmp(ks.getBuffer(), _cursor->currKey().data(), ks.getSize()) == 0;
@@ -304,7 +304,9 @@ namespace mongo {
               _typeBits(),
               _savedLoc(),
               _initialized(false)
-        {}
+        {
+            _txn->SetCursorOrdering(&_ordering);
+        }
 
         virtual ~KVSortedDataInterfaceCursor() {}
 

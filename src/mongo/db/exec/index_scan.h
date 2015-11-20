@@ -133,6 +133,9 @@ private:
     /** See if the cursor is pointing at or past _endKey, if _endKey is non-empty. */
     void checkEnd();
 
+    /** Helper method for cursor creation. */
+    void createCursor(const CursorOptions& options, IndexCursor **cursor);
+
     // transactional context for read locks. Not owned by us
     OperationContext* _txn;
 

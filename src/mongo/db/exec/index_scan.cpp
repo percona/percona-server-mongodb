@@ -36,6 +36,7 @@
 #include "mongo/db/index/index_access_method.h"
 #include "mongo/db/index/index_cursor.h"
 #include "mongo/db/index/index_descriptor.h"
+#include "mongo/db/storage/index_entry_comparison.h"
 #include "mongo/db/query/index_bounds_builder.h"
 #include "mongo/util/log.h"
 
@@ -105,11 +106,13 @@ void IndexScan::initIndexScan() {
     }
 
     IndexCursor* cursor;
-    Status s = _iam->newCursor(_txn, cursorOptions, &cursor);
-    verify(s.isOK());
-    _indexCursor.reset(cursor);
+    /* NOTE: Had to move cursor creation AFTER setting of key bounds. */
 
     if (_params.bounds.isSimpleRange) {
+        _txn->SetLeftBounds(&_params.bounds.startKey);
+        _txn->SetRightBounds(&_params.bounds.endKey);
+        this->createCursor(cursorOptions, &cursor);
+
         // Start at one key, end at another.
         Status status = _indexCursor->seek(_params.bounds.startKey);
         if (!status.isOK()) {
@@ -120,7 +123,6 @@ void IndexScan::initIndexScan() {
             _specificStats.keysExamined = 1;
         }
     } else {
-        _btreeCursor = static_cast<BtreeIndexCursor*>(_indexCursor.get());
 
         // For single intervals, we can use an optimized scan which checks against the position
         // of an end cursor.  For all other index scans, we fall back on using
@@ -129,6 +131,11 @@ void IndexScan::initIndexScan() {
         bool startKeyInclusive;
         if (IndexBoundsBuilder::isSingleInterval(
                 _params.bounds, &startKey, &startKeyInclusive, &_endKey, &_endKeyInclusive)) {
+            _txn->SetLeftBounds(&startKey);
+            _txn->SetRightBounds(&_endKey);
+            this->createCursor(cursorOptions, &cursor);
+            _btreeCursor = static_cast<BtreeIndexCursor*>(_indexCursor.get());
+
             // We want to point at the start key if it's inclusive, and we want to point past
             // the start key if it's exclusive.
             _btreeCursor->seek(startKey, !startKeyInclusive);
@@ -151,6 +158,8 @@ void IndexScan::initIndexScan() {
             key.resize(nFields);
             inc.resize(nFields);
             if (_checker->getStartKey(&key, &inc)) {
+                this->createCursor(cursorOptions, &cursor);
+                _btreeCursor = static_cast<BtreeIndexCursor*>(_indexCursor.get());
                 _btreeCursor->seek(key, inc);
                 _keyElts.resize(nFields);
                 _keyEltsInc.resize(nFields);
@@ -432,6 +441,12 @@ void IndexScan::checkEnd() {
             return;
         }
     }
+}
+
+void IndexScan::createCursor(const CursorOptions& options, IndexCursor **cursor) {
+    Status s = _iam->newCursor(_txn, options, cursor);
+    verify(s.isOK());
+    _indexCursor.reset(*cursor);
 }
 
 vector<PlanStage*> IndexScan::getChildren() const {

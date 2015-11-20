@@ -29,13 +29,12 @@
 
 #include <boost/scoped_ptr.hpp>
 #include <string>
-
+#include "mongo/db/document_range_operation_context.h"
 #include "mongo/db/operation_context.h"
-
 
 namespace mongo {
 
-class OperationContextImpl : public OperationContext {
+class OperationContextImpl : public DocumentRangeOperationContext {
 public:
     OperationContextImpl();
 
