@@ -23,7 +23,7 @@ import re
 # If the version is invalid (i.e. doesn't start with "2.3.4" or "2.3.4-rc0", this will return
 # False
 def match_verstr(verstr):
-    res = re.match(r'^r?(?:\d+\.\d+\.\d+(?:-rc\d+)?)(-.*)?', verstr)
+    res = re.match(r'^psmdb-(?:\d+\.\d+\.\d+-\d+\.\d+?)(-.*)?', verstr)
     if not res:
         return False
     return res.groups()
@@ -42,7 +42,7 @@ if not version_parts:
         version_parts = match_verstr(version_data['version'])
         version_line = version_data['version']
 else:
-    version_line = version_line.lstrip("r").rstrip()
+    version_line = version_line.lstrip("psmdb-").rstrip()
 
 # If the version still doesn't match, give up and print an error message!
 if not version_parts:
