@@ -408,7 +408,7 @@ except IOError as e:
         Exit(1)
 
     version_data = {
-        'version': utils.getGitDescribe()[1:],
+        'version': re.search(r'\d+\.\d+\.\d+.*', utils.getGitDescribe()).group(0),
         'githash': utils.getGitVersion(),
     }
 
