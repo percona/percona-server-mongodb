@@ -2,6 +2,7 @@
 
 Import("env")
 Import("has_option")
+Import("rocksdb")
 Import("wiredtiger")
 
 env.SConscript(
@@ -697,6 +698,9 @@ serveronlyLibdeps = [
     "storage/storage_options",
     "update_index_data",
 ]
+
+if rocksdb:
+    serveronlyLibdeps.append('storage/rocks/storage_rocks')
 
 if wiredtiger:
     serveronlyLibdeps.append('storage/wiredtiger/storage_wiredtiger')

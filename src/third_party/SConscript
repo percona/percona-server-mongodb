@@ -86,6 +86,10 @@ def injectThirdPartyIncludePaths(thisEnv, libraries):
 env.AddMethod(injectAllThirdPartyIncludePaths, 'InjectAllThirdPartyIncludePaths')
 env.AddMethod(injectThirdPartyIncludePaths, 'InjectThirdPartyIncludePaths')
 
+def prepareRocks(thisEnv):
+    thisEnv.PrependUnique(CPPPATH=['#/src/third_party/rocksdb/include'])
+    thisEnv.PrependUnique(LIBPATH=['#/src/third_party/rocksdb'])
+env.AddMethod(prepareRocks, 'PrepareRocks')
 
 murmurEnv = env.Clone()
 murmurEnv.SConscript('murmurhash3/SConscript', exports={ 'env' : murmurEnv })
