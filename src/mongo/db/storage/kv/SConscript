@@ -5,6 +5,7 @@ env.Library(
     source=[
         'kv_catalog.cpp',
         'kv_collection_catalog_entry.cpp',
+        'kv_partition_utils.cpp',
         ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/concurrency/lock_manager',
