@@ -57,7 +57,8 @@ namespace mongo {
                        const StringData& ns,
                        const StringData& ident,
                        const CollectionOptions& options,
-                       KVSizeStorer *sizeStorer);
+                       KVSizeStorer *sizeStorer,
+                       long long partitionId = 0);
 
         virtual ~KVRecordStore();
 

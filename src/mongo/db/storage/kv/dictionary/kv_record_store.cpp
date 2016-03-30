@@ -53,7 +53,8 @@ namespace mongo {
                                   const StringData& ns,
                                   const StringData& ident,
                                   const CollectionOptions& options,
-                                  KVSizeStorer *sizeStorer )
+                                  KVSizeStorer *sizeStorer,
+                                  long long partitionId )
         : RecordStore(ns),
           _db(db),
           _ident(ident.toString()),
@@ -69,7 +70,7 @@ namespace mongo {
             _nextIdNum.store(lastId.repr() + 1);
         } else {
             // Need to start at 1 so we are within bounds of RecordId::isNormal()
-            _nextIdNum.store(1);
+            _nextIdNum.store((partitionId << 40) + 1);
         }
 
         if (_sizeStorer) {

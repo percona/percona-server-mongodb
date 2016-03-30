@@ -17,6 +17,7 @@ env.Library(
         'kv_engine_impl.cpp',
         'kv_record_store.cpp',
         'kv_record_store_capped.cpp',
+        'kv_record_store_partitioned.cpp',
         'kv_size_storer.cpp',
         'kv_sorted_data_impl.cpp',
         ],

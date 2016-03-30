@@ -133,6 +133,12 @@ public:
      */
     virtual bool isPrimaryFor(const StringData& ns) = 0;
 
+    /**
+     * Return offset of partition for the BSON document specified by the const char*
+     * parameter. BSONObj is constructed by BSONObj(const char* bsonData) constructor
+     */
+    std::function<size_t(const char*)> getPartitionOffset;
+
 protected:
     OperationContext() {}
 };

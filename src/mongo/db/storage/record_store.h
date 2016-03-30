@@ -1,3 +1,4 @@
+
 // record_store.h
 
 /**
@@ -360,6 +361,12 @@ public:
     virtual void updateStatsAfterRepair(OperationContext* txn,
                                         long long numRecords,
                                         long long dataSize) = 0;
+
+    template <class T> T *as() {
+        T *subclass = dynamic_cast<T *>(this);
+        massert(19178, "bug: failed to dynamically cast RecordStore to desired subclass", subclass != NULL);
+        return subclass;
+    }
 
 protected:
     std::string _ns;
