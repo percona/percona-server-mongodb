@@ -33,6 +33,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/storage/kv/kv_collection_catalog_entry.h"
 #include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/kv/kv_partition_utils.h"
 #include "mongo/db/storage/kv/kv_storage_engine.h"
 #include "mongo/db/storage/recovery_unit.h"
 
@@ -88,10 +89,34 @@ public:
           _collection(collection.toString()),
           _ident(ident.toString()),
           _entry(entry),
-          _dropOnCommit(dropOnCommit) {}
+          _dropOnCommit(dropOnCommit),
+          _partitioned(false) {}
+
+    // this version of constructor is used only with partitioned collections
+    // and is called only from KVDatabaseCatalogEntry::dropCollection
+    RemoveCollectionChange(OperationContext* opCtx,
+                           KVDatabaseCatalogEntry* dce,
+                           const StringData& collection,
+                           const StringData& ident,
+                           KVCollectionCatalogEntry* entry,
+                           const std::deque<int64_t>& pids)
+        : _opCtx(opCtx),
+          _dce(dce),
+          _collection(collection.toString()),
+          _ident(ident.toString()),
+          _entry(entry),
+          _dropOnCommit(true),
+          _partitioned(true),
+          _pids(std::move(pids)) {}
 
     virtual void commit() {
         delete _entry;
+
+        if (_partitioned) {
+            for (auto id: _pids)
+                _dce->_engine->getEngine()->dropIdent(_opCtx, getPartitionName(_ident, id));
+            return;
+        }
 
         // Intentionally ignoring failure here. Since we've removed the metadata pointing to the
         // collection, we should never see it again anyway.
@@ -109,6 +134,8 @@ public:
     const std::string _ident;
     KVCollectionCatalogEntry* const _entry;
     const bool _dropOnCommit;
+    const bool _partitioned;
+    const std::deque<int64_t> _pids;
 };
 
 KVDatabaseCatalogEntry::KVDatabaseCatalogEntry(const StringData& db, KVStorageEngine* engine)
@@ -333,6 +360,14 @@ Status KVDatabaseCatalogEntry::dropCollection(OperationContext* opCtx, const Str
     invariant(entry->getTotalIndexCount(opCtx) == 0);
 
     const std::string ident = _engine->getCatalog()->getCollectionIdent(ns);
+    // cache partition ids before 'dropCollection' call
+    const bool partitioned = entry->isPartitioned(opCtx);
+    std::deque<int64_t> pids;
+    if (partitioned) {
+        entry->forEachPMD(opCtx, [&pids](BSONObj const& pmd) {
+            pids.push_back(pmd["_id"].numberLong());
+        });
+    }
 
     Status status = _engine->getCatalog()->dropCollection(opCtx, ns);
     if (!status.isOK()) {
@@ -341,8 +376,12 @@ Status KVDatabaseCatalogEntry::dropCollection(OperationContext* opCtx, const Str
 
     // This will lazily delete the KVCollectionCatalogEntry and notify the storageEngine to
     // drop the collection only on WUOW::commit().
+    if (!partitioned)
     opCtx->recoveryUnit()->registerChange(
         new RemoveCollectionChange(opCtx, this, ns, ident, it->second, true));
+    else
+    opCtx->recoveryUnit()->registerChange(
+        new RemoveCollectionChange(opCtx, this, ns, ident, it->second, std::move(pids)));
 
     _collections.erase(ns.toString());
 
