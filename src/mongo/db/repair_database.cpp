@@ -109,7 +109,7 @@ Status rebuildIndexesOnCollection(OperationContext* txn,
         // open a bad index and fail.
         // TODO see if MultiIndexBlock can be made to work without a Collection.
         const StringData ns = cce->ns().ns();
-        collection.reset(new Collection(txn, ns, cce, dbce->getRecordStore(ns), dbce));
+        collection.reset(Database::makeCollectionInstance(txn, ns, dbce));
 
         indexer.reset(new MultiIndexBlock(txn, collection.get()));
         Status status = indexer->init(indexSpecs);
