@@ -37,6 +37,7 @@
 #include "mongo/db/catalog/collection_info_cache.h"
 #include "mongo/db/catalog/cursor_manager.h"
 #include "mongo/db/catalog/index_catalog.h"
+#include "mongo/db/catalog/partitioned_collection_itf.h"
 #include "mongo/db/exec/collection_scan_common.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/record_id.h"
@@ -97,15 +98,17 @@ struct CompactStats {
  * this is NOT safe through a yield right now
  * not sure if it will be, or what yet
  */
-class Collection : CappedDocumentDeleteCallback, UpdateNotifier {
+class Collection : CappedDocumentDeleteCallback, UpdateNotifier,
+                   public PartitionedCollectionItf {
 public:
     Collection(OperationContext* txn,
                const StringData& fullNS,
                CollectionCatalogEntry* details,  // does not own
                RecordStore* recordStore,         // does not own
-               DatabaseCatalogEntry* dbce);      // does not own
+               DatabaseCatalogEntry* dbce,       // does not own
+               bool partitioned = false);
 
-    ~Collection();
+    virtual ~Collection();
 
     bool ok() const {
         return _magic == 1357924;
@@ -296,7 +299,7 @@ public:
 
     // --- end suspect things
 
-private:
+protected:
     Status recordStoreGoingToMove(OperationContext* txn,
                                   const RecordId& oldLocation,
                                   const char* oldBuffer,
