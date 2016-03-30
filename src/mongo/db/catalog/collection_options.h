@@ -32,11 +32,13 @@
 
 #include "mongo/base/status.h"
 #include "mongo/db/jsobj.h"
+#include "mongo/db/storage/partition_metadata.h"
 
 namespace mongo {
 
 struct CollectionOptions {
-    CollectionOptions() {
+    CollectionOptions()
+        : partitionId(0) {
         reset();
     }
 
@@ -62,6 +64,8 @@ struct CollectionOptions {
     bool capped;
     long long cappedSize;
     long long cappedMaxDocs;
+
+    bool partitioned;
 
     // following 2 are mutually exclusive, can only have one set
     long long initialNumExtents;
@@ -89,5 +93,12 @@ struct CollectionOptions {
 
     // Storage engine collection options. Always owned or empty.
     BSONObj storageEngine;
+
+    // primary key pattern for partitioned collection
+    // empty value means '_id' primary key
+    BSONObj primaryKey;
+
+    // when passed to KVEngineImpl::getRecordStore this value specifies partition Id
+    int64_t partitionId;
 };
 }
