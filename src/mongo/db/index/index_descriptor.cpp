@@ -31,6 +31,7 @@
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kIndex
 
 #include "mongo/db/index/index_descriptor.h"
+#include "mongo/db/catalog/collection_catalog_entry.h"
 #include "mongo/util/log.h"
 
 namespace mongo {
@@ -85,4 +86,15 @@ void IndexDescriptor::_checkOk() const {
     log() << "uh oh: " << (void*)(this) << " " << _magic;
     invariant(0);
 }
+
+// iterate partition ids of parent collection (with status)
+Status IndexDescriptor::forEachPartition(OperationContext* txn, const std::function<Status (BSONObj const& pmd)>& f) const {
+    return _collection->getCatalogEntry()->forEachPMDWS(txn, f);
+}
+
+// iterate partition ids of parent collection (without status)
+void IndexDescriptor::forEachPartition(OperationContext* txn, const std::function<void (BSONObj const& pmd)>& f) const {
+    _collection->getCatalogEntry()->forEachPMD(txn, f);
+}
+
 }
