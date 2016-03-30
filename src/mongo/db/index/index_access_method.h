@@ -32,6 +32,7 @@
 
 #include "mongo/db/index/index_cursor.h"
 #include "mongo/db/index/index_descriptor.h"
+#include "mongo/db/index/partitioned_index_access_method.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/record_id.h"
@@ -52,7 +53,7 @@ struct InsertDeleteOptions;
  * We assume the caller has whatever locks required.  This interface is not thread safe.
  *
  */
-class IndexAccessMethod {
+class IndexAccessMethod : public PartitionedIndexAccessMethod {
 public:
     virtual ~IndexAccessMethod() {}
 
