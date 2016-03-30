@@ -1,0 +1,8 @@
+# -*- mode: python; -*-
+Import("env")
+
+env.Library(target='partcoll',
+            source=['add_partition_command.cpp',
+                    'drop_partition_command.cpp',
+                    'get_partition_info_command.cpp'],
+            LIBDEPS=[])
