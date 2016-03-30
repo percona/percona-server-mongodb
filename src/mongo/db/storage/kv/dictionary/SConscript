@@ -20,6 +20,7 @@ env.Library(
         'kv_record_store_partitioned.cpp',
         'kv_size_storer.cpp',
         'kv_sorted_data_impl.cpp',
+        'kv_sorted_data_partitioned.cpp',
         ],
     LIBDEPS=[
         'kv_dictionary',

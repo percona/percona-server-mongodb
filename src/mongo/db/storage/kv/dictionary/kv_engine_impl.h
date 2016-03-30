@@ -131,6 +131,8 @@ namespace mongo {
         virtual KVSizeStorer *getSizeStorer(OperationContext *opCtx);
 
         virtual void cleanShutdownImpl() = 0;
+
+        friend class KVSortedDataPartitioned;
     };
 
 }
