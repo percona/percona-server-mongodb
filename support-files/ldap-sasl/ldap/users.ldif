@@ -1,0 +1,56 @@
+dn: cn=exttestro,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: exttestro 
+sn: exttestro
+userPassword: exttestro9a5S
+description: exttestro userPassword
+
+dn: cn=exttestrw,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: exttestrw 
+sn: exttestrw
+userPassword: exttestrw9a5S
+description: exttestrw userPassword
+
+dn: cn=extotherro,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: extotherro 
+sn: extotherro
+userPassword: extotherro9a5S
+description: extotherro userPassword
+
+dn: cn=extotherrw,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: extotherrw 
+sn: extotherrw
+userPassword: extotherrw9a5S
+description: extotherrw userPassword
+
+dn: cn=extbothro,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: extbothro 
+sn: extbothro
+userPassword: extbothro9a5S
+description: extbothro userPassword
+
+dn: cn=extbothrw,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: extbothrw 
+sn: extbothrw
+userPassword: extbothrw9a5S
+description: extbothrw userPassword
+
+dn: cn=exttestrwotherro,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: exttestrwotherro 
+sn: exttestrwotherro
+userPassword: exttestrwotherro9a5S
+description: exttestrwotherro userPassword
+
+dn: cn=exttestrootherrw,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: exttestrootherrw 
+sn: exttestrootherrw
+userPassword: exttestrootherrw9a5S
+description: exttestrootherrw userPassword
+

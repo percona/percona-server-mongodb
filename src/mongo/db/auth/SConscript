@@ -2,6 +2,12 @@
 
 Import("env")
 
+env.SConscript(
+    dirs=[
+        'external',
+    ],
+)
+
 env.Library('serverauth', ['mongo_authentication_session.cpp'])
 
 generateActionTypes = env.Command(
@@ -69,6 +75,12 @@ env.Library('authorization_manager_mock_init',
                 '$BUILD_DIR/mongo/db/service_context',
             ])
 
+## NOTE: We could make external auth non-optional by removing this
+## predicate check on the SASL_CLIENT flag.
+optionalExternalSaslDeps = []
+if env['MONGO_BUILD_SASL_CLIENT']:
+    optionalExternalSaslDeps = ['external/externalsaslauth']
+
 env.Library('authservercommon',
             [
                 'authz_session_external_state_server_common.cpp',
@@ -83,7 +95,7 @@ env.Library('authservercommon',
                 'authorization_manager_global',
                 'saslauth',
                 'security_file',
-            ])
+            ] + optionalExternalSaslDeps)
 
 env.Library('security_file',
             ['security_file.cpp'],
@@ -142,10 +154,6 @@ env.Library('authmongos',
                 'authservercommon',
                 '$BUILD_DIR/mongo/s/catalog/dist_lock_manager',
                 '$BUILD_DIR/mongo/s/coreshard',
-            ],
-            LIBDEPS_TAGS=[
-                # Depends on inShutdown
-                'incomplete',
             ],
 )
 

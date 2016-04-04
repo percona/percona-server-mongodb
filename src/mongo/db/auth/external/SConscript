@@ -1,0 +1,6 @@
+# -*- mode: python -*-
+Import("env")
+env.Library('externalsaslauth',
+            ['external_sasl_authentication_session.cpp'],
+            LIBDEPS=['$BUILD_DIR/mongo/db/auth/saslauth'],
+            SYSLIBDEPS=['sasl2'])

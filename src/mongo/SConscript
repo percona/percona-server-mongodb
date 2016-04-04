@@ -16,7 +16,7 @@ Import("use_system_version_of_library")
 
 # Boost we need everywhere. 's2' is spammed in all over the place by
 # db/geo unfortunately. pcre is also used many places.
-env.InjectThirdPartyIncludePaths(libraries=['boost', 's2', 'pcre', 'tokuft'])
+env.InjectThirdPartyIncludePaths(libraries=['boost', 's2', 'pcre'])
 env.InjectMongoIncludePaths()
 
 env.SConscript(
@@ -92,6 +92,7 @@ baseSource=[
     'util/base64.cpp',
     'util/concurrency/thread_name.cpp',
     'util/exception_filter_win32.cpp',
+    'util/exit.cpp',
     'util/hex.cpp',
     'util/itoa.cpp',
     'util/log.cpp',
@@ -199,7 +200,7 @@ generatedVersionFile = env.Substfile(
         ('@mongo_version_extra_str@', version_extra),
         ('@mongo_git_hash@', env['MONGO_GIT_HASH']),
         ('@buildinfo_js_engine@', js_engine_ver),
-        ('@buildinfo_allocator@', GetOption('allocator')),
+        ('@buildinfo_allocator@', env['MONGO_ALLOCATOR']),
         ('@buildinfo_modules@', module_list),
         ('@buildinfo_environment_data@', buildInfoInitializer),
     ])
@@ -218,6 +219,7 @@ config_header_substs = (
     ('@mongo_config_have_memset_s@', 'MONGO_CONFIG_HAVE_MEMSET_S'),
     ('@mongo_config_have_posix_monotonic_clock@', 'MONGO_CONFIG_HAVE_POSIX_MONOTONIC_CLOCK'),
     ('@mongo_config_have_std_is_trivially_copyable@', 'MONGO_CONFIG_HAVE_STD_IS_TRIVIALLY_COPYABLE'),
+    ('@mongo_config_have_std_enable_if_t@', 'MONGO_CONFIG_HAVE_STD_ENABLE_IF_T'),
     ('@mongo_config_have_std_make_unique@', 'MONGO_CONFIG_HAVE_STD_MAKE_UNIQUE'),
     ('@mongo_config_have_strnlen@', 'MONGO_CONFIG_HAVE_STRNLEN'),
     ('@mongo_config_optimized_build@', 'MONGO_CONFIG_OPTIMIZED_BUILD'),
@@ -291,6 +293,7 @@ env.Install(
             "s/server.cpp",
             "s/mongos_options.cpp",
             "s/mongos_options_init.cpp",
+            "s/client/sharding_connection_hook_for_mongos.cpp",
         ],
         LIBDEPS=[
             'db/conn_pool_options',
@@ -341,41 +344,28 @@ if not has_option('noshell') and usemozjs:
                     "shell/linenoise.cpp",
                     "shell/mk_wcwidth.cpp",
                     "shell/mongo-server.cpp",
+                    "shell/shell_options.cpp",
+                    "shell/shell_options_init.cpp",
                     "shell/shell_utils.cpp",
                     "shell/shell_utils_extended.cpp",
                     "shell/shell_utils_launcher.cpp",
-                    "shell/shell_options_init.cpp"
                 ],
                 LIBDEPS=[
                     'db/catalog/index_key_validate',
                     'db/index/external_key_generator',
                     'db/query/command_request_response',
                     'db/query/lite_parsed_query',
+                    'db/server_options_core',
                     'linenoise_utf8',
+                    'rpc/protocol',
                     'scripting/scripting',
                     'shell/mongojs',
+                    'util/net/network',
+                    'util/options_parser/options_parser_init',
                     'util/processinfo',
                     'util/signal_handlers',
                 ],
-                LIBDEPS_TAGS=[
-                    # Circular with shell_options below. It is unclear
-                    # why this is split into two libraries, or even
-                    # why these libraries exist at all, since it seems
-                    # that the only thing that links them is the shell
-                    # itself.
-                    'incomplete',
-                ],
     )
-
-    # mongo shell options
-    shell_core_env.Library("shell_options", ["shell/shell_options.cpp"],
-                LIBDEPS=[
-                    '$BUILD_DIR/mongo/db/server_options_core',
-                    '$BUILD_DIR/mongo/rpc/protocol',
-                    '$BUILD_DIR/mongo/util/net/network',
-                    '$BUILD_DIR/mongo/util/options_parser/options_parser_init',
-                    'shell_core',
-                ])
 
     shellEnv = env.Clone()
     if env.TargetOSIs('windows'):
@@ -385,7 +375,6 @@ if not has_option('noshell') and usemozjs:
         "mongo",
         "shell/dbshell.cpp",
         LIBDEPS=["$BUILD_DIR/third_party/shim_pcrecpp",
-                 "shell_options",
                  "shell_core",
                  "db/server_options_core",
                  "client/clientdriver",
