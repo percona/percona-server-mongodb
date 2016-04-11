@@ -89,7 +89,7 @@ namespace mongo {
                                        const IndexDescriptor* desc)
         : _db(db),
           _ordering(Ordering::make(desc ? desc->keyPattern() : BSONObj())),
-          _dupsAllowed(false)
+          _dupsAllowed(true)
     {
         invariant(_db);
     }
