@@ -47,6 +47,7 @@ DEFAULTS = {
     "mongo": None,
     "mongod": None,
     "mongodSetParameters": None,
+    "mongodAddOptions": None,
     "mongos": None,
     "mongosSetParameters": None,
     "nojournal": False,
@@ -113,6 +114,9 @@ MONGOD_EXECUTABLE = None
 
 # The --setParameter options passed to mongod.
 MONGOD_SET_PARAMETERS = None
+
+# The additional --name=value options passed to mongod.
+MONGOD_ADD_OPTIONS = None
 
 # The path to the mongos executable used by resmoke.py.
 MONGOS_EXECUTABLE = None

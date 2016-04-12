@@ -31,6 +31,7 @@ DEST_TO_CONFIG = {
     "mongo_executable": "mongo",
     "mongod_executable": "mongod",
     "mongod_parameters": "mongodSetParameters",
+    "mongod_add_options": "mongodAddOptions",
     "mongos_executable": "mongos",
     "mongos_parameters": "mongosSetParameters",
     "no_journal": "nojournal",
@@ -139,6 +140,12 @@ def parse_command_line():
                             " started by resmoke.py. The argument is specified as bracketed YAML -"
                             " i.e. JSON with support for single quoted and unquoted keys."))
 
+    parser.add_option("--mongodAddOptions", dest="mongod_add_options",
+                      metavar="{name1: value1, name2: value2, ..., nameN: valueN}",
+                      help=("Pass addtional --name=value options to all mongod processes"
+                            " started by resmoke.py. The argument is specified as bracketed YAML -"
+                            " i.e. JSON with support for single quoted and unquoted keys."))
+
     parser.add_option("--mongos", dest="mongos_executable", metavar="PATH",
                       help="The path to the mongos executable for resmoke.py to use.")
 
@@ -233,6 +240,7 @@ def update_config_vars(values):
     _config.MONGO_EXECUTABLE = _expand_user(config.pop("mongo"))
     _config.MONGOD_EXECUTABLE = _expand_user(config.pop("mongod"))
     _config.MONGOD_SET_PARAMETERS = config.pop("mongodSetParameters")
+    _config.MONGOD_ADD_OPTIONS = config.pop("mongodAddOptions")
     _config.MONGOS_EXECUTABLE = _expand_user(config.pop("mongos"))
     _config.MONGOS_SET_PARAMETERS = config.pop("mongosSetParameters")
     _config.NO_JOURNAL = config.pop("nojournal")

@@ -34,6 +34,15 @@ def mongod_program(logger, executable=None, process_kwargs=None, **kwargs):
 
     _apply_set_parameters(args, suite_set_parameters)
 
+    # Apply additional mongod command line arguments. Command line options to resmoke.py override
+    # the YAML configuration.
+    suite_mongod_add_options = kwargs.pop("add_options", {})
+
+    if config.MONGOD_ADD_OPTIONS is not None:
+        suite_mongod_add_options.update(utils.load_yaml(config.MONGOD_ADD_OPTIONS))
+
+    _apply_mongod_add_options(args, suite_mongod_add_options)
+
     shortcut_opts = {
         "nojournal": config.NO_JOURNAL,
         "nopreallocj": config.NO_PREALLOC_JOURNAL,
@@ -152,6 +161,13 @@ def mongo_shell_program(logger, executable=None, filename=None, process_kwargs=N
         mongod_set_parameters = utils.load_yaml(config.MONGOD_SET_PARAMETERS)
         test_data["setParameters"] = _format_test_data_set_parameters(mongod_set_parameters)
 
+    if config.MONGOD_ADD_OPTIONS is not None:
+        if "mongodAddOptions" in test_data:
+            raise ValueError("mongodAddOptions passed via TestData can only be set from either the"
+                             " command line or the suite YAML, not both")
+        mongod_add_options = utils.load_yaml(config.MONGOD_ADD_OPTIONS)
+        test_data["mongodAddOptions"] = _format_test_data_mongod_add_options(mongod_add_options)
+
     if config.MONGOS_SET_PARAMETERS is not None:
         if "setParametersMongos" in test_data:
             raise ValueError("setParametersMongos passed via TestData can only be set from either"
@@ -261,6 +277,20 @@ def _format_test_data_set_parameters(set_parameters):
         params.append("%s=%s" % (param_name, param_value))
     return ",".join(params)
 
+def _format_test_data_mongod_add_options(mongod_add_options):
+    """
+    Converts key-value pairs from 'mongod_add_options' into the comma
+    delimited list format expected by the parser in servers.js.
+    """
+    params = []
+    for option_name in mongod_add_options:
+        option_value = mongod_add_options[option_name]
+        if not option_value:
+            params.append("%s" % option_name)
+        else:
+            params.append("%s=%s" %(option_name, option_value))
+    return ",".join(params)
+
 def _apply_set_parameters(args, set_parameter):
     """
     Converts key-value pairs from 'kwargs' into --setParameter key=value
@@ -275,6 +305,19 @@ def _apply_set_parameters(args, set_parameter):
         args.append("--setParameter")
         args.append("%s=%s" % (param_name, param_value))
 
+def _apply_mongod_add_options(args, mongod_add_option):
+    """
+    Converts key-value pairs from 'kwargs' into mongod --name=value
+    arguments to an executable and appends them to 'args'.
+    """
+
+    for option_name in mongod_add_option:
+        option_value = mongod_add_option[option_name]
+        # if option value is empty then just option name
+        if not option_value:
+            args.append("--%s" % option_name)
+        else:
+            args.append("--%s=%s" % (option_name, option_value))
 
 def _apply_kwargs(args, kwargs):
     """
