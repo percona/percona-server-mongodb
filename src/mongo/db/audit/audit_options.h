@@ -50,6 +50,9 @@ namespace optionenvironment {
         // Event destination file path and name, eg '/data/db/audit.json'
         std::string path;
 
+        // Determines if Authz operations with status success are logged
+        static std::atomic<bool> auditAuthorized;
+
         AuditOptions();
         BSONObj toBSON();
     };
