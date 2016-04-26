@@ -1,4 +1,5 @@
 // test that replSetReconfig gets audited
+// it doesn't work for now https://jira.mongodb.org/browse/SERVER-20845
 
 if (TestData.testData !== undefined) {
     load(TestData.testData + '/audit/_audit_helpers.js');

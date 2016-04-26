@@ -82,6 +82,21 @@ $ mongod                                \
 --auditFilter '{ "users.user" : "tim" }'
 ```
 
+###auditAuthorized parameter
+By default auditing in Percona Server for MongoDB logs only unauthorized operations.
+With auditAuthorized parameter set to ```true``` both authorized and unauthorized operations will be logged.
+
+To set auditAuthorized parameter at startup run server with following options:
+```
+mongod  --auditDestination=file --setParameter=auditAuthorized=true
+```
+
+You can also change auditAuthorized parameter at runtime with command:
+```
+db.adminCommand({ setParameter: 1, 'auditAuthorized': true });
+```
+
+**Note:** Setting this parameter to ```true``` may strongly affect performance.
 ## Testing
 
 There are dedicated audit JavaScript tests under the jstests/audit directory. To execute all of
