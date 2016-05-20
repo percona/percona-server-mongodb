@@ -97,6 +97,41 @@ public:
      */
     virtual void updateFlags(OperationContext* txn, int newValue) = 0;
 
+    // --------- partitions --------------
+
+    virtual bool isPartitioned(OperationContext* txn) const {
+        return false;
+    }
+
+    virtual void getPartitionInfo(OperationContext* txn, uint64_t* numPartitions, BSONArray* partitionArray) const {
+        invariant(false);
+    }
+
+    /**
+     * Two-step update of partititon metadata array:
+     * 1. update 'max' value in old last partition (skipped if array is empty prior to this call)
+     * 2. append metadata for new last partition
+     */
+    virtual void storeNewPartitionMetadata(OperationContext* txn,
+                                           BSONObj const& maxpkforprev,
+                                           int64_t partitionId,
+                                           BSONObj const& maxpk) {
+        invariant(false);
+    }
+
+    virtual void dropPartitionMetadata(OperationContext* txn, int64_t partitionId) {
+        invariant(false);
+    }
+
+    virtual Status forEachPMDWS(OperationContext* txn, const std::function<Status (BSONObj const&)>& f) {
+        invariant(false);
+        return Status::OK();
+    }
+
+    virtual void forEachPMD(OperationContext* txn, const std::function<void (BSONObj const&)>& f) {
+        invariant(false);
+    }
+
 private:
     NamespaceString _ns;
 };

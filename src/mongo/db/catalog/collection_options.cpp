@@ -53,6 +53,7 @@ void CollectionOptions::reset() {
     capped = false;
     cappedSize = 0;
     cappedMaxDocs = 0;
+    partitioned = false;
     initialNumExtents = 0;
     initialExtentSizes.clear();
     autoIndexId = DEFAULT;
@@ -62,6 +63,7 @@ void CollectionOptions::reset() {
     flagsSet = false;
     temp = false;
     storageEngine = BSONObj();
+    primaryKey = BSONObj();
 }
 
 Status CollectionOptions::parse(const BSONObj& options) {
@@ -95,6 +97,22 @@ Status CollectionOptions::parse(const BSONObj& options) {
             if (!validMaxCappedDocs(&cappedMaxDocs))
                 return Status(ErrorCodes::BadValue,
                               "max in a capped collection has to be < 2^31 or not set");
+        } else if (fieldName == "partitioned") {
+            partitioned = e.trueValue();
+        } else if (fieldName == "primaryKey") {
+            // primary key for partitioned collection
+            // for example:
+            // db.createCollection('prices', {primaryKey:  {time: 1, _id: 1},
+            //                     partitioned: true})
+            if (!options["partitioned"].trueValue()) {
+                // ignoring primary key for non-partitioned collections
+                continue;
+            }
+            if (e.type() != mongo::Object) {
+                return Status(ErrorCodes::BadValue, "'primaryKey' has to be a document.");
+            }
+
+            primaryKey = e.Obj().getOwned();
         } else if (fieldName == "$nExtents") {
             if (e.type() == Array) {
                 BSONObjIterator j(e.Obj());
@@ -160,6 +178,13 @@ BSONObj CollectionOptions::toBSON() const {
             b.appendNumber("size", cappedSize);
         if (cappedMaxDocs)
             b.appendNumber("max", cappedMaxDocs);
+    }
+
+    if (partitioned) {
+        b.appendBool("partitioned", true);
+        if (!primaryKey.isEmpty()) {
+            b.append("primaryKey", primaryKey);
+        }
     }
 
     if (initialNumExtents)

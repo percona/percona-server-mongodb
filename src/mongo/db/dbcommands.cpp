@@ -598,6 +598,9 @@ public:
                 "specify size:<n> when capped is true",
                 !options["capped"].trueValue() || options["size"].isNumber() ||
                     options.hasField("$nExtents"));
+        uassert(19171,
+                "Partitioned Collection cannot be capped",
+                !options["partitioned"].trueValue() || !options["capped"].trueValue());
 
         MONGO_WRITE_CONFLICT_RETRY_LOOP_BEGIN {
             ScopedTransaction transaction(txn, MODE_IX);

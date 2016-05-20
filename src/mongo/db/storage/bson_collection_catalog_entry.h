@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "mongo/db/catalog/collection_catalog_entry.h"
+#include "mongo/db/storage/partition_metadata.h"
 
 namespace mongo {
 
@@ -62,6 +63,8 @@ public:
     virtual RecordId getIndexHead(OperationContext* txn, const StringData& indexName) const;
 
     virtual bool isIndexReady(OperationContext* txn, const StringData& indexName) const;
+
+    virtual bool isPartitioned(OperationContext* txn) const override;
 
     // ------ for implementors
 
@@ -96,10 +99,42 @@ public:
 
         void rename(const StringData& toNS);
 
+        /**
+         * Two-step update of partititon metadata array:
+         * 1. update 'max' value in old last partition (skipped if array is empty prior to this call)
+         * 2. append metadata for new last partition
+         */
+        void storeNewPartitionMetadata(BSONObj const& maxpkforprev, int64_t partitionId, BSONObj const& maxpk);
+
+        void dropPartitionMetadata(int64_t partitionId);
+
         std::string ns;
         CollectionOptions options;
         std::vector<IndexMetaData> indexes;
+        PartitionMetaData::deque partitions;
     };
+
+    // --------- partitions --------------
+
+    void getPartitionInfo(OperationContext* txn, uint64_t* numPartitions, BSONArray* partitionArray) const;
+
+    Status forEachPMDWS(OperationContext* txn, const std::function<Status (BSONObj const&)>& f) override {
+        Status status = Status::OK();
+        MetaData md = _getMetaData(txn);
+        for (const auto& pmd: md.partitions) {
+            status = f(pmd.obj);
+            if (!status.isOK())
+                break;
+        }
+        return status;
+    }
+
+    void forEachPMD(OperationContext* txn, const std::function<void (BSONObj const&)>& f) override {
+        MetaData md = _getMetaData(txn);
+        for (const auto& pmd: md.partitions) {
+            f(pmd.obj);
+        }
+    }
 
 protected:
     virtual MetaData _getMetaData(OperationContext* txn) const = 0;

@@ -81,6 +81,10 @@ DBCollection.prototype.help = function () {
     print("\tdb." + shortName + ".unsetWriteConcern( <write concern doc> ) - unsets the write concern for writes to the collection");
     // print("\tdb." + shortName + ".getDiskStorageStats({...}) - prints a summary of disk usage statistics");
     // print("\tdb." + shortName + ".getPagesInRAM({...}) - prints a summary of storage pages currently in physical memory");
+    print("\tdb." + shortName + ".addPartition( <pivot> ) - add partition to a partitioned collection, optionally pass in pivot");
+    print("\tdb." + shortName + ".getPartitionInfo() - get partition information of partitioned collection");
+    print("\tdb." + shortName + ".dropPartition( id ) - drop partition of partitioned collection with specified id");
+    print("\tdb." + shortName + ".dropPartitionsLEQ( key ) - drop all partitions of a partitioned collection that contain data less than the provided partition key");
     return __magicNoPrint;
 }
 
@@ -1291,6 +1295,31 @@ DBCollection.prototype.group = function( params ){
 DBCollection.prototype.groupcmd = function( params ){
     params.ns = this._shortName;
     return this._db.groupcmd( params );
+}
+
+DBCollection.prototype.addPartition = function( pivot ){
+    if ( pivot == undefined) {
+        return this._dbCommand( { addPartition : this._shortName } );
+    }
+    return this._dbCommand( { addPartition : this._shortName , newMax : pivot } );
+}
+
+DBCollection.prototype.getPartitionInfo = function(){
+    return this._dbCommand( { getPartitionInfo : this._shortName } );
+}
+
+DBCollection.prototype.dropPartition = function( partitionID ){
+    if ( partitionID == undefined) {
+        throw "must specify id of partition to drop";
+    }
+    return this._dbCommand( { dropPartition : this._shortName , id : partitionID } );
+}
+
+DBCollection.prototype.dropPartitionsLEQ = function( maxKey ){
+    if ( maxKey == undefined) {
+        throw "must specify the maximum key";
+    }
+    return this._dbCommand( { dropPartition : this._shortName , max : maxKey } );
 }
 
 MapReduceResult = function( db , o ){

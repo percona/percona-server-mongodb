@@ -80,6 +80,10 @@ public:
         return _repr;
     }
 
+    int64_t partitionId() const {
+        return _repr >> 40;
+    }
+
     /**
      * Normal RecordIds are the only ones valid for representing Records. All RecordIds outside
      * of this range are sentinel values.

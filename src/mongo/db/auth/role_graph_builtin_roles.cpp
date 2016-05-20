@@ -119,6 +119,8 @@ MONGO_INITIALIZER(AuthorizationBuiltinRoles)(InitializerContext* context) {
     readWriteRoleActions << ActionType::convertToCapped   // db admin gets this also
                          << ActionType::createCollection  // db admin gets this also
                          << ActionType::dropCollection << ActionType::dropIndex
+                         << ActionType::addPartition      // db admin gets this also
+                         << ActionType::dropPartition     // db admin gets this also
                          << ActionType::emptycapped << ActionType::createIndex << ActionType::insert
                          << ActionType::remove
                          << ActionType::renameCollectionSameDB  // db admin gets this also
@@ -138,6 +140,8 @@ MONGO_INITIALIZER(AuthorizationBuiltinRoles)(InitializerContext* context) {
                        << ActionType::compact
                        << ActionType::convertToCapped   // read_write gets this also
                        << ActionType::createCollection  // read_write gets this also
+                       << ActionType::addPartition      // read_write gets this also
+                       << ActionType::dropPartition     // read_write gets this also
                        << ActionType::dbStats           // clusterMonitor gets this also
                        << ActionType::dropCollection
                        // clusterAdmin gets this also TODO(spencer): should readWriteAnyDatabase?

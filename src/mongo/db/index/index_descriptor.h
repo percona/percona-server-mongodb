@@ -157,6 +157,11 @@ public:
         return _isIdIndex;
     }
 
+    // Is parent collection partitioned?
+    bool isPartitioned() const {
+        return _collection->isPartitioned();
+    }
+
     //
     // Properties that are Index-specific.
     //
@@ -207,6 +212,12 @@ public:
     static std::string makeIndexNamespace(const StringData& ns, const StringData& name) {
         return ns.toString() + ".$" + name.toString();
     }
+
+    // iterate partition ids of parent collection (with status)
+    Status forEachPartition(OperationContext* txn, const std::function<Status (BSONObj const& pmd)>& f) const;
+
+    // iterate partition ids of parent collection (without status)
+    void forEachPartition(OperationContext* txn, const std::function<void (BSONObj const& pmd)>& f) const;
 
 private:
     void _checkOk() const;

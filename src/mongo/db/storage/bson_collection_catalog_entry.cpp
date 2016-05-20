@@ -30,6 +30,8 @@
 
 #include "mongo/db/storage/bson_collection_catalog_entry.h"
 
+#include "mongo/bson/bsonclone.h"
+
 namespace mongo {
 
 BSONCollectionCatalogEntry::BSONCollectionCatalogEntry(const StringData& ns)
@@ -103,6 +105,28 @@ bool BSONCollectionCatalogEntry::isIndexReady(OperationContext* txn,
     return md.indexes[offset].ready;
 }
 
+// --------- partitions --------------
+
+bool BSONCollectionCatalogEntry::isPartitioned(OperationContext* txn) const {
+    MetaData md = _getMetaData(txn);
+    return md.options.partitioned;
+}
+
+// returns the partition info with field names for the pivots filled in
+void BSONCollectionCatalogEntry::getPartitionInfo(OperationContext* txn, uint64_t* numPartitions, BSONArray* partitionArray) const {
+    MetaData md = _getMetaData(txn);
+    BSONArrayBuilder b;
+
+    uint64_t numPartitionsFoundInMeta = 0;
+    for (const auto& pmd: md.partitions) {
+        // each array element must have '_id', 'max', 'createTime'
+        b.append(pmd.obj);
+        ++numPartitionsFoundInMeta;
+    }
+    *numPartitions = numPartitionsFoundInMeta;
+    *partitionArray = b.arr();
+}
+
 // --------------------------
 
 void BSONCollectionCatalogEntry::IndexMetaData::updateTTLSetting(long long newExpireSeconds) {
@@ -166,6 +190,15 @@ BSONObj BSONCollectionCatalogEntry::MetaData::toBSON() const {
         }
         arr.done();
     }
+    if (options.partitioned) {
+        BSONArrayBuilder arr(b.subarrayStart("partitions"));
+        for (const auto& pmd: partitions) {
+            BSONObjBuilder sub(arr.subobjStart());
+            sub.appendElements(pmd.obj);
+            sub.done();
+        }
+        arr.done();
+    }
     return b.obj();
 }
 
@@ -193,5 +226,62 @@ void BSONCollectionCatalogEntry::MetaData::parse(const BSONObj& obj) {
             indexes.push_back(imd);
         }
     }
+
+    if (options.partitioned) {
+        BSONElement ps = obj["partitions"];
+        if (ps.isABSONObj()) {
+            for (const auto& pmd: ps.Array()) {
+                // pmd is BSONElement with partition metadata
+                partitions.emplace_back(pmd);
+            }
+        }
+    }
 }
+
+void BSONCollectionCatalogEntry::MetaData::storeNewPartitionMetadata(BSONObj const& maxpkforprev,
+                                                                     int64_t partitionId,
+                                                                     BSONObj const& maxpk) {
+    if (partitions.size() > 0) {
+        auto& back = partitions.back();
+        invariant(((back.id + 1) & 0x7fffff) == partitionId);
+        // replace 'max' value in the last metadata
+        BSONObjBuilder b(64);
+        const StringData fieldName("max");
+        for (BSONObjIterator it(back.obj); it.more(); it.next()) {
+            BSONElement e = *it;
+            if (fieldName == e.fieldName()) {
+                b.append(fieldName, maxpkforprev);
+            } else {
+                b.append(e);
+            }
+        }
+        back.obj = b.obj();
+    }
+    BSONObjBuilder b(64);
+    b.append("_id", (long long)partitionId);
+    b.append("max", maxpk);
+    b.appendDate("createTime", curTimeMillis64());
+    partitions.emplace_back(b.obj());
+}
+
+void BSONCollectionCatalogEntry::MetaData::dropPartitionMetadata(int64_t partitionId) {
+    // last partition is a special case:
+    // on its deletion we need to update max value of the new last partition
+    if (partitions.back().id == partitionId) {
+        // copy max key from last partition to the second last partition
+        auto penultimate = partitions.rbegin() + 1;
+        penultimate->obj = cloneBSONWithFieldChanged(penultimate->obj, "max",
+                                                     partitions.back().obj["max"].Obj());
+        // delete last partition
+        partitions.pop_back();
+        return;
+    }
+    for (auto it = partitions.begin(); it != partitions.end(); ++it) {
+        if (it->id == partitionId) {
+            partitions.erase(it);
+            break;
+        }
+    }
+}
+
 }

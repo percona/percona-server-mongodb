@@ -127,6 +127,9 @@ public:
         return _indexesName;
     }
 
+    static Collection* makeCollectionInstance(OperationContext* txn, const StringData& ns,
+                                              DatabaseCatalogEntry* dbce);
+
 private:
     /**
      * Gets or creates collection instance from existing metadata,

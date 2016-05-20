@@ -33,6 +33,7 @@
 #include "mongo/db/index/index_descriptor.h"
 #include "mongo/db/storage/kv/kv_catalog.h"
 #include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/kv/kv_partition_utils.h"
 
 namespace mongo {
 
@@ -59,18 +60,33 @@ public:
     RemoveIndexChange(OperationContext* opCtx,
                       KVCollectionCatalogEntry* cce,
                       const StringData& ident)
-        : _opCtx(opCtx), _cce(cce), _ident(ident.toString()) {}
+        : _opCtx(opCtx), _cce(cce), _ident(ident.toString()), _partitioned(cce->isPartitioned(opCtx)) {
+        // cannot call forEachPMD from commit() because metadat does not exist at that moment
+        // so need to cache partition ids here
+        if (_partitioned) {
+            _cce->forEachPMD(_opCtx, [this](BSONObj const& pmd) {
+                _pids.push_back(pmd["_id"].numberLong());
+            });
+        }
+    }
 
     virtual void rollback() {}
     virtual void commit() {
         // Intentionally ignoring failure here. Since we've removed the metadata pointing to the
         // index, we should never see it again anyway.
+        if (_partitioned) {
+            for (auto id: _pids)
+                _cce->_engine->dropIdent(_opCtx, getPartitionName(_ident, id));
+            return;
+        }
         _cce->_engine->dropIdent(_opCtx, _ident);
     }
 
     OperationContext* const _opCtx;
     KVCollectionCatalogEntry* const _cce;
     const std::string _ident;
+    const bool _partitioned;
+    std::deque<int64_t> _pids;
 };
 
 
@@ -166,6 +182,21 @@ void KVCollectionCatalogEntry::updateFlags(OperationContext* txn, int newValue) 
     MetaData md = _getMetaData(txn);
     md.options.flags = newValue;
     md.options.flagsSet = true;
+    _catalog->putMetaData(txn, ns().toString(), md);
+}
+
+void KVCollectionCatalogEntry::storeNewPartitionMetadata(OperationContext* txn,
+                                                         BSONObj const& maxpkforprev,
+                                                         int64_t partitionId,
+                                                         BSONObj const& maxpk) {
+    MetaData md = _getMetaData(txn);
+    md.storeNewPartitionMetadata(maxpkforprev, partitionId, maxpk);
+    _catalog->putMetaData(txn, ns().toString(), md);
+}
+
+void KVCollectionCatalogEntry::dropPartitionMetadata(OperationContext* txn, int64_t partitionId) {
+    MetaData md = _getMetaData(txn);
+    md.dropPartitionMetadata(partitionId);
     _catalog->putMetaData(txn, ns().toString(), md);
 }
 

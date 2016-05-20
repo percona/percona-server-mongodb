@@ -31,6 +31,7 @@
 #include "mongo/db/jsobj.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/record_id.h"
+#include "mongo/db/storage/partitioned_sorted_data_interface.h"
 #include "mongo/db/storage/record_store.h"
 
 #pragma once
@@ -58,7 +59,7 @@ class SortedDataBuilderInterface;
  *
  * TODO: See if this actually works.
  */
-class SortedDataInterface {
+class SortedDataInterface : public PartitionedSortedDataInterface {
 public:
     virtual ~SortedDataInterface() {}
 
