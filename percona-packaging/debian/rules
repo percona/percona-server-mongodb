@@ -2,6 +2,7 @@
 #
 export DH_VERBOSE=1
 export DEB_BUILD_HARDENING=1
+export PATH := /usr/local/go/bin:$(PATH)
 export NJOBS=$(shell grep -c processor /proc/cpuinfo)
 export PSM_TARGETS=mongod mongos mongo
 export PSMSRC=$(CURDIR)
@@ -53,10 +54,10 @@ compile-mongo-tools:
 	for tool in $(MONGOTOOLS) ; do \
 		cd $(PSMSRC)/mongo-tools; \
 		. ./set_gopath.sh; \
-		go build -a -o $(PSMSRC)/bin/$$tool -tags "$(TOOLS_TAGS)" $(PSMSRC)/mongo-tools/$$tool/main/$$tool.go ; \
+		go build -a -o $(PSMSRC)/bin/$$tool -ldflags "-X github.com/mongodb/mongo-tools/common/options.Gitspec=$$PSMDB_TOOLS_COMMIT_HASH -X github.com/mongodb/mongo-tools/common/options.VersionStr=$$PSMDB_TOOLS_REVISION" -tags "$(TOOLS_TAGS)" $(PSMSRC)/mongo-tools/$$tool/main/$$tool.go; \
 	done
 
-build: compile-mongo-tools PerconaFT RocksDB TokuBackup percona-server-mongodb
+build: PerconaFT RocksDB TokuBackup compile-mongo-tools percona-server-mongodb
 
 override_dh_auto_install:
 	dh_auto_install
