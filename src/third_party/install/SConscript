@@ -25,8 +25,16 @@ def make_rocksdb_with(make_part):
 def clean_rocksdb(target, source, env):
     return make_rocksdb_with(['clean', 'uninstall'])
 
-def build_rocksdb(target, source, env):
+def build_rocksdb_once(target, source, env):
     return make_rocksdb_with(['-j' + str(env.GetOption('num_jobs')), 'install-static'])
+
+def build_rocksdb(target, source, env):
+    retcode = build_rocksdb_once(target, source, env)
+    # RocksDB engine fails to build incrementally, clean-rebuild it in this case
+    if retcode != 0:
+        clean_rocksdb(target, source, env)
+        retcode = build_rocksdb_once(target, source, env)
+    return retcode
 
 if rocksdb:
     # Always build (make) RocksDB engine
