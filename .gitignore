@@ -51,6 +51,9 @@
 /src/third_party/*/*.cache
 /src/third_party/*/*.tlog
 /src/third_party/*/*.lastbuildstate
+/src/third_party/install/*
+!/src/third_party/install/SCons*
+!/src/third_party/install/shim_install.cpp
 config.log
 settings.py
 log_config.py

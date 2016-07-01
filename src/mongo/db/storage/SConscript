@@ -12,7 +12,6 @@ env.SConscript(
 )
 
 if rocksdb:
-    env.PrepareRocks()
     env.SConscript(dirs='rocks')
 
 env.Library(

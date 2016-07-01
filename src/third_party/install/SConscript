@@ -1,0 +1,59 @@
+Import("env")
+Import("rocksdb")
+
+# InjectThirdPartyIncludePaths in a hard way
+env.PrependUnique(CPPPATH=['#/src/third_party/install/include'])
+env.PrependUnique(LIBPATH=['#/src/third_party/install/lib'])
+
+rocks_dir = '#/src/third_party/rocksdb/'
+install_lib = 'lib/'
+rocks_lib_l = 'rocksdb'
+
+def CheckClean(env):
+    if env.GetOption('clean'):
+        env.Execute(Action(clean_rocksdb))
+
+def make_rocksdb_with(make_part):
+    import subprocess
+
+    build_dir = Dir(rocks_dir).get_abspath()
+    p = subprocess.Popen(
+            ['make', 'INSTALL_PATH=../install', 'DEBUG_LEVEL=0'] + make_part,
+            cwd=build_dir)
+    return p.wait()
+
+def clean_rocksdb(target, source, env):
+    return make_rocksdb_with(['clean', 'uninstall'])
+
+def build_rocksdb(target, source, env):
+    return make_rocksdb_with(['-j' + str(env.GetOption('num_jobs')), 'install-static'])
+
+if rocksdb:
+    # Always build (make) RocksDB engine
+    rocks_target = install_lib + env['LIBPREFIX'] + rocks_lib_l + env['LIBSUFFIX']
+    env.Command(
+        target=rocks_target,
+        source=[],
+        action=build_rocksdb,
+    )
+    env.AlwaysBuild(rocks_target)
+    # Set up cleanup handler if -c is passed
+    CheckClean(env)
+    # Add more includes since we cannot control the order Mongo-Rocks
+    # gets built (it doesn't depend on us). If it builds before,
+    # there will be no header files in install/include folder yet.
+    env.PrependUnique(CPPPATH=[rocks_dir + 'include'])
+
+# Add built libraries as dependencies to the shim
+installEnv = env.Clone()
+if rocksdb:
+    installEnv = installEnv.Clone(
+        LIBDEPS=[
+            install_lib + rocks_lib_l,
+        ])
+
+installEnv.Library(
+    target="shim_install",
+    source=[
+        'shim_install.cpp'
+    ])

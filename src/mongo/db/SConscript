@@ -653,6 +653,7 @@ serveronlyLibdeps = [
     "$BUILD_DIR/mongo/util/elapsed_tracker",
     "$BUILD_DIR/mongo/db/storage/mmap_v1/file_allocator",
     "$BUILD_DIR/third_party/shim_snappy",
+    "$BUILD_DIR/third_party/install/shim_install",
     "auth/authmongod",
     "catalog/collection_options",
     "catalog/index_key_validate",

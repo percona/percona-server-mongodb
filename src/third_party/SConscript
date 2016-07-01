@@ -86,10 +86,6 @@ def injectThirdPartyIncludePaths(thisEnv, libraries):
 env.AddMethod(injectAllThirdPartyIncludePaths, 'InjectAllThirdPartyIncludePaths')
 env.AddMethod(injectThirdPartyIncludePaths, 'InjectThirdPartyIncludePaths')
 
-def prepareRocks(thisEnv):
-    thisEnv.PrependUnique(CPPPATH=['#/src/third_party/rocksdb/include'])
-    thisEnv.PrependUnique(LIBPATH=['#/src/third_party/rocksdb'])
-env.AddMethod(prepareRocks, 'PrepareRocks')
 
 murmurEnv = env.Clone()
 murmurEnv.SConscript('murmurhash3/SConscript', exports={ 'env' : murmurEnv })
@@ -338,6 +334,9 @@ asioEnv.Library(
     source=[
         'shim_asio.cpp'
     ])
+
+# Inject all Percona dependencies, use original env to propagate them further
+env.SConscript('install/SConscript')
 
 if get_option("experimental-decimal-support") == "on":
     if use_system_version_of_library("intel_decimal128"):
