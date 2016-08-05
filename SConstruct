@@ -177,6 +177,15 @@ add_option('disable-minimum-compiler-version-enforcement',
     nargs=0,
 )
 
+add_option('rocksdb',
+    choices=['on', 'off'],
+    const='on',
+    default='off',
+    help='Enable RocksDB',
+    nargs='?',
+    type='choice',
+)
+
 add_option('ssl',
     help='Enable SSL',
     nargs=0
@@ -783,6 +792,8 @@ if releaseBuild and (debugBuild or not optBuild):
 noshell = has_option( "noshell" )
 
 jsEngine = get_option( "js-engine")
+
+rocksdb = get_option( "rocksdb" ) == "on"
 
 serverJs = get_option( "server-js" ) == "on"
 
@@ -2507,6 +2518,7 @@ Export("usemozjs")
 Export("boostSuffix")
 Export('module_sconscripts')
 Export("debugBuild optBuild")
+Export("rocksdb")
 Export("wiredtiger")
 
 def injectMongoIncludePaths(thisEnv):

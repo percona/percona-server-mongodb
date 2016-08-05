@@ -335,6 +335,9 @@ asioEnv.Library(
         'shim_asio.cpp'
     ])
 
+# Inject all Percona dependencies, use original env to propagate them further
+env.SConscript('install/SConscript')
+
 if get_option("experimental-decimal-support") == "on":
     if use_system_version_of_library("intel_decimal128"):
         intelDecimal128Env = env.Clone(
