@@ -591,8 +591,8 @@ StatusWith<RecordId> Collection::updateDocument(OperationContext* txn,
 
     // This can call back into Collection::recordStoreGoingToMove.  If that happens, the old
     // object is removed from all indexes.
-    StatusWith<RecordId> newLocation = _recordStore->updateRecord(
-        txn, oldLocation, newDoc.objdata(), newDoc.objsize(), _enforceQuota(enforceQuota), this);
+    StatusWith<RecordId> newLocation = _recordStore->updateRecordEx(
+        txn, oldLocation, oldSize, newDoc.objdata(), newDoc.objsize(), _enforceQuota(enforceQuota), this);
 
     if (!newLocation.isOK()) {
         return newLocation;
