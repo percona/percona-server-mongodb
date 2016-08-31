@@ -413,6 +413,16 @@ public:
                                               bool enforceQuota,
                                               UpdateNotifier* notifier) = 0;
 
+    virtual StatusWith<RecordId> updateRecordEx(OperationContext* txn,
+                                                const RecordId& oldLocation,
+                                                int oldlen,
+                                                const char* data,
+                                                int len,
+                                                bool enforceQuota,
+                                                UpdateNotifier* notifier) {
+        return updateRecord(txn, oldLocation, data, len, enforceQuota, notifier);
+    }
+
     /**
      * @return Returns 'false' if this record store does not implement
      * 'updatewithDamages'. If this method returns false, 'updateWithDamages' must not be
