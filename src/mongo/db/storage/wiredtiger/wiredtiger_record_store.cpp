@@ -1373,19 +1373,43 @@ StatusWith<RecordId> WiredTigerRecordStore::updateRecord(OperationContext* txn,
                                                          int len,
                                                          bool enforceQuota,
                                                          UpdateNotifier* notifier) {
+    return _updateRecord(txn, id, /*unknown length*/ -1, data, len, enforceQuota, notifier);
+}
+
+StatusWith<RecordId> WiredTigerRecordStore::updateRecordEx(OperationContext* txn,
+                                                           const RecordId& id,
+                                                           int old_length,
+                                                           const char* data,
+                                                           int len,
+                                                           bool enforceQuota,
+                                                           UpdateNotifier* notifier) {
+    return _updateRecord(txn, id, old_length, data, len, enforceQuota, notifier);
+}
+
+StatusWith<RecordId> WiredTigerRecordStore::_updateRecord(OperationContext* txn,
+                                                          const RecordId& id,
+                                                          int old_length,
+                                                          const char* data,
+                                                          int len,
+                                                          bool enforceQuota,
+                                                          UpdateNotifier* notifier) {
     WiredTigerCursor curwrap(_uri, _tableId, true, txn);
     curwrap.assertInActiveTxn();
     WT_CURSOR* c = curwrap.get();
     invariant(c);
-    c->set_key(c, _makeKey(id));
-    int ret = WT_OP_CHECK(c->search(c));
-    invariantWTOK(ret);
 
-    WT_ITEM old_value;
-    ret = c->get_value(c, &old_value);
-    invariantWTOK(ret);
+    int ret = 0;
+    if (old_length == -1) {
+        c->set_key(c, _makeKey(id));
+        ret = WT_OP_CHECK(c->search(c));
+        invariantWTOK(ret);
 
-    int64_t old_length = old_value.size;
+        WT_ITEM old_value;
+        ret = c->get_value(c, &old_value);
+        invariantWTOK(ret);
+
+        old_length = old_value.size;
+    }
 
     if (_oplogStones && len != old_length) {
         return {ErrorCodes::IllegalOperation, "Cannot change the size of a document in the oplog"};
