@@ -117,6 +117,14 @@ namespace mongo {
                                                   bool enforceQuota,
                                                   UpdateNotifier* notifier );
 
+        virtual StatusWith<RecordId> updateRecordEx( OperationContext* txn,
+                                                    const RecordId& oldLocation,
+                                                    int old_length,
+                                                    const char* data,
+                                                    int len,
+                                                    bool enforceQuota,
+                                                    UpdateNotifier* notifier );
+
         virtual bool updateWithDamagesSupported() const {
             return _db->updateSupported();
         }
@@ -250,6 +258,9 @@ namespace mongo {
         void _updateStats(OperationContext *txn, long long nrDelta, long long dsDelta);
 
         bool _findRecord(OperationContext* txn, const RecordId& loc, RecordData* out, bool skipPessimisticLocking) const;
+
+        StatusWith<RecordId> _updateRecord(OperationContext* txn, const RecordId& oldLocation, int old_length, const char* data,
+                                           int len, bool enforceQuota, UpdateNotifier* notifier);
 
         // Internal version of dataFor that takes a KVDictionary - used by
         // the RecordCursor to implement dataFor.

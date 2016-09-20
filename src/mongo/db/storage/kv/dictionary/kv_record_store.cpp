@@ -281,24 +281,49 @@ namespace mongo {
                                                      int len,
                                                      bool enforceQuota,
                                                      UpdateNotifier* notifier) {
+        return _updateRecord(txn, id, /*unknown length*/ -1, data, len, enforceQuota, notifier);
+    }
+
+    StatusWith<RecordId> KVRecordStore::updateRecordEx(OperationContext* txn,
+                                                       const RecordId& id,
+                                                       int old_length,
+                                                       const char* data,
+                                                       int len,
+                                                       bool enforceQuota,
+                                                       UpdateNotifier* notifier) {
+        return _updateRecord(txn, id, old_length, data, len, enforceQuota, notifier);
+    }
+
+    StatusWith<RecordId> KVRecordStore::_updateRecord(OperationContext* txn,
+                                                      const RecordId& id,
+                                                      int old_length,
+                                                      const char* data,
+                                                      int len,
+                                                      bool enforceQuota,
+                                                      UpdateNotifier* notifier) {
         const KeyString key(id);
         const Slice value(data, len);
 
         int64_t numRecordsDelta = 0;
         int64_t dataSizeDelta = value.size();
 
-        Slice val;
-        Status status = _db->get(txn, Slice::of(key), val, false);
-        if (status.code() == ErrorCodes::NoSuchKey) {
-            numRecordsDelta += 1;
-        } else if (status.isOK()) {
-            dataSizeDelta -= val.size();
-        } else {
-            return StatusWith<RecordId>(status);
+        if (old_length == -1) {
+            old_length = 0;
+
+            Slice val;
+            Status status = _db->get(txn, Slice::of(key), val, false);
+            if (status.code() == ErrorCodes::NoSuchKey) {
+                numRecordsDelta += 1;
+            } else if (status.isOK()) {
+                old_length = val.size();
+            } else {
+                return StatusWith<RecordId>(status);
+            }
         }
+        dataSizeDelta -= old_length;
 
         // An update with a complete new image (data, len) is implemented as an overwrite insert.
-        status = _db->insert(txn, Slice::of(key), value, false);
+        Status status = _db->insert(txn, Slice::of(key), value, false);
         if (!status.isOK()) {
             return StatusWith<RecordId>(status);
         }
