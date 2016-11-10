@@ -23,9 +23,6 @@ env.Library(
     )
 
 coredbOptionalLibdeps = []
-if has_option('audit'):
-    coredbOptionalLibdeps.append('$BUILD_DIR/mongo/db/audit/audit')
-
 if has_option('hotbackup'):
     coredbOptionalLibdeps.append('$BUILD_DIR/mongo/db/backup/backup')
 

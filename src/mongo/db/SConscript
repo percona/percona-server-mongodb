@@ -479,7 +479,7 @@ env.Library(
         "audit.cpp",
     ],
     LIBDEPS=[
-    ],
+    ] + (['audit/audit'] if has_option('audit') else []),
 )
 
 env.Library(
