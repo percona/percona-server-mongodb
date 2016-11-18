@@ -36,6 +36,7 @@
 #include <limits>
 
 #include "mongo/base/status.h"
+#include "mongo/db/audit.h"
 #include "mongo/db/concurrency/d_concurrency.h"
 #include "mongo/db/global_timestamp.h"
 #include "mongo/db/index/index_descriptor.h"
@@ -2297,6 +2298,14 @@ Status ReplicationCoordinatorImpl::processReplSetReconfig(OperationContext* txn,
         return status;
     }
 
+    {
+        BSONObj oldConfForAudit = oldConfig.toBSON();
+        BSONObj newConfForAudit = newConfig.toBSON();
+        audit::logReplSetReconfig(ClientBasic::getCurrent(),
+                                          &oldConfForAudit,
+                                          &newConfForAudit);
+    }
+
     const stdx::function<void(const ReplicationExecutor::CallbackArgs&)> reconfigFinishFn(
         stdx::bind(&ReplicationCoordinatorImpl::_finishReplSetReconfig,
                    this,
@@ -2416,6 +2425,14 @@ Status ReplicationCoordinatorImpl::processReplSetInitiate(OperationContext* txn,
         error() << "replSetInitiate failed to store config document or create the oplog; "
                 << status;
         return status;
+    }
+
+    {
+        BSONObj oldConfForAudit;
+        BSONObj newConfForAudit = newConfig.toBSON();
+        audit::logReplSetReconfig(ClientBasic::getCurrent(),
+                                          &oldConfForAudit,
+                                          &newConfForAudit);
     }
 
     if (replEnabled) {

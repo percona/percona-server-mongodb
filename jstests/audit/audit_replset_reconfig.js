@@ -17,7 +17,7 @@ auditTestRepl(
         var newConfig = JSON.parse(JSON.stringify(oldConfig));
         newConfig.version = 200; // tired of playing games with the version
 
-        //var master = replTest.getMaster();
+        //var master = replTest.getPrimary();
         //try {
         //    assert.commandWorked(master.adminCommand({ replSetReconfig: newConfig }));
         //} catch (e) {
@@ -33,7 +33,7 @@ auditTestRepl(
         replTest.nodes.forEach(function(m) { 
             print('audit check looking for old, new: ' +tojson(oldConfig)+', '+tojson(newConfig));
             // We need to import the audit events collection into the master node.
-            auditColl = getAuditEventsCollection(m, replTest.getMaster());
+            auditColl = getAuditEventsCollection(m, replTest.getPrimary());
             assert.eq(1, auditColl.count({
                 atype: "replSetReconfig",
                 // Allow timestamps up to 20 seconds old, since replSetReconfig may be slow

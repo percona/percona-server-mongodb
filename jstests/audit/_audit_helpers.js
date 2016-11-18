@@ -156,8 +156,8 @@ var loadAuditEventsIntoCollection = function(m, filename, dbname, collname, prim
 
     // there should be no duplicate audit log lines
     assert.commandWorked(auditCollection.createIndex(
-        { atype: 1, ts: 1, local: 1, remote: 1, users: 1, params: 1, result: 1 },
-        { unique: true }
+        { atype: 1, ts: 1, local: 1, remote: 1, users: 1, result: 1 },
+        {}
     ));
 
     return auditCollection;
