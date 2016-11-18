@@ -73,7 +73,7 @@ void InitialSync::_applyOplogUntil(OperationContext* txn, const OpTime& endOpTim
         OpQueue ops;
 
         auto replCoord = repl::ReplicationCoordinator::get(txn);
-        while (!tryPopAndWaitForMore(txn, &ops)) {
+        while (!tryPopAndWaitForMore(txn, &ops, BatchLimits{})) {
             if (inShutdown()) {
                 return;
             }
@@ -95,17 +95,11 @@ void InitialSync::_applyOplogUntil(OperationContext* txn, const OpTime& endOpTim
                          << " without seeing it. Rollback?";
                 fassertFailedNoTrace(18693);
             }
-
-            // apply replication batch limits
-            if (ops.getSize() > replBatchLimitBytes)
-                break;
-            if (ops.getDeque().size() > replBatchLimitOperations)
-                break;
         };
 
         if (ops.empty()) {
-            severe() << "got no ops for batch...";
-            fassertFailedNoTrace(18692);
+            // nothing came back last time, so go again
+            continue;
         }
 
         const BSONObj lastOp = ops.back().raw.getOwned();

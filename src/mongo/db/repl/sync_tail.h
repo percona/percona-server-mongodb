@@ -34,6 +34,7 @@
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/repl/minvalid.h"
+#include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/storage/mmap_v1/dur.h"
 #include "mongo/stdx/functional.h"
 #include "mongo/util/concurrency/old_thread_pool.h"
@@ -94,7 +95,7 @@ public:
 
     static Status syncApply(OperationContext* txn, const BSONObj& o, bool convertUpdateToUpsert);
 
-    void oplogApplication();
+    void oplogApplication(StorageInterface* storageInterface);
     bool peek(BSONObj* obj);
 
     /**
@@ -117,6 +118,7 @@ public:
         BSONElement version;
         BSONElement o;
         BSONElement o2;
+        BSONElement ts;
     };
 
     class OpQueue {
@@ -141,14 +143,34 @@ public:
             return _deque.back();
         }
 
+        const OplogEntry& front() const {
+            invariant(!_deque.empty());
+            return _deque.front();
+        }
+
     private:
         std::deque<OplogEntry> _deque;
         size_t _size;
     };
 
-    // returns true if we should continue waiting for BSONObjs, false if we should
-    // stop waiting and apply the queue we have.  Only returns false if !ops.empty().
-    bool tryPopAndWaitForMore(OperationContext* txn, OpQueue* ops);
+    struct BatchLimits {
+        size_t bytes = replBatchLimitBytes;
+        size_t ops = replBatchLimitOperations;
+
+        // If provided, the batch will not include any operations with timestamps after this point.
+        // This is intended for implementing slaveDelay, so it should be some number of seconds
+        // before now.
+        boost::optional<Date_t> slaveDelayLatestTimestamp = {};
+    };
+
+    /**
+     * Attempts to pop an OplogEntry off the BGSync queue and add it to ops.
+     *
+     * Returns true if the (possibly empty) batch in ops should be ended and a new one started.
+     * If ops is empty on entry and nothing can be added yet, will wait up to a second before
+     * returning true.
+     */
+    bool tryPopAndWaitForMore(OperationContext* txn, OpQueue* ops, const BatchLimits& limits);
 
     /**
      * Fetch a single document referenced in the operation from the sync source.
@@ -172,15 +194,12 @@ protected:
     // Cap the batches using the limit on journal commits.
     // This works out to be 100 MB (64 bit) or 50 MB (32 bit)
     static const unsigned int replBatchLimitBytes = dur::UncommittedBytesLimit;
-    static const int replBatchLimitSeconds = 1;
     static const unsigned int replBatchLimitOperations = 5000;
 
     // Apply a batch of operations, using multiple threads.
     // If boundries is supplied, will update minValid document at begin and end of batch.
     // Returns the last OpTime applied during the apply batch, ops.end["ts"] basically.
-    OpTime multiApply(OperationContext* txn,
-                      const OpQueue& ops,
-                      boost::optional<BatchBoundaries> boundaries = {});
+    OpTime multiApply(OperationContext* txn, const OpQueue& ops);
 
 private:
     class OpQueueBatcher;

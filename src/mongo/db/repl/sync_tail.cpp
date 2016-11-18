@@ -108,6 +108,11 @@ static Counter64 opsAppliedStats;
 // The oplog entries applied
 static ServerStatusMetricField<Counter64> displayOpsApplied("repl.apply.ops", &opsAppliedStats);
 
+// Number of times we tried to go live as a secondary.
+static Counter64 attemptsToBecomeSecondary;
+static ServerStatusMetricField<Counter64> displayAttemptsToBecomeSecondary(
+    "repl.apply.attemptsToBecomeSecondary", &attemptsToBecomeSecondary);
+
 MONGO_FP_DECLARE(rsSyncApplyStop);
 
 // Number and time of each ApplyOps worker pool round
@@ -129,39 +134,6 @@ bool isCrudOpType(const char* field) {
             return field[1] == 0;
     }
     return false;
-}
-
-void handleSlaveDelay(const Timestamp& ts) {
-    ReplicationCoordinator* replCoord = getGlobalReplicationCoordinator();
-    int slaveDelaySecs = durationCount<Seconds>(replCoord->getSlaveDelaySecs());
-
-    // ignore slaveDelay if the box is still initializing. once
-    // it becomes secondary we can worry about it.
-    if (slaveDelaySecs > 0 && replCoord->getMemberState().secondary()) {
-        long long a = ts.getSecs();
-        long long b = time(0);
-        long long lag = b - a;
-        long long sleeptime = slaveDelaySecs - lag;
-        if (sleeptime > 0) {
-            uassert(12000,
-                    "rs slaveDelay differential too big check clocks and systems",
-                    sleeptime < 0x40000000);
-            if (sleeptime < 60) {
-                sleepsecs((int)sleeptime);
-            } else {
-                warning() << "slavedelay causing a long sleep of " << sleeptime << " seconds";
-                // sleep(hours) would prevent reconfigs from taking effect & such!
-                long long waitUntil = b + sleeptime;
-                while (time(0) < waitUntil) {
-                    sleepsecs(6);
-
-                    // Handle reconfigs that changed the slave delay
-                    if (durationCount<Seconds>(replCoord->getSlaveDelaySecs()) != slaveDelaySecs)
-                        break;
-                }
-            }
-        }
-    }  // endif slaveDelay
 }
 }
 
@@ -528,9 +500,7 @@ void fillWriterVectors(OperationContext* txn,
 
 // Applies a batch of oplog entries, by using a set of threads to apply the operations and then
 // writes the oplog entries to the local oplog.
-OpTime SyncTail::multiApply(OperationContext* txn,
-                            const OpQueue& ops,
-                            boost::optional<BatchBoundaries> boundaries) {
+OpTime SyncTail::multiApply(OperationContext* txn, const OpQueue& ops) {
     invariant(_applyFunc);
 
     if (getGlobalServiceContext()->getGlobalStorageEngine()->isMmapV1()) {
@@ -561,12 +531,8 @@ OpTime SyncTail::multiApply(OperationContext* txn,
         fassertFailed(28527);
     }
 
-    if (boundaries) {
-        setMinValid(txn, *boundaries);  // Mark us as in the middle of a batch.
-    }
-
-    applyOps(writerVectors, &_writerPool, _applyFunc, this);
-
+    // Since we write the oplog from a single thread in-order, we don't need to use the
+    // oplogDeleteFromPoint.
     OpTime lastOpTime;
     {
         ON_BLOCK_EXIT([&] { _writerPool.join(); });
@@ -578,24 +544,27 @@ OpTime SyncTail::multiApply(OperationContext* txn,
         lastOpTime = writeOpsToOplog(txn, raws);
     }
 
+    setMinValidToAtLeast(txn, lastOpTime);  // Mark us as in the middle of a batch.
+
+    applyOps(writerVectors, &_writerPool, _applyFunc, this);
+    _writerPool.join();
+
     // Due to SERVER-24933 we can't enter inShutdown while holding the PBWM lock.
     invariant(!inShutdownStrict());
 
-    if (boundaries) {
-        setMinValid(txn, boundaries->end, DurableRequirement::None);  // Mark batch as complete.
-    }
+    setAppliedThrough(txn, lastOpTime);  // Mark batch as complete.
 
     return lastOpTime;
 }
 
 namespace {
-void tryToGoLiveAsASecondary(OperationContext* txn,
-                             ReplicationCoordinator* replCoord,
-                             const BatchBoundaries& minValidBoundaries,
-                             const OpTime& lastWriteOpTime) {
+void tryToGoLiveAsASecondary(OperationContext* txn, ReplicationCoordinator* replCoord) {
     if (replCoord->isInPrimaryOrSecondaryState()) {
         return;
     }
+
+    // This needs to happen after the attempt so readers can be sure we've already tried.
+    ON_BLOCK_EXIT([] { attemptsToBecomeSecondary.increment(); });
 
     ScopedTransaction transaction(txn, MODE_S);
     Lock::GlobalRead readLock(txn->lockState());
@@ -611,15 +580,8 @@ void tryToGoLiveAsASecondary(OperationContext* txn,
         return;
     }
 
-    // If an apply batch is active then we cannot transition.
-    if (!minValidBoundaries.start.isNull()) {
-        return;
-    }
-
-    // Must have applied/written to minvalid, so return if not.
-    // -- If 'lastWriteOpTime' is null/uninitialized then we can't transition.
-    // -- If 'lastWriteOpTime' is less than the end of the last batch then we can't transition.
-    if (lastWriteOpTime.isNull() || minValidBoundaries.end > lastWriteOpTime) {
+    // We can't go to SECONDARY until we reach minvalid.
+    if (replCoord->getMyLastAppliedOpTime() < getMinValid(txn)) {
         return;
     }
 
@@ -635,7 +597,8 @@ class SyncTail::OpQueueBatcher {
     MONGO_DISALLOW_COPYING(OpQueueBatcher);
 
 public:
-    explicit OpQueueBatcher(SyncTail* syncTail) : _syncTail(syncTail), _thread([&] { run(); }) {}
+    explicit OpQueueBatcher(SyncTail* syncTail, StorageInterface* storageInterface)
+        : _syncTail(syncTail), _storageInterface(storageInterface), _thread([&] { run(); }) {}
     ~OpQueueBatcher() {
         _inShutdown.store(true);
         _cv.notify_all();
@@ -663,47 +626,32 @@ private:
         OperationContextImpl txn;
         auto replCoord = ReplicationCoordinator::get(&txn);
 
+        const auto oplogMaxSize = fassertStatusOK(
+            40301, _storageInterface->getOplogMaxSize(&txn, NamespaceString(rsOplogName)));
+
+        // Batches are limited to 10% of the oplog.
+        BatchLimits batchLimits;
+        batchLimits.ops = replBatchLimitOperations;
+        batchLimits.bytes = std::min(oplogMaxSize / 10, size_t(replBatchLimitBytes));
         while (!_inShutdown.load()) {
-            Timer batchTimer;
+            const auto slaveDelay = replCoord->getSlaveDelaySecs();
+            batchLimits.slaveDelayLatestTimestamp = (slaveDelay > Seconds(0))
+                ? (Date_t::now() - slaveDelay)
+                : boost::optional<Date_t>();
 
             OpQueue ops;
-            // tryPopAndWaitForMore returns true when we need to end a batch early
-            while (!_syncTail->tryPopAndWaitForMore(&txn, &ops) &&
-                   (ops.getSize() < replBatchLimitBytes) && !_inShutdown.load()) {
-                int now = batchTimer.seconds();
-
-                // apply replication batch limits
-                if (!ops.empty()) {
-                    if (now > replBatchLimitSeconds)
-                        break;
-                    if (ops.getDeque().size() > replBatchLimitOperations)
-                        break;
-                }
-
-                const int slaveDelaySecs = durationCount<Seconds>(replCoord->getSlaveDelaySecs());
-                if (!ops.empty() && slaveDelaySecs > 0) {
-                    const BSONObj lastOp = ops.back().raw;
-                    const unsigned int opTimestampSecs = lastOp["ts"].timestamp().getSecs();
-
-                    // Stop the batch as the lastOp is too new to be applied. If we continue
-                    // on, we can get ops that are way ahead of the delay and this will
-                    // make this thread sleep longer when handleSlaveDelay is called
-                    // and apply ops much sooner than we like.
-                    if (opTimestampSecs > static_cast<unsigned int>(time(0) - slaveDelaySecs)) {
-                        break;
-                    }
-                }
-
-                if (MONGO_FAIL_POINT(rsSyncApplyStop)) {
-                    break;
-                }
-
-                // keep fetching more ops as long as we haven't filled up a full batch yet
+            // tryPopAndWaitForMore adds to ops and returns true when we need to end a batch early.
+            while (!_inShutdown.load() &&
+                   !_syncTail->tryPopAndWaitForMore(&txn, &ops, batchLimits)) {
             }
 
             // For pausing replication in tests
             while (MONGO_FAIL_POINT(rsSyncApplyStop) && !_inShutdown.load()) {
                 sleepmillis(0);
+            }
+
+            if (ops.empty()) {
+                continue;  // Don't emit empty batches.
             }
 
             stdx::unique_lock<stdx::mutex> lk(_mutex);
@@ -720,6 +668,7 @@ private:
 
     AtomicWord<bool> _inShutdown;
     SyncTail* const _syncTail;
+    StorageInterface* const _storageInterface;
 
     stdx::mutex _mutex;  // Guards _ops.
     stdx::condition_variable _cv;
@@ -729,8 +678,8 @@ private:
 };
 
 /* tail an oplog.  ok to return, will be re-called. */
-void SyncTail::oplogApplication() {
-    OpQueueBatcher batcher(this);
+void SyncTail::oplogApplication(StorageInterface* storageInterface) {
+    OpQueueBatcher batcher(this, storageInterface);
 
     OperationContextImpl txn;
     auto replCoord = ReplicationCoordinator::get(&txn);
@@ -739,9 +688,6 @@ void SyncTail::oplogApplication() {
             ? new ApplyBatchFinalizerForJournal(replCoord)
             : new ApplyBatchFinalizer(replCoord)};
 
-    auto minValidBoundaries = getMinValid(&txn);
-    OpTime originalEndOpTime(minValidBoundaries.end);
-    OpTime lastWriteOpTime{replCoord->getMyLastAppliedOpTime()};
     while (!inShutdown()) {
         OpQueue ops;
 
@@ -751,7 +697,7 @@ void SyncTail::oplogApplication() {
                 return;
             }
 
-            tryToGoLiveAsASecondary(&txn, replCoord, minValidBoundaries, lastWriteOpTime);
+            tryToGoLiveAsASecondary(&txn, replCoord);
 
             // Blocks up to a second waiting for a batch to be ready to apply. If one doesn't become
             // ready in time, we'll loop again so we can do the above checks periodically.
@@ -763,9 +709,7 @@ void SyncTail::oplogApplication() {
 
         invariant(!ops.empty());
 
-        const BSONObj lastOp = ops.back().raw;
-
-        if (lastOp.isEmpty()) {
+        if (ops.front().raw.isEmpty()) {
             // This means that the network thread has coalesced and we have processed all of its
             // data.
             invariant(ops.getDeque().size() == 1);
@@ -773,65 +717,40 @@ void SyncTail::oplogApplication() {
                 replCoord->signalDrainComplete(&txn);
             }
 
-            // Reset some values when triggered in case it was from a rollback.
-            minValidBoundaries = getMinValid(&txn);
-            lastWriteOpTime = replCoord->getMyLastAppliedOpTime();
-            originalEndOpTime = minValidBoundaries.end;
-
             continue;  // This wasn't a real op. Don't try to apply it.
         }
 
-        const auto lastOpTime = fassertStatusOK(28773, OpTime::parseFromOplogEntry(lastOp));
-        // TODO: Make ">=" once SERVER-21988 is fixed.
-        if (lastWriteOpTime > lastOpTime) {
-            // Error for the oplog to go back in time.
+        // Extract some info from ops that we'll need after releasing the batch below.
+        const auto firstOpTimeInBatch =
+            fassertStatusOK(40299, OpTime::parseFromOplogEntry(ops.front().raw));
+        const auto lastOpTimeInBatch =
+            fassertStatusOK(28773, OpTime::parseFromOplogEntry(ops.back().raw));
+
+        // Make sure the oplog doesn't go back in time or repeat an entry.
+        if (firstOpTimeInBatch <= replCoord->getMyLastAppliedOpTime()) {
             fassert(34361,
                     Status(ErrorCodes::OplogOutOfOrder,
-                           str::stream() << "Attempted to apply an earlier oplog entry (ts: "
-                                         << lastOpTime.getTimestamp().toStringPretty()
-                                         << ") when our lastWrittenOptime was "
-                                         << lastWriteOpTime.toString()));
+                           str::stream() << "Attempted to apply an oplog entry ("
+                                         << firstOpTimeInBatch.toString()
+                                         << ") which is not greater than our last applied OpTime ("
+                                         << replCoord->getMyLastAppliedOpTime().toString()
+                                         << ")."));
         }
 
-        handleSlaveDelay(lastOpTime.getTimestamp());
-
-        // Set minValid to the last OpTime that needs to be applied, in this batch or from the
-        // (last) failed batch, whichever is larger.
-        // This will cause this node to go into RECOVERING state
-        // if we should crash and restart before updating finishing.
-        minValidBoundaries.start = OpTime(getLastSetTimestamp(), OpTime::kUninitializedTerm);
-
-
-        // Take the max of the first endOptime (if we recovered) and the end of our batch.
-
-        // Setting end to the max of originalEndOpTime and lastOpTime (the end of the batch)
-        // ensures that we keep pushing out the point where we can become consistent
-        // and allow reads. If we recover and end up doing smaller batches we must pass the
-        // originalEndOpTime before we are good.
-        //
-        // For example:
-        // batch apply, 20-40, end = 40
-        // batch failure,
-        // restart
-        // batch apply, 20-25, end = max(25, 40) = 40
-        // batch apply, 25-45, end = 45
-        minValidBoundaries.end = std::max(originalEndOpTime, lastOpTime);
-
-
-        lastWriteOpTime = multiApply(&txn, ops, minValidBoundaries);
-        if (lastWriteOpTime.isNull()) {
+        const bool fail = multiApply(&txn, ops).isNull();
+        if (fail) {
             // fassert if oplog application failed for any reasons other than shutdown.
             error() << "Failed to apply " << ops.getDeque().size()
-                    << " operations - batch start:" << minValidBoundaries.start
-                    << " end:" << minValidBoundaries.end;
+                    << " operations - batch start:" << firstOpTimeInBatch
+                    << " end:" << lastOpTimeInBatch;
             fassert(34360, inShutdownStrict());
             // Return without setting minvalid in the case of shutdown.
             return;
         }
 
-        setNewTimestamp(lastWriteOpTime.getTimestamp());
-        minValidBoundaries.start = {};
-        finalizer->record(lastWriteOpTime);
+        // Update various things that care about our last applied optime.
+        setNewTimestamp(lastOpTimeInBatch.getTimestamp());
+        finalizer->record(lastOpTimeInBatch);
     }
 }
 
@@ -848,6 +767,8 @@ SyncTail::OplogEntry::OplogEntry(const BSONObj& rawInput) : raw(rawInput.getOwne
             version = elem;
         } else if (name == "o") {
             o = elem;
+        } else if (name == "ts") {
+            ts = elem;
         }
     }
 }
@@ -857,26 +778,61 @@ SyncTail::OplogEntry::OplogEntry(const BSONObj& rawInput) : raw(rawInput.getOwne
 // Batch should end early if we encounter a command, or if
 // there are no further ops in the bgsync queue to read.
 // This function also blocks 1 second waiting for new ops to appear in the bgsync
-// queue.  We can't block forever because there are maintenance things we need
-// to periodically check in the loop.
-bool SyncTail::tryPopAndWaitForMore(OperationContext* txn, SyncTail::OpQueue* ops) {
+// queue.  We don't block forever so that we can periodically check for things like shutdown or
+// reconfigs.
+bool SyncTail::tryPopAndWaitForMore(OperationContext* txn,
+                                    SyncTail::OpQueue* ops,
+                                    const BatchLimits& limits) {
     BSONObj op;
     // Check to see if there are ops waiting in the bgsync queue
     bool peek_success = peek(&op);
 
     if (!peek_success) {
-        // if we don't have anything in the queue, wait a bit for something to appear
+        // If we don't have anything in the queue, wait a bit for something to appear.
         if (ops->empty()) {
-            // block up to 1 second
+            // Block up to 1 second. We still return true in this case because we want this
+            // op to be the first in a new batch with a new start time.
             _networkQueue->waitForMore();
-            return false;
         }
 
-        // otherwise, apply what we have
         return true;
     }
 
+    // If this op would put us over the byte limit don't include it unless the batch is empty.
+    // We allow single-op batches to exceed the byte limit so that large ops are able to be
+    // processed.
+    if (!ops->empty() && (ops->getSize() + size_t(op.objsize())) > limits.bytes) {
+        return true;  // Return before wasting time parsing the op.
+    }
+
     auto entry = OplogEntry(op);
+
+    if (!entry.raw.isEmpty()) {
+        // check for oplog version change
+        int curVersion = 0;
+        if (entry.version.eoo()) {
+            // missing version means version 1
+            curVersion = 1;
+        } else {
+            curVersion = entry.version.Int();
+        }
+
+        if (curVersion != OPLOG_VERSION) {
+            severe() << "expected oplog version " << OPLOG_VERSION << " but found version "
+                     << curVersion << " in oplog entry: " << op;
+            fassertFailedNoTrace(18820);
+        }
+    }
+
+    if (limits.slaveDelayLatestTimestamp &&
+        entry.ts.timestampTime() > *limits.slaveDelayLatestTimestamp) {
+        if (ops->empty()) {
+            // Sleep if we've got nothing to do. Only sleep for 1 second at a time to allow
+            // reconfigs and shutdown to occur.
+            sleepsecs(1);
+        }
+        return true;
+    }
 
     // Check for ops that must be processed one at a time.
     if (entry.raw.isEmpty() ||       // sentinel that network queue is drained.
@@ -894,26 +850,12 @@ bool SyncTail::tryPopAndWaitForMore(OperationContext* txn, SyncTail::OpQueue* op
         return true;
     }
 
-    // check for oplog version change
-    int curVersion = 0;
-    if (entry.version.eoo())
-        // missing version means version 1
-        curVersion = 1;
-    else
-        curVersion = entry.version.Int();
-
-    if (curVersion != OPLOG_VERSION) {
-        severe() << "expected oplog version " << OPLOG_VERSION << " but found version "
-                 << curVersion << " in oplog entry: " << op;
-        fassertFailedNoTrace(18820);
-    }
-
     // Copy the op to the deque and remove it from the bgsync queue.
     ops->push_back(std::move(entry));
     _networkQueue->consume();
 
-    // Go back for more ops
-    return false;
+    // Go back for more ops, unless we've hit the limit.
+    return ops->getDeque().size() >= limits.ops;
 }
 
 void SyncTail::setHostname(const std::string& hostname) {

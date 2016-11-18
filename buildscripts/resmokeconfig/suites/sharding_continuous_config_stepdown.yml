@@ -14,7 +14,7 @@ selector:
     # Count/write/aggregate/group commands against the config shard do not support retries yet
     - jstests/sharding/addshard1.js
     - jstests/sharding/addshard2.js
-    - jstests/sharding/auto1.js
+    - jstests/sharding/autosplit.js
     - jstests/sharding/auto_rebalance.js
     - jstests/sharding/autosplit_heuristics.js
     - jstests/sharding/balance_tags1.js
@@ -72,12 +72,13 @@ selector:
     - jstests/sharding/printShardingStatus.js
     # Balancer writes (direct write to config database with no retries)
     - jstests/sharding/remove2.js
-    - jstests/sharding/auto2.js
+    - jstests/sharding/autosplit_with_balancer.js
     - jstests/sharding/features3.js
     - jstests/sharding/in_memory_sort_limit.js
     - jstests/sharding/parallel.js
     - jstests/sharding/migrateBig.js
     - jstests/sharding/sharding_rs1.js
+    - jstests/sharding/jumbo1.js
     # Calls the config server primary directly (not through mongos)
     - jstests/sharding/moveprimary_ignore_sharded.js
     - jstests/sharding/min_optime_recovery.js

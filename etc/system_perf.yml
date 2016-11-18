@@ -108,16 +108,12 @@ functions:
           set -o verbose
           source ./dsienv.sh
           if [ ! -e $HOME/infrastructure_provisioning/terraform/provisioned.${cluster} ]; then
-            echo "Provisinging new resources."
-            $DSI_PATH/bin/setup-cluster.sh ${cluster} ../terraform
+            EXISTING="false"
           else
-            # on host with pre-existing resources, call terraform directly to
-            # avoid recreating instances due to terraform apply concurrency limitation
-            echo "Update expire-on tag for existing resources."
-            ./terraform apply -var-file=cluster.json
-            # call env.sh to generate ips.sh, etc. for downstream modules
-            $DSI_PATH/bin/env.sh
+            EXISTING="true"
           fi
+
+          $DSI_PATH/bin/setup-cluster.sh ${cluster} $EXISTING
           # handle the case when setup-cluster.sh fail
           if [ $? -eq 0 ]; then
             echo "Resource provisioned/updated."
@@ -253,7 +249,7 @@ functions:
           TAGS="3.1.8-Baseline 3.2.0-Baseline 3.2.9-Baseline"
           PROJECT="sys-perf-3.2"
           OVERRIDEFILE="../src/dsi/dsi/analysis/v3.2/system_perf_override.json"
-          python -u ../src/dsi/dsi/analysis/dashboard_gen.py --rev ${revision} -f history.json -t tags.json --refTag $TAGS --overrideFile $OVERRIDEFILE --project_id sys-perf --task_name ${task_name} --variant ${build_variant} --jira-user ${perf_jira_user} --jira-password ${perf_jira_pw} || true
+          python -u ../src/dsi/dsi/analysis/dashboard_gen.py --rev ${revision} -f history.json -t tags.json --refTag $TAGS --overrideFile $OVERRIDEFILE --project_id sys-perf --variant ${build_variant} --task ${task_name} --jira-user ${perf_jira_user} --jira-password ${perf_jira_pw} || true
     - command: "json.send"
       params:
          name: "dashboard"
@@ -268,7 +264,7 @@ functions:
           set -o verbose
           TAG="3.0.6-Baseline"
           OVERRIDEFILE="../src/dsi/dsi/analysis/v3.2/system_perf_override.json"
-          python -u ../src/dsi/dsi/analysis/post_run_check.py ${script_flags} --reports-analysis reports --perf-file reports/perf.json --rev ${revision} -f history.json -t tags.json --refTag $TAG --overrideFile $OVERRIDEFILE --project_id sys-perf --task_name ${task_name} --variant ${build_variant}
+          python -u ../src/dsi/dsi/analysis/post_run_check.py ${script_flags} --reports-analysis reports --perf-file reports/perf.json --rev ${revision} -f history.json -t tags.json --refTag $TAG --overrideFile $OVERRIDEFILE --project_id sys-perf --variant ${build_variant} --task ${task_name}
 
   "compare":
     - command: shell.exec
