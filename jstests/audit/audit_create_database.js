@@ -15,6 +15,12 @@ auditTest(
         assert.commandWorked(testDB.dropDatabase());
         assert.commandWorked(testDB.createCollection('foo'));
 
+        // mmapv1 does not generate 'createDatabase' event here
+        // so skip this check when mmapv1 is active SE
+        if (testDB.serverStatus().storageEngine.name === 'mmapv1') {
+            return;
+        }
+
         auditColl = getAuditEventsCollection(m);
         assert.eq(1, auditColl.count({
             atype: "createDatabase",
