@@ -86,31 +86,36 @@ CollectionBulkLoaderImpl::~CollectionBulkLoaderImpl() {
     })
 }
 
-Status CollectionBulkLoaderImpl::init(OperationContext* txn,
-                                      Collection* coll,
+Status CollectionBulkLoaderImpl::init(Collection* coll,
                                       const std::vector<BSONObj>& secondaryIndexSpecs) {
-    invariant(txn);
-    invariant(coll);
-    invariant(txn->getClient() == &cc());
-    if (secondaryIndexSpecs.size()) {
-        _secondaryIndexesBlock->ignoreUniqueConstraint();
-        auto status = _secondaryIndexesBlock->init(secondaryIndexSpecs).getStatus();
-        if (!status.isOK()) {
-            return status;
-        }
-    } else {
-        _secondaryIndexesBlock.reset();
-    }
-    if (!_idIndexSpec.isEmpty()) {
-        auto status = _idIndexBlock->init(_idIndexSpec).getStatus();
-        if (!status.isOK()) {
-            return status;
-        }
-    } else {
-        _idIndexBlock.reset();
-    }
+    return _runTaskReleaseResourcesOnFailure(
+        [coll, &secondaryIndexSpecs, this](OperationContext* txn) -> Status {
+            invariant(txn);
+            invariant(coll);
+            invariant(txn->getClient() == &cc());
+            std::vector<BSONObj> specs(secondaryIndexSpecs);
+            // This enforces the buildIndexes setting in the replica set configuration.
+            _secondaryIndexesBlock->removeExistingIndexes(&specs);
+            if (specs.size()) {
+                _secondaryIndexesBlock->ignoreUniqueConstraint();
+                auto status = _secondaryIndexesBlock->init(specs).getStatus();
+                if (!status.isOK()) {
+                    return status;
+                }
+            } else {
+                _secondaryIndexesBlock.reset();
+            }
+            if (!_idIndexSpec.isEmpty()) {
+                auto status = _idIndexBlock->init(_idIndexSpec).getStatus();
+                if (!status.isOK()) {
+                    return status;
+                }
+            } else {
+                _idIndexBlock.reset();
+            }
 
-    return Status::OK();
+            return Status::OK();
+        });
 }
 
 Status CollectionBulkLoaderImpl::insertDocuments(const std::vector<BSONObj>::const_iterator begin,

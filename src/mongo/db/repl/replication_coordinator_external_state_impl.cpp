@@ -103,8 +103,11 @@ using LockGuard = stdx::lock_guard<stdx::mutex>;
 
 const char localDbName[] = "local";
 const char configCollectionName[] = "local.system.replset";
+const auto configDatabaseName = localDbName;
 const char lastVoteCollectionName[] = "local.replset.election";
+const auto lastVoteDatabaseName = localDbName;
 const char meCollectionName[] = "local.me";
+const auto meDatabaseName = localDbName;
 const char tsFieldName[] = "ts";
 
 const char kCollectionOplogBufferName[] = "collection";
@@ -126,7 +129,7 @@ MONGO_EXPORT_STARTUP_SERVER_PARAMETER(initialSyncOplogBuffer,
 // Set this to specify maximum number of times the oplog fetcher will consecutively restart the
 // oplog tailing query on non-cancellation errors.
 server_parameter_storage_type<int, ServerParameterType::kStartupAndRuntime>::value_type
-    oplogFetcherMaxFetcherRestarts(10);
+    oplogFetcherMaxFetcherRestarts(3);
 class ExportedOplogFetcherMaxFetcherRestartsServerParameter
     : public ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime> {
 public:
@@ -181,7 +184,9 @@ std::unique_ptr<ThreadPool> makeThreadPool() {
 
 ReplicationCoordinatorExternalStateImpl::ReplicationCoordinatorExternalStateImpl(
     StorageInterface* storageInterface)
-    : _storageInterface(storageInterface) {
+    : _storageInterface(storageInterface),
+      _initialSyncThreadPool(OldThreadPool::DoNotStartThreadsTag(), 1, "initial sync-"),
+      _initialSyncRunner(&_initialSyncThreadPool) {
     uassert(ErrorCodes::BadValue, "A StorageInterface is required.", _storageInterface);
 }
 ReplicationCoordinatorExternalStateImpl::~ReplicationCoordinatorExternalStateImpl() {}
@@ -191,27 +196,30 @@ bool ReplicationCoordinatorExternalStateImpl::isInitialSyncFlagSet(OperationCont
 }
 
 void ReplicationCoordinatorExternalStateImpl::startInitialSync(OnInitialSyncFinishedFn finished) {
-    LockGuard lk(_threadMutex);
-
-    _initialSyncThread.reset(new stdx::thread{[finished, this]() {
-        Client::initThreadIfNotAlready("initial sync");
+    _initialSyncRunner.schedule([finished, this](OperationContext* txn, const Status& status) {
+        if (status == ErrorCodes::CallbackCanceled) {
+            return TaskRunner::NextAction::kDisposeOperationContext;
+        }
         // Do initial sync.
-        syncDoInitialSync(this);
-        finished();
-    }});
+        syncDoInitialSync(txn, this);
+        finished(txn);
+        return TaskRunner::NextAction::kDisposeOperationContext;
+    });
 }
 
 void ReplicationCoordinatorExternalStateImpl::runOnInitialSyncThread(
     stdx::function<void(OperationContext* txn)> run) {
-
-    LockGuard lk(_threadMutex);
-    _initialSyncThread.reset(new stdx::thread{[run, this]() {
-        Client::initThreadIfNotAlready("initial sync");
-        auto txn = cc().makeOperationContext();
+    _initialSyncRunner.cancel();
+    _initialSyncRunner.join();
+    _initialSyncRunner.schedule([run, this](OperationContext* txn, const Status& status) {
+        if (status == ErrorCodes::CallbackCanceled) {
+            return TaskRunner::NextAction::kDisposeOperationContext;
+        }
         invariant(txn);
         invariant(txn->getClient());
-        run(txn.get());
-    }});
+        run(txn);
+        return TaskRunner::NextAction::kDisposeOperationContext;
+    });
 }
 
 void ReplicationCoordinatorExternalStateImpl::startSteadyStateReplication(
@@ -244,7 +252,6 @@ void ReplicationCoordinatorExternalStateImpl::_stopDataReplication_inlock(Operat
     auto oldSSF = std::move(_syncSourceFeedbackThread);
     auto oldBgSync = std::move(_bgSync);
     auto oldApplier = std::move(_applierThread);
-    auto oldInitSyncThread = std::move(_initialSyncThread);
     if (oldSSF) {
         log() << "Stopping replication reporter thread";
         _syncSourceFeedback.shutdown();
@@ -269,9 +276,9 @@ void ReplicationCoordinatorExternalStateImpl::_stopDataReplication_inlock(Operat
         oldBgSync->join(txn);
     }
 
-    if (oldInitSyncThread) {
-        oldInitSyncThread->join();
-    }
+    _initialSyncRunner.cancel();
+    _initialSyncRunner.join();
+
     lock->lock();
 }
 
@@ -294,6 +301,7 @@ void ReplicationCoordinatorExternalStateImpl::startThreads(const ReplSettings& s
         makeThreadPool(), executor::makeNetworkInterface("NetworkInterfaceASIO-RS"));
     _taskExecutor->startup();
 
+    _initialSyncThreadPool.startThreads();
     _writerPool = SyncTail::makeWriterPool();
 
     _storageInterface->startup();
@@ -446,7 +454,7 @@ OID ReplicationCoordinatorExternalStateImpl::ensureMe(OperationContext* txn) {
     OID myRID;
     {
         ScopedTransaction transaction(txn, MODE_IX);
-        Lock::DBLock lock(txn->lockState(), localDbName, MODE_X);
+        Lock::DBLock lock(txn->lockState(), meDatabaseName, MODE_X);
 
         BSONObj me;
         // local.me is an identifier for a server for getLastError w:2+
@@ -494,7 +502,7 @@ Status ReplicationCoordinatorExternalStateImpl::storeLocalConfigDocument(Operati
     try {
         MONGO_WRITE_CONFLICT_RETRY_LOOP_BEGIN {
             ScopedTransaction transaction(txn, MODE_IX);
-            Lock::DBLock dbWriteLock(txn->lockState(), localDbName, MODE_X);
+            Lock::DBLock dbWriteLock(txn->lockState(), configDatabaseName, MODE_X);
             Helpers::putSingleton(txn, configCollectionName, config);
             return Status::OK();
         }
@@ -532,7 +540,7 @@ Status ReplicationCoordinatorExternalStateImpl::storeLocalLastVoteDocument(
     try {
         MONGO_WRITE_CONFLICT_RETRY_LOOP_BEGIN {
             ScopedTransaction transaction(txn, MODE_IX);
-            Lock::DBLock dbWriteLock(txn->lockState(), localDbName, MODE_X);
+            Lock::DBLock dbWriteLock(txn->lockState(), lastVoteDatabaseName, MODE_X);
             Helpers::putSingleton(txn, lastVoteCollectionName, lastVoteObj);
             return Status::OK();
         }

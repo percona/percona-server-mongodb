@@ -161,9 +161,9 @@ HostAndPort TopologyCoordinatorImpl::chooseNewSyncSource(Date_t now,
         invariant(_forceSyncSourceIndex < _rsConfig.getNumMembers());
         _syncSource = _rsConfig.getMemberAt(_forceSyncSourceIndex).getHostAndPort();
         _forceSyncSourceIndex = -1;
+        log() << "choosing sync source candidate by request: " << _syncSource;
         std::string msg(str::stream() << "syncing from: " << _syncSource.toString()
                                       << " by request");
-        log() << msg << rsLog;
         setMyHeartbeatMessage(now, msg);
         return _syncSource;
     }
@@ -192,8 +192,9 @@ HostAndPort TopologyCoordinatorImpl::chooseNewSyncSource(Date_t now,
             return _syncSource;
         } else {
             _syncSource = _currentPrimaryMember()->getHostAndPort();
+            log() << "chaining not allowed, choosing primary as sync source candidate: "
+                  << _syncSource;
             std::string msg(str::stream() << "syncing from primary: " << _syncSource.toString());
-            log() << msg << rsLog;
             setMyHeartbeatMessage(now, msg);
             return _syncSource;
         }
@@ -258,7 +259,7 @@ HostAndPort TopologyCoordinatorImpl::chooseNewSyncSource(Date_t now,
             if (attempts == 0) {
                 // Candidate must be a voter if we are a voter.
                 if (_selfConfig().isVoter() && !itMemberConfig.isVoter()) {
-                    LOG(2) << "Cannot select sync source voting differences: "
+                    LOG(2) << "Cannot select sync source because of voting differences: "
                            << itMemberConfig.getHostAndPort();
                     continue;
                 }
@@ -270,13 +271,13 @@ HostAndPort TopologyCoordinatorImpl::chooseNewSyncSource(Date_t now,
                 }
                 // Candidates cannot be excessively behind.
                 if (it->getAppliedOpTime() < oldestSyncOpTime) {
-                    LOG(2) << "Cannot select sync source because it is older than us: "
+                    LOG(2) << "Cannot select sync source because it is too far behind: "
                            << itMemberConfig.getHostAndPort();
                     continue;
                 }
                 // Candidate must not have a configured delay larger than ours.
                 if (_selfConfig().getSlaveDelay() < itMemberConfig.getSlaveDelay()) {
-                    LOG(2) << "Cannot select sync source with slaveDelay differences: "
+                    LOG(2) << "Cannot select sync source with larger slaveDelay than ours: "
                            << itMemberConfig.getHostAndPort();
                     continue;
                 }
@@ -300,7 +301,7 @@ HostAndPort TopologyCoordinatorImpl::chooseNewSyncSource(Date_t now,
             if ((closestIndex != -1) &&
                 (_getPing(itMemberConfig.getHostAndPort()) >
                  _getPing(_rsConfig.getMemberAt(closestIndex).getHostAndPort()))) {
-                LOG(2) << "Cannot select sync source which is older than the best candidate: "
+                LOG(2) << "Cannot select sync source with higher latency than the best candidate: "
                        << itMemberConfig.getHostAndPort();
 
                 continue;
@@ -332,8 +333,8 @@ HostAndPort TopologyCoordinatorImpl::chooseNewSyncSource(Date_t now,
         return _syncSource;
     }
     _syncSource = _rsConfig.getMemberAt(closestIndex).getHostAndPort();
+    log() << "sync source candidate: " << _syncSource;
     std::string msg(str::stream() << "syncing from: " << _syncSource.toString(), 0);
-    log() << msg << rsLog;
     setMyHeartbeatMessage(now, msg);
     return _syncSource;
 }

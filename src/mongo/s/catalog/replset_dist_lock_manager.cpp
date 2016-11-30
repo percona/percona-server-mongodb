@@ -428,6 +428,12 @@ StatusWith<DistLockHandle> ReplSetDistLockManager::tryLockWithLocalWriteConcern(
     OperationContext* txn, StringData name, StringData whyMessage, const OID& lockSessionID) {
     const string who = str::stream() << _processID << ":" << getThreadName();
 
+    LOG(1) << "trying to acquire new distributed lock for " << name
+           << " ( lock timeout : " << durationCount<Milliseconds>(_lockExpiration)
+           << " ms, ping interval : " << durationCount<Milliseconds>(_pingInterval)
+           << " ms, process : " << _processID << " )"
+           << " with lockSessionID: " << lockSessionID << ", why: " << whyMessage.toString();
+
     auto lockStatus = _catalog->grabLock(txn,
                                          name,
                                          lockSessionID,
@@ -436,13 +442,20 @@ StatusWith<DistLockHandle> ReplSetDistLockManager::tryLockWithLocalWriteConcern(
                                          Date_t::now(),
                                          whyMessage.toString(),
                                          DistLockCatalog::kLocalWriteConcern);
-    if (lockStatus == ErrorCodes::LockStateChangeFailed) {
-        return {ErrorCodes::LockBusy, str::stream() << "Unable to acquire " << name};
-    } else if (!lockStatus.isOK()) {
-        return lockStatus.getStatus();
+
+    if (lockStatus.isOK()) {
+        log() << "distributed lock '" << name << "' acquired for '" << whyMessage.toString()
+              << "', ts : " << lockSessionID;
+        return lockSessionID;
     }
 
-    return lockSessionID;
+    LOG(1) << "distributed lock '" << name << "' was not acquired.";
+
+    if (lockStatus == ErrorCodes::LockStateChangeFailed) {
+        return {ErrorCodes::LockBusy, str::stream() << "Unable to acquire " << name};
+    }
+
+    return lockStatus.getStatus();
 }
 
 void ReplSetDistLockManager::unlock(OperationContext* txn, const DistLockHandle& lockSessionID) {
