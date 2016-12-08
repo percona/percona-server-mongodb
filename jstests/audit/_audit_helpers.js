@@ -18,13 +18,17 @@ var auditTest = function(name, fn, serverParams) {
     var port = allocatePorts(1);
     var startServer = function(extraParams) {
         params = Object.merge(mongodOptions(serverParams), extraParams);
+        if (serverParams === undefined || serverParams.config === undefined) {
+            params = Object.merge({
+                auditDestination: 'file',
+                auditPath: auditPath,
+                auditFormat: 'JSON'
+            }, params);
+        }
         return MongoRunner.runMongod(
             Object.merge({
                 port: port,
                 dbpath: dbpath,
-                auditDestination: 'file',
-                auditPath: auditPath,
-                auditFormat: 'JSON'
             }, params)
         );
     }

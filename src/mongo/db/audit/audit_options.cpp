@@ -56,17 +56,21 @@ namespace mongo {
     Status addAuditOptions(optionenvironment::OptionSection* options) {
         optionenvironment::OptionSection auditOptions("Audit Options");
 
-        auditOptions.addOptionChaining("audit.destination", "auditDestination", optionenvironment::String,
-                "Output type: enables auditing functionality");
+        auditOptions.addOptionChaining("auditLog.destination", "auditDestination", optionenvironment::String,
+                "Output type: enables auditing functionality",
+                "audit.destination");
 
-        auditOptions.addOptionChaining("audit.format", "auditFormat", optionenvironment::String,
-                "Output format");
+        auditOptions.addOptionChaining("auditLog.format", "auditFormat", optionenvironment::String,
+                "Output format",
+                "audit.format");
 
-        auditOptions.addOptionChaining("audit.filter", "auditFilter", optionenvironment::String,
-                "JSON query filter on events, users, etc.");
+        auditOptions.addOptionChaining("auditLog.filter", "auditFilter", optionenvironment::String,
+                "JSON query filter on events, users, etc.",
+                "audit.filter");
 
-        auditOptions.addOptionChaining("audit.path", "auditPath", optionenvironment::String,
-                "Event destination file path and name");
+        auditOptions.addOptionChaining("auditLog.path", "auditPath", optionenvironment::String,
+                "Event destination file path and name",
+                "audit.path");
 
         Status ret = options->addSection(auditOptions);
         if (!ret.isOK()) {
@@ -78,9 +82,9 @@ namespace mongo {
     }
 
     Status storeAuditOptions(const optionenvironment::Environment& params) {
-        if (params.count("audit.destination")) {
+        if (params.count("auditLog.destination")) {
             auditOptions.destination =
-                params["audit.destination"].as<std::string>();
+                params["auditLog.destination"].as<std::string>();
         }
         if (auditOptions.destination != "") {
             if (auditOptions.destination != "file" &&
@@ -91,9 +95,9 @@ namespace mongo {
             }
         }
 
-        if (params.count("audit.format")) {
+        if (params.count("auditLog.format")) {
             auditOptions.format =
-                params["audit.format"].as<std::string>();
+                params["auditLog.format"].as<std::string>();
         }
         if (auditOptions.format != "JSON" && auditOptions.format != "BSON") {
             return Status(ErrorCodes::BadValue,
@@ -104,9 +108,9 @@ namespace mongo {
                           "BSON audit log format is only allowed when audit log destination is a 'file'");
         }
 
-        if (params.count("audit.filter")) {
+        if (params.count("auditLog.filter")) {
             auditOptions.filter =
-                params["audit.filter"].as<std::string>();
+                params["auditLog.filter"].as<std::string>();
         }
         try {
             fromjson(auditOptions.filter);
@@ -117,9 +121,9 @@ namespace mongo {
                           + auditOptions.filter);
         }
 
-        if (params.count("audit.path")) {
+        if (params.count("auditLog.path")) {
             auditOptions.path =
-                params["audit.path"].as<std::string>();
+                params["auditLog.path"].as<std::string>();
         }
         if (auditOptions.path != "") {
             File auditFile;

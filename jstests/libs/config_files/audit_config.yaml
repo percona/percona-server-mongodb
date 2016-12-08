@@ -1,0 +1,5 @@
+auditLog:
+  path: "audit_config_test.json"
+  destination: file
+  format: JSON
+  filter: "{a: 1}"
