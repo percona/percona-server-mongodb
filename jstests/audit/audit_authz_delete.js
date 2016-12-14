@@ -22,7 +22,14 @@ auditTest(
         adminDB.auth('admin','admin');
         assert.writeOK(testDB.foo.insert({'_id': 1}));
         assert.writeOK(testDB.foo.insert({'_id': 2}));
+        assert.writeOK(testDB.foo.insert({'_id': 3}));
+
+        // Admin tries to run an update with auditAuthorized=false and then
+        // with auditAuthorized=true. Only one event should be logged
         assert.writeOK(testDB.foo.remove({'_id': 2}));
+        adminDB.runCommand({ setParameter: 1, 'auditAuthorized': true });
+        assert.writeOK(testDB.foo.remove({'_id': 3}));
+        adminDB.runCommand({ setParameter: 1, 'auditAuthorized': false });
         adminDB.logout();
 
         // User with no permissions logs in.
@@ -37,6 +44,8 @@ auditTest(
         // Verify that audit event was inserted.
         beforeLoad = Date.now();
         auditColl = getAuditEventsCollection(m, undefined, true);
+
+        // Audit event for user tom.
         assert.eq(1, auditColl.count({
             atype: "authCheck",
             ts: withinFewSecondsBefore(beforeLoad),
@@ -44,6 +53,16 @@ auditTest(
             'params.ns': testDBName + '.' + 'foo',
             'params.command': 'delete',
             result: 13, // <-- Unauthorized error, see error_codes.err...
+        }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
+
+        // Audit event for user admin.
+        assert.eq(1, auditColl.count({
+            atype: "authCheck",
+            ts: withinTheLastFewSeconds(),
+            users: { $elemMatch: { user:'admin', db:'admin'} },
+            'params.ns': testDBName + '.' + 'foo',
+            'params.command': 'delete',
+            result: 0, // <-- Authorization successful
         }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
     },
     { auth:"" }

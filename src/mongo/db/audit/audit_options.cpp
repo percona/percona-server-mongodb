@@ -27,6 +27,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/status.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/server_parameters.h"
 #include "mongo/db/json.h"
 #include "mongo/util/file.h"
 #include "mongo/util/log.h"
@@ -37,6 +38,12 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "audit_options.h"
 
 namespace mongo {
+    std::atomic<bool> AuditOptions::auditAuthorized(false);
+
+    ExportedServerParameter<bool, ServerParameterType::kStartupAndRuntime>
+        auditAuthorizedParameter(ServerParameterSet::getGlobal(),
+                                 "auditAuthorized",
+                                 &AuditOptions::auditAuthorized);
 
     AuditOptions auditOptions;
 

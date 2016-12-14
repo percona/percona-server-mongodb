@@ -477,7 +477,7 @@ namespace audit {
         _auditLog->append(builder.done());
     }
 
-    static void _auditAuthzFailure(ClientBasic* client,
+    static void _auditAuthz(ClientBasic* client,
                                  StringData ns,
                                  StringData command,
                                  const BSONObj& args,
@@ -511,8 +511,8 @@ namespace audit {
             return;
         }
 
-        if (result != ErrorCodes::OK) {
-            _auditAuthzFailure(client, command->parseNs(dbname, cmdObj), cmdObj.firstElement().fieldName(), cmdObj, result);
+        if ((result != ErrorCodes::OK) || AuditOptions::auditAuthorized) {
+            _auditAuthz(client, command->parseNs(dbname, cmdObj), cmdObj.firstElement().fieldName(), cmdObj, result);
         }
     }
 
@@ -526,10 +526,10 @@ namespace audit {
             return;
         }
 
-        if (result != ErrorCodes::OK) {
-            _auditAuthzFailure(client, nssToString(ns), "delete", BSON("pattern" << pattern), result);
-        } else if (ns.coll() == "system.users") {
+        if ((ns.coll() == "system.users") && (result == ErrorCodes::OK)) {
             _auditEvent(client, "dropUser", BSON("db" << ns.db() << "pattern" << pattern));
+        } else if ((result != ErrorCodes::OK) || AuditOptions::auditAuthorized) {
+            _auditAuthz(client, nssToString(ns), "delete", BSON("pattern" << pattern), result);
         }
     }
 
@@ -542,8 +542,8 @@ namespace audit {
             return;
         }
 
-        if (result != ErrorCodes::OK) {
-            _auditAuthzFailure(client, nssToString(ns), "getMore", BSON("cursorId" << cursorId), result);
+        if ((result != ErrorCodes::OK) || AuditOptions::auditAuthorized) {
+            _auditAuthz(client, nssToString(ns), "getMore", BSON("cursorId" << cursorId), result);
         }
     }
 
@@ -556,10 +556,10 @@ namespace audit {
             return;
         }
 
-        if (result != ErrorCodes::OK) {
-            _auditAuthzFailure(client, nssToString(ns), "insert", BSON("obj" << insertedObj), result);
-        } else if (ns.coll() == "system.users") {
+        if ((ns.coll() == "system.users") && (result == ErrorCodes::OK)) {
             _auditEvent(client, "createUser", BSON("db" << ns.db() << "userObj" << insertedObj));
+        } else if ((result != ErrorCodes::OK) || AuditOptions::auditAuthorized) {
+            _auditAuthz(client, nssToString(ns), "insert", BSON("obj" << insertedObj), result);
         }
     }
 
@@ -572,8 +572,8 @@ namespace audit {
             return;
         }
 
-        if (result != ErrorCodes::OK) {
-            _auditAuthzFailure(client, nssToString(ns), "killCursors", BSON("cursorId" << cursorId), result);
+        if ((result != ErrorCodes::OK) || AuditOptions::auditAuthorized) {
+            _auditAuthz(client, nssToString(ns), "killCursors", BSON("cursorId" << cursorId), result);
         }
     }
 
@@ -586,8 +586,8 @@ namespace audit {
             return;
         }
 
-        if (result != ErrorCodes::OK) {
-            _auditAuthzFailure(client, nssToString(ns), "query", BSON("query" << query), result);
+        if ((result != ErrorCodes::OK) || AuditOptions::auditAuthorized) {
+            _auditAuthz(client, nssToString(ns), "query", BSON("query" << query), result);
         }
     }
 
@@ -603,19 +603,19 @@ namespace audit {
             return;
         }
 
-        if (result != ErrorCodes::OK) {
-            const BSONObj args = BSON("pattern" << query <<
-                                      "updateObj" << updateObj <<
-                                      "upsert" << isUpsert <<
-                                      "multi" << isMulti); 
-            _auditAuthzFailure(client, nssToString(ns), "update", args, result);
-        } else if (ns.coll() == "system.users") {
+        if ((ns.coll() == "system.users") && (result == ErrorCodes::OK)) {
             const BSONObj params = BSON("db" << ns.db() <<
                                         "pattern" << query <<
                                         "updateObj" << updateObj <<
                                         "upsert" << isUpsert <<
                                         "multi" << isMulti); 
             _auditEvent(client, "updateUser", params);
+        } else if ((result != ErrorCodes::OK) || AuditOptions::auditAuthorized) {
+            const BSONObj args = BSON("pattern" << query <<
+                                      "updateObj" << updateObj <<
+                                      "upsert" << isUpsert <<
+                                      "multi" << isMulti);
+            _auditAuthz(client, nssToString(ns), "update", args, result);
         }
     }
 
