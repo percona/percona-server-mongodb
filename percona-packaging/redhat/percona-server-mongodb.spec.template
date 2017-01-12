@@ -123,13 +123,13 @@ buildscripts/scons.py CC=${CC} CXX=${CXX} --audit --release --ssl --opt=on  \
 popd
 
 # Mongo Tools compilation
-pushd $RPM_BUILD_DIR/%{src_dir}/mongo-tools
+pushd $RPM_BUILD_DIR/%{src_dir}/src/mongo/gotools
 . ./set_gopath.sh
 . ./set_tools_revision.sh
-rm -rf $RPM_BUILD_DIR/%{src_dir}/mongo-tools/vendor/pkg
+rm -rf $RPM_BUILD_DIR/%{src_dir}/src/mongo/gotools/vendor/pkg
 mkdir -p $RPM_BUILD_DIR/%{src_dir}/bin
 for tool in bsondump mongostat mongofiles mongoexport mongoimport mongorestore mongodump mongotop mongooplog mongoreplay; do
-  go build -a -x -o $RPM_BUILD_DIR/%{src_dir}/bin/${tool} -ldflags "-X github.com/mongodb/mongo-tools/common/options.Gitspec=${PSMDB_TOOLS_COMMIT_HASH} -X github.com/mongodb/mongo-tools/common/options.VersionStr=${PSMDB_TOOLS_REVISION}" -tags "${TOOLS_TAGS}" $RPM_BUILD_DIR/%{src_dir}/mongo-tools/${tool}/main/${tool}.go
+  go build -a -x -o $RPM_BUILD_DIR/%{src_dir}/bin/${tool} -ldflags "-X github.com/mongodb/mongo-tools/common/options.Gitspec=${PSMDB_TOOLS_COMMIT_HASH} -X github.com/mongodb/mongo-tools/common/options.VersionStr=${PSMDB_TOOLS_REVISION}" -tags "${TOOLS_TAGS}" $RPM_BUILD_DIR/%{src_dir}/src/mongo/gotools/${tool}/main/${tool}.go
 done
 popd
 

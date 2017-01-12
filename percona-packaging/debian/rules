@@ -41,17 +41,17 @@ percona-server-mongodb:
 	CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib ${PSM_TARGETS}
 
 compile-mongo-tools:
-	rm -rf $(PSMSRC)/mongo-tools/vendor/pkg
+	rm -rf $(PSMSRC)/src/mongo/gotools/vendor/pkg
 	mkdir -p $(PSMSRC)/bin
 	for tool in $(MONGOTOOLS) ; do \
-		cd $(PSMSRC)/mongo-tools; \
+		cd $(PSMSRC)/src/mongo/gotools; \
 		export GOROOT="/usr/local/go1.7.4/"; \
 		export GOPATH=$(pwd)/; \
 		export PATH="/usr/local/go1.7.4/bin:$(PATH):$(GOPATH)"; \
 		export GOBINPATH="/usr/local/go1.7.4/bin"; \
 		. ./set_gopath.sh; \
 		. ./set_tools_revision.sh; \
-		go build -a -x -o $(PSMSRC)/bin/$$tool -ldflags "-X github.com/mongodb/mongo-tools/common/options.Gitspec=$$PSMDB_TOOLS_COMMIT_HASH -X github.com/mongodb/mongo-tools/common/options.VersionStr=$$PSMDB_TOOLS_REVISION" -tags "$(TOOLS_TAGS)" $(PSMSRC)/mongo-tools/$$tool/main/$$tool.go; \
+		go build -a -x -o $(PSMSRC)/bin/$$tool -ldflags "-X github.com/mongodb/mongo-tools/common/options.Gitspec=$$PSMDB_TOOLS_COMMIT_HASH -X github.com/mongodb/mongo-tools/common/options.VersionStr=$$PSMDB_TOOLS_REVISION" -tags "$(TOOLS_TAGS)" $(PSMSRC)/src/mongo/gotools/$$tool/main/$$tool.go; \
 	done
 
 build: RocksDB percona-server-mongodb compile-mongo-tools
