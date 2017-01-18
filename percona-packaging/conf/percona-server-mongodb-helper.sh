@@ -46,3 +46,5 @@ fi
 # disable THP
 fgrep '[always]' ${KTHP}/enabled  > /dev/null 2>&1 && (echo never > ${KTHP}/enabled 2> /dev/null || print_error) || true
 fgrep '[always]' ${KTHP}/defrag   > /dev/null 2>&1 && (echo never > ${KTHP}/defrag  2> /dev/null || print_error) || true
+
+source /usr/bin/percona-server-mongodb-enable-auth.sh

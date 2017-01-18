@@ -1,5 +1,5 @@
 Source: percona-server-mongodb-34
-Maintainer: Evgeniy Patlan <evgeniy.patlan@percona.com>
+Maintainer: Percona Development Team <opensource-dev@percona.com>
 Section: database
 Priority: extra
 Standards-Version: 3.9.2
