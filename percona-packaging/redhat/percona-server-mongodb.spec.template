@@ -16,6 +16,7 @@ Source3:        mongod.default
 Source4:        percona-server-mongodb-helper.sh
 Source5:        mongod.init
 Source6:        mongod.pp
+Source7:        percona-server-mongodb-enable-auth.sh
 
 BuildRoot:      /var/tmp/%{name}-%{version}-%{release}
 %undefine       _missing_build_ids_terminate_build
@@ -162,6 +163,7 @@ sed -i 's:mongodb:mongo:g' %{buildroot}/%{_sysconfdir}/mongod.conf
 #
 install -m 644 %{SOURCE3} %{buildroot}/%{_sysconfdir}/sysconfig/mongod
 install -m 755 %{SOURCE4} %{buildroot}/%{_bindir}/
+install -m 755 %{SOURCE7} %{buildroot}/%{_bindir}/
 #
 install -m 755 mongo %{buildroot}/%{_bindir}/
 install -m 755 mongod %{buildroot}/%{_bindir}/
@@ -183,6 +185,7 @@ install -m 644 $RPM_BUILD_DIR/%{src_dir}/manpages/* %{buildroot}/%{_mandir}/man1
 %{_bindir}/mongod
 %{_mandir}/man1/mongod.1.gz
 %{_bindir}/percona-server-mongodb-helper.sh
+%{_bindir}/percona-server-mongodb-enable-auth.sh
 %if 0%{?rhel} >= 7
 %{_unitdir}/mongod.service
 %else
