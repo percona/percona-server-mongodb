@@ -1,0 +1,20 @@
+# -*- mode: python -*-
+
+Import("env")
+
+env = env.Clone()
+
+env.Append(CPPPATH = ['.', 'common'])
+
+if env.ToolchainIs('clang', 'GCC'):
+    env.Append( CCFLAGS=['-std=c99'] )
+    env.Append( CPPDEFINES=[ ('XXH_NAMESPACE', 'ZSTD_') ] )
+
+env.Library(
+    target='zstd',
+    source=Glob('common/*.c')
+    	+ Glob('compress/*.c')
+    	+ Glob('decompress/*.c')
+    	+ Glob('dictBuilder/*.c')
+    	+ Glob('deprecated/*.c')
+    )

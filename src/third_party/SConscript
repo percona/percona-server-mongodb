@@ -12,6 +12,7 @@ yamlSuffix = '-0.5.3'
 icuSuffix = '-57.1'
 gperftoolsSuffix = '-2.5'
 lz4Suffix = '-r131'
+zstdSuffix = '-1.1.2'
 
 thirdPartyIncludePathList = [
     ('percona_incl', '#/src/third_party/install/include'),
@@ -38,6 +39,10 @@ if not use_system_version_of_library('snappy'):
 if not use_system_version_of_library('lz4'):
     thirdPartyIncludePathList.append(
         ('lz4', '#/src/third_party/lz4' + lz4Suffix))
+
+if not use_system_version_of_library('zstd'):
+    thirdPartyIncludePathList.append(
+        ('zstd', '#/src/third_party/zstd' + zstdSuffix))
 
 # Valgrind is a header only include as valgrind.h includes everything we need
 if not use_system_version_of_library('valgrind'):
@@ -214,6 +219,28 @@ lz4Env.Library(
     target="shim_lz4",
     source=[
         'shim_lz4.cpp',
+    ])
+
+
+if use_system_version_of_library("zstd"):
+    zstdEnv = env.Clone(
+        SYSLIBDEPS=[
+            env['LIBDEPS_ZSTD_SYSLIBDEP'],
+        ])
+else:
+    zstdEnv = env.Clone()
+    zstdEnv.InjectThirdPartyIncludePaths(libraries=['zstd'])
+    zstdEnv.InjectMongoIncludePaths()
+    zstdEnv.SConscript('zstd' + zstdSuffix + '/SConscript', export={ 'env' : zstdEnv })
+    zstdEnv = zstdEnv.Clone(
+        LIBDEPS=[
+            'zstd' + zstdSuffix + '/zstd'
+        ])
+
+zstdEnv.Library(
+    target="shim_zstd",
+    source=[
+        'shim_zstd.cpp',
     ])
 
 

@@ -373,6 +373,11 @@ add_option('use-system-lz4',
     nargs=0,
 )
 
+add_option('use-system-zstd',
+    help='use system version of zstd library',
+    nargs=0,
+)
+
 add_option('use-system-valgrind',
     help='use system version of valgrind library',
     nargs=0,
