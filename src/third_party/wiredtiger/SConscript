@@ -7,7 +7,7 @@ Import("get_option")
 Import("endian")
 
 env = env.Clone()
-env.InjectThirdPartyIncludePaths(libraries=['snappy', 'zlib'])
+env.InjectThirdPartyIncludePaths(libraries=['snappy', 'zlib', 'lz4'])
 
 if endian == "big":
     env.Append(CPPDEFINES=[('WORDS_BIGENDIAN', 1)])
@@ -76,6 +76,7 @@ else:
 
 useZlib = True
 useSnappy = True
+useLz4 = True
 
 version_file = 'build_posix/aclocal/version-set.m4'
 
@@ -165,6 +166,10 @@ if useSnappy:
     env.Append(CPPDEFINES=['HAVE_BUILTIN_EXTENSION_SNAPPY'])
     wtsources.append("ext/compressors/snappy/snappy_compress.c")
 
+if useLz4:
+    env.Append(CPPDEFINES=['HAVE_BUILTIN_EXTENSION_LZ4'])
+    wtsources.append("ext/compressors/lz4/lz4_compress.c")
+
 # Use hardware by default on all platforms if available.
 # If not available at runtime, we fall back to software in some cases.
 #
@@ -178,6 +183,7 @@ wtlib = env.Library(
     LIBDEPS=[
         '$BUILD_DIR/third_party/shim_snappy',
         '$BUILD_DIR/third_party/shim_zlib',
+        '$BUILD_DIR/third_party/shim_lz4',
     ],
 )
 
