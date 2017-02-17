@@ -8,7 +8,7 @@ Build-Depends: debhelper (>= 9), debconf, libbz2-dev, libsnappy-dev, pkg-config,
 
 Package: percona-server-mongodb-34
 Architecture: any
-Breaks: percona-server-mongodb, percona-server-mongodb-32
+Breaks: percona-server-mongodb, percona-server-mongodb-32, mongodb-org
 Depends: ${shlibs:Depends}, ${misc:Depends}, percona-server-mongodb-34-mongos, percona-server-mongodb-34-shell, percona-server-mongodb-34-server, percona-server-mongodb-34-tools
 Description: This metapackage will install the mongo shell, import/export tools, other client utilities, server software, default configuration, and init.d scripts.
  This package contains high-performance MongoDB replacement from Percona - Percona Server for MongoDB.
@@ -33,28 +33,28 @@ Description: This metapackage will install the mongo shell, import/export tools,
 
 Package: percona-server-mongodb-34-mongos
 Architecture: any
-Breaks: percona-server-mongodb-mongos, percona-server-mongodb-32-mongos
+Breaks: percona-server-mongodb-mongos, percona-server-mongodb-32-mongos, mongodb-org-mongos
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: This package contains mongos - the Percona Server for MongoDB sharded cluster query router
  Percona Server for MongoDB is a drop-in high-performance replacement for MongoDB from Percona
 
 Package: percona-server-mongodb-34-server
 Architecture: any
-Breaks: percona-server-mongodb-server, percona-server-mongodb-32-server
+Breaks: percona-server-mongodb-server, percona-server-mongodb-32-server, mongodb-org-server
 Depends: ${shlibs:Depends}, ${misc:Depends}, percona-server-mongodb-34-shell
 Description: This package contains the Percona Server for MongoDB server software, default configuration files and init.d scripts
  Percona Server for MongoDB is a drop-in high-performance replacement for MongoDB from Percona
 
 Package: percona-server-mongodb-34-shell
 Architecture: any
-Breaks: percona-server-mongodb-shell, percona-server-mongodb-32-shell
+Breaks: percona-server-mongodb-shell, percona-server-mongodb-32-shell, mongodb-org-shell
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: This package contains the Percona Server for MongoDB shell
  Percona Server for MongoDB is a drop-in high-performance replacement for MongoDB from Percona
 
 Package: percona-server-mongodb-34-tools
 Architecture: any
-Breaks: percona-server-mongodb-tools, percona-server-mongodb-32-tools
+Breaks: percona-server-mongodb-tools, percona-server-mongodb-32-tools, mongodb-org-tools
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Mongo tools for high-performance MongoDB fork from Percona
  Percona Server for MongoDB is a drop-in high-performance replacement for MongoDB from Percona
