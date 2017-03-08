@@ -335,7 +335,7 @@ void Command::generateErrorResponse(OperationContext* txn,
                                     const BSONObj& metadata) {
     LOG(1) << "assertion while executing command '" << request.getCommandName() << "' "
            << "on database '" << request.getDatabase() << "' "
-           << "with arguments '" << command->getRedactedCopyForLogging(request.getCommandArgs())
+           << "with arguments '" << redact(command->getRedactedCopyForLogging(request.getCommandArgs()))
            << "' "
            << "and metadata '" << request.getMetadata() << "': " << exception.toString();
 
