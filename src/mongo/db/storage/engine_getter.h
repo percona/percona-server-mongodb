@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (c) 2006, 2016, Percona and/or its affiliates. All rights reserved.
+Copyright (c) 2006, 2017, Percona and/or its affiliates. All rights reserved.
 
     Percona Server for MongoDB is free software: you can redistribute
     it and/or modify it under the terms of the GNU Affero General
@@ -20,17 +20,31 @@ Copyright (c) 2006, 2016, Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include "mongo/db/backup/backupable.h"
-#include "mongo/db/storage/engine_getter.h"
+#include <string>
+
+#include "mongo/base/status.h"
 
 namespace percona {
 
 /**
- * Storage engine extension interface.
+ * The interface which provides the ability to get subclass
+ * via base class pointer.
  */
-class EngineExtension
-    : public Backupable,
-      public EngineGetter {
+struct EngineGetter {
+    virtual ~EngineGetter() {}
+
+    virtual EngineGetter* getEngineForCast() const {
+        // must be overridden
+        invariant(false);
+        return nullptr;
+    }
+
+    template <class T> T *getEngineAs() const {
+        T *subclass = dynamic_cast<T *>(getEngineForCast());
+        invariant(subclass != nullptr);
+        return subclass;
+    }
+
 };
 
 }  // end of percona namespace.
