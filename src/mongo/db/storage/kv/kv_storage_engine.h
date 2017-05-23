@@ -35,6 +35,7 @@
 
 #include "mongo/db/storage/journal_listener.h"
 #include "mongo/db/storage/kv/kv_catalog.h"
+#include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/record_store.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/stdx/mutex.h"
@@ -58,6 +59,10 @@ struct KVStorageEngineOptions {
 class KVStorageEngine final : public StorageEngine {
     // percona::EngineExtension implementaion
     Status hotBackup(const std::string& path) override;
+
+    KVEngine* getEngineForCast() const override {
+        return _engine.get();
+    }
 
 public:
     /**
