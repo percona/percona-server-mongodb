@@ -231,11 +231,11 @@ case "$1" in
   status)
   log_daemon_msg "Checking status of $DESC" "$NAME"
   if running ;  then
-    log_progress_msg "running"
     log_end_msg 0
+    log_daemon_msg "mongod service is running"
   else
-    log_progress_msg "apparently not running"
-    log_end_msg 1
+    log_end_msg 0
+    log_daemon_msg "mongod service is apparently not running"
     exit 1
   fi
   ;;
