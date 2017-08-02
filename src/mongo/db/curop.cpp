@@ -641,6 +641,18 @@ void OpDebug::append(const CurOp& curop,
     b.append("rateLimit",
              executionTimeMicros >= serverGlobalParams.slowMS * 1000LL ? 1 : serverGlobalParams.rateLimit);
 
+    // We have following causes:
+    // - slow: execution time is greater than threshold value
+    // - random: randomly selected operation according to current rateLimit value
+    // - all: operaton is not slow and rateLimit does not filter anything
+    if (executionTimeMicros >= serverGlobalParams.slowMS * 1000LL) {
+        b.append("profileCause", "slow");
+    } else if (serverGlobalParams.rateLimit == 1) {
+        b.append("profileCause", "all");
+    } else {
+        b.append("profileCause", "random");
+    }
+
     if (!curop.getPlanSummary().empty()) {
         b.append("planSummary", curop.getPlanSummary());
     }
