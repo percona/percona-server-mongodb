@@ -447,6 +447,7 @@ env.Library(
 env.Library(
     target="mongod_options",
     source=[
+        "collscanlimit_parameter.cpp",
         "mongod_options.cpp",
         "ratelimit_parameter.cpp",
     ],
