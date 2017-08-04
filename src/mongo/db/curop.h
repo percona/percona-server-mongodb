@@ -247,7 +247,8 @@ public:
         if (_dbprofile >= 2)
             return true;
 
-        return opMicros >= serverGlobalParams.slowMS * 1000LL;
+        return opMicros >= serverGlobalParams.slowMS * 1000LL
+            || (serverGlobalParams.collScanLimit >= 0 && _debug.docsExamined >= serverGlobalParams.collScanLimit);
     }
 
     /**

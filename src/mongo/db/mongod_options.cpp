@@ -1062,6 +1062,10 @@ Status storeMongodOptions(const moe::Environment& params) {
         serverGlobalParams.rateLimit = rateLimit;
     }
 
+    if (params.count("operationProfiling.collScanLimit")) {
+        serverGlobalParams.collScanLimit = params["operationProfiling.collScanLimit"].as<int>();
+    }
+
     if (params.count("storage.syncPeriodSecs")) {
         storageGlobalParams.syncdelay = params["storage.syncPeriodSecs"].as<double>();
     }

@@ -643,10 +643,13 @@ void OpDebug::append(const CurOp& curop,
 
     // We have following causes:
     // - slow: execution time is greater than threshold value
+    // - collscan: number of docs examined is above threshold
     // - random: randomly selected operation according to current rateLimit value
     // - all: operaton is not slow and rateLimit does not filter anything
     if (executionTimeMicros >= serverGlobalParams.slowMS * 1000LL) {
         b.append("profileCause", "slow");
+    } else if (serverGlobalParams.collScanLimit >= 0 && docsExamined >= serverGlobalParams.collScanLimit) {
+        b.append("profileCause", "collscan");
     } else if (serverGlobalParams.rateLimit == 1) {
         b.append("profileCause", "all");
     } else {

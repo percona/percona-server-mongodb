@@ -369,6 +369,7 @@ public:
         result.append("was", db ? db->getProfilingLevel() : serverGlobalParams.defaultProfile);
         result.append("slowms", serverGlobalParams.slowMS);
         result.append("ratelimit", serverGlobalParams.rateLimit);
+        result.append("collscanlimit", serverGlobalParams.collScanLimit);
 
         if (!readOnly) {
             if (!db) {
@@ -393,6 +394,11 @@ public:
                 rateLimit = std::max(1, rateLimit);
                 serverGlobalParams.rateLimit = rateLimit;
             }
+        }
+
+        const BSONElement collscanlimitelem = cmdObj["collscanlimit"];
+        if (collscanlimitelem.isNumber()) {
+            serverGlobalParams.collScanLimit = collscanlimitelem.numberInt();
         }
 
         if (!status.isOK()) {
