@@ -165,6 +165,14 @@ Status addMongodOptions(moe::OptionSection* options) {
         .validRange(0, RATE_LIMIT_MAX);
 
     general_options
+        .addOptionChaining("operationProfiling.collScanLimit",
+                           "collScanLimit",
+                           moe::Int,
+                           "COLLSCAN profiling threshold")
+        .setDefault(moe::Value(-1))
+        .validRange(-1, std::numeric_limits<int>::max());
+
+    general_options
         .addOptionChaining(
             "cpu", "cpu", moe::Switch, "periodically show cpu and iowait utilization")
         .setSources(moe::SourceAllLegacy);
