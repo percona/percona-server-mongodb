@@ -1,0 +1,19 @@
+selector:
+  js_test:
+    roots:
+    - jstests/collscanlimit/*.js
+    exclude_files:
+    - jstests/collscanlimit/_*.js
+
+# collscanlimit tests start their own mongod's.
+executor:
+  js_test:
+    config:
+      shell_options:
+        nodb: ''
+        readMode: commands
+    fixture:
+      class: MongoDFixture
+      mongod_options:
+        set_parameters:
+          enableTestCommands: 1
