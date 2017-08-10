@@ -201,6 +201,11 @@ if [ ! -f /tmp/mongodb_create.lock ]; then
                 rm -rf /tmp/mongodb_create.lock
                 $SERVICE_COMMAND mongod start
             fi
+        elif [ "$setup_auth" == "N" -o "$setup_auth" == "n" ]; then
+            exit 0
+        else
+            echo "Incorrect input. You should press Y or N"
+            exit 1
         fi
     else
         echo "Authentication is already enabled"
