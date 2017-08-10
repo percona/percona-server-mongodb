@@ -18,6 +18,17 @@ Source5:        mongod.init
 Source6:        mongod.pp
 Source7:        percona-server-mongodb-enable-auth.sh
 
+%if 0%{?rhel} > 6
+Requires(post):   systemd
+Requires(preun):  systemd
+Requires(postun): systemd
+%else
+Requires(post):   /sbin/chkconfig
+Requires(preun):  /sbin/chkconfig
+Requires(preun):  /sbin/service
+%endif
+
+
 BuildRoot:      /var/tmp/%{name}-%{version}-%{release}
 %undefine       _missing_build_ids_terminate_build
 %define         _unpackaged_files_terminate_build 0
@@ -250,6 +261,13 @@ fi
 #
 %if 0%{?rhel} >= 7
 %systemd_post mongod.service
+  if [ $1 == 1 ]; then
+    /usr/bin/systemctl enable mongod >/dev/null 2>&1 || :
+  fi
+%else
+  if [ $1 == 1 ]; then
+      /sbin/chkconfig --add mongod
+  fi
 %endif
 %if 0%{?rhel} > 5
 /usr/sbin/semodule -i /etc/selinux/targeted/modules/active/modules/mongod.pp
