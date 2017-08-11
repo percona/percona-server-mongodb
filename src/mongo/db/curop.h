@@ -47,6 +47,15 @@ class CurOp;
 class OperationContext;
 struct PlanSummaryStats;
 
+// auxilliary functions for checking operation thresholds
+inline bool isSlow(long long opMicros) {
+    return opMicros >= serverGlobalParams.slowMS * 1000LL;
+}
+
+inline bool exceedCollScanLimit(long long docsExamined) {
+    return serverGlobalParams.collScanLimit > 0 && docsExamined >= serverGlobalParams.collScanLimit;
+}
+
 /* lifespan is different than CurOp because of recursives with DBDirectClient */
 class OpDebug {
 public:
@@ -240,15 +249,14 @@ public:
             return false;
 
         long long opMicros = isDone() ? totalTimeMicros() : elapsedMicros();
-        if (serverGlobalParams.rateLimit > 1 && _dbprofile >= 2 && opMicros < serverGlobalParams.slowMS * 1000LL) {
+        if (serverGlobalParams.rateLimit > 1 && _dbprofile >= 2 && !isSlow(opMicros)) {
             return _shouldDBProfileWithRateLimit();
         }
 
         if (_dbprofile >= 2)
             return true;
 
-        return opMicros >= serverGlobalParams.slowMS * 1000LL
-            || (serverGlobalParams.collScanLimit >= 0 && _debug.docsExamined >= serverGlobalParams.collScanLimit);
+        return isSlow(opMicros) || exceedCollScanLimit(_debug.docsExamined);
     }
 
     /**

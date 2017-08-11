@@ -38,7 +38,7 @@
     db.system.profile.drop();
 
     // now check reasons in "all queries" mode
-    db.runCommand( { profile: 2, collscanlimit: -1 } );
+    db.runCommand( { profile: 2, collscanlimit: 0 } );
     db.batch.find( { n: 25 } ).forEach( printjsononeline );
     db.batch.find( { n: 25 } ).forEach( printjsononeline );
     db.batch.find( { n: 25 } ).forEach( printjsononeline );

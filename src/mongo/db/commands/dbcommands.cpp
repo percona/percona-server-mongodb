@@ -398,7 +398,10 @@ public:
 
         const BSONElement collscanlimitelem = cmdObj["collscanlimit"];
         if (collscanlimitelem.isNumber()) {
-            serverGlobalParams.collScanLimit = collscanlimitelem.numberInt();
+            long long collScanLimit = collscanlimitelem.safeNumberLong();
+            if (0 <= collScanLimit && collScanLimit <= std::numeric_limits<long long>::max()) {
+                serverGlobalParams.collScanLimit = collScanLimit;
+            }
         }
 
         if (!status.isOK()) {

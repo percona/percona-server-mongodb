@@ -66,7 +66,7 @@ struct ServerGlobalParams {
     int defaultProfile = 0;                // --profile
     int slowMS = 100;                      // --time in ms that is "slow"
     int rateLimit = 1;                     // --rate limit in the range 1-RATE_LIMIT_MAX represents a  1/N probability that a query will be profiled
-    long long collScanLimit = -1;  // --COLLSCANs with this number or more scanned docs will be logged (-1 means no COLLSCANs will be logged)
+    long long collScanLimit = 0;           // --COLLSCANs with this number or more scanned docs will be logged (0 means no COLLSCANs will be logged)
     int defaultLocalThresholdMillis = 15;  // --localThreshold in ms to consider a node local
     bool moveParanoia = false;             // for move chunk paranoia
 

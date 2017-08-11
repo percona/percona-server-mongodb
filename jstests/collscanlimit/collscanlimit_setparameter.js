@@ -8,7 +8,7 @@
     {
         var res = db.getSiblingDB('admin').runCommand( { setParameter: 1, "profilingCollScanLimit": 1000 } );
         assert.commandWorked(res, "setParameter failed to set profilingCollScanLimit");
-        assert.eq(res.was, -1);
+        assert.eq(res.was, 0);
         res = db.getSiblingDB('admin').runCommand( { getParameter: 1, "profilingCollScanLimit": 1 } );
         assert.commandWorked(res, "getParameter failed to get profilingCollScanLimit");
         assert.eq(res.profilingCollScanLimit, 1000);
@@ -18,14 +18,14 @@
         assert.commandWorked(res, "setParameter failed to set profilingCollScanLimit");
         res = db.getSiblingDB('admin').runCommand( { getParameter: 1, "profilingCollScanLimit": 1 } );
         assert.commandWorked(res, "getParameter failed to get profilingCollScanLimit");
-        assert.eq(res.profilingCollScanLimit, 0);
+        assert.eq(res.profilingCollScanLimit, 1);
 
         // check setting boolean false
         db.getSiblingDB('admin').runCommand( { setParameter: 1, "profilingCollScanLimit": false } );
         assert.commandWorked(res, "setParameter failed to set profilingCollScanLimit");
         res = db.getSiblingDB('admin').runCommand( { getParameter: 1, "profilingCollScanLimit": 1 } );
         assert.commandWorked(res, "getParameter failed to get profilingCollScanLimit");
-        assert.eq(res.profilingCollScanLimit, -1);
+        assert.eq(res.profilingCollScanLimit, 0);
     }
 
     MongoRunner.stopMongod(conn);

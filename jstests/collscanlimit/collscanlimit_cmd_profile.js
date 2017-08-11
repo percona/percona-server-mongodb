@@ -10,7 +10,7 @@
         assert.commandWorked(res, "'profile' command failed to set profiling options");
         assert.eq(res.was, 0);
         assert.eq(res.slowms, 100);
-        assert.eq(res.collscanlimit, -1);
+        assert.eq(res.collscanlimit, 0);
         res = db.runCommand( { profile: -1 } );
         assert.commandWorked(res, "'profile' command failed to get current configuration");
         assert.eq(res.was, 2);

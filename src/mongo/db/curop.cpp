@@ -638,17 +638,17 @@ void OpDebug::append(const CurOp& curop,
         b.append("protocol", getProtoString(networkOp));
     }
     b.appendIntOrLL("millis", executionTimeMicros / 1000);
-    b.append("rateLimit",
-             executionTimeMicros >= serverGlobalParams.slowMS * 1000LL ? 1 : serverGlobalParams.rateLimit);
+    const bool slowOp = isSlow(executionTimeMicros);
+    b.append("rateLimit", slowOp ? 1 : serverGlobalParams.rateLimit);
 
     // We have following causes:
     // - slow: execution time is greater than threshold value
     // - collscan: number of docs examined is above threshold
     // - random: randomly selected operation according to current rateLimit value
     // - all: operaton is not slow and rateLimit does not filter anything
-    if (executionTimeMicros >= serverGlobalParams.slowMS * 1000LL) {
+    if (slowOp) {
         b.append("profileCause", "slow");
-    } else if (serverGlobalParams.collScanLimit >= 0 && docsExamined >= serverGlobalParams.collScanLimit) {
+    } else if (curop.getPlanSummary() == "COLLSCAN" && exceedCollScanLimit(docsExamined)) {
         b.append("profileCause", "collscan");
     } else if (serverGlobalParams.rateLimit == 1) {
         b.append("profileCause", "all");

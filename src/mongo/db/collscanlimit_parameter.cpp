@@ -65,7 +65,7 @@ Status CollScanLimitParameter::set(const BSONElement& newValueElement) {
 	// boolean true enables profiling of all COLLSCANs
 	// boolean false disables COLLSCANs profiling
 	if (newValueElement.isBoolean()) {
-		return _set(newValueElement.boolean() ? 0 : -1);
+		return _set(newValueElement.boolean() ? 1 : 0);
 	}
 	return Status(ErrorCodes::BadValue, str::stream() << name() << " has to be a number or a boolean");
 }
@@ -78,13 +78,13 @@ Status CollScanLimitParameter::setFromString(const std::string& newValueString) 
 }
 
 Status CollScanLimitParameter::_set(long long collScanLimit) {
-    if (-1 <= collScanLimit && collScanLimit <= std::numeric_limits<long long>::max()) {
+    if (0 <= collScanLimit && collScanLimit <= std::numeric_limits<long long>::max()) {
         serverGlobalParams.collScanLimit = collScanLimit;
         return Status::OK();
     }
     StringBuilder sb;
     sb << "Bad value for profilingCollScanLimit: " << collScanLimit
-       << ".  Supported range is -1-" << std::numeric_limits<long long>::max();
+       << ".  Supported range is 0-" << std::numeric_limits<long long>::max();
     return Status(ErrorCodes::BadValue, sb.str());
 }
 

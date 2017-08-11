@@ -167,10 +167,10 @@ Status addMongodOptions(moe::OptionSection* options) {
     general_options
         .addOptionChaining("operationProfiling.collScanLimit",
                            "collScanLimit",
-                           moe::Int,
+                           moe::Long,
                            "COLLSCAN profiling threshold")
-        .setDefault(moe::Value(-1))
-        .validRange(-1, std::numeric_limits<int>::max());
+        .setDefault(moe::Value(0L))
+        .validRange(0L, std::numeric_limits<long>::max());
 
     general_options
         .addOptionChaining(
@@ -1071,7 +1071,7 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("operationProfiling.collScanLimit")) {
-        serverGlobalParams.collScanLimit = params["operationProfiling.collScanLimit"].as<int>();
+        serverGlobalParams.collScanLimit = params["operationProfiling.collScanLimit"].as<long>();
     }
 
     if (params.count("storage.syncPeriodSecs")) {
