@@ -170,6 +170,13 @@ void ServiceContextMongoD::initializeGlobalStorageEngine() {
                           << storageGlobalParams.engine,
             factory);
 
+    uassert(28699,
+            str::stream() << "[ERROR] There are known issues with MongoDB 3.6 and MongoRocks."
+                          << " To learn about these issues and how to enable MongoRocks with"
+                          << " Percona Server for MongoDB 3.6, please read"
+                          << " http://docs.percona.com/percona-server-mongodb/3.6/MongoRocksInstall",
+            storageGlobalParams.engine != "rocksdb" || storageGlobalParams.useDeprecatedMongoRocks);
+
     if (storageGlobalParams.readOnly) {
         uassert(34368,
                 str::stream()

@@ -220,6 +220,17 @@ Status addMongodOptions(moe::OptionSection* options) {
                            "collections within a database into a shared record store.")
         .hidden();
 
+    storage_options
+        .addOptionChaining("storage.useDeprecatedMongoRocks",
+                           "useDeprecatedMongoRocks",
+                           moe::Switch,
+                           "If true allows usage of deprecated MongoRocks storage engine. "
+                           "There are known issues with MongoDB 3.6 and MongoRocks. To learn "
+                           "about these issues and how to enable MongoRocks with "
+                           "Percona Server for MongoDB 3.6, please read "
+                           "http://docs.percona.com/percona-server-mongodb/3.6/MongoRocksInstall")
+        .hidden();
+
     general_options
         .addOptionChaining("noIndexBuildRetry",
                            "noIndexBuildRetry",
@@ -1038,6 +1049,10 @@ Status storeMongodOptions(const moe::Environment& params) {
 
     if (params.count("storage.groupCollections")) {
         storageGlobalParams.groupCollections = params["storage.groupCollections"].as<bool>();
+    }
+
+    if (params.count("storage.useDeprecatedMongoRocks")) {
+        storageGlobalParams.useDeprecatedMongoRocks = params["storage.useDeprecatedMongoRocks"].as<bool>();
     }
 
     if (params.count("cpu")) {
