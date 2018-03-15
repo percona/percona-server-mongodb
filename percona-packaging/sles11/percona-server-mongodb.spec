@@ -286,6 +286,31 @@ if [[ $AUTH_ENABLED == 0 ]]; then
     echo " ** Read and write access to data and configuration is unrestricted."
     echo " ** To fix this please use /usr/bin/percona-server-mongodb-enable-auth.sh "
 fi
+
+print_message() {
+  red=`tput setaf 1`
+  reset=`tput sgr0`
+  echo "${red} [ERROR] There are known issues with MongoDB 3.6 and MongoRocks. To learn about"
+  echo "${red}        these issues and how to enable MongoRocks with Percona Server for MongoDB 3.6,"
+  echo "${red}        please read http://docs.percona.com/percona-server-mongodb/3.6/MongoRocksInstall${reset}"
+}
+RESTART=1
+ENGINE=$(grep 'engine:' /etc/mongod.conf | grep -v '#' | awk '{print $2}')
+if [ ! -z ${ENGINE} ]; then
+  if [ ${ENGINE} = "rocksdb" ]; then
+    DEPRECATED=$(grep 'useDeprecatedMongoRocks:' /etc/mongod.conf | grep -v '#' | awk '{print $2}')
+    if [ ! -z ${DEPRECATED} ]; then
+      if [ ${DEPRECATED} = "false" ]; then
+        print_message
+        RESTART=0
+      fi
+    else
+      print_message
+      RESTART=0
+    fi
+  fi
+fi
+
 if [ $1 -gt 1 ]; then
     STATUS_FILE=/tmp/MONGO_RPM_UPGRADE_MARKER
     if [ -f $STATUS_FILE ] ; then
@@ -296,7 +321,11 @@ if [ $1 -gt 1 ]; then
     fi
     if [ $SERVER_TO_START == 1 ]; then
         if [ -x %{_sysconfdir}/init.d/mongod ] ; then
-            %{_sysconfdir}/init.d/mongod restart
+            if [ $RESTART == 1 ]; then
+              %{_sysconfdir}/init.d/mongod restart
+            else
+              %{_sysconfdir}/init.d/mongod stop
+            fi
         fi
     fi
 fi
