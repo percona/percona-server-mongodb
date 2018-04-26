@@ -185,7 +185,8 @@ install -m 750 -d %{buildroot}/%{mongo_home}
 install -m 755 -d %{buildroot}/%{_sysconfdir}/sysconfig
 #
 install -m 644 %{SOURCE1} %{buildroot}/%{_sysconfdir}/mongod.conf
-sed -i 's:mongodb:mongo:g' %{buildroot}/%{_sysconfdir}/mongod.conf
+sed -i 's|/var/lib/mongodb|/var/lib/mongo|' %{buildroot}/%{_sysconfdir}/mongod.conf
+sed -i 's|/var/log/mongodb/mongod.log|/var/log/mongo/mongod.log|' %{buildroot}/%{_sysconfdir}/mongod.conf
 # startup stuff
 %if 0%{?rhel} >= 7
   install -m 755 -d %{buildroot}/%{_unitdir}
