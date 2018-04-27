@@ -1,0 +1,25 @@
+This script should be started on VM as additional dependencies could be installed!
+
+How to install dependencies:
+  sudo ./psmdb_builder.sh --builddir=<absolute path to dir> --install_deps=1
+
+How to get sources from github:
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=v3.4 --psm_ver=3.4.14 --psm_release=2.12 --mongo_tools_tag=r3.4.14 --get_sources=1
+
+How to build source rpm:
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=v3.4 --build_src_rpm=1
+
+How to build source deb:
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=v3.4 --build_source_deb=1
+
+How to build rpms:
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=v3.4 --build_rpm=1
+
+How to build debs:
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=v3.4 --build_deb=1
+
+How to build binary tarball:
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=v3.4 --build_tarball=1
+
+How to build tarball with debug:
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=v3.4 --debug=1
