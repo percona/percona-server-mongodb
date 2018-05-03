@@ -1036,10 +1036,6 @@ ExitCode _initAndListen(int listenPort) {
         return EXIT_NET_ERROR;
     }
 
-    if (!serviceContext->getGlobalStorageEngine()->isFcv36Supported()) {
-        serverGlobalParams.featureCompatibility.reset();
-    }
-
     // Start the periodic runner
     uassertStatusOK(serviceContext->getPeriodicRunner()->startup());
 
