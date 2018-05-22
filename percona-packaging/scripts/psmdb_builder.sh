@@ -238,7 +238,7 @@ install_deps() {
     
       yum -y install gcc-c++ gperf ncurses-devel perl readline-devel openssl-devel jemalloc
       yum -y install time zlib-devel libaio-devel bison cmake pam-devel libeatmydata jemalloc-devel
-      yum -y install perl-Time-HiRes perl-Env perl-Data-Dumper perl-JSON MySQL-python || true
+      yum -y install perl-Time-HiRes perl-Env perl-Data-Dumper perl-JSON MySQL-python lz4-devel || true
 
     else
       add_percona_apt_repo
