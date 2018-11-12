@@ -61,7 +61,7 @@ namespace mongo {
                 "audit.destination");
 
         auditOptions.addOptionChaining("auditLog.format", "auditFormat", optionenvironment::String,
-                "Output format",
+                "Output format (supported formats are JSON and BSON; defaults to JSON)",
                 "audit.format");
 
         auditOptions.addOptionChaining("auditLog.filter", "auditFilter", optionenvironment::String,
