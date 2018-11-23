@@ -50,6 +50,7 @@ baseEnv.Library('base_fts', [
         'fts_basic_tokenizer.cpp',
         'fts_unicode_phrase_matcher.cpp',
         'fts_unicode_tokenizer.cpp',
+        'fts_unicode_ngram_tokenizer.cpp',
         'fts_util.cpp',
         'fts_element_iterator.cpp',
         'stemmer.cpp',

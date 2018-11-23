@@ -75,6 +75,12 @@ public:
     bool more() const;
     QueryToken next();
 
+    /**
+     * This method will treat intermediate '-' as TEXT,
+     *   Original FTSQueryParser::next() will ignore intermediate '-'.
+     */
+    QueryToken nextForNgram();
+
 private:
     QueryToken::Type getType(char c) const;
     bool skipWhitespace();

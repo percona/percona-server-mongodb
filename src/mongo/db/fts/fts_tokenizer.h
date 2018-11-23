@@ -76,6 +76,12 @@ public:
     static const Options kGenerateDiacriticSensitiveTokens = 1 << 2;
 
     /**
+     * Generate delimiter based tokens for N-Gram
+     * This is need for phrase search(Everything is compared as phrase search in N-gram)
+     */
+    static const Options kGenerateDelimiterTokensForNGram = 1 << 7;
+
+    /**
      * Process a new document, and discards any previous results.
      * May be called multiple times on an instance of an iterator.
      */
