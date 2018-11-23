@@ -37,6 +37,7 @@
 #include "mongo/db/fts/fts_basic_tokenizer.h"
 #include "mongo/db/fts/fts_unicode_phrase_matcher.h"
 #include "mongo/db/fts/fts_unicode_tokenizer.h"
+#include "mongo/db/fts/fts_unicode_ngram_tokenizer.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/mongoutils/str.h"
@@ -122,9 +123,11 @@ MONGO_INITIALIZER_GROUP(FTSAllLanguagesRegistered, MONGO_NO_PREREQUISITES, MONGO
 #define LANGUAGE_DECLV3(id, name, alias) UnicodeFTSLanguage language##id##V3(name);
 
 BasicFTSLanguage languageNoneV2;
+BasicFTSLanguage languageNgramV2;
 MONGO_FTS_LANGUAGE_LIST(LANGUAGE_DECLV2);
 
 UnicodeFTSLanguage languageNoneV3("none");
+UnicodeFTSLanguage languageNgramV3("ngram");
 MONGO_FTS_LANGUAGE_LIST(LANGUAGE_DECLV3);
 
 // Registers each language and language aliases in the language map.
@@ -143,9 +146,11 @@ MONGO_INITIALIZER_GENERAL(FTSRegisterV2LanguagesAndLater,
                           ("FTSAllLanguagesRegistered"))
 (::mongo::InitializerContext* context) {
     FTSLanguage::registerLanguage("none", TEXT_INDEX_VERSION_2, &languageNoneV2);
+    FTSLanguage::registerLanguage("ngram", TEXT_INDEX_VERSION_2, &languageNgramV2);
     MONGO_FTS_LANGUAGE_LIST(LANGUAGE_INITV2);
 
     FTSLanguage::registerLanguage("none", TEXT_INDEX_VERSION_3, &languageNoneV3);
+    FTSLanguage::registerLanguage("ngram", TEXT_INDEX_VERSION_3, &languageNgramV3);
     MONGO_FTS_LANGUAGE_LIST(LANGUAGE_INITV3);
     return Status::OK();
 }
@@ -309,6 +314,9 @@ const FTSPhraseMatcher& BasicFTSLanguage::getPhraseMatcher() const {
 }
 
 std::unique_ptr<FTSTokenizer> UnicodeFTSLanguage::createTokenizer() const {
+    if("ngram" == str()){
+        return stdx::make_unique<UnicodeNgramFTSTokenizer>(this);
+    }
     return stdx::make_unique<UnicodeFTSTokenizer>(this);
 }
 
