@@ -39,6 +39,7 @@
 #include "mongo/base/init.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/concurrency/lock_state.h"
+#include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/storage/storage_engine_lock_file.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
@@ -158,6 +159,11 @@ void initializeStorageEngine(ServiceContext* service, const StorageEngineInitFla
             str::stream() << "Cannot start server with an unknown storage engine: "
                           << storageGlobalParams.engine,
             factory);
+
+    uassert(28709,
+            str::stream() << "Cannot start server. The 'enableEncryption' option"
+                          << " is only supported by the wiredTiger storage engine",
+            !encryptionGlobalParams.enableEncryption || storageGlobalParams.engine == "wiredTiger");
 
     if (storageGlobalParams.readOnly) {
         uassert(34368,
