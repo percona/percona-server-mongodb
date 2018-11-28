@@ -36,6 +36,7 @@
 #include "mongo/base/initializer.h"
 #include "mongo/db/client.h"
 #include "mongo/db/concurrency/lock_state.h"
+#include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/service_entry_point_mongod.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_engine_lock_file.h"
@@ -176,6 +177,11 @@ void ServiceContextMongoD::initializeGlobalStorageEngine() {
                           << " Percona Server for MongoDB 3.6, please read"
                           << " https://www.percona.com/doc/percona-server-for-mongodb/3.6/mongorocks.html",
             storageGlobalParams.engine != "rocksdb" || storageGlobalParams.useDeprecatedMongoRocks);
+
+    uassert(28709,
+            str::stream() << "Cannot start server. The 'enableEncryption' option"
+                          << " is only supported by the wiredTiger storage engine",
+            !encryptionGlobalParams.enableEncryption || storageGlobalParams.engine == "wiredTiger");
 
     if (storageGlobalParams.readOnly) {
         uassert(34368,
