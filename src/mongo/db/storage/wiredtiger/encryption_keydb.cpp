@@ -130,7 +130,9 @@ void EncryptionKeyDB::init() {
         // logging configured; updates durable on application or system failure
         // https://source.wiredtiger.com/3.0.0/tune_durability.html
         ss << "log=(enabled,file_max=5MB),transaction_sync=(enabled=true,method=fsync),";
-        int res = wiredtiger_open(_path.c_str(), nullptr, ss.str().c_str(), &_conn);
+        std::string config = ss.str();
+        log() << "Initializing KeyDB with wiredtiger_open config: " << config;
+        int res = wiredtiger_open(_path.c_str(), nullptr, config.c_str(), &_conn);
         if (res) {
             throw std::runtime_error(std::string("error opening keys DB at '") + _path + "': " + wiredtiger_strerror(res));
         }
@@ -186,6 +188,7 @@ void EncryptionKeyDB::init() {
         error() << e.what();
         throw;
     }
+    log() << "Encryption keys DB is initialized successfully";
 }
 
 int EncryptionKeyDB::get_key_by_id(const char *keyid, size_t len, unsigned char *key, void *pe) {
