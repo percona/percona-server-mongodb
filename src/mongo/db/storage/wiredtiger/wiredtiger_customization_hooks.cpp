@@ -57,7 +57,9 @@ public:
     virtual std::string getTableCreateConfig(StringData tableName) {
         NamespaceString ns(tableName);
         auto keyid = ns.db();
-        if (keyid.empty())
+        // Keep compatibility with v3.6 after SERVER-34617
+        const size_t minsize = 6; // Minimum size which allows following condition to be true
+        if (keyid.size() >= minsize && (keyid == "system"_sd || keyid.startsWith("table:"_sd)))
             keyid = "/default"_sd;
         return str::stream() << "encryption=(name=percona,keyid=\"" << keyid << "\"),";
     }
