@@ -43,6 +43,7 @@
 #endif
 
 #include <memory>
+#include <regex>
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 
@@ -425,6 +426,48 @@ stdx::function<bool(StringData)> initRsOplogBackgroundThreadCallback = [](String
 };
 }  // namespace
 
+// Copy files and fill vectors for remove copied files and empty dirs
+// Following files are excluded:
+//   collection-*.wt
+//   index-*.wt
+//   collection/*.wt
+//   index/*.wt
+// Can throw standard exceptions
+static void copy_keydb_files(const boost::filesystem::path& from,
+                             const boost::filesystem::path& to,
+                             std::vector<boost::filesystem::path>& emptyDirs,
+                             std::vector<boost::filesystem::path>& copiedFiles,
+                             bool* parent_empty = nullptr) {
+    namespace fs = boost::filesystem;
+    bool checkTo = true;
+    bool empty = true;
+
+    for(auto& p: fs::directory_iterator(from)) {
+        if (fs::is_directory(p.status())) {
+            copy_keydb_files(p.path(), to / p.path().filename(), emptyDirs, copiedFiles, &empty);
+        } else {
+            static std::regex rex{"/(collection|index)[-/][^/]+\\.wt$"};
+            std::smatch sm;
+            if (std::regex_search(p.path().string(), sm, rex)) {
+                empty = false;
+                if (parent_empty)
+                    *parent_empty = false;
+            } else {
+                if (checkTo) {
+                    checkTo = false;
+                    if (!fs::exists(to))
+                        fs::create_directories(to);
+                }
+                fs::copy_file(p.path(), to / p.path().filename(), fs::copy_option::none);
+                copiedFiles.push_back(p.path());
+            }
+        }
+    }
+
+    if (empty)
+        emptyDirs.push_back(from);
+}
+
 WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
                                        const std::string& path,
                                        ClockSource* cs,
@@ -460,14 +503,49 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
     _previousCheckedDropsQueued = _clockSource->now();
 
     if (encryptionGlobalParams.enableEncryption) {
-        boost::filesystem::path keyDBPath = path;
-        keyDBPath /= "keydb";
-        if (!boost::filesystem::exists(keyDBPath)) {
-            try {
-                boost::filesystem::create_directory(keyDBPath);
-            } catch (std::exception& e) {
-                log() << "error creating KeyDB dir " << keyDBPath.string() << ' ' << e.what();
-                throw;
+        namespace fs = boost::filesystem;
+        fs::path keyDBPath = path;
+        keyDBPath /= "key.db";
+        if (!fs::exists(keyDBPath)) {
+            fs::path betaKeyDBPath = path;
+            betaKeyDBPath /= "keydb";
+            if (!fs::exists(betaKeyDBPath)) {
+                try {
+                    fs::create_directory(keyDBPath);
+                } catch (std::exception& e) {
+                    log() << "error creating KeyDB dir " << keyDBPath.string() << ' ' << e.what();
+                    throw;
+                }
+            } else if (!storageGlobalParams.directoryperdb) {
+                // --directoryperdb is not specified - just rename
+                try {
+                    fs::rename(betaKeyDBPath, keyDBPath);
+                } catch (std::exception& e) {
+                    log() << "error renaming KeyDB directory from " << betaKeyDBPath.string()
+                          << " to " << keyDBPath.string() << ' ' << e.what();
+                    throw;
+                }
+            } else {
+                // --directoryperdb specified - there are chances betaKeyDBPath contains
+                // user data from 'keydb' database
+                // move everything except
+                //   collection-*.wt
+                //   index-*.wt
+                //   collection/*.wt
+                //   index/*.wt
+                try {
+                    std::vector<fs::path> emptyDirs;
+                    std::vector<fs::path> copiedFiles;
+                    copy_keydb_files(betaKeyDBPath, keyDBPath, emptyDirs, copiedFiles);
+                    for (auto&& file : copiedFiles)
+                        fs::remove(file);
+                    for (auto&& dir : emptyDirs)
+                        fs::remove(dir);
+                } catch (std::exception& e) {
+                    log() << "error moving KeyDB files from " << betaKeyDBPath.string()
+                          << " to " << keyDBPath.string() << ' ' << e.what();
+                    throw;
+                }
             }
         }
         _encryptionKeyDB = stdx::make_unique<EncryptionKeyDB>(keyDBPath.string());
