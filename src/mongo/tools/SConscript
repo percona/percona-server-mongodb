@@ -52,9 +52,23 @@ mongoebench = yamlEnv.Program(
     ],
 )
 
+perconadecrypt = env.Program(
+    target='perconadecrypt',
+    source=[
+        'perconadecrypt.cpp',
+        'perconadecrypt_options.cpp',
+        'perconadecrypt_options_init.cpp'
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/util/options_parser/options_parser_init',
+    ],
+)
+
+
 hygienic = get_option('install-mode') == 'hygienic'
 if not hygienic:
     env.Install("#/", mongobridge)
     env.Install("#/", mongoebench)
+    env.Install("#/", perconadecrypt)
 
 env.Alias('all', mongoebench)  # This ensures it compiles and links, but doesn't copy it anywhere.
