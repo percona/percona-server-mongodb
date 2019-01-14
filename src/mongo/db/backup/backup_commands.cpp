@@ -27,6 +27,7 @@ Copyright (c) 2006, 2016, Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/engine_extension.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/s/is_mongos.h"
 
 namespace mongo {
     extern StorageGlobalParams storageGlobalParams;
@@ -76,6 +77,11 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* txn,
 
     const std::string& dest = cmdObj["backupDir"].String();
     fs::path destPath(dest);
+
+    if (isMongos()) {
+      errmsg = "createBackup: not allowed through mongos";
+      return false;
+    }
 
     // Validate destination directory.
     try {
