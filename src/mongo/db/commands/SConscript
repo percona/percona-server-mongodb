@@ -74,10 +74,6 @@ env.Library(
     ],
 )
 
-coredbOptionalLibdeps = []
-if has_option('hotbackup'):
-    coredbOptionalLibdeps.append('$BUILD_DIR/mongo/db/backup/backup')
-
 env.Library(
     target="feature_compatibility_parsers",
     source=[
@@ -165,7 +161,7 @@ env.Library(
         '$BUILD_DIR/mongo/util/ntservice',
         'core',
         'feature_compatibility_parsers',
-    ] + coredbOptionalLibdeps,
+    ]
 )
 
 env.Library(
@@ -290,6 +286,10 @@ env.Library(
 )
 
 
+mongodOptionalLibdeps = []
+if has_option('hotbackup'):
+    mongodOptionalLibdeps.append('$BUILD_DIR/mongo/db/backup/backup')
+
 # Commands that should only be present in mongod
 env.Library(
     target="mongod",
@@ -359,7 +359,7 @@ env.Library(
         'shell_protocol',
         'standalone',
         'test_commands_enabled',
-    ],
+    ] + mongodOptionalLibdeps,
 )
 
 env.Library(
