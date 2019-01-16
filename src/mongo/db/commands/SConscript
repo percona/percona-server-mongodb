@@ -49,10 +49,6 @@ env.Library(
     ],
 )
 
-coredbOptionalLibdeps = []
-if has_option('hotbackup'):
-    coredbOptionalLibdeps.append('$BUILD_DIR/mongo/db/backup/backup')
-
 env.Library(
     target="core",
     source=[
@@ -121,7 +117,7 @@ env.Library(
         '$BUILD_DIR/mongo/util/ntservice',
         '$BUILD_DIR/mongo/util/processinfo',
         'server_status_core',
-    ] + coredbOptionalLibdeps,
+    ],
 )
 
 env.Library(
@@ -147,6 +143,10 @@ env.Library(
         '$BUILD_DIR/mongo/db/dbdirectclient',
     ],
 )
+
+mongodOptionalLibdeps = []
+if has_option('hotbackup'):
+    mongodOptionalLibdeps.append('$BUILD_DIR/mongo/db/backup/backup')
 
 # Commands that should only be present in mongod
 env.Library(
@@ -241,7 +241,7 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/ops/write_ops_exec',
-    ],
+    ] + mongodOptionalLibdeps,
 )
 
 env.Library(
