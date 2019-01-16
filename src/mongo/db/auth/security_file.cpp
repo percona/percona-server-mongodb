@@ -53,11 +53,35 @@ StatusWith<std::string> readSecurityFile(const std::string& filename) {
     }
 
 #if !defined(_WIN32)
-    // check permissions: must be X00, where X is >= 4
-    if ((stats.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
+    if (stats.st_uid == 0)
+    {
+      /* In case the owner is root then permission of the key file
+       * can be a bit more open than for the non root users. The owner
+       * write and group read are also permissible values for the
+       * file permission.
+       * -rw--r---- 640, read and write owner of the file and read
+       * bit of group.
+       * These remaining bit should not be set for key file.
+       * S_IXUSR -- Owner Execute.
+       * S_IWGRP -- Group Write.
+       * S_IXGRP -- group Execute.
+       * S_IRWXO -- Read, Write and Execute of user.
+       * ref: https://www.gnu.org/software/libc/manual/html_node/Permission-Bits.html
+       */
+      if ((stats.st_mode & (S_IXUSR | S_IWGRP | S_IXGRP | S_IRWXO)) != 0) {
         return StatusWith<std::string>(ErrorCodes::InvalidPath,
                                        str::stream() << "permissions on " << filename
                                                      << " are too open");
+      }
+    }
+    else
+    {
+      // Check permissions: must be X00, where X is >= 4 in case of non root owner.
+      if ((stats.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
+          return StatusWith<std::string>(ErrorCodes::InvalidPath,
+                                       str::stream() << "permissions on " << filename
+                                                     << " are too open");
+      }
     }
 #endif
 
