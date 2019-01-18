@@ -61,14 +61,14 @@ StatusWith<std::string> readSecurityFile(const std::string& filename) {
          * bit.
          * These remaining bit should not be set for key file.
          * S_IWGRP -- Group Write.
-         * S_IXGRP -- group Execute.
-         * S_IRWXO -- Read, Write and Execute of user.
+         * S_IXGRP -- Group Execute.
+         * S_IRWXO -- Read, Write and Execute for others.
          * ref: https://www.gnu.org/software/libc/manual/html_node/Permission-Bits.html
          */
         if ((stats.st_mode & (S_IWGRP | S_IXGRP | S_IRWXO)) != 0) {
             return StatusWith<std::string>(ErrorCodes::InvalidPath,
-                                                      str::stream() << "permissions on " << filename
-                                                                    << " are too open");
+                                           str::stream() << "permissions on " << filename
+                                                         << " are too open");
         }
     } else {
         // Check permissions: must be X00, where X is >= 4 in case of non root owner.
