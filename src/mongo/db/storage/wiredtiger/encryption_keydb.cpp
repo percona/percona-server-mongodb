@@ -116,6 +116,12 @@ void EncryptionKeyDB::init() {
             throw std::runtime_error(std::string("specified encryption key file doesn't exist: ")
                                                  + encryptionGlobalParams.encryptionKeyFile);
         }
+        if ((boost::filesystem::status(encryptionGlobalParams.encryptionKeyFile).permissions()
+            & (boost::filesystem::group_all | boost::filesystem::others_all)) != 0) {
+            throw std::runtime_error(std::string("permissions on ")
+                                                 + encryptionGlobalParams.encryptionKeyFile
+                                                 + " are too open");
+        }
         std::ifstream f(encryptionGlobalParams.encryptionKeyFile);
         if (!f.is_open()) {
             throw std::runtime_error(std::string("cannot open specified encryption key file: ")
