@@ -709,10 +709,10 @@ build_tarball(){
     # Build mongo tools
     cd ${TOOLSDIR}
     mkdir -p build_tools/src/github.com/mongodb/mongo-tools
-    export GOROOT="/usr/local/go/"; \
-    export GOPATH=$(PWD)/; \
-    export PATH="/usr/local/go/bin:$(PATH):$(GOPATH)"; \
-    export GOBINPATH="/usr/local/go/bin"; \
+    export GOROOT="/usr/local/go/"
+    export GOPATH=$PWD/
+    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
+    export GOBINPATH="/usr/local/go/bin"
     rm -rf vendor/pkg
     cp -r $(ls | grep -v build_tools) build_tools/src/github.com/mongodb/mongo-tools/
     cd build_tools/src/github.com/mongodb/mongo-tools
