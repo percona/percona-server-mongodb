@@ -17,6 +17,7 @@ env.SConscript('third_party/SConscript', exports=['env'])
 env = env.Clone()
 env.InjectThirdPartyIncludePaths(libraries=[
     'boost',
+    'fmt',
     'pcre',
 ])
 

@@ -24,6 +24,7 @@ libarchiveSuffix = '-3.4.0'
 thirdPartyIncludePathList = [
     ('percona_incl', '#/src/third_party/install/include'),
     ('libarchive', '#/src/third_party/libarchive' + libarchiveSuffix),
+    ('fmt', '#src/third_party/fmt/dist/include'),
     ('s2', '#/src/third_party/s2'),
     ('timelib', '#/src/third_party/timelib' + timelibSuffix),
 ]
@@ -124,13 +125,36 @@ env.AddMethod(injectThirdPartyIncludePaths, 'InjectThirdPartyIncludePaths')
 env = env.Clone()
 
 murmurEnv = env.Clone()
+murmurEnv.InjectThirdPartyIncludePaths(libraries=['fmt'])
 murmurEnv.SConscript('murmurhash3/SConscript', exports={ 'env' : murmurEnv })
 
 
 s2Env = env.Clone()
-s2Env.InjectThirdPartyIncludePaths(libraries=['s2', 'boost'])
+s2Env.InjectThirdPartyIncludePaths(libraries=['s2', 'boost', 'fmt'])
 s2Env.InjectMongoIncludePaths()
 s2Env.SConscript('s2/SConscript', exports={'env' : s2Env})
+
+
+if use_system_version_of_library("fmt"):
+    fmtEnv = env.Clone(
+        SYSLIBDEPS=[
+            env['LIBDEPS_FMT_SYSLIBDEP'],
+        ])
+else:
+    fmtEnv = env.Clone()
+    fmtEnv.InjectThirdPartyIncludePaths(libraries=['fmt'])
+    fmtEnv.InjectMongoIncludePaths()
+    fmtEnv.SConscript('fmt/SConscript', exports={'env' : fmtEnv})
+    fmtEnv = fmtEnv.Clone(
+        LIBDEPS_INTERFACE=[
+            'fmt/fmt',
+        ])
+
+fmtEnv.Library(
+    target="shim_fmt",
+    source=[
+        'shim_fmt.cpp',
+    ])
 
 
 if use_system_version_of_library("pcre"):

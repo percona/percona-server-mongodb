@@ -39,6 +39,8 @@
 #include <stdexcept>
 #include <string>
 
+#include <fmt/format.h>
+
 #include "mongo/stdx/type_traits.h"
 #define MONGO_INCLUDE_INVARIANT_H_WHITELISTED
 #include "mongo/util/invariant.h"
@@ -165,11 +167,11 @@ public:
      * null-terminated, so if using this without checking size(), you are likely doing
      * something wrong.
      */
-    constexpr const char* rawData() const {
+    constexpr const char* rawData() const noexcept {
         return _data;
     }
 
-    constexpr size_t size() const {
+    constexpr size_t size() const noexcept {
         return _size;
     }
     constexpr bool empty() const {
@@ -349,6 +351,12 @@ inline std::string operator+(StringData lhs, std::string rhs) {
     if (!lhs.empty())
         rhs.insert(0, lhs.rawData(), lhs.size());
     return rhs;
+}
+
+// this is constexpr in newer branches but compiler for v4.0
+// errors on constexpr
+inline fmt::string_view to_string_view(StringData s) noexcept {
+    return fmt::string_view(s.rawData(), s.size());
 }
 
 }  // namespace mongo

@@ -25,6 +25,7 @@ a notice will be included in
 | [ASIO]                     | BSL-1.0           | 9229964dc1        |                      |                ✗                |
 | [benchmark]                | Apache-2.0        | 1.3.0             |                      |                                 |
 | [Boost]                    | BSL-1.0           | 1.60.0            |                      |                ✗                |
+| [fmt]                      | BSD-2-Clause      | 6.1.1             |                      |                ✗                |
 | [GPerfTools]               | BSD-3-Clause      | 2.5               |                      |                ✗                |
 | [ICU4]                     | ICU               | 57.1              |          ✗           |                ✗                |
 | [Intel Decimal FP Library] | BSD-3-Clause      | 2.0 Update 1      |                      |                ✗                |
@@ -50,6 +51,7 @@ a notice will be included in
 [ASIO]: https://github.com/chriskohlhoff/asio
 [benchmark]: https://github.com/google/benchmark
 [Boost]: http://www.boost.org/
+[fmt]: http://www.fmtlib.net/
 [GPerfTools]: https://github.com/gperftools/gperftools
 [ICU4]: http://site.icu-project.org/download/
 [Intel Decimal FP Library]: https://software.intel.com/en-us/articles/intel-decimal-floating-point-math-library
