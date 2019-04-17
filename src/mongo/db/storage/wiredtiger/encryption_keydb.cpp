@@ -122,7 +122,7 @@ void EncryptionKeyDB::init_masterkey() {
     }
     auto prohibited_perms{S_IRWXG | S_IRWXO};
     if (serverGlobalParams.relaxPermChecks && stats.st_uid == 0) {
-        prohibited_perms = S_IWGRP | S_IXGRP | S_IRWXO;
+        prohibited_perms = S_IXGRP | S_IRWXO;
     }
     if ((stats.st_mode & prohibited_perms) != 0) {
         throw std::runtime_error(str::stream()
