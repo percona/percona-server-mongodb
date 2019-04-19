@@ -27,43 +27,55 @@
 
 #pragma once
 
-#include "mongo/logger/auditlog.h"
-#include "mongo/logger/log_manager.h"
-#include "mongo/logger/message_log_domain.h"
-#include "mongo/logger/rotatable_file_manager.h"
-#include "mongo/logger/audit_log_domain.h"
+
+#include "mongo/base/disallow_copying.h"
+#include "mongo/base/status.h"
+#include "mongo/logger/appender.h"
+#include "mongo/logger/encoder.h"
+#include "mongo/logger/rotatable_file_writer.h"
 
 namespace mongo {
 namespace logger {
 
 /**
- * Gets a global singleton instance of RotatableFileManager.
+ * Appender for writing to instances of RotatableFileWriter.
  */
-RotatableFileManager* globalRotatableFileManager();
+template <typename Event>
+class RotatableFileAuditAppender : public Appender<Event> {
+    MONGO_DISALLOW_COPYING(RotatableFileAuditAppender);
 
-/**
- * Gets a global singleton instance of LogManager.
- */
-LogManager* globalLogManager();
+public:
+    typedef Encoder<Event> EventEncoder;
 
-/**
- * Gets the global MessageLogDomain associated for the global log manager.
- */
-inline ComponentMessageLogDomain* globalLogDomain() {
-    return globalLogManager()->getGlobalDomain();
-}
+    /**
+     * Constructs an appender, that owns "encoder", but not "writer."  Caller must
+     * keep "writer" in scope at least as long as the constructed appender.
+     */
+    RotatableFileAuditAppender(EventEncoder* encoder, RotatableFileWriter* writer)
+        : _encoder(encoder), _writer(writer) {}
 
-/**
- * Sets current audit logger instance.
- */
-//void setAuditLog(AuditLog * const auditLog);
+    virtual Status append(const Event& event) {
+        std::stringstream s;
+        _encoder->encode(event, s);
+        RotatableFileWriter::Use useWriter(_writer);
+        Status status = useWriter.status();
+        if (!status.isOK())
+            return status;
+        useWriter.stream() << s.str();
+        return Status::OK();
+    }
 
-/**
- * Gets the global AuditLogDomain associated for the global log manager.
- */ 
-inline AuditLogDomain* globalAuditLogDomain() {
-    return globalLogManager()->getGlobalAuditDomain();
-}
+    virtual void flush() {
+        RotatableFileWriter::Use useWriter(_writer);
+        if (useWriter.status().isOK()) {
+            useWriter.stream().flush();
+        }
+    }
+
+private:
+    std::unique_ptr<EventEncoder> _encoder;
+    RotatableFileWriter* _writer;
+};
 
 }  // namespace logger
 }  // namespace mongo

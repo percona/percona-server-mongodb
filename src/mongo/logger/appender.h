@@ -50,6 +50,11 @@ public:
      * Appends "event", returns Status::OK() on success.
      */
     virtual Status append(const Event& event) = 0;
+
+    /**
+     * Flush ostream.
+     */
+    virtual void flush() {}
 };
 
 }  // namespace logger

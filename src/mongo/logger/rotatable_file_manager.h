@@ -86,13 +86,13 @@ public:
     /**
      * Set AuditLog instance for rotating.
      */
-    void setAuditLog(AuditLog * const auditLog);
+ //   void setAuditLog(AuditLog * const auditLog);
 
 private:
     typedef unordered_map<std::string, RotatableFileWriter*> WriterByNameMap;
 
     WriterByNameMap _writers;
-    AuditLog * _auditLog;
+//    AuditLog * _auditLog;
 };
 
 }  // namespace logger

@@ -27,43 +27,23 @@
 
 #pragma once
 
-#include "mongo/logger/auditlog.h"
-#include "mongo/logger/log_manager.h"
-#include "mongo/logger/message_log_domain.h"
-#include "mongo/logger/rotatable_file_manager.h"
-#include "mongo/logger/audit_log_domain.h"
+#include <iosfwd>
+
+#include "mongo/logger/encoder.h"
+#include "mongo/bson/bsonobj.h"
 
 namespace mongo {
 namespace logger {
 
+//class BSONObj;
 /**
- * Gets a global singleton instance of RotatableFileManager.
+ * Encoder that writes log messages of the style that MongoDB writes to console and files.
  */
-RotatableFileManager* globalRotatableFileManager();
-
-/**
- * Gets a global singleton instance of LogManager.
- */
-LogManager* globalLogManager();
-
-/**
- * Gets the global MessageLogDomain associated for the global log manager.
- */
-inline ComponentMessageLogDomain* globalLogDomain() {
-    return globalLogManager()->getGlobalDomain();
-}
-
-/**
- * Sets current audit logger instance.
- */
-//void setAuditLog(AuditLog * const auditLog);
-
-/**
- * Gets the global AuditLogDomain associated for the global log manager.
- */ 
-inline AuditLogDomain* globalAuditLogDomain() {
-    return globalLogManager()->getGlobalAuditDomain();
-}
+class AuditEventJSONEncoder : public Encoder<BSONObj> {
+public:
+    virtual ~AuditEventJSONEncoder();
+    virtual std::ostream& encode(const BSONObj& event, std::ostream& os);
+};
 
 }  // namespace logger
 }  // namespace mongo

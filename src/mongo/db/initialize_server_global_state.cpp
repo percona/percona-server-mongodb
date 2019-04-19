@@ -69,6 +69,10 @@
 #include "mongo/util/quick_exit.h"
 #include "mongo/util/signal_handlers_synchronous.h"
 
+#include "mongo/logger/audit_event_utf8_encoder.h"
+#include "mongo/db/audit/audit_options.h" 
+#include "mongo/logger/rotatable_file_appender_audit.h"
+
 namespace fs = boost::filesystem;
 
 namespace mongo {
@@ -210,6 +214,10 @@ MONGO_INITIALIZER_GENERAL(ServerLogRedirection,
     using logger::RotatableFileAppender;
     using logger::StatusWithRotatableFileWriter;
 
+    using logger::AuditEventJSONEncoder;
+    using logger::AuditLogDomain;
+    using logger::RotatableFileAuditAppender;
+
     if (serverGlobalParams.logWithSyslog) {
 #ifdef _WIN32
         return Status(ErrorCodes::InternalError,
@@ -295,6 +303,46 @@ MONGO_INITIALIZER_GENERAL(ServerLogRedirection,
             if (!status.isOK())
                 return status;
         }
+
+        // only initialize when written to a file
+        if (auditOptions.destination == "file") {
+            if (auditOptions.path.empty()) {
+                boost::filesystem::path p(serverGlobalParams.logpath);
+                serverGlobalParams.auditPath = p.parent_path().string() + "/audit_" +p.filename().string();
+            }
+            absoluteLogpath = boost::filesystem::absolute(auditOptions.path).string();
+
+            try {
+                exists = boost::filesystem::exists(absoluteLogpath);
+            } catch (boost::filesystem::filesystem_error& e) {
+                return Status(ErrorCodes::FileNotOpen,
+                            mongoutils::str::stream() << "Failed probe for \"" << absoluteLogpath
+                                                        << "\": " << e.code().message());
+            }
+
+            if (exists) {
+                if (boost::filesystem::is_directory(absoluteLogpath)) {
+                    return Status(ErrorCodes::FileNotOpen,
+                                mongoutils::str::stream()
+                                    << "auditLogpath \"" << absoluteLogpath
+                                    << "\" should name a file, not a directory.");
+                }
+            }
+
+            StatusWithRotatableFileWriter auditWriter = logger::globalRotatableFileManager()->openFile(
+                absoluteLogpath, true);
+            if (!auditWriter.isOK()) {
+                return auditWriter.getStatus();
+            }
+
+            manager->getGlobalAuditDomain()->clearAppenders();
+            if (auditOptions.format =="JSON" || auditOptions.format =="BSON") {
+                manager->getGlobalAuditDomain()->attachAppender(
+                    AuditLogDomain::AppenderAutoPtr(new RotatableFileAuditAppender<BSONObj>(
+                        new AuditEventJSONEncoder, auditWriter.getValue())));
+            } 
+        }
+
     } else {
         logger::globalLogManager()
             ->getNamedDomain("javascriptOutput")

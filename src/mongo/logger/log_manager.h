@@ -33,6 +33,7 @@
 #include "mongo/logger/component_message_log_domain.h"
 #include "mongo/logger/rotatable_file_writer.h"
 #include "mongo/platform/unordered_map.h"
+#include "mongo/logger/audit_log_domain.h"
 
 namespace mongo {
 namespace logger {
@@ -61,11 +62,19 @@ public:
      */
     MessageLogDomain* getNamedDomain(const std::string& name);
 
+    /**
+     * Gets the global audit domain for this manager.  It has no name.
+     */
+    AuditLogDomain* getGlobalAuditDomain() {
+        return &_globalAuditDomain;
+    }
+
 private:
     typedef unordered_map<std::string, MessageLogDomain*> DomainsByNameMap;
 
     DomainsByNameMap _domains;
     ComponentMessageLogDomain _globalDomain;
+    AuditLogDomain _globalAuditDomain;
 };
 
 }  // namespace logger

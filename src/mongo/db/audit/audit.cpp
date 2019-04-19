@@ -54,7 +54,6 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/server_parameters.h"
 #include "mongo/db/storage/paths.h"
 #include "mongo/stdx/mutex.h"
-#include "mongo/logger/auditlog.h"
 #include "mongo/util/concurrency/mutex.h"
 #include "mongo/util/exit_code.h"
 #include "mongo/util/log.h"
@@ -66,11 +65,48 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "audit_options.h"
 #include "audit_file.h"
 
+#include "mongo/logger/logger.h"
+#include "mongo/util/background.h"  
+#include "mongo/util/exit.h"
+
 #define PERCONA_AUDIT_STUB {}
 
 namespace mongo {
 
+/**
+ * Thread for flush audit log
+ * create like \src\mongo\db\clientcursor.cpp
+ */
+class AuditLogFlusher : public BackgroundJob {
+public:
+    std::string name() const {
+        return "AuditLogFlusher";
+    }
+
+    void run() {
+        Client::initThread("AuditLogFlusher");
+        const int Secs = 1;
+        while (!inShutdown()) {
+            //获得ostream，然后flush
+            logger::globalAuditLogDomain()->flush();
+            sleepsecs(Secs);
+        }
+    }
+};
+
+namespace {
+// Only one instance of the AuditLogFlusher exists
+AuditLogFlusher auditLogFlusher;
+}
+
+void startAuditLogFlusher() {
+    auditLogFlusher.go();
+}
+
+
 namespace audit {
+
+    using namespace mongo::logger;
 
     MONGO_EXPORT_SERVER_PARAMETER(auditAuthorizationSuccess, bool, false);
 
@@ -85,16 +121,9 @@ namespace audit {
 #endif
     }
 
-    // Adapter
-    class AuditLogFormatAdapter {
-    public:
-        virtual ~AuditLogFormatAdapter() {}
-        virtual const char *data() const = 0;
-        virtual unsigned size() const = 0;
-    };
 
     // Writable interface for audit events
-    class WritableAuditLog : public logger::AuditLog {
+    class WritableAuditLog /*: public logger::AuditLog */{
     public:
         WritableAuditLog(const BSONObj &filter)
             : _matcher(filter.getOwned(), ExtensionsCallbackDisallowExtensions(), nullptr) {
@@ -106,17 +135,11 @@ namespace audit {
                 appendMatched(obj);
             }
         }
-        virtual void rotate() {
-            // No need to override this method if there is nothing to rotate
-            // like it is for 'console' and 'syslog' destinations
-        }
-
     protected:
         virtual void appendMatched(const BSONObj &obj) = 0;
 
     private:
         const Matcher _matcher;
-
     };
 
     // Writes audit events to a file
@@ -128,182 +151,18 @@ namespace audit {
         }
 
     public:
-        FileAuditLog(const std::string &file, const BSONObj &filter)
-            : WritableAuditLog(filter),
-              _file(new AuditFile),
-              _fileName(file) {
-            _file->open(file.c_str(), false, false);
-        }
+        FileAuditLog(const BSONObj &filter): WritableAuditLog(filter){}
 
     protected:
-        // Creates specific Adapter instance for FileAuditLog::append()
-        // and passess ownership to caller
-        virtual AuditLogFormatAdapter *createAdapter(const BSONObj &obj) const = 0;
-
+        
         virtual void appendMatched(const BSONObj &obj) {
-            boost::scoped_ptr<AuditLogFormatAdapter> adapter(createAdapter(obj));
 
-            // mongo::File does not have an "atomic append" operation.
-            // As such, with a rwlock we are vulnerable to a race
-            // where we get the length of the file, then try to pwrite
-            // at that offset.  If another write beats us to pwrite,
-            // we'll overwrite that audit data when our write goes
-            // through.
-            //
-            // Somewhere, we need a mutex around grabbing the file
-            // offset and trying to write to it (even if this were in
-            // the kernel, the synchronization is still there).  This
-            // is a good enough place as any.
-            //
-            // We don't need the mutex around fsync, except to protect against concurrent
-            // logRotate destroying our pointer.  Welp.
-            stdx::lock_guard<SimpleMutex> lck(_mutex);
-
-            // If pwrite performs a partial write, we don't want to
-            // muck about figuring out how much it did write (hard to
-            // get out of the File abstraction) and then carefully
-            // writing the rest.  Easier to calculate the position
-            // first, then repeatedly write to that position if we
-            // have to retry.
-            fileofs pos = _file->len();
-
-            int writeRet;
-            for (int retries = 10; retries > 0; --retries) {
-                writeRet = _file->writeReturningError(pos, adapter->data(), adapter->size());
-                if (writeRet == 0) {
-                    break;
-                } else if (!ioErrorShouldRetry(writeRet)) {
-                    error() << "Audit system cannot write event " << redact(obj) << " to log file " << _fileName << std::endl;
-                    error() << "Write failed with fatal error " << errnoWithDescription(writeRet) << std::endl;
-                    error() << "As audit cannot make progress, the server will now shut down." << std::endl;
-                    realexit(EXIT_AUDIT_ERROR);
-                }
-                warning() << "Audit system cannot write event " << redact(obj) << " to log file " << _fileName << std::endl;
-                warning() << "Write failed with retryable error " << errnoWithDescription(writeRet) << std::endl;
-                warning() << "Audit system will retry this write another " << retries - 1 << " times." << std::endl;
-                if (retries <= 7 && retries > 0) {
-                    sleepmillis(1 << ((7 - retries) * 2));
-                }
+            Status status = globalAuditLogDomain()->append(obj);
+            if (!status.isOK()) {
+                warning() << "append audit log failure, status: " << status << std::endl;
             }
-
-            if (writeRet != 0) {
-                error() << "Audit system cannot write event " << redact(obj) << " to log file " << _fileName << std::endl;
-                error() << "Write failed with fatal error " << errnoWithDescription(writeRet) << std::endl;
-                error() << "As audit cannot make progress, the server will now shut down." << std::endl;
-                realexit(EXIT_AUDIT_ERROR);
-            }
-
-            int fsyncRet;
-            for (int retries = 10; retries > 0; --retries) {
-                fsyncRet = _file->fsyncReturningError();
-                if (fsyncRet == 0) {
-                    break;
-                } else if (!ioErrorShouldRetry(fsyncRet)) {
-                    error() << "Audit system cannot fsync event " << redact(obj) << " to log file " << _fileName << std::endl;
-                    error() << "Fsync failed with fatal error " << errnoWithDescription(fsyncRet) << std::endl;
-                    error() << "As audit cannot make progress, the server will now shut down." << std::endl;
-                    realexit(EXIT_AUDIT_ERROR);
-                }
-                warning() << "Audit system cannot fsync event " << redact(obj) << " to log file " << _fileName << std::endl;
-                warning() << "Fsync failed with retryable error " << errnoWithDescription(fsyncRet) << std::endl;
-                warning() << "Audit system will retry this fsync another " << retries - 1 << " times." << std::endl;
-                if (retries <= 7 && retries > 0) {
-                    sleepmillis(1 << ((7 - retries) * 2));
-                }
-            }
-
-            if (fsyncRet != 0) {
-                error() << "Audit system cannot fsync event " << redact(obj) << " to log file " << _fileName << std::endl;
-                error() << "Fsync failed with fatal error " << errnoWithDescription(fsyncRet) << std::endl;
-                error() << "As audit cannot make progress, the server will now shut down." << std::endl;
-                realexit(EXIT_AUDIT_ERROR);
-            }
-        }
-
-        virtual void rotate() {
-            stdx::lock_guard<SimpleMutex> lck(_mutex);
-
-            // Close the current file.
-            _file.reset();
-
-            // Rename the current file
-            // Note: we append a timestamp to the file name.
-            std::stringstream ss;
-            ss << _fileName << "." << terseCurrentTime(false);
-            std::string s = ss.str();
-            int r = std::rename(_fileName.c_str(), s.c_str());
-            if (r != 0) {
-                error() << "Could not rotate audit log, but continuing normally "
-                        << "(error desc: " << errnoWithDescription() << ")"
-                        << std::endl;
-            }
-
-            // Open a new file, with the same name as the original.
-            _file.reset(new AuditFile);
-            _file->open(_fileName.c_str(), false, false);
-        }
-
-    private:
-        boost::scoped_ptr<AuditFile> _file;
-        const std::string _fileName;
-        SimpleMutex _mutex;
-    };    
-
-    // Writes audit events to a json file
-    class JSONAuditLog: public FileAuditLog {
-
-        class Adapter: public AuditLogFormatAdapter {
-            const std::string str;
-
-        public:
-            Adapter(const BSONObj &obj)
-                : str(obj.jsonString() + '\n') {}
-
-            virtual const char *data() const override {
-                return str.c_str();
-            }
-            virtual unsigned size() const override {
-                return str.size();
-            }
-        };
-
-    protected:
-        virtual AuditLogFormatAdapter *createAdapter(const BSONObj &obj) const override {
-            return new Adapter(obj);
-        }
-    public:
-        JSONAuditLog(const std::string &file, const BSONObj &filter)
-            : FileAuditLog(file, filter) {}
+    }   
     };
-
-    // Writes audit events to a bson file
-    class BSONAuditLog: public FileAuditLog {
-
-        class Adapter: public AuditLogFormatAdapter {
-            const BSONObj &obj;
-
-        public:
-            Adapter(const BSONObj &aobj)
-                : obj(aobj) {}
-
-            virtual const char *data() const override {
-                return obj.objdata();
-            }
-            virtual unsigned size() const override {
-                return obj.objsize();
-            }
-        };
-
-    protected:
-        virtual AuditLogFormatAdapter *createAdapter(const BSONObj &obj) const override {
-            return new Adapter(obj);
-        }
-
-    public:
-        BSONAuditLog(const std::string &file, const BSONObj &filter)
-            : FileAuditLog(file, filter) {}
-    };
-
     // Writes audit events to the console
     class ConsoleAuditLog : public WritableAuditLog {
     public:
@@ -353,10 +212,6 @@ namespace audit {
 
     static void _setGlobalAuditLog(WritableAuditLog *log) {
         _auditLog.reset(log);
-
-        // Sets the audit log in the general logging framework which
-        // will rotate() the audit log when the server log rotates.
-        setAuditLog(log);
     }
 
     static bool _auditEnabledOnCommandLine() {
@@ -381,10 +236,8 @@ namespace audit {
         else if (auditOptions.destination == "syslog")
             _setGlobalAuditLog(new SyslogAuditLog(filter));
         // "file" destination
-        else if (auditOptions.format == "BSON")
-            _setGlobalAuditLog(new BSONAuditLog(auditOptions.path, filter));
         else
-            _setGlobalAuditLog(new JSONAuditLog(auditOptions.path, filter));
+            _setGlobalAuditLog(new FileAuditLog(filter));
         return Status::OK();
     }
 

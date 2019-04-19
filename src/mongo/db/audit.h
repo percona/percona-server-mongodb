@@ -336,4 +336,7 @@ void parseAndRemoveImpersonatedRolesField(BSONObj cmdObj,
                                           bool* fieldIsPresent);
 
 }  // namespace audit
+
+void startAuditLogFlusher();
+
 }  // namespace mongo

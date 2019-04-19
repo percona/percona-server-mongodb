@@ -146,6 +146,9 @@
 #include "mongo/util/time_support.h"
 #include "mongo/util/version.h"
 
+#include "mongo/logger/logger.h"
+#include "mongo/db/audit/audit_options.h"
+
 #ifdef MONGO_CONFIG_SSL
 #include "mongo/util/net/ssl_options.h"
 #endif
@@ -831,6 +834,14 @@ ExitCode _initAndListen(int listenPort) {
 
     startClientCursorMonitor();
 
+#if PERCONA_AUDIT_ENABLED
+    // only start startAuditLogFlusher thread when written to a file
+    if (auditOptions.destination == "file") {
+        startAuditLogFlusher();   
+        log() << "** start startAuditLogFlusher thread ";
+    }
+#endif
+
     PeriodicTask::startRunningPeriodicTasks();
 
     // MessageServer::run will return when exit code closes its socket and we don't need the
@@ -1177,6 +1188,9 @@ static void shutdownTask() {
     log(LogComponent::kControl) << "now exiting" << endl;
 
     audit::logShutdown(&cc());
+
+    // flush audit log before shutdown 
+    logger::globalAuditLogDomain()->flush();
 }
 
 static int mongoDbMain(int argc, char* argv[], char** envp) {

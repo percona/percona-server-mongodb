@@ -1,4 +1,4 @@
-/*    Copyright 2013 10gen Inc.
+/*    Copyright (C) 2016 10gen Inc.
  *
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
@@ -25,44 +25,30 @@
  *    then also delete it in the license file.
  */
 
-#pragma once
+#include "mongo/platform/basic.h"
 
-#include "mongo/logger/auditlog.h"
-#include "mongo/logger/log_manager.h"
-#include "mongo/logger/message_log_domain.h"
-#include "mongo/logger/rotatable_file_manager.h"
-#include "mongo/logger/audit_log_domain.h"
+#include "mongo/logger/audit_event_utf8_encoder.h"
+
+#include <iostream>
+#include "mongo/db/audit/audit_options.h"
 
 namespace mongo {
 namespace logger {
 
-/**
- * Gets a global singleton instance of RotatableFileManager.
- */
-RotatableFileManager* globalRotatableFileManager();
+AuditEventJSONEncoder::~AuditEventJSONEncoder() {}
 
-/**
- * Gets a global singleton instance of LogManager.
- */
-LogManager* globalLogManager();
-
-/**
- * Gets the global MessageLogDomain associated for the global log manager.
- */
-inline ComponentMessageLogDomain* globalLogDomain() {
-    return globalLogManager()->getGlobalDomain();
-}
-
-/**
- * Sets current audit logger instance.
- */
-//void setAuditLog(AuditLog * const auditLog);
-
-/**
- * Gets the global AuditLogDomain associated for the global log manager.
- */ 
-inline AuditLogDomain* globalAuditLogDomain() {
-    return globalLogManager()->getGlobalAuditDomain();
+std::ostream& AuditEventJSONEncoder::encode(const BSONObj& event,
+                                            std::ostream& os) {
+   // JSON or BSON format
+   if(auditOptions.format == "JSON"){
+       os << event.jsonString();
+   }
+   else{
+       os << event.toString();
+   }
+    
+    os << '\n';
+    return os;
 }
 
 }  // namespace logger

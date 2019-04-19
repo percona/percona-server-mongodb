@@ -68,6 +68,17 @@ Status LogDomain<E>::append(const E& event) {
 }
 
 template <typename E>
+void LogDomain<E>::flush() {
+    for (typename AppenderVector::const_iterator iter = _appenders.begin();
+         iter != _appenders.end();
+         ++iter) {
+        if (*iter) {
+            (*iter)->flush();
+        }
+    }
+}
+
+template <typename E>
 typename LogDomain<E>::AppenderHandle LogDomain<E>::attachAppender(
     typename LogDomain<E>::AppenderAutoPtr appender) {
     typename AppenderVector::iterator iter =

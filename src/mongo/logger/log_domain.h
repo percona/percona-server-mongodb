@@ -97,6 +97,11 @@ public:
     Status append(const Event& event);
 
     /**
+     * Flush all attached appenders.
+     */
+    void flush();
+    
+    /**
      * Gets the state of the abortOnFailure flag.
      */
     bool getAbortOnFailure() const {

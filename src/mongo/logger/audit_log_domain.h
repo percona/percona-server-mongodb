@@ -1,4 +1,4 @@
-/*    Copyright 2013 10gen Inc.
+/*    Copyright (C) 2016 Tele-mongo.
  *
  *    This program is free software: you can redistribute it and/or  modify
  *    it under the terms of the GNU Affero General Public License, version 3,
@@ -27,43 +27,18 @@
 
 #pragma once
 
-#include "mongo/logger/auditlog.h"
-#include "mongo/logger/log_manager.h"
-#include "mongo/logger/message_log_domain.h"
-#include "mongo/logger/rotatable_file_manager.h"
-#include "mongo/logger/audit_log_domain.h"
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "mongo/logger/log_domain.h"
+#include "mongo/bson/bsonobj.h"
 
 namespace mongo {
 namespace logger {
 
-/**
- * Gets a global singleton instance of RotatableFileManager.
- */
-RotatableFileManager* globalRotatableFileManager();
-
-/**
- * Gets a global singleton instance of LogManager.
- */
-LogManager* globalLogManager();
-
-/**
- * Gets the global MessageLogDomain associated for the global log manager.
- */
-inline ComponentMessageLogDomain* globalLogDomain() {
-    return globalLogManager()->getGlobalDomain();
-}
-
-/**
- * Sets current audit logger instance.
- */
-//void setAuditLog(AuditLog * const auditLog);
-
-/**
- * Gets the global AuditLogDomain associated for the global log manager.
- */ 
-inline AuditLogDomain* globalAuditLogDomain() {
-    return globalLogManager()->getGlobalAuditDomain();
-}
+//class BSONObj;
+typedef LogDomain<BSONObj> AuditLogDomain;
 
 }  // namespace logger
 }  // namespace mongo
