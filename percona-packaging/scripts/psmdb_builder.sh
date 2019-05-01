@@ -201,6 +201,19 @@ install_golang() {
     ln -s /usr/local/go1.11 /usr/local/go
 }
 
+install_python_packages_by_pip() {
+    get_system
+
+    if [ "x${RHEL}" == "x6" ]; then
+        pip2.7 install --user -r buildscripts/requirements.txt
+    elif [ "x${RHEL}" == "x8" ]; then
+        /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
+        /usr/bin/pip2.7 install --user typing pyyaml regex Cheetah
+    else
+        pip install --user -r buildscripts/requirements.txt
+    fi
+}
+
 install_gcc_54_centos(){
     wget http://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_centos-$RHEL-x64.tar.gz -O /tmp/gcc-5.4.0_centos-$RHEL-x64.tar.gz
     tar -zxf /tmp/gcc-5.4.0_centos-$RHEL-x64.tar.gz
@@ -302,10 +315,7 @@ install_deps() {
         yum -y install python2-scons python2-pip python36-devel
         yum -y install redhat-rpm-config python2-devel
       fi
-      if [ "x${RHEL}" == "x8" ]; then
-        /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
-        /usr/bin/pip2.7 install --user typing pyyaml regex Cheetah
-      fi
+      install_python_packages_by_pip
 #
       install_golang
       install_gcc_54_centos
@@ -454,11 +464,8 @@ build_rpm(){
     rpm2cpio ${SRC_RPM} | cpio -id
     TARF=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     tar vxzf ${TARF} --wildcards '*/buildscripts' --strip=1
-    if [ "x${RHEL}" == "x6" ]; then
-      pip2.7 install --user -r buildscripts/requirements.txt
-    else
-      pip install --user -r buildscripts/requirements.txt
-    fi
+    install_python_packages_by_pip
+
     #
     cd $WORKDIR
     if [ -f /opt/percona-devtoolset/enable ]; then
@@ -531,7 +538,7 @@ build_source_deb(){
     #
     mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
     cd ${BUILDDIR}
-    pip install --user -r buildscripts/requirements.txt
+    install_python_packages_by_pip
 
     set_compiler
     fix_rules
@@ -581,7 +588,8 @@ build_deb(){
     dpkg-source -x ${DSC}
     #
     cd ${PRODUCT}-${VERSION}
-    pip install --user -r buildscripts/requirements.txt
+    pinstall_python_packages_by_pip
+
     #
     cp -av percona-packaging/debian/rules debian/
     set_compiler
@@ -662,7 +670,8 @@ build_tarball(){
 
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
-    pip install --user -r buildscripts/requirements.txt
+    install_python_packages_by_pip
+
     if [ ${DEBUG} = 0 ]; then
         buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j$NJOBS --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib ${PSM_TARGETS}
     else
