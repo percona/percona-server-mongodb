@@ -21,5 +21,8 @@ How to build debs:
 How to build binary tarball:
   bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=master --build_tarball=1
 
+How to build binary tarball with special targets for tests:
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=master --build_tarball=1 --special_targets=dbtest
+
 How to build tarball with debug:
   bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=master --debug=1

@@ -21,6 +21,7 @@ Usage: $0 [OPTIONS]
         --psm_ver           PSM_VER(mandatory)
         --psm_release       PSM_RELEASE(mandatory)
         --mongo_tools_tag   MONGO_TOOLS_TAG(mandatory)
+        --special_targets   Special targets for tests
         --debug             build debug tarball
         --help) usage ;;
 Example $0 --builddir=/tmp/PSMDB --get_sources=1 --build_src_rpm=1 --build_rpm=1
@@ -57,6 +58,7 @@ parse_arguments() {
             --psm_release=*) PSM_RELEASE="$val" ;;
             --mongo_tools_tag=*) MONGO_TOOLS_TAG="$val" ;;
             --debug=*) DEBUG="$val" ;;
+            --special_targets=*) SPECIAL_TAR="$val" ;;
             --help) usage ;;
             *)
               if test -n "$pick_args"
@@ -201,60 +203,65 @@ install_golang() {
     ln -s /usr/local/go1.11 /usr/local/go
 }
 
-install_gcc_54_centos(){
-    wget http://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_centos-$RHEL-x64.tar.gz -O /tmp/gcc-5.4.0_centos-$RHEL-x64.tar.gz
-    tar -zxf /tmp/gcc-5.4.0_centos-$RHEL-x64.tar.gz
-    rm -rf /usr/local/gcc-5.4.0
-    mv gcc-5.4.0 /usr/local/
-    echo "OUTPUT_FORMAT(elf64-x86-64)" > libstdc++.so && echo "INPUT ( /usr/local/gcc-5.4.0/lib64/libstdc++.a )" >> libstdc++.so
-    mv libstdc++.so /usr/local/gcc-5.4.0/lib64/
+install_gcc_8_centos(){
+    if [ "${RHEL}" -lt 8 ]; then
+        until yum -y install centos-release-scl; do
+            echo "waiting"
+            sleep 1
+        done
+        yum -y install  gcc-c++ devtoolset-8-gcc-c++ devtoolset-8-binutils cmake3 rh-python36
+        source /opt/rh/devtoolset-8/enable
+        source /opt/rh/rh-python36/enable
+    else
+        yum -y install binutils gcc gcc-c++
+    fi
+
 }
 
-install_gcc_54_deb(){
-    if [ x"${DEBIAN}" = xwheezy -o x"${DEBIAN}" = xjessie ]; then
-        wget https://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_debian-${DEBIAN}-x64.tar.gz -O /tmp/gcc-5.4.0_debian-${DEBIAN}-x64.tar.gz
-        tar -zxf /tmp/gcc-5.4.0_debian-${DEBIAN}-x64.tar.gz
-        rm -rf /usr/local/gcc-5.4.0
-        mv gcc-5.4.0 /usr/local/
-        if [ x"${DEBIAN}" = xjessie ]; then
-            echo "OUTPUT_FORMAT(elf64-x86-64)" > libstdc++.so && echo "INPUT ( /usr/local/gcc-5.4.0/lib64/libstdc++.a )" >> libstdc++.so
-            mv libstdc++.so /usr/local/gcc-5.4.0/lib64/
-        fi
+install_gcc_8_deb(){
+    if [ x"${DEBIAN}" = xjessie ]; then
+        wget https://jenkins.percona.com/downloads/gcc8/gcc-8.3.0_Debian-jessie-x64.tar.gz -O /tmp/gcc-8.3.0_Debian-jessie-x64.tar.gz
+        tar -zxf /tmp/gcc-8.3.0_Debian-jessie-x64.tar.gz
+        rm -rf /usr/local/gcc-8.3.0
+        mv gcc-8.3.0 /usr/local/
     fi
-    if [ x"${DEBIAN}" = xtrusty -o x"${DEBIAN}" = xxenial ]; then
-        wget https://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_ubuntu-${DEBIAN}-x64.tar.gz -O /tmp/gcc-5.4.0_ubuntu-${DEBIAN}-x64.tar.gz
-        tar -zxf /tmp/gcc-5.4.0_ubuntu-${DEBIAN}-x64.tar.gz
-        rm -rf /usr/local/gcc-5.4.0
-        mv gcc-5.4.0 /usr/local/
+    if [ x"${DEBIAN}" = xxenial ]; then
+        wget https://jenkins.percona.com/downloads/gcc8/gcc-8.3.0_Ubuntu-xenial-x64.tar.gz -O /tmp/gcc-8.3.0_Ubuntu-xenial-x64.tar.gz
+        CUR_DIR=$PWD
+        cd /tmp
+        tar -zxf gcc-8.3.0_Ubuntu-xenial-x64.tar.gz
+        rm -rf /usr/local/gcc-8.3.0
+        mv gcc-8.3.0 /usr/local/
+        cd $CUR_DIR
     fi
     if [ x"${DEBIAN}" = xcosmic -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco ]; then
-        apt-get -y install gcc-5 g++-5
+        apt-get -y install gcc-8 g++-8
     fi
-    if [ x"${DEBIAN}" = xstretch -o x"${DEBIAN}" = xbuster ]; then
-        wget https://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_Debian-${DEBIAN}-x64.tar.gz -O /tmp/gcc-5.4.0_Debian-${DEBIAN}-x64.tar.gz
-        tar -zxf /tmp/gcc-5.4.0_Debian-${DEBIAN}-x64.tar.gz
-        rm -rf /usr/local/gcc-5.4.0
-        mv gcc-5.4.0 /usr/local/
+    if [ x"${DEBIAN}" = xstretch ]; then
+        wget https://jenkins.percona.com/downloads/gcc8/gcc-8.3.0_Debian-stretch-x64.tar.gz -O /tmp/gcc-8.3.0_Debian-stretch-x64.tar.gz
+        tar -zxf /tmp/gcc-8.3.0_Debian-stretch-x64.tar.gz
+        rm -rf /usr/local/gcc-8.3.0
+        mv gcc-8.3.0 /usr/local/
     fi
 }
 
 set_compiler(){
     if [ x"${DEBIAN}" = xcosmic -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco ]; then
-        export CC=/usr/bin/gcc-5
-        export CXX=/usr/bin/g++-5
+        export CC=/usr/bin/gcc-8
+        export CXX=/usr/bin/g++-8
     else
-        export CC=/usr/local/gcc-5.4.0/bin/gcc-5.4
-        export CXX=/usr/local/gcc-5.4.0/bin/g++-5.4
+        export CC=/usr/local/gcc-8.3.0/bin/gcc-8.3
+        export CXX=/usr/local/gcc-8.3.0/bin/g++-8.3
     fi
 }
 
 fix_rules(){
     if [ x"${DEBIAN}" = xcosmic -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco ]; then
-        sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-5|' debian/rules
-        sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-5|' debian/rules
+        sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-8|' debian/rules
+        sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-8|' debian/rules
     else
-        sed -i 's|CC = gcc-5|CC = /usr/local/gcc-5.4.0/bin/gcc-5.4|' debian/rules
-        sed -i 's|CXX = g++-5|CXX = /usr/local/gcc-5.4.0/bin/g++-5.4|' debian/rules
+        sed -i 's|CC = gcc-5|CC = /usr/local/gcc-8.3.0/bin/gcc-8.3|' debian/rules
+        sed -i 's|CXX = g++-5|CXX = /usr/local/gcc-8.3.0/bin/g++-8.3|' debian/rules
     fi
     sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules
 }
@@ -283,7 +290,7 @@ install_deps() {
       if [ x"$RHEL" = x6 ]; then
         yum -y update
         yum -y install epel-release
-        yum -y install rpmbuild rpm-build libpcap-devel gcc make cmake gcc-c++ openssl-devel
+        yum -y install rpmbuild rpm-build libpcap-devel gcc make cmake gcc-c++ openssl-devel git
         yum -y install cyrus-sasl-devel snappy-devel zlib-devel bzip2-devel libpcap-devel
         yum -y install scons make rpm-build rpmbuild percona-devtoolset-gcc percona-devtoolset-binutils 
         yum -y install percona-devtoolset-gcc-c++ percona-devtoolset-libstdc++-devel percona-devtoolset-valgrind-devel
@@ -309,15 +316,11 @@ install_deps() {
       fi
 #
       install_golang
-      install_gcc_54_centos
-      if [ x"$RHEL" = x6 ]; then
-          mv /usr/bin/as /usr/bin/as_back
-          ln -s /opt/percona-devtoolset/root/usr/bin/as /usr/bin/as
-      fi
+      install_gcc_8_centos
     else
       export DEBIAN=$(lsb_release -sc)
       export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
-      INSTALL_LIST="python python-dev valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev dh-systemd libsasl2-dev gcc g++ cmake curl"
+      INSTALL_LIST="python3 python3-dev python3-pip valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev dh-systemd libsasl2-dev gcc g++ cmake curl"
       INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev"
       until apt-get -y install dirmngr; do
         sleep 1
@@ -328,13 +331,14 @@ install_deps() {
         sleep 1
         echo "waiting"
       done
-      until apt-get -y install ${INSTALL_LIST}; do
+      until DEBIAN_FRONTEND=noninteractive apt-get -y install ${INSTALL_LIST}; do
         sleep 1
         echo "waiting"
       done
       install_golang
-      install_gcc_54_deb
+      install_gcc_8_deb
       wget https://bootstrap.pypa.io/get-pip.py
+      update-alternatives --install /usr/bin/python python /usr/bin/python3 1
       python get-pip.py
       easy_install pip
     fi
@@ -416,6 +420,10 @@ build_srpm(){
     -e "s:@@SRC_DIR@@:$SRC_DIR:g" \
     ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     mv -fv ${TARFILE} ${WORKDIR}/rpmbuild/SOURCES
+    if [ -f /opt/rh/devtoolset-8/enable ]; then
+        source /opt/rh/devtoolset-8/enable
+        source /opt/rh/rh-python36/enable
+    fi
     rpmbuild -bs --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .generic" rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     mkdir -p ${WORKDIR}/srpm
     mkdir -p ${CURDIR}/srpm
@@ -458,24 +466,35 @@ build_rpm(){
     cd rpmbuild/SRPMS/
     rpm2cpio ${SRC_RPM} | cpio -id
     TARF=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
-    tar vxzf ${TARF} --wildcards '*/buildscripts' --strip=1
-    if [ "x${RHEL}" == "x6" ]; then
-      pip2.7 install --user -r buildscripts/requirements.txt
+    tar vxzf ${TARF} --wildcards '*/etc' --strip=1
+    if [ -f /opt/rh/devtoolset-8/enable ]; then
+        source /opt/rh/devtoolset-8/enable
+        source /opt/rh/rh-python36/enable
+    fi
+    RHEL=$(rpm --eval %rhel)
+    ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
+    if [ "x${RHEL}" == "x8" ]; then
+        pip3.6 install --upgrade pip
+        pip3.6 install --user -r etc/pip/dev-requirements.txt
     else
-      pip install --user -r buildscripts/requirements.txt
+        pip install --upgrade pip
+        pip install --user -r etc/pip/dev-requirements.txt
     fi
     #
     cd $WORKDIR
-    if [ -f /opt/percona-devtoolset/enable ]; then
-    . /opt/percona-devtoolset/enable
+    if [ -f /opt/rh/devtoolset-8/enable ]; then
+        source /opt/rh/devtoolset-8/enable
+        source /opt/rh/rh-python36/enable
     fi
 
-    RHEL=$(rpm --eval %rhel)
-    ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
-
     echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-    export CC=/usr/local/gcc-5.4.0/bin/gcc-5.4
-    export CXX=/usr/local/gcc-5.4.0/bin/g++-5.4
+    if [ "x${RHEL}" == "x8" ]; then
+        export CC=/usr/bin/gcc
+        export CXX=/usr/bin/g++
+    else
+        export CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
+        export CXX=/opt/rh/devtoolset-8/root/usr/bin/g++
+    fi
     #
     echo "RHEL=${RHEL}" >> percona-server-mongodb-40.properties
     echo "ARCH=${ARCH}" >> percona-server-mongodb-40.properties
@@ -536,7 +555,8 @@ build_source_deb(){
     #
     mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
     cd ${BUILDDIR}
-    pip install --user -r buildscripts/requirements.txt
+    pip install --upgrade pip
+    pip install --user -r etc/pip/dev-requirements.txt
 
     set_compiler
     fix_rules
@@ -586,7 +606,8 @@ build_deb(){
     dpkg-source -x ${DSC}
     #
     cd ${PRODUCT}-${VERSION}
-    pip install --user -r buildscripts/requirements.txt
+    pip install --upgrade pip
+    pip install --user -r etc/pip/dev-requirements.txt
     #
     cp -av percona-packaging/debian/rules debian/
     set_compiler
@@ -614,8 +635,9 @@ build_tarball(){
     cd $WORKDIR
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
 
-    if [ -f /opt/percona-devtoolset/enable ]; then
-    source /opt/percona-devtoolset/enable
+    if [ -f /opt/rh/devtoolset-8/enable ]; then
+        source /opt/rh/devtoolset-8/enable
+        source /opt/rh/rh-python36/enable
     fi
     #
     export DEBIAN_VERSION="$(lsb_release -sc)"
@@ -624,7 +646,7 @@ build_tarball(){
     #
     set_compiler
     #
-    PSM_TARGETS="mongod mongos mongo mongobridge perconadecrypt"
+    PSM_TARGETS="mongod mongos mongo mongobridge perconadecrypt $SPECIAL_TAR"
     TARBALL_SUFFIX=""
     if [ ${DEBUG} = 1 ]; then
     TARBALL_SUFFIX=".dbg"
@@ -667,9 +689,8 @@ build_tarball(){
 
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
-    if [ ${INSTALL} -ne 0 ]; then
-        pip install --user -r buildscripts/requirements.txt
-    fi
+    pip install --upgrade pip
+    pip install --user -r etc/pip/dev-requirements.txt
     if [ ${DEBUG} = 0 ]; then
         buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j$NJOBS --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib ${PSM_TARGETS}
     else
@@ -774,8 +795,3 @@ build_srpm
 build_source_deb
 build_rpm
 build_deb
-if [ x"$RHEL" = x6 ]; then
-    if [ -f "usr/bin/as_back" ]; then
-        mv /usr/bin/as_back /usr/bin/as
-    fi
-fi
