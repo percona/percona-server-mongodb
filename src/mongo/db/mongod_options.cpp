@@ -44,6 +44,7 @@
 #include "mongo/db/db.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/global_settings.h"
+#include "mongo/db/ldap_options.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_options_server_helpers.h"
@@ -90,6 +91,7 @@ Status addMongodOptions(moe::OptionSection* options) {
     moe::OptionSection sharding_options("Sharding options");
     moe::OptionSection storage_options("Storage options");
     moe::OptionSection encryption_options("Encryption options");
+    moe::OptionSection ldap_options("LDAP options");
 
     // Authentication Options
 
@@ -450,6 +452,21 @@ Status addMongodOptions(moe::OptionSection* options) {
             "Vault server with TLS disabled. Should not be used in production")
         .requires("security.vault.serverName");
 
+    // LDAP Options
+
+    ret = addLDAPOptions(&ldap_options);
+    if (!ret.isOK()) {
+        return ret;
+    }
+
+    ldap_options
+        .addOptionChaining(
+            "security.ldap.authz.queryTemplate",
+            "ldapAuthzQueryTemplate",
+            moe::String,
+            "Template of LDAP query to get list of user's roles")
+        .requires("security.ldap.servers");
+
     // Replication Options
 
     replication_options.addOptionChaining(
@@ -577,6 +594,7 @@ Status addMongodOptions(moe::OptionSection* options) {
 #endif
     options->addSection(storage_options).transitional_ignore();
     options->addSection(encryption_options).transitional_ignore();
+    options->addSection(ldap_options).transitional_ignore();
 
     // The following are legacy options that are disallowed in the JSON config file
 
@@ -1074,6 +1092,10 @@ Status storeMongodOptions(const moe::Environment& params) {
 
     if (params.count("security.vault.disableTLSForTesting")) {
         encryptionGlobalParams.vaultDisableTLS = params["security.vault.disableTLSForTesting"].as<bool>();
+    }
+
+    if (params.count("security.ldap.authz.queryTemplate")) {
+        ldapGlobalParams.ldapQueryTemplate = params["security.ldap.authz.queryTemplate"].as<std::string>();
     }
 
     if (params.count("cpu")) {

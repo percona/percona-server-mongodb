@@ -36,9 +36,17 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include <boost/thread/synchronized_value.hpp>
 
+#include "mongo/base/status.h"
 #include "mongo/platform/atomic_word.h"
 
 namespace mongo {
+
+namespace optionenvironment {
+class OptionSection;
+class Environment;
+}  // namespace optionenvironment
+
+namespace moe = optionenvironment;
 
 struct LDAPGlobalParams {
     boost::synchronized_value<std::string> ldapServers;
@@ -56,5 +64,7 @@ struct LDAPGlobalParams {
 };
 
 extern LDAPGlobalParams ldapGlobalParams;
+
+Status addLDAPOptions(moe::OptionSection* options);
 
 }  // namespace mongo

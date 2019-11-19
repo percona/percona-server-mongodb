@@ -45,21 +45,18 @@ namespace mongo {
 
 LDAPGlobalParams ldapGlobalParams;
 
-namespace moe = optionenvironment;
-
 Status addLDAPOptions(moe::OptionSection* options) {
-    moe::OptionSection ldapOptions("LDAP options");
 
-    ldapOptions
-        .addOptionChaining("security.ldap.servers",
+    options
+        ->addOptionChaining("security.ldap.servers",
                            "ldapServers",
                            moe::String,
                            "Comma separated list of LDAP servers in"
                            "format host:port")
         .setSources(moe::SourceYAMLCLI);
 
-    ldapOptions
-        .addOptionChaining("security.ldap.transportSecurity",
+    options
+        ->addOptionChaining("security.ldap.transportSecurity",
                            "ldapTransportSecurity",
                            moe::String,
                            "Default is tls to use TLS secured connection to LDAP server. "
@@ -68,8 +65,8 @@ Status addLDAPOptions(moe::OptionSection* options) {
         .format("(:?none)|(:?tls)", "(none/tls)")
         .setDefault(moe::Value{"tls"});
 
-    ldapOptions
-        .addOptionChaining("security.ldap.bind.method",
+    options
+        ->addOptionChaining("security.ldap.bind.method",
                            "ldapBindMethod",
                            moe::String,
                            "The method used to authenticate to an LDAP server. "
@@ -78,8 +75,8 @@ Status addLDAPOptions(moe::OptionSection* options) {
         .format("(:?simple)|(:?sasl)", "(simple/sasl)")
         .setDefault(moe::Value{"simple"});
 
-    ldapOptions
-        .addOptionChaining("security.ldap.bind.saslMechanisms",
+    options
+        ->addOptionChaining("security.ldap.bind.saslMechanisms",
                            "ldapBindSaslMechanisms",
                            moe::String,
                            "Comma-separated list of SASL mechanisms which can be used "
@@ -87,8 +84,8 @@ Status addLDAPOptions(moe::OptionSection* options) {
         .setSources(moe::SourceYAMLCLI)
         .setDefault(moe::Value{"DIGEST-MD5"});
 
-    ldapOptions
-        .addOptionChaining("security.ldap.timeoutMS",
+    options
+        ->addOptionChaining("security.ldap.timeoutMS",
                            "ldapTimeoutMS",
                            moe::Int,
                            "Timeout to wait for response from LDAP server in millisecons. "
@@ -96,34 +93,28 @@ Status addLDAPOptions(moe::OptionSection* options) {
         .setSources(moe::SourceYAMLCLI)
         .setDefault(moe::Value{10000});
 
-    ldapOptions
-        .addOptionChaining("security.ldap.bind.queryUser",
+    options
+        ->addOptionChaining("security.ldap.bind.queryUser",
                            "ldapQueryUser",
                            moe::String,
                            "LDAP user used to connect or query LDAP server")
         .setSources(moe::SourceYAMLCLI);
 
-    ldapOptions
-        .addOptionChaining("security.ldap.bind.queryPassword",
+    options
+        ->addOptionChaining("security.ldap.bind.queryPassword",
                            "ldapQueryPassword",
                            moe::String,
                            "Password used with queryUser to bind to an LDAP server")
         .setSources(moe::SourceYAMLCLI);
 
-    ldapOptions
-        .addOptionChaining("security.ldap.userToDNMapping",
+    options
+        ->addOptionChaining("security.ldap.userToDNMapping",
                            "ldapUserToDNMapping",
                            moe::String,
                            "Provides mechanism to transform authenticated user name "
                            "to a LDAP Distinguished Name (DN)")
         .setSources(moe::SourceYAMLCLI)
         .setDefault(moe::Value{"[{match: \"(.+)\", substitution: \"{0}\"}]"});
-
-    Status ret = options->addSection(ldapOptions);
-    if (!ret.isOK()) {
-        log() << "Failed to add LDAP options section: " << ret.toString();
-        return ret;
-    }
 
     return Status::OK();
 }
@@ -160,10 +151,6 @@ Status storeLDAPOptions(const moe::Environment& params) {
             params["security.ldap.userToDNMapping"].as<std::string>();
     }
     return Status::OK();
-}
-
-MONGO_MODULE_STARTUP_OPTIONS_REGISTER(LDAPOptions)(InitializerContext* context) {
-    return addLDAPOptions(&moe::startupOptions);
 }
 
 MONGO_STARTUP_OPTIONS_STORE(LDAPOptions)(InitializerContext* context) {

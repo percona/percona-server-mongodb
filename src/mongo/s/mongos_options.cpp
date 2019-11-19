@@ -42,6 +42,7 @@
 #include "mongo/base/status_with.h"
 #include "mongo/bson/util/builder.h"
 #include "mongo/config.h"
+#include "mongo/db/ldap_options.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_options_server_helpers.h"
 #include "mongo/s/version_mongos.h"
@@ -123,6 +124,13 @@ Status addMongosOptions(moe::OptionSection* options) {
 
     options->addSection(general_options).transitional_ignore();
 
+    moe::OptionSection ldap_options("LDAP options");
+
+    ret = addLDAPOptions(&ldap_options);
+    if (!ret.isOK()) {
+        return ret;
+    }
+
 #if defined(_WIN32)
     options->addSection(windows_scm_options).transitional_ignore();
 #endif
@@ -132,6 +140,8 @@ Status addMongosOptions(moe::OptionSection* options) {
 #ifdef MONGO_CONFIG_SSL
     options->addSection(ssl_options).transitional_ignore();
 #endif
+
+    options->addSection(ldap_options).transitional_ignore();
 
     return Status::OK();
 }
