@@ -140,6 +140,8 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
             auto attribute = ldap_first_attribute(_ldap, entry, &ber);
             ON_BLOCK_EXIT([&] { ber_free(ber, 0); });
             while (attribute) {
+                ON_BLOCK_EXIT([&] { ldap_memfree(attribute); });
+
                 auto const values = ldap_get_values_len(_ldap, entry, attribute);
                 ON_BLOCK_EXIT([&] { ldap_value_free_len(values); });
                 if (values) {
