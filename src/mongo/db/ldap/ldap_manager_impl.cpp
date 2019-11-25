@@ -77,7 +77,7 @@ Status LDAPManagerImpl::initialize() {
                            nullptr, nullptr, nullptr);
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
-                      "Cannot bind to LDAP server; LDAP error"_format(
+                      "Cannot bind to LDAP server; LDAP error: {}"_format(
                           ldap_err2string(res)));
     }
     return Status::OK();
