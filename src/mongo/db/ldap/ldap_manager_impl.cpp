@@ -108,6 +108,11 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
     // if attributes are not specified assume query returns set of entities (groups)
     const bool entitiesonly = !ludp->lud_attrs || !ludp->lud_attrs[0];
 
+    LOG(1) << fmt::format("Parsing LDAP URL: {ldapurl}; dn: {dn}; scope: {scope}; filter: {filter}",
+            fmt::arg("ldapurl", ldapurl),
+            fmt::arg("scope", ludp->lud_scope),
+            fmt::arg("dn", ludp->lud_dn ? ludp->lud_dn : "nullptr"),
+            fmt::arg("filter", ludp->lud_filter ? ludp->lud_filter : "nullptr"));
     res = ldap_search_ext_s(_ldap,
             ludp->lud_dn,
             ludp->lud_scope,
