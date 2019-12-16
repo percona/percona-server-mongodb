@@ -41,6 +41,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bson_field.h"
 #include "mongo/db/audit.h"
 #include "mongo/db/auth/authorization_manager.h"
+#include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/commands/test_commands_enabled.h"
@@ -73,18 +74,29 @@ namespace mongo {
                    "Example: { logApplicationMessage: \"it's a trap!\" }";
         }
 
-        virtual void addRequiredPrivileges(const std::string& dbname,
-                                           const BSONObj& cmdObj,
-                                           std::vector<Privilege>* out) const override {
-            ActionSet actions;
-            actions.addAction(ActionType::logApplicationMessage);
-
-            // TODO: Investigate if using the 'normal resource'
-            // pattern of the new ResourcePattern API matches our
-            // original use of SERVER_RESOURCE_NAME. We may want
-            // to use somethine scoped to the given database name.
-            out->push_back(Privilege(ResourcePattern::forAnyNormalResource(), actions));
+        // Our original implementation was based on 'logApplicationMessage' action type
+        // then we realized this command should also work when 'applicationMessage' action type
+        // is granted.
+        // To keep compatibility for users of 'logApplicationMessage' we need to override
+        // 'checkAuthForCommand' because its default implementation only allows AND predicate
+        // for set of action types. We need OR here.
+        virtual Status checkAuthForCommand(Client* client,
+                                           const std::string& dbname,
+                                           const BSONObj& cmdObj) const override {
+            auto authzSess = AuthorizationSession::get(client);
+            if (authzSess->isAuthorizedForPrivilege(Privilege{ResourcePattern::forAnyNormalResource(), ActionType::logApplicationMessage}) ||
+                authzSess->isAuthorizedForPrivilege(Privilege{ResourcePattern::forClusterResource(), ActionType::applicationMessage}))
+                return Status::OK();
+            return Status(ErrorCodes::Unauthorized, "unauthorized");
         }
+
+        // If we will ever remove 'logApplicationMessage' action type
+        // we can return to this implementation instead of 'checkAuthForCommand' override
+        //virtual void addRequiredPrivileges(const std::string& dbname,
+        //                                   const BSONObj& cmdObj,
+        //                                   std::vector<Privilege>* out) const override {
+        //    out->push_back(Privilege{ResourcePattern::forClusterResource(), ActionType::applicationMessage});
+        //}
 
         bool errmsgRun(OperationContext* txn, const std::string& dbname, const BSONObj& jsobj, std::string& errmsg, BSONObjBuilder& result) override {
             bool ok = true;
