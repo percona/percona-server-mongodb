@@ -48,6 +48,9 @@ public:
 
 private:
     LDAP* _ldap{nullptr};
+
+    Status execQuery(std::string& ldapurl, std::vector<std::string>& results);
+    Status mapUserToDN(const std::string& user, std::string& out);
 };
 
 }  // namespace mongo

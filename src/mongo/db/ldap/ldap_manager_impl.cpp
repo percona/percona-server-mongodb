@@ -33,8 +33,11 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/ldap/ldap_manager_impl.h"
 
+#include <regex>
+
 #include <fmt/format.h>
 
+#include "mongo/bson/json.h"
 #include "mongo/db/ldap_options.h"
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
@@ -83,21 +86,11 @@ Status LDAPManagerImpl::initialize() {
     return Status::OK();
 }
 
-Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) {
-    constexpr auto kAdmin = "admin"_sd;
-    int res = LDAP_OTHER;
+Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>& results) {
     timeval tv;
-    LDAPMessage* answer = nullptr;
-
-    auto ldapurl = fmt::format("ldap://{Servers}/{Query}",
-            fmt::arg("Servers", ldapGlobalParams.ldapServers.get()),
-            fmt::arg("Query", ldapGlobalParams.ldapQueryTemplate.get()));
-    ldapurl = fmt::format(ldapurl,
-            fmt::arg("PROVIDED_USER", userName.getUser()));
-    // TODO: add transformed user name parameter {USER}
-
+    LDAPMessage*answer = nullptr;
     LDAPURLDesc *ludp{nullptr};
-    res = ldap_url_parse(ldapurl.c_str(), &ludp);
+    int res = ldap_url_parse(ldapurl.c_str(), &ludp);
     ON_BLOCK_EXIT([&] { ldap_free_urldesc(ludp); });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
@@ -139,7 +132,7 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
                               "Failed to get DN from LDAP query result: {}"_format(
                                   ldap_err2string(ld_errno)));
             }
-            roles.insert(RoleName{dn, kAdmin});
+            results.emplace_back(dn);
         } else {
             BerElement *ber = nullptr;
             auto attribute = ldap_first_attribute(_ldap, entry, &ber);
@@ -152,7 +145,7 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
                 if (values) {
                     auto curval = values;
                     while (*curval) {
-                        roles.insert(RoleName{{(*curval)->bv_val, (*curval)->bv_len}, kAdmin});
+                        results.emplace_back((*curval)->bv_val, (*curval)->bv_len);
                         ++curval;
                     }
                 }
@@ -162,6 +155,93 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
         entry = ldap_next_entry(_ldap, entry);
     }
     return Status::OK();
+}
+
+Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
+    //TODO: keep BSONArray somewhere is ldapGlobalParams (but consider multithreaded access)
+    std::string mapping = ldapGlobalParams.ldapUserToDNMapping.get();
+
+    //TODO: this check should be part of userToDNMapping validation
+    if (!isArray(mapping))
+        return Status(ErrorCodes::BadValue,
+                      "User to DN mapping must be json array of objects");
+
+    BSONArray bsonmapping{fromjson(mapping)};
+    for (const auto& elt: bsonmapping) {
+        auto step = elt.Obj();
+        log() << "UserToDN step: " << step.jsonString();
+        for (const auto& fld: step) {
+            log() << "UserToDN mapping: " << fld.fieldName() << " = " << fld.valueStringData();
+        }
+        std::smatch sm;
+        std::regex rex{step["match"].str()};
+        if (std::regex_match(user, sm, rex)) {
+            // user matched current regex
+            BSONElement eltempl = step["substitution"];
+            bool substitution = true;
+            if (!eltempl) {
+                // ldapQuery mode
+                eltempl = step["ldapQuery"];
+                substitution = false;
+            }
+            // format template
+            std::vector<std::string> strs;
+            std::vector<fmt::basic_format_arg<fmt::format_context>> args;
+            if (rex.mark_count() > 0) {
+                // skip first submatch since it is the whole thing
+                for (auto it = sm.cbegin() + 1; it != sm.cend(); ++it) {
+                    strs.push_back(it->str());
+                    args.push_back(fmt::internal::make_arg<fmt::format_context>(strs.back()));
+                }
+            }
+            out = fmt::vformat(eltempl.str(), fmt::format_args{args.data(), args.size()});
+            // in substitution mode we are done - just return 'out'
+            if (substitution)
+                return Status::OK();
+            // in ldapQuery mode we need to execute query and make decision based on query result
+            std::vector<std::string> qresult;
+            auto status = execQuery(out, qresult);
+            if (!status.isOK())
+                return status;
+            // query succeeded only if we have single result
+            // otherwise continue search
+            if (qresult.size() == 1) {
+                out = qresult[0];
+                return Status::OK();
+            }
+        }
+    }
+    // we have no successful transformations, return error
+    return Status(ErrorCodes::BadValue,
+                  "Failed to map user '{}' to LDAP DN"_format(user));
+}
+
+Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) {
+    constexpr auto kAdmin = "admin"_sd;
+
+    const std::string providedUser{userName.getUser().toString()};
+    std::string mappedUser;
+    {
+        auto mapRes = mapUserToDN(providedUser, mappedUser);
+        if (!mapRes.isOK())
+            return mapRes;
+    }
+
+    auto ldapurl = fmt::format("ldap://{Servers}/{Query}",
+            fmt::arg("Servers", ldapGlobalParams.ldapServers.get()),
+            fmt::arg("Query", ldapGlobalParams.ldapQueryTemplate.get()));
+    ldapurl = fmt::format(ldapurl,
+            fmt::arg("USER", mappedUser),
+            fmt::arg("PROVIDED_USER", providedUser));
+
+    std::vector<std::string> qresult;
+    auto status = execQuery(ldapurl, qresult);
+    if (status.isOK()) {
+        for (auto& dn: qresult) {
+            roles.insert(RoleName{dn, kAdmin});
+        }
+    }
+    return status;
 }
 
 }  // namespace mongo
