@@ -41,7 +41,15 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/options_parser/startup_option_init.h"
 #include "mongo/util/options_parser/startup_options.h"
 
+#include <regex>
+
+#include <fmt/format.h>
+
+#include "mongo/bson/json.h"
+
 namespace mongo {
+
+using namespace fmt::literals;
 
 LDAPGlobalParams ldapGlobalParams;
 
@@ -119,17 +127,91 @@ Status addLDAPOptions(moe::OptionSection* options) {
     return Status::OK();
 }
 
+
+namespace {
+
+Status validateLDAPUserToDNMapping(const std::string& mapping) {
+    if (!isArray(mapping))
+        return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: User to DN mapping must be json array of objects"};
+
+    BSONArray bsonmapping{fromjson(mapping)};
+    for (const auto& elt: bsonmapping) {
+        auto step = elt.Obj();
+        BSONElement elmatch = step["match"];
+        if (!elmatch)
+            return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: Each object in user to DN mapping array must contain the 'match' string"};
+        BSONElement eltempl = step["substitution"];
+        if (!eltempl)
+            eltempl = step["ldapQuery"];
+        if (!eltempl)
+            return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: Each object in user to DN mapping array must contain either 'substitution' or 'ldapQuery' string"};
+        try {
+            std::regex rex{elmatch.str()};
+            const auto sm_count = rex.mark_count();
+            // validate placeholders in template
+            std::regex placeholder_rex{R"(\{(\d+)\})"};
+            const std::string stempl = eltempl.str();
+            std::sregex_iterator it{stempl.begin(), stempl.end(), placeholder_rex};
+            std::sregex_iterator end;
+            for(; it != end; ++it){
+                if (std::stol((*it)[1].str()) >= sm_count)
+                    return {ErrorCodes::BadValue,
+                            "security.ldap.userToDNMapping: "
+                            "Regular expresssion '{}' has {} capture groups so '{}' placeholder is invalid "
+                            "(placeholder number must be less than number of capture groups)"_format(
+                                elmatch.str(), sm_count, it->str())};
+            }
+        } catch (std::regex_error& e) {
+            return {ErrorCodes::BadValue,
+                    "security.ldap.userToDNMapping: std::regex_error exception while validating '{}'. "
+                    "Error message is: {}"_format(elmatch.str(), e.what())};
+        }
+    }
+
+    return Status::OK();
+}
+
+Status validateLDAPBindMethod(const std::string& value) {
+    constexpr auto kSimple = "simple"_sd;
+    constexpr auto kSasl = "sasl"_sd;
+
+    if (!kSimple.equalCaseInsensitive(value) && !kSasl.equalCaseInsensitive(value)) {
+        return {ErrorCodes::BadValue, "security.ldap.bind.method expects one of 'simple' or 'sasl'"};
+    }
+
+    return Status::OK();
+}
+
+Status validateLDAPTransportSecurity(const std::string& value) {
+    constexpr auto kNone = "none"_sd;
+    constexpr auto kTls = "tls"_sd;
+
+    if (!kNone.equalCaseInsensitive(value) && !kTls.equalCaseInsensitive(value)) {
+        return {ErrorCodes::BadValue, "security.ldap.transportSecurity expects one of 'none' or 'tls'"};
+    }
+
+    return Status::OK();
+}
+
+
 Status storeLDAPOptions(const moe::Environment& params) {
     if (params.count("security.ldap.servers")) {
         ldapGlobalParams.ldapServers =
             params["security.ldap.servers"].as<std::string>();
     }
     if (params.count("security.ldap.transportSecurity")) {
-        ldapGlobalParams.ldapTransportSecurity =
-            params["security.ldap.transportSecurity"].as<std::string>();
+        auto new_value = params["security.ldap.transportSecurity"].as<std::string>();
+        auto ret = validateLDAPTransportSecurity(new_value);
+        if (!ret.isOK())
+            return ret;
+        ldapGlobalParams.ldapTransportSecurity = new_value;
     }
     if (params.count("security.ldap.bind.method")) {
-        ldapGlobalParams.ldapBindMethod = params["security.ldap.bind.method"].as<std::string>();
+        auto new_value = params["security.ldap.bind.method"].as<std::string>();
+        auto ret = validateLDAPBindMethod(new_value);
+        if (!ret.isOK())
+            return ret;
+        ldapGlobalParams.ldapBindMethod = new_value;
     }
     if (params.count("security.ldap.bind.saslMechanisms")) {
         ldapGlobalParams.ldapBindSaslMechanisms =
@@ -147,8 +229,12 @@ Status storeLDAPOptions(const moe::Environment& params) {
             params["security.ldap.bind.queryPassword"].as<std::string>();
     }
     if (params.count("security.ldap.userToDNMapping")) {
-        ldapGlobalParams.ldapUserToDNMapping =
+        auto new_value =
             params["security.ldap.userToDNMapping"].as<std::string>();
+        auto ret = validateLDAPUserToDNMapping(new_value);
+        if (!ret.isOK())
+            return ret;
+        ldapGlobalParams.ldapUserToDNMapping = new_value;
     }
     return Status::OK();
 }
@@ -157,8 +243,6 @@ MONGO_STARTUP_OPTIONS_STORE(LDAPOptions)(InitializerContext* context) {
     return storeLDAPOptions(moe::startupOptionsParsed);
 }
 
-
-namespace {
 
 // Server parameter declarations
 
@@ -180,7 +264,8 @@ ExportedServerParameter<std::string, ServerParameterType::kRuntimeOnly> ldapQuer
 
 ExportedServerParameter<std::string, ServerParameterType::kRuntimeOnly> ldapUserToDNMappingParam{
     ServerParameterSet::getGlobal(), "ldapUserToDNMapping",
-    &ldapGlobalParams.ldapUserToDNMapping};
+    &ldapGlobalParams.ldapUserToDNMapping,
+    validateLDAPUserToDNMapping};
 
 // these have no equivalent command line switches
 ExportedServerParameter<bool, ServerParameterType::kStartupOnly> ldapUseConnectionPoolParam{

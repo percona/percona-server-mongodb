@@ -380,6 +380,15 @@ public:
                                   paramType),
           _value(value) {}
 
+    /**
+     * Same constructor plus validator function.
+     */
+    ExportedServerParameter(ServerParameterSet* sps, const std::string& name, storage_type* value,
+                            validator_function validator)
+        : ExportedServerParameter(sps, name, value) {
+        _validator = std::move(validator);
+    }
+
     // Don't let the template method hide our inherited method
     using BoundServerParameter<T>::set;
 
