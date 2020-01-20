@@ -161,18 +161,11 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
     //TODO: keep BSONArray somewhere is ldapGlobalParams (but consider multithreaded access)
     std::string mapping = ldapGlobalParams.ldapUserToDNMapping.get();
 
-    //TODO: this check should be part of userToDNMapping validation
-    if (!isArray(mapping))
-        return Status(ErrorCodes::BadValue,
-                      "User to DN mapping must be json array of objects");
-
+    //Parameter validator checks that mapping is valid array of objects
+    //see validateLDAPUserToDNMapping function
     BSONArray bsonmapping{fromjson(mapping)};
     for (const auto& elt: bsonmapping) {
         auto step = elt.Obj();
-        log() << "UserToDN step: " << step.jsonString();
-        for (const auto& fld: step) {
-            log() << "UserToDN mapping: " << fld.fieldName() << " = " << fld.valueStringData();
-        }
         std::smatch sm;
         std::regex rex{step["match"].str()};
         if (std::regex_match(user, sm, rex)) {
@@ -185,16 +178,22 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
                 substitution = false;
             }
             // format template
-            std::vector<std::string> strs;
-            std::vector<fmt::basic_format_arg<fmt::format_context>> args;
-            if (rex.mark_count() > 0) {
-                // skip first submatch since it is the whole thing
-                for (auto it = sm.cbegin() + 1; it != sm.cend(); ++it) {
-                    strs.push_back(it->str());
-                    args.push_back(fmt::internal::make_arg<fmt::format_context>(strs.back()));
+            {
+                std::regex rex{R"(\{(\d+)\})"};
+                std::string ss;
+                const std::string stempl = eltempl.str();
+                ss.reserve(stempl.length() * 2);
+                std::sregex_iterator it{stempl.begin(), stempl.end(), rex};
+                std::sregex_iterator end;
+                auto suffix_len = stempl.length();
+                for (; it != end; ++it) {
+                    ss += it->prefix();
+                    ss += sm[std::stol((*it)[1].str()) + 1].str();
+                    suffix_len = it->suffix().length();
                 }
+                ss += stempl.substr(stempl.length() - suffix_len);
+                out = std::move(ss);
             }
-            out = fmt::vformat(eltempl.str(), fmt::format_args{args.data(), args.size()});
             // in substitution mode we are done - just return 'out'
             if (substitution)
                 return Status::OK();
