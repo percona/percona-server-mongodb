@@ -92,7 +92,7 @@ public:
 private:
     int _step{0};
     LDAP* _ld{nullptr};
-    mutable char* _principal{nullptr};
+    std::string _principal;
 
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
                                                        StringData input) final;

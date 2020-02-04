@@ -208,7 +208,6 @@ static int interactProc(LDAP *ld, unsigned flags, void *defaults, void *in) {
 } // extern "C"
 
 OpenLDAPServerMechanism::~OpenLDAPServerMechanism() {
-    ldap_memfree(_principal);
     if (_ld) {
         ldap_unbind_ext(_ld, nullptr, nullptr);
         _ld = nullptr;
@@ -272,6 +271,8 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
             return Status(ErrorCodes::OperationFailed,
                           "Unknown bind method: {}"_format(ldapGlobalParams.ldapBindMethod));
         }
+        _principal = dn;
+
         return std::make_tuple(true, std::string(""));
     }
     // This authentication session supports single step
@@ -280,12 +281,7 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
 }
 
 StringData OpenLDAPServerMechanism::getPrincipalName() const {
-    if (_principal
-        || (_ld && LDAP_OPT_SUCCESS == ldap_get_option(_ld, LDAP_OPT_X_SASL_USERNAME, &_principal))) {
-        return _principal;
-    }
-
-    return ""_sd;
+    return _principal;
 }
 
 // Mongo initializers will run before any ServiceContext is created
