@@ -1,0 +1,48 @@
+dn: cn=testreaders,dc=percona,dc=com
+objectClass: groupOfNames
+cn: testreaders
+member: cn=exttestro,dc=percona,dc=com
+member: cn=extbothro,dc=percona,dc=com
+member: cn=exttestrootherrw,dc=percona,dc=com
+
+dn: cn=testwriters,dc=percona,dc=com
+objectClass: groupOfNames
+cn: testwriters
+member: cn=exttestrw,dc=percona,dc=com
+member: cn=extbothrw,dc=percona,dc=com
+member: cn=exttestrwotherro,dc=percona,dc=com
+
+dn: cn=otherreaders,dc=percona,dc=com
+objectClass: groupOfNames
+cn: otherreaders
+member: cn=extotherro,dc=percona,dc=com
+member: cn=extbothro,dc=percona,dc=com
+member: cn=exttestrwotherro,dc=percona,dc=com
+
+dn: cn=otherwriters,dc=percona,dc=com
+objectClass: groupOfNames
+cn: otherwriters
+member: cn=extotherrw,dc=percona,dc=com
+member: cn=extbothrw,dc=percona,dc=com
+member: cn=exttestrootherrw,dc=percona,dc=com
+
+dn: cn=testusers,dc=percona,dc=com
+objectClass: groupOfNames
+cn: testusers
+member: cn=exttestro,dc=percona,dc=com
+member: cn=exttestrwotherro,dc=percona,dc=com
+member: cn=exttestrw,dc=percona,dc=com
+member: cn=exttestrootherrw,dc=percona,dc=com
+member: cn=extbothro,dc=percona,dc=com
+member: cn=extbothrw,dc=percona,dc=com
+
+dn: cn=otherusers,dc=percona,dc=com
+objectClass: groupOfNames
+cn: otherusers
+member: cn=extotherro,dc=percona,dc=com
+member: cn=exttestrwotherro,dc=percona,dc=com
+member: cn=extotherrw,dc=percona,dc=com
+member: cn=exttestrootherrw,dc=percona,dc=com
+member: cn=extbothro,dc=percona,dc=com
+member: cn=extbothrw,dc=percona,dc=com
+

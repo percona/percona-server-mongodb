@@ -40,6 +40,9 @@ service slapd start
 ${BASEDIR}/generate_users_ldif.sh > ${BASEDIR}/users.ldif
 ldapadd -D "cn=admin,${LDAP_BIND_DN}" -w ${LDAP_ADMIN_PASSWORD} -f ${BASEDIR}/users.ldif
 
+# add user groups
+ldapadd -D "cn=admin,${LDAP_BIND_DN}" -w ${LDAP_ADMIN_PASSWORD} -f ${BASEDIR}/groups.ldif
+
 # dump LDAP data
 
 ldapsearch -z 0 -b "${LDAP_BIND_DN}" -D "cn=admin,${LDAP_BIND_DN}" -w ${LDAP_ADMIN_PASSWORD} "(objectclass=*)"
