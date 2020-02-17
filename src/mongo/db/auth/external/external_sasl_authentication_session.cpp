@@ -45,6 +45,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/sasl_client_authenticate.h"
 #include "mongo/db/auth/sasl_command_constants.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
+#include "mongo/db/ldap/ldap_manager.h"
 #include "mongo/db/ldap_options.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
@@ -217,6 +218,20 @@ OpenLDAPServerMechanism::~OpenLDAPServerMechanism() {
 StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
     OperationContext* opCtx, StringData inputData) {
     if (_step++ == 0) {
+        const char* userid = inputData.rawData();
+        const char* dn = userid + std::strlen(userid) + 1; // authentication id
+        const char* pw = dn + std::strlen(dn) + 1; // password
+
+        // transform user to DN
+        std::string mappedUser;
+        {
+            auto ldapManager = LDAPManager::get(opCtx->getServiceContext());
+            auto mapRes = ldapManager->mapUserToDN(dn, mappedUser);
+            if (!mapRes.isOK())
+                return mapRes;
+            dn = mappedUser.c_str();
+        }
+
         auto uri = "ldap://{}/"_format(ldapGlobalParams.ldapServers.get());
         int res = ldap_initialize(&_ld, uri.c_str());
         if (res != LDAP_SUCCESS) {
@@ -231,9 +246,7 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
                           "Cannot set LDAP version option; LDAP error: {}"_format(
                               ldap_err2string(res)));
         }
-        const char* userid = inputData.rawData();
-        const char* dn = userid + std::strlen(userid) + 1; // authentication id
-        const char* pw = dn + std::strlen(dn) + 1; // password
+
         if (ldapGlobalParams.ldapBindMethod == "simple") {
             // ldap_simple_bind_s was deprecated in favor of ldap_sasl_bind_s
             berval cred;
@@ -271,7 +284,7 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
             return Status(ErrorCodes::OperationFailed,
                           "Unknown bind method: {}"_format(ldapGlobalParams.ldapBindMethod));
         }
-        _principal = dn;
+        _principal = userid;
 
         return std::make_tuple(true, std::string(""));
     }
