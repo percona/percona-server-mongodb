@@ -198,8 +198,11 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
             if (substitution)
                 return Status::OK();
             // in ldapQuery mode we need to execute query and make decision based on query result
+            auto ldapurl = fmt::format("ldap://{Servers}/{Query}",
+                fmt::arg("Servers", ldapGlobalParams.ldapServers.get()),
+                fmt::arg("Query", out));
             std::vector<std::string> qresult;
-            auto status = execQuery(out, qresult);
+            auto status = execQuery(ldapurl, qresult);
             if (!status.isOK())
                 return status;
             // query succeeded only if we have single result
