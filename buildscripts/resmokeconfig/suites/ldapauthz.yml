@@ -1,0 +1,20 @@
+test_kind: js_test
+
+selector:
+  roots:
+  - jstests/ldapauthz/*.js
+  exclude_files:
+  - jstests/ldapauthz/_*.js
+
+# ldapauthz tests start their own mongod's.
+executor:
+  config:
+    shell_options:
+      global_vars:
+        TestData:
+          ldapServers: 'localhost:389'
+          ldapQueryUser: 'cn=admin,dc=percona,dc=com'
+          ldapQueryPassword: 'password'
+          ldapAuthzQueryTemplate: 'dc=percona,dc=com??sub?(&(objectClass=groupOfNames)(member={USER}))'
+      nodb: ''
+      readMode: commands
