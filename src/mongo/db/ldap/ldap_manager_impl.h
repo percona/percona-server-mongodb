@@ -54,4 +54,8 @@ private:
     Status execQuery(std::string& ldapurl, std::vector<std::string>& results);
 };
 
+// bind either simple or sasl using global LDAP parameters
+Status LDAPbind(LDAP* ld, const char* usr, const char* psw);
+Status LDAPbind(LDAP* ld, const std::string& usr, const std::string& psw);
+
 }  // namespace mongo
