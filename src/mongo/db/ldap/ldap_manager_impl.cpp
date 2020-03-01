@@ -58,7 +58,10 @@ LDAPManagerImpl::~LDAPManagerImpl() {
 
 Status LDAPManagerImpl::initialize() {
     int res = LDAP_OTHER;
-    auto uri = "ldap://{}/"_format(ldapGlobalParams.ldapServers.get());
+    const char* ldapprot = "ldaps";
+    if (ldapGlobalParams.ldapTransportSecurity == "none")
+        ldapprot = "ldap";
+    auto uri = "{}://{}/"_format(ldapprot, ldapGlobalParams.ldapServers.get());
     res = ldap_initialize(&_ldap, uri.c_str());
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
