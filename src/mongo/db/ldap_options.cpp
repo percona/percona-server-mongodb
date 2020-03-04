@@ -53,6 +53,18 @@ using namespace fmt::literals;
 
 LDAPGlobalParams ldapGlobalParams;
 
+std::string LDAPGlobalParams::logString() const {
+    return fmt::format(
+        "ldapServers: {}; "
+        "ldapTransportSecurity: {}; "
+        "ldapBindMethod: {}; "
+        "ldapBindSaslMechanisms: {}",
+        std::string{*ldapServers},
+        ldapTransportSecurity,
+        ldapBindMethod,
+        ldapBindSaslMechanisms);
+}
+
 Status addLDAPOptions(moe::OptionSection* options) {
 
     options

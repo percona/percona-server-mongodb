@@ -33,6 +33,8 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/ldap/ldap_manager.h"
 
+#include <fmt/format.h>
+
 #include "mongo/db/ldap/ldap_manager_impl.h"
 #include "mongo/db/ldap_options.h"
 #include "mongo/util/assert_util.h"
@@ -70,7 +72,10 @@ ServiceContext::ConstructorActionRegisterer createLDAPManager(
         if (!ldapGlobalParams.ldapServers->empty()) {
             auto ldapManager = LDAPManager::create();
             Status res = ldapManager->initialize();
-            uassertStatusOKWithContext(res, "Cannot initialize LDAP server connection");
+            using namespace fmt::literals;
+            uassertStatusOKWithContext(res,
+                "Cannot initialize LDAP server connection (parameters are: {})"_format(
+                    ldapGlobalParams.logString()));
             LDAPManager::set(service, std::move(ldapManager));
         }
     });
