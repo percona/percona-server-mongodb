@@ -36,14 +36,73 @@ Copyright (C) 2020-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/ldap_options.h"
 #include "mongo/db/server_parameters.h"
+#include "mongo/util/options_parser/environment.h"
+#include "mongo/util/options_parser/startup_option_init.h"
+#include "mongo/util/options_parser/startup_options.h"
+
+#include <regex>
+
+#include <fmt/format.h>
 
 namespace mongo {
 
+using namespace fmt::literals;
+
 namespace {
+
+Status validateLDAPAuthzQueryTemplate(const std::string& templ) {
+    // validate placeholders in template
+    // only {USER} and {PROVIDED_USER} are supported
+    try {
+        // validate placeholders in template
+        std::regex placeholder_rex{R"(\{\{|\}\}|\{(.*?)\})"};
+        std::sregex_iterator it{templ.begin(), templ.end(), placeholder_rex};
+        std::sregex_iterator end;
+        for(; it != end; ++it){
+            auto w = (*it)[0].str();
+            if (w == "{{" || w == "}}")
+                continue;
+            auto v = (*it)[1].str();
+            if (v != "USER" && v != "PROVIDED_USER")
+                return {ErrorCodes::BadValue,
+                        "security.ldap.authz.queryTemplate: "
+                        "{} placeholder is invalid. Only {{USER}} and {{PROVIDED_USER}} placeholders are supported"_format((*it)[0].str())};
+        }
+        // test format (throws fmt::format_error if something is wrong)
+        fmt::format(templ,
+            fmt::arg("USER", "test user"),
+            fmt::arg("PROVIDED_USER", "test user"));
+    } catch (std::regex_error& e) {
+        return {ErrorCodes::BadValue,
+                "security.ldap.authz.queryTemplate: std::regex_error exception while validating '{}'. "
+                "Error message is: {}"_format(templ, e.what())};
+    } catch (fmt::format_error& e) {
+        return {ErrorCodes::BadValue,
+                "security.ldap.authz.queryTemplate is malformed, attempt to substitute placeholders thrown an exception. "
+                "Error message is: {}"_format(e.what())};
+    }
+
+    return Status::OK();
+}
+
+MONGO_STARTUP_OPTIONS_STORE(mongodLDAPParameters)(InitializerContext* context) {
+    const moe::Environment& params = moe::startupOptionsParsed;
+
+    if (params.count("security.ldap.authz.queryTemplate")) {
+        auto new_value = params["security.ldap.authz.queryTemplate"].as<std::string>();
+        auto ret = validateLDAPAuthzQueryTemplate(new_value);
+        if (!ret.isOK())
+            return ret;
+        ldapGlobalParams.ldapQueryTemplate = new_value;
+    }
+
+    return Status::OK();
+}
 
 ExportedServerParameter<std::string, ServerParameterType::kRuntimeOnly> ldapQueryTemplateParam{
     ServerParameterSet::getGlobal(), "ldapQueryTemplate",
-    &ldapGlobalParams.ldapQueryTemplate};
+    &ldapGlobalParams.ldapQueryTemplate,
+    validateLDAPAuthzQueryTemplate};
 
 }
 

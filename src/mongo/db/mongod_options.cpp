@@ -1094,10 +1094,6 @@ Status storeMongodOptions(const moe::Environment& params) {
         encryptionGlobalParams.vaultDisableTLS = params["security.vault.disableTLSForTesting"].as<bool>();
     }
 
-    if (params.count("security.ldap.authz.queryTemplate")) {
-        ldapGlobalParams.ldapQueryTemplate = params["security.ldap.authz.queryTemplate"].as<std::string>();
-    }
-
     if (params.count("cpu")) {
         serverGlobalParams.cpu = params["cpu"].as<bool>();
     }
