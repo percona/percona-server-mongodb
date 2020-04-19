@@ -40,6 +40,8 @@
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/privilege_parser.h"
 #include "mongo/db/auth/user_document_parser.h"
+#include "mongo/db/ldap/ldap_manager.h"
+#include "mongo/db/ldap_options.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/server_options.h"
 #include "mongo/util/log.h"
@@ -169,9 +171,28 @@ Status AuthzManagerExternalStateLocal::getUserDescription(OperationContext* opCt
     Status status = Status::OK();
 
     if (!shouldUseRolesFromConnection(opCtx, userName)) {
-        status = _getUserDocument(opCtx, userName, result);
-        if (!status.isOK())
-            return status;
+        auto ldapManager = LDAPManager::get(opCtx->getServiceContext());
+        if (ldapManager
+            && userName.getDB() == "$external"_sd
+            && !ldapGlobalParams.ldapQueryTemplate->empty()) {
+
+            stdx::unordered_set<RoleName> roles;
+            status = ldapManager->queryUserRoles(userName, roles);
+            if (!status.isOK())
+                return status;
+            // Construct external user with roles returned from LDAP
+            BSONArrayBuilder userRoles;
+            for (const RoleName& role : roles) {
+                userRoles << BSON("role" << role.getRole() << "db" << role.getDB());
+            }
+            *result = BSON("_id" << userName.getUser() << "user" << userName.getUser() << "db"
+                                 << userName.getDB() << "credentials" << BSON("external" << true)
+                                 << "roles" << userRoles.arr());
+        } else {
+            status = _getUserDocument(opCtx, userName, result);
+            if (!status.isOK())
+                return status;
+        }
     } else {
         // We are able to artifically construct the external user from the request
         BSONArrayBuilder userRoles;

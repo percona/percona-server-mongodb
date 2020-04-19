@@ -1,0 +1,16 @@
+# -*- mode: python -*-
+Import("env")
+
+env = env.Clone()
+
+env.Library(
+    target='ldapmanager',
+    source=[
+        'ldap_manager.cpp',
+        'ldap_manager_impl.cpp',
+        ],
+    SYSLIBDEPS=[
+        'ldap',
+        'lber',
+        ],
+)

@@ -97,6 +97,7 @@ ServiceContext::ConstructorActionRegisterer createAuthorizationManager(
     "CreateAuthorizationManager",
     {"OIDGeneration",
      "EndStartupOptionStorage",
+     "CreateLDAPManager",
      MONGO_SHIM_DEPENDENCY(AuthorizationManager::create)},
     [](ServiceContext* service) {
         auto authzManager = AuthorizationManager::create();

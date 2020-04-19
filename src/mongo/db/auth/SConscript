@@ -178,6 +178,8 @@ env.Library(
         '$BUILD_DIR/mongo/db/catalog/document_validation',
         '$BUILD_DIR/mongo/db/common',
         '$BUILD_DIR/mongo/db/global_settings',
+        '$BUILD_DIR/mongo/db/ldap_options',
+        '$BUILD_DIR/mongo/db/ldap/ldapmanager',
         '$BUILD_DIR/mongo/db/namespace_string',
         '$BUILD_DIR/mongo/db/pipeline/lite_parsed_document_source',
         '$BUILD_DIR/mongo/db/server_parameters',

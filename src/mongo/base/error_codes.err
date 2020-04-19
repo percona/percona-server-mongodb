@@ -290,6 +290,9 @@ error_code("StaleConfig", 13388, extra="StaleConfigInfo");
 error_code("DatabaseDifferCase", 13297);
 error_code("OBSOLETE_PrepareConfigsFailed", 13104);
 
+# Percona Server for MongoDB error codes
+error_code("LDAPLibraryError", 9390)
+
 # Group related errors into classes, can be checked against ErrorCodes::isXXXClassName methods.
 error_class("NetworkError", ["HostUnreachable", "HostNotFound", "NetworkTimeout", "SocketException"])
 error_class("Interruption", ["Interrupted",

@@ -31,6 +31,7 @@ env.SConscript(
         'ftdc',
         'geo',
         'index',
+        'ldap',
         'matcher',
         'ops',
         'pipeline',
