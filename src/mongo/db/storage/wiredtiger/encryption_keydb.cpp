@@ -40,6 +40,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/encryption_vault.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/base64.h"
 #include "mongo/util/debug_util.h"
@@ -218,6 +219,71 @@ void EncryptionKeyDB::init_masterkey() {
     memcpy(_masterkey, key.c_str(), _key_len);
 }
 
+// Open db with correct compatibility mode
+// Based on WiredTigerKVEngine::_openWiredTiger
+// Should be synced with changes in WiredTigerKVEngine::_openWiredTiger
+int EncryptionKeyDB::_openWiredTiger(const std::string& path, const std::string& wtOpenConfig) {
+    // For now we don't use event handler in EncryptionKeyDB
+    WT_EVENT_HANDLER* wtEventHandler = nullptr;
+
+    // Default for new instances created by 4.2.x
+    std::string configStr =
+        wtOpenConfig + ",compatibility=(release=3.2,require_min=\"3.2\",require_max=\"3.2\")";
+    int ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &_conn);
+    if (!ret) {
+        //_fileVersion = {WiredTigerFileVersion::StartupVersion::IS_42_CLASSIC};
+        return ret;
+    }
+
+    // Data files are in 4.4 -> 4.2 downgraded format
+    configStr =
+        wtOpenConfig + ",compatibility=(release=3.3,require_min=\"3.3\",require_max=\"3.3\")";
+    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &_conn);
+    if (!ret) {
+        //_fileVersion = {WiredTigerFileVersion::StartupVersion::IS_42_UPGRADED};
+        return ret;
+    }
+
+    // This shoud only succeed when the previous datafiles were in compatibility mode
+    // 3.1. `require_max=` is added for improved WT error messages. "3.3" is used because WT
+    // disallows using a release outside of the min/max range. These details also apply to the
+    // remaining `wiredtiger_open` calls.
+    configStr =
+        wtOpenConfig + ",compatibility=(release=3.2,require_min=\"3.1\",require_max=\"3.3\")";
+    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &_conn);
+    if (!ret) {
+        //_fileVersion = {WiredTigerFileVersion::StartupVersion::IS_40};
+        return ret;
+    }
+
+    // Arbiters do not replicate the FCV document. Due to arbiter FCV semantics on 4.0, shutting
+    // down a 4.0 arbiter may either downgrade the data files to WT compatibility 2.9 or 3.0. Thus,
+    // 4.2 binaries must allow starting up on 2.9 and 3.0 files.
+    configStr =
+        wtOpenConfig + ",compatibility=(release=3.2,require_min=\"3.0\",require_max=\"3.3\")";
+    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &_conn);
+    if (!ret) {
+        //_fileVersion = {WiredTigerFileVersion::StartupVersion::IS_36};
+        return ret;
+    }
+
+    configStr =
+        wtOpenConfig + ",compatibility=(release=3.2,require_min=\"2.9\",require_max=\"3.3\")";
+    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &_conn);
+    if (!ret) {
+        //_fileVersion = {WiredTigerFileVersion::StartupVersion::IS_34};
+        return ret;
+    }
+
+    warning() << "EncryptionKeyDB: Failed to start up WiredTiger under any compatibility version.";
+    if (ret == WT_TRY_SALVAGE)
+        warning() << "EncryptionKeyDB: WiredTiger metadata corruption detected";
+
+    severe() << "Reason: " << wtRCToStatus(ret).reason();
+
+    return ret;
+}
+
 void EncryptionKeyDB::init() {
     _srng = SecureRandom::create();
     _prng = std::make_unique<PseudoRandom>(_srng->nextInt64());
@@ -238,7 +304,7 @@ void EncryptionKeyDB::init() {
         ss << "log=(enabled,file_max=5MB),transaction_sync=(enabled=true,method=fsync),";
         std::string config = ss.str();
         log() << "Initializing KeyDB with wiredtiger_open config: " << config;
-        int res = wiredtiger_open(_path.c_str(), nullptr, config.c_str(), &_conn);
+        int res = _openWiredTiger(_path, config);
         if (res) {
             throw std::runtime_error(std::string("error opening keys DB at '") + _path + "': " + wiredtiger_strerror(res));
         }

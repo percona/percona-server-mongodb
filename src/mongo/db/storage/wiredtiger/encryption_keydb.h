@@ -83,6 +83,8 @@ private:
 
     EncryptionKeyDB(const bool just_created, const std::string& path, const bool rotation);
 
+    int _openWiredTiger(const std::string& path, const std::string& wtOpenConfig);
+
     int store_gcm_iv_reserved();
     int reserve_gcm_iv_range();
     void generate_secure_key(char key[]); // uses _srng without locks
