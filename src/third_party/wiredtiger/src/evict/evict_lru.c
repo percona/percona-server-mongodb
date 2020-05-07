@@ -1547,6 +1547,11 @@ retry:	while (slot < max_entries) {
 err:	if (dhandle_locked)
 		__wt_readunlock(session, &conn->dhandle_lock);
 
+	if (incr) {
+		WT_ASSERT(session, dhandle->session_inuse > 0);
+		(void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
+	}
+
 	/*
 	 * If we didn't find any entries on a walk when we weren't interrupted,
 	 * let our caller know.
