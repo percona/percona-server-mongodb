@@ -827,8 +827,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Hold the schema lock while starting the transaction and gathering handles so the set we get
      * is complete and correct.
      */
+    time_start = __wt_clock(session);
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
+    time_stop = __wt_clock(session);
+    WT_STAT_CONN_INCRV(
+      session, txn_checkpoint_prepare_time, (int64_t)WT_CLOCKDIFF_US(time_stop, time_start));
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
@@ -845,7 +849,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     __checkpoint_timing_stress(session);
 
+    time_start = __wt_clock(session);
     WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_tree_helper));
+    time_stop = __wt_clock(session);
+    WT_STAT_CONN_INCRV(
+      session, txn_checkpoint_tree_helper_time, (int64_t)WT_CLOCKDIFF_US(time_stop, time_start));
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't

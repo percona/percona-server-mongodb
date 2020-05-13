@@ -884,9 +884,12 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction checkpoint max time (msecs)",
   "transaction: transaction checkpoint min time (msecs)",
   "transaction: transaction checkpoint most recent time (msecs)",
+  "transaction: transaction checkpoint prepare time (usecs)",
   "transaction: transaction checkpoint scrub dirty target",
   "transaction: transaction checkpoint scrub time (msecs)",
-  "transaction: transaction checkpoint total time (msecs)", "transaction: transaction checkpoints",
+  "transaction: transaction checkpoint total time (msecs)",
+  "transaction: transaction checkpoint tree helper time (usecs)",
+  "transaction: transaction checkpoints",
   "transaction: transaction checkpoints skipped because database was clean",
   "transaction: transaction failures due to cache overflow",
   "transaction: transaction fsync calls for checkpoint after allocating the transaction ID",
@@ -1331,9 +1334,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_checkpoint_time_max */
     /* not clearing txn_checkpoint_time_min */
     /* not clearing txn_checkpoint_time_recent */
+    stats->txn_checkpoint_prepare_time = 0;
     /* not clearing txn_checkpoint_scrub_target */
     /* not clearing txn_checkpoint_scrub_time */
     /* not clearing txn_checkpoint_time_total */
+    stats->txn_checkpoint_tree_helper_time = 0;
     stats->txn_checkpoint = 0;
     stats->txn_checkpoint_skipped = 0;
     stats->txn_fail_cache = 0;
@@ -1782,9 +1787,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_checkpoint_time_max += WT_STAT_READ(from, txn_checkpoint_time_max);
     to->txn_checkpoint_time_min += WT_STAT_READ(from, txn_checkpoint_time_min);
     to->txn_checkpoint_time_recent += WT_STAT_READ(from, txn_checkpoint_time_recent);
+    to->txn_checkpoint_prepare_time += WT_STAT_READ(from, txn_checkpoint_prepare_time);
     to->txn_checkpoint_scrub_target += WT_STAT_READ(from, txn_checkpoint_scrub_target);
     to->txn_checkpoint_scrub_time += WT_STAT_READ(from, txn_checkpoint_scrub_time);
     to->txn_checkpoint_time_total += WT_STAT_READ(from, txn_checkpoint_time_total);
+    to->txn_checkpoint_tree_helper_time += WT_STAT_READ(from, txn_checkpoint_tree_helper_time);
     to->txn_checkpoint += WT_STAT_READ(from, txn_checkpoint);
     to->txn_checkpoint_skipped += WT_STAT_READ(from, txn_checkpoint_skipped);
     to->txn_fail_cache += WT_STAT_READ(from, txn_fail_cache);
