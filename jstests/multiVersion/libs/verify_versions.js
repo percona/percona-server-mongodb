@@ -7,12 +7,6 @@ var Mongo, assert;
     "use strict";
     Mongo.prototype.getBinVersion = function() {
         var result = this.getDB("admin").runCommand({serverStatus: 1});
-        // strip Percona build suffix
-        var ret = result.version;
-        var i = ret.indexOf("-");
-        if (i != -1) {
-            return ret.substring(0, i);
-        }
         return result.version;
     };
 
