@@ -93,7 +93,7 @@ var MongoRunner, _startMongod, startMongoProgram, runMongoProgram, startMongoPro
      */
     var convertVersionStringToArray = function(versionString) {
         assert("" !== versionString, "Version strings must not be empty");
-        var versionArray = versionString.split('.');
+        var versionArray = versionString.split(/[\.-]/);
         assert.gt(versionArray.length,
                   1,
                   "MongoDB versions must have at least two components to compare, but \"" +
