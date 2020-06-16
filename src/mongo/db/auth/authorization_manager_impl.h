@@ -156,6 +156,11 @@ private:
     friend class AuthorizationManagerImpl::CacheGuard;
 
     /**
+     * ldap user cache invalidator class
+     */
+    class LDAPUserCacheInvalidator;
+
+    /**
      * Invalidates all User objects in the cache and removes them from the cache.
      * Should only be called when already holding _cacheMutex.
      */
@@ -236,6 +241,12 @@ private:
     stdx::condition_variable _pinnedUsersCond;
     std::once_flag _pinnedThreadTrackerStarted;
     boost::optional<std::vector<UserName>> _usersToPin;
+
+    /**
+     * LDAP user cache invalidator instance
+     * Not null only if LDAP authorization configured
+     */
+    std::unique_ptr<LDAPUserCacheInvalidator> _ldapUserCacheInvalidator;
 
     /**
      * Protects _cacheGeneration, _version and _isFetchPhaseBusy.  Manipulated
