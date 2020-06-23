@@ -60,12 +60,15 @@
 #include "mongo/db/auth/user_name_hash.h"
 #include "mongo/db/global_settings.h"
 #include "mongo/db/jsobj.h"
+#include "mongo/db/ldap_options.h"
 #include "mongo/db/mongod_options.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/background.h"
+#include "mongo/util/concurrency/idle_thread_block.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
 
@@ -252,6 +255,52 @@ private:
     stdx::unique_lock<stdx::mutex> _lock;
 };
 
+class AuthorizationManagerImpl::LDAPUserCacheInvalidator : public BackgroundJob {
+public:
+    LDAPUserCacheInvalidator(AuthorizationManagerImpl* authzManager)
+        : _authzManager(authzManager) {}
+
+    virtual std::string name() const override {
+        return "LDAPUserCacheInvalidator";
+    }
+
+    virtual void run() override {
+        Client::initThread(name().c_str());
+        ON_BLOCK_EXIT([] { Client::destroy(); });
+
+        LOG(1) << "starting " << name() << " thread";
+        stdx::unique_lock<stdx::mutex> lock(_mutex);
+
+        while (!_shuttingDown) {
+            MONGO_IDLE_THREAD_BLOCK;
+            auto cv_status = _condvar.wait_for(lock, stdx::chrono::seconds(
+                        ldapGlobalParams.ldapUserCacheInvalidationInterval.load()));
+
+            if (cv_status == std::cv_status::timeout) {
+                _authzManager->invalidateUsersFromDB("$external");
+            }
+        }
+        LOG(1) << "stopping " << name() << " thread";
+    }
+
+    void shutdown() {
+        {
+            stdx::unique_lock<stdx::mutex> lock(_mutex);
+            _shuttingDown = true;
+        }
+
+        _condvar.notify_one();
+        wait();
+    }
+
+private:
+    AuthorizationManagerImpl* _authzManager;
+    bool _shuttingDown{false};  // should be accessed under the _mutex
+    // _mutex works in pair with _condvar and also protects _shuttingDown
+    stdx::mutex _mutex;
+    stdx::condition_variable _condvar;
+};
+
 AuthorizationManagerImpl::AuthorizationManagerImpl()
     : AuthorizationManagerImpl(AuthzManagerExternalState::create(),
                                InstallMockForTestingOrAuthImpl{}) {}
@@ -272,6 +321,11 @@ AuthorizationManagerImpl::~AuthorizationManagerImpl() {
          ++it) {
         fassert(17265, it->second != internalSecurity.user);
         delete it->second;
+    }
+    if (_ldapUserCacheInvalidator) {
+        log() << "Shutting down LDAP user cache invalidator thread";
+        _ldapUserCacheInvalidator->shutdown();
+        log() << "Finished shutting down LDAP user cache invalidator thread";
     }
 }
 
@@ -618,6 +672,10 @@ Status AuthorizationManagerImpl::initialize(OperationContext* opCtx) {
     if (!status.isOK())
         return status;
 
+    if (!ldapGlobalParams.ldapServers->empty()) {
+        _ldapUserCacheInvalidator = std::make_unique<LDAPUserCacheInvalidator>(this);
+        _ldapUserCacheInvalidator->go();
+    }
     return Status::OK();
 }
 
