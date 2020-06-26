@@ -35,17 +35,115 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include <regex>
 
+#include <poll.h>
+
 #include <fmt/format.h>
 #include <sasl/sasl.h>
 
 #include "mongo/bson/json.h"
+#include "mongo/db/client.h"
 #include "mongo/db/ldap_options.h"
+#include "mongo/util/background.h"
+#include "mongo/util/concurrency/idle_thread_block.h"
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
 
 namespace mongo {
 
 using namespace fmt::literals;
+
+class LDAPManagerImpl::ConnectionPoller : public BackgroundJob {
+public:
+    ConnectionPoller(LDAPManagerImpl* manager)
+        : _manager(manager) {}
+
+    virtual std::string name() const override {
+        return "LDAPConnectionPoller";
+    }
+
+    virtual void run() override {
+        Client::initThread(name().c_str());
+        ON_BLOCK_EXIT([] { Client::destroy(); });
+
+        LOG(1) << "starting " << name() << " thread";
+        stdx::unique_lock<stdx::mutex> lock{_mutex};
+
+        // poller thread will handle disconnection events
+        while (!_shuttingDown.load()) {
+            MONGO_IDLE_THREAD_BLOCK;
+            _condvar.wait(lock, [this]{return _poll_fd >= 0 || _shuttingDown.load();});
+            if (_poll_fd < 0)
+                continue;
+            LOG(2) << "connection poller received file descriptor: " << _poll_fd;
+            pollfd fd;
+            fd.fd = _poll_fd;
+            fd.events = POLLPRI | POLLRDHUP;
+            fd.revents = 0;
+            int poll_ret = poll(&fd, 1, -1);
+            LOG(2) << "poll() return value is: " << poll_ret;
+            if (poll_ret < 0) {
+                char const* errname = "<something unexpected>";
+                switch (errno) {
+                case EFAULT: errname = "EFAULT"; break;
+                case EINTR: errname = "EINTR"; break;
+                case EINVAL: errname = "EINVAL"; break;
+                case ENOMEM: errname = "ENOMEM"; break;
+                }
+                LOG(2) << "poll() error name: " << errname;
+                //restart LDAP connection
+                _poll_fd = -1;
+                _manager->needReinit();
+            } else if (poll_ret > 0) {
+                static struct {
+                    int v;
+                    char const* name;
+                } flags[] = {
+                    {POLLIN, "POLLIN"},
+                    {POLLPRI, "POLLPRI"},
+                    {POLLOUT, "POLLOUT"},
+                    {POLLRDHUP, "POLLRDHUP"},
+                    {POLLERR, "POLLERR"},
+                    {POLLHUP, "POLLHUP"},
+                    {POLLNVAL, "POLLNVAL"}
+                };
+                if (shouldLog(logger::LogSeverity::Debug(2))) {
+                    for (auto& f: flags) {
+                        if (fd.revents & f.v) {
+                            LOG(2) << "poll(): " << f.name << " event registered";
+                        }
+                    }
+                }
+                if (fd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
+                    // need to restart LDAP connection
+                    _poll_fd = -1;
+                    _manager->needReinit();
+                }
+            }
+        }
+        LOG(1) << "stopping " << name() << " thread";
+    }
+
+    void start_poll(int fd) {
+        {
+            stdx::unique_lock<stdx::mutex> lock{_mutex};
+            _poll_fd = fd;
+        }
+        _condvar.notify_one();
+    }
+    void shutdown() {
+        _shuttingDown.store(true);
+        _condvar.notify_one();
+        wait();
+    }
+
+private:
+    int _poll_fd{-1};
+    LDAPManagerImpl* _manager;
+    AtomicWord<bool> _shuttingDown{false};
+    // _mutex works in pair with _condvar and also protects _poll_fd
+    stdx::mutex _mutex;
+    stdx::condition_variable _condvar;
+};
 
 LDAPManagerImpl::LDAPManagerImpl() = default;
 
@@ -54,9 +152,42 @@ LDAPManagerImpl::~LDAPManagerImpl() {
         ldap_unbind_ext(_ldap, nullptr, nullptr);
         _ldap = nullptr;
     }
+    if (_connPoller) {
+        log() << "Shutting down LDAP connection poller thread";
+        _connPoller->shutdown();
+        log() << "Finished shutting down LDAP connection poller thread";
+    }
+}
+
+namespace {
+
+/* Called after a connection is established */
+//typedef int (ldap_conn_add_f) LDAP_P(( LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr *addr,
+//	struct ldap_conncb *ctx ));
+/* Called before a connection is closed */
+//typedef void (ldap_conn_del_f) LDAP_P(( LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx ));
+
+int cb_add(LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr *addr,
+           struct ldap_conncb *ctx ) {
+    int fd = -1;
+    ldap_get_option(ld, LDAP_OPT_DESC, &fd);
+    LOG(2) << "LDAP connect callback; file descriptor: " << fd;
+    static_cast<LDAPManagerImpl::ConnectionPoller*>(ctx->lc_arg)->start_poll(fd);
+    return LDAP_SUCCESS;
+}
+
+void cb_del(LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx) {
+    LOG(2) << "LDAP disconnect callback";
+}
+
 }
 
 Status LDAPManagerImpl::initialize() {
+    if (!_connPoller) {
+        _connPoller = stdx::make_unique<ConnectionPoller>(this);
+        _connPoller->go();
+    }
+
     int res = LDAP_OTHER;
     const char* ldapprot = "ldaps";
     if (ldapGlobalParams.ldapTransportSecurity == "none")
@@ -75,13 +206,45 @@ Status LDAPManagerImpl::initialize() {
                       "Cannot set LDAP version option; LDAP error: {}"_format(
                           ldap_err2string(res)));
     }
+    static ldap_conncb conncb;
+    conncb.lc_add = cb_add;
+    conncb.lc_del = cb_del;
+    conncb.lc_arg = _connPoller.get();
+    res = ldap_set_option(_ldap, LDAP_OPT_CONNECT_CB, &conncb);
+    if (res != LDAP_OPT_SUCCESS) {
+        return Status(ErrorCodes::LDAPLibraryError,
+                      "Cannot set LDAP connection callbacks; LDAP error: {}"_format(
+                          ldap_err2string(res)));
+    }
 
-    return LDAPbind(_ldap,
+    auto ret = LDAPbind(_ldap,
                     ldapGlobalParams.ldapQueryUser.get(),
                     ldapGlobalParams.ldapQueryPassword.get());
+
+    if (ret.isOK())
+        _reinitPending.store(false);
+    return ret;
+}
+
+Status LDAPManagerImpl::reinitialize() {
+    if (_ldap) {
+        ldap_unbind_ext(_ldap, nullptr, nullptr);
+        _ldap = nullptr;
+    }
+    return initialize();
 }
 
 Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>& results) {
+    stdx::lock_guard<stdx::mutex> lk{_mutex};
+
+    if (_reinitPending.load()) {
+        Status s = reinitialize();
+        if (!s.isOK()) {
+            error() << "LDAP connection reinitialization failed. Cannot execute LDAP query";
+            return s;
+        }
+    }
+
     timeval tv;
     LDAPMessage*answer = nullptr;
     LDAPURLDesc *ludp{nullptr};
@@ -101,13 +264,30 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
             fmt::arg("scope", ludp->lud_scope),
             fmt::arg("dn", ludp->lud_dn ? ludp->lud_dn : "nullptr"),
             fmt::arg("filter", ludp->lud_filter ? ludp->lud_filter : "nullptr"));
-    res = ldap_search_ext_s(_ldap,
-            ludp->lud_dn,
-            ludp->lud_scope,
-            ludp->lud_filter,
-            ludp->lud_attrs,
-            0, // attrsonly (0 => attrs and values)
-            nullptr, nullptr, &tv, 0, &answer);
+
+    int retrycnt = 1;
+    do {
+        res = ldap_search_ext_s(_ldap,
+                ludp->lud_dn,
+                ludp->lud_scope,
+                ludp->lud_filter,
+                ludp->lud_attrs,
+                0, // attrsonly (0 => attrs and values)
+                nullptr, nullptr, &tv, 0, &answer);
+        if (res == LDAP_SUCCESS)
+            break;
+        if (retrycnt > 0) {
+            ldap_msgfree(answer);
+            error() << "LDAP search failed with error: {}"_format(
+                    ldap_err2string(res));
+            Status s = reinitialize();
+            if (!s.isOK()) {
+                error() << "LDAP connection reinitialization failed";
+                return s;
+            }
+        }
+    } while (retrycnt-- > 0);
+
     ON_BLOCK_EXIT([&] { ldap_msgfree(answer); });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,

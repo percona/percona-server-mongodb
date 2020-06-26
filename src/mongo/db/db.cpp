@@ -86,6 +86,8 @@
 #include "mongo/db/keys_collection_manager.h"
 #include "mongo/db/kill_sessions.h"
 #include "mongo/db/kill_sessions_local.h"
+#include "mongo/db/ldap/ldap_manager.h"
+#include "mongo/db/ldap_options.h"
 #include "mongo/db/log_process_details.h"
 #include "mongo/db/logical_clock.h"
 #include "mongo/db/logical_session_cache.h"
@@ -485,6 +487,15 @@ ExitCode _initAndListen(int listenPort) {
 
     // Start up health log writer thread.
     HealthLog::get(startupOpCtx.get()).startup();
+
+    auto const globalLDAPManager = LDAPManager::get(serviceContext);
+    if (globalLDAPManager) {
+        Status status = globalLDAPManager->initialize();
+        using namespace fmt::literals;
+        uassertStatusOKWithContext(status,
+            "Cannot initialize LDAP server connection (parameters are: {})"_format(
+                ldapGlobalParams.logString()));
+    }
 
     auto const globalAuthzManager = AuthorizationManager::get(serviceContext);
     uassertStatusOK(globalAuthzManager->initialize(startupOpCtx.get()));

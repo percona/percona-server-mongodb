@@ -39,6 +39,8 @@ namespace mongo {
 
 class LDAPManagerImpl : public LDAPManager {
 public:
+    class ConnectionPoller;
+
     LDAPManagerImpl();
     virtual ~LDAPManagerImpl() override;
 
@@ -48,9 +50,19 @@ public:
 
     virtual Status mapUserToDN(const std::string& user, std::string& out) override;
 
+    void needReinit() {
+        _reinitPending.store(true);
+    }
+
 private:
     LDAP* _ldap{nullptr};
+    std::unique_ptr<ConnectionPoller> _connPoller;
 
+    AtomicWord<bool> _reinitPending{true};
+    // guard init/reinit of _ldap
+    stdx::mutex _mutex;
+
+    Status reinitialize();
     Status execQuery(std::string& ldapurl, std::vector<std::string>& results);
 };
 
