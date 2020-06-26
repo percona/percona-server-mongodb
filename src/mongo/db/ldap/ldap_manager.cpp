@@ -72,13 +72,6 @@ MONGO_INITIALIZER_WITH_PREREQUISITES(CreateLDAPManager,
 (InitializerContext* context) {
     if (!ldapGlobalParams.ldapServers->empty()) {
         auto ldapManager = LDAPManager::create();
-        Status res = ldapManager->initialize();
-        if (!res.isOK()) {
-            using namespace fmt::literals;
-            error() << "Cannot initialize LDAP server connection (parameters are: {})"_format(
-                ldapGlobalParams.logString());
-            return res;
-        }
         LDAPManager::set(getGlobalServiceContext(), std::move(ldapManager));
     }
     return Status::OK();
