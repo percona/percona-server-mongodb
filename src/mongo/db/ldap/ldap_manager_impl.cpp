@@ -41,6 +41,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include <sasl/sasl.h>
 
 #include "mongo/bson/json.h"
+#include "mongo/db/client.h"
 #include "mongo/db/ldap_options.h"
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/idle_thread_block.h"
@@ -61,6 +62,7 @@ public:
     }
 
     virtual void run() override {
+        ThreadClient tc(name(), getGlobalServiceContext());
         LOG(1) << "starting " << name() << " thread";
         stdx::unique_lock<Latch> lock{_mutex};
 
@@ -141,10 +143,7 @@ private:
     stdx::condition_variable _condvar;
 };
 
-LDAPManagerImpl::LDAPManagerImpl() {
-    _connPoller = stdx::make_unique<ConnectionPoller>(this);
-    _connPoller->go();
-}
+LDAPManagerImpl::LDAPManagerImpl() = default;
 
 LDAPManagerImpl::~LDAPManagerImpl() {
     if (_ldap) {
@@ -182,6 +181,11 @@ void cb_del(LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx) {
 }
 
 Status LDAPManagerImpl::initialize() {
+    if (!_connPoller) {
+        _connPoller = stdx::make_unique<ConnectionPoller>(this);
+        _connPoller->go();
+    }
+
     int res = LDAP_OTHER;
     const char* ldapprot = "ldaps";
     if (ldapGlobalParams.ldapTransportSecurity == "none")
