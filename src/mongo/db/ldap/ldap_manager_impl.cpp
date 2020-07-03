@@ -389,7 +389,7 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
         }
     }
     // we have no successful transformations, return error
-    return Status(ErrorCodes::BadValue,
+    return Status(ErrorCodes::UserNotFound,
                   "Failed to map user '{}' to LDAP DN"_format(user));
 }
 
