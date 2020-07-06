@@ -197,6 +197,15 @@ void logCommonStartupWarnings(const ServerGlobalParams& serverParams) {
             "warning");
     }
 
+    if (serverParams.rateLimit != 1) {
+        LOGV2_WARNING_OPTIONS(
+            29074,
+            {logv2::LogTag::kStartupWarnings},
+            "Instance configuration contains non-default value for the 'rateLimit' parameter. "
+            "This parameter is deprecated by the operationProfiling.slowOpSampleRate parameter, "
+            "and will be removed in the next major release after 4.4");
+    }
+
     if (auth::hasMultipleInternalAuthKeys()) {
         LOGV2_WARNING_OPTIONS(
             22147,
