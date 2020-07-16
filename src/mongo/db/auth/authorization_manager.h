@@ -353,6 +353,11 @@ private:
     friend class AuthorizationManager::CacheGuard;
 
     /**
+     * ldap user cache invalidator class
+     */
+    class LDAPUserCacheInvalidator;
+
+    /**
      * Invalidates all User objects in the cache and removes them from the cache.
      * Should only be called when already holding _cacheMutex.
      */
@@ -424,6 +429,12 @@ private:
      * cache unless its reference count is zero.
      */
     unordered_map<UserName, User*> _userCache;
+
+    /**
+     * LDAP user cache invalidator instance
+     * Not null only if LDAP authorization configured
+     */
+    std::unique_ptr<LDAPUserCacheInvalidator> _ldapUserCacheInvalidator;
 
     /**
      * Current generation of cached data.  Updated every time part of the cache gets
