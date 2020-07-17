@@ -1456,6 +1456,20 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
     return Status::OK();
 }
 
+namespace {
+
+template<typename T1, typename T2>
+void a_assert_eq(struct archive *a, T1 r1, T2 r2) {
+    if (r1 != r2) {
+        std::stringstream ss;
+        ss << "libarchive error " << archive_errno(a);
+        ss << ": " << archive_error_string(a);
+        throw std::runtime_error(ss.str());
+    }
+}
+
+} // namespace
+
 Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::string& path) {
     namespace fs = boost::filesystem;
 
@@ -1470,36 +1484,40 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
     }
 
     // Write tar archive
-    struct archive *a{archive_write_new()};
-    ON_BLOCK_EXIT([&] { archive_write_free(a);});
-    archive_write_set_format_pax_restricted(a);
-    archive_write_open_filename(a, path.c_str());
+    try {
+        struct archive *a{archive_write_new()};
+        if (a == nullptr)
+            throw std::runtime_error("cannot create archive");
+        ON_BLOCK_EXIT([&] { archive_write_free(a);});
+        a_assert_eq(a, 0, archive_write_set_format_pax_restricted(a));
+        a_assert_eq(a, 0, archive_write_open_filename(a, path.c_str()));
 
-    struct archive_entry *entry{archive_entry_new()};
-    ON_BLOCK_EXIT([&] { archive_entry_free(entry);});
+        struct archive_entry *entry{archive_entry_new()};
+        if (entry == nullptr)
+            throw std::runtime_error("cannot create archive entry");
+        ON_BLOCK_EXIT([&] { archive_entry_free(entry);});
 
-    constexpr int bufsize = 8 * 1024;
-    auto buf = stdx::make_unique<char[]>(bufsize);
-    auto bufptr = buf.get();
+        constexpr int bufsize = 8 * 1024;
+        auto buf = stdx::make_unique<char[]>(bufsize);
+        auto bufptr = buf.get();
 
-    for (auto&& file : filesList) {
-        fs::path srcFile{std::get<0>(file)};
-        fs::path destFile{std::get<1>(file)};
-        auto fsize{std::get<2>(file)};
-        auto fmtime{std::get<3>(file)};
+        for (auto&& file : filesList) {
+            fs::path srcFile{std::get<0>(file)};
+            fs::path destFile{std::get<1>(file)};
+            auto fsize{std::get<2>(file)};
+            auto fmtime{std::get<3>(file)};
 
-        LOG(2) << "backup of file: " << srcFile.string() << std::endl;
-        LOG(2) << "    storing as: " << destFile.string() << std::endl;
+            LOG(2) << "backup of file: " << srcFile.string() << std::endl;
+            LOG(2) << "    storing as: " << destFile.string() << std::endl;
 
-        archive_entry_clear(entry);
-        archive_entry_set_pathname(entry, destFile.string().c_str());
-        archive_entry_set_size(entry, fsize);
-        archive_entry_set_filetype(entry, AE_IFREG);
-        archive_entry_set_perm(entry, 0660);
-        archive_entry_set_mtime(entry, fmtime, 0);
-        archive_write_header(a, entry);
+            archive_entry_clear(entry);
+            archive_entry_set_pathname(entry, destFile.string().c_str());
+            archive_entry_set_size(entry, fsize);
+            archive_entry_set_filetype(entry, AE_IFREG);
+            archive_entry_set_perm(entry, 0660);
+            archive_entry_set_mtime(entry, fmtime, 0);
+            a_assert_eq(a, 0, archive_write_header(a, entry));
 
-        try {
             std::ifstream src{};
             src.exceptions(std::ios::failbit | std::ios::badbit);
             src.open(srcFile.string(), std::ios::binary);
@@ -1509,14 +1527,14 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
                 if (fsize < bufsize)
                     cnt = fsize;
                 src.read(bufptr, cnt);
-                archive_write_data(a, bufptr, cnt);
+                a_assert_eq(a, cnt, archive_write_data(a, bufptr, cnt));
                 fsize -= cnt;
             }
-        } catch (const fs::filesystem_error& ex) {
-            return Status(ErrorCodes::InvalidPath, ex.what());
-        } catch (const std::exception& ex) {
-            return Status(ErrorCodes::InternalError, ex.what());
         }
+    } catch (const fs::filesystem_error& ex) {
+        return Status(ErrorCodes::InvalidPath, ex.what());
+    } catch (const std::exception& ex) {
+        return Status(ErrorCodes::InternalError, ex.what());
     }
 
     return Status::OK();
