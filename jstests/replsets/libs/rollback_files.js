@@ -55,7 +55,7 @@ function checkRollbackFiles(dbPath, nss, uuid, expectedDocs) {
 
     // If the rollback BSON file is encrypted, don't try to check the data contents. Checking its
     // existence is sufficient.
-    if (rollbackFile.endsWith(".enc")) {
+    if (rollbackFile.endsWith(".enc") || rollbackFile.endsWith(".aes256-cbc") || rollbackFile.endsWith(".aes256-gcm")) {
         print("Bypassing check of rollback file data since it is encrypted.");
         return;
     }
