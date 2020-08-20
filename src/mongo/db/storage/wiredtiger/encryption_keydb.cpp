@@ -108,21 +108,27 @@ EncryptionKeyDB::EncryptionKeyDB(const bool just_created, const std::string& pat
 }
 
 EncryptionKeyDB::~EncryptionKeyDB() {
-    if (kDebugBuild && _sess)
-        dump_table(_sess, _key_len, "dump_table from destructor");
-    if (_sess) {
-        _gcm_iv_reserved = _gcm_iv;
-        store_gcm_iv_reserved();
-    }
-    if (_sess)
-        _sess->close(_sess, nullptr);
-    if (_conn)
-        _conn->close(_conn, nullptr);
+    close_handles();
     // should be the last line because closing wiredTiger's handles may write to DB
     if (!_rotation)
         encryptionKeyDB = nullptr;
     else
         rotationKeyDB = nullptr;
+}
+
+void EncryptionKeyDB::close_handles() {
+    if (kDebugBuild && _sess)
+        dump_table(_sess, _key_len, "dump_table from destructor");
+    if (_sess) {
+        _gcm_iv_reserved = _gcm_iv;
+        store_gcm_iv_reserved();
+        _sess->close(_sess, nullptr);
+        _sess = nullptr;
+    }
+    if (_conn) {
+        _conn->close(_conn, nullptr);
+        _conn = nullptr;
+    }
 }
 
 // this function uses _srng without synchronization
@@ -283,6 +289,7 @@ void EncryptionKeyDB::init() {
         if (res) {
             throw std::runtime_error(std::string("error opening keys DB at '") + _path + "': " + wiredtiger_strerror(res));
         }
+        _wtOpenConfig = config;
 
         // empty keyid means masterkey
         res = _conn->open_session(_conn, nullptr, nullptr, &_sess);
@@ -559,6 +566,25 @@ void EncryptionKeyDB::store_pseudo_bytes(uint8_t *buf, int len) {
         *(int32_t*)buf = _prng->nextInt32();
         buf += 4;
     }
+}
+
+void EncryptionKeyDB::reconfigure(const char *newCfg) {
+    // For now we don't use event handler in EncryptionKeyDB
+    WT_EVENT_HANDLER* wtEventHandler = nullptr;
+
+    auto startTime = Date_t::now();
+    LOGV2(29075, "Closing KeyDB in preparation for reconfiguring");
+    close_handles();
+    LOGV2(29076, "KeyDB closed", "duration"_attr = Date_t::now() - startTime);
+
+    startTime = Date_t::now();
+    invariantWTOK(wiredtiger_open(_path.c_str(), wtEventHandler, _wtOpenConfig.c_str(), &_conn));
+    LOGV2(29077, "KeyDB re-opened", "duration"_attr = Date_t::now() - startTime);
+
+    startTime = Date_t::now();
+    LOGV2(29078, "Reconfiguring KeyDB", "newConfig"_attr = newCfg);
+    invariantWTOK(_conn->reconfigure(_conn, newCfg));
+    LOGV2(29079, "KeyDB reconfigure complete", "duration"_attr = Date_t::now() - startTime);
 }
 
 extern "C" void store_pseudo_bytes(uint8_t *buf, int len) {

@@ -1355,7 +1355,10 @@ void WiredTigerKVEngine::cleanShutdown() {
         quickExit(EXIT_SUCCESS);
     }
 
+    bool downgrade = false; 
     if (_fileVersion.shouldDowngrade(_readOnly, _inRepairMode, !_recoveryTimestamp.isNull())) {
+        downgrade = true;
+
         auto startTime = Date_t::now();
         LOGV2(22324,
               "Closing WiredTiger in preparation for reconfiguring",
@@ -1379,6 +1382,10 @@ void WiredTigerKVEngine::cleanShutdown() {
     invariantWTOK(_conn->close(_conn, closeConfig.c_str()));
     LOGV2(4795901, "WiredTiger closed", "duration"_attr = Date_t::now() - startTime);
     _conn = nullptr;
+
+    if (_encryptionKeyDB && downgrade) {
+        _encryptionKeyDB->reconfigure(_fileVersion.getDowngradeString().c_str());
+    }
 }
 
 Status WiredTigerKVEngine::okToRename(OperationContext* opCtx,
