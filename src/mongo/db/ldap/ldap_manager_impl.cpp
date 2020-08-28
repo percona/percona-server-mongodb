@@ -232,6 +232,12 @@ Status LDAPManagerImpl::reinitialize() {
     return initialize();
 }
 
+static void init_ldap_timeout(timeval* tv) {
+    auto timeout = ldapGlobalParams.ldapTimeoutMS.load();
+    tv->tv_sec = timeout / 1000;
+    tv->tv_usec = (timeout % 1000) * 1000;
+}
+
 Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>& results) {
     stdx::lock_guard<Latch> lk{_mutex};
 
@@ -244,6 +250,7 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
     }
 
     timeval tv;
+    init_ldap_timeout(&tv); // use ldapTimeoutMS
     LDAPMessage*answer = nullptr;
     LDAPURLDesc *ludp{nullptr};
     int res = ldap_url_parse(ldapurl.c_str(), &ludp);
