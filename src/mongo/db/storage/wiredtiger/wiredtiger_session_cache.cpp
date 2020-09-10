@@ -37,6 +37,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
 
 #include "mongo/base/error_codes.h"
+#include "mongo/db/audit/audit.h"
 #include "mongo/db/mongod_options.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/server_parameters.h"
@@ -282,6 +283,10 @@ void WiredTigerSessionCache::waitUntilDurable(bool forceCheckpoint, bool stableC
         {
             stdx::unique_lock<stdx::mutex> lk(_journalListenerMutex);
             JournalListener::Token token = _journalListener->getToken();
+#ifdef PERCONA_AUDIT_ENABLED
+            // Make audit log durable
+            audit::fsyncAuditLog();
+#endif
             const bool keepOldBehavior = true;
             if (keepOldBehavior) {
                 invariantWTOK(s->checkpoint(s, nullptr));
@@ -331,6 +336,11 @@ void WiredTigerSessionCache::waitUntilDurable(bool forceCheckpoint, bool stableC
                 conn->open_session(conn, nullptr, "isolation=snapshot", &_keyDBSession));
         }
     }
+
+#ifdef PERCONA_AUDIT_ENABLED
+    // Make audit log durable
+    audit::fsyncAuditLog();
+#endif
 
     // Use the journal when available, or a checkpoint otherwise.
     if (_engine && _engine->isDurable()) {

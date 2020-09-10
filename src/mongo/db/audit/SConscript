@@ -5,12 +5,27 @@ Import("env")
 env = env.Clone()
 
 env.Library(
-    target='audit',
+    target='auditcore',
     source=[
-        'audit_commands.cpp',
-        'audit_file.cpp',
         'audit_options.cpp',
         'audit.cpp',
     ],
-    LIBDEPS_DEPENDENTS=['$BUILD_DIR/mongo/db/commands'],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/db/auth/authcore',
+    ],
+)
+
+env.Library(
+    target='audit',
+    source=[
+        'audit_commands.cpp',
+        'audit_flusher.cpp',
+    ],
+    LIBDEPS=[
+        'auditcore',
+        '$BUILD_DIR/mongo/util/background_job',
+    ],
+    LIBDEPS_DEPENDENTS=[
+        '$BUILD_DIR/mongo/db/commands'
+    ],
 )

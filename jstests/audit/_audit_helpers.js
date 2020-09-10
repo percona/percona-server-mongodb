@@ -120,15 +120,15 @@ var auditTestShard = function(name, fn, serverParams) {
 // Drop the existing audit events collection, import
 // the audit json file, then return the new collection.
 var getAuditEventsCollection = function(m, dbname, primary, useAuth) {
+    var adminDB = m.getDB('admin');
     var auth = ((useAuth !== undefined) && (useAuth != false)) ? true : false;
     if (auth) {
-        var adminDB = m.getDB('admin');
-        adminDB.auth('admin','admin');
+        assert(adminDB.auth('admin','admin'), "could not auth as admin (pwd admin)");
     }
 
     // the audit log is specifically parsable by mongoimport,
     // so we use that to conveniently read its contents.
-    var auditOptions = m.getDB('admin').runCommand('auditGetOptions');
+    var auditOptions = adminDB.runCommand('auditGetOptions');
     var auditPath = auditOptions.path;
     var auditCollectionName = 'auditCollection';
     return loadAuditEventsIntoCollection(m, auditPath, dbname, auditCollectionName, primary, auth);
@@ -137,6 +137,17 @@ var getAuditEventsCollection = function(m, dbname, primary, useAuth) {
 // Load any file into a named collection.
 var loadAuditEventsIntoCollection = function(m, filename, dbname, collname, primary, auth) {
     var db = primary !== undefined ? primary.getDB(dbname) : m.getDB(dbname);
+
+    // Make all audit events durable
+    // To make "non-durable" events like auth checks or app messages durable
+    // we need to put some "durable" events after them.
+    // Those extra events won't affect our tests because all tests search
+    // events only in strict time range  (beforeCmd, beforeLoad).
+    var fooColl = db.getCollection('foo' + Date.now());
+    fooColl.insert({a:1});
+    fooColl.drop();
+    sleep(110);
+
     // the audit log is specifically parsable by mongoimport,
     // so we use that to conveniently read its contents.
     var exitCode = -1;

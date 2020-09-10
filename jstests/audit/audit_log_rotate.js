@@ -28,21 +28,24 @@ auditTest(
         // Remove the audit log that got rotated on startup
         getRotatedLogFilePaths(auditPath).forEach(function (f) { removeFile(f) });
 
+        const beforeCmd = Date.now();
         // This should generate a few new audit log entries on ns 'test.foo'
         testDB = m.getDB(testDBName);
         assert.commandWorked(testDB.createCollection('foo'));
         assert(testDB.getCollection('foo').drop());
 
+        const beforeLoad = Date.now();
         // There should be something in the audit log since we created 'test.foo'
-        assert.neq(0, getAuditEventsCollection(m, testDBName).count(),
+        assert.neq(0, getAuditEventsCollection(m, testDBName).count({
+            ts: withinInterval(beforeCmd, beforeLoad)}),
                    "strange: no audit events before rotate.");
 
         // Rotate the server log. The audit log rotates with it.
         // Once rotated, the audit log should be empty.
         assert.commandWorked(m.getDB('admin').runCommand({ logRotate: 1 }));
+        // Select audit events from time interval before rotate
         var auditLogAfterRotate = getAuditEventsCollection(m, testDBName).find({ 
-            // skip audit events that will be triggered by getAuditEventsCollection itself
-            'param.ns': { $ne: testDBName + '.auditCollection' }
+            ts: withinInterval(beforeCmd, beforeLoad),
         }).toArray();
         assert.eq(0, auditLogAfterRotate.length,
                   "Audit log has old events after rotate: " + tojson(auditLogAfterRotate));

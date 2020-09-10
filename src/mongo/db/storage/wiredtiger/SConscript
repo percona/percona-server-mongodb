@@ -2,6 +2,7 @@
 Import("env")
 Import("wiredtiger")
 Import("get_option")
+Import("has_option")
 
 env = env.Clone()
 
@@ -51,6 +52,7 @@ if wiredtiger:
             ],
         LIBDEPS= [
             '$BUILD_DIR/mongo/base',
+            '$BUILD_DIR/mongo/db/audit/auditcore' if has_option('audit') else [],
             '$BUILD_DIR/mongo/db/bson/dotted_path_support',
             '$BUILD_DIR/mongo/db/catalog/collection',
             '$BUILD_DIR/mongo/db/catalog/collection_options',

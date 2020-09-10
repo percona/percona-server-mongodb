@@ -107,7 +107,6 @@ namespace mongo {
                 errmsg = "logApplicationMessage only accepts string messages";
                 ok = false;
             }
-            result.append("ok", ok);
             return ok;
         }
     } cmdLogApplicationMessage;

@@ -1,10 +1,7 @@
-/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-// vim: ft=cpp:expandtab:ts=8:sw=4:softtabstop=4:
-
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2020-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -34,21 +31,10 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include "mongo/util/file.h"
-
 
 namespace mongo {
 
-namespace audit {
+void startAuditLogFlusher();
+void startAuditLogFlusherWithFsync();
 
-    // Default File implementation ignores possible errors
-    // So we need to implement this extension
-    class AuditFile : public File {
-    public:
-        int fsyncReturningError() const;
-        int writeReturningError(fileofs o, const char *data, unsigned len);
-    };
-
-}  // namespace audit
 }  // namespace mongo
-
