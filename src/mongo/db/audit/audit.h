@@ -1,10 +1,7 @@
-/* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-// vim: ft=cpp:expandtab:ts=8:sw=4:softtabstop=4:
-
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2020-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -32,44 +29,18 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <iostream>
+#pragma once
 
-#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
-#include "mongo/logv2/log.h"
-
-#include "audit_file.h"
 
 namespace mongo {
 
 namespace audit {
 
-int AuditFile::fsyncReturningError() const {
-    if (::fsync(_fd)) {
-        int _errno = errno;
-        LOGV2(29023, "In File::fsync(), ::fsync for '{name}' failed with {err_desc}",
-                "name"_attr = _name,
-                "err_desc"_attr = errnoWithDescription());
-        return _errno;
-    }
-    return 0;
-}
+void flushAuditLog();
 
-int AuditFile::writeReturningError(fileofs o, const char *data, unsigned len) {
-    ssize_t bytesWritten = ::pwrite(_fd, data, len, o);
-    if (bytesWritten != static_cast<ssize_t>(len)) {
-        _bad = true;
-        int _errno = errno;
-        LOGV2(29024, "In File::write(), ::pwrite for '{name}' tried to write {len} bytes "
-                "but only wrote {written} bytes, failing with {err_desc}",
-                "name"_attr = _name,
-                "len"_attr = len,
-                "written"_attr = bytesWritten,
-                "err_desc"_attr = errnoWithDescription());
-        return _errno;
-    }
-    return 0;
-}
+void fsyncAuditLog();
 
 }  // namespace audit
+
 }  // namespace mongo
 

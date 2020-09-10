@@ -137,6 +137,17 @@ var getAuditEventsCollection = function(m, dbname, primary, useAuth) {
 // Load audit log events into a named collection
 var loadAuditEventsIntoCollection = function(m, filename, dbname, collname, primary, auth) {
     var db = primary !== undefined ? primary.getDB(dbname) : m.getDB(dbname);
+
+    // Make all audit events durable
+    // To make "non-durable" events like auth checks or app messages durable
+    // we need to put some "durable" events after them.
+    // Those extra events won't affect our tests because all tests search
+    // events only in strict time range  (beforeCmd, beforeLoad).
+    var fooColl = db.getCollection('foo' + Date.now());
+    fooColl.insert({a:1});
+    fooColl.drop();
+    sleep(110);
+
     // drop collection
     db[collname].drop();
     // load data from audit log file

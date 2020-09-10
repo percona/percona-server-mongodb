@@ -36,6 +36,7 @@
 #include <memory>
 
 #include "mongo/base/error_codes.h"
+#include "mongo/db/audit/audit.h"
 #include "mongo/db/concurrency/write_conflict_exception.h"
 #include "mongo/db/global_settings.h"
 #include "mongo/db/repl/repl_settings.h"
@@ -306,7 +307,10 @@ void WiredTigerSessionCache::waitUntilDurable(OperationContext* opCtx,
                 // Note: only does a write if primary, otherwise just fetches the timestamp.
                 token = journalListener->getToken(opCtx);
             }
-
+#ifdef PERCONA_AUDIT_ENABLED
+            // Make audit log durable
+            audit::fsyncAuditLog();
+#endif
             auto config = syncType == Fsync::kCheckpointStableTimestamp ? "use_timestamp=true"
                                                                         : "use_timestamp=false";
             invariantWTOK(s->checkpoint(s, config));
@@ -363,6 +367,11 @@ void WiredTigerSessionCache::waitUntilDurable(OperationContext* opCtx,
                 conn->open_session(conn, nullptr, "isolation=snapshot", &_keyDBSession));
         }
     }
+
+#ifdef PERCONA_AUDIT_ENABLED
+    // Make audit log durable
+    audit::fsyncAuditLog();
+#endif
 
     // Use the journal when available, or a checkpoint otherwise.
     if (_engine && _engine->isDurable()) {
