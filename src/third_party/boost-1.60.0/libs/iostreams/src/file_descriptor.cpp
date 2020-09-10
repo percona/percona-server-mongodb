@@ -202,9 +202,10 @@ void file_descriptor_impl::open(const detail::path& p, BOOST_IOS::openmode mode)
             (BOOST_IOS::app | BOOST_IOS::trunc) )
             boost::throw_exception(BOOST_IOSTREAMS_FAILURE("bad open mode"));
         oflag |= O_WRONLY;
-        if (mode & BOOST_IOS::app)
+        if (mode & BOOST_IOS::app) {
+            oflag |= O_CREAT;
             oflag |= O_APPEND;
-        else {
+        } else {
             oflag |= O_CREAT;
             oflag |= O_TRUNC; 
         }
