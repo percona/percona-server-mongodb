@@ -46,6 +46,8 @@
 #include "mongo/client/replica_set_monitor.h"
 #include "mongo/config.h"
 #include "mongo/db/audit.h"
+#include "mongo/db/audit/audit_flusher.h"
+#include "mongo/db/audit/audit_options.h"
 #include "mongo/db/auth/auth_op_observer.h"
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/sasl_options.h"
@@ -639,6 +641,16 @@ ExitCode _initAndListen(int listenPort) {
     }
 
     startClientCursorMonitor();
+
+#ifdef PERCONA_AUDIT_ENABLED
+    // start audit log flusher thread only if destination is file
+    if (auditOptions.destination == "file") {
+        if (storageGlobalParams.engine == "wiredTiger")
+            startAuditLogFlusher();
+        else
+            startAuditLogFlusherWithFsync();
+    }
+#endif
 
     PeriodicTask::startRunningPeriodicTasks();
 

@@ -44,6 +44,8 @@
 #include "mongo/client/replica_set_monitor.h"
 #include "mongo/config.h"
 #include "mongo/db/audit.h"
+#include "mongo/db/audit/audit_flusher.h"
+#include "mongo/db/audit/audit_options.h"
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/authz_manager_external_state_s.h"
 #include "mongo/db/auth/user_cache_invalidator_job.h"
@@ -581,6 +583,13 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
     UserCacheInvalidator cacheInvalidatorThread(AuthorizationManager::get(serviceContext));
     cacheInvalidatorThread.initialize(opCtx);
     cacheInvalidatorThread.go();
+
+#ifdef PERCONA_AUDIT_ENABLED
+    // start audit log flusher thread only if destination is file
+    if (auditOptions.destination == "file") {
+        startAuditLogFlusherWithFsync();
+    }
+#endif
 
     PeriodicTask::startRunningPeriodicTasks();
 

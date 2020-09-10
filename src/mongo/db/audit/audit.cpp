@@ -41,6 +41,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <syslog.h>
 
 #include <boost/filesystem/path.hpp>
+#include <boost/iostreams/device/file_descriptor.hpp>
+#include <boost/iostreams/stream.hpp>
 #include <boost/scoped_ptr.hpp>
 
 #include "mongo/util/debug_util.h"
@@ -73,7 +75,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/time_support.h"
 
 #include "audit_options.h"
-#include "audit_file.h"
 
 #define PERCONA_AUDIT_STUB {}
 
@@ -108,18 +109,29 @@ namespace audit {
         }
         virtual ~WritableAuditLog() {}
 
-        void append(const BSONObj &obj) {
+        void append(const BSONObj &obj, const bool affects_durable_state) {
             if (_matcher.matches(obj)) {
-                appendMatched(obj);
+                appendMatched(obj, affects_durable_state);
             }
         }
-        virtual void rotate() {
+        virtual void rotate() override {
             // No need to override this method if there is nothing to rotate
             // like it is for 'console' and 'syslog' destinations
         }
 
+        virtual void flush() {
+            // No need to override this method if there is nothing to flush
+            // like it is for 'console' and 'syslog' destinations
+
+        }
+
+        virtual void fsync() {
+            // No need to override this method if there is nothing to fsync
+            // like it is for 'console' and 'syslog' destinations
+        }
+
     protected:
-        virtual void appendMatched(const BSONObj &obj) = 0;
+        virtual void appendMatched(const BSONObj &obj, const bool affects_durable_state) = 0;
 
     private:
         const Matcher _matcher;
@@ -134,12 +146,21 @@ namespace audit {
                     errcode == EINTR);
         }
 
+        typedef boost::iostreams::stream<boost::iostreams::file_descriptor_sink> Sink;
+
     public:
         FileAuditLog(const std::string &file, const BSONObj &filter)
             : WritableAuditLog(filter),
-              _file(new AuditFile),
+              _file(new Sink),
               _fileName(file) {
-            _file->open(file.c_str(), false, false);
+            _file->open(file.c_str(), std::ios_base::out | std::ios_base::app | std::ios_base::binary);
+        }
+
+        virtual ~FileAuditLog() {
+            if (_dirty) {
+                flush_inlock();
+                _dirty = false;
+            }
         }
 
     protected:
@@ -147,7 +168,7 @@ namespace audit {
         // and passess ownership to caller
         virtual AuditLogFormatAdapter *createAdapter(const BSONObj &obj) const = 0;
 
-        virtual void appendMatched(const BSONObj &obj) {
+        virtual void appendMatched(const BSONObj &obj, const bool affects_durable_state) override {
             boost::scoped_ptr<AuditLogFormatAdapter> adapter(createAdapter(obj));
 
             // mongo::File does not have an "atomic append" operation.
@@ -166,68 +187,14 @@ namespace audit {
             // logRotate destroying our pointer.  Welp.
             stdx::lock_guard<SimpleMutex> lck(_mutex);
 
-            // If pwrite performs a partial write, we don't want to
-            // muck about figuring out how much it did write (hard to
-            // get out of the File abstraction) and then carefully
-            // writing the rest.  Easier to calculate the position
-            // first, then repeatedly write to that position if we
-            // have to retry.
-            fileofs pos = _file->len();
+            _dirty = true;
+            if (affects_durable_state)
+                _fsync_pending = true;
 
-            int writeRet;
-            for (int retries = 10; retries > 0; --retries) {
-                writeRet = _file->writeReturningError(pos, adapter->data(), adapter->size());
-                if (writeRet == 0) {
-                    break;
-                } else if (!ioErrorShouldRetry(writeRet)) {
-                    error() << "Audit system cannot write event " << redact(obj) << " to log file " << _fileName << std::endl;
-                    error() << "Write failed with fatal error " << errnoWithDescription(writeRet) << std::endl;
-                    error() << "As audit cannot make progress, the server will now shut down." << std::endl;
-                    realexit(EXIT_AUDIT_ERROR);
-                }
-                warning() << "Audit system cannot write event " << redact(obj) << " to log file " << _fileName << std::endl;
-                warning() << "Write failed with retryable error " << errnoWithDescription(writeRet) << std::endl;
-                warning() << "Audit system will retry this write another " << retries - 1 << " times." << std::endl;
-                if (retries <= 7 && retries > 0) {
-                    sleepmillis(1 << ((7 - retries) * 2));
-                }
-            }
-
-            if (writeRet != 0) {
-                error() << "Audit system cannot write event " << redact(obj) << " to log file " << _fileName << std::endl;
-                error() << "Write failed with fatal error " << errnoWithDescription(writeRet) << std::endl;
-                error() << "As audit cannot make progress, the server will now shut down." << std::endl;
-                realexit(EXIT_AUDIT_ERROR);
-            }
-
-            int fsyncRet;
-            for (int retries = 10; retries > 0; --retries) {
-                fsyncRet = _file->fsyncReturningError();
-                if (fsyncRet == 0) {
-                    break;
-                } else if (!ioErrorShouldRetry(fsyncRet)) {
-                    error() << "Audit system cannot fsync event " << redact(obj) << " to log file " << _fileName << std::endl;
-                    error() << "Fsync failed with fatal error " << errnoWithDescription(fsyncRet) << std::endl;
-                    error() << "As audit cannot make progress, the server will now shut down." << std::endl;
-                    realexit(EXIT_AUDIT_ERROR);
-                }
-                warning() << "Audit system cannot fsync event " << redact(obj) << " to log file " << _fileName << std::endl;
-                warning() << "Fsync failed with retryable error " << errnoWithDescription(fsyncRet) << std::endl;
-                warning() << "Audit system will retry this fsync another " << retries - 1 << " times." << std::endl;
-                if (retries <= 7 && retries > 0) {
-                    sleepmillis(1 << ((7 - retries) * 2));
-                }
-            }
-
-            if (fsyncRet != 0) {
-                error() << "Audit system cannot fsync event " << redact(obj) << " to log file " << _fileName << std::endl;
-                error() << "Fsync failed with fatal error " << errnoWithDescription(fsyncRet) << std::endl;
-                error() << "As audit cannot make progress, the server will now shut down." << std::endl;
-                realexit(EXIT_AUDIT_ERROR);
-            }
+            invariant(_membuf.write(adapter->data(), adapter->size()));
         }
 
-        virtual void rotate() {
+        virtual void rotate() override {
             stdx::lock_guard<SimpleMutex> lck(_mutex);
 
             // Close the current file.
@@ -246,14 +213,111 @@ namespace audit {
             }
 
             // Open a new file, with the same name as the original.
-            _file.reset(new AuditFile);
-            _file->open(_fileName.c_str(), false, false);
+            _file.reset(new Sink);
+            _file->open(_fileName.c_str());
+        }
+
+        virtual void flush() override {
+            stdx::lock_guard<SimpleMutex> lck(_mutex);
+
+            if (_dirty) {
+                flush_inlock();
+                _dirty = false;
+            }
+        }
+
+        virtual void fsync() override {
+            stdx::lock_guard<SimpleMutex> lck(_mutex);
+
+            if (_fsync_pending) {
+                if (_dirty) {
+                    flush_inlock();
+                    _dirty = false;
+                }
+
+                fsync_inlock();
+                _fsync_pending = false;
+            }
         }
 
     private:
-        boost::scoped_ptr<AuditFile> _file;
+        std::ostringstream _membuf;
+        boost::scoped_ptr<Sink> _file;
         const std::string _fileName;
         SimpleMutex _mutex;
+        bool _dirty = false;
+        bool _fsync_pending = false;
+
+        void flush_inlock() {
+            // If pwrite performs a partial write, we don't want to
+            // muck about figuring out how much it did write (hard to
+            // get out of the File abstraction) and then carefully
+            // writing the rest.  Easier to calculate the position
+            // first, then repeatedly write to that position if we
+            // have to retry.
+            auto pos = _file->tellp();
+            auto data = _membuf.str();
+            _membuf.str({});
+
+            int writeRet;
+            for (int retries = 10; retries > 0; --retries) {
+                writeRet = 0;
+                _file->seekp(pos);
+                if (_file->write(data.c_str(), data.length()))
+                    break;
+                writeRet = errno;
+                if (!ioErrorShouldRetry(writeRet)) {
+                    error() << "Audit system cannot write " << data.length() << " bytes to log file " << _fileName << std::endl;
+                    error() << "Write failed with fatal error " << errnoWithDescription(writeRet) << std::endl;
+                    error() << "As audit cannot make progress, the server will now shut down." << std::endl;
+                    realexit(EXIT_AUDIT_ERROR);
+                }
+                warning() << "Audit system cannot write " << data.length() << " bytes to log file " << _fileName << std::endl;
+                warning() << "Write failed with retryable error " << errnoWithDescription(writeRet) << std::endl;
+                warning() << "Audit system will retry this write another " << retries - 1 << " times." << std::endl;
+                if (retries <= 7 && retries > 0) {
+                    sleepmillis(1 << ((7 - retries) * 2));
+                }
+                _file->clear();
+            }
+
+            if (writeRet != 0) {
+                error() << "Audit system cannot write " << data.length() << " bytes to log file " << _fileName << std::endl;
+                error() << "Write failed with fatal error " << errnoWithDescription(writeRet) << std::endl;
+                error() << "As audit cannot make progress, the server will now shut down." << std::endl;
+                realexit(EXIT_AUDIT_ERROR);
+            }
+
+            _file->flush();
+        }
+
+        void fsync_inlock() {
+            int fsyncRet;
+            for (int retries = 10; retries > 0; --retries) {
+                fsyncRet = ::fsync((*_file)->handle());
+                if (fsyncRet == 0) {
+                    break;
+                } else if (!ioErrorShouldRetry(fsyncRet)) {
+                    error() << "Audit system cannot fsync log file " << _fileName << std::endl;
+                    error() << "Fsync failed with fatal error " << errnoWithDescription(fsyncRet) << std::endl;
+                    error() << "As audit cannot make progress, the server will now shut down." << std::endl;
+                    realexit(EXIT_AUDIT_ERROR);
+                }
+                warning() << "Audit system cannot fsync log file " << _fileName << std::endl;
+                warning() << "Fsync failed with retryable error " << errnoWithDescription(fsyncRet) << std::endl;
+                warning() << "Audit system will retry this fsync another " << retries - 1 << " times." << std::endl;
+                if (retries <= 7 && retries > 0) {
+                    sleepmillis(1 << ((7 - retries) * 2));
+                }
+            }
+
+            if (fsyncRet != 0) {
+                error() << "Audit system cannot fsync log file " << _fileName << std::endl;
+                error() << "Fsync failed with fatal error " << errnoWithDescription(fsyncRet) << std::endl;
+                error() << "As audit cannot make progress, the server will now shut down." << std::endl;
+                realexit(EXIT_AUDIT_ERROR);
+            }
+        }
     };    
 
     // Writes audit events to a json file
@@ -319,7 +383,7 @@ namespace audit {
         }
 
     private:
-        virtual void appendMatched(const BSONObj &obj) {
+        virtual void appendMatched(const BSONObj &obj, const bool affects_durable_state) override {
             std::cout << obj.jsonString() << std::endl;
         }
 
@@ -333,7 +397,7 @@ namespace audit {
         }
 
     private:
-        virtual void appendMatched(const BSONObj &obj) {
+        virtual void appendMatched(const BSONObj &obj, const bool affects_durable_state) override {
             syslog(LOG_MAKEPRI(LOG_USER, LOG_INFO), "%s", obj.jsonString().c_str());
         }
 
@@ -350,7 +414,7 @@ namespace audit {
         }
 
     protected:
-        void appendMatched(const BSONObj &obj) {
+        void appendMatched(const BSONObj &obj, const bool affects_durable_state) override {
             verify(!obj.jsonString().empty());
         }
 
@@ -359,11 +423,14 @@ namespace audit {
     static std::shared_ptr<WritableAuditLog> _auditLog;
 
     static void _setGlobalAuditLog(WritableAuditLog *log) {
-        _auditLog.reset(log);
-
         // Sets the audit log in the general logging framework which
         // will rotate() the audit log when the server log rotates.
         setAuditLog(log);
+
+        // Must be the last line because this function is also used
+        // for cleanup (log can be nullptr)
+        // Otherwise race condition exists during cleanup.
+        _auditLog.reset(log);
     }
 
     static bool _auditEnabledOnCommandLine() {
@@ -509,12 +576,13 @@ namespace audit {
     static void _auditEvent(Client* client,
                             StringData atype,
                             const BSONObj& params,
-                            ErrorCodes::Error result = ErrorCodes::OK) {
+                            ErrorCodes::Error result = ErrorCodes::OK,
+                            const bool affects_durable_state = true) {
         BSONObjBuilder builder;
         appendCommonInfo(builder, atype, client);
         builder << AuditFields::param(params);
         builder << AuditFields::result(static_cast<int>(result));
-        _auditLog->append(builder.done());
+        _auditLog->append(builder.done(), affects_durable_state);
     }
 
     static void _auditAuthz(Client* client,
@@ -527,7 +595,7 @@ namespace audit {
             const BSONObj params = !ns.empty() ?
                 BSON("command" << command << "ns" << ns << "args" << args) :
                 BSON("command" << command << "args" << args);
-            _auditEvent(client, "authCheck", params, result);
+            _auditEvent(client, "authCheck", params, result, false);
         }
     }
 
@@ -553,7 +621,7 @@ namespace audit {
         const BSONObj params = BSON("user" << user.getUser() <<
                                     "db" << user.getDB() <<
                                     "mechanism" << mechanism);
-        _auditEvent(client, "authenticate", params, result);
+        _auditEvent(client, "authenticate", params, result, false);
     }
 
     void logCommandAuthzCheck(Client* client,
@@ -679,7 +747,7 @@ namespace audit {
         }
 
         const BSONObj params = BSON("msg" << msg);
-        _auditEvent(client, "applicationMessage", params);
+        _auditEvent(client, "applicationMessage", params, ErrorCodes::OK, false);
     }
 
     void logShutdown(Client* client) {
@@ -689,6 +757,10 @@ namespace audit {
 
         const BSONObj params = BSONObj();
         _auditEvent(client, "shutdown", params);
+
+        // This is always the last event
+        // Destroy audit log here
+        _setGlobalAuditLog(nullptr);
     }
 
     void logCreateIndex(Client* client,
@@ -1032,6 +1104,23 @@ namespace audit {
             AuthorizationSession* authSession,
             std::vector<RoleName>* parsedRoleNames,
             bool* fieldIsPresent) PERCONA_AUDIT_STUB
+
+
+    void flushAuditLog() {
+        if (!_auditLog) {
+            return;
+        }
+
+        _auditLog->flush();
+    }
+
+    void fsyncAuditLog() {
+        if (!_auditLog) {
+            return;
+        }
+
+        _auditLog->fsync();
+    }
 
 }  // namespace audit
 }  // namespace mongo
