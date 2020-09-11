@@ -62,6 +62,12 @@ Status storeLDAPOptions(const moe::Environment& params) {
     if (params.count("security.ldap.userToDNMapping")) {
         ldapGlobalParams.ldapUserToDNMapping = params["security.ldap.userToDNMapping"].as<std::string>();
     }
+    if (params.count("security.ldap.debug")) {
+        ldapGlobalParams.ldapDebug.store(params["security.ldap.debug"].as<bool>());
+    }
+    if (params.count("security.ldap.follow_referrals")) {
+        ldapGlobalParams.ldapReferrals.store(params["security.ldap.follow_referrals"].as<bool>());
+    }
     return Status::OK();
 }
 

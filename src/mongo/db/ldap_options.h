@@ -60,6 +60,8 @@ struct LDAPGlobalParams {
     bool ldapUseConnectionPool;
     AtomicWord<int> ldapUserCacheInvalidationInterval;
     synchronized_value<std::string> ldapQueryTemplate;
+    AtomicWord<bool> ldapDebug;
+    AtomicWord<bool> ldapReferrals;
 
     std::string logString() const;
 };

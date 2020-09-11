@@ -73,6 +73,14 @@ server_parameters:
         set_at: [startup, runtime]
         cpp_varname: "ldapGlobalParams.ldapUserCacheInvalidationInterval"
         default: 30
+    ldapDebug:
+        description: "Print debug information for LDAP connections"
+        set_at: runtime
+        cpp_varname: "ldapGlobalParams.ldapDebug"
+    ldapReferrals:
+        description: "Automatically follow LDAP referrals with the same bind credentials"
+        set_at: runtime
+        cpp_varname: "ldapGlobalParams.ldapReferrals"
 
 configs:
     'security.ldap.servers':
@@ -118,4 +126,13 @@ configs:
         arg_vartype: String
         validator:
             callback: validateLDAPUserToDNMapping
-
+    'security.ldap.debug':
+        description: 'Print debug information for LDAP connections'
+        short_name: ldapDebug
+        arg_vartype: Bool
+        default: false
+    'security.ldap.follow_referrals':
+        description: 'Automatically follow LDAP referrals with the same bind credentials'
+        short_name: ldapReferrals
+        arg_vartype: Bool
+        default: false
