@@ -61,6 +61,8 @@ struct LDAPGlobalParams {
     AtomicInt32 ldapUserCacheInvalidationInterval{30};
     // ldapQueryTemplate does not exist in mongos, so it should be handled differently
     boost::synchronized_value<std::string> ldapQueryTemplate;
+    AtomicWord<bool> ldapDebug;
+    AtomicWord<bool> ldapReferrals;
 
     std::string logString() const;
 };

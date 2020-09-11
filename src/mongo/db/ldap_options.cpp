@@ -136,6 +136,22 @@ Status addLDAPOptions(moe::OptionSection* options) {
         .setSources(moe::SourceYAMLCLI)
         .setDefault(moe::Value{"[{match: \"(.+)\", substitution: \"{0}\"}]"});
 
+    options
+        ->addOptionChaining("security.ldap.debug",
+                            "debug",
+                            moe::Bool,
+                            "Print debug information for LDAP connections")
+        .setSources(moe::SourceAll)
+        .setDefault(moe::Value{false});
+
+    options
+        ->addOptionChaining("security.ldap.follow_referrals",
+                            "follow_referrals",
+                            moe::Bool,
+                            "Automatically follow LDAP referrals with the same bind credentials")
+        .setSources(moe::SourceAll)
+        .setDefault(moe::Value{false});
+
     return Status::OK();
 }
 
@@ -248,6 +264,12 @@ Status storeLDAPOptions(const moe::Environment& params) {
             return ret;
         ldapGlobalParams.ldapUserToDNMapping = new_value;
     }
+    if (params.count("security.ldap.debug")) {
+        ldapGlobalParams.ldapDebug.store(params["security.ldap.debug"].as<bool>());
+    }
+    if (params.count("security.ldap.follow_referrals")) {
+        ldapGlobalParams.ldapReferrals.store(params["security.ldap.follow_referrals"].as<bool>());
+    }
     return Status::OK();
 }
 
@@ -287,6 +309,14 @@ ExportedServerParameter<bool, ServerParameterType::kStartupOnly> ldapUseConnecti
 ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime> ldapUserCacheInvalidationIntervalParam{
     ServerParameterSet::getGlobal(), "ldapUserCacheInvalidationInterval",
     &ldapGlobalParams.ldapUserCacheInvalidationInterval};
+
+ExportedServerParameter<bool, ServerParameterType::kRuntimeOnly> ldapDebugParam{
+    ServerParameterSet::getGlobal(), "ldapDebug",
+    &ldapGlobalParams.ldapDebug};
+
+ExportedServerParameter<bool, ServerParameterType::kRuntimeOnly> ldapFollowReferralsParam{
+    ServerParameterSet::getGlobal(), "ldapFollowReferralsParam",
+    &ldapGlobalParams.ldapReferrals};
 
 }  // namespace
 
