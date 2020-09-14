@@ -151,18 +151,18 @@ OpenLDAPServerMechanism::~OpenLDAPServerMechanism() {
 StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
     OperationContext* opCtx, StringData inputData) {
     if (_step++ == 0) {
-        const char* userid = inputData.rawData();
-        const char* dn = userid + std::strlen(userid) + 1; // authentication id
-        const char* pw = dn + std::strlen(dn) + 1; // password
+        // [authz-id]\0authn-id\0pwd
+        const char* authz_id = inputData.rawData();
+        const char* authn_id = authz_id + std::strlen(authz_id) + 1; // authentication id
+        const char* pw = authn_id + std::strlen(authn_id) + 1; // password
 
         // transform user to DN
         std::string mappedUser;
         {
             auto ldapManager = LDAPManager::get(opCtx->getServiceContext());
-            auto mapRes = ldapManager->mapUserToDN(dn, mappedUser);
+            auto mapRes = ldapManager->mapUserToDN(authn_id, mappedUser);
             if (!mapRes.isOK())
                 return mapRes;
-            dn = mappedUser.c_str();
         }
 
         const char* ldapprot = "ldaps";
@@ -183,10 +183,10 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
                               ldap_err2string(res)));
         }
 
-        Status status = LDAPbind(_ld, dn, pw);
+        Status status = LDAPbind(_ld, mappedUser.c_str(), pw);
         if (!status.isOK())
             return status;
-        _principal = userid;
+        _principal = authn_id;
 
         return std::make_tuple(true, std::string(""));
     }
