@@ -181,13 +181,6 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
                           "Cannot initialize LDAP structure for {}; LDAP error: {}"_format(
                               uri, ldap_err2string(res)));
         }
-        const int ldap_version = LDAP_VERSION3;
-        res = ldap_set_option(_ld, LDAP_OPT_PROTOCOL_VERSION, &ldap_version);
-        if (res != LDAP_OPT_SUCCESS) {
-            return Status(ErrorCodes::LDAPLibraryError,
-                          "Cannot set LDAP version option; LDAP error: {}"_format(
-                              ldap_err2string(res)));
-        }
 
         Status status = LDAPbind(_ld, mappedUser.c_str(), pw);
         if (!status.isOK())

@@ -160,19 +160,24 @@ namespace {
 
 Status validateLDAPUserToDNMapping(const std::string& mapping) {
     if (!isArray(mapping))
-        return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: User to DN mapping must be json array of objects"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.userToDNMapping: User to DN mapping must be json array of objects"};
 
     BSONArray bsonmapping{fromjson(mapping)};
-    for (const auto& elt: bsonmapping) {
+    for (const auto& elt : bsonmapping) {
         auto step = elt.Obj();
         BSONElement elmatch = step["match"];
         if (!elmatch)
-            return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: Each object in user to DN mapping array must contain the 'match' string"};
+            return {ErrorCodes::BadValue,
+                    "security.ldap.userToDNMapping: Each object in user to DN mapping array must "
+                    "contain the 'match' string"};
         BSONElement eltempl = step["substitution"];
         if (!eltempl)
             eltempl = step["ldapQuery"];
         if (!eltempl)
-            return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: Each object in user to DN mapping array must contain either 'substitution' or 'ldapQuery' string"};
+            return {ErrorCodes::BadValue,
+                    "security.ldap.userToDNMapping: Each object in user to DN mapping array must "
+                    "contain either 'substitution' or 'ldapQuery' string"};
         try {
             std::regex rex{elmatch.str()};
             const auto sm_count = rex.mark_count();
@@ -181,18 +186,21 @@ Status validateLDAPUserToDNMapping(const std::string& mapping) {
             const std::string stempl = eltempl.str();
             std::sregex_iterator it{stempl.begin(), stempl.end(), placeholder_rex};
             std::sregex_iterator end;
-            for(; it != end; ++it){
+            for (; it != end; ++it) {
                 if (std::stol((*it)[1].str()) >= sm_count)
-                    return {ErrorCodes::BadValue,
-                            "security.ldap.userToDNMapping: "
-                            "Regular expresssion '{}' has {} capture groups so '{}' placeholder is invalid "
-                            "(placeholder number must be less than number of capture groups)"_format(
-                                elmatch.str(), sm_count, it->str())};
+                    return {
+                        ErrorCodes::BadValue,
+                        "security.ldap.userToDNMapping: "
+                        "Regular expresssion '{}' has {} capture groups so '{}' placeholder is "
+                        "invalid "
+                        "(placeholder number must be less than number of capture groups)"_format(
+                            elmatch.str(), sm_count, it->str())};
             }
         } catch (std::regex_error& e) {
-            return {ErrorCodes::BadValue,
-                    "security.ldap.userToDNMapping: std::regex_error exception while validating '{}'. "
-                    "Error message is: {}"_format(elmatch.str(), e.what())};
+            return {
+                ErrorCodes::BadValue,
+                "security.ldap.userToDNMapping: std::regex_error exception while validating '{}'. "
+                "Error message is: {}"_format(elmatch.str(), e.what())};
         }
     }
 
@@ -204,7 +212,8 @@ Status validateLDAPBindMethod(const std::string& value) {
     constexpr auto kSasl = "sasl"_sd;
 
     if (!kSimple.equalCaseInsensitive(value) && !kSasl.equalCaseInsensitive(value)) {
-        return {ErrorCodes::BadValue, "security.ldap.bind.method expects one of 'simple' or 'sasl'"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.bind.method expects one of 'simple' or 'sasl'"};
     }
 
     return Status::OK();
@@ -215,7 +224,8 @@ Status validateLDAPTransportSecurity(const std::string& value) {
     constexpr auto kTls = "tls"_sd;
 
     if (!kNone.equalCaseInsensitive(value) && !kTls.equalCaseInsensitive(value)) {
-        return {ErrorCodes::BadValue, "security.ldap.transportSecurity expects one of 'none' or 'tls'"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.transportSecurity expects one of 'none' or 'tls'"};
     }
 
     return Status::OK();
@@ -224,8 +234,7 @@ Status validateLDAPTransportSecurity(const std::string& value) {
 
 Status storeLDAPOptions(const moe::Environment& params) {
     if (params.count("security.ldap.servers")) {
-        ldapGlobalParams.ldapServers =
-            params["security.ldap.servers"].as<std::string>();
+        ldapGlobalParams.ldapServers = params["security.ldap.servers"].as<std::string>();
     }
     if (params.count("security.ldap.transportSecurity")) {
         auto new_value = params["security.ldap.transportSecurity"].as<std::string>();
@@ -249,16 +258,14 @@ Status storeLDAPOptions(const moe::Environment& params) {
         ldapGlobalParams.ldapTimeoutMS.store(params["security.ldap.timeoutMS"].as<int>());
     }
     if (params.count("security.ldap.bind.queryUser")) {
-        ldapGlobalParams.ldapQueryUser =
-            params["security.ldap.bind.queryUser"].as<std::string>();
+        ldapGlobalParams.ldapQueryUser = params["security.ldap.bind.queryUser"].as<std::string>();
     }
     if (params.count("security.ldap.bind.queryPassword")) {
         ldapGlobalParams.ldapQueryPassword =
             params["security.ldap.bind.queryPassword"].as<std::string>();
     }
     if (params.count("security.ldap.userToDNMapping")) {
-        auto new_value =
-            params["security.ldap.userToDNMapping"].as<std::string>();
+        auto new_value = params["security.ldap.userToDNMapping"].as<std::string>();
         auto ret = validateLDAPUserToDNMapping(new_value);
         if (!ret.isOK())
             return ret;
@@ -269,6 +276,9 @@ Status storeLDAPOptions(const moe::Environment& params) {
     }
     if (params.count("security.ldap.follow_referrals")) {
         ldapGlobalParams.ldapReferrals.store(params["security.ldap.follow_referrals"].as<bool>());
+    }
+    if (params.count("security.ldap.maxPoolSize")) {
+        ldapGlobalParams.ldapMaxPoolSize.store(params["security.ldap.maxPoolSize"].as<int>());
     }
     return Status::OK();
 }
@@ -281,42 +291,42 @@ MONGO_STARTUP_OPTIONS_STORE(LDAPOptions)(InitializerContext* context) {
 // Server parameter declarations
 
 ExportedServerParameter<std::string, ServerParameterType::kRuntimeOnly> ldapServersParam{
-    ServerParameterSet::getGlobal(), "ldapServers",
-    &ldapGlobalParams.ldapServers};
+    ServerParameterSet::getGlobal(), "ldapServers", &ldapGlobalParams.ldapServers};
 
 ExportedServerParameter<int, ServerParameterType::kRuntimeOnly> ldapTimeoutMSParam{
-    ServerParameterSet::getGlobal(), "ldapTimeoutMS",
-    &ldapGlobalParams.ldapTimeoutMS};
+    ServerParameterSet::getGlobal(), "ldapTimeoutMS", &ldapGlobalParams.ldapTimeoutMS};
 
 ExportedServerParameter<std::string, ServerParameterType::kRuntimeOnly> ldapQueryUserParam{
-    ServerParameterSet::getGlobal(), "ldapQueryUser",
-    &ldapGlobalParams.ldapQueryUser};
+    ServerParameterSet::getGlobal(), "ldapQueryUser", &ldapGlobalParams.ldapQueryUser};
 
 ExportedServerParameter<std::string, ServerParameterType::kRuntimeOnly> ldapQueryPasswordParam{
-    ServerParameterSet::getGlobal(), "ldapQueryPassword",
-    &ldapGlobalParams.ldapQueryPassword};
+    ServerParameterSet::getGlobal(), "ldapQueryPassword", &ldapGlobalParams.ldapQueryPassword};
 
 ExportedServerParameter<std::string, ServerParameterType::kRuntimeOnly> ldapUserToDNMappingParam{
-    ServerParameterSet::getGlobal(), "ldapUserToDNMapping",
+    ServerParameterSet::getGlobal(),
+    "ldapUserToDNMapping",
     &ldapGlobalParams.ldapUserToDNMapping,
     validateLDAPUserToDNMapping};
 
 // these have no equivalent command line switches
 ExportedServerParameter<bool, ServerParameterType::kStartupOnly> ldapUseConnectionPoolParam{
-    ServerParameterSet::getGlobal(), "ldapUseConnectionPool",
+    ServerParameterSet::getGlobal(),
+    "ldapUseConnectionPool",
     &ldapGlobalParams.ldapUseConnectionPool};
 
-ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime> ldapUserCacheInvalidationIntervalParam{
-    ServerParameterSet::getGlobal(), "ldapUserCacheInvalidationInterval",
-    &ldapGlobalParams.ldapUserCacheInvalidationInterval};
+ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime>
+    ldapUserCacheInvalidationIntervalParam{ServerParameterSet::getGlobal(),
+                                           "ldapUserCacheInvalidationInterval",
+                                           &ldapGlobalParams.ldapUserCacheInvalidationInterval};
 
 ExportedServerParameter<bool, ServerParameterType::kRuntimeOnly> ldapDebugParam{
-    ServerParameterSet::getGlobal(), "ldapDebug",
-    &ldapGlobalParams.ldapDebug};
+    ServerParameterSet::getGlobal(), "ldapDebug", &ldapGlobalParams.ldapDebug};
 
 ExportedServerParameter<bool, ServerParameterType::kRuntimeOnly> ldapFollowReferralsParam{
-    ServerParameterSet::getGlobal(), "ldapFollowReferralsParam",
-    &ldapGlobalParams.ldapReferrals};
+    ServerParameterSet::getGlobal(), "ldapFollowReferralsParam", &ldapGlobalParams.ldapReferrals};
+
+ExportedServerParameter<int, ServerParameterType::kRuntimeOnly> ldapMaxPoolSizeParam{
+    ServerParameterSet::getGlobal(), "ldapMaxPoolSizeParam", &ldapGlobalParams.ldapMaxPoolSize};
 
 }  // namespace
 

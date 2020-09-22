@@ -48,6 +48,24 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/log.h"
 #include "mongo/util/scopeguard.h"
 
+namespace mongo {
+namespace {
+
+/* Called after a connection is established */
+// typedef int (ldap_conn_add_f) LDAP_P(( LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr
+// *addr, 	struct ldap_conncb *ctx ));
+/* Called before a connection is closed */
+// typedef void (ldap_conn_del_f) LDAP_P(( LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx ));
+
+int cb_add(LDAP* ld, Sockbuf* sb, LDAPURLDesc* srv, struct sockaddr* addr, struct ldap_conncb* ctx);
+
+void cb_del(LDAP* ld, Sockbuf* sb, struct ldap_conncb* ctx);
+
+int rebindproc(
+    LDAP* ld, const char* /* url */, ber_tag_t /* request */, ber_int_t /* msgid */, void* arg);
+}  // namespace
+}  // namespace mongo
+
 extern "C" {
 
 struct interactionParameters {
@@ -57,34 +75,33 @@ struct interactionParameters {
     const char* userid;
 };
 
-static int interaction(unsigned flags, sasl_interact_t *interact, void *defaults) {
-    interactionParameters *params = (interactionParameters*)defaults;
-    const char *dflt = interact->defresult;
+static int interaction(unsigned flags, sasl_interact_t* interact, void* defaults) {
+    interactionParameters* params = (interactionParameters*)defaults;
+    const char* dflt = interact->defresult;
 
     switch (interact->id) {
-    case SASL_CB_GETREALM:
-        dflt = params->realm;
-        break;
-    case SASL_CB_AUTHNAME:
-        dflt = params->dn;
-        break;
-    case SASL_CB_PASS:
-        dflt = params->pw;
-        break;
-    case SASL_CB_USER:
-        dflt = params->userid;
-        break;
+        case SASL_CB_GETREALM:
+            dflt = params->realm;
+            break;
+        case SASL_CB_AUTHNAME:
+            dflt = params->dn;
+            break;
+        case SASL_CB_PASS:
+            dflt = params->pw;
+            break;
+        case SASL_CB_USER:
+            dflt = params->userid;
+            break;
     }
 
     if (dflt && !*dflt)
         dflt = NULL;
 
-    if (flags != LDAP_SASL_INTERACTIVE &&
-        (dflt || interact->id == SASL_CB_USER)) {
+    if (flags != LDAP_SASL_INTERACTIVE && (dflt || interact->id == SASL_CB_USER)) {
         goto use_default;
     }
 
-    if( flags == LDAP_SASL_QUIET ) {
+    if (flags == LDAP_SASL_QUIET) {
         /* don't prompt */
         return LDAP_OTHER;
     }
@@ -92,37 +109,42 @@ static int interaction(unsigned flags, sasl_interact_t *interact, void *defaults
 
 use_default:
     interact->result = (dflt && *dflt) ? dflt : "";
-    interact->len = std::strlen( (char*)interact->result );
+    interact->len = std::strlen((char*)interact->result);
 
     return LDAP_SUCCESS;
 }
 
-static int interactProc(LDAP *ld, unsigned flags, void *defaults, void *in) {
-    sasl_interact_t *interact = (sasl_interact_t*)in;
+static int interactProc(LDAP* ld, unsigned flags, void* defaults, void* in) {
+    sasl_interact_t* interact = (sasl_interact_t*)in;
 
     if (ld == NULL)
         return LDAP_PARAM_ERROR;
 
     while (interact->id != SASL_CB_LIST_END) {
-        int rc = interaction( flags, interact, defaults );
+        int rc = interaction(flags, interact, defaults);
         if (rc)
             return rc;
         interact++;
     }
-    
+
     return LDAP_SUCCESS;
 }
 
-} // extern "C"
+}  // extern "C"
 
 namespace mongo {
+
+struct LDAPConnInfo {
+    LDAP* conn;
+    bool borrowed;
+};
+
 
 using namespace fmt::literals;
 
 class LDAPManagerImpl::ConnectionPoller : public BackgroundJob {
 public:
-    ConnectionPoller(LDAPManagerImpl* manager)
-        : _manager(manager) {}
+    ConnectionPoller(LDAPManagerImpl* manager) : _manager(manager) {}
 
     virtual std::string name() const override {
         return "LDAPConnectionPoller";
@@ -138,66 +160,86 @@ public:
         while (!_shuttingDown.load()) {
             MONGO_IDLE_THREAD_BLOCK;
 
-            pollfd fd;
-            fd.events = POLLPRI | POLLRDHUP;
-            fd.revents = 0;
+            std::vector<pollfd> fds;
 
             {
                 stdx::unique_lock<std::mutex> lock{_mutex};
-                _condvar.wait(lock, [this]{return _poll_fd >= 0 || _shuttingDown.load();});
-                fd.fd = _poll_fd;
+                _condvar.wait(lock,
+                              [this] { return _poll_fds.size() >= 0 || _shuttingDown.load(); });
+
+                fds.reserve(_poll_fds.size());
+                for (auto fd : _poll_fds) {
+                    if (fd.first < 0)
+                        continue;
+                    pollfd pfd;
+                    pfd.events = POLLPRI | POLLRDHUP;
+                    pfd.revents = 0;
+                    pfd.fd = fd.first;
+                    fds.push_back(pfd);
+                }
             }
-            if (fd.fd < 0)
+            if (fds.size() == 0)
                 continue;
 
-            LOG(2) << "connection poller received file descriptor: " << fd.fd;
-            int poll_ret = poll(&fd, 1, -1);
-            LOG(2) << "poll() return value is: " << poll_ret;
+            static const int poll_timeout = 1000;  // milliseconds
+            int poll_ret = poll(fds.data(), fds.size(), poll_timeout);
+            if (poll_ret != 0) {
+                LOG(2) << "poll() return value is: " << poll_ret;
+            }
             if (poll_ret < 0) {
                 char const* errname = "<something unexpected>";
                 switch (errno) {
-                case EFAULT: errname = "EFAULT"; break;
-                case EINTR: errname = "EINTR"; break;
-                case EINVAL: errname = "EINVAL"; break;
-                case ENOMEM: errname = "ENOMEM"; break;
+                    case EFAULT:
+                        errname = "EFAULT";
+                        break;
+                    case EINTR:
+                        errname = "EINTR";
+                        break;
+                    case EINVAL:
+                        errname = "EINVAL";
+                        break;
+                    case ENOMEM:
+                        errname = "ENOMEM";
+                        break;
                 }
                 LOG(2) << "poll() error name: " << errname;
-                //restart LDAP connection
+                // restart all LDAP connections... but why?
                 {
                     stdx::unique_lock<std::mutex> lock{_mutex};
-                    if(_poll_fd == fd.fd) {
-                        _poll_fd = -1;
-                        _manager->needReinit();
+                    if (!_poll_fds.empty()) {
+                        _poll_fds.clear();
+                        //_manager->needReinit();
                     }
                 }
             } else if (poll_ret > 0) {
                 static struct {
                     int v;
                     char const* name;
-                } flags[] = {
-                    {POLLIN, "POLLIN"},
-                    {POLLPRI, "POLLPRI"},
-                    {POLLOUT, "POLLOUT"},
-                    {POLLRDHUP, "POLLRDHUP"},
-                    {POLLERR, "POLLERR"},
-                    {POLLHUP, "POLLHUP"},
-                    {POLLNVAL, "POLLNVAL"}
-                };
+                } flags[] = {{POLLIN, "POLLIN"},
+                             {POLLPRI, "POLLPRI"},
+                             {POLLOUT, "POLLOUT"},
+                             {POLLRDHUP, "POLLRDHUP"},
+                             {POLLERR, "POLLERR"},
+                             {POLLHUP, "POLLHUP"},
+                             {POLLNVAL, "POLLNVAL"}};
                 if (shouldLog(logger::LogSeverity::Debug(2))) {
-                    for (auto& f: flags) {
-                        if (fd.revents & f.v) {
-                            LOG(2) << "poll(): " << f.name << " event registered";
+                    for (auto const& f : flags) {
+                        for (auto const& fd : fds) {
+                            if (fd.revents & f.v) {
+                                LOG(2) << "poll(): " << f.name << " event registered for " << fd.fd;
+                            }
                         }
                     }
                 }
-                if (fd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
-                    // need to restart LDAP connection
-                    {
+                for (auto const& fd : fds) {
+                    if (fd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
+                        // need to restart LDAP connection
                         stdx::unique_lock<std::mutex> lock{_mutex};
-                        if(_poll_fd == fd.fd) {
-                          _poll_fd = -1;
-                          _manager->needReinit();
+                        if (_poll_fds[fd.fd].conn) {
+                            ldap_unbind_ext(_poll_fds[fd.fd].conn, nullptr, nullptr);
                         }
+                        _poll_fds.erase(fd.fd);
+                        //_manager->needReinit();
                     }
                 }
             }
@@ -205,12 +247,13 @@ public:
         LOG(1) << "stopping " << name() << " thread";
     }
 
-    void start_poll(int fd) {
+    void start_poll(LDAP* ldap, int fd) {
         bool changed = false;
         {
             stdx::unique_lock<std::mutex> lock{_mutex};
-            if(_poll_fd < 0) {
-                _poll_fd = fd;
+            auto it = _poll_fds.find(fd);
+            if (it == _poll_fds.end()) {
+                _poll_fds.insert({fd, {ldap, true}});
                 changed = true;
             }
         }
@@ -224,51 +267,134 @@ public:
         wait();
     }
 
+    // requires holding _mutex
+    LDAPConnInfo* find_free_slot() {
+        for (auto& fd : _poll_fds) {
+            if (!fd.second.borrowed) {
+                return &fd.second;
+            }
+        }
+        return nullptr;
+    }
+
+    LDAP* borrow_or_create() {
+        {
+            stdx::unique_lock<stdx::mutex> lock{_mutex};
+            auto slot = find_free_slot();
+            if (slot != nullptr) {
+                slot->borrowed = true;
+                return slot->conn;
+            }
+
+            if (ldapGlobalParams.ldapMaxPoolSize.load() < _poll_fds.size()) {
+                // pool is full, wait until we have a free slot
+                _condvar_pool.wait(lock,
+                                   [this] { return find_free_slot() || _shuttingDown.load(); });
+
+                auto slot = find_free_slot();
+                if (slot != nullptr) {
+                    slot->borrowed = true;
+                    return slot->conn;
+                }
+
+                // shutting down
+                return nullptr;
+            }
+        }
+        // no available connection, pool has space => create one
+        // _poll_fds will be registered in the callback
+        return create_connection();
+    }
+
+    void return_ldap_connection(LDAP* ldap) {
+        bool found = false;
+        {
+            stdx::unique_lock<stdx::mutex> lock{_mutex};
+            auto it = std::find_if(_poll_fds.begin(), _poll_fds.end(), [&](auto const& e) {
+                return e.second.conn == ldap;
+            });
+            if (it != _poll_fds.end()) {
+                it->second.borrowed = false;
+                found = true;
+            }
+        }
+        if (found) {
+            _condvar_pool.notify_one();
+        }
+    }
+
+    LDAP* create_connection() {
+
+        const char* ldapprot = "ldaps";
+        if (ldapGlobalParams.ldapTransportSecurity == "none")
+            ldapprot = "ldap";
+        auto uri = "{}://{}/"_format(ldapprot, ldapGlobalParams.ldapServers.get());
+
+        LDAP* ldap;
+
+        auto res = ldap_initialize(&ldap, uri.c_str());
+        if (res != LDAP_SUCCESS) {
+            LOG(1) << "Cannot initialize LDAP structure for " << uri
+                   << "; LDAP error: " << ldap_err2string(res);
+            return nullptr;
+        }
+
+        if (!ldapGlobalParams.ldapReferrals.load()) {
+            LOG(2) << "Disabling referrals";
+            res = ldap_set_option(ldap, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
+            if (res != LDAP_OPT_SUCCESS) {
+                LOG(1) << "Cannot disable LDAP referrals; LDAP error: " << ldap_err2string(res);
+                return nullptr;
+            }
+        }
+
+        static ldap_conncb conncb;
+        conncb.lc_add = cb_add;
+        conncb.lc_del = cb_del;
+        conncb.lc_arg = this;
+        res = ldap_set_option(ldap, LDAP_OPT_CONNECT_CB, &conncb);
+        if (res != LDAP_OPT_SUCCESS) {
+            LOG(1) << "Cannot set LDAP connection callbacks; LDAP error: " << ldap_err2string(res);
+            return nullptr;
+        }
+
+        return ldap;
+    }
+
 private:
-    int _poll_fd{-1};
+    std::map<int, LDAPConnInfo> _poll_fds;
     LDAPManagerImpl* _manager;
     AtomicWord<bool> _shuttingDown{false};
     // _mutex works in pair with _condvar and also protects _poll_fd
     stdx::mutex _mutex;
     stdx::condition_variable _condvar;
+    stdx::condition_variable _condvar_pool;
 };
 
-LDAPManagerImpl::LDAPManagerImpl() = default;
-
-LDAPManagerImpl::~LDAPManagerImpl() {
-    if (_ldap) {
-        ldap_unbind_ext(_ldap, nullptr, nullptr);
-        _ldap = nullptr;
-    }
-    if (_connPoller) {
-        log() << "Shutting down LDAP connection poller thread";
-        _connPoller->shutdown();
-        log() << "Finished shutting down LDAP connection poller thread";
-    }
-}
 
 namespace {
 
 /* Called after a connection is established */
-//typedef int (ldap_conn_add_f) LDAP_P(( LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr *addr,
-//	struct ldap_conncb *ctx ));
+// typedef int (ldap_conn_add_f) LDAP_P(( LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr
+// *addr, 	struct ldap_conncb *ctx ));
 /* Called before a connection is closed */
-//typedef void (ldap_conn_del_f) LDAP_P(( LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx ));
+// typedef void (ldap_conn_del_f) LDAP_P(( LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx ));
 
-int cb_add(LDAP *ld, Sockbuf *sb, LDAPURLDesc *srv, struct sockaddr *addr,
-           struct ldap_conncb *ctx ) {
+int cb_add(
+    LDAP* ld, Sockbuf* sb, LDAPURLDesc* srv, struct sockaddr* addr, struct ldap_conncb* ctx) {
     int fd = -1;
     ldap_get_option(ld, LDAP_OPT_DESC, &fd);
     LOG(2) << "LDAP connect callback; file descriptor: " << fd;
-    static_cast<LDAPManagerImpl::ConnectionPoller*>(ctx->lc_arg)->start_poll(fd);
+    static_cast<LDAPManagerImpl::ConnectionPoller*>(ctx->lc_arg)->start_poll(ld, fd);
     return LDAP_SUCCESS;
 }
 
-void cb_del(LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx) {
+void cb_del(LDAP* ld, Sockbuf* sb, struct ldap_conncb* ctx) {
     LOG(2) << "LDAP disconnect callback";
 }
 
-int rebindproc(LDAP* ld, const char* /* url */, ber_tag_t /* request */, ber_int_t /* msgid */, void* arg) {
+int rebindproc(
+    LDAP* ld, const char* /* url */, ber_tag_t /* request */, ber_int_t /* msgid */, void* arg) {
 
     const auto user = ldapGlobalParams.ldapQueryUser.get();
     const auto password = ldapGlobalParams.ldapQueryPassword.get();
@@ -278,16 +404,20 @@ int rebindproc(LDAP* ld, const char* /* url */, ber_tag_t /* request */, ber_int
     cred.bv_len = password.size();
 
     if (ldapGlobalParams.ldapBindMethod == "simple") {
-        return ldap_sasl_bind_s(ld, const_cast<char*>(user.c_str()), LDAP_SASL_SIMPLE, &cred,
-                                nullptr, nullptr, nullptr);
+        return ldap_sasl_bind_s(ld,
+                                const_cast<char*>(user.c_str()),
+                                LDAP_SASL_SIMPLE,
+                                &cred,
+                                nullptr,
+                                nullptr,
+                                nullptr);
     } else if (ldapGlobalParams.ldapBindMethod == "simple") {
         interactionParameters params;
         params.userid = const_cast<char*>(user.c_str());
         params.dn = const_cast<char*>(user.c_str());
         params.pw = const_cast<char*>(password.c_str());
         params.realm = nullptr;
-        return ldap_sasl_interactive_bind_s(
-                                            ld,
+        return ldap_sasl_interactive_bind_s(ld,
                                             nullptr,
                                             ldapGlobalParams.ldapBindSaslMechanisms.c_str(),
                                             nullptr,
@@ -296,88 +426,65 @@ int rebindproc(LDAP* ld, const char* /* url */, ber_tag_t /* request */, ber_int
                                             interactProc,
                                             &params);
     } else {
-      return LDAP_INAPPROPRIATE_AUTH;
+        return LDAP_INAPPROPRIATE_AUTH;
     }
 }
+}  // namespace
+
+
+LDAPManagerImpl::LDAPManagerImpl() = default;
+
+LDAPManagerImpl::~LDAPManagerImpl() {
+    if (_connPoller) {
+        log() << "Shutting down LDAP connection poller thread";
+        _connPoller->shutdown();
+        log() << "Finished shutting down LDAP connection poller thread";
+    }
+}
+
+void LDAPManagerImpl::return_search_connection(LDAP* ldap) {
+    _connPoller->return_ldap_connection(ldap);
 }
 
 Status LDAPManagerImpl::initialize() {
+
     const int ldap_version = LDAP_VERSION3;
     int res = LDAP_OTHER;
     if (!_connPoller) {
         _connPoller = stdx::make_unique<ConnectionPoller>(this);
         _connPoller->go();
-
-        LOG(1) << "Adjusting global LDAP settings";
-
-        res = ldap_set_option(nullptr, LDAP_OPT_PROTOCOL_VERSION, &ldap_version);
-        if (res != LDAP_OPT_SUCCESS) {
-            return Status(ErrorCodes::LDAPLibraryError,
-                          "Cannot set LDAP version option; LDAP error: {}"_format(
-                              ldap_err2string(res)));
-        }
-
-        if (ldapGlobalParams.ldapDebug.load()) {
-            static const unsigned short debug_any = 0xffff;
-            res = ldap_set_option(nullptr, LDAP_OPT_DEBUG_LEVEL, &debug_any);
-            if (res != LDAP_OPT_SUCCESS) {
-                return Status(ErrorCodes::LDAPLibraryError,
-                              "Cannot set LDAP log level; LDAP error: {}"_format(
-                                  ldap_err2string(res)));
-            }
-        }
     }
 
-    LOG(1) << "Initializing LDAP";
+    LOG(1) << "Adjusting global LDAP settings";
 
-    const char* ldapprot = "ldaps";
-    if (ldapGlobalParams.ldapTransportSecurity == "none")
-        ldapprot = "ldap";
-    auto uri = "{}://{}/"_format(ldapprot, ldapGlobalParams.ldapServers.get());
-    res = ldap_initialize(&_ldap, uri.c_str());
-    if (res != LDAP_SUCCESS) {
-        return Status(ErrorCodes::LDAPLibraryError,
-                      "Cannot initialize LDAP structure for {}; LDAP error: {}"_format(
-                          uri, ldap_err2string(res)));
-    }
-
-    if (!ldapGlobalParams.ldapReferrals.load()) {
-        LOG(2) << "Disabling referrals";
-        res = ldap_set_option(_ldap, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
-        if (res != LDAP_OPT_SUCCESS) {
-            return Status(ErrorCodes::LDAPLibraryError,
-                          "Cannot disable LDAP referrals; LDAP error: {}"_format(
-                              ldap_err2string(res)));
-        }
-    }
-
-    static ldap_conncb conncb;
-    conncb.lc_add = cb_add;
-    conncb.lc_del = cb_del;
-    conncb.lc_arg = _connPoller.get();
-    res = ldap_set_option(_ldap, LDAP_OPT_CONNECT_CB, &conncb);
+    res = ldap_set_option(nullptr, LDAP_OPT_PROTOCOL_VERSION, &ldap_version);
     if (res != LDAP_OPT_SUCCESS) {
-        return Status(ErrorCodes::LDAPLibraryError,
-                      "Cannot set LDAP connection callbacks; LDAP error: {}"_format(
-                          ldap_err2string(res)));
+        LOG(1) << "Cannot set LDAP version; LDAP error: " << ldap_err2string(res);
     }
 
-    auto ret = LDAPbind(_ldap,
-                    ldapGlobalParams.ldapQueryUser.get(),
-                    ldapGlobalParams.ldapQueryPassword.get());
+    if (ldapGlobalParams.ldapDebug.load()) {
+        static const unsigned short debug_any = 0xffff;
+        res = ldap_set_option(nullptr, LDAP_OPT_DEBUG_LEVEL, &debug_any);
+        if (res != LDAP_OPT_SUCCESS) {
+            LOG(1) << "Cannot set LDAP log level; LDAP error: " << ldap_err2string(res);
+        }
+    }
 
-    if (ret.isOK())
-        _reinitPending.store(false);
-    return ret;
+    return Status::OK();
 }
 
-Status LDAPManagerImpl::reinitialize() {
-    LOG(2) << "Reinitializing ldap connection";
-    if (_ldap) {
-        ldap_unbind_ext(_ldap, nullptr, nullptr);
-        _ldap = nullptr;
+LDAP* LDAPManagerImpl::borrow_search_connection() {
+
+    auto ldap = _connPoller->borrow_or_create();
+
+    if (!ldap) {
+        return ldap;
     }
-    return initialize();
+
+    auto ret = LDAPbind(
+        ldap, ldapGlobalParams.ldapQueryUser.get(), ldapGlobalParams.ldapQueryPassword.get());
+
+    return ldap;
 }
 
 static void init_ldap_timeout(timeval* tv) {
@@ -387,56 +494,60 @@ static void init_ldap_timeout(timeval* tv) {
 }
 
 Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>& results) {
-    stdx::lock_guard<stdx::mutex> lk{_mutex};
 
-    if (_reinitPending.load()) {
-        Status s = reinitialize();
-        if (!s.isOK()) {
-            error() << "LDAP connection reinitialization failed. Cannot execute LDAP query";
-            return s;
-        }
+    auto ldap = borrow_search_connection();
+
+    if (!ldap) {
+        return Status(ErrorCodes::LDAPLibraryError,
+                      "Failed to get an LDAP connection from the pool.");
     }
 
     timeval tv;
-    init_ldap_timeout(&tv); // use ldapTimeoutMS
-    LDAPMessage*answer = nullptr;
-    LDAPURLDesc *ludp{nullptr};
+    init_ldap_timeout(&tv);  // use ldapTimeoutMS
+    LDAPMessage* answer = nullptr;
+    LDAPURLDesc* ludp{nullptr};
     int res = ldap_url_parse(ldapurl.c_str(), &ludp);
-    ON_BLOCK_EXIT([&] { ldap_free_urldesc(ludp); });
+    ON_BLOCK_EXIT([&] {
+        ldap_free_urldesc(ludp);
+        return_search_connection(ldap);
+    });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
-                      "Cannot parse LDAP URL: {}"_format(
-                          ldap_err2string(res)));
+                      "Cannot parse LDAP URL: {}"_format(ldap_err2string(res)));
     }
 
     // if attributes are not specified assume query returns set of entities (groups)
     const bool entitiesonly = !ludp->lud_attrs || !ludp->lud_attrs[0];
 
     LOG(1) << fmt::format("Parsing LDAP URL: {ldapurl}; dn: {dn}; scope: {scope}; filter: {filter}",
-            fmt::arg("ldapurl", ldapurl),
-            fmt::arg("scope", ludp->lud_scope),
-            fmt::arg("dn", ludp->lud_dn ? ludp->lud_dn : "nullptr"),
-            fmt::arg("filter", ludp->lud_filter ? ludp->lud_filter : "nullptr"));
+                          fmt::arg("ldapurl", ldapurl),
+                          fmt::arg("scope", ludp->lud_scope),
+                          fmt::arg("dn", ludp->lud_dn ? ludp->lud_dn : "nullptr"),
+                          fmt::arg("filter", ludp->lud_filter ? ludp->lud_filter : "nullptr"));
 
     int retrycnt = 1;
     do {
-        res = ldap_search_ext_s(_ldap,
-                ludp->lud_dn,
-                ludp->lud_scope,
-                ludp->lud_filter,
-                ludp->lud_attrs,
-                0, // attrsonly (0 => attrs and values)
-                nullptr, nullptr, &tv, 0, &answer);
+        res = ldap_search_ext_s(ldap,
+                                ludp->lud_dn,
+                                ludp->lud_scope,
+                                ludp->lud_filter,
+                                ludp->lud_attrs,
+                                0,  // attrsonly (0 => attrs and values)
+                                nullptr,
+                                nullptr,
+                                &tv,
+                                0,
+                                &answer);
         if (res == LDAP_SUCCESS)
             break;
         if (retrycnt > 0) {
             ldap_msgfree(answer);
-            error() << "LDAP search failed with error: {}"_format(
-                    ldap_err2string(res));
-            Status s = reinitialize();
-            if (!s.isOK()) {
-                error() << "LDAP connection reinitialization failed";
-                return s;
+            error() << "LDAP search failed with error: {}"_format(ldap_err2string(res));
+            return_search_connection(ldap);
+            ldap = borrow_search_connection();
+            if (!ldap) {
+                return Status(ErrorCodes::LDAPLibraryError,
+                              "Failed to get an LDAP connection from the pool.");
             }
         }
     } while (retrycnt-- > 0);
@@ -444,31 +555,30 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
     ON_BLOCK_EXIT([&] { ldap_msgfree(answer); });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
-                      "LDAP search failed with error: {}"_format(
-                          ldap_err2string(res)));
+                      "LDAP search failed with error: {}"_format(ldap_err2string(res)));
     }
 
-    auto entry = ldap_first_entry(_ldap, answer);
+    auto entry = ldap_first_entry(ldap, answer);
     while (entry) {
         if (entitiesonly) {
-            auto dn = ldap_get_dn(_ldap, entry);
+            auto dn = ldap_get_dn(ldap, entry);
             ON_BLOCK_EXIT([&] { ldap_memfree(dn); });
             if (!dn) {
                 int ld_errno = 0;
-                ldap_get_option(_ldap, LDAP_OPT_RESULT_CODE, &ld_errno);
+                ldap_get_option(ldap, LDAP_OPT_RESULT_CODE, &ld_errno);
                 return Status(ErrorCodes::LDAPLibraryError,
                               "Failed to get DN from LDAP query result: {}"_format(
                                   ldap_err2string(ld_errno)));
             }
             results.emplace_back(dn);
         } else {
-            BerElement *ber = nullptr;
-            auto attribute = ldap_first_attribute(_ldap, entry, &ber);
+            BerElement* ber = nullptr;
+            auto attribute = ldap_first_attribute(ldap, entry, &ber);
             ON_BLOCK_EXIT([&] { ber_free(ber, 0); });
             while (attribute) {
                 ON_BLOCK_EXIT([&] { ldap_memfree(attribute); });
 
-                auto const values = ldap_get_values_len(_ldap, entry, attribute);
+                auto const values = ldap_get_values_len(ldap, entry, attribute);
                 ON_BLOCK_EXIT([&] { ldap_value_free_len(values); });
                 if (values) {
                     auto curval = values;
@@ -477,22 +587,22 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
                         ++curval;
                     }
                 }
-                attribute = ldap_next_attribute(_ldap, entry, ber);
+                attribute = ldap_next_attribute(ldap, entry, ber);
             }
         }
-        entry = ldap_next_entry(_ldap, entry);
+        entry = ldap_next_entry(ldap, entry);
     }
     return Status::OK();
 }
 
 Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
-    //TODO: keep BSONArray somewhere is ldapGlobalParams (but consider multithreaded access)
+    // TODO: keep BSONArray somewhere is ldapGlobalParams (but consider multithreaded access)
     std::string mapping = ldapGlobalParams.ldapUserToDNMapping.get();
 
-    //Parameter validator checks that mapping is valid array of objects
-    //see validateLDAPUserToDNMapping function
+    // Parameter validator checks that mapping is valid array of objects
+    // see validateLDAPUserToDNMapping function
     BSONArray bsonmapping{fromjson(mapping)};
-    for (const auto& elt: bsonmapping) {
+    for (const auto& elt : bsonmapping) {
         auto step = elt.Obj();
         std::smatch sm;
         std::regex rex{step["match"].str()};
@@ -527,8 +637,8 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
                 return Status::OK();
             // in ldapQuery mode we need to execute query and make decision based on query result
             auto ldapurl = fmt::format("ldap://{Servers}/{Query}",
-                fmt::arg("Servers", ldapGlobalParams.ldapServers.get()),
-                fmt::arg("Query", out));
+                                       fmt::arg("Servers", ldapGlobalParams.ldapServers.get()),
+                                       fmt::arg("Query", out));
             std::vector<std::string> qresult;
             auto status = execQuery(ldapurl, qresult);
             if (!status.isOK())
@@ -542,11 +652,11 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
         }
     }
     // we have no successful transformations, return error
-    return Status(ErrorCodes::UserNotFound,
-                  "Failed to map user '{}' to LDAP DN"_format(user));
+    return Status(ErrorCodes::UserNotFound, "Failed to map user '{}' to LDAP DN"_format(user));
 }
 
-Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) {
+Status LDAPManagerImpl::queryUserRoles(const UserName& userName,
+                                       stdx::unordered_set<RoleName>& roles) {
     constexpr auto kAdmin = "admin"_sd;
 
     const std::string providedUser{userName.getUser().toString()};
@@ -558,16 +668,15 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
     }
 
     auto ldapurl = fmt::format("ldap://{Servers}/{Query}",
-            fmt::arg("Servers", ldapGlobalParams.ldapServers.get()),
-            fmt::arg("Query", ldapGlobalParams.ldapQueryTemplate.get()));
-    ldapurl = fmt::format(ldapurl,
-            fmt::arg("USER", mappedUser),
-            fmt::arg("PROVIDED_USER", providedUser));
+                               fmt::arg("Servers", ldapGlobalParams.ldapServers.get()),
+                               fmt::arg("Query", ldapGlobalParams.ldapQueryTemplate.get()));
+    ldapurl =
+        fmt::format(ldapurl, fmt::arg("USER", mappedUser), fmt::arg("PROVIDED_USER", providedUser));
 
     std::vector<std::string> qresult;
     auto status = execQuery(ldapurl, qresult);
     if (status.isOK()) {
-        for (auto& dn: qresult) {
+        for (auto& dn : qresult) {
             roles.insert(RoleName{dn, kAdmin});
         }
     }
@@ -576,15 +685,14 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
 
 Status LDAPbind(LDAP* ld, const char* usr, const char* psw) {
     if (ldapGlobalParams.ldapReferrals.load()) {
-      ldap_set_rebind_proc( ld, rebindproc, (void *)usr );
+        ldap_set_rebind_proc(ld, rebindproc, (void*)usr);
     }
     if (ldapGlobalParams.ldapBindMethod == "simple") {
         // ldap_simple_bind_s was deprecated in favor of ldap_sasl_bind_s
         berval cred;
         cred.bv_val = (char*)psw;
         cred.bv_len = std::strlen(psw);
-        auto res = ldap_sasl_bind_s(ld, usr, LDAP_SASL_SIMPLE, &cred,
-                               nullptr, nullptr, nullptr);
+        auto res = ldap_sasl_bind_s(ld, usr, LDAP_SASL_SIMPLE, &cred, nullptr, nullptr, nullptr);
         if (res != LDAP_SUCCESS) {
             return Status(ErrorCodes::LDAPLibraryError,
                           "Failed to authenticate '{}' using simple bind; LDAP error: {}"_format(
@@ -596,15 +704,14 @@ Status LDAPbind(LDAP* ld, const char* usr, const char* psw) {
         params.dn = usr;
         params.pw = psw;
         params.realm = nullptr;
-        auto res = ldap_sasl_interactive_bind_s(
-                ld,
-                nullptr,
-                ldapGlobalParams.ldapBindSaslMechanisms.c_str(),
-                nullptr,
-                nullptr,
-                LDAP_SASL_QUIET,
-                interactProc,
-                &params);
+        auto res = ldap_sasl_interactive_bind_s(ld,
+                                                nullptr,
+                                                ldapGlobalParams.ldapBindSaslMechanisms.c_str(),
+                                                nullptr,
+                                                nullptr,
+                                                LDAP_SASL_QUIET,
+                                                interactProc,
+                                                &params);
         if (res != LDAP_SUCCESS) {
             return Status(ErrorCodes::LDAPLibraryError,
                           "Failed to authenticate '{}' using sasl bind; LDAP error: {}"_format(
