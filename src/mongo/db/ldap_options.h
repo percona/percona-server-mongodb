@@ -62,6 +62,7 @@ struct LDAPGlobalParams {
     synchronized_value<std::string> ldapQueryTemplate;
     AtomicWord<bool> ldapDebug;
     AtomicWord<bool> ldapReferrals;
+    AtomicWord<int>  ldapMaxPoolSize;
 
     std::string logString() const;
 };

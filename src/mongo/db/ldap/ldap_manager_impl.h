@@ -50,19 +50,12 @@ public:
 
     virtual Status mapUserToDN(const std::string& user, std::string& out) override;
 
-    void needReinit() {
-        _reinitPending.store(true);
-    }
-
 private:
-    LDAP* _ldap{nullptr};
     std::unique_ptr<ConnectionPoller> _connPoller;
 
-    AtomicWord<bool> _reinitPending{true};
-    // guard init/reinit of _ldap
-    Mutex _mutex = MONGO_MAKE_LATCH("LDAPManagerImpl::_mutex");
+    LDAP* borrow_search_connection();
+    void return_search_connection(LDAP* ldap);
 
-    Status reinitialize();
     Status execQuery(std::string& ldapurl, std::vector<std::string>& results);
 };
 
