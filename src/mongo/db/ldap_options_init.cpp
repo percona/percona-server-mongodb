@@ -71,6 +71,9 @@ Status storeLDAPOptions(const moe::Environment& params) {
     if (params.count("security.ldap.follow_referrals")) {
         ldapGlobalParams.ldapReferrals.store(params["security.ldap.follow_referrals"].as<bool>());
     }
+    if (params.count("security.ldap.maxPoolSize")) {
+        ldapGlobalParams.ldapMaxPoolSize.store(params["security.ldap.maxPoolSize"].as<int>());
+    }
     return Status::OK();
 }
 

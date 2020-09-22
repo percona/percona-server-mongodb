@@ -81,6 +81,10 @@ server_parameters:
         description: "Automatically follow LDAP referrals with the same bind credentials"
         set_at: runtime
         cpp_varname: "ldapGlobalParams.ldapReferrals"
+    ldapMaxPoolSize:
+        description: "Maximum number of connections in the LDAP connection pool"
+        set_at: runtime
+        cpp_varname: "ldapGlobalParams.ldapMaxPoolSize"
 
 configs:
     'security.ldap.servers':
@@ -136,3 +140,8 @@ configs:
         short_name: ldapReferrals
         arg_vartype: Bool
         default: false
+    'security.ldap.maxPoolSize':
+        description: 'Maximum number of connections in the LDAP connection pool'
+        short_name: ldapMaxPoolSize
+        arg_vartype: Int
+        default: 2
