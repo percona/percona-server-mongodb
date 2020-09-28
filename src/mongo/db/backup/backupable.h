@@ -51,6 +51,7 @@ struct S3BackupParameters {
     std::string path;  // path inside bucket (may be empty)
     std::string accessKeyId;  // access key id
     std::string secretAccessKey;  // secret access key
+    int threadPoolSize{4};  //  thread pool size for multipart uploads
 };
 
 /**
