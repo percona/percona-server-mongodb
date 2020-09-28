@@ -55,9 +55,12 @@
 #include <aws/core/utils/logging/AWSLogging.h>
 #include <aws/core/utils/logging/FormattedLogSystem.h>
 #include <aws/s3/S3Client.h>
+#include <aws/s3/model/AbortMultipartUploadRequest.h>
 #include <aws/s3/model/CreateBucketRequest.h>
+#include <aws/s3/model/CreateMultipartUploadRequest.h>
 #include <aws/s3/model/ListObjectsRequest.h>
 #include <aws/s3/model/PutObjectRequest.h>
+#include <aws/transfer/TransferManager.h>
 
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -1022,9 +1025,9 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx, cons
     return wtRCToStatus(ret);
 }
 
-// Define log redirector for AWS SDK
 namespace {
 
+// Define log redirector for AWS SDK
 class MongoLogSystem : public Aws::Utils::Logging::FormattedLogSystem
 {
 public:
@@ -1042,6 +1045,62 @@ protected:
     virtual void ProcessFormattedStatement(Aws::String&& statement) override {
         log() << statement;
     }
+
+    virtual void Flush() override {}
+};
+
+// Special version of filebuf to read exact number of bytes from the input file
+// It works with TransferManager because TransferManager uses seekg/tellg
+// in its CreateUploadFileHandle method to get file length and then does not
+// try to read after acquired length value.
+class AWS_CORE_API SizedFileBuf : public std::filebuf
+{
+public:
+    SizedFileBuf(std::size_t lengthToRead) : _lengthToRead(lengthToRead) {}
+
+protected:
+    pos_type seekoff(off_type off, std::ios_base::seekdir dir,
+                     std::ios_base::openmode which = std::ios_base::in | std::ios_base::out) override {
+        if (dir == std::ios_base::end)
+            return std::filebuf::seekpos(_lengthToRead + off);
+        return std::filebuf::seekoff(off, dir, which);
+    }
+
+private:
+    const std::size_t _lengthToRead;
+
+};
+
+// Subclass Aws::IOStream to manage SizedFileBuf's lifetime
+class AWS_CORE_API SizedFileStream : public Aws::IOStream
+{
+public:
+    SizedFileStream(std::size_t lengthToRead, const std::string &filename, ios_base::openmode mode = ios_base::in)
+        : _filebuf(lengthToRead) {
+        init(&_filebuf);
+
+        if (!_filebuf.open(filename, mode)) {
+            setstate(failbit);
+        }
+    }
+
+private:
+    SizedFileBuf _filebuf;
+};
+
+// Subclass AsyncCallerContext
+class UploadContext : public Aws::Client::AsyncCallerContext {
+public:
+    UploadContext(std::shared_ptr<SizedFileStream>& stream)
+        : _stream(stream) {}
+
+    const std::shared_ptr<SizedFileStream>& GetStream() const { return _stream; }
+
+    bool ShouldRetry() const { return _retry_cnt-- > 0; }
+
+private:
+    std::shared_ptr<SizedFileStream> _stream;
+    mutable int _retry_cnt = 5;
 };
 
 }
@@ -1082,12 +1141,12 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
             ? Aws::MakeShared<Aws::Auth::ProfileConfigFileAWSCredentialsProvider>("AWS", 1000 * 3600)
             : Aws::MakeShared<Aws::Auth::ProfileConfigFileAWSCredentialsProvider>("AWS", s3params.profile.c_str(), 1000 * 3600);
     }
-    Aws::S3::S3Client s3_client{credentialsProvider, config, Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never, s3params.useVirtualAddressing};
+    auto s3_client = Aws::MakeShared<Aws::S3::S3Client>("AWS", credentialsProvider, config, Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never, s3params.useVirtualAddressing);
 
     // check if bucket already exists and skip create if it does
     bool bucketExists{false};
     {
-        auto outcome = s3_client.ListBuckets();
+        auto outcome = s3_client->ListBuckets();
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InternalError,
                           str::stream() << "Cannot list buckets on storage server"
@@ -1106,7 +1165,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         Aws::S3::Model::CreateBucketRequest request;
         request.SetBucket(s3params.bucket);
 
-        auto outcome = s3_client.CreateBucket(request);
+        auto outcome = s3_client->CreateBucket(request);
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InvalidPath,
                           str::stream() << "Cannot create '" << s3params.bucket << "' bucket for the backup"
@@ -1123,7 +1182,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         if (!s3params.path.empty())
             request.SetPrefix(s3params.path);
 
-        auto outcome = s3_client.ListObjects(request);
+        auto outcome = s3_client->ListObjects(request);
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InvalidPath,
                           str::stream() << "Cannot list objects in the target location"
@@ -1141,7 +1200,252 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         }
     }
 
-    // stream files to the bucket
+    // multipart uploads do not work with GCP/GCS
+    // so we need to check if we can start multipart upload before
+    // trying to use TransferManager
+    bool multipart_supported = true;
+    {
+        boost::filesystem::path key{s3params.path};
+        key /= "multipart_upload_probe";
+        auto outcome = s3_client->CreateMultipartUpload(
+                Aws::S3::Model::CreateMultipartUploadRequest()
+                .WithBucket(s3params.bucket)
+                .WithKey(key.string())
+                .WithContentType("application/octet-stream"));
+        
+        if (!outcome.IsSuccess()) {
+            auto e = outcome.GetError();
+            if (e.GetResponseCode() == Aws::Http::HttpResponseCode::BAD_REQUEST
+                && e.GetErrorType() == Aws::S3::S3Errors::UNKNOWN) {
+                multipart_supported = false;
+            } else {
+                return Status(ErrorCodes::InternalError,
+                              str::stream() << "Unexpected error while trying to probe multipart upload support."
+                                            << " Response code: " << int(e.GetResponseCode())
+                                            << " Error type: " << int(e.GetErrorType()));
+            }
+        } else {
+            // cancel test upload
+            auto upload_id = outcome.GetResult().GetUploadId();
+            auto outcome2 = s3_client->AbortMultipartUpload(
+                    Aws::S3::Model::AbortMultipartUploadRequest()
+                    .WithBucket(s3params.bucket)
+                    .WithKey(key.string())
+                    .WithUploadId(upload_id));
+            if (!outcome2.IsSuccess()) {
+                return Status(ErrorCodes::InternalError,
+                              str::stream() << "Cannot abort test multipart upload"
+                                            << " : " << upload_id);
+            }
+        }
+    }
+
+    if (multipart_supported) {
+        // stream files using TransferManager
+        using namespace Aws::Transfer;
+
+        const size_t poolSize = s3params.threadPoolSize;
+        auto executor = Aws::MakeShared<Aws::Utils::Threading::PooledThreadExecutor>("PooledThreadExecutor", poolSize);
+
+        TransferManagerConfiguration trManConf(executor.get());
+        trManConf.s3Client = s3_client;
+        trManConf.computeContentMD5 = true;
+
+        // by default part size is 5MB and number of parts is limited by 10000
+        // if we have files bigger than 50GB we need to increase bufferSize
+        // and transferBufferMaxHeapSize
+        {
+            // s3 object maximum size is 5TB
+            constexpr size_t maxS3Object = (1ull << 40) * 5;
+            // find biggest file
+            size_t biggestFile = 0;
+            for (auto&& file : filesList) {
+                auto fsize{std::get<2>(file)};
+                if (fsize > maxS3Object) {
+                    boost::filesystem::path srcFile{std::get<0>(file)};
+                    return Status(ErrorCodes::InvalidPath,
+                                  str::stream() << "Cannot upload '" << srcFile.string() << "' to s3 "
+                                                << "because its size is over maximum s3 object size (5TB)");
+                }
+                if (fsize > biggestFile) {
+                    biggestFile = fsize;
+                }
+            }
+            // find minimum chunk size and round it to MB
+            size_t minChunkSizeMB = ((biggestFile / 10000) + (1 << 20) - 1) >> 20;
+            if (minChunkSizeMB << 20 > trManConf.bufferSize) {
+                LOG(2) << "setting multipart upload's chunk size to " << minChunkSizeMB << "MB";
+                trManConf.bufferSize = minChunkSizeMB << 20;
+                trManConf.transferBufferMaxHeapSize = poolSize * trManConf.bufferSize;
+            }
+        }
+
+        // cancellation indicator
+        AtomicWord<bool> backupCancelled(false);
+        // error message set when backupCancelled was set to true
+        boost::synchronized_value<std::string> cancelMessage;
+
+        // upload callback
+        trManConf.uploadProgressCallback = [&](const TransferManager* trMan, const std::shared_ptr<const TransferHandle>& h) {
+            if (backupCancelled.load()) {
+                if (h->IsMultipart()) {
+                    const_cast<TransferManager*>(trMan)->AbortMultipartUpload(
+                            std::const_pointer_cast<TransferHandle>(h));
+                } else {
+                    std::const_pointer_cast<TransferHandle>(h)->Cancel();
+                }
+            }
+        };
+
+        // error callback
+        trManConf.errorCallback = [](const TransferManager*, const std::shared_ptr<const TransferHandle>& h, const Aws::Client::AWSError<Aws::S3::S3Errors>& e) {
+            log()
+                << "errorCallback"
+                << "; IsMultipart: " << h->IsMultipart()
+                << "; Id: " << h->GetId()
+                << "; Key: " << h->GetKey()
+                << "; MultiPartId: " << h->GetMultiPartId()
+                << "; VersionId: " << h->GetVersionId();
+            log()
+                << "errorcallback error"
+                << "; ErrorType: " << static_cast<int>(e.GetErrorType())
+                << "; ExceptionName: " << e.GetExceptionName()
+                << "; Message: " << e.GetMessage()
+                << "; RemoteHostIpAddress" << e.GetRemoteHostIpAddress()
+                << "; RequestId: " << e.GetRequestId()
+                << "; ResponseCode: " << static_cast<int>(e.GetResponseCode())
+                << "; ShouldRetry: " << e.ShouldRetry();
+            // response headers 
+            std::stringstream ss;
+            for (auto&& header : e.GetResponseHeaders()) {
+                ss << header.first << " = " << header.second << ";";
+            }
+            log()
+                << "errorCallback response headers"
+                << "; " << ss.str();
+        };
+
+        // transfer status update callback
+        trManConf.transferStatusUpdatedCallback = [&](const TransferManager* trMan, const std::shared_ptr<const TransferHandle>& h) {
+            const char* status = "nullptr";
+            switch (h->GetStatus()) {
+            //this value is only used for directory synchronization
+            case TransferStatus::EXACT_OBJECT_ALREADY_EXISTS:
+                status = "EXACT_OBJECT_ALREADY_EXISTS"; break;
+            //Operation is still queued and has not begun processing
+            case TransferStatus::NOT_STARTED:
+                status = "NOT_STARTED"; break;
+            //Operation is now running
+            case TransferStatus::IN_PROGRESS:
+                status = "IN_PROGRESS"; break;
+            //Operation was canceled. A Canceled operation can still be retried
+            case TransferStatus::CANCELED:
+                status = "CANCELED"; break;
+            //Operation failed, A failed operaton can still be retried.
+            case TransferStatus::FAILED:
+                status = "FAILED"; break;
+            //Operation was successful
+            case TransferStatus::COMPLETED:
+                status = "COMPLETED"; break;
+            //Operation either failed or was canceled and a user deleted the multi-part upload from S3.
+            case TransferStatus::ABORTED:
+                status = "ABORTED"; break;
+            }
+            LOG(2)
+                << "transferStatusUpdatedCallback"
+                << "; " << status
+                << "; Id: " << h->GetId();
+            if (h->GetStatus() == TransferStatus::FAILED) {
+                auto uploadContext = std::static_pointer_cast<const UploadContext>(h->GetContext());
+                auto err = h->GetLastError();
+                warning()
+                    << "Error uploading " << h->GetKey() << " : " << err.GetMessage();
+                if (err.ShouldRetry() && uploadContext->ShouldRetry()) {
+                    log()
+                        << "Retrying upload of " << h->GetKey();
+                    const_cast<TransferManager*>(trMan)->RetryUpload(
+                            uploadContext->GetStream(), std::const_pointer_cast<TransferHandle>(h));
+                } else {
+                    error()
+                        << "Unrecoverable error occured or retry count exhausted. Cancelling backup";
+                    cancelMessage = err.GetMessage();
+                    backupCancelled.store(true);
+                    if (h->IsMultipart()) {
+                        const_cast<TransferManager*>(trMan)->AbortMultipartUpload(
+                                std::const_pointer_cast<TransferHandle>(h));
+                    } else {
+                        std::const_pointer_cast<TransferHandle>(h)->Cancel();
+                    }
+                }
+            }
+        };
+
+        auto trMan = TransferManager::Create(trManConf);
+
+        bool failed = false;
+
+        // create code block to run ON_BLOCK_EXIT before
+        // checking failed flag value
+        {
+            std::vector<std::shared_ptr<TransferHandle>> trHandles;
+            ON_BLOCK_EXIT([&] {
+                for (auto&& h : trHandles) {
+                    h->WaitUntilFinished();
+                    if (h->GetStatus() != TransferStatus::COMPLETED)
+                        failed = true;
+                }
+            });
+
+            try {
+                for (auto&& file : filesList) {
+                    boost::filesystem::path srcFile{std::get<0>(file)};
+                    boost::filesystem::path destFile{std::get<1>(file)};
+                    auto fsize{std::get<2>(file)};
+
+                    LOG(2) << "uploading file: " << srcFile.string() << std::endl;
+                    LOG(2) << "      key name: " << destFile.string() << std::endl;
+
+                    auto fileStream = Aws::MakeShared<SizedFileStream>("AWS", static_cast<std::size_t>(fsize),
+                            srcFile.string(), std::ios_base::in | std::ios_base::binary);
+                    if (!fileStream->good()) {
+                        auto eno = errno;
+                        // cancel all uploads
+                        cancelMessage = 
+                            str::stream() << "Cannot open file '" << srcFile.string() << "' for upload. "
+                                          << "Error is: " << errnoWithDescription(eno);
+                        backupCancelled.store(true);
+                        break;
+                    }
+
+                    trHandles.push_back(
+                        trMan->UploadFile(fileStream,
+                                          s3params.bucket,
+                                          destFile.string(),
+                                          "application/octet-stream",
+                                          Aws::Map<Aws::String, Aws::String>(),
+                                          Aws::MakeShared<UploadContext>("AWS", fileStream)));
+                }
+            } catch (const std::exception& ex) {
+                // set backupCancelled on any exception
+                cancelMessage = ex.what();
+                backupCancelled.store(true);
+            } 
+        }
+
+        if (failed) {
+            auto msg = cancelMessage.get();
+            if (!msg.empty())
+                return Status(ErrorCodes::CommandFailed, cancelMessage.get());
+            return Status(ErrorCodes::CommandFailed,
+                          "Backup failed. See server log for detailed error messages.");
+        }
+
+        return Status::OK();
+    }
+
+    // upload files without TransferManager (for those servers which have no 
+    // multipart upload support)
+    // TODO: for GCP/GCS it is possible to use 'compose' operations
     for (auto&& file : filesList) {
         boost::filesystem::path srcFile{std::get<0>(file)};
         boost::filesystem::path destFile{std::get<1>(file)};
@@ -1164,7 +1468,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         }
         request.SetBody(fileToUpload);
 
-        auto outcome = s3_client.PutObject(request);
+        auto outcome = s3_client->PutObject(request);
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InternalError,
                           str::stream() << "Cannot backup '" << srcFile.string() << "'"
@@ -1289,7 +1593,7 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
             src.open(srcFile.string(), std::ios::binary);
 
             while (fsize > 0) {
-                boost::uintmax_t cnt = bufsize;
+                auto cnt = bufsize;
                 if (fsize < bufsize)
                     cnt = fsize;
                 src.read(bufptr, cnt);

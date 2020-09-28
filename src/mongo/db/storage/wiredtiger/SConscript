@@ -90,6 +90,7 @@ if wiredtiger:
             'curl',
             # S3 and its dependencies
             # order is important
+            'aws-cpp-sdk-transfer',
             'aws-cpp-sdk-s3',
             'aws-cpp-sdk-core',
             'aws-c-event-stream',

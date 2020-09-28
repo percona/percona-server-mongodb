@@ -163,6 +163,14 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* opCtx,
                 s3params.accessKeyId = elem.String();
             else if (elem.fieldNameStringData() == "secretAccessKey"_sd)
                 s3params.secretAccessKey = elem.String();
+            else if (elem.fieldNameStringData() == "threadPoolSize"_sd) {
+                int i = elem.Double();
+                if (i < 1 || i > 256) {
+                    errmsg = "threadPoolSize must be an integer in range [1..256] (default is 4)";
+                    return false;
+                }
+                s3params.threadPoolSize = i;
+            }
             else {
                 errmsg = str::stream()
                     << "s3 subobject contains usupported field or field's name is misspelled: "

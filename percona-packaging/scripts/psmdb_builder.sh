@@ -179,9 +179,8 @@ get_sources(){
             cd aws-sdk-cpp
                 git reset --hard
                 git clean -xdf
-                git checkout 1.7.91
+                git checkout 1.8.56
                 mkdir build
-                sed -i 's:AWS_EVENT_STREAM_SHA:AWS_EVENT_STREAM_TAG:g' third-party/cmake/BuildAwsEventStream.cmake
     cd ../../
     tar --owner=0 --group=0 --exclude=.* -czf ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
     echo "UPLOAD=UPLOAD/experimental/BUILDS/${PRODUCT}-3.6/${PRODUCT}-${PSM_VER}-${PSM_RELEASE}/${PSM_BRANCH}/${REVISION}/${BUILD_ID}" >> percona-server-mongodb-36.properties
@@ -283,9 +282,8 @@ aws_sdk_build(){
         cd aws-sdk-cpp
             git reset --hard
             git clean -xdf
-            git checkout 1.7.91
+            git checkout 1.8.56
             mkdir build
-            sed -i 's:AWS_EVENT_STREAM_SHA:AWS_EVENT_STREAM_TAG:g' third-party/cmake/BuildAwsEventStream.cmake
             cd build
             CMAKE_CMD="cmake"
             if [ -f /etc/redhat-release ]; then
@@ -296,9 +294,9 @@ aws_sdk_build(){
             fi
             set_compiler
             if [ -z "${CC}" -a -z "${CXX}" ]; then
-                ${CMAKE_CMD} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON?
+                ${CMAKE_CMD} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON?
             else
-                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON
             fi
             make -j4
             make install
@@ -789,15 +787,14 @@ build_tarball(){
             cd aws-sdk-cpp
             git reset --hard
             git clean -xdf
-            git checkout 1.7.91
+            git checkout 1.8.56
             mkdir build
-            sed -i 's:AWS_EVENT_STREAM_SHA:AWS_EVENT_STREAM_TAG:g' third-party/cmake/BuildAwsEventStream.cmake
             cd build
             set_compiler
             if [ -z "${CC}" -a -z "${CXX}" ]; then
-                cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+                cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
             else
-                cmake CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+                cmake CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
             fi
             make -j4 || exit $?
             make install
