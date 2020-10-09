@@ -83,6 +83,9 @@ namespace mongo {
 
 namespace audit {
 
+    // JsonStringFormat used by audit logs
+    const JsonStringFormat auditJsonFormat = LegacyStrict;
+
     MONGO_COMPILER_NOINLINE void realexit( ExitCode rc ) {
 #ifdef _COVERAGE
         // Need to make sure coverage data is properly flushed before exit.
@@ -353,7 +356,7 @@ namespace audit {
 
         public:
             Adapter(const BSONObj &obj)
-                : str(obj.jsonString() + '\n') {}
+                : str(obj.jsonString(auditJsonFormat) + '\n') {}
 
             virtual const char *data() const override {
                 return str.c_str();
@@ -409,7 +412,7 @@ namespace audit {
 
     private:
         virtual void appendMatched(const BSONObj &obj, const bool affects_durable_state) override {
-            std::cout << obj.jsonString() << std::endl;
+            std::cout << obj.jsonString(auditJsonFormat) << std::endl;
         }
 
     };
@@ -423,7 +426,7 @@ namespace audit {
 
     private:
         virtual void appendMatched(const BSONObj &obj, const bool affects_durable_state) override {
-            syslog(LOG_MAKEPRI(LOG_USER, LOG_INFO), "%s", obj.jsonString().c_str());
+            syslog(LOG_MAKEPRI(LOG_USER, LOG_INFO), "%s", obj.jsonString(auditJsonFormat).c_str());
         }
 
     };
@@ -440,7 +443,7 @@ namespace audit {
 
     protected:
         void appendMatched(const BSONObj &obj, const bool affects_durable_state) override {
-            verify(!obj.jsonString().empty());
+            verify(!obj.jsonString(auditJsonFormat).empty());
         }
 
     };
