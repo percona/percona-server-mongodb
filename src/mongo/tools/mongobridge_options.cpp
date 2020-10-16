@@ -38,6 +38,8 @@
 #include "mongo/logv2/log.h"
 #include "mongo/platform/random.h"
 #include "mongo/util/options_parser/startup_options.h"
+#include "mongo/util/version.h"
+#include "mongo/util/version_constants.h"
 
 namespace mongo {
 
@@ -51,9 +53,19 @@ void printMongoBridgeHelp(std::ostream* out) {
     *out << std::flush;
 }
 
+void printMongoBridgeVersion(std::ostream* out) {
+    *out << "mongobridge version v" << version::kVersion << std::endl;
+    *out << "git version: " << version::kGitVersion << std::endl;
+    *out << std::flush;
+}
+
 bool handlePreValidationMongoBridgeOptions(const moe::Environment& params) {
     if (params.count("help")) {
         printMongoBridgeHelp(&std::cout);
+        return false;
+    }
+    if (params.count("version")) {
+        printMongoBridgeVersion(&std::cout);
         return false;
     }
     return true;

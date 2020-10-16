@@ -35,6 +35,8 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/util/options_parser/startup_options.h"
+#include "mongo/util/version.h"
+#include "mongo/util/version_constants.h"
 
 namespace mongo {
 
@@ -49,9 +51,19 @@ void printPerconaDecryptHelp(std::ostream* out) {
     *out << std::flush;
 }
 
+void printPerconaDecryptVersion(std::ostream* out) {
+    *out << "perconadecrypt version v" << version::kVersion << std::endl;
+    *out << "git version: " << version::kGitVersion << std::endl;
+    *out << std::flush;
+}
+
 bool handlePreValidationPerconaDecryptOptions(const moe::Environment& params) {
     if (params.count("help")) {
         printPerconaDecryptHelp(&std::cout);
+        return false;
+    }
+    if (params.count("version")) {
+        printPerconaDecryptVersion(&std::cout);
         return false;
     }
     return true;
