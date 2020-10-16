@@ -43,6 +43,11 @@ configs:
     short_name: help
     arg_vartype: Switch
 
+  version:
+    description: 'show version information'
+    short_name: version
+    arg_vartype: Switch
+
   inputPath:
     description: "encrypted file to decrypt"
     short_name: inputPath
