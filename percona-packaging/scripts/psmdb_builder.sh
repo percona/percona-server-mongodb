@@ -946,31 +946,46 @@ build_tarball(){
         done
     }
 
-    # Gather libs
-    for DIR in ${DIRLIST}; do
-        gather_libs ${DIR}
-    done
+    function link {
+        # Gather libs
+        for DIR in ${DIRLIST}; do
+            gather_libs ${DIR}
+        done
 
-    # Set proper runpath
-    set_runpath bin '$ORIGIN/../lib/private/'
-    set_runpath lib/private '$ORIGIN/'
+        # Set proper runpath
+        set_runpath bin '$ORIGIN/../lib/private/'
+        set_runpath lib/private '$ORIGIN/'
 
-    # Replace libs
-    for DIR in ${DIRLIST}; do
-        replace_libs ${DIR}
-    done
+        # Replace libs
+        for DIR in ${DIRLIST}; do
+            replace_libs ${DIR}
+        done
 
-    # Create and replace by sparse file to reduce size
-    create_sparse bin
-    replace_binaries bin
+        # Create and replace by sparse file to reduce size
+        create_sparse bin
+        replace_binaries bin
 
-    # Make final check in order to determine any error after linkage
-    for DIR in ${DIRLIST}; do
-        check_libs ${DIR}
-    done
+        # Make final check in order to determine any error after linkage
+        for DIR in ${DIRLIST}; do
+            check_libs ${DIR}
+        done
+    }
 
     cd ${PSMDIR_ABS}
     mv ${PSMDIR} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
+
+    if [[ ${DEBUG} = 0 ]]; then
+        cp -r ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal
+        cd ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal
+        find . -type f -exec file '{}' \; | grep ': ELF ' | cut -d':' -f1 | xargs strip --strip-unneeded
+        link
+        cd ${PSMDIR_ABS}
+        tar --owner=0 --group=0 -czf ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal.tar.gz ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal
+    fi
+
+    cd ${PSMDIR_ABS}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
+    link
+    cd ${PSMDIR_ABS}
     tar --owner=0 --group=0 -czf ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}.tar.gz ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
     DIRNAME="tarball"
     if [ "${DEBUG}" = 1 ]; then
@@ -980,6 +995,10 @@ build_tarball(){
     mkdir -p ${CURDIR}/${DIRNAME}
     cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}.tar.gz ${WORKDIR}/${DIRNAME}
     cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}.tar.gz ${CURDIR}/${DIRNAME}
+    if [[ ${DEBUG} = 0 ]]; then
+    cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal.tar.gz ${WORKDIR}/${DIRNAME}
+    cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal.tar.gz ${CURDIR}/${DIRNAME}
+    fi
 }
 
 #main
