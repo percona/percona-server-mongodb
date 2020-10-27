@@ -276,7 +276,8 @@ public:
                 return slot->conn;
             }
 
-            if(ldapGlobalParams.ldapMaxPoolSize.load() < _poll_fds.size()) {
+            if(static_cast<unsigned>(ldapGlobalParams.ldapConnectionPoolSizePerHost.load())
+                    < _poll_fds.size()) {
                 // pool is full, wait until we have a free slot
                 _condvar_pool.wait(lock, [this]{ return find_free_slot() || _shuttingDown.load();});
 
@@ -327,7 +328,7 @@ public:
             return nullptr;
         }
 
-        if (!ldapGlobalParams.ldapReferrals.load()) {
+        if (!ldapGlobalParams.ldapFollowReferrals.load()) {
             LOGV2_DEBUG(2, 29086, "Disabling referrals");
             res = ldap_set_option(ldap, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
             if (res != LDAP_OPT_SUCCESS) {
@@ -666,7 +667,7 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
 }
 
 Status LDAPbind(LDAP* ld, const char* usr, const char* psw) {
-    if (ldapGlobalParams.ldapReferrals.load()) {
+    if (ldapGlobalParams.ldapFollowReferrals.load()) {
       ldap_set_rebind_proc( ld, rebindproc, (void *)usr );
     }
     if (ldapGlobalParams.ldapBindMethod == "simple") {
