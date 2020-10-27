@@ -75,16 +75,21 @@ server_parameters:
         default: 30
     ldapDebug:
         description: "Print debug information for LDAP connections"
-        set_at: runtime
+        set_at: [startup, runtime]
         cpp_varname: "ldapGlobalParams.ldapDebug"
-    ldapReferrals:
+        default: false
+    ldapFollowReferrals:
         description: "Automatically follow LDAP referrals with the same bind credentials"
-        set_at: runtime
-        cpp_varname: "ldapGlobalParams.ldapReferrals"
-    ldapMaxPoolSize:
+        set_at: [startup, runtime]
+        cpp_varname: "ldapGlobalParams.ldapFollowReferrals"
+        default: false
+    ldapConnectionPoolSizePerHost:
         description: "Maximum number of connections in the LDAP connection pool"
-        set_at: runtime
-        cpp_varname: "ldapGlobalParams.ldapMaxPoolSize"
+        set_at: [startup, runtime]
+        cpp_varname: "ldapGlobalParams.ldapConnectionPoolSizePerHost"
+        default: 2
+        validator:
+          gt: 0
 
 configs:
     'security.ldap.servers':
@@ -130,18 +135,3 @@ configs:
         arg_vartype: String
         validator:
             callback: validateLDAPUserToDNMapping
-    'security.ldap.debug':
-        description: 'Print debug information for LDAP connections'
-        short_name: ldapDebug
-        arg_vartype: Bool
-        default: false
-    'security.ldap.follow_referrals':
-        description: 'Automatically follow LDAP referrals with the same bind credentials'
-        short_name: ldapReferrals
-        arg_vartype: Bool
-        default: false
-    'security.ldap.maxPoolSize':
-        description: 'Maximum number of connections in the LDAP connection pool'
-        short_name: ldapMaxPoolSize
-        arg_vartype: Int
-        default: 2
