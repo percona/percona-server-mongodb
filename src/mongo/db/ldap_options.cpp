@@ -136,22 +136,6 @@ Status addLDAPOptions(moe::OptionSection* options) {
         .setSources(moe::SourceAll)
         .setDefault(moe::Value{"[{match: \"(.+)\", substitution: \"{0}\"}]"});
 
-    options
-        ->addOptionChaining("security.ldap.debug",
-                            "debug",
-                            moe::Bool,
-                            "Print debug information for LDAP connections")
-        .setSources(moe::SourceAll)
-        .setDefault(moe::Value{false});
-
-    options
-        ->addOptionChaining("security.ldap.follow_referrals",
-                            "follow_referrals",
-                            moe::Bool,
-                            "Automatically follow LDAP referrals with the same bind credentials")
-        .setSources(moe::SourceAll)
-        .setDefault(moe::Value{false});
-
     return Status::OK();
 }
 
@@ -271,15 +255,6 @@ Status storeLDAPOptions(const moe::Environment& params) {
             return ret;
         ldapGlobalParams.ldapUserToDNMapping = new_value;
     }
-    if (params.count("security.ldap.debug")) {
-        ldapGlobalParams.ldapDebug.store(params["security.ldap.debug"].as<bool>());
-    }
-    if (params.count("security.ldap.follow_referrals")) {
-        ldapGlobalParams.ldapReferrals.store(params["security.ldap.follow_referrals"].as<bool>());
-    }
-    if (params.count("security.ldap.maxPoolSize")) {
-        ldapGlobalParams.ldapMaxPoolSize.store(params["security.ldap.maxPoolSize"].as<int>());
-    }
     return Status::OK();
 }
 
@@ -319,14 +294,29 @@ ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime>
                                            "ldapUserCacheInvalidationInterval",
                                            &ldapGlobalParams.ldapUserCacheInvalidationInterval};
 
-ExportedServerParameter<bool, ServerParameterType::kRuntimeOnly> ldapDebugParam{
+ExportedServerParameter<bool, ServerParameterType::kStartupAndRuntime> ldapDebugParam{
     ServerParameterSet::getGlobal(), "ldapDebug", &ldapGlobalParams.ldapDebug};
 
-ExportedServerParameter<bool, ServerParameterType::kRuntimeOnly> ldapFollowReferralsParam{
-    ServerParameterSet::getGlobal(), "ldapFollowReferralsParam", &ldapGlobalParams.ldapReferrals};
+ExportedServerParameter<bool, ServerParameterType::kStartupAndRuntime> ldapFollowReferralsParam{
+    ServerParameterSet::getGlobal(), "ldapFollowReferrals", &ldapGlobalParams.ldapFollowReferrals};
 
-ExportedServerParameter<int, ServerParameterType::kRuntimeOnly> ldapMaxPoolSizeParam{
-    ServerParameterSet::getGlobal(), "ldapMaxPoolSizeParam", &ldapGlobalParams.ldapMaxPoolSize};
+class LDAPConnectionPoolSizePerHostParameter
+    : public ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime> {
+public:
+    LDAPConnectionPoolSizePerHostParameter()
+        : ExportedServerParameter<int, ServerParameterType::kStartupAndRuntime>(
+              ServerParameterSet::getGlobal(),
+              "ldapConnectionPoolSizePerHost",
+              &ldapGlobalParams.ldapConnectionPoolSizePerHost) {}
+
+    virtual Status validate(const int& potentialNewValue) override {
+        if (potentialNewValue < 1) {
+            return Status(ErrorCodes::BadValue, "ldapConnectionPoolSizePerHost has to be >= 1");
+        }
+
+        return Status::OK();
+    }
+} ldapConnectionPoolSizePerHostParam;
 
 }  // namespace
 
