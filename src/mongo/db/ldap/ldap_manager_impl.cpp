@@ -36,6 +36,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include <regex>
 
 #include <poll.h>
+#include <lber.h>
 
 #include <fmt/format.h>
 #include <sasl/sasl.h>
@@ -386,6 +387,10 @@ void cb_del(LDAP *ld, Sockbuf *sb, struct ldap_conncb *ctx) {
     LOG(2) << "LDAP disconnect callback";
 }
 
+void cb_log(LDAP_CONST char* data) {
+  LOG(2) << "(LDAP debugging) " << data;
+}
+
 int rebindproc(LDAP* ld, const char* /* url */, ber_tag_t /* request */, ber_int_t /* msgid */, void* arg) {
 
     const auto user = ldapGlobalParams.ldapQueryUser.get();
@@ -460,6 +465,7 @@ Status LDAPManagerImpl::initialize() {
                 LOG(1) << "Cannot set LDAP log level; LDAP error: "
                         << ldap_err2string(res);
         }
+        ber_set_option(nullptr, LBER_OPT_LOG_PRINT_FN, reinterpret_cast<const void*>(cb_log));
     }
 
     return Status::OK();
