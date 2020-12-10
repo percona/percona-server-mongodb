@@ -417,7 +417,7 @@ int rebindproc(
                                 nullptr,
                                 nullptr,
                                 nullptr);
-    } else if (ldapGlobalParams.ldapBindMethod == "simple") {
+    } else if (ldapGlobalParams.ldapBindMethod == "sasl") {
         interactionParameters params;
         params.userid = const_cast<char*>(user.c_str());
         params.dn = const_cast<char*>(user.c_str());
