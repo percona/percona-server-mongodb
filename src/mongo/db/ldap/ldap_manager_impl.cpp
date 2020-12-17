@@ -484,10 +484,6 @@ Status LDAPManagerImpl::initialize() {
 
     const int ldap_version = LDAP_VERSION3;
     int res = LDAP_OTHER;
-    if (!_connPoller) {
-        _connPoller = stdx::make_unique<ConnectionPoller>(this);
-        _connPoller->go();
-    }
 
     LOG(1) << "Adjusting global LDAP settings";
 
@@ -506,6 +502,15 @@ Status LDAPManagerImpl::initialize() {
     }
 
     return Status::OK();
+}
+
+// Cannot start threads from initialize() because initialize()
+// is executed when thread starting is prohibited
+void LDAPManagerImpl::start_threads() {
+    if (!_connPoller) {
+        _connPoller = std::make_unique<ConnectionPoller>(this);
+        _connPoller->go();
+    }
 }
 
 LDAP* LDAPManagerImpl::borrow_search_connection() {
@@ -765,7 +770,9 @@ Status LDAPbind(LDAP* ld, const std::string& usr, const std::string& psw) {
 
 namespace {
 
-MONGO_INITIALIZER(validateLDAPServerConfig)(InitializerContext* const) {
+MONGO_INITIALIZER_WITH_PREREQUISITES(validateLDAPServerConfig,
+                                     ("CreateLDAPManager"))
+(InitializerContext* const) {
     if (!ldapGlobalParams.ldapServers->empty()
         && ldapGlobalParams.ldapValidateLDAPServerConfig) {
         LDAP* ld = create_connection();

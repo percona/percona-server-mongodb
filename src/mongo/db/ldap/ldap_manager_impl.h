@@ -46,6 +46,8 @@ public:
 
     virtual Status initialize() override;
 
+    virtual void start_threads() override;
+
     virtual Status queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) override;
 
     virtual Status mapUserToDN(const std::string& user, std::string& out) override;

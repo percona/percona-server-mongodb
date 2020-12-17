@@ -52,6 +52,8 @@ public:
 
     virtual Status initialize() = 0;
 
+    virtual void start_threads() = 0;
+
     virtual Status queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) = 0;
 
     virtual Status mapUserToDN(const std::string& user, std::string& out) = 0;
