@@ -71,6 +71,11 @@ ServiceContext::ConstructorActionRegisterer createLDAPManager(
     [](ServiceContext* service) {
         if (!ldapGlobalParams.ldapServers->empty()) {
             auto ldapManager = LDAPManager::create();
+            Status status = ldapManager->initialize();
+            using namespace fmt::literals;
+            uassertStatusOKWithContext(status,
+                "Cannot initialize LDAP server connection (parameters are: {})"_format(
+                    ldapGlobalParams.logString()));
             LDAPManager::set(service, std::move(ldapManager));
         }
     });
