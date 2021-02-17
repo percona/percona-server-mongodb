@@ -210,8 +210,7 @@ public:
 
             {
                 stdx::unique_lock<std::mutex> lock{_mutex};
-                _condvar.wait(lock,
-                              [this] { return _poll_fds.size() >= 0 || _shuttingDown.load(); });
+                _condvar.wait(lock, [this] { return !_poll_fds.empty() || _shuttingDown.load(); });
 
                 fds.reserve(_poll_fds.size());
                 for (auto fd : _poll_fds) {
@@ -224,7 +223,8 @@ public:
                     fds.push_back(pfd);
                 }
             }
-            if (fds.size() == 0)
+            // if there are no descriptors that means server is shutting down
+            if (fds.empty())
                 continue;
 
             static const int poll_timeout = 1000;  // milliseconds
