@@ -131,7 +131,7 @@ static int interactProc(LDAP *ld, unsigned flags, void *defaults, void *in) {
             return rc;
         interact++;
     }
-    
+
     return LDAP_SUCCESS;
 }
 
@@ -206,7 +206,7 @@ public:
             std::vector<pollfd> fds;
             {
                 stdx::unique_lock<Latch> lock{_mutex};
-                _condvar.wait(lock, [this]{return _poll_fds.size() >= 0 || _shuttingDown.load();});
+                _condvar.wait(lock, [this] { return !_poll_fds.empty() || _shuttingDown.load(); });
 
                 fds.reserve(_poll_fds.size());
                 for(auto fd: _poll_fds) {
@@ -218,7 +218,8 @@ public:
                   fds.push_back(pfd);
                 }
             }
-            if (fds.size() == 0)
+            // if there are no descriptors that means server is shutting down
+            if (fds.empty())
                 continue;
 
             static const int poll_timeout = 1000; // milliseconds
@@ -358,7 +359,6 @@ public:
     }
 
 private:
-    
     std::map<int, LDAPConnInfo> _poll_fds;
     LDAPManagerImpl* _manager;
     AtomicWord<bool> _shuttingDown{false};
