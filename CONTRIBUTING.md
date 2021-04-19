@@ -93,6 +93,14 @@ To build Percona Server for MongoDB, you will need:
 |                                 |expat-devel              |
 |                                 |devtoolset-8-gcc         |
 |                                 |devtoolset-8-gcc-c++     |
+|RedHat Enterprise Linux/CentOS 8 |python36 python36-devel  |  
+|                                 |gcc-c++ gcc cmake3 wget  |
+|                                 |openssl-devel zlib-devel |
+|                                 |cyrus-sasl-devel xz-devel|
+|                                 |bzip2-devel libcurl-devel|
+|                                 |lz4-devel e2fsprogs-devel|
+|                                 |krb5-devel openldap-devel|
+|                                 |expat-devel cmake        |
 
 ### Build steps
 
@@ -222,9 +230,19 @@ echo '{"version": "4.4.3"}' > version.json
    mkdir build && cd build
    ```
    - Generate build files using ``cmake``
-   ```sh
-   cmake3 .. -DCMAKE_C_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/gcc  -DCMAKE_CXX_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/g++ -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
-   ```
+
+     On RedHat Enterprise Linux CentOS 7:
+     
+      ```sh
+      cmake3 .. -DCMAKE_C_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/gcc  -DCMAKE_CXX_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/g++ -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+      ```
+
+      On RedHat Enterprise Linux CentOS 8:
+
+      ```sh
+      cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+      ```
+
    - Install the SDK
    ```sh
    make install
@@ -236,9 +254,16 @@ echo '{"version": "4.4.3"}' > version.json
    cd percona-server-mongodb
    ```
    - Build Percona Server for MongoDB from ``buildscripts/scons.py``.
+   On RedHat Enterprise Linux / CentOS 7:
    ```sh
    python3 buildscripts/scons.py CC=/opt/rh/devtoolset-8/root/usr/bin/gcc CXX=/opt/rh/devtoolset-8/root/usr/bin/g++ -j$(nproc --all) --jlink=2 --install-mode=legacy --disable-warnings-as-errors --ssl --opt=on --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib" mongod
    ```
+
+   On RedHat Enterprise Linux / CentOS 8:
+   ```sh
+   buildscripts/scons.py -j$(nproc --all) --jlink=2 --install-mode=legacy --disable-warnings-as-errors --ssl --opt=on --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib64" mongod
+   ```
+
 This command builds only the database. Other available targets for the ``scons`` command are:
 - ``mongod``
 - ``mongos``
