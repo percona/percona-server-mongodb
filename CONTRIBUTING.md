@@ -253,9 +253,18 @@ echo '{"version": "3.6.23"}' > version.json
    mkdir build && cd build
    ```
    - Generate build files using ``cmake``
-   ```sh
-   cmake .. -DCMAKE_C_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/gcc  -DCMAKE_CXX_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/g++ -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
-   ```
+
+     On RedHat Enterprise Linux / CentOS 7:
+     
+      ```sh
+      cmake3 .. -DCMAKE_C_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/gcc  -DCMAKE_CXX_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/g++ -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+      ```
+
+      On RedHat Enterprise Linux / CentOS 8:
+
+      ```sh
+      cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+      ```
    - Install the SDK
    ```sh
    make install
