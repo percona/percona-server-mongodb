@@ -90,6 +90,10 @@ public:
         _encryptionKeyDB.reset(nullptr);
     }
 
+    EncryptionKeyDB* getKeyDB() const {
+        return _encryptionKeyDB.get();
+    }
+
 private:
     unittest::TempDir _keydbpath{"keydb"};
     std::unique_ptr<EncryptionKeyDB> _encryptionKeyDB;
@@ -171,13 +175,13 @@ void test_encryption_hooks(WiredTigerEncryptionHooks* hooks) {
 
 TEST(WiredTigerEncryptionTest, EncryptionCBC) {
     EncryptionHarness eKeyDB{"AES256-CBC"};
-    WiredTigerEncryptionHooksCBC hooks{};
+    WiredTigerEncryptionHooksCBC hooks{eKeyDB.getKeyDB()};
     test_encryption_hooks(&hooks);
 }
 
 TEST(WiredTigerEncryptionTest, EncryptionGCM) {
     EncryptionHarness eKeyDB{"AES256-GCM"};
-    WiredTigerEncryptionHooksGCM hooks{};
+    WiredTigerEncryptionHooksGCM hooks{eKeyDB.getKeyDB()};
     test_encryption_hooks(&hooks);
 }
 
