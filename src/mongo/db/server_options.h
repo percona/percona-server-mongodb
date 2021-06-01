@@ -39,7 +39,7 @@
 namespace mongo {
 
 const int DEFAULT_UNIX_PERMS = 0700;
-const int RATE_LIMIT_MAX = 1000;
+constexpr int RATE_LIMIT_MAX = 1000;
 constexpr size_t DEFAULT_MAX_CONN = 1000000;
 
 enum class ClusterRole { None, ShardServer, ConfigServer };

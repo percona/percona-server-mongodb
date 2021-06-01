@@ -427,13 +427,10 @@ public:
      * When a custom filter is set, we conservatively assume it would match this operation.
      */
     bool shouldDBProfile(OperationContext* opCtx) {
-        // If profiling rate limit feature is enabled then we have different logic
-        if (serverGlobalParams.rateLimit > 1)
-            return _shouldDBProfileWithRateLimit();
-
         // Profile level 2 should override any sample rate or slowms settings.
+        // rateLimit only affects profiler at level 2
         if (_dbprofile >= 2)
-            return true;
+            return _shouldDBProfileWithRateLimit(opCtx, serverGlobalParams.slowMS);
 
         if (_dbprofile <= 0)
             return false;
@@ -776,12 +773,18 @@ private:
     boost::optional<SingleThreadedLockStats>
         _lockStatsBase;  // This is the snapshot of lock stats taken when curOp is constructed.
 
-    // auxilliary method used from shouldDBProfile
-    // allows us to remove random.h dependency from header
-    // assumes rate limiter feature is enabled
-    // (serverGlobalParams.rateLimit > 1)
-    bool _shouldDBProfileWithRateLimit();
+    // _shouldDBProfileWithRateLimit can be called several times by shouldDBProfile and
+    // completeAndLogOperation so to be consistent we need to cache random generated bool value.
+    // Unfortunately we cannot generate that value in constructor because in constructor opCtx can
+    // be nullptr. (non-null opCtx is necessary because we use opCtx->getClient()->getPrng()) This
+    // is why boost::optional is used and value is generated on demand
+    boost::optional<const bool> _rateLimitSample;
 
+    // Auxilliary method to decide if operation should be profiled when rate limiter is enabled.
+    // Returns true if rate limiter is disabled.
+    // Rate limiter only affects profiler at level 2 (_dbprofile >= 2)
+    // so calling this method on other levels is not necessary.
+    bool _shouldDBProfileWithRateLimit(OperationContext* opCtx, long long slowMS);
 };
 
 /**

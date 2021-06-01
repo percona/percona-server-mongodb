@@ -49,7 +49,6 @@
 #include "mongo/db/prepare_conflict_tracker.h"
 #include "mongo/db/profile_filter.h"
 #include "mongo/db/query/getmore_request.h"
-#include "mongo/platform/random.h"
 #include "mongo/db/query/plan_summary_stats.h"
 #include "mongo/logv2/log.h"
 #include "mongo/rpc/metadata/client_metadata.h"
@@ -520,8 +519,9 @@ bool CurOp::completeAndLogOperation(OperationContext* opCtx,
     }
 
     // Return 'true' if this operation should also be added to the profiler.
+    // rateLimit only affects profiler at level 2
     if (_dbprofile >= 2)
-        return true;
+        return _shouldDBProfileWithRateLimit(opCtx, slowMs);
     if (_dbprofile <= 0)
         return false;
     return shouldProfileAtLevel1;
@@ -684,28 +684,27 @@ void CurOp::reportState(OperationContext* opCtx, BSONObjBuilder* builder, bool t
     }
 }
 
-bool CurOp::_shouldDBProfileWithRateLimit() {
-    // Pseudo RNG for rate limiter feature
-    static PseudoRandom _prng(SecureRandom().nextInt64());
-
-    const int64_t RATE_LIMIT_MULTIPLIER = 1LL << 52;
-    static_assert( RATE_LIMIT_MAX * RATE_LIMIT_MULTIPLIER <= std::numeric_limits<int64_t>::max(),
-                  "product of RATE_LIMIT_MAX and RATE_LIMIT_MULTIPLIER should not exceed int64_t range");
-
-    // Here we assume rate limiter feature is enabled
-    dassert(serverGlobalParams.rateLimit > 1);
-
-    if (_dbprofile <= 0)
-        return false;
-
-    // Slow operations are always profiled in both "slow queries" and "all queries" modes
-    if (elapsedTimeExcludingPauses() >= Milliseconds{serverGlobalParams.slowMS})
-        return true;
-    // Fast operations are sampled by rate limit (only in "all queries" mode)
-    if (_dbprofile >= 2)
-        return _prng.nextInt64(RATE_LIMIT_MULTIPLIER) * serverGlobalParams.rateLimit < RATE_LIMIT_MULTIPLIER;
-
-    return false;
+bool CurOp::_shouldDBProfileWithRateLimit(OperationContext* opCtx, long long slowMS) {
+    if (serverGlobalParams.rateLimit > 1) {
+        // Slow operations are always profiled
+        if (elapsedTimeExcludingPauses() >= Milliseconds{slowMS}) {
+            return true;
+        }
+        // Fast operations are sampled by rate limit
+        if (_rateLimitSample == boost::none) {
+            constexpr int64_t RATE_LIMIT_MULTIPLIER = 1LL << 52;
+            static_assert(RATE_LIMIT_MAX * RATE_LIMIT_MULTIPLIER <=
+                              std::numeric_limits<int64_t>::max(),
+                          "product of RATE_LIMIT_MAX and RATE_LIMIT_MULTIPLIER should not exceed "
+                          "int64_t range");
+            const auto client = opCtx->getClient();
+            _rateLimitSample.emplace(client->getPrng().nextInt64(RATE_LIMIT_MULTIPLIER) *
+                                         serverGlobalParams.rateLimit <
+                                     RATE_LIMIT_MULTIPLIER);
+        }
+        return *_rateLimitSample;
+    }
+    return true;
 }
 
 namespace {
