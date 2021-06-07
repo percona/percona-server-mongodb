@@ -1708,10 +1708,15 @@ StatusWith<std::vector<std::string>> EncryptionKeyDB::extendBackupCursor() {
 }
 
 // Can throw standard exceptions
-static void copy_file_size(const boost::filesystem::path& srcFile, const boost::filesystem::path& destFile, boost::uintmax_t fsize) {
+static void copy_file_size(OperationContext* opCtx,
+                           const boost::filesystem::path& srcFile,
+                           const boost::filesystem::path& destFile,
+                           boost::uintmax_t fsize) {
     constexpr int bufsize = 8 * 1024;
     auto buf = std::make_unique<char[]>(bufsize);
     auto bufptr = buf.get();
+    constexpr auto samplerate = 128;
+    auto sampler = 1;
 
     std::ifstream src{};
     src.exceptions(std::ios::failbit | std::ios::badbit);
@@ -1722,6 +1727,10 @@ static void copy_file_size(const boost::filesystem::path& srcFile, const boost::
     dst.open(destFile.string(), std::ios::binary);
 
     while (fsize > 0) {
+        if (--sampler == 0) {
+            opCtx->checkForInterrupt();
+            sampler = samplerate;
+        }
         boost::uintmax_t cnt = bufsize;
         if (fsize < bufsize)
             cnt = fsize;
@@ -2097,6 +2106,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
                     std::const_pointer_cast<TransferHandle>(h)->Cancel();
                 }
             }
+            opCtx->checkForInterrupt();
         };
 
         // error callback
@@ -2276,6 +2286,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         }
         LOGV2_DEBUG(29004, 2, "Successfully uploaded file: {destFile}",
                     "destFile"_attr = destFile.string());
+        opCtx->checkForInterrupt();
     }
 
     return Status::OK();
@@ -2314,7 +2325,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
             // fs::copy_file(srcFile, destFile, fs::copy_option::none);
             // copy_file cannot copy part of file so we need to use
             // more fine-grained copy
-            copy_file_size(srcFile, destFile, fsize);
+            copy_file_size(opCtx, srcFile, destFile, fsize);
         } catch (const fs::filesystem_error& ex) {
             return Status(ErrorCodes::InvalidPath, ex.what());
         } catch (const std::exception& ex) {
@@ -2370,6 +2381,8 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
         constexpr int bufsize = 8 * 1024;
         auto buf = std::make_unique<char[]>(bufsize);
         auto bufptr = buf.get();
+        constexpr auto samplerate = 128;
+        auto sampler = 1;
 
         for (auto&& file : filesList) {
             fs::path srcFile{std::get<0>(file)};
@@ -2395,6 +2408,10 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
             src.open(srcFile.string(), std::ios::binary);
 
             while (fsize > 0) {
+                if (--sampler == 0) {
+                    opCtx->checkForInterrupt();
+                    sampler = samplerate;
+                }
                 auto cnt = bufsize;
                 if (fsize < bufsize)
                     cnt = fsize;
