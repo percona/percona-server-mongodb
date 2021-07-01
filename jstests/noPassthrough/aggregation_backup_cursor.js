@@ -66,12 +66,19 @@ assert.commandFailed(db.runCommand({aggregate: 1, pipeline: [{$backupCursor: {}}
 assert.commandWorked(
     db.adminCommand({configureFailPoint: "backupCursorErrorAfterOpen", mode: "off"}));
 
+// Cursor timeout only occurs outside of sessions. Otherwise we rely on the session timeout
+// mechanism to kill cursors.
+let savedDisableImplicitSessions = TestData.disableImplicitSessions;
+TestData.disableImplicitSessions = true;
+
 // Demonstrate query cursor timeouts will kill backup cursors, closing the underlying resources.
 assert.commandWorked(db.runCommand({aggregate: 1, pipeline: [{$backupCursor: {}}], cursor: {}}));
 assert.commandWorked(db.adminCommand({setParameter: 1, cursorTimeoutMillis: 1}));
 assert.soon(() => {
     return db.runCommand({aggregate: 1, pipeline: [{$backupCursor: {}}], cursor: {}})['ok'] == 1;
 });
+
+TestData.disableImplicitSessions = savedDisableImplicitSessions;
 
 MongoRunner.stopMongod(conn);
 
