@@ -65,6 +65,10 @@ void WiredTigerBackupCursorHooks::fsyncLock(OperationContext* opCtx) {
     uassert(50884,
             "The existing backup cursor must be closed before fsyncLock can succeed.",
             _state != kBackupCursorOpened);
+    uassert(29097,
+            "The running hot backup ('createBackup' command) must be completed before fsyncLock "
+            "can succeed.",
+            _state != kHotBackup);
     uassertStatusOK(_storageEngine->beginBackup(opCtx));
     _state = kFsyncLocked;
 }
@@ -83,6 +87,10 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
     uassert(50886,
             "The existing backup cursor must be closed before $backupCursor can succeed.",
             _state != kBackupCursorOpened);
+    uassert(29098,
+            "The running hot backup ('createBackup' command) must be completed before "
+            "$backupCursor can succeed.",
+            _state != kHotBackup);
 
     // Replica sets must also return the opTime's of the earliest and latest oplog entry. The
     // range represented by the oplog start/end values must exist in the backup copy, but are
@@ -215,6 +223,9 @@ BackupCursorExtendState WiredTigerBackupCursorHooks::extendBackupCursor(Operatio
                                                                         const Timestamp& extendTo) {
     stdx::lock_guard<stdx::mutex> lk(_mutex);
     uassert(50887, "The node is currently fsyncLocked.", _state != kFsyncLocked);
+    uassert(29099,
+            "Hot backup ('createBackup' command) is currently in progress.",
+            _state != kHotBackup);
     uassert(50886,
             "Cannot extend backup cursor because backup cursor is not open",
             _state == kBackupCursorOpened);
@@ -259,4 +270,38 @@ bool WiredTigerBackupCursorHooks::isBackupCursorOpen() const {
     stdx::lock_guard<stdx::mutex> lk(_mutex);
     return _state == kBackupCursorOpened;
 }
+
+void WiredTigerBackupCursorHooks::tryEnterHotBackup() {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    uassert(29101,
+            "The node is fsyncLocked. fsyncUnlock must be called before hot backup can be started.",
+            _state != kFsyncLocked);
+    uassert(29102,
+            "The existing backup cursor must be closed before hot backup can be started.",
+            _state != kBackupCursorOpened);
+    uassert(29103,
+            "The running hot backup ('createBackup' command) must be completed before another hot "
+            "backup can be started.",
+            _state != kHotBackup);
+    _state = kHotBackup;
+}
+
+void WiredTigerBackupCursorHooks::deactivateHotBackup() {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    uassert(29100, "There is no hot backup in progress.", _state == kHotBackup);
+    _state = kInactive;
+}
+
+WiredTigerHotBackupGuard::WiredTigerHotBackupGuard(OperationContext* opCtx)
+    : _hooks(dynamic_cast<WiredTigerBackupCursorHooks*>(
+          BackupCursorHooks::get(opCtx->getServiceContext()))) {
+    invariant(_hooks);
+    invariant(_hooks->enabled());
+    _hooks->tryEnterHotBackup();
+}
+
+WiredTigerHotBackupGuard::~WiredTigerHotBackupGuard() {
+    _hooks->deactivateHotBackup();
+}
+
 }  // namespace mongo

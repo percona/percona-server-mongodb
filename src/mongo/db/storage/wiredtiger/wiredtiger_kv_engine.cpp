@@ -93,6 +93,7 @@
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/storage_repair_observer.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_cursor.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h"
@@ -1917,6 +1918,7 @@ private:
 
 //TODO: (15) consider replacing s3params with BSONObj and moving parse code from backup_commands.cpp
 Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) {
+    WiredTigerHotBackupGuard backupGuard{opCtx};
     // list of DBs to backup
     std::vector<DBTuple> dbList;
     // list of files to backup
@@ -2295,6 +2297,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
 Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string& path) {
     namespace fs = boost::filesystem;
 
+    WiredTigerHotBackupGuard backupGuard{opCtx};
     // list of DBs to backup
     std::vector<DBTuple> dbList;
     // list of files to backup
@@ -2354,6 +2357,7 @@ void a_assert_eq(struct archive *a, T1 r1, T2 r2) {
 Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::string& path) {
     namespace fs = boost::filesystem;
 
+    WiredTigerHotBackupGuard backupGuard{opCtx};
     // list of DBs to backup
     std::vector<DBTuple> dbList;
     // list of files to backup
