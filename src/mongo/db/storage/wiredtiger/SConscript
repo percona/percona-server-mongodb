@@ -37,6 +37,7 @@ if wiredtiger:
         source= [
             'encryption_keydb.cpp',
             'oplog_stones_server_status_section.cpp',
+            'wiredtiger_backup_cursor_hooks.cpp',
             'wiredtiger_begin_transaction_block.cpp',
             'wiredtiger_cursor.cpp',
             'wiredtiger_data_protector.cpp',
@@ -95,6 +96,7 @@ if wiredtiger:
             '$BUILD_DIR/mongo/db/commands/server_status',
             '$BUILD_DIR/mongo/db/mongod_options',
             '$BUILD_DIR/mongo/db/snapshot_window_options',
+            '$BUILD_DIR/mongo/db/storage/backup_cursor_hooks',
             '$BUILD_DIR/mongo/db/storage/downgraded_unique_indexes',
             '$BUILD_DIR/mongo/db/storage/storage_repair_observer',
             '$BUILD_DIR/mongo/util/options_parser/options_parser',
@@ -114,7 +116,6 @@ if wiredtiger:
     wtEnv.Library(
         target='storage_wiredtiger',
         source=[
-            'wiredtiger_backup_cursor_hooks.cpp',
             'wiredtiger_init.cpp',
             'wiredtiger_options_init.cpp',
             'wiredtiger_server_status.cpp',
@@ -132,7 +133,6 @@ if wiredtiger:
             '$BUILD_DIR/mongo/db/catalog/database_holder',
             '$BUILD_DIR/mongo/db/commands/server_status',
             '$BUILD_DIR/mongo/db/concurrency/lock_manager',
-            '$BUILD_DIR/mongo/db/storage/backup_cursor_hooks',
             '$BUILD_DIR/mongo/db/storage/storage_engine_common',
             '$BUILD_DIR/mongo/util/options_parser/options_parser',
         ],
