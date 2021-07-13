@@ -44,6 +44,7 @@
 #include "mongo/db/storage/storage_engine_lock_file.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_index.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
@@ -129,6 +130,9 @@ public:
         __lsan_ignore_object(leakedSection);
         __lsan_ignore_object(leakedSection2);
 #endif
+
+        // Register WiredTiger backup cursor hooks
+        WiredTigerBackupCursorHooks::registerInitializer();
 
         StorageEngineOptions options;
         options.directoryPerDB = params.directoryperdb;
