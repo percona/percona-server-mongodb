@@ -34,14 +34,15 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <openssl/evp.h>
 
 #include "mongo/db/storage/encryption_hooks.h"
+#include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 
 namespace mongo {
 
 class WiredTigerEncryptionHooks: public EncryptionHooks
 {
 public:
-    WiredTigerEncryptionHooks();
-    virtual ~WiredTigerEncryptionHooks();
+    explicit WiredTigerEncryptionHooks(EncryptionKeyDB* encryptionKeyDB);
+    virtual ~WiredTigerEncryptionHooks() override;
 
     /**
      * Returns true if the encryption hooks are enabled.
@@ -56,7 +57,22 @@ public:
      */
     virtual bool restartRequired() override;
 
+    /**
+     * Inform the encryption storage system to prepare its data such that its files can be copied
+     * along with MongoDB data files for a backup.
+     */
+    virtual StatusWith<StorageEngine::BackupInformation> beginNonBlockingBackup(
+        const StorageEngine::BackupOptions& options) override;
+
+    /**
+     * Inform the encryption storage system that it can release resources associated with a
+     * previous call to `beginNonBlockingBackup`. This function may be called without a pairing
+     * `beginNonBlockingBackup`. In that case it must return `Status::OK()`;
+     */
+    virtual Status endNonBlockingBackup() override;
+
 protected:
+    EncryptionKeyDB* _encryptionKeyDB;
     static constexpr int _key_len{32};
     unsigned char _masterkey[_key_len];
     const EVP_CIPHER *_cipher{nullptr};
@@ -66,8 +82,8 @@ protected:
 class WiredTigerEncryptionHooksCBC: public WiredTigerEncryptionHooks
 {
 public:
-    WiredTigerEncryptionHooksCBC();
-    virtual ~WiredTigerEncryptionHooksCBC();
+    explicit WiredTigerEncryptionHooksCBC(EncryptionKeyDB* encryptionKeyDB);
+    virtual ~WiredTigerEncryptionHooksCBC() override;
 
     /**
      * Transform temp data to non-readable form before writing it to disk.
@@ -104,8 +120,8 @@ private:
 class WiredTigerEncryptionHooksGCM: public WiredTigerEncryptionHooks
 {
 public:
-    WiredTigerEncryptionHooksGCM();
-    virtual ~WiredTigerEncryptionHooksGCM();
+    explicit WiredTigerEncryptionHooksGCM(EncryptionKeyDB* encryptionKeyDB);
+    virtual ~WiredTigerEncryptionHooksGCM() override;
 
     /**
      * Transform temp data to non-readable form before writing it to disk.

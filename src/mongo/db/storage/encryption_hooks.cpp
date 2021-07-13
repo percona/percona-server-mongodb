@@ -87,8 +87,9 @@ Status EncryptionHooks::unprotectTmpData(
                   "Encryption hooks must be enabled to use postprocessTmpData.");
 }
 
-StatusWith<std::vector<std::string>> EncryptionHooks::beginNonBlockingBackup() {
-    return std::vector<std::string>();
+StatusWith<StorageEngine::BackupInformation> EncryptionHooks::beginNonBlockingBackup(
+    const StorageEngine::BackupOptions&) {
+    return StorageEngine::BackupInformation();
 }
 
 Status EncryptionHooks::endNonBlockingBackup() {

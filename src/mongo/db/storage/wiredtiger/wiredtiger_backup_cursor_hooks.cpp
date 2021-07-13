@@ -158,11 +158,11 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
                 oplogStart < oplogEnd);
     }
 
-    auto encHooks = EncryptionHooks::get(opCtx->getServiceContext());
+    auto* encHooks = EncryptionHooks::get(opCtx->getServiceContext());
     if (encHooks->enabled()) {
-        auto eseFiles = uassertStatusOK(encHooks->beginNonBlockingBackup());
-        // TODO: fix this for encryption DB
-        // filesToBackup.insert(filesToBackup.end(), eseFiles.begin(), eseFiles.end());
+        auto eseFiles = uassertStatusOK(encHooks->beginNonBlockingBackup(options));
+        // filesToBackup.insert(eseFiles.begin(), eseFiles.end());
+        filesToBackup.merge(eseFiles);
     }
 
     BSONObjBuilder builder;
@@ -198,7 +198,7 @@ void WiredTigerBackupCursorHooks::_closeBackupCursor(OperationContext* opCtx,
                           << " Running: " << _openCursor.get(),
             backupId == _openCursor.get());
     _storageEngine->endNonBlockingBackup(opCtx);
-    auto encHooks = EncryptionHooks::get(opCtx->getServiceContext());
+    auto* encHooks = EncryptionHooks::get(opCtx->getServiceContext());
     if (encHooks->enabled()) {
         fassert(50934, encHooks->endNonBlockingBackup());
     }
