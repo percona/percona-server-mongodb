@@ -82,6 +82,14 @@ intrusive_ptr<DocumentSourceBackupCursor> DocumentSourceBackupCursor::create(
 
 intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
     BSONElement elem, const intrusive_ptr<ExpressionContext>& pExpCtx) {
+    // The anticipated usage of a backup cursor: open the backup cursor, consume the results, copy
+    // data off disk, close the backup cursor. The backup cursor must be successfully closed for
+    // the data copied to be valid. Hence, the caller needs a way to keep the cursor open after
+    // consuming the results, as well as the ability to send "heartbeats" to prevent the client
+    // cursor manager from timing out the backup cursor. A backup cursor does consume resources;
+    // in the event the calling process crashes, the cursors should eventually be timed out.
+    pExpCtx->tailableMode = TailableModeEnum::kTailable;
+
     uassert(ErrorCodes::FailedToParse,
             str::stream() << kStageName
                           << " value must be an object. Found: " << typeName(elem.type()),
