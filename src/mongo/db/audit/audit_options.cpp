@@ -36,11 +36,12 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include <boost/filesystem/path.hpp>
 
+#include <fstream>
+
 #include "mongo/base/status.h"
 #include "mongo/db/audit/audit_options_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/json.h"
-#include "mongo/util/file.h"
 #include "mongo/util/log.h"
 #include "mongo/util/options_parser/startup_option_init.h"
 #include "mongo/util/options_parser/startup_options.h"
@@ -122,13 +123,11 @@ namespace mongo {
 
     // Can't use MONGO_STARTUP_OPTIONS_VALIDATE here as we need serverGlobalParams
     // to be already initialized.
-    MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate,
-                              ("EndStartupOptionHandling"),
-                              ("default"))(InitializerContext*) {
+    MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"), ("default"))
+    (InitializerContext*) {
         if (!auditOptions.path.empty()) {
-            File auditFile;
-            auditFile.open(auditOptions.path.c_str(), false, false);
-            if (auditFile.bad()) {
+            std::ofstream auditFile(auditOptions.path.c_str(), std::ios_base::app);
+            if (!auditFile) {
                 return Status(ErrorCodes::BadValue,
                               "Could not open a file for writing at the given auditPath: " +
                                   auditOptions.path);

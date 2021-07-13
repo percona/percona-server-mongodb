@@ -347,7 +347,7 @@ MONGO_INITIALIZER(RegisterShortCircuitExitHandler)(InitializerContext*) {
 // bits for 'user' unaltered.
 namespace {
 
-MONGO_INITIALIZER_WITH_PREREQUISITES(MungeUmask, ("EndStartupOptionHandling"))
+MONGO_INITIALIZER_GENERAL(MungeUmask, ("EndStartupOptionHandling"), ("AuditOptionsPath_Validate"))
 (InitializerContext*) {
 #ifndef _WIN32
     if (!gHonorSystemUmask) {
