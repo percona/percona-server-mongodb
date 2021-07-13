@@ -32,12 +32,15 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/db/storage/backup_cursor_hooks.h"
+#include "mongo/util/concurrency/with_lock.h"
 
 namespace mongo {
 
 class WiredTigerBackupCursorHooks : public BackupCursorHooks {
 public:
     static void registerInitializer();
+
+    WiredTigerBackupCursorHooks(StorageEngine* storageEngine) : _storageEngine(storageEngine) {}
 
     virtual ~WiredTigerBackupCursorHooks() override = default;
 
@@ -57,6 +60,20 @@ public:
                                                        const Timestamp& extendTo) override;
 
     virtual bool isBackupCursorOpen() const override;
+
+private:
+    void _closeBackupCursor(OperationContext* opCtx, const UUID& backupId, WithLock);
+
+    StorageEngine* _storageEngine;
+
+    enum State { kInactive, kFsyncLocked, kBackupCursorOpened };
+
+    // This mutex serializes all access into this class.
+    stdx::mutex _mutex;
+    State _state = kInactive;
+    // When state is `kBackupCursorOpened`, _openCursor contains the cursorId of the active backup
+    // cursor. Otherwise it is boost::none.
+    boost::optional<UUID> _openCursor = boost::none;
 };
 
 }  // namespace mongo
