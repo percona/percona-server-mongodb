@@ -50,7 +50,7 @@ public:
      * Convenience method for creating a $backupCursor stage.
      */
     static boost::intrusive_ptr<DocumentSourceBackupCursor> create(
-        const BSONObj& filter, const boost::intrusive_ptr<ExpressionContext>& expCtx);
+        const BSONObj& options, const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
     /**
      * Parses a $backupCursor stage from 'elem'.
@@ -58,20 +58,19 @@ public:
     static boost::intrusive_ptr<DocumentSource> createFromBson(
         BSONElement elem, const boost::intrusive_ptr<ExpressionContext>& pCtx);
 
-    virtual ~DocumentSourceBackupCursor() = default;
+    virtual ~DocumentSourceBackupCursor();
 
     const char* getSourceName() const override;
 
     StageConstraints constraints(Pipeline::SplitState pipeState) const override {
-        StageConstraints constraints{
-            StreamType::kStreaming,
-            PositionRequirement::kFirst,
-            HostTypeRequirement::kNone,  // TODO: see $currentOp for example
-            DiskUseRequirement::kNoDiskUse,
-            FacetRequirement::kNotAllowed,
-            TransactionRequirement::kNotAllowed,
-            LookupRequirement::kAllowed,
-            ChangeStreamRequirement::kBlacklist};
+        StageConstraints constraints{StreamType::kStreaming,
+                                     PositionRequirement::kFirst,
+                                     HostTypeRequirement::kNone,
+                                     DiskUseRequirement::kNoDiskUse,
+                                     FacetRequirement::kNotAllowed,
+                                     TransactionRequirement::kNotAllowed,
+                                     LookupRequirement::kAllowed,
+                                     ChangeStreamRequirement::kBlacklist};
         constraints.isIndependentOfAnyCollection = true;
         constraints.requiresInputDocSource = false;
         return constraints;
@@ -91,8 +90,17 @@ protected:
               other.pExpCtx) {}
 
     GetNextResult getNext() override;
-    DocumentSourceBackupCursor(const BSONObj& query,
+    DocumentSourceBackupCursor(const BSONObj& options,
                                const boost::intrusive_ptr<ExpressionContext>& expCtx);
+
+private:
+    // TODO: _backupOptions should be initialized by stage parameters
+    StorageEngine::BackupOptions _backupOptions;
+    BackupCursorState _backupCursorState;
+    // Convenience reference to _backupCursorState.backupInformation
+    const StorageEngine::BackupInformation& _backupInformation;
+    // Document iterator
+    StorageEngine::BackupInformation::const_iterator _docIt;
 };
 
 }  // namespace mongo

@@ -29,14 +29,18 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
+#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kCommand
+
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/pipeline/document_source_backup_cursor.h"
+#include "mongo/util/log.h"
 
 namespace mongo {
 
 using boost::intrusive_ptr;
 
+// We only link this file into mongod so this stage doesn't exist in mongos
 REGISTER_DOCUMENT_SOURCE(backupCursor,
                          LiteParsedDocumentSourceDefault::parse,
                          DocumentSourceBackupCursor::createFromBson);
@@ -47,39 +51,59 @@ const char* DocumentSourceBackupCursor::getSourceName() const {
 
 Value DocumentSourceBackupCursor::serialize(
     boost::optional<ExplainOptions::Verbosity> explain) const {
-    if (explain) {
-        BSONObjBuilder builder;
-        // TODO: reimplement
-        //_expression->serialize(&builder);
-        return Value(DOC(getSourceName() << Document(builder.obj())));
-    }
-    return Value(DOC(getSourceName() << 0));
+    return Value(DOC(getSourceName() << 1));
 }
+
 DocumentSource::GetNextResult DocumentSourceBackupCursor::getNext() {
-    // TODO: implement
+    if (_backupCursorState.preamble) {
+        Document doc = _backupCursorState.preamble.get();
+        _backupCursorState.preamble = boost::none;
+
+        return doc;
+    }
+
+    if (_docIt != _backupInformation.end()) {
+        Document doc = {{"filename"_sd, _docIt->first},
+                        {"fileSize"_sd, static_cast<long long>(_docIt->second.fileSize)}};
+        ++_docIt;
+
+        return doc;
+    }
+
     return GetNextResult::makeEOF();
-    auto nextInput = pSource->getNext();
-    return nextInput;
 }
 
 intrusive_ptr<DocumentSourceBackupCursor> DocumentSourceBackupCursor::create(
-    const BSONObj& filter, const intrusive_ptr<ExpressionContext>& expCtx) {
+    const BSONObj& options, const intrusive_ptr<ExpressionContext>& expCtx) {
     intrusive_ptr<DocumentSourceBackupCursor> backupCursor(
-        new DocumentSourceBackupCursor(filter, expCtx));
+        new DocumentSourceBackupCursor(options, expCtx));
     return backupCursor;
 }
 
 intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
     BSONElement elem, const intrusive_ptr<ExpressionContext>& pExpCtx) {
-    uassert(15959, "the match filter must be an expression in an object", elem.type() == Object);
+    uassert(ErrorCodes::FailedToParse,
+            str::stream() << kStageName
+                          << " value must be an object. Found: " << typeName(elem.type()),
+            elem.type() == Object);
 
     return DocumentSourceBackupCursor::create(elem.Obj(), pExpCtx);
 }
 
 DocumentSourceBackupCursor::DocumentSourceBackupCursor(
-    const BSONObj& query, const intrusive_ptr<ExpressionContext>& expCtx)
-    : DocumentSource(expCtx) {
-    // TODO: reimplement
-    // rebuild(query);
+    const BSONObj& options, const intrusive_ptr<ExpressionContext>& expCtx)
+    : DocumentSource(expCtx),
+      _backupCursorState(
+          pExpCtx->mongoProcessInterface->openBackupCursor(pExpCtx->opCtx, _backupOptions)),
+      _backupInformation(_backupCursorState.backupInformation),
+      _docIt(_backupInformation.begin()) {}
+
+DocumentSourceBackupCursor::~DocumentSourceBackupCursor() {
+    try {
+        pExpCtx->mongoProcessInterface->closeBackupCursor(pExpCtx->opCtx,
+                                                          _backupCursorState.backupId);
+    } catch (DBException& exc) {
+        severe() << "Error closing a backup cursor with Id " << _backupCursorState.backupId;
+    }
 }
 }  // namespace mongo
