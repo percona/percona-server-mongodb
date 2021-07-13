@@ -94,6 +94,8 @@ private:
 
     int _openWiredTiger(const std::string& path, const std::string& wtOpenConfig);
 
+    StatusWith<StorageEngine::BackupInformation> _disableIncrementalBackup();
+
     int store_gcm_iv_reserved();
     int reserve_gcm_iv_range();
     void generate_secure_key(char key[]); // uses _srng without locks
