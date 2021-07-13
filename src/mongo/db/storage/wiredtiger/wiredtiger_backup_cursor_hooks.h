@@ -69,7 +69,7 @@ private:
     enum State { kInactive, kFsyncLocked, kBackupCursorOpened };
 
     // This mutex serializes all access into this class.
-    stdx::mutex _mutex;
+    mutable stdx::mutex _mutex;
     State _state = kInactive;
     // When state is `kBackupCursorOpened`, _openCursor contains the cursorId of the active backup
     // cursor. Otherwise it is boost::none.

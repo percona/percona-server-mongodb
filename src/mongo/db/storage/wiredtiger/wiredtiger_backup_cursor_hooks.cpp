@@ -229,6 +229,7 @@ BackupCursorExtendState WiredTigerBackupCursorHooks::extendBackupCursor(Operatio
 }
 
 bool WiredTigerBackupCursorHooks::isBackupCursorOpen() const {
-    return false;
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    return _state == kBackupCursorOpened;
 }
 }  // namespace mongo
