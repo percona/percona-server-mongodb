@@ -5584,7 +5584,7 @@ var authCommandsLib = {
           // Only enterprise knows of this aggregation stage.
           skipTest:
               (conn) =>
-                  !conn.getDB("admin").runCommand({buildInfo: 1}).modules.includes("enterprise"),
+                  !isPSMDBOrEnterprise(conn.getDB("admin").runCommand({buildInfo: 1})),
           testcases: [{
               runOnDb: adminDbName,
               roles: roles_hostManager,

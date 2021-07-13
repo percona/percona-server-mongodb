@@ -109,6 +109,11 @@ function isRetryableError(error) {
     return retryableErrors.some(err => error.message.includes(err));
 }
 
+// Check if node is PSMDB or enterprise
+function isPSMDBOrEnterprise(buildInfo) {
+    return "psmdbVersion" in buildInfo || buildInfo.modules.includes("enterprise");
+}
+
 // Please consider using bsonWoCompare instead of this as much as possible.
 friendlyEqual = function(a, b) {
     if (a == b)
