@@ -218,9 +218,14 @@ BackupCursorExtendState WiredTigerBackupCursorHooks::extendBackupCursor(Operatio
     uassert(29094,
             "backupId provided to $backupCursorExtend does not match active backup",
             _openCursor == backupId);
-    // TODO: validate extendTo (here or in DocumentSourceBackupCursorExtend)
-    // TODO: wait for extendTo
-    // TODO: use WiredTigerKVEngine::extendBackupCursor
+    // wait for extendTo
+    auto* replCoord = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
+    if (auto status = replCoord->awaitTimestampCommitted(opCtx, extendTo); !status.isOK()) {
+        severe() << "Wait for target timestamp has failed; reason: " << status
+                 << "; timestamp: " << extendTo;
+    }
+
+    // use WiredTigerKVEngine::extendBackupCursor
     auto res = _storageEngine->extendBackupCursor(opCtx);
     if (!res.isOK()) {
         severe() << "Failed to extend backup cursor. Reason: " << res.getStatus();
