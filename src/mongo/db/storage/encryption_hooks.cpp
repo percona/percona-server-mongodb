@@ -95,4 +95,8 @@ StatusWith<StorageEngine::BackupInformation> EncryptionHooks::beginNonBlockingBa
 Status EncryptionHooks::endNonBlockingBackup() {
     return Status::OK();
 }
+
+StatusWith<std::vector<std::string>> EncryptionHooks::extendBackupCursor() {
+    return {std::vector<std::string>()};
+}
 }  // namespace mongo

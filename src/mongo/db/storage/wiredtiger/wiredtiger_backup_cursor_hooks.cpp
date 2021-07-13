@@ -225,12 +225,29 @@ BackupCursorExtendState WiredTigerBackupCursorHooks::extendBackupCursor(Operatio
                  << "; timestamp: " << extendTo;
     }
 
+    // return value
+    BackupCursorExtendState result;
     // use WiredTigerKVEngine::extendBackupCursor
-    auto res = _storageEngine->extendBackupCursor(opCtx);
-    if (!res.isOK()) {
-        severe() << "Failed to extend backup cursor. Reason: " << res.getStatus();
+    {
+        auto res = _storageEngine->extendBackupCursor(opCtx);
+        if (!res.isOK()) {
+            severe() << "Failed to extend backup cursor. Reason: " << res.getStatus();
+        }
+        result.filenames = std::move(res.getValue());
     }
-    return {std::move(res.getValue())};
+    // use extendBackupCursor on KeyDB
+    auto* encHooks = EncryptionHooks::get(opCtx->getServiceContext());
+    if (encHooks->enabled()) {
+        auto res = encHooks->extendBackupCursor();
+        if (!res.isOK()) {
+            severe() << "Failed to extend backup cursor. Reason: " << res.getStatus();
+        }
+        result.filenames.insert(result.filenames.end(),
+                                make_move_iterator(res.getValue().begin()),
+                                make_move_iterator(res.getValue().end()));
+    }
+
+    return result;
 }
 
 bool WiredTigerBackupCursorHooks::isBackupCursorOpen() const {

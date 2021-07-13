@@ -71,6 +71,11 @@ public:
      */
     virtual Status endNonBlockingBackup() override;
 
+    /**
+     * Get list of log files changed since the moment of backup cursor creation
+     */
+    virtual StatusWith<std::vector<std::string>> extendBackupCursor() override;
+
 protected:
     EncryptionKeyDB* _encryptionKeyDB;
     static constexpr int _key_len{32};

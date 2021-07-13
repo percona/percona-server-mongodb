@@ -1526,6 +1526,48 @@ Status EncryptionKeyDB::endNonBlockingBackup() {
     return Status::OK();
 }
 
+StatusWith<std::vector<std::string>> EncryptionKeyDB::extendBackupCursor() {
+    invariant(_backupCursor);
+
+    // The "target=(\"log:\")" configuration string for the cursor will ensure that we only see the
+    // log files when iterating on the cursor.
+    WT_CURSOR* cursor = nullptr;
+    WT_SESSION* session = _backupSession->getSession();
+    int wtRet = session->open_cursor(session, nullptr, _backupCursor, "target=(\"log:\")", &cursor);
+    if (wtRet != 0) {
+        return wtRCToStatus(wtRet);
+    }
+
+    StatusWith<StorageEngine::BackupInformation> swBackupInfo =
+        getBackupInformationFromBackupCursor(session,
+                                             cursor,
+                                             /*incrementalBackup=*/false,
+                                             /*fullBackup=*/true,
+                                             _path,
+                                             "Error extending backup cursor.");
+
+    wtRet = cursor->close(cursor);
+    if (wtRet != 0) {
+        return wtRCToStatus(wtRet);
+    }
+
+    if (!swBackupInfo.isOK()) {
+        return swBackupInfo.getStatus();
+    }
+
+    // Once all the backup cursors have been opened on a sharded cluster, we need to ensure that the
+    // data being copied from each shard is at the same point-in-time across the entire cluster to
+    // have a consistent view of the data. For shards that opened their backup cursor before the
+    // established point-in-time for backup, they will need to create a full copy of the additional
+    // journal files returned by this method to ensure a consistent backup of the data is taken.
+    std::vector<std::string> filenames;
+    for (const auto& entry : swBackupInfo.getValue()) {
+        filenames.push_back(entry.first);
+    }
+
+    return {filenames};
+}
+
 // Can throw standard exceptions
 static void copy_file_size(const boost::filesystem::path& srcFile, const boost::filesystem::path& destFile, boost::uintmax_t fsize) {
     constexpr int bufsize = 8 * 1024;

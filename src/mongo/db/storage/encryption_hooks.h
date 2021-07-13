@@ -109,6 +109,11 @@ public:
      * `beginNonBlockingBackup`. In that case it must return `Status::OK()`;
      */
     virtual Status endNonBlockingBackup();
+
+    /**
+     * Get list of log files changed since the moment of backup cursor creation
+     */
+    virtual StatusWith<std::vector<std::string>> extendBackupCursor();
 };
 
 }  // namespace mongo

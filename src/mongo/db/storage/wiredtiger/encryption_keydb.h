@@ -85,6 +85,8 @@ public:
 
     Status endNonBlockingBackup();
 
+    StatusWith<std::vector<std::string>> extendBackupCursor();
+
 private:
     typedef boost::multiprecision::uint128_t _gcm_iv_type;
 
