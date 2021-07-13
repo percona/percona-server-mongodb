@@ -34,16 +34,25 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/pipeline/document_source_backup_cursor.h"
+
 #include "mongo/util/log.h"
 
 namespace mongo {
 
-using boost::intrusive_ptr;
+namespace {
+constexpr StringData kDisableIncrementalBackup = "disableIncrementalBackup"_sd;
+constexpr StringData kIncrementalBackup = "incrementalBackup"_sd;
+constexpr StringData kBlockSize = "blockSize"_sd;
+constexpr StringData kThisBackupName = "thisBackupName"_sd;
+constexpr StringData kSrcBackupName = "srcBackupName"_sd;
 
 // We only link this file into mongod so this stage doesn't exist in mongos
 REGISTER_DOCUMENT_SOURCE(backupCursor,
                          LiteParsedDocumentSourceDefault::parse,
                          DocumentSourceBackupCursor::createFromBson);
+}  // namespace
+
+using boost::intrusive_ptr;
 
 const char* DocumentSourceBackupCursor::getSourceName() const {
     return kStageName.rawData();
@@ -51,7 +60,17 @@ const char* DocumentSourceBackupCursor::getSourceName() const {
 
 Value DocumentSourceBackupCursor::serialize(
     boost::optional<ExplainOptions::Verbosity> explain) const {
-    return Value(DOC(getSourceName() << 1));
+    return Value(Document{
+        {getSourceName(),
+         Document{
+             {kDisableIncrementalBackup,
+              _backupOptions.disableIncrementalBackup ? Value(true) : Value()},
+             {kIncrementalBackup, _backupOptions.incrementalBackup ? Value(true) : Value()},
+             {kBlockSize, Value(_backupOptions.blockSizeMB)},
+             {kThisBackupName,
+              _backupOptions.thisBackupName ? Value(*_backupOptions.thisBackupName) : Value()},
+             {kSrcBackupName,
+              _backupOptions.srcBackupName ? Value(*_backupOptions.srcBackupName) : Value()}}}});
 }
 
 DocumentSource::GetNextResult DocumentSourceBackupCursor::getNext() {
@@ -73,15 +92,8 @@ DocumentSource::GetNextResult DocumentSourceBackupCursor::getNext() {
     return GetNextResult::makeEOF();
 }
 
-intrusive_ptr<DocumentSourceBackupCursor> DocumentSourceBackupCursor::create(
-    const BSONObj& options, const intrusive_ptr<ExpressionContext>& expCtx) {
-    intrusive_ptr<DocumentSourceBackupCursor> backupCursor(
-        new DocumentSourceBackupCursor(options, expCtx));
-    return backupCursor;
-}
-
 intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
-    BSONElement elem, const intrusive_ptr<ExpressionContext>& pExpCtx) {
+    BSONElement spec, const intrusive_ptr<ExpressionContext>& pExpCtx) {
     // The anticipated usage of a backup cursor: open the backup cursor, consume the results, copy
     // data off disk, close the backup cursor. The backup cursor must be successfully closed for
     // the data copied to be valid. Hence, the caller needs a way to keep the cursor open after
@@ -91,16 +103,74 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
     pExpCtx->tailableMode = TailableModeEnum::kTailable;
 
     uassert(ErrorCodes::FailedToParse,
-            str::stream() << kStageName
-                          << " value must be an object. Found: " << typeName(elem.type()),
-            elem.type() == Object);
+            str::stream() << kStageName << " parameters must be specified in an object, but found: "
+                          << typeName(spec.type()),
+            spec.type() == Object);
 
-    return DocumentSourceBackupCursor::create(elem.Obj(), pExpCtx);
+    StorageEngine::BackupOptions options;
+
+    for (auto&& elem : spec.embeddedObject()) {
+        const auto fieldName = elem.fieldNameStringData();
+
+        if (fieldName == kDisableIncrementalBackup) {
+            uassert(ErrorCodes::TypeMismatch,
+                    str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
+                                  << " stage must be a boolean value, but found: "
+                                  << typeName(elem.type()),
+                    elem.type() == BSONType::Bool);
+            options.disableIncrementalBackup = elem.boolean();
+        } else if (fieldName == kIncrementalBackup) {
+            uassert(ErrorCodes::TypeMismatch,
+                    str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
+                                  << " stage must be a boolean value, but found: "
+                                  << typeName(elem.type()),
+                    elem.type() == BSONType::Bool);
+            options.incrementalBackup = elem.boolean();
+        } else if (fieldName == kBlockSize) {
+            uassert(ErrorCodes::TypeMismatch,
+                    str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
+                                  << " stage must be an integer value, but found: "
+                                  << typeName(elem.type()),
+                    elem.type() == BSONType::NumberInt);
+            options.blockSizeMB = elem.Int();
+        } else if (fieldName == kThisBackupName) {
+            uassert(ErrorCodes::TypeMismatch,
+                    str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
+                                  << " stage must be a string value, but found: "
+                                  << typeName(elem.type()),
+                    elem.type() == BSONType::String);
+            options.thisBackupName = elem.String();
+        } else if (fieldName == kSrcBackupName) {
+            uassert(ErrorCodes::TypeMismatch,
+                    str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
+                                  << " stage must be a string value, but found: "
+                                  << typeName(elem.type()),
+                    elem.type() == BSONType::String);
+            options.srcBackupName = elem.String();
+        } else {
+            uasserted(ErrorCodes::FailedToParse,
+                      str::stream() << "Unrecognized option '" << fieldName << "' in " << kStageName
+                                    << " stage");
+        }
+    }
+
+    uassert(ErrorCodes::InvalidOptions,
+            str::stream() << "'" << kIncrementalBackup << "' and '" << kDisableIncrementalBackup
+                          << "' parameters are mutually exclusive. Cannot enable both",
+            !(options.incrementalBackup && options.disableIncrementalBackup));
+    uassert(ErrorCodes::InvalidOptions,
+            str::stream() << "'" << kThisBackupName << "' and '" << kSrcBackupName
+                          << "' parameters are only allowed when '" << kIncrementalBackup
+                          << "' is true",
+            options.incrementalBackup || !(options.thisBackupName || options.srcBackupName));
+
+    return new DocumentSourceBackupCursor(std::move(options), pExpCtx);
 }
 
 DocumentSourceBackupCursor::DocumentSourceBackupCursor(
-    const BSONObj& options, const intrusive_ptr<ExpressionContext>& expCtx)
+    StorageEngine::BackupOptions&& options, const intrusive_ptr<ExpressionContext>& expCtx)
     : DocumentSource(expCtx),
+      _backupOptions(options),
       _backupCursorState(
           pExpCtx->mongoProcessInterface->openBackupCursor(pExpCtx->opCtx, _backupOptions)),
       _backupInformation(_backupCursorState.backupInformation),

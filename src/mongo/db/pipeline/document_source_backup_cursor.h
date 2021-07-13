@@ -32,33 +32,20 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/db/pipeline/document_source.h"
-#include "mongo/util/intrusive_counter.h"
 
 namespace mongo {
 
 class DocumentSourceBackupCursor : public DocumentSource {
 public:
-    template <typename T, typename... Args, typename>
-    friend boost::intrusive_ptr<T> make_intrusive(Args&&...);
-    virtual boost::intrusive_ptr<DocumentSourceBackupCursor> clone() const {
-        return make_intrusive<std::decay_t<decltype(*this)>>(*this);
-    }
-
     static constexpr StringData kStageName = "$backupCursor"_sd;
 
     /**
-     * Convenience method for creating a $backupCursor stage.
-     */
-    static boost::intrusive_ptr<DocumentSourceBackupCursor> create(
-        const BSONObj& options, const boost::intrusive_ptr<ExpressionContext>& expCtx);
-
-    /**
-     * Parses a $backupCursor stage from 'elem'.
+     * Parses a $backupCursor stage from 'spec'.
      */
     static boost::intrusive_ptr<DocumentSource> createFromBson(
-        BSONElement elem, const boost::intrusive_ptr<ExpressionContext>& pCtx);
+        BSONElement spec, const boost::intrusive_ptr<ExpressionContext>& pCtx);
 
-    virtual ~DocumentSourceBackupCursor();
+    ~DocumentSourceBackupCursor() override;
 
     const char* getSourceName() const override;
 
@@ -84,18 +71,12 @@ public:
     }
 
 protected:
-    DocumentSourceBackupCursor(const DocumentSourceBackupCursor& other)
-        : DocumentSourceBackupCursor(
-              other.serialize().getDocument().toBson().firstElement().embeddedObject(),
-              other.pExpCtx) {}
-
     GetNextResult getNext() override;
-    DocumentSourceBackupCursor(const BSONObj& options,
+    DocumentSourceBackupCursor(StorageEngine::BackupOptions&& options,
                                const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
 private:
-    // TODO: _backupOptions should be initialized by stage parameters
-    StorageEngine::BackupOptions _backupOptions;
+    const StorageEngine::BackupOptions _backupOptions;
     BackupCursorState _backupCursorState;
     // Convenience reference to _backupCursorState.backupInformation
     const StorageEngine::BackupInformation& _backupInformation;
