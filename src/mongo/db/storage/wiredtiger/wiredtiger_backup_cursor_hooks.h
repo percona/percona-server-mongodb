@@ -62,11 +62,17 @@ public:
     virtual bool isBackupCursorOpen() const override;
 
 private:
+    friend class WiredTigerHotBackupGuard;
+
+    void tryEnterHotBackup();
+
+    void deactivateHotBackup();
+
     void _closeBackupCursor(OperationContext* opCtx, const UUID& backupId, WithLock);
 
     StorageEngine* _storageEngine;
 
-    enum State { kInactive, kFsyncLocked, kBackupCursorOpened };
+    enum State { kInactive, kFsyncLocked, kBackupCursorOpened, kHotBackup };
 
     // This mutex serializes all access into this class.
     mutable stdx::mutex _mutex;
@@ -74,6 +80,15 @@ private:
     // When state is `kBackupCursorOpened`, _openCursor contains the cursorId of the active backup
     // cursor. Otherwise it is boost::none.
     boost::optional<UUID> _openCursor = boost::none;
+};
+
+class WiredTigerHotBackupGuard {
+public:
+    explicit WiredTigerHotBackupGuard(OperationContext* opCtx);
+    ~WiredTigerHotBackupGuard();
+
+private:
+    WiredTigerBackupCursorHooks* _hooks;
 };
 
 }  // namespace mongo
