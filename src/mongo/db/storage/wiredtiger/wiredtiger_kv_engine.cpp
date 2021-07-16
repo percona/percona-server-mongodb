@@ -1736,7 +1736,8 @@ StatusWith<std::vector<std::string>> EncryptionKeyDB::extendBackupCursor() {
 static void copy_file_size(OperationContext* opCtx,
                            const boost::filesystem::path& srcFile,
                            const boost::filesystem::path& destFile,
-                           boost::uintmax_t fsize) {
+                           boost::uintmax_t fsize,
+                           ProgressMeterHolder& progressMeter) {
     constexpr int bufsize = 8 * 1024;
     auto buf = std::make_unique<char[]>(bufsize);
     auto bufptr = buf.get();
@@ -1762,10 +1763,15 @@ static void copy_file_size(OperationContext* opCtx,
         src.read(bufptr, cnt);
         dst.write(bufptr, cnt);
         fsize -= cnt;
+        progressMeter.hit(cnt);
     }
 }
 
-Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx, const std::string& path, std::vector<DBTuple>& dbList, std::vector<FileTuple>& filesList) {
+Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
+                                                   const std::string& path,
+                                                   std::vector<DBTuple>& dbList,
+                                                   std::vector<FileTuple>& filesList,
+                                                   boost::uintmax_t& totalfsize) {
     // Nothing to backup for non-durable engine.
     if (!_durable) {
         return EngineExtension::hotBackup(opCtx, path);
@@ -1828,13 +1834,17 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx, cons
             fs::path destFile{destPath / filename};
 
             if (fs::exists(srcFile)) {
-                filesList.emplace_back(srcFile, destFile, fs::file_size(srcFile), fs::last_write_time(srcFile));
+                auto fsize = fs::file_size(srcFile);
+                totalfsize += fsize;
+                filesList.emplace_back(srcFile, destFile, fsize, fs::last_write_time(srcFile));
             } else {
                 // WT-999: check journal folder.
                 srcFile = srcPath / journalDir / filename;
                 destFile = destPath / journalDir / filename;
                 if (fs::exists(srcFile)) {
-                    filesList.emplace_back(srcFile, destFile, fs::file_size(srcFile), fs::last_write_time(srcFile));
+                    auto fsize = fs::file_size(srcFile);
+                    totalfsize += fsize;
+                    filesList.emplace_back(srcFile, destFile, fsize, fs::last_write_time(srcFile));
                 } else {
                     return Status(ErrorCodes::InvalidPath,
                                   str::stream() << "Cannot find source file for backup :" << filename << ", source path: " << srcPath.string());
@@ -1851,13 +1861,24 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx, cons
         const char* storageMetadata = "storage.bson";
         fs::path srcFile{fs::path{_path} / storageMetadata};
         fs::path destFile{destPath / storageMetadata};
-        filesList.emplace_back(srcFile, destFile, fs::file_size(srcFile), fs::last_write_time(srcFile));
+        auto fsize = fs::file_size(srcFile);
+        totalfsize += fsize;
+        filesList.emplace_back(srcFile, destFile, fsize, fs::last_write_time(srcFile));
     }
 
     // Release global lock (if it was created)
     global.reset();
 
     return wtRCToStatus(ret);
+}
+
+static void setupHotBackupProgressMeter(OperationContext* opCtx,
+                                        ProgressMeterHolder& progressMeter,
+                                        boost::uintmax_t totalfsize) {
+    constexpr auto curopMessage = "Hot Backup: copying data bytes"_sd;
+    stdx::unique_lock<Client> lk(*opCtx->getClient());
+    progressMeter.set(CurOp::get(opCtx)->setProgress_inlock(curopMessage));
+    progressMeter->reset(totalfsize, 10, 512);
 }
 
 namespace {
@@ -1933,9 +1954,17 @@ public:
 
     bool ShouldRetry() const { return _retry_cnt-- > 0; }
 
+    void doProgress(ProgressMeterHolder& progressMeter, uint64_t bytes_transferred) const {
+        if (bytes_transferred > _bytes_reported) {
+            progressMeter.hit(bytes_transferred - _bytes_reported);
+            _bytes_reported = bytes_transferred;
+        }
+    }
+
 private:
     std::shared_ptr<SizedFileStream> _stream;
     mutable int _retry_cnt = 5;
+    mutable uint64_t _bytes_reported = 0;
 };
 
 }
@@ -1947,11 +1976,16 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
     std::vector<DBTuple> dbList;
     // list of files to backup
     std::vector<FileTuple> filesList;
+    // total size of files to backup
+    boost::uintmax_t totalfsize = 0;
 
-    auto status = _hotBackupPopulateLists(opCtx, s3params.path, dbList, filesList);
+    auto status = _hotBackupPopulateLists(opCtx, s3params.path, dbList, filesList, totalfsize);
     if (!status.isOK()) {
         return status;
     }
+
+    ProgressMeterHolder progressMeter;
+    setupHotBackupProgressMeter(opCtx, progressMeter, totalfsize);
 
     // stream files to S3-compatible storage
     Aws::SDKOptions options;
@@ -2132,6 +2166,8 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
                     std::const_pointer_cast<TransferHandle>(h)->Cancel();
                 }
             }
+            auto uploadContext = std::static_pointer_cast<const UploadContext>(h->GetContext());
+            uploadContext->doProgress(progressMeter, h->GetBytesTransferred());
             opCtx->checkForInterrupt();
         };
 
@@ -2281,6 +2317,10 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
     // upload files without TransferManager (for those servers which have no 
     // multipart upload support)
     // TODO: for GCP/GCS it is possible to use 'compose' operations
+
+    // reconfigure progressMeter since in this case we will call hit() once per file
+    progressMeter->reset(totalfsize, 10, 1);
+
     for (auto&& file : filesList) {
         boost::filesystem::path srcFile{std::get<0>(file)};
         boost::filesystem::path destFile{std::get<1>(file)};
@@ -2310,6 +2350,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
                                         << " : " << outcome.GetError().GetExceptionName()
                                         << " : " << outcome.GetError().GetMessage());
         }
+        progressMeter.hit(fsize);
         LOGV2_DEBUG(29004, 2, "Successfully uploaded file: {destFile}",
                     "destFile"_attr = destFile.string());
         opCtx->checkForInterrupt();
@@ -2326,11 +2367,16 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
     std::vector<DBTuple> dbList;
     // list of files to backup
     std::vector<FileTuple> filesList;
+    // total size of files to backup
+    boost::uintmax_t totalfsize = 0;
 
-    auto status = _hotBackupPopulateLists(opCtx, path, dbList, filesList);
+    auto status = _hotBackupPopulateLists(opCtx, path, dbList, filesList, totalfsize);
     if (!status.isOK()) {
         return status;
     }
+
+    ProgressMeterHolder progressMeter;
+    setupHotBackupProgressMeter(opCtx, progressMeter, totalfsize);
 
     // We assume destination dir exists - it is created during command validation
     fs::path destPath{path};
@@ -2352,7 +2398,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
             // fs::copy_file(srcFile, destFile, fs::copy_option::none);
             // copy_file cannot copy part of file so we need to use
             // more fine-grained copy
-            copy_file_size(opCtx, srcFile, destFile, fsize);
+            copy_file_size(opCtx, srcFile, destFile, fsize, progressMeter);
         } catch (const fs::filesystem_error& ex) {
             return Status(ErrorCodes::InvalidPath, ex.what());
         } catch (const std::exception& ex) {
@@ -2386,11 +2432,16 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
     std::vector<DBTuple> dbList;
     // list of files to backup
     std::vector<FileTuple> filesList;
+    // total size of files to backup
+    boost::uintmax_t totalfsize = 0;
 
-    auto status = _hotBackupPopulateLists(opCtx, "", dbList, filesList);
+    auto status = _hotBackupPopulateLists(opCtx, "", dbList, filesList, totalfsize);
     if (!status.isOK()) {
         return status;
     }
+
+    ProgressMeterHolder progressMeter;
+    setupHotBackupProgressMeter(opCtx, progressMeter, totalfsize);
 
     // Write tar archive
     try {
@@ -2446,6 +2497,7 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
                 src.read(bufptr, cnt);
                 a_assert_eq(a, cnt, archive_write_data(a, bufptr, cnt));
                 fsize -= cnt;
+                progressMeter.hit(cnt);
             }
         }
     } catch (const fs::filesystem_error& ex) {

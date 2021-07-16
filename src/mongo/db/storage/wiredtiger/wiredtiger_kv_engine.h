@@ -388,7 +388,11 @@ private:
     // srcPath, destPath, filename, size to copy
     typedef std::tuple<boost::filesystem::path, boost::filesystem::path, boost::uintmax_t, std::time_t> FileTuple;
 
-    Status _hotBackupPopulateLists(OperationContext* opCtx, const std::string& path, std::vector<DBTuple>& dbList, std::vector<FileTuple>& filesList);
+    Status _hotBackupPopulateLists(OperationContext* opCtx,
+                                   const std::string& path,
+                                   std::vector<DBTuple>& dbList,
+                                   std::vector<FileTuple>& filesList,
+                                   boost::uintmax_t& totalfsize);
 
     // auxiliary function for beginNonBlockingBackup
     StatusWith<std::unique_ptr<StorageEngine::StreamingCursor>> _disableIncrementalBackup();
