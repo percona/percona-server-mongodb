@@ -131,7 +131,7 @@ function runTest(conn) {
     assert.throws(() => db.setProfilingLevel(isMongos ? 0 : 1, {filter: {no_such_field: 23}}));
     assert.eq(0, db.getProfilingLevel());
     const response3 = db.setProfilingLevel(0);
-    let expectedFields = ['was', 'slowms', 'sampleRate', 'ok'];
+    let expectedFields = ['was', 'slowms', 'ratelimit', 'sampleRate', 'ok'];
     if (isMongos) {
         expectedFields = [...expectedFields, '$clusterTime', 'operationTime'];
     }

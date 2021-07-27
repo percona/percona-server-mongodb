@@ -1624,6 +1624,13 @@ std::function<BSONObj(ProfileFilter::Args)> OpDebug::appendStaged(StringSet requ
         b.appendNumber(field, durationCount<Milliseconds>(args.op.executionTime));
     });
 
+    addIfNeeded("rateLimit", [](auto field, auto args, auto& b) {
+        b.append(field,
+                 durationCount<Milliseconds>(args.op.executionTime) >= serverGlobalParams.slowMS
+                     ? 1
+                     : serverGlobalParams.rateLimit);
+    });
+
     addIfNeeded("planSummary", [](auto field, auto args, auto& b) {
         if (!args.curop.getPlanSummary().empty()) {
             b.append(field, args.curop.getPlanSummary());
