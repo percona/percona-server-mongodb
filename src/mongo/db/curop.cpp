@@ -1454,6 +1454,13 @@ std::function<BSONObj(ProfileFilter::Args)> OpDebug::appendStaged(StringSet requ
         b.appendIntOrLL(field, args.op.executionTimeMicros / 1000);
     });
 
+    addIfNeeded("rateLimit", [](auto field, auto args, auto& b) {
+        b.append(field,
+                 args.op.executionTimeMicros >= serverGlobalParams.slowMS * 1000LL
+                     ? 1
+                     : serverGlobalParams.rateLimit);
+    });
+
     addIfNeeded("planSummary", [](auto field, auto args, auto& b) {
         if (!args.curop.getPlanSummary().empty()) {
             b.append(field, args.curop.getPlanSummary());
