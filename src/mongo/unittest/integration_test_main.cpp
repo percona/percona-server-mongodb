@@ -92,6 +92,13 @@ MONGO_INITIALIZER_GENERAL(ForkServer, ("EndStartupOptionHandling"), ("default"))
     return Status::OK();
 }
 
+MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"), ("default"))
+(InitializerContext*) {
+    // Dependency graph requires AuditOptionsPath_Validate initializer
+    // We can stub that dependency out to avoid adding dependency on audit library
+    return Status::OK();
+}
+
 MONGO_GENERAL_STARTUP_OPTIONS_REGISTER(IntegrationTestOptions)(InitializerContext*) {
     uassertStatusOK(addBaseServerOptions(&moe::startupOptions));
 
