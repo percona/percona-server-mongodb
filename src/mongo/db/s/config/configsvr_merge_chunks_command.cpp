@@ -1,6 +1,5 @@
-
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2021-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -28,51 +27,34 @@
  *    it in the license file.
  */
 
-#define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kSharding
-
-#include "mongo/platform/basic.h"
-
-#include "mongo/db/auth/action_type.h"
 #include "mongo/db/auth/authorization_session.h"
-#include "mongo/db/auth/privilege.h"
 #include "mongo/db/commands.h"
-#include "mongo/db/namespace_string.h"
-#include "mongo/db/operation_context.h"
-#include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/s/config/sharding_catalog_manager.h"
-#include "mongo/s/grid.h"
-#include "mongo/s/request_types/merge_chunk_request_type.h"
-#include "mongo/util/log.h"
-#include "mongo/util/mongoutils/str.h"
+#include "mongo/s/request_types/merge_chunks_request_type.h"
 
 namespace mongo {
 namespace {
-
-using std::string;
 
 /**
  * Internal sharding command run on config servers to merge a set of chunks.
  *
  * Format:
  * {
- *   _configsvrCommitChunkMerge: <string namespace>,
+ *   _configsvrCommitChunksMerge: <string namespace>,
  *   collEpoch: <OID epoch>,
- *   chunkBoundaries: [
- *      <BSONObj key1>,
- *      <BSONObj key2>,
- *      ...
- *   ],
+ *   lowerBound: <BSONObj minKey>,
+ *   upperBound:  <BSONObj maxKey>,
  *   shard: <string shard>,
  *   writeConcern: <BSONObj>
  * }
  */
-class ConfigSvrMergeChunkCommand : public BasicCommand {
+class ConfigSvrMergeChunksCommand : public BasicCommand {
 public:
-    ConfigSvrMergeChunkCommand() : BasicCommand("_configsvrCommitChunkMerge") {}
+    ConfigSvrMergeChunksCommand() : BasicCommand("_configsvrCommitChunksMerge") {}
 
     std::string help() const override {
         return "Internal command, which is sent by a shard to the sharding config server. Do "
-               "not call directly. Receives, validates, and processes a MergeChunkRequest";
+               "not call directly. Receives, validates, and processes a MergeChunksRequest";
     }
 
     AllowedOnSecondary secondaryAllowed(ServiceContext*) const override {
@@ -105,28 +87,28 @@ public:
              const std::string& dbName,
              const BSONObj& cmdObj,
              BSONObjBuilder& result) override {
-        if (serverGlobalParams.clusterRole != ClusterRole::ConfigServer) {
-            uasserted(ErrorCodes::IllegalOperation,
-                      "_configsvrCommitChunkMerge can only be run on config servers");
-        }
+        uassert(ErrorCodes::IllegalOperation,
+                "_configsvrCommitChunksMerge can only be run on config servers",
+                serverGlobalParams.clusterRole == ClusterRole::ConfigServer);
 
         // Set the operation context read concern level to local for reads into the config database.
         repl::ReadConcernArgs::get(opCtx) =
             repl::ReadConcernArgs(repl::ReadConcernLevel::kLocalReadConcern);
 
-        auto parsedRequest = uassertStatusOK(MergeChunkRequest::parseFromConfigCommand(cmdObj));
+        auto parsedRequest = uassertStatusOK(MergeChunksRequest::parseFromConfigCommand(cmdObj));
 
-        const BSONObj shardVers = uassertStatusOK(
-            ShardingCatalogManager::get(opCtx)->commitChunkMerge(opCtx,
-                                                                 parsedRequest.getNamespace(),
-                                                                 parsedRequest.getEpoch(),
-                                                                 parsedRequest.getChunkBoundaries(),
-                                                                 parsedRequest.getShardName(),
-                                                                 parsedRequest.getValidAfter()));
-        result.appendElements(shardVers);
+        const BSONObj shardAndCollVers = uassertStatusOK(
+            ShardingCatalogManager::get(opCtx)->commitChunksMerge(opCtx,
+                                                                  parsedRequest.getNamespace(),
+                                                                  parsedRequest.getCollectionUUID(),
+                                                                  parsedRequest.getChunkRange(),
+                                                                  parsedRequest.getShardId(),
+                                                                  parsedRequest.getValidAfter()));
+        result.appendElements(shardAndCollVers);
 
         return true;
     }
-} configsvrMergeChunkCmd;
+
+} configsvrMergeChunksCmd;
 }  // namespace
 }  // namespace mongo

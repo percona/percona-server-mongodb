@@ -40,13 +40,16 @@
 #include "mongo/db/field_parser.h"
 #include "mongo/db/logical_clock.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/s/active_migrations_registry.h"
 #include "mongo/db/s/collection_sharding_state.h"
+#include "mongo/db/s/operation_sharding_state.h"
 #include "mongo/db/s/shard_filtering_metadata_refresh.h"
 #include "mongo/db/s/sharding_state.h"
 #include "mongo/s/catalog/type_chunk.h"
 #include "mongo/s/client/shard_registry.h"
 #include "mongo/s/grid.h"
 #include "mongo/s/request_types/merge_chunk_request_type.h"
+#include "mongo/s/request_types/merge_chunks_request_type.h"
 #include "mongo/util/log.h"
 #include "mongo/util/mongoutils/str.h"
 
@@ -75,57 +78,37 @@ bool checkMetadataForSuccess(OperationContext* opCtx,
         chunk.getMax().woCompare(chunkRange.getMax()) == 0;
 }
 
-void mergeChunks(OperationContext* opCtx,
-                 const NamespaceString& nss,
-                 const BSONObj& minKey,
-                 const BSONObj& maxKey,
-                 const OID& epoch) {
-    const std::string whyMessage = str::stream() << "merging chunks in " << nss.ns() << " from "
-                                                 << redact(minKey) << " to " << redact(maxKey);
-    auto scopedDistLock = uassertStatusOKWithContext(
-        Grid::get(opCtx)->catalogClient()->getDistLockManager()->lock(
-            opCtx, nss.ns(), whyMessage, DistLockManager::kSingleLockAttemptTimeout),
-        str::stream() << "could not acquire collection lock for " << nss.ns()
-                      << " to merge chunks in ["
-                      << redact(minKey)
-                      << ", "
-                      << redact(maxKey)
-                      << ")");
-
+Shard::CommandResponse commitUsingChunkRange(OperationContext* opCtx,
+                                             const NamespaceString& nss,
+                                             const ChunkRange& chunkRange,
+                                             const ScopedCollectionMetadata& metadata) {
     auto const shardingState = ShardingState::get(opCtx);
+    auto collUUID = metadata->getUUID();
+    invariant(collUUID);
+    MergeChunksRequest request{nss,
+                               shardingState->shardId(),
+                               *collUUID,
+                               chunkRange,
+                               LogicalClock::get(opCtx)->getClusterTime().asTimestamp()};
 
-    // We now have the collection distributed lock, refresh metadata to latest version and sanity
-    // check
-    forceShardFilteringMetadataRefresh(opCtx, nss, true /* forceRefreshFromThisThread */);
+    auto configCmdObj =
+        request.toConfigCommandBSON(ShardingCatalogClient::kMajorityWriteConcern.toBSON());
+    auto cmdResponse =
+        uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getConfigShard()->runCommand(
+            opCtx,
+            ReadPreferenceSetting{ReadPreference::PrimaryOnly},
+            "admin",
+            configCmdObj,
+            Shard::RetryPolicy::kIdempotent));
+    return cmdResponse;
+}
 
-    const auto metadata = [&] {
-        AutoGetCollection autoColl(opCtx, nss, MODE_IS);
-        return CollectionShardingState::get(opCtx, nss)->getCurrentMetadata();
-    }();
-
-    uassert(ErrorCodes::StaleEpoch,
-            str::stream() << "Collection " << nss.ns() << " became unsharded",
-            metadata->isSharded());
-
-    const auto shardVersion = metadata->getShardVersion();
-    uassert(ErrorCodes::StaleEpoch,
-            str::stream() << "could not merge chunks, collection " << nss.ns()
-                          << " has changed since merge was sent (sent epoch: "
-                          << epoch.toString()
-                          << ", current epoch: "
-                          << shardVersion.epoch()
-                          << ")",
-            !epoch.isSet() || shardVersion.epoch() == epoch);
-
-    uassert(ErrorCodes::IllegalOperation,
-            str::stream() << "could not merge chunks, the range "
-                          << redact(ChunkRange(minKey, maxKey).toString())
-                          << " is not valid"
-                          << " for collection "
-                          << nss.ns()
-                          << " with key pattern "
-                          << metadata->getKeyPattern().toString(),
-            metadata->isValidKey(minKey) && metadata->isValidKey(maxKey));
+Shard::CommandResponse commitUsingChunksList(OperationContext* opCtx,
+                                             const NamespaceString& nss,
+                                             const BSONObj& minKey,
+                                             const BSONObj& maxKey,
+                                             const ScopedCollectionMetadata& metadata) {
+    auto const shardingState = ShardingState::get(opCtx);
 
     //
     // Get merged chunk information
@@ -220,7 +203,7 @@ void mergeChunks(OperationContext* opCtx,
     //
     MergeChunkRequest request{nss,
                               shardingState->shardId().toString(),
-                              shardVersion.epoch(),
+                              metadata->getShardVersion().epoch(),
                               chunkBoundaries,
                               LogicalClock::get(opCtx)->getClusterTime().asTimestamp()};
 
@@ -234,9 +217,82 @@ void mergeChunks(OperationContext* opCtx,
             configCmdObj,
             Shard::RetryPolicy::kIdempotent));
 
-    // Refresh metadata to pick up new chunk definitions (regardless of the results returned from
-    // running _configsvrCommitChunkMerge).
-    forceShardFilteringMetadataRefresh(opCtx, nss, true /* forceRefreshFromThisThread */);
+    return cmdResponse;
+}
+
+Shard::CommandResponse commitMergeOnConfigServer(OperationContext* opCtx,
+                                                 const NamespaceString& nss,
+                                                 const ChunkRange& chunkRange,
+                                                 const ScopedCollectionMetadata& metadata) {
+    auto commandResponse = commitUsingChunkRange(opCtx, nss, chunkRange, metadata);
+    return commandResponse.commandStatus == ErrorCodes::CommandNotFound
+        ? commitUsingChunksList(opCtx, nss, chunkRange.getMin(), chunkRange.getMax(), metadata)
+        : commandResponse;
+}
+
+void mergeChunks(OperationContext* opCtx,
+                 const NamespaceString& nss,
+                 const BSONObj& minKey,
+                 const BSONObj& maxKey,
+                 const OID& epoch) {
+    const ChunkRange chunkRange(minKey, maxKey);
+
+    auto scopedSplitOrMergeChunk(uassertStatusOK(
+        ActiveMigrationsRegistry::get(opCtx).registerSplitOrMergeChunk(opCtx, nss, chunkRange)));
+
+    // We now have the collection distributed lock, refresh metadata to latest version and sanity
+    // check
+    const bool isVersioned = OperationShardingState::isOperationVersioned(opCtx);
+    if (!isVersioned) {
+        forceShardFilteringMetadataRefresh(opCtx, nss, true /* forceRefreshFromThisThread */);
+    }
+
+    const auto metadata = [&] {
+        AutoGetCollection autoColl(opCtx, nss, MODE_IS);
+        auto css = CollectionShardingState::get(opCtx, nss);
+        // If there is a version attached to the OperationContext, validate it
+        if (isVersioned) {
+            css->checkShardVersionOrThrow(opCtx);
+        }
+        return css->getCurrentMetadata();
+    }();
+
+    uassert(ErrorCodes::StaleEpoch,
+            str::stream() << "Collection " << nss.ns() << " became unsharded",
+            metadata->isSharded());
+
+    const auto shardVersion = metadata->getShardVersion();
+    uassert(ErrorCodes::StaleEpoch,
+            str::stream() << "could not merge chunks, collection " << nss.ns()
+                          << " has changed since merge was sent (sent epoch: "
+                          << epoch.toString()
+                          << ", current epoch: "
+                          << shardVersion.epoch()
+                          << ")",
+            !epoch.isSet() || shardVersion.epoch() == epoch);
+
+    uassert(ErrorCodes::IllegalOperation,
+            str::stream() << "could not merge chunks, the range " << redact(chunkRange.toString())
+                          << " is not valid"
+                          << " for collection "
+                          << nss.ns()
+                          << " with key pattern "
+                          << metadata->getKeyPattern().toString(),
+            metadata->isValidKey(minKey) && metadata->isValidKey(maxKey));
+
+    auto cmdResponse = commitMergeOnConfigServer(opCtx, nss, chunkRange, metadata);
+
+    // old versions might not have the shardVersion field
+    if (cmdResponse.response[ChunkVersion::kShardVersionField]) {
+        const auto cv = uassertStatusOK(
+            ChunkVersion::parseWithField(cmdResponse.response, ChunkVersion::kShardVersionField));
+        uassertStatusOK(onShardVersionMismatchNoExcept(
+            opCtx, nss, std::move(cv), true /* forceRefreshFromThisThread */));
+    } else {
+        // Refresh metadata to pick up new chunk definitions (regardless of the results returned
+        // from running _configsvrCommitChunkMerge).
+        forceShardFilteringMetadataRefresh(opCtx, nss, true /* forceRefreshFromThisThread */);
+    }
 
     // If _configsvrCommitChunkMerge returned an error, look at this shard's metadata to determine
     // if the merge actually did happen. This can happen if there's a network error getting the
@@ -246,7 +302,7 @@ void mergeChunks(OperationContext* opCtx,
     auto writeConcernStatus = std::move(cmdResponse.writeConcernStatus);
 
     if ((!commandStatus.isOK() || !writeConcernStatus.isOK()) &&
-        checkMetadataForSuccess(opCtx, nss, epoch, ChunkRange(minKey, maxKey))) {
+        checkMetadataForSuccess(opCtx, nss, epoch, chunkRange)) {
         LOG(1) << "mergeChunk [" << redact(minKey) << "," << redact(maxKey)
                << ") has already been committed.";
     }
