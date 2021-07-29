@@ -215,9 +215,7 @@ namespace audit {
             if (rename) {
                 // Rename the current file
                 // Note: we append a timestamp to the file name.
-                std::stringstream ss;
-                ss << _fileName << "." << renameSuffix;
-                std::string s = ss.str();
+                std::string s = _fileName + renameSuffix;
                 int r = std::rename(_fileName.c_str(), s.c_str());
                 if (r != 0) {
                     if (onMinorError) {
