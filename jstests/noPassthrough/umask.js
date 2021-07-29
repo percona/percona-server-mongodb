@@ -32,9 +32,7 @@
         cleanData: true,
     });
 
-    if (buildInfo()["modules"].some((mod) => {
-            return mod == "enterprise";
-        })) {
+    if (isPSMDBOrEnterprise(buildInfo())) {
         mongodOptions.auditDestination = "file";
         mongodOptions.auditPath = mongodOptions.dbpath + "/audit.log";
         mongodOptions.auditFormat = "JSON";
