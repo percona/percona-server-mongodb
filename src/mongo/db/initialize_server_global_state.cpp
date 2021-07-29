@@ -363,7 +363,7 @@ namespace {
 MONGO_EXPORT_STARTUP_SERVER_PARAMETER(honorSystemUmask, bool, false);
 #endif
 
-MONGO_INITIALIZER_WITH_PREREQUISITES(MungeUmask, ("EndStartupOptionHandling"))
+MONGO_INITIALIZER_GENERAL(MungeUmask, ("EndStartupOptionHandling"), ("AuditOptionsPath_Validate"))
 (InitializerContext*) {
 #ifndef _WIN32
     if (!honorSystemUmask) {
