@@ -41,7 +41,7 @@
         checkMechs("admin.user", ["SCRAM-SHA-256", "SCRAM-SHA-1"]);
 
         // External users on enterprise should support PLAIN, but not scram methods.
-        if (assert.commandWorked(db.runCommand({buildInfo: 1})).modules.includes("enterprise")) {
+        if (isPSMDBOrEnterprise(assert.commandWorked(db.runCommand({buildInfo: 1})))) {
             checkMechs("$external.user", ["PLAIN"]);
         } else {
             checkMechs("$external.user", []);
