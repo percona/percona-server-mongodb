@@ -63,7 +63,8 @@ var CheckOrphansAreDeletedHelpers = (function() {
                 () => {
                     return 'timed out waiting for rangeDeletions on ' + ns + ' to be empty @ ' +
                         shardId + ', last known contents: ' + tojson(rangeDeletions);
-                });
+                },
+                10 * 60 * 1000);
 
             const coll = shardConn.getDB(dbName)[collName];
             mongosConn.getDB('config')
