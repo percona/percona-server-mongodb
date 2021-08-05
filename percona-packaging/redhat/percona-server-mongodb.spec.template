@@ -100,6 +100,7 @@ This package contains the Percona Server for MongoDB server software, default co
 %package shell
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB shell client
+Requires:  cyrus-sasl-plain
 Obsoletes: Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
 
 %description shell
