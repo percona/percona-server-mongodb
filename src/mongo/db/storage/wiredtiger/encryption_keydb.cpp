@@ -409,13 +409,14 @@ int EncryptionKeyDB::get_key_by_id(const char *keyid, size_t len, unsigned char 
     int res;
     // open cursor
     WT_CURSOR *cursor;
-    {
-        stdx::lock_guard<Latch> lk(_lock_sess);
-        res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &cursor);
-        if (res){
-            LOGV2_ERROR(29040, "get_key_by_id: error opening cursor: {err}", "err"_attr = wiredtiger_strerror(res));
-            return res;
-        }
+    // search/write of db encryption key should be atomic
+    stdx::lock_guard<Latch> lk(_lock_sess);
+    res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29040,
+                    "get_key_by_id: error opening cursor: {err}",
+                    "err"_attr = wiredtiger_strerror(res));
+        return res;
     }
 
     // create cursor delete guard
@@ -424,8 +425,6 @@ int EncryptionKeyDB::get_key_by_id(const char *keyid, size_t len, unsigned char 
             c->close(c);
         });
 
-    // search/write of db encryption key should be atomic
-    stdx::lock_guard<Latch> lk(_lock_key);
     // read key from DB
     std::string c_str(keyid, len);
     LOGV2_DEBUG(29041, 4, "trying to load encryption key for keyid: {id}", "id"_attr = c_str);
@@ -447,8 +446,7 @@ int EncryptionKeyDB::get_key_by_id(const char *keyid, size_t len, unsigned char 
     }
 
     // create key if it does not exist
-    // call to fill() is protected by _lock_key above
-    _srng->fill(key, _key_len);
+    generate_secure_key(key);
     WT_ITEM v;
     v.size = _key_len;
     v.data = key;
@@ -472,13 +470,13 @@ int EncryptionKeyDB::delete_key_by_id(const std::string&  keyid) {
     int res;
     // open cursor
     WT_CURSOR *cursor;
-    {
-        stdx::lock_guard<Latch> lk(_lock_sess);
-        res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &cursor);
-        if (res){
-            LOGV2_ERROR(29045, "delete_key_by_id: error opening cursor: {desc}", "desc"_attr = wiredtiger_strerror(res));
-            return res;
-        }
+    stdx::lock_guard<Latch> lk(_lock_sess);
+    res = _sess->open_cursor(_sess, "table:key", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29045,
+                    "delete_key_by_id: error opening cursor: {desc}",
+                    "desc"_attr = wiredtiger_strerror(res));
+        return res;
     }
 
     // create cursor delete guard
@@ -515,14 +513,13 @@ int EncryptionKeyDB::store_gcm_iv_reserved() {
     int res;
     // open cursor
     WT_CURSOR *cursor;
-    {
-        stdx::lock_guard<Latch> lk(_lock_sess);
-        res = _sess->open_cursor(_sess, "table:parameters", nullptr, nullptr, &cursor);
-        if (res){
-            LOGV2_ERROR(29047, "store_gcm_iv_reserved: error opening cursor: {desc}",
-                       "desc"_attr = wiredtiger_strerror(res));
-            return res;
-        }
+    stdx::lock_guard<Latch> lk(_lock_sess);
+    res = _sess->open_cursor(_sess, "table:parameters", nullptr, nullptr, &cursor);
+    if (res) {
+        LOGV2_ERROR(29047,
+                    "store_gcm_iv_reserved: error opening cursor: {desc}",
+                    "desc"_attr = wiredtiger_strerror(res));
+        return res;
     }
 
     // create cursor delete guard
