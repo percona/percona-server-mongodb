@@ -94,6 +94,7 @@ Conflicts: Percona-Server-MongoDB-server Percona-Server-MongoDB-32-server Percon
 %package shell
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB shell client
+Requires:  cyrus-sasl-plain
 %description shell
 This package contains the Percona Server for MongoDB shell
 Conflicts: Percona-Server-MongoDB-shell Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
