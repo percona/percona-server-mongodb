@@ -244,6 +244,12 @@ install_gcc_8_deb(){
     if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
         apt-get -y install gcc-8 g++-8
     fi
+    if [ x"${DEBIAN}" = xbullseye ]; then
+        wget https://jenkins.percona.com/downloads/gcc8/gcc-8.3.0_Debian-bullseye-x64.tar.gz -O /tmp/gcc-8.3.0_Debian-bullseye-x64.tar.gz
+        tar -zxf /tmp/gcc-8.3.0_Debian-bullseye-x64.tar.gz
+        rm -rf /usr/local/gcc-8.3.0
+        mv gcc-8.3.0 /usr/local/
+    fi
     if [ x"${DEBIAN}" = xstretch ]; then
         wget https://jenkins.percona.com/downloads/gcc8/gcc-8.3.0_Debian-stretch-x64.tar.gz -O /tmp/gcc-8.3.0_Debian-stretch-x64.tar.gz
         tar -zxf /tmp/gcc-8.3.0_Debian-stretch-x64.tar.gz
@@ -257,6 +263,9 @@ set_compiler(){
         if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
             export CC=/usr/bin/gcc-8
             export CXX=/usr/bin/g++-8
+	elif [ x"${DEBIAN}" = xbullseye ]; then
+            export CC=/usr/local/gcc-8.3.0/bin/gcc-8.3
+            export CXX=/usr/local/gcc-8.3.0/bin/g++-8.3
         else
             export CC=/usr/local/gcc-8.3.0/bin/gcc-8.3
             export CXX=/usr/local/gcc-8.3.0/bin/g++-8.3
@@ -276,6 +285,9 @@ fix_rules(){
     if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
         sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-8|' debian/rules
         sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-8|' debian/rules
+    elif [ x"${DEBIAN}" = xbullseye ]; then
+        sed -i 's|CC = gcc-5|CC = /usr/local/gcc-8.3.0/bin/gcc-8.3|' debian/rules
+        sed -i 's|CXX = g++-5|CXX = /usr/local/gcc-8.3.0/bin/g++-8.3|' debian/rules
     else
         sed -i 's|CC = gcc-5|CC = /usr/local/gcc-8.3.0/bin/gcc-8.3|' debian/rules
         sed -i 's|CXX = g++-5|CXX = /usr/local/gcc-8.3.0/bin/g++-8.3|' debian/rules
@@ -407,9 +419,14 @@ EOL
       fi
       percona-release enable tools testing
       apt-get update
-      INSTALL_LIST="git python3.7 python3.7-dev valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev dh-systemd libsasl2-dev gcc g++ cmake curl"
+      if [ x"${DEBIAN}" = "xbullseye" ]; then
+        INSTALL_LIST="python3 python3-dev python3-pip"
+      else
+        INSTALL_LIST="python3.7 python3.7-dev dh-systemd"
+      fi
+      INSTALL_LIST="${INSTALL_LIST} git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
       INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev patchelf"
-      if [ x"${DEBIAN}" != "xstretch" ]; then
+      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" ]; then
         INSTALL_LIST="${INSTALL_LIST} python3.7-distutils"
       fi
       until apt-get -y install dirmngr; do
@@ -424,8 +441,12 @@ EOL
       install_golang
       install_gcc_8_deb
       wget https://bootstrap.pypa.io/get-pip.py
-      update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1
-      ln -sf /usr/bin/python3.7 /usr/bin/python3
+      if [ x"${DEBIAN}" = "xbullseye" ]; then
+        update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1
+      else
+        update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1
+        ln -sf /usr/bin/python3.7 /usr/bin/python3
+      fi
       python get-pip.py
       easy_install pip
       pip install setuptools
@@ -658,6 +679,10 @@ build_source_deb(){
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
+    if [ x"${DEBIAN}" = "xbullseye" ]; then
+        sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
+    fi
+    #
     mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.default
     mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.service
     #
@@ -722,6 +747,10 @@ build_deb(){
     cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
+    if [ x"${DEBIAN}" = "xbullseye" ]; then
+        sed -i 's:dh-systemd,::' debian/control
+        sed -i 's:etc/:/etc/:g' debian/percona-server-mongodb-server.conffiles
+    fi
     sed -i 's|VersionStr="$(git describe)"|VersionStr="$PSMDB_TOOLS_REVISION"|' mongo-tools/set_goenv.sh
     sed -i 's|Gitspec="$(git rev-parse HEAD)"|Gitspec="$PSMDB_TOOLS_COMMIT_HASH"|' mongo-tools/set_goenv.sh
     sed -i 's|go build|go build -a -x|' mongo-tools/build.sh
