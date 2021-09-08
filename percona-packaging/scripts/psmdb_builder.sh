@@ -245,7 +245,7 @@ install_gcc_54_deb(){
     if [ x"${DEBIAN}" = xcosmic -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco ]; then
         apt-get -y install gcc-5 g++-5
     fi
-    if [ x"${DEBIAN}" = xstretch -o x"${DEBIAN}" = xbuster ]; then
+    if [ x"${DEBIAN}" = xstretch -o x"${DEBIAN}" = xbuster -o x"${DEBIAN}" = xbullseye ]; then
         wget https://jenkins.percona.com/downloads/gcc-5.4.0/gcc-5.4.0_Debian-${DEBIAN}-x64.tar.gz -O /tmp/gcc-5.4.0_Debian-${DEBIAN}-x64.tar.gz
         tar -zxf /tmp/gcc-5.4.0_Debian-${DEBIAN}-x64.tar.gz
         rm -rf /usr/local/gcc-5.4.0
@@ -391,8 +391,11 @@ EOL
       wget https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb && dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb
       percona-release enable tools testing
       apt-get -y update
-      INSTALL_LIST="git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev dh-systemd libsasl2-dev gcc g++ cmake curl patchelf"
-      if [ x"${DEBIAN}" = xfocal ]; then
+      INSTALL_LIST="git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl patchelf"
+      if [ x"${DEBIAN}" != xbullseye ]; then
+          INSTALL_LIST="${INSTALL_LIST} dh-systemd"
+      fi
+      if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbullseye ]; then
           INSTALL_LIST="${INSTALL_LIST} python2 python2-dev "
       else
           INSTALL_LIST="${INSTALL_LIST} python python-dev "
@@ -410,7 +413,7 @@ EOL
       install_golang
       install_gcc_54_deb
       wget https://bootstrap.pypa.io/pip/2.7/get-pip.py
-      if [ x"${DEBIAN}" = "xfocal" ]; then
+      if [ x"${DEBIAN}" = "xfocal" -o x"${DEBIAN}" = xbullseye ]; then
           ln -s /usr/bin/python2 /usr/bin/python
       fi
       python get-pip.py
@@ -633,6 +636,10 @@ build_source_deb(){
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
+    if [ x"${DEBIAN}" = "xbullseye" ]; then
+        sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
+    fi
+    #
     mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.default
     mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.service
     #
@@ -693,6 +700,10 @@ build_deb(){
     cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
+    if [ x"${DEBIAN}" = "xbullseye" ]; then
+        sed -i 's:dh-systemd,::' debian/control
+        sed -i 's:etc/:/etc/:g' debian/percona-server-mongodb-server.conffiles
+    fi
     sed -i 's|VersionStr="$(git describe)"|VersionStr="$PSMDB_TOOLS_REVISION"|' mongo-tools/set_goenv.sh
     sed -i 's|Gitspec="$(git rev-parse HEAD)"|Gitspec="$PSMDB_TOOLS_COMMIT_HASH"|' mongo-tools/set_goenv.sh
     sed -i 's|go build|go build -a -x|' mongo-tools/build.sh
