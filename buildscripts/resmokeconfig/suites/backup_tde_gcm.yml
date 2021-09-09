@@ -21,4 +21,3 @@ executor:
           encryptionKeyFile: *keyFile
           encryptionCipherMode: *cipherMode
       nodb: ''
-      readMode: commands

@@ -5,9 +5,7 @@ selector:
   - jstests/knobs/knobs.js
 
 executor:
-  config:
-    shell_options:
-      readMode: commands
+  config: {}
   fixture:
     class: MongoDFixture
     mongod_options:

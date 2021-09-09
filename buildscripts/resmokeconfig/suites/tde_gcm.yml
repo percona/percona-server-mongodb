@@ -20,4 +20,3 @@ executor:
           keyFileWrong: *keyFileWrong
           cipherMode: *cipherMode
       nodb: ''
-      readMode: commands

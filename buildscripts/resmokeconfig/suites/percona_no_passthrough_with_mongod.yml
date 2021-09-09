@@ -5,9 +5,7 @@ selector:
   - jstests/percona/noPassthroughWithMongod/*.js
 
 executor:
-  config:
-    shell_options:
-      readMode: commands
+  config: {}
   hooks:
   - class: ValidateCollections
   - class: CleanEveryN

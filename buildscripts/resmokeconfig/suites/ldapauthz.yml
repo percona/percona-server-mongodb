@@ -17,4 +17,3 @@ executor:
           ldapQueryPassword: 'password'
           ldapAuthzQueryTemplate: 'dc=percona,dc=com??sub?(&(objectClass=groupOfNames)(member={USER}))'
       nodb: ''
-      readMode: commands

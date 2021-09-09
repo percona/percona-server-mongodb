@@ -20,4 +20,3 @@ executor:
           enableEncryption: ''
           encryptionKeyFile: *keyFile
           encryptionCipherMode: *cipherMode
-      readMode: commands
