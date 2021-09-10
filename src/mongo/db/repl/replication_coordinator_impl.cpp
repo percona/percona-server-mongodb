@@ -1902,7 +1902,8 @@ void ReplicationCoordinatorImpl::_killConflictingOpsOnStepUpAndStepDown(
         // Don't kill step up/step down thread.
         if (toKill && !toKill->isKillPending() && toKill->getOpID() != rstlOpCtx->getOpID()) {
             auto locker = toKill->lockState();
-            if (locker->wasGlobalLockTakenInModeConflictingWithWrites() ||
+            if (toKill->shouldAlwaysInterruptAtStepDownOrUp() ||
+                locker->wasGlobalLockTakenInModeConflictingWithWrites() ||
                 PrepareConflictTracker::get(toKill).isWaitingOnPrepareConflict()) {
                 serviceCtx->killOperation(lk, toKill, reason);
                 arsc->incrementUserOpsKilled();
@@ -2048,6 +2049,17 @@ void ReplicationCoordinatorImpl::stepDown(OperationContext* opCtx,
             "not primary so can't step down",
             getMemberState().primary());
 
+    // This makes us tell the 'isMaster' command we can't accept writes (though in fact we can,
+    // it is not valid to disable writes until we actually acquire the RSTL).
+    {
+        stdx::lock_guard lk(_mutex);
+        _waitingForRSTLAtStepDown++;
+    }
+    auto clearStepDownFlag = makeGuard([&] {
+        stdx::lock_guard lk(_mutex);
+        _waitingForRSTLAtStepDown--;
+    });
+
     CurOpFailpointHelpers::waitWhileFailPointEnabled(
         &stepdownHangBeforeRSTLEnqueue, opCtx, "stepdownHangBeforeRSTLEnqueue");
 
@@ -2081,6 +2093,10 @@ void ReplicationCoordinatorImpl::stepDown(OperationContext* opCtx,
     auto action = _updateMemberStateFromTopologyCoordinator(lk);
     invariant(action == PostMemberStateUpdateAction::kActionNone);
     invariant(!_readWriteAbility->canAcceptNonLocalWrites(lk));
+
+    // We truly cannot accept writes now so  no need for this flag any more.
+    _waitingForRSTLAtStepDown--;
+    clearStepDownFlag.dismiss();
 
     auto updateMemberState = [&] {
         invariant(lk.owns_lock());
@@ -2496,6 +2512,10 @@ void ReplicationCoordinatorImpl::fillIsMasterForReplSet(
         // Report that we are secondary to ismaster callers until drain completes.
         response->setIsMaster(false);
         response->setIsSecondary(true);
+    }
+
+    if (_waitingForRSTLAtStepDown) {
+        response->setIsMaster(false);
     }
 
     if (_inShutdown) {
@@ -3724,7 +3744,10 @@ boost::optional<OpTimeAndWallTime> ReplicationCoordinatorImpl::_chooseStableOpTi
     // There is a valid stable optime.
     else {
         auto stableOpTime = *std::prev(upperBoundIter);
-        invariant(stableOpTime.opTime.getTimestamp() <= maximumStableTimestamp);
+        invariant(stableOpTime.opTime.getTimestamp() <= maximumStableTimestamp,
+                  str::stream() << "stableOpTime: " << stableOpTime.opTime.toString()
+                                << " maximumStableTimestamp: "
+                                << maximumStableTimestamp.toString());
         return stableOpTime;
     }
 }
@@ -3767,8 +3790,12 @@ boost::optional<OpTimeAndWallTime> ReplicationCoordinatorImpl::_recalculateStabl
     auto commitPoint = _topCoord->getLastCommittedOpTimeAndWallTime();
     if (_currentCommittedSnapshot) {
         auto snapshotOpTime = _currentCommittedSnapshot->opTime;
-        invariant(snapshotOpTime.getTimestamp() <= commitPoint.opTime.getTimestamp());
-        invariant(snapshotOpTime <= commitPoint.opTime);
+        invariant(snapshotOpTime.getTimestamp() <= commitPoint.opTime.getTimestamp(),
+                  str::stream() << "snapshotOpTime: " << snapshotOpTime.toString()
+                                << " commitPoint: " << commitPoint.opTime.toString());
+        invariant(snapshotOpTime <= commitPoint.opTime,
+                  str::stream() << "snapshotOpTime: " << snapshotOpTime.toString()
+                                << " commitPoint: " << commitPoint.opTime.toString());
     }
 
     // When majority read concern is disabled, the stable opTime is set to the lastApplied, rather
@@ -3782,9 +3809,14 @@ boost::optional<OpTimeAndWallTime> ReplicationCoordinatorImpl::_recalculateStabl
         _chooseStableOpTimeFromCandidates(lk, _stableOpTimeCandidates, maximumStableOpTime);
     if (stableOpTime) {
         // Check that the selected stable optime does not exceed our maximum.
-        invariant(stableOpTime.get().opTime.getTimestamp() <=
-                  maximumStableOpTime.opTime.getTimestamp());
-        invariant(stableOpTime.get().opTime <= maximumStableOpTime.opTime);
+        invariant(
+            stableOpTime.get().opTime.getTimestamp() <= maximumStableOpTime.opTime.getTimestamp(),
+            str::stream() << "stableOpTime: " << stableOpTime.get().opTime.toString()
+                          << " maximumStableOpTime: " << maximumStableOpTime.opTime.toString());
+        invariant(stableOpTime.get().opTime <= maximumStableOpTime.opTime,
+                  str::stream() << "stableOpTime: " << stableOpTime.get().opTime.toString()
+                                << " maximumStableOpTime: "
+                                << maximumStableOpTime.opTime.toString());
     }
 
     return stableOpTime;
