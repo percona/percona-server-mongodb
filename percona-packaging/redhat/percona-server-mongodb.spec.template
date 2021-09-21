@@ -394,12 +394,6 @@ fi
 %if 0%{?rhel} >= 7
 %systemd_postun mongod.service
 %endif
-if [ $1 == 0 ]; then
-  if /usr/bin/id -g %{MONGO_USER} > /dev/null 2>&1; then
-    /usr/sbin/userdel %{MONGO_USER} > /dev/null 2>&1
-    /usr/sbin/groupdel %{MONGO_USER} > /dev/null 2>&1 || true
-  fi
-fi
 
 %posttrans server
 if [ -f '/tmp/mongod_user_id' ] && [ -f '/tmp/mongod_group_id' ]; then
