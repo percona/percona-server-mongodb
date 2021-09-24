@@ -429,6 +429,11 @@ Status initializeSharding(OperationContext* opCtx) {
         return status;
     }
 
+    status = preWarmConnectionPool(opCtx);
+    if (!status.isOK()) {
+        return status;
+    }
+
     Grid::get(opCtx)->setShardingInitialized();
 
     return Status::OK();
