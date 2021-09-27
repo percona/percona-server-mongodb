@@ -104,7 +104,7 @@ Group:          Applications/Databases
 Summary:        The tools package for Percona Server for MongoDB
 %description tools
 This package contains various tools from MongoDB project, recompiled for Percona Server for MongoDB
-Conflicts: Percona-Server-MongoDB-tools Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools
+Conflicts: Percona-Server-MongoDB-tools Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
 
 %prep
 
