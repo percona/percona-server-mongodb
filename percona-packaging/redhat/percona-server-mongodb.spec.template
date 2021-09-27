@@ -110,7 +110,7 @@ This package contains the Percona Server for MongoDB shell
 %package tools
 Group:          Applications/Databases
 Summary:        The tools package for Percona Server for MongoDB
-Obsoletes: Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools
+Obsoletes: Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
 
 %description tools
 This package contains various tools from MongoDB project, recompiled for Percona Server for MongoDB
