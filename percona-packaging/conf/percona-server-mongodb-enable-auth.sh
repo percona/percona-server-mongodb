@@ -164,7 +164,7 @@ if [ ! -f /tmp/mongodb_create.lock ]; then
         echo "Would you like help creating your first user?"
         if [[ $QUIET -eq 0 ]]; then
             echo "Please note that mongodb service could be restarted during this action"
-            read -t 15 -p "Would you like to proceed?(Y/n)" setup_auth
+            read -t 15 -p "Would you like to proceed?(y/n)" setup_auth
         else
             setup_auth="y"
         fi
