@@ -42,6 +42,7 @@
 #include "mongo/db/exec/working_set_common.h"
 #include "mongo/db/matcher/extensions_callback_real.h"
 #include "mongo/db/pipeline/variables.h"
+#include "mongo/db/query/collation/collator_factory_interface.h"
 #include "mongo/db/query/cursor_response.h"
 #include "mongo/db/query/explain.h"
 #include "mongo/db/query/find.h"
@@ -73,6 +74,21 @@ std::unique_ptr<QueryRequest> parseCmdObjectToQueryRequest(OperationContext* opC
         qr->setRuntimeConstants(Variables::generateRuntimeConstants(opCtx));
     }
     return qr;
+}
+
+boost::intrusive_ptr<ExpressionContext> makeExpressionContext(OperationContext* opCtx,
+                                                              const QueryRequest& queryRequest) {
+    std::unique_ptr<CollatorInterface> collator;
+    if (!queryRequest.getCollation().isEmpty()) {
+        collator = uassertStatusOK(CollatorFactoryInterface::get(opCtx->getServiceContext())
+                                       ->makeFromBSON(queryRequest.getCollation()));
+    }
+
+    boost::intrusive_ptr<ExpressionContext> expCtx(
+        new ExpressionContext(opCtx, std::move(collator), queryRequest.getRuntimeConstants()));
+    expCtx->startExpressionCounters();
+
+    return expCtx;
 }
 
 /**
@@ -185,7 +201,7 @@ public:
 
             // Finish the parsing step by using the QueryRequest to create a CanonicalQuery.
             const ExtensionsCallbackReal extensionsCallback(opCtx, &nss);
-            const boost::intrusive_ptr<ExpressionContext> expCtx;
+            auto expCtx = makeExpressionContext(opCtx, *qr);
             auto cq = uassertStatusOK(
                 CanonicalQuery::canonicalize(opCtx,
                                              std::move(qr),
@@ -300,9 +316,20 @@ public:
                     !qr->getReadAtClusterTime() || storageEngine->supportsDocLocking());
 
             // Validate term before acquiring locks, if provided.
-            if (auto term = qr->getReplicationTerm()) {
+            auto term = qr->getReplicationTerm();
+            if (term) {
                 // Note: updateTerm returns ok if term stayed the same.
                 uassertStatusOK(replCoord->updateTerm(opCtx, *term));
+            }
+
+            // The presence of a term in the request indicates that this is an internal replication
+            // oplog read request.
+            if (term && parsedNss == NamespaceString::kRsOplogNamespace) {
+                // We do not want to take tickets for internal (replication) oplog reads. Stalling
+                // on ticket acquisition can cause complicated deadlocks. Primaries may depend on
+                // data reaching secondaries in order to proceed; and secondaries may get stalled
+                // replicating because of an inability to acquire a read ticket.
+                opCtx->lockState()->skipAcquireTicket();
             }
 
             // We call RecoveryUnit::setTimestampReadSource() before acquiring a lock on the
@@ -383,7 +410,7 @@ public:
 
             // Finish the parsing step by using the QueryRequest to create a CanonicalQuery.
             const ExtensionsCallbackReal extensionsCallback(opCtx, &nss);
-            const boost::intrusive_ptr<ExpressionContext> expCtx;
+            auto expCtx = makeExpressionContext(opCtx, *qr);
             auto cq = uassertStatusOK(
                 CanonicalQuery::canonicalize(opCtx,
                                              std::move(qr),
