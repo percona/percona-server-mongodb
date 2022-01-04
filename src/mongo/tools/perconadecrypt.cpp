@@ -41,6 +41,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/initializer.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/encryption_vault.h"
+#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/tools/perconadecrypt_options.h"
 #include "mongo/util/base64.h"
 #include "mongo/util/exit_code.h"
@@ -220,7 +221,10 @@ int decryptMain(int argc, char** argv, char** envp) {
 
     try{
         std::string encoded_key;
-        if (!encryptionGlobalParams.vaultServerName.empty()) {
+        if (!encryptionGlobalParams.kmipServerName.empty()) {
+            std::cout << "Loading encryption key from the KMIP server" << std::endl;
+            encoded_key = kmipReadKey();
+        } else if (!encryptionGlobalParams.vaultServerName.empty()) {
             if (encryptionGlobalParams.vaultToken.empty()) {
                 if (!boost::filesystem::exists(encryptionGlobalParams.vaultTokenFile)) {
                     throw std::runtime_error(std::string("specified Vault tokne file doesn't exist: ")

@@ -48,6 +48,7 @@ void printPerconaDecryptHelp(std::ostream* out) {
     *out << "Usage:" << std::endl
          << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> --encryptionKeyFile <key path>" << std::endl
          << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> --vaultServerName <server name> [other Vault options]" << std::endl
+         << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> --kmipServerName <server name> [other KMIP options]" << std::endl
          << "    perconadecrypt --help" << std::endl;
     *out << moe::startupOptions.helpString();
     *out << std::flush;
@@ -73,8 +74,8 @@ bool handlePreValidationPerconaDecryptOptions(const moe::Environment& params) {
 
 Status storePerconaDecryptOptions(const moe::Environment& params,
                                const std::vector<std::string>& args) {
-    if (!params.count("encryptionKeyFile") && !params.count("vaultServerName")) {
-        return {ErrorCodes::BadValue, "Missing required option: one of --encryptionKeyFile and --vaultServerName must be specified"};
+    if (!params.count("encryptionKeyFile") && !params.count("vaultServerName") && !params.count("kmipServerName")) {
+        return {ErrorCodes::BadValue, "Missing required option: one of --encryptionKeyFile, --vaultServerName or --kmipServerName must be specified"};
     }
 
     if (params.count("encryptionKeyFile")) {
@@ -105,6 +106,29 @@ Status storePerconaDecryptOptions(const moe::Environment& params,
         encryptionGlobalParams.vaultDisableTLS = params["vaultDisableTLSForTesting"].as<bool>();
     }
 
+    if (params.count("kmipServerName")) {
+        encryptionGlobalParams.kmipServerName = params["kmipServerName"].as<std::string>();
+    }
+
+    if (params.count("kmipPort")) {
+        encryptionGlobalParams.kmipPort = params["kmipPort"].as<int>();
+    }
+
+    if (params.count("kmipServerCAFile")) {
+        encryptionGlobalParams.kmipServerCAFile = params["kmipServerCAFile"].as<std::string>();
+    }
+
+    if (params.count("kmipClientCertificateFile")) {
+        encryptionGlobalParams.kmipClientCertificateFile = params["kmipClientCertificateFile"].as<std::string>();
+    }
+
+    if (params.count("kmipClientKeyFile")) {
+        encryptionGlobalParams.kmipClientKeyFile = params["kmipClientKeyFile"].as<std::string>();
+    }
+
+    if (params.count("kmipKeyIdentifier")) {
+        encryptionGlobalParams.kmipKeyIdentifier = params["kmipKeyIdentifier"].as<std::string>();
+    }
 
     if (params.count("encryptionCipherMode")) {
         encryptionGlobalParams.encryptionCipherMode = params["encryptionCipherMode"].as<std::string>();

@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -35,27 +35,14 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-struct EncryptionGlobalParams {
-    bool enableEncryption{false};
-    std::string encryptionCipherMode{"AES256-CBC"};
-    std::string encryptionKeyFile;
-    std::string vaultServerName;
-    int vaultPort;
-    std::string vaultTokenFile;
-    std::string vaultToken;
-    std::string vaultSecret;
-    bool vaultRotateMasterKey{false};
-    std::string vaultServerCAFile;
-    bool vaultDisableTLS{false};
-    long vaultTimeout{15L};
-    std::string kmipServerName;
-    int kmipPort;
-    std::string kmipServerCAFile;
-    std::string kmipClientCertificateFile;
-    std::string kmipClientKeyFile;
-    std::string kmipKeyIdentifier;
-};
+// read master key from KMIP
+// throw std::runtime_error in case of issues
+// returns base64 encoded value
+std::string kmipReadKey();
 
-extern EncryptionGlobalParams encryptionGlobalParams;
+// write key to KMIP
+// 'key' should be base64 encoded string
+// returns true on success
+bool kmipWriteKey(std::string const& key);
 
 }  // namespace mongo

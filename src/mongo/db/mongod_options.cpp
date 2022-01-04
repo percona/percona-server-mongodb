@@ -168,9 +168,12 @@ Status validateMongodOptions(const moe::Environment& params) {
     if (params.count("security.enableEncryption")) {
         // One of the master key sources must be provided
         if (!params.count("security.encryptionKeyFile") &&
-            !params.count("security.vault.serverName")) {
+            !params.count("security.vault.serverName") &&
+            !params.count("security.kmip.serverName")) {
             return Status(ErrorCodes::BadValue,
-                          "security.encryptionKeyFile or security.vault.serverName is required when security.enableEncryption is specified");
+                          "security.encryptionKeyFile, security.vault.serverName or "
+                          "security.encryption.kmip.serverName is required when "
+                          "security.enableEncryption is specified");
         }
     }
 
@@ -486,6 +489,30 @@ Status storeMongodOptions(const moe::Environment& params) {
 
     if (params.count("security.vault.disableTLSForTesting")) {
         encryptionGlobalParams.vaultDisableTLS = params["security.vault.disableTLSForTesting"].as<bool>();
+    }
+
+    if (params.count("security.kmip.serverName")) {
+        encryptionGlobalParams.kmipServerName = params["security.kmip.serverName"].as<std::string>();
+    }
+
+    if (params.count("security.kmip.port")) {
+        encryptionGlobalParams.kmipPort = params["security.kmip.port"].as<int>();
+    }
+
+    if (params.count("security.kmip.serverCAFile")) {
+        encryptionGlobalParams.kmipServerCAFile = params["security.kmip.serverCAFile"].as<std::string>();
+    }
+
+    if (params.count("security.kmip.clientCertificateFile")) {
+        encryptionGlobalParams.kmipClientCertificateFile = params["security.kmip.clientCertificateFile"].as<std::string>();
+    }
+
+    if (params.count("security.kmip.clientKeyFile")) {
+        encryptionGlobalParams.kmipClientKeyFile = params["security.kmip.clientKeyFile"].as<std::string>();
+    }
+
+    if (params.count("security.kmip.keyIdentifier")) {
+        encryptionGlobalParams.kmipKeyIdentifier = params["security.kmip.keyIdentifier"].as<std::string>();
     }
 
     if (params.count("security.ldap.authz.queryTemplate")) {

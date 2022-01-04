@@ -38,6 +38,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/encryption_vault.h"
+#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
@@ -135,7 +136,25 @@ void EncryptionKeyDB::generate_secure_key(char key[]) {
 
 void EncryptionKeyDB::init_masterkey() {
     std::string encoded_key;
-    if (!encryptionGlobalParams.vaultServerName.empty()) {
+    if (!encryptionGlobalParams.kmipServerName.empty()) {
+        // read key from KMIP
+        encoded_key = kmipReadKey();
+        // empty key is returned when there was an error
+        // if this happens on first run (with empty keydb) then
+        // we can generate key here
+        if (encoded_key.empty()) {
+            if (!_just_created) {
+                throw std::runtime_error(
+                    "Cannot start. Master encryption key is absent in KMIP. Check "
+                    "configuration options.");
+            }
+            log() << "Master key is absent in KMIP. Generating and writing one.";
+            char newkey[_key_len];
+            generate_secure_key(newkey);
+            encoded_key = base64::encode(newkey, _key_len);
+            kmipWriteKey(encoded_key);
+        }
+    } else if (!encryptionGlobalParams.vaultServerName.empty()) {
         if (encryptionGlobalParams.vaultToken.empty()) {
             struct stat stats;
 

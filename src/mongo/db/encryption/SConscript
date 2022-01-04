@@ -15,11 +15,21 @@ env.Library(
 env.Library(
     target='encryption_vault',
     source=[
-    	'encryption_vault.cpp'
-    ],
-    LIBDEPS=[
+        'encryption_vault.cpp',
     ],
     SYSLIBDEPS=[
         'winhttp' if env.TargetOSIs('windows') else 'curl',
+    ],
+)
+
+env.InjectThirdParty(libraries=['kmippp'])
+
+env.Library(
+    target='encryption_kmip',
+    source=[
+        'encryption_kmip.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/third_party/shim_kmippp',
     ],
 )
