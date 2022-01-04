@@ -110,3 +110,42 @@ configs:
         arg_vartype: Switch
         requires: 'security.vault.serverName'
 
+    'security.kmip.serverName':
+        description: 'Hostname or IP address of the KMIP server'
+        short_name: kmipServerName
+        arg_vartype: String
+        requires: [ 'security.enableEncryption', 'security.kmip.port', 'security.kmip.serverCAFile', 'security.kmip.clientCertificateFile', 'security.kmip.clientKeyFile', 'security.kmip.keyIdentifier' ]
+        conflicts: ['security.encryptionKeyFile', 'security.vault.ServerName']
+
+    'security.kmip.port':
+        description: 'Port name the KMIP server is listening on'
+        short_name: kmipPort
+        arg_vartype: Int
+        requires: 'security.kmip.serverName'
+        validator:
+            gte: 0
+            lte: 65535
+
+    'security.kmip.serverCAFile':
+        description: 'Name of the KMIP server CA file'
+        short_name: kmipServerCAFile
+        arg_vartype: String
+        requires: 'security.kmip.serverCAFile'
+
+    'security.kmip.clientCertificateFile':
+        description: 'Name of the KMIP client CA file'
+        short_name: kmipClientCertificateFile
+        arg_vartype: String
+        requires: 'security.kmip.clientCertificateFile'
+
+    'security.kmip.clientKeyFile':
+        description: 'Name of the KMIP client key file'
+        short_name: kmipClientKeyFile
+        arg_vartype: String
+        requires: 'security.kmip.clientKeyFile'
+
+    'security.kmip.keyIdentifier':
+        description: 'Name of the KMIP key to use'
+        short_name: kmipKeyIdentifier
+        arg_vartype: String
+        requires: 'security.kmip.keyIdentifier'

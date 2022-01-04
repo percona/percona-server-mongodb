@@ -43,6 +43,7 @@ perconadecrypt = env.Program(
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/encryption/encryption_options',
         '$BUILD_DIR/mongo/db/encryption/encryption_vault',
+        '$BUILD_DIR/mongo/db/encryption/encryption_kmip',
         '$BUILD_DIR/mongo/util/options_parser/options_parser_init',
     ],
 )

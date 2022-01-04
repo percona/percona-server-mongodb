@@ -115,3 +115,44 @@ configs:
     short_name: vaultDisableTLSForTesting
     arg_vartype: Switch
     requires: vaultServerName
+
+  kmipServerName:
+    description: "hostname or IP address of the KMIP server"
+    short_name: kmipServerName
+    arg_vartype: String
+    requires: [ kmipPort, kmipServerCAFile, kmipClientCertificateFile, kmipClientKeyFile, kmipKeyIdentifier ]
+    conflicts: encryptionKeyFile
+
+  kmipPort:
+    description: "port name the KMIP server is listening on"
+    short_name: kmipPort
+    arg_vartype: Int
+    requires: kmipServerName
+    validator:
+      gte: 0
+      lte: 65535
+
+  kmipServerCAFile:
+    description: >-
+      CA certificate that was used to sign KMIP's certificates
+    short_name: kmipServerCAFile
+    arg_vartype: String
+    requires: kmipServerName
+
+  kmipClientCertificateFile:
+    description: Name of the KMIP CA file to use
+    short_name: kmipClientCertificateFile
+    arg_vartype: String
+    requires: kmipServerName
+
+  kmipClientKeyFile:
+    description: Name of the KMIP CA key to use
+    short_name: kmipClientKeyFile
+    arg_vartype: String
+    requires: kmipServerName
+
+  kmipKeyIdentifier:
+    description: Name of the KMIP key to use
+    short_name: kmipKeyIdentifier
+    arg_vartype: String
+    requires: kmipServerName
