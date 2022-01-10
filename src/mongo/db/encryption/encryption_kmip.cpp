@@ -44,20 +44,12 @@ kmippp::context kmipCreateContext() {
                            encryptionGlobalParams.kmipServerCAFile};
 }
 
-auto kmipKeyName() {
-    const std::string keyName = encryptionGlobalParams.kmipKeyIdentifier.empty()
-        ? "todo"
-        : encryptionGlobalParams.kmipKeyIdentifier;
-    return keyName;
-}
-
 }  // namespace
 
 std::string kmipReadKey() {
-    const auto keyName = kmipKeyName();
     auto ctx = kmipCreateContext();
 
-    const auto id = ctx.op_locate(keyName);
+    const auto id = ctx.op_locate(encryptionGlobalParams.kmipKeyIdentifier);
 
     if (id.empty()) {
         LOGV2_DEBUG(29044, 4, "Encryption key doesn't exists on KMIP server");
@@ -76,10 +68,9 @@ std::string kmipReadKey() {
 }
 
 bool kmipWriteKey(std::string const& key) {
-    const auto keyName = kmipKeyName();
     auto ctx = kmipCreateContext();
 
-    auto ret = ctx.op_register(keyName, "", kmippp::context::key_t(key.begin(), key.end()));
+    auto ret = ctx.op_register(encryptionGlobalParams.kmipKeyIdentifier, "", kmippp::context::key_t(key.begin(), key.end()));
 
     if (ret == "") {
         LOGV2_ERROR(29046, "Couldn't save encryption key on KMIP server.");

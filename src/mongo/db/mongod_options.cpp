@@ -176,7 +176,9 @@ Status validateMongodOptions(const moe::Environment& params) {
             !params.count("security.vault.serverName") &&
             !params.count("security.kmip.serverName")) {
             return Status(ErrorCodes::BadValue,
-                          "security.encryptionKeyFile or security.vault.serverName is required when security.enableEncryption is specified");
+                          "security.encryptionKeyFile, security.vault.serverName or "
+                          "security.encryption.kmip.serverName is required when "
+                          "security.enableEncryption is specified");
         }
     }
 

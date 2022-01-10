@@ -53,7 +53,7 @@ struct EncryptionGlobalParams {
     std::string kmipServerCAFile;
     std::string kmipClientCertificateFile;
     std::string kmipClientKeyFile;
-    std::string kmipKeyIdentifier; // TODO!
+    std::string kmipKeyIdentifier;
 };
 
 extern EncryptionGlobalParams encryptionGlobalParams;

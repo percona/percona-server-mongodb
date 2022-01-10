@@ -15,13 +15,23 @@ env.Library(
 env.Library(
     target='encryption_vault',
     source=[
-    	'encryption_vault.cpp',
-    	'encryption_kmip.cpp'
+    	'encryption_vault.cpp'
     ],
     LIBDEPS=[
     ],
     SYSLIBDEPS=[
         'winhttp' if env.TargetOSIs('windows') else 'curl',
+    ],
+)
+
+env.Library(
+    target='encryption_kmip',
+    source=[
+    	'encryption_kmip.cpp'
+    ],
+    LIBDEPS=[
+    ],
+    SYSLIBDEPS=[
         'kmippp',
         'kmip'
     ],
