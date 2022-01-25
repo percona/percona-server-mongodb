@@ -109,6 +109,8 @@ MONGO_FAIL_POINT_DEFINE(holdStableTimestampAtSpecificTimestamp);
 MONGO_FAIL_POINT_DEFINE(stepdownHangBeforeRSTLEnqueue);
 // Fail setMaintenanceMode with ErrorCodes::NotSecondary to simulate a concurrent election.
 MONGO_FAIL_POINT_DEFINE(setMaintenanceModeFailsWithNotSecondary);
+// Hang after grabbing the RSTL but before we start rejecting writes.
+MONGO_FAIL_POINT_DEFINE(stepdownHangAfterGrabbingRSTL);
 
 // Tracks the last state transition performed in this replca set.
 std::string lastStateTransition;
@@ -737,11 +739,8 @@ void ReplicationCoordinatorImpl::_startDataReplication(OperationContext* opCtx,
             const auto lastApplied = opTimeStatus.getValue();
             _setMyLastAppliedOpTimeAndWallTime(
                 lock, lastApplied, false, DataConsistency::Consistent);
-        }
 
-        // Clear maint. mode.
-        while (getMaintenanceMode()) {
-            setMaintenanceMode(false).transitional_ignore();
+            _topCoord->resetMaintenanceCount();
         }
 
         if (startCompleted) {
@@ -2075,6 +2074,9 @@ void ReplicationCoordinatorImpl::stepDown(OperationContext* opCtx,
     AutoGetRstlForStepUpStepDown arsd(
         this, opCtx, ReplicationCoordinator::OpsKillingStateTransitionEnum::kStepDown, deadline);
 
+    CurOpFailpointHelpers::waitWhileFailPointEnabled(
+        &stepdownHangAfterGrabbingRSTL, opCtx, "stepdownHangAfterGrabbingRSTL");
+
     stdx::unique_lock<Latch> lk(_mutex);
 
     opCtx->checkForInterrupt();
@@ -2570,11 +2572,14 @@ bool ReplicationCoordinatorImpl::getMaintenanceMode() {
     return _topCoord->getMaintenanceCount() > 0;
 }
 
-Status ReplicationCoordinatorImpl::setMaintenanceMode(bool activate) {
+Status ReplicationCoordinatorImpl::setMaintenanceMode(OperationContext* opCtx, bool activate) {
     if (getReplicationMode() != modeReplSet) {
         return Status(ErrorCodes::NoReplicationEnabled,
                       "can only set maintenance mode on replica set members");
     }
+
+    // It is possible that we change state to or from RECOVERING. Thus, we need the RSTL in X mode.
+    ReplicationStateTransitionLockGuard transitionGuard(opCtx, MODE_X);
 
     stdx::unique_lock<Latch> lk(_mutex);
     if (_topCoord->getRole() == TopologyCoordinator::Role::kCandidate ||
@@ -2864,6 +2869,13 @@ Status ReplicationCoordinatorImpl::processReplSetInitiate(OperationContext* opCt
     if (!serverGlobalParams.enableMajorityReadConcern) {
         _shouldSetStableTimestamp = false;
     }
+    auto setStableTimestampGuard = makeGuard([&] {
+        lockAndCall(&lk, [=] {
+            if (!serverGlobalParams.enableMajorityReadConcern) {
+                _shouldSetStableTimestamp = true;
+            }
+        });
+    });
 
     lk.unlock();
 
@@ -2924,6 +2936,7 @@ Status ReplicationCoordinatorImpl::processReplSetInitiate(OperationContext* opCt
 
     // Set our stable timestamp for storage and re-enable stable timestamp advancement after we have
     // set our initial data timestamp.
+    setStableTimestampGuard.dismiss();
     if (!serverGlobalParams.enableMajorityReadConcern) {
         stdx::unique_lock<Latch> lk(_mutex);
         _shouldSetStableTimestamp = true;

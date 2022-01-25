@@ -56,6 +56,7 @@ const BSONField<BSONObj> CollectionType::keyPattern("key");
 const BSONField<BSONObj> CollectionType::defaultCollation("defaultCollation");
 const BSONField<bool> CollectionType::unique("unique");
 const BSONField<UUID> CollectionType::uuid("uuid");
+const BSONField<bool> CollectionType::permitMigrations("permitMigrations");
 
 StatusWith<CollectionType> CollectionType::fromBSON(const BSONObj& source) {
     CollectionType coll;
@@ -192,6 +193,19 @@ StatusWith<CollectionType> CollectionType::fromBSON(const BSONObj& source) {
         }
     }
 
+    {
+        bool collPermitMigrations;
+        Status status =
+            bsonExtractBooleanField(source, permitMigrations.name(), &collPermitMigrations);
+        if (status.isOK()) {
+            coll._permitMigrations = collPermitMigrations;
+        } else if (status == ErrorCodes::NoSuchKey) {
+            // PermitMigrations can be missing.
+        } else {
+            return status;
+        }
+    }
+
     return StatusWith<CollectionType>(coll);
 }
 
@@ -267,6 +281,10 @@ BSONObj CollectionType::toBSON() const {
 
     if (_isAssignedShardKey) {
         builder.append(kIsAssignedShardKey, !_isAssignedShardKey.get());
+    }
+
+    if (_permitMigrations.is_initialized()) {
+        builder.append(permitMigrations.name(), _permitMigrations.get());
     }
 
     return builder.obj();
