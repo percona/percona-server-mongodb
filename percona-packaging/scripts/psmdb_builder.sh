@@ -208,6 +208,20 @@ get_system(){
     return
 }
 
+install_python3_7_12() {
+    if [ x"${DEBIAN}" = xxenial ]; then
+        wget https://www.python.org/ftp/python/3.7.12/Python-3.7.12.tgz -O /tmp/Python-3.7.12.tgz
+        CUR_DIR=$PWD
+        cd /tmp
+        tar -zxf Python-3.7.12.tgz
+        cd Python-3.7.12/
+        ./configure --enable-optimizations
+        make -j4 build_all
+        make altinstall
+        cd $CUR_DIR
+    fi
+}
+
 install_golang() {
     wget https://dl.google.com/go/go1.11.4.linux-amd64.tar.gz -O /tmp/golang1.11.tar.gz
     tar --transform=s,go,go1.11, -zxf /tmp/golang1.11.tar.gz
@@ -421,12 +435,14 @@ EOL
       apt-get update
       if [ x"${DEBIAN}" = "xbullseye" ]; then
         INSTALL_LIST="python3 python3-dev python3-pip"
+      elif [ x"${DEBIAN}" = "xxenial" ]; then
+        INSTALL_LIST="build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libreadline-dev libffi-dev libsqlite3-dev"
       else
         INSTALL_LIST="python3.7 python3.7-dev dh-systemd"
       fi
       INSTALL_LIST="${INSTALL_LIST} git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
-      INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev patchelf"
-      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" ]; then
+      INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf libexpat1-dev"
+      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" -a x"${DEBIAN}" != "xxenial" ]; then
         INSTALL_LIST="${INSTALL_LIST} python3.7-distutils"
       fi
       until apt-get -y install dirmngr; do
@@ -443,6 +459,11 @@ EOL
       wget https://bootstrap.pypa.io/get-pip.py
       if [ x"${DEBIAN}" = "xbullseye" ]; then
         update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1
+      elif [ x"${DEBIAN}" = "xxenial" ]; then
+        install_python3_7_12
+        update-alternatives --install /usr/bin/python python /usr/local/bin/python3.7 1
+        ln -sf /usr/local/bin/python3.7 /usr/bin/python3
+        sed -i 's/python3 /python3.5 /g' /usr/bin/lsb_release
       else
         update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1
         ln -sf /usr/bin/python3.7 /usr/bin/python3
@@ -679,7 +700,7 @@ build_source_deb(){
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
-    if [ x"${DEBIAN}" = "xbullseye" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" ]; then
         sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
     fi
     #
@@ -747,7 +768,7 @@ build_deb(){
     cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
-    if [ x"${DEBIAN}" = "xbullseye" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" ]; then
         sed -i 's:dh-systemd,::' debian/control
         sed -i 's:etc/:/etc/:g' debian/percona-server-mongodb-server.conffiles
     fi
@@ -987,6 +1008,13 @@ build_tarball(){
         done
     }
 
+    function fix_sasl_lib {
+        # Details are in ticket PSMDB-950
+        patchelf --remove-needed libsasl2.so.3 bin/mongod
+        patchelf --remove-needed libsasl2.so.3 bin/mongo
+        patchelf --remove-needed libsasl2.so bin/mongo
+    }
+
     function replace_libs {
         local elf_path=$1
         for libpath_sorted in ${LIBPATH}; do
@@ -1045,6 +1073,9 @@ build_tarball(){
         for DIR in ${DIRLIST}; do
             replace_libs ${DIR}
         done
+
+        # Use system libsasl2 for some binaries
+        fix_sasl_lib
 
         # Create and replace by sparse file to reduce size
         create_sparse bin
