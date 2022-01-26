@@ -355,7 +355,8 @@ install_deps() {
       fi
       if [ "x${RHEL}" == "x8" ]; then
         /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
-        /usr/bin/pip2.7 install --user typing pyyaml regex Cheetah
+        /usr/bin/pip2.7 install --user typing pyyaml Cheetah
+        /usr/bin/pip2.7 install --user regex
       fi
       wget https://curl.se/download/curl-7.66.0.tar.gz
       tar -xvzf curl-7.66.0.tar.gz
