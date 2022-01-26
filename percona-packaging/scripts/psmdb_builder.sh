@@ -378,10 +378,11 @@ install_deps() {
         yum -y install cyrus-sasl-devel snappy-devel zlib-devel bzip2-devel scons rpmlint
         yum -y install rpm-build git python-pip python-devel libopcodes libcurl-devel rpmlint e2fsprogs-devel expat-devel lz4-devel which
         yum -y install openldap-devel krb5-devel
-        pip install --upgrade pip
+        pip install --upgrade pip==20.3.4
         pip2.7 install --user setuptools --upgrade
         pip3.6 install --user typing pyyaml regex Cheetah3
-        pip2.7 install --user typing pyyaml regex Cheetah Cheetah3
+        pip2.7 install --user typing pyyaml Cheetah Cheetah3
+        pip2.7 install --user "regex==2021.11.10"
       else
         yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
         yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
@@ -392,6 +393,7 @@ install_deps() {
       if [ "x${RHEL}" == "x8" ]; then
         /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
         /usr/bin/pip2.7 install --user typing pyyaml regex Cheetah
+        /usr/bin/pip2.7 install --user "regex==2021.11.10"
       fi
 #
       wget http://curl.haxx.se/download/curl-7.66.0.tar.gz
