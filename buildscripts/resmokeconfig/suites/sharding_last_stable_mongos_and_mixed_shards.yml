@@ -132,6 +132,16 @@ selector:
   - jstests/sharding/safe_secondary_reads_causal_consistency.js
   # Enable the following once SERVER-55725 is backported to 4.0 (and prev. versions checked here).
   - jstests/sharding/time_zone_info_mongos.js
+  # Requires behavior that does not and will never exist in 3.6.
+  - jstests/sharding/retryable_mongos_write_errors.js
+  # Requires the fix for SERVER-58104 which was not backported to 3.6.
+  - jstests/sharding/balancing_sessions_collection_reshard.js
+  - jstests/sharding/collation_shard_targeting_hashed_shard_key.js
+
+  exclude_with_any_tags:
+  - multiversion_incompatible
+  - requires_fcv_40
+
 executor:
   config:
     shell_options:
