@@ -427,7 +427,7 @@ EOL
         apt-get -y update
       fi
       wget https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb && dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb
-      if [ x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" ]; then
+      if [ x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" ]; then
         add-apt-repository -y ppa:deadsnakes/ppa
       elif [ x"${DEBIAN}" = "xstretch" -o x"${DEBIAN}" = "xbuster" ]; then
         wget https://people.debian.org/~paravoid/python-all/unofficial-python-all.asc
