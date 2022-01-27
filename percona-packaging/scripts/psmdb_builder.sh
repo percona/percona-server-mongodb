@@ -380,9 +380,10 @@ install_deps() {
         yum -y install rpm-build git python-pip python-devel libopcodes libcurl-devel rpmlint e2fsprogs-devel expat-devel lz4-devel which
         yum -y install openldap-devel krb5-devel
         pip install --upgrade pip==20.3.4
-        pip2.7 install --user setuptools --upgrade
+        pip2.7 install --user "setuptools==44.1.1" --upgrade # https://setuptools.pypa.io/en/latest/python%202%20sunset.html
         pip3.6 install --user typing pyyaml regex Cheetah3
-        pip2.7 install --user typing pyyaml Cheetah Cheetah3
+        pip2.7 install --user typing Cheetah Cheetah3
+        pip2.7 install --user "pyyaml==5.4.1" # https://github.com/yaml/pyyaml/issues/476
         pip2.7 install --user "regex==2021.11.10"
       else
         yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
@@ -393,7 +394,8 @@ install_deps() {
       fi
       if [ "x${RHEL}" == "x8" ]; then
         /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
-        /usr/bin/pip2.7 install --user typing pyyaml Cheetah
+        /usr/bin/pip2.7 install --user typing Cheetah
+        /usr/bin/pip2.7 install --user "pyyaml==5.4.1" # https://github.com/yaml/pyyaml/issues/476
         /usr/bin/pip2.7 install --user "regex==2021.11.10"
       fi
 #
