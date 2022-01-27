@@ -358,6 +358,7 @@ install_deps() {
       percona-release enable tools testing
       yum clean all
       yum install -y patchelf
+      install_gcc_8_centos
       RHEL=$(rpm --eval %rhel)
       if [ x"$RHEL" = x6 ]; then
         yum -y update
@@ -404,7 +405,7 @@ install_deps() {
         make install
       cd ../
       install_golang
-      install_gcc_8_centos
+#      install_gcc_8_centos
       if [ -f /opt/rh/devtoolset-8/enable ]; then
         source /opt/rh/devtoolset-8/enable
         source /opt/rh/rh-python36/enable
