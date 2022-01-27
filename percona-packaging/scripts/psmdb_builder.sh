@@ -393,7 +393,7 @@ install_deps() {
       fi
       if [ "x${RHEL}" == "x8" ]; then
         /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
-        /usr/bin/pip2.7 install --user typing pyyaml regex Cheetah
+        /usr/bin/pip2.7 install --user typing pyyaml Cheetah
         /usr/bin/pip2.7 install --user "regex==2021.11.10"
       fi
 #
