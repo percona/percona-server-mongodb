@@ -1888,6 +1888,8 @@ void TopologyCoordinator::prepareStatusResponse(const ReplSetStatusArgs& rsStatu
                 appendOpTime(&bb, "optime", lastOpApplied);
                 bb.appendDate("optimeDate",
                               Date_t::fromDurationSinceEpoch(Seconds(lastOpApplied.getSecs())));
+                bb.appendDate("lastAppliedWallTime", it->getLastAppliedWallTime());
+                bb.appendDate("lastDurableWallTime", it->getLastDurableWallTime());
             }
 
             if (!_syncSource.empty() && !_iAmPrimary()) {
@@ -1946,6 +1948,9 @@ void TopologyCoordinator::prepareStatusResponse(const ReplSetStatusArgs& rsStatu
                 bb.appendDate("optimeDurableDate",
                               Date_t::fromDurationSinceEpoch(
                                   Seconds(it->getHeartbeatDurableOpTime().getSecs())));
+
+                bb.appendDate("lastAppliedWallTime", it->getLastAppliedWallTime());
+                bb.appendDate("lastDurableWallTime", it->getLastDurableWallTime());
             }
             bb.appendDate("lastHeartbeat", it->getLastHeartbeat());
             bb.appendDate("lastHeartbeatRecv", it->getLastHeartbeatRecv());
@@ -3344,6 +3349,7 @@ void TopologyCoordinator::processReplSetRequestVotes(const ReplSetRequestVotesAr
             if (!args.isADryRun()) {
                 _lastVote.setTerm(args.getTerm());
                 _lastVote.setCandidateIndex(args.getCandidateIndex());
+                LOGV2_DEBUG(5972100, 0, "Voting yes in election");
             }
             response->setVoteGranted(true);
         }

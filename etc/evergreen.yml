@@ -2085,7 +2085,6 @@ tasks:
           - "compile_expansions.yml"
           - "all_feature_flags.txt"  # Must correspond to the definition in buildscripts/idl/lib.py.
           - "jstests/**"
-          - "library_dependency_graph.json"
           - "patch_files.txt"
           - "evergreen/**"
           - "src/mongo/client/sdam/json_tests/sdam_tests/**"
@@ -9564,6 +9563,7 @@ buildvariants:
     gcov_environment: GCOV_PREFIX=$(pwd) GCOV_PREFIX_STRIP=4
     # Mixing --cache and --gcov doesn't work correctly yet. See SERVER-11084
     exec_timeout_secs: 16200 # 4.5 hour timeout
+    timeout_secs: 9000 # 2.5 hour idle timeout
     use_scons_cache: false
   tasks:
     - name: compile_test_and_package_serial_TG
@@ -10561,6 +10561,7 @@ buildvariants:
     push_name: linux
     push_arch: x86_64-enterprise-debian92
     compile_flags: --ssl MONGO_DISTMOD=debian92 -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
+    num_scons_link_jobs_available: 0.0625
     multiversion_platform: debian92
     multiversion_edition: enterprise
     has_packages: true
@@ -10606,6 +10607,7 @@ buildvariants:
     push_name: linux
     push_arch: x86_64-debian92
     compile_flags: --ssl MONGO_DISTMOD=debian92 -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
+    num_scons_link_jobs_available: 0.0625
     multiversion_platform: debian92
     multiversion_edition: targeted
     has_packages: true

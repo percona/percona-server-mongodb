@@ -102,6 +102,16 @@ last-continuous:
       test_file: jstests/sharding/test_resharding_test_fixture_shutdown_retry_needed.js
     - ticket: SERVER-59505
       test_file: jstests/core/timeseries/timeseries_find.js
+    - ticket: SERVER-57700
+      test_file: jstests/sharding/resharding_histogram_metrics.js
+    - ticket: SERVER-60567
+      test_file: jstests/core/sbe/sbe_cmd.js
+    - ticket: SERVER-59721
+      test_file: jstests/replsets/sync_source_selection_ignores_minvalid_after_rollback.js
+    - ticket: SERVER-59721
+      test_file: jstests/sharding/resharding_secondary_recovers_temp_ns_metadata.js
+    - ticket: SERVER-54909
+      test_file: jstests/replsets/replSetGetStatus_member_wall_times.js
 
   # Tests that should only be excluded from particular suites should be listed under that suite.
   suites:
@@ -364,6 +374,16 @@ last-lts:
       test_file: jstests/aggregation/range.js
     - ticket: SERVER-59923
       test_file: jstests/sharding/test_resharding_test_fixture_shutdown_retry_needed.js
+    - ticket: SERVER-57700
+      test_file: jstests/sharding/resharding_histogram_metrics.js
+    - ticket: SERVER-60567
+      test_file: jstests/core/sbe/sbe_cmd.js
+    - ticket: SERVER-59721
+      test_file: jstests/replsets/sync_source_selection_ignores_minvalid_after_rollback.js
+    - ticket: SERVER-59721
+      test_file: jstests/sharding/resharding_secondary_recovers_temp_ns_metadata.js
+    - ticket: SERVER-54909
+      test_file: jstests/replsets/replSetGetStatus_member_wall_times.js
 
   # Tests that should only be excluded from particular suites should be listed under that suite.
   suites:
