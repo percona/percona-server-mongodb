@@ -357,7 +357,6 @@ variables:
   - enterprise-windows-debug-unoptimized
   - enterprise-windows-inmem
   - enterprise-windows-required
-  - enterprise-windows-wtdevelop
   - ubuntu1804-debug-asan
   - ubuntu1804-debug-ubsan
   - ubuntu1804-debug-aubsan-lite-required
@@ -468,7 +467,6 @@ functions:
       directory: ${git_project_directory|src}
       revisions: # for each module include revision as <module_name> : ${<module_name>_rev}
         enterprise: ${enterprise_rev}
-        wtdevelop: ${wtdevelop_rev}
 
   # Get get the mongo repo, no modules. Useful for inspecting the commit history with the
   # `git` Python tool.
@@ -535,6 +533,16 @@ functions:
       remote_file: ${project}/${build_variant}/${revision}/dist/mongo-${build_id}.${ext|tgz}
       bucket: mciuploads
       local_file: src/mongo-binaries.tgz
+
+  "fetch dist debugsymbols": &fetch_dist_debugsymbols
+    command: s3.get
+    params:
+      aws_key: ${aws_key}
+      aws_secret: ${aws_secret}
+      remote_file: ${project}/${build_variant}/${revision}/dist/mongo-${build_id}-debugsymbols.${ext|tgz}
+      bucket: mciuploads
+      local_file: src/mongo-debugsymbols.tgz
+      optional: true
 
   "fetch binaries": &fetch_binaries
     command: s3.get
@@ -626,7 +634,7 @@ functions:
   "get buildnumber": &get_buildnumber
     command: keyval.inc
     params:
-      key: "${build_variant}_master"
+      key: "${build_variant}_v5.1"
       destination: "builder_num"
 
   "run diskstats": &run_diskstats
@@ -705,15 +713,6 @@ functions:
   "set up remote credentials":
     - *f_expansions_write
     - *set_up_remote_credentials
-
-  "call BF Suggestion service":
-    - *f_expansions_write
-    - command: subprocess.exec
-      params:
-        binary: bash
-        silent: true
-        args:
-          - "./src/evergreen/functions/bf_suggestion_service_call.sh"
 
   "upload debugsymbols": &upload_debugsymbols
     command: s3.put
@@ -1362,15 +1361,6 @@ functions:
         args:
           - "./src/evergreen/lint_fuzzer_sanity_all.sh"
 
-  "update patch failure history":
-    - *f_expansions_write
-    - command: subprocess.exec
-      type: test
-      params:
-        binary: bash
-        args:
-          - "./src/evergreen/update_patch_failure_history.sh"
-
   # Used by generator
   "run jstestfuzz":
     - *f_expansions_write
@@ -1983,7 +1973,6 @@ post:
   - func: "attach report"
   - func: "attach artifacts"
   - func: "save ec2 task artifacts"
-  - func: "call BF Suggestion service"
   - func: "attach wiki page"
   - func: "kill processes"
   - func: "save local client logs"
@@ -3260,6 +3249,22 @@ tasks:
       name: update_fuzzer
       require_multiversion: true
 
+## jstestfuzz standalone update time-series generational fuzzer ##
+- <<: *jstestfuzz_template
+  name: update_timeseries_fuzzer_gen
+  tags: ["updatefuzzer", "require_npm", "random_name", "multiversion"]
+  commands:
+  - func: "generate resmoke tasks"
+    vars:
+      <<: *jstestfuzz_config_vars
+      num_files: 5
+      num_tasks: 5
+      jstestfuzz_vars: --diffTestingMode timeseries
+      npm_command: update-fuzzer
+      suite: generational_fuzzer
+      resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
+      name: update_timeseries_fuzzer
+
 ## jstestfuzz replication update generational fuzzer ##
 - <<: *jstestfuzz_template
   name: update_fuzzer_replication_gen
@@ -3808,6 +3813,23 @@ tasks:
       resmoke_args: >-
         --storageEngine=wiredTiger
       name: resharding_fuzzer_idempotency
+
+- <<: *jstestfuzz_template
+  name: resharding_fuzzer_stepup_gen
+  tags: ["resharding_fuzzer", "require_npm", "random_name"]
+  commands:
+  - func: "generate resmoke tasks"
+    vars:
+      <<: *jstestfuzz_config_vars
+      num_files: 10
+      num_tasks: 5
+      npm_command: resharding-fuzzer
+      jstestfuzz_vars: >-
+        --numDonors 3 --numRecipients 3 --inPlace yes
+        --electionMech stepup --electionRole donor --electionRole recipient
+      suite: resharding_fuzzer
+      resmoke_args: --storageEngine=wiredTiger
+      name: resharding_fuzzer_stepup
 
 ## Tests that the multiversion test generation logic is not broken.
 - <<: *gen_task_template
@@ -6014,8 +6036,8 @@ tasks:
         num_tasks: 20
         exec_timeout_secs: 604800 # 7 days
         timeout_secs: 604800 # 7 days
-        set_up_retry_count: 450
-        run_powercycle_args: --sshAccessRetryCount=450
+        set_up_retry_count: 1800
+        run_powercycle_args: --sshAccessRetryCount=1800
 
 - name: powercycle_sentinel
   tags: []
@@ -6533,6 +6555,7 @@ tasks:
         build_variants: [rhel70, windows]
     - func: "generate compile expansions"
     - func: "apply compile expansions"
+    - func: "fetch dist debugsymbols"
     - func: "set up remote credentials"
       vars:
         aws_key_remote: ${repo_aws_key}
@@ -7141,16 +7164,6 @@ tasks:
     vars:
       resmoke_args: --suites=mqlrun
 
-- name: update_patch_failure_history
-  # Time out the task if it runs for more than 8 hours. Provides buffer for
-  # when the Evergreen API is busy.
-  exec_timeout_secs: 28800
-  commands:
-    - func: "do non-compile setup"
-    - *f_expansions_write
-    - func: "configure evergreen api credentials"
-    - func: "update patch failure history"
-
 - name: check_feature_flag_tags
   tags: []
   patch_only: true
@@ -7415,12 +7428,7 @@ modules:
 - name: enterprise
   repo: git@github.com:10gen/mongo-enterprise-modules.git
   prefix: src/mongo/db/modules
-  branch: master
-
-- name: wtdevelop
-  repo: git@github.com:wiredtiger/wiredtiger.git
-  prefix: src/third_party
-  branch: develop
+  branch: v5.1
 
 #######################################
 #            Buildvariants            #
@@ -7528,18 +7536,6 @@ buildvariants:
     distros:
     - rhel80-large
 
-- <<: *linux-64-debug-required-template
-  name: linux-64-debug-wtdevelop
-  display_name: "~ Linux DEBUG WiredTiger develop"
-  cron: "0 */4 * * *" # Every 4 hours starting at midnight
-  modules:
-  - wtdevelop
-  expansions:
-    use_wt_develop: true
-    resmoke_jobs_factor: 0.5  # Avoid starting too many mongod's
-    compile_flags: --dbg=on --opt=on -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars --enable-free-mon=on --enable-http-client=on
-    scons_cache_mode: nolinked
-    test_flags: --excludeWithAnyTags=requires_http_client
 
 - name: linux-64-duroff
   display_name: Linux (No Journal)
@@ -8393,15 +8389,6 @@ buildvariants:
   - name: powercycle_sentinel
   - name: powercycle_smoke_skip_compile_gen
 
-- name: stm-hourly-cron
-  display_name: "~ STM Hourly Cron"
-  cron: "0 * * * *" # Every hour
-  run_on:
-    - rhel80-small
-  stepback: false
-  tasks:
-    - name: update_patch_failure_history
-
 - name: security-daily-cron
   modules:
   - enterprise
@@ -8531,50 +8518,6 @@ buildvariants:
       - windows-vsCurrent-xlarge
   - name: unittest_shell_hang_analyzer_gen
 
-- <<: *enterprise-windows-required-template
-  name: enterprise-windows-all-feature-flags-required
-  display_name: "! Enterprise Windows (all feature flags)"
-  cron: "0 */4 * * *" # Every 4 hours starting at midnight
-  expansions:
-    burn_in_tests_build_variant: enterprise-windows-suggested
-    exe: ".exe"
-    additional_package_targets: archive-mongocryptd archive-mongocryptd-debug msi archive-mh archive-mh-debug
-    content_type: application/zip
-    compile_flags: --ssl MONGO_DISTMOD=windows CPPPATH="c:/sasl/include c:/snmp/include" LIBPATH="c:/sasl/lib c:/snmp/lib" -j$(bc <<< "$(grep -c '^processor' /proc/cpuinfo) / 1.5")  --win-version-min=win10
-    num_scons_link_jobs_available: 0.25
-    python: '/cygdrive/c/python/python37/python.exe'
-    ext: zip
-    scons_cache_scope: shared
-    multiversion_platform: windows
-    multiversion_edition: enterprise
-    jstestfuzz_num_generated_files: 35
-    target_resmoke_time: 20
-    max_sub_suites: 5
-    large_distro_name: windows-vsCurrent-large
-    # To force disable feature flags even on the all feature flags variant, please use this file:
-    # buildscripts/resmokeconfig/fully_disabled_feature_flags.yml
-    test_flags: >-
-        --runAllFeatureFlagTests
-        --excludeWithAnyTags=incompatible_with_windows_tls
-  tasks:
-    - name: compile_and_archive_dist_test_then_package_TG
-      distros:
-        - windows-vsCurrent-xlarge
-    - name: compile_build_tools_next_TG
-      distros:
-        - windows-vsCurrent-xlarge
-    - name: build_variant_gen
-    - name: burn_in_tests_gen
-    - name: noPassthrough_gen
-# Disabling as the following tests are not aware of feature flags.
-#    - name: buildscripts_test
-#    - name: server_discovery_and_monitoring_json_test_TG
-#    - name: server_selection_json_test_TG
-#    - name: compile_run_and_archive_dbtest_TG
-#      distros:
-#        - windows-vsCurrent-xlarge
-#    - name: unittest_shell_hang_analyzer_gen
-
 - &enterprise-windows-suggested-template
   name: enterprise-windows-suggested
   display_name: "* Enterprise Windows"
@@ -8641,70 +8584,6 @@ buildvariants:
     - name: snmp
     - name: unittest_shell_hang_analyzer_gen
 
-- <<: *enterprise-windows-suggested-template
-  name: enterprise-windows-all-feature-flags-suggested
-  display_name: "* Enterprise Windows (all feature flags)"
-  cron: "0 */4 * * *" # Every 4 hours starting at midnight
-  expansions:
-    exe: ".exe"
-    additional_package_targets: archive-mongocryptd archive-mongocryptd-debug msi archive-mh archive-mh-debug
-    content_type: application/zip
-    compile_flags: --ssl MONGO_DISTMOD=windows CPPPATH="c:/sasl/include c:/snmp/include" LIBPATH="c:/sasl/lib c:/snmp/lib" -j$(bc <<< "$(grep -c '^processor' /proc/cpuinfo) / 1.5") --win-version-min=win10
-    num_scons_link_jobs_available: 0.25
-    python: '/cygdrive/c/python/python37/python.exe'
-    ext: zip
-    scons_cache_scope: shared
-    multiversion_platform: windows
-    multiversion_edition: enterprise
-    jstestfuzz_num_generated_files: 35
-    target_resmoke_time: 20
-    max_sub_suites: 3
-    large_distro_name: windows-vsCurrent-large
-    # To force disable feature flags even on the all feature flags variant, please use this file:
-    # buildscripts/resmokeconfig/fully_disabled_feature_flags.yml
-    test_flags: >-
-        --runAllFeatureFlagTests
-        --excludeWithAnyTags=incompatible_with_windows_tls
-  tasks:
-    - name: compile_and_archive_dist_test_then_package_TG
-      distros:
-        - windows-vsCurrent-xlarge
-    - name: build_variant_gen
-    - name: audit
-    - name: auth_audit_gen
-    - name: causally_consistent_jscore_txns_passthrough
-      distros:
-        - windows-vsCurrent-large
-    - name: .encrypt !.aggregation !.replica_sets !.sharding !.jscore
-    - name: external_auth
-    - name: external_auth_aws
-    - name: external_auth_windows
-      distros:
-        - windows-2016-dc
-    - name: .jscore .common !.sharding
-    - name: jsCore_auth
-    - name: jsCore_ese
-    - name: jsCore_txns_large_txns_format
-    - name: .jstestfuzz .common
-    - name: mqlrun
-    - name: noPassthrough_gen
-    - name: noPassthroughWithMongod_gen
-    - name: .replica_sets .common !.ignore_non_generated_replica_sets_jscore_passthrough
-    - name: .replica_sets .multi_oplog !.ignore_non_generated_replica_sets_jscore_passthrough
-    - name: replica_sets_jscore_passthrough_gen
-    - name: replica_sets_ese_gen
-    - name: sasl
-    - name: .sharding .txns
-    - name: sharding_auth_gen
-    - name: sharding_auth_audit_gen
-    - name: sharding_ese_gen
-    - name: snmp
-# Disabling as the following tests are not aware of feature flags.
-#    - name: buildscripts_test
-#    - name: unittest_shell_hang_analyzer_gen
-#    - name: server_selection_json_test_TG
-#    - name: server_discovery_and_monitoring_json_test_TG
-
 - <<: *enterprise-windows-nopush-template
   name: enterprise-windows-benchmarks
   display_name: "~ Enterprise Windows (Benchmarks)"
@@ -8714,17 +8593,6 @@ buildvariants:
     distros:
     - windows-vsCurrent-large
   - name: .benchmarks
-
-- <<: *enterprise-windows-nopush-template
-  name: enterprise-windows-wtdevelop
-  display_name: "~ Enterprise Windows WiredTiger develop"
-  cron: "0 */4 * * *" # Every 4 hours starting at midnight
-  modules:
-  - enterprise
-  - wtdevelop
-  expansions:
-    <<: *enterprise-windows-nopush-expansions-template
-    use_wt_develop: true
 
 - name: enterprise-windows-inmem
   display_name: Enterprise Windows (inMemory)
@@ -9420,127 +9288,6 @@ buildvariants:
     distros:
       - rhel80-xlarge
 
-- &enterprise-rhel-80-64-bit-dynamic-all-feature-flags-required-template
-  name: enterprise-rhel-80-64-bit-dynamic-all-feature-flags-required
-  display_name: "! Shared Library Enterprise RHEL 8.0 (all feature flags)"
-  cron: "0 */4 * * *" # Every 4 hours starting at midnight
-  stepback: false
-  modules:
-  - enterprise
-  run_on:
-  - rhel80-small
-  expansions: &enterprise-rhel-80-64-bit-dynamic-all-feature-flags-expansions
-    additional_package_targets: archive-mongocryptd archive-mongocryptd-debug archive-mh archive-mh-debug
-    compile_flags: --ssl MONGO_DISTMOD=rhel80 -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars --link-model=dynamic
-    multiversion_platform: rhel80
-    multiversion_edition: enterprise
-    has_packages: false
-    scons_cache_scope: shared
-    scons_cache_mode: all
-    jstestfuzz_num_generated_files: 40
-    jstestfuzz_concurrent_num_files: 10
-    target_resmoke_time: 10
-    max_sub_suites: 5
-    large_distro_name: rhel80-medium
-    num_scons_link_jobs_available: 0.99
-    # To force disable feature flags even on the all feature flags variant, please use this file:
-    # buildscripts/resmokeconfig/fully_disabled_feature_flags.yml
-    test_flags: >-
-      --runAllFeatureFlagTests
-  tasks: &enterprise-rhel-80-64-bit-dynamic-all-feature-flags-tasks
-  - name: compile_test_and_package_parallel_core_stream_TG
-    distros:
-      - rhel80-large
-# Disabling as the following tests are not aware of feature flags.
-#  - name: compile_test_and_package_parallel_unittest_stream_TG
-#    distros:
-#      - rhel80-large
-#  - name: compile_test_and_package_parallel_dbtest_stream_TG
-#    distros:
-#    - rhel80-medium
-  - name: libdeps_graph_linting_TG
-    distros:
-      - rhel80-large
-  - name: build_variant_gen
-  - name: burn_in_tests_gen
-  - name: .aggfuzzer
-  - name: .aggregation
-  - name: audit
-  - name: .auth
-  - name: unittest_shell_hang_analyzer_gen
-  - name: .causally_consistent !.sharding
-  - name: .change_streams
-  - name: .change_stream_fuzzer
-  - name: .misc_js
-  - name: .concurrency !.large !.ubsan !.no_txns !.debug_only
-  - name: .concurrency .large !.ubsan !.no_txns !.debug_only
-    distros:
-    - rhel80-medium
-  - name: disk_wiredtiger
-  - name: .encrypt
-  - name: feature_flag_multiversion_gen
-  - name: idl_tests
-  - name: initial_sync_fuzzer_gen
-  - name: .integration
-    distros:
-    - rhel80-medium
-  - name: .jscore .common
-  - name: jsCore_minimum_batch_size
-  - name: jsCore_txns_large_txns_format
-  - name: jsonSchema
-  - name: .jstestfuzz !.flow_control  # Flow control jstestfuzz take longer.
-  - name: libunwind_tests
-  - name: mqlrun
-  - name: .multi_shard
-  - name: multi_stmt_txn_jscore_passthrough_with_migration_gen
-  - name: multiversion_gen
-  - name: powercycle_smoke
-  - name: .query_fuzzer
-  - name: .random_multiversion_ds
-  - name: .read_write_concern .large
-    distros:
-    - rhel80-medium
-  - name: .read_write_concern !.large
-  - name: .replica_sets !.encrypt !.auth
-    distros:
-    - rhel80-medium
-  - name: replica_sets_api_version_jscore_passthrough_gen
-  - name: replica_sets_reconfig_jscore_passthrough_gen
-  - name: replica_sets_reconfig_jscore_stepdown_passthrough_gen
-    distros:
-    - rhel80-medium
-  - name: replica_sets_reconfig_kill_primary_jscore_passthrough_gen
-    distros:
-    - rhel80-medium
-  - name: retryable_writes_jscore_passthrough_gen
-  - name: retryable_writes_jscore_stepdown_passthrough_gen
-    distros:
-    - rhel80-medium
-  - name: .read_only
-  - name: .rollbackfuzzer
-  - name: sasl
-  - name: search
-  - name: search_auth
-  - name: search_ssl
-  - name: session_jscore_passthrough
-  - name: .sharding .jscore !.wo_snapshot !.multi_stmt
-  - name: sharding_api_version_jscore_passthrough_gen
-  - name: .sharding .txns
-  - name: .sharding .common
-  - name: sharded_multi_stmt_txn_jscore_passthrough
-  - name: snmp
-  - name: .stitch
-  - name: .tenant_migration
-  - name: .updatefuzzer
-  - name: secondary_reads_passthrough_gen
-# Disabling as the following tests are not aware of feature flags.
-#  - name: server_discovery_and_monitoring_json_test_TG
-#    distros:
-#      - rhel80-large
-#  - name: server_selection_json_test_TG
-#    distros:
-#      - rhel80-large
-
 - &enterprise-rhel-80-64-bit-dynamic-classic-engine
   name: enterprise-rhel-80-64-bit-dynamic-classic-engine
   display_name: "Shared Library Enterprise RHEL 8.0 (Classic Engine)"
@@ -9770,18 +9517,6 @@ buildvariants:
   - name: .multiversion_fuzzer
   - name: .multiversion_passthrough
   - name: .random_multiversion_ds
-
-- <<: *enterprise-rhel-80-64-bit-multiversion-template
-  name: enterprise-rhel-80-64-bit-multiversion-all-feature-flags
-  display_name: "Enterprise RHEL 8.0 (implicit multiversion & all feature flags)"
-  cron: "0 0 * * *" # Every day starting at 00:00
-  expansions:
-    <<: *enterprise-rhel-80-64-bit-multiversion-expansions-template
-    # TODO (SERVER-55857): Remove 'requires_fcv_51' once tests are filtered out using the
-    # 'REQUIRES_FCV_TAG' list in 'multiversion_constants.py'.
-    test_flags: >-
-      --excludeWithAnyTags=requires_fcv_51,multiversion_incompatible
-      --runAllFeatureFlagTests
 
 - name: rhel-80-64-bit-nossl
   display_name: "RHEL 8.0 Shared Library (No SSL)"
@@ -10560,39 +10295,6 @@ buildvariants:
     distros:
     - rhel70-small
 
-- name: enterprise-rhel-72-s390x-all-feature-flags
-  display_name: Enterprise RHEL 7.2 s390x (all feature flags)
-  modules:
-  - enterprise
-  run_on:
-  - rhel72-zseries-test
-  cron: "0 0 1 1 *" # Every year starting 1/1 at 00:00
-  stepback: false
-  expansions:
-    additional_package_targets: archive-mongocryptd archive-mongocryptd-debug
-    release_buid: true
-    compile_flags: --ssl MONGO_DISTMOD=rhel72 -j3 --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
-    resmoke_jobs_max: 2
-    has_packages: true
-    packager_script: packager_enterprise.py
-    packager_arch: s390x
-    packager_distro: rhel72
-    repo_edition: enterprise
-    multiversion_platform: rhel72
-    multiversion_architecture: s390x
-    multiversion_edition: enterprise
-    # To force disable feature flags even on the all feature flags variant, please use this file:
-    # buildscripts/resmokeconfig/fully_disabled_feature_flags.yml
-    test_flags: >-
-        --runAllFeatureFlagTests
-  tasks:
-  - name: compile_and_archive_dist_test_then_package_TG
-    distros:
-    - rhel72-zseries-build
-  - name: build_variant_gen
-  - name: jsCore
-  - name: replica_sets_jscore_passthrough
-
 - name: rhel-72-s390x
   display_name: RHEL 7.2 s390x
   cron: "0 0 1 1 *" # Every year starting 1/1 at 00:00
@@ -10657,7 +10359,7 @@ buildvariants:
   modules:
   - enterprise
   run_on:
-  - suse12-test
+  - suse12-sp5-small
   expansions:
     additional_package_targets: archive-mongocryptd archive-mongocryptd-debug
     push_path: linux
@@ -10676,7 +10378,7 @@ buildvariants:
   tasks:
   - name: compile_test_and_package_serial_TG
     distros:
-    - suse12-build
+    - suse12-sp5-large
   - name: build_variant_gen
   - name: .aggfuzzer .common
   - name: audit
@@ -10702,7 +10404,7 @@ buildvariants:
   display_name: SUSE 12
   cron: "0 0 * * *" # Every day starting at 00:00
   run_on:
-  - suse12-test
+  - suse12-sp5-small
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -10717,11 +10419,11 @@ buildvariants:
     packager_distro: suse12
     repo_edition: org
     scons_cache_scope: shared
-    large_distro_name: suse12-build
+    large_distro_name: suse12-sp5-large
   tasks:
   - name: compile_test_and_package_serial_TG
     distros:
-    - suse12-build
+    - suse12-sp5-large
   - name: build_variant_gen
   - name: .aggfuzzer .common
   - name: aggregation
@@ -10731,7 +10433,7 @@ buildvariants:
   - name: .concurrency .common !.large
   - name: .concurrency .common .large
     distros:
-      - suse12-build
+      - suse12-sp5-large
   - name: concurrency_replication_causal_consistency_gen
   - name: disk_wiredtiger
   - name: free_monitoring
@@ -11300,80 +11002,6 @@ buildvariants:
   - name: server_selection_json_test_TG
 
 - <<: *ubuntu1804-debug-asan-template
-  name: ubuntu1804-debug-asan-all-feature-flags
-  display_name: "~ Shared Library ASAN Enterprise Ubuntu 18.04 DEBUG (all feature flags)"
-  cron: "0 0 * * *" # Every day starting at 00:00
-  modules:
-  - enterprise
-  run_on:
-  - ubuntu1804-build
-  stepback: false
-  expansions:
-    additional_package_targets: archive-mongocryptd archive-mongocryptd-debug
-    lang_environment: LANG=C
-    # If you add anything to san_options, make sure the appropriate changes are
-    # also made to SConstruct.
-    san_options: LSAN_OPTIONS="suppressions=etc/lsan.suppressions:report_objects=1:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer" ASAN_OPTIONS="detect_leaks=1:check_initialization_order=true:strict_init_order=true:abort_on_error=1:disable_coredump=0:handle_abort=1:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer"
-    compile_flags: --variables-files=etc/scons/mongodbtoolchain_v3_clang.vars --dbg=on --opt=on --allocator=system --sanitize=address --ssl --ocsp-stapling=off --enable-free-mon=on -j$(grep -c ^processor /proc/cpuinfo)
-    multiversion_platform: ubuntu1804
-    multiversion_edition: enterprise
-    resmoke_jobs_factor: 0.3  # Avoid starting too many mongod's under ASAN build.
-    hang_analyzer_dump_core: false
-    scons_cache_scope: shared
-    exec_timeout_secs: 14400 # 3 hour timeout
-    # To force disable feature flags even on the all feature flags variant, please use this file:
-    # buildscripts/resmokeconfig/fully_disabled_feature_flags.yml
-    test_flags: >-
-        --runAllFeatureFlagTests
-    separate_debug: off
-  tasks:
-  - name: compile_and_archive_dist_test_then_package_TG
-  - name: compile_benchmarks
-  - name: build_variant_gen
-  - name: .aggregation
-#  - name: .auth
-  - name: audit
-  - name: .causally_consistent !.wo_snapshot
-  - name: .change_streams
-  - name: .misc_js
-#  - name: .concurrency !.ubsan !.no_txns !.kill_terminate
-#  - name: .encrypt
-  - name: free_monitoring
-  - name: external_auth
-  - name: external_auth_aws
-  - name: initial_sync_fuzzer_gen
-  - name: .integration !.standalone !.audit
-  - name: .jscore .common
-  - name: jsCore_minimum_batch_size
-  - name: jsCore_txns_large_txns_format
-  - name: jsonSchema
-  - name: .logical_session_cache
-  - name: .multi_shard .common
-  - name: .query_fuzzer
-  - name: .read_write_concern
-  - name: replica_sets_large_txns_format_gen
-  - name: replica_sets_large_txns_format_jscore_passthrough
-  - name: .replica_sets !.multi_oplog
-  - name: .resharding_fuzzer
-  - name: .retry
-  - name: .read_only
-  - name: .rollbackfuzzer
-  - name: sasl
-  - name: secondary_reads_passthrough_gen
-  - name: session_jscore_passthrough
-  - name: .sharding .jscore !.wo_snapshot
-  - name: .sharding .common !.csrs
-  - name: snmp
-  - name: .tenant_migration
-  - name: .watchdog
-  - name: .stitch
-# Disabling the following tests as they are not aware of feature flags.
-#  - name: .benchmarks
-#  - name: unittest_shell_hang_analyzer_gen
-#  - name: server_discovery_and_monitoring_json_test_TG
-#  - name: server_selection_json_test_TG
-
-- <<: *ubuntu1804-debug-asan-template
   name: ubuntu1804-debug-asan-classic-engine
   display_name: ~ ASAN Enterprise Ubuntu 18.04 DEBUG (Classic Engine)
   cron: "0 0 * * *" # Every day starting at 00:00
@@ -11542,77 +11170,6 @@ buildvariants:
   - name: server_selection_json_test_TG
 
 - <<: *ubuntu1804-debug-ubsan-template
-  name: ubuntu1804-debug-ubsan-all-feature-flags
-  display_name: "~ Shared Library UBSAN Enterprise Ubuntu 18.04 DEBUG (all feature flags)"
-  cron: "0 0 * * *" # Every day starting at 00:00
-  modules:
-  - enterprise
-  run_on:
-  - ubuntu1804-build
-  stepback: false
-  expansions:
-    additional_package_targets: archive-mongocryptd archive-mongocryptd-debug
-    lang_environment: LANG=C
-    # If you add anything to san_options, make sure the appropriate changes are
-    # also made to SConstruct.
-    san_options: UBSAN_OPTIONS="print_stacktrace=1:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer"
-    compile_flags: --variables-files=etc/scons/mongodbtoolchain_v3_clang.vars --dbg=on --opt=on --sanitize=undefined --ssl --ocsp-stapling=off --enable-free-mon=on -j$(grep -c ^processor /proc/cpuinfo)
-    # To force disable feature flags even on the all feature flags variant, please use this file:
-    # buildscripts/resmokeconfig/fully_disabled_feature_flags.yml
-    test_flags: >-
-        --excludeWithAnyTags=requires_ocsp_stapling
-        --runAllFeatureFlagTests
-    multiversion_platform: ubuntu1804
-    multiversion_edition: enterprise
-    resmoke_jobs_factor: 0.3  # Avoid starting too many mongod's under UBSAN build.
-    scons_cache_scope: shared
-    separate_debug: off
-  tasks:
-  - name: compile_and_archive_dist_test_then_package_TG
-  - name: compile_benchmarks
-  - name: build_variant_gen
-  - name: .aggregation
-  - name: .auth
-  - name: audit
-  - name: .causally_consistent !.wo_snapshot
-  - name: .change_streams
-  - name: .misc_js
-  - name: .concurrency !.no_txns !.repl !.kill_terminate
-  - name: disk_wiredtiger
-  - name: .encrypt
-  - name: free_monitoring
-  - name: initial_sync_fuzzer_gen
-  - name: .integration !.audit
-  - name: .jscore .common
-  - name: jsCore_minimum_batch_size
-  - name: jsCore_txns_large_txns_format
-  - name: jsonSchema
-  - name: .logical_session_cache .one_sec
-  - name: .multi_shard .common
-  - name: .read_write_concern
-  - name: replica_sets_large_txns_format_gen
-  - name: replica_sets_large_txns_format_jscore_passthrough
-  - name: .replica_sets !.multi_oplog
-  - name: .resharding_fuzzer
-  - name: .retry
-  - name: .rollbackfuzzer
-  - name: .read_only
-  - name: sasl
-  - name: secondary_reads_passthrough_gen
-  - name: session_jscore_passthrough
-  - name: .sharding .jscore !.wo_snapshot
-  - name: .sharding .common !.csrs
-  - name: snmp
-  - name: .stitch
-  - name: .tenant_migration
-  - name: .updatefuzzer
-  - name: watchdog_wiredtiger
-# Disabling the following tests as they are not aware of feature flags.
-#  - name: .benchmarks
-#  - name: server_discovery_and_monitoring_json_test_TG
-#  - name: server_selection_json_test_TG
-
-- <<: *ubuntu1804-debug-ubsan-template
   name: ubuntu1804-debug-ubsan-classic-engine
   display_name: ~ UBSAN Enterprise Ubuntu 18.04 DEBUG (Classic Engine)
   cron: "0 0 * * *" # Every day starting at 00:00
@@ -11718,45 +11275,6 @@ buildvariants:
   - name: jsCore
   - name: jsCore_txns
   - name: unittest_shell_hang_analyzer_gen
-
-- <<: *ubuntu1804-debug-aubsan-lite-required-template
-  name: ubuntu1804-debug-aubsan-lite-all-feature-flags-required
-  display_name: "! Shared Library {A,UB}SAN Enterprise Ubuntu 18.04 DEBUG (all feature flags)"
-  cron: "0 */4 * * *" # Every 4 hours starting at midnight
-  expansions:
-    additional_package_targets: archive-mongocryptd archive-mongocryptd-debug
-    lang_environment: LANG=C
-    # If you add anything to san_options, make sure the appropriate changes are
-    # also made to SConstruct.
-    san_options: UBSAN_OPTIONS="print_stacktrace=1:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer" LSAN_OPTIONS="suppressions=etc/lsan.suppressions:report_objects=1" ASAN_OPTIONS="detect_leaks=1:check_initialization_order=true:strict_init_order=true:abort_on_error=1:disable_coredump=0:handle_abort=1:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer"
-    compile_flags: --variables-files=etc/scons/mongodbtoolchain_v3_clang.vars --dbg=on --opt=on --allocator=system --sanitize=undefined,address --ssl --ocsp-stapling=off -j$(grep -c ^processor /proc/cpuinfo) --link-model=dynamic
-    # To force disable feature flags even on the all feature flags variant, please use this file:
-    # buildscripts/resmokeconfig/fully_disabled_feature_flags.yml
-    test_flags: >-
-        --excludeWithAnyTags=requires_ocsp_stapling
-        --runAllFeatureFlagTests
-    resmoke_jobs_factor: 0.3  # Avoid starting too many mongod's under {A,UB}SAN build.
-    hang_analyzer_dump_core: false
-    scons_cache_scope: shared
-    scons_cache_mode: all
-    max_sub_suites: 3
-    num_scons_link_jobs_available: 0.99
-    separate_debug: off
-  tasks:
-  - name: compile_test_and_package_parallel_core_stream_TG
-    distros:
-      - ubuntu1804-xlarge
-  - name: build_variant_gen
-  - name: jsCore
-  - name: jsCore_txns
-# Disabling these tests as they are not aware of feature flags.
-#  - name: compile_test_and_package_parallel_unittest_stream_TG
-#    distros:
-#      - ubuntu1804-xlarge
-#  - name: compile_test_and_package_parallel_dbtest_stream_TG
-#    distros:
-#      - ubuntu1804-xlarge
-#  - name: unittest_shell_hang_analyzer_gen
 
 - name: ubuntu1804-debug-aubsan-lite_fuzzer
   display_name: "{A,UB}SAN Enterprise Ubuntu 18.04 FUZZER"
@@ -12179,20 +11697,4 @@ buildvariants:
     max_sub_suites: 3
     test_flags: >-
       --mongodSetParameters="{internalQueryForceClassicEngine: true}"
-      --excludeWithAnyTags=resource_intensive
-
-# Intentionally derive from SBE to run the SBE tests with all feature flags.
-- <<: *enterprise-rhel-80-64-bit-dynamic-all-feature-flags-required-template
-  name: enterprise-rhel-80-64-bit-dynamic-all-feature-flags-required-query-patch-only
-  display_name: "~ Shared Library Enterprise RHEL 8.0 Query Patch Only (all feature flags)"
-  cron: "0 0 * * 0" # Every week starting 00:00 on Sunday . This is a patch-only variant but we run on mainline to pick up task history.
-  expansions:
-    <<: *enterprise-rhel-80-64-bit-dynamic-all-feature-flags-expansions
-    jstestfuzz_num_generated_files: 20
-    jstestfuzz_concurrent_num_files: 5
-    target_resmoke_time: 30
-    max_sub_suites: 3
-    test_flags: >-
-      --runAllFeatureFlagTests
-      --additionalFeatureFlags=featureFlagSbePlanCache
       --excludeWithAnyTags=resource_intensive

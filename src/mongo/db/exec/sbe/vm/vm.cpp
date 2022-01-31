@@ -48,6 +48,7 @@
 #include "mongo/db/index/btree_key_generator.h"
 #include "mongo/db/query/collation/collation_index_key.h"
 #include "mongo/db/query/datetime/date_time_support.h"
+#include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/storage/key_string.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/fail_point.h"
@@ -505,14 +506,45 @@ void CodeFragment::appendJumpNothing(int jumpOffset) {
     offset += writeToMemory(offset, jumpOffset);
 }
 
-ByteCode::~ByteCode() {
-    auto size = _argStackOwned.size();
-    invariant(_argStackTags.size() == size);
-    invariant(_argStackVals.size() == size);
-    for (size_t i = 0; i < size; ++i) {
-        if (_argStackOwned[i]) {
-            value::releaseValue(_argStackTags[i], _argStackVals[i]);
+void ByteCode::Stack::growAndResize(size_t newSize) {
+    auto currentCapacity = capacity();
+    if (newSize <= currentCapacity) {
+        _size = newSize;
+        return;
+    }
+
+    auto newCapacity = newSize;
+    if (newCapacity > kMaxCapacity) {
+        uasserted(6040901,
+                  str::stream() << "Requested capacity of " << newCapacity
+                                << " elements exceeds the maximum capacity of " << kMaxCapacity);
+        return;
+    }
+
+    if (currentCapacity >= kMaxCapacity / 2) {
+        newCapacity = kMaxCapacity;
+    } else if (2 * currentCapacity > newCapacity) {
+        newCapacity = 2 * currentCapacity;
+    }
+
+    try {
+        auto numSegments = (_size + ElementsPerSegment - 1) / ElementsPerSegment;
+        auto numNewSegments = (newCapacity + ElementsPerSegment - 1) / ElementsPerSegment;
+        newCapacity = numNewSegments * ElementsPerSegment;
+
+        auto newSegments = std::make_unique<StackSegment[]>(numNewSegments);
+
+        if (_segments.get() != nullptr && numSegments > 0) {
+            memcpy(newSegments.get(), _segments.get(), numSegments * sizeof(StackSegment));
         }
+
+        _segments = std::move(newSegments);
+        _capacity = newCapacity;
+        _size = newSize;
+    } catch (std::bad_alloc&) {
+        uasserted(6040902,
+                  str::stream() << "Unable to allocate requested capacity of " << newCapacity
+                                << " elements");
     }
 }
 
@@ -1365,22 +1397,23 @@ std::tuple<bool, value::TypeTags, value::Value> ByteCode::builtinNewArrayFromRan
         return {false, value::TypeTags::Nothing, 0};
     }
 
-    auto isPositiveStep = stepVal > 0;
+    // Calculate how much memory is needed to generate the array and avoid going over the memLimit.
+    auto steps = (endVal - startVal) / stepVal;
+    // If steps not positive then no amount of steps can get you from start to end. For example
+    // with start=5, end=7, step=-1 steps would be negative and in this case we would return an
+    // empty array.
+    auto length = steps >= 0 ? 1 + steps : 0;
+    int64_t memNeeded = sizeof(value::Array) + length * value::getApproximateSize(startTag, start);
+    auto memLimit = internalQueryMaxRangeBytes.load();
+    uassert(ErrorCodes::ExceededMemoryLimit,
+            str::stream() << "$range would use too much memory (" << memNeeded
+                          << " bytes) and cannot spill to disk. Memory limit: " << memLimit
+                          << " bytes",
+            memNeeded < memLimit);
 
-    if (isPositiveStep) {
-        if (startVal < endVal) {
-            arr->reserve(1 + (endVal - startVal) / stepVal);
-            for (auto i = startVal; i < endVal; i += stepVal) {
-                arr->push_back(value::TypeTags::NumberInt32, value::bitcastTo<int32_t>(i));
-            }
-        }
-    } else {
-        if (startVal > endVal) {
-            arr->reserve(1 + (startVal - endVal) / (-stepVal));
-            for (auto i = startVal; i > endVal; i += stepVal) {
-                arr->push_back(value::TypeTags::NumberInt32, value::bitcastTo<int32_t>(i));
-            }
-        }
+    arr->reserve(length);
+    for (auto i = startVal; stepVal > 0 ? i < endVal : i > endVal; i += stepVal) {
+        arr->push_back(value::TypeTags::NumberInt32, value::bitcastTo<int32_t>(i));
     }
 
     guard.reset();
@@ -4923,18 +4956,29 @@ void ByteCode::runInternal(const CodeFragment* code, int64_t position) {
 }
 
 std::tuple<uint8_t, value::TypeTags, value::Value> ByteCode::run(const CodeFragment* code) {
+    uassert(6040900, "The evaluation stack must be empty", _argStack.size() == 0);
+
+    ON_BLOCK_EXIT([&] {
+        auto size = _argStack.size();
+        for (size_t i = 0; i < size; ++i) {
+            auto [owned, tag] = _argStack.ownedAndTag(i);
+            if (owned) {
+                value::releaseValue(tag, _argStack.value(i));
+            }
+        }
+
+        _argStack.resize(0);
+    });
+
     runInternal(code, 0);
 
-    uassert(
-        4822801, "The evaluation stack must hold only a single value", _argStackOwned.size() == 1);
+    uassert(4822801, "The evaluation stack must hold only a single value", _argStack.size() == 1);
 
-    auto owned = _argStackOwned[0];
-    auto tag = _argStackTags[0];
-    auto val = _argStackVals[0];
+    auto [owned, tag] = _argStack.ownedAndTag(0);
+    auto val = _argStack.value(0);
 
-    _argStackOwned.clear();
-    _argStackTags.clear();
-    _argStackVals.clear();
+    // Transfer ownership of tag/val to the caller
+    _argStack.resize(0);
 
     return {owned, tag, val};
 }

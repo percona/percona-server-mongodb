@@ -34,9 +34,11 @@
 #include "mongo/db/api_parameters.h"
 #include "mongo/db/persistent_task_store.h"
 #include "mongo/db/s/database_sharding_state.h"
+#include "mongo/db/s/shard_metadata_util.h"
 #include "mongo/db/s/sharding_ddl_util.h"
 #include "mongo/db/s/sharding_logging.h"
 #include "mongo/db/s/sharding_state.h"
+#include "mongo/db/s/type_shard_database.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/catalog/sharding_catalog_client.h"
 #include "mongo/s/client/shard_registry.h"
@@ -136,11 +138,6 @@ void DropDatabaseCoordinator::_dropShardedCollection(
     const auto primaryShardId = ShardingState::get(opCtx)->shardId();
     _doc = _updateSession(opCtx, _doc);
 
-    // The collection needs to be dropped first on the db primary shard
-    // because otherwise changestreams won't receive the drop event.
-    sharding_ddl_util::sendDropCollectionParticipantCommandToShards(
-        opCtx, nss, {primaryShardId}, **executor, getCurrentSession(_doc));
-
     // We need to send the drop to all the shards because both movePrimary and
     // moveChunk leave garbage behind for sharded collections.
     auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
@@ -149,6 +146,12 @@ void DropDatabaseCoordinator::_dropShardedCollection(
                        participants.end());
     sharding_ddl_util::sendDropCollectionParticipantCommandToShards(
         opCtx, nss, participants, **executor, getCurrentSession(_doc));
+
+    // The sharded collection must be dropped on the primary shard after it has been dropped on all
+    // of the other shards to ensure it can only be re-created as unsharded with a higher optime
+    // than all of the drops.
+    sharding_ddl_util::sendDropCollectionParticipantCommandToShards(
+        opCtx, nss, {primaryShardId}, **executor, getCurrentSession(_doc));
 }
 
 DropDatabaseCoordinator::DropDatabaseCoordinator(ShardingDDLCoordinatorService* service,
@@ -194,6 +197,31 @@ void DropDatabaseCoordinator::_enterPhase(Phase newPhase) {
     _doc = _updateStateDocument(cc().makeOperationContext().get(), std::move(newDoc));
 }
 
+void DropDatabaseCoordinator::_clearDatabaseInfoOnPrimary(OperationContext* opCtx) {
+    Lock::DBLock dbLock(opCtx, _dbName, MODE_X);
+    auto dss = DatabaseShardingState::get(opCtx, _dbName);
+    dss->clearDatabaseInfo(opCtx);
+}
+
+void DropDatabaseCoordinator::_clearDatabaseInfoOnSecondaries(OperationContext* opCtx) {
+    Status signalStatus = shardmetadatautil::updateShardDatabasesEntry(
+        opCtx,
+        BSON(ShardDatabaseType::name() << _dbName),
+        BSONObj(),
+        BSON(ShardDatabaseType::enterCriticalSectionCounter() << 1),
+        false /*upsert*/);
+    uassert(ErrorCodes::OperationFailed,
+            str::stream() << "Failed to persist critical section signal for "
+                             "secondaries due to: "
+                          << signalStatus.toString(),
+            signalStatus.isOK());
+    // Wait for majority write concern on the secondaries
+    WriteConcernResult ignoreResult;
+    auto latestOpTime = repl::ReplClientInfo::forClient(opCtx->getClient()).getLastOp();
+    uassertStatusOK(waitForWriteConcern(
+        opCtx, latestOpTime, ShardingCatalogClient::kMajorityWriteConcern, &ignoreResult));
+}
+
 ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
     std::shared_ptr<executor::ScopedTaskExecutor> executor,
     const CancellationToken& token) noexcept {
@@ -210,15 +238,6 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
                     // for this coordinator's lsid so that requests with older txnNumbers can no
                     // longer execute.
                     _performNoopRetryableWriteOnParticipants(opCtx, **executor);
-                }
-
-                if (_doc.getCollInfo()) {
-                    const auto& coll = _doc.getCollInfo().get();
-                    LOGV2_DEBUG(5494504,
-                                2,
-                                "Completing collection drop from previous primary",
-                                "namespace"_attr = coll.getNss());
-                    _dropShardedCollection(opCtx, coll, executor);
                 }
 
                 ShardingLogging::get(opCtx)->logChange(opCtx, "dropDatabase.start", _dbName);
@@ -243,6 +262,15 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
                     } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
                         return;  // skip to _flushDatabaseCacheUpdates
                     }
+                }
+
+                if (_doc.getCollInfo()) {
+                    const auto& coll = _doc.getCollInfo().get();
+                    LOGV2_DEBUG(5494504,
+                                2,
+                                "Completing collection drop from previous primary",
+                                "namespace"_attr = coll.getNss());
+                    _dropShardedCollection(opCtx, coll, executor);
                 }
 
                 for (const auto& coll : allCollectionsForDb) {
@@ -310,6 +338,12 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
                         // primary
                     }
 
+                    // Clear the database sharding state info before exiting the critical section so
+                    // that all subsequent write operations with the old database version will fail
+                    // due to StaleDbVersion.
+                    _clearDatabaseInfoOnPrimary(opCtx);
+                    _clearDatabaseInfoOnSecondaries(opCtx);
+
                     removeDatabaseMetadataFromConfig(
                         opCtx, _dbName, *metadata().getDatabaseVersion());
                 }
@@ -319,7 +353,11 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
             auto* opCtx = opCtxHolder.get();
             getForwardableOpMetadata().setOn(opCtx);
             {
-                const auto allShardIds = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
+                const auto primaryShardId = ShardingState::get(opCtx)->shardId();
+                auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
+                participants.erase(
+                    std::remove(participants.begin(), participants.end(), primaryShardId),
+                    participants.end());
                 // Send _flushDatabaseCacheUpdates to all shards
                 auto flushDbCacheUpdatesCmd =
                     _flushDatabaseCacheUpdatesWithWriteConcern(_dbName.toString());
@@ -331,7 +369,7 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
                     opCtx,
                     "admin",
                     CommandHelpers::appendMajorityWriteConcern(flushDbCacheUpdatesCmd.toBSON({})),
-                    allShardIds,
+                    participants,
                     **executor);
             }
 

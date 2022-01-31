@@ -52,6 +52,7 @@
 #include "mongo/db/s/resharding/resharding_metrics.h"
 #include "mongo/db/s/resharding/resharding_server_parameters_gen.h"
 #include "mongo/db/s/resharding_util.h"
+#include "mongo/db/s/sharding_ddl_util.h"
 #include "mongo/db/s/sharding_logging.h"
 #include "mongo/db/s/sharding_util.h"
 #include "mongo/db/storage/duplicate_key_error_info.h"
@@ -64,6 +65,7 @@
 #include "mongo/s/grid.h"
 #include "mongo/s/request_types/abort_reshard_collection_gen.h"
 #include "mongo/s/request_types/commit_reshard_collection_gen.h"
+#include "mongo/s/request_types/drop_collection_if_uuid_not_matching_gen.h"
 #include "mongo/s/request_types/flush_resharding_state_change_gen.h"
 #include "mongo/s/request_types/flush_routing_table_cache_updates_gen.h"
 #include "mongo/s/shard_id.h"
@@ -92,6 +94,8 @@ MONGO_FAIL_POINT_DEFINE(pauseBeforeInsertCoordinatorDoc);
 
 const std::string kReshardingCoordinatorActiveIndexName = "ReshardingCoordinatorActiveIndex";
 const Backoff kExponentialBackoff(Seconds(1), Milliseconds::max());
+const WriteConcernOptions kMajorityWriteConcern{
+    WriteConcernOptions::kMajority, WriteConcernOptions::SyncMode::UNSET, Seconds(0)};
 
 bool shouldStopAttemptingToCreateIndex(Status status, const CancellationToken& token) {
     return status.isOK() || token.isCanceled();
@@ -507,13 +511,9 @@ void removeChunkAndTagsDocs(OperationContext* opCtx,
     const auto catalogClient = Grid::get(opCtx)->catalogClient();
 
     uassertStatusOK(catalogClient->removeConfigDocuments(
-        opCtx, ChunkType::ConfigNS, chunksQuery, ShardingCatalogClient::kMajorityWriteConcern));
-    uassertStatusOK(
-        catalogClient->removeConfigDocuments(opCtx,
-                                             TagsType::ConfigNS,
-                                             tagsQuery,
-                                             ShardingCatalogClient::kMajorityWriteConcern,
-                                             tagDeleteOperationHint));
+        opCtx, ChunkType::ConfigNS, chunksQuery, kMajorityWriteConcern));
+    uassertStatusOK(catalogClient->removeConfigDocuments(
+        opCtx, TagsType::ConfigNS, tagsQuery, kMajorityWriteConcern, tagDeleteOperationHint));
 }
 
 void updateChunkAndTagsDocsForTempNss(OperationContext* opCtx,
@@ -553,7 +553,8 @@ BSONObj makeFlushRoutingTableCacheUpdatesCmd(const NamespaceString& nss) {
     auto cmd = _flushRoutingTableCacheUpdatesWithWriteConcern(nss);
     cmd.setSyncFromConfig(true);
     cmd.setDbName(nss.db());
-    return CommandHelpers::appendMajorityWriteConcern(cmd.toBSON({})).getOwned();
+    return cmd.toBSON(
+        BSON(WriteConcernOptions::kWriteConcernField << kMajorityWriteConcern.toBSON()));
 }
 
 }  // namespace
@@ -760,7 +761,7 @@ void removeCoordinatorDocAndReshardingFields(OperationContext* opCtx,
             opCtx,
             CollectionType::ConfigNS,
             BSON(CollectionType::kNssFieldName << coordinatorDoc.getTempReshardingNss().ns()),
-            ShardingCatalogClient::kMajorityWriteConcern));
+            kMajorityWriteConcern));
 
         removeChunkAndTagsDocs(opCtx, tagsQuery, coordinatorDoc.getReshardingUUID());
     }
@@ -896,7 +897,7 @@ void ReshardingCoordinatorExternalStateImpl::sendCommandToShards(
     const BSONObj& command,
     const std::vector<ShardId>& shardIds,
     const std::shared_ptr<executor::TaskExecutor>& executor) {
-    sharding_util::sendCommandToShards(opCtx, dbName, command, shardIds, executor);
+    sharding_ddl_util::sendAuthenticatedCommandToShards(opCtx, dbName, command, shardIds, executor);
 }
 
 ThreadPool::Limits ReshardingCoordinatorService::getThreadPoolLimits() const {
@@ -990,11 +991,6 @@ void ReshardingCoordinatorService::ReshardingCoordinator::installCoordinatorDoc(
     bob.append("namespace", doc.getSourceNss().toString());
     bob.append("collectionUUID", doc.getSourceUUID().toString());
     bob.append("reshardingUUID", doc.getReshardingUUID().toString());
-    ShardingLogging::get(opCtx)->logChange(opCtx,
-                                           "resharding.coordinator.transition",
-                                           doc.getSourceNss().toString(),
-                                           bob.obj(),
-                                           ShardingCatalogClient::kMajorityWriteConcern);
 
     LOGV2_INFO(5343001,
                "Transitioned resharding coordinator state",
@@ -1005,6 +1001,11 @@ void ReshardingCoordinatorService::ReshardingCoordinator::installCoordinatorDoc(
                "reshardingUUID"_attr = doc.getReshardingUUID());
 
     _coordinatorDoc = doc;
+    ShardingLogging::get(opCtx)->logChange(opCtx,
+                                           "resharding.coordinator.transition",
+                                           doc.getSourceNss().toString(),
+                                           bob.obj(),
+                                           kMajorityWriteConcern);
 }
 
 void markCompleted(const Status& status) {
@@ -1313,6 +1314,13 @@ SemiFuture<void> ReshardingCoordinatorService::ReshardingCoordinator::run(
             return status;
         })
         .thenRunOn(_coordinatorService->getInstanceCleanupExecutor())
+        .onCompletion([this](Status outerStatus) {
+            // Wait for the commit monitor to halt. We ignore any ignores because the
+            // ReshardingCoordinator instance is already exiting at this point.
+            return _commitMonitorQuiesced
+                .thenRunOn(_coordinatorService->getInstanceCleanupExecutor())
+                .onCompletion([outerStatus](Status) { return outerStatus; });
+        })
         .onCompletion([this, self = shared_from_this()](Status status) {
             // On stepdown or shutdown, the _scopedExecutor may have already been shut down.
             // Schedule cleanup work on the parent executor.
@@ -1430,11 +1438,21 @@ ReshardingCoordinatorService::ReshardingCoordinator::getObserver() {
 }
 
 void ReshardingCoordinatorService::ReshardingCoordinator::onOkayToEnterCritical() {
+    _fulfillOkayToEnterCritical(Status::OK());
+}
+
+void ReshardingCoordinatorService::ReshardingCoordinator::_fulfillOkayToEnterCritical(
+    Status status) {
     auto lg = stdx::lock_guard(_fulfillmentMutex);
     if (_canEnterCritical.getFuture().isReady())
         return;
-    LOGV2(5391601, "Marking resharding operation okay to enter critical section");
-    _canEnterCritical.emplaceValue();
+
+    if (status.isOK()) {
+        LOGV2(5391601, "Marking resharding operation okay to enter critical section");
+        _canEnterCritical.emplaceValue();
+    } else {
+        _canEnterCritical.setError(std::move(status));
+    }
 }
 
 void ReshardingCoordinatorService::ReshardingCoordinator::_insertCoordDocAndChangeOrigCollEntry() {
@@ -1573,20 +1591,23 @@ ReshardingCoordinatorService::ReshardingCoordinator::_awaitAllRecipientsFinished
 
 void ReshardingCoordinatorService::ReshardingCoordinator::_startCommitMonitor(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
-    _ctHolder->getAbortToken().onCancel().thenRunOn(**executor).getAsync([this](Status status) {
-        if (status.isOK())
-            _commitMonitorCancellationSource.cancel();
-    });
+    if (_commitMonitor) {
+        return;
+    }
 
-    auto commitMonitor = std::make_shared<resharding::CoordinatorCommitMonitor>(
+    _commitMonitor = std::make_shared<resharding::CoordinatorCommitMonitor>(
         _coordinatorDoc.getSourceNss(),
         extractShardIdsFromParticipantEntries(_coordinatorDoc.getRecipientShards()),
         **executor,
-        _commitMonitorCancellationSource.token());
+        _ctHolder->getCommitMonitorToken());
 
-    commitMonitor->waitUntilRecipientsAreWithinCommitThreshold()
-        .thenRunOn(**executor)
-        .getAsync([this](Status) { onOkayToEnterCritical(); });
+    _commitMonitorQuiesced = _commitMonitor->waitUntilRecipientsAreWithinCommitThreshold()
+                                 .thenRunOn(**executor)
+                                 .onCompletion([this](Status status) {
+                                     _fulfillOkayToEnterCritical(status);
+                                     return status;
+                                 })
+                                 .share();
 }
 
 ExecutorFuture<void>
@@ -1601,10 +1622,16 @@ ReshardingCoordinatorService::ReshardingCoordinator::_awaitAllRecipientsFinished
             _startCommitMonitor(executor);
 
             LOGV2(5391602, "Resharding operation waiting for an okay to enter critical section");
-            return _canEnterCritical.getFuture().thenRunOn(**executor).then([this] {
-                _commitMonitorCancellationSource.cancel();
-                LOGV2(5391603, "Resharding operation is okay to enter critical section");
-            });
+            return future_util::withCancellation(_canEnterCritical.getFuture(),
+                                                 _ctHolder->getAbortToken())
+                .thenRunOn(**executor)
+                .onCompletion([this](Status status) {
+                    _ctHolder->cancelCommitMonitor();
+                    if (status.isOK()) {
+                        LOGV2(5391603, "Resharding operation is okay to enter critical section");
+                    }
+                    return status;
+                });
         })
         .then([this, executor] {
             {
@@ -1703,13 +1730,49 @@ ReshardingCoordinatorService::ReshardingCoordinator::_awaitAllParticipantShardsD
             auto opCtx = _cancelableOpCtxFactory->makeOperationContext(&cc());
             auto& coordinatorDoc = coordinatorDocsChangedOnDisk[1];
 
-            reshardingPauseCoordinatorBeforeRemovingStateDoc.pauseWhileSetAndNotCanceled(
-                opCtx.get(), _ctHolder->getStepdownToken());
-
             boost::optional<Status> abortReason;
             if (coordinatorDoc.getAbortReason()) {
                 abortReason = getStatusFromAbortReason(coordinatorDoc);
             }
+
+            if (!abortReason) {
+                // (SERVER-54231) Ensure every catalog entry referring the source uuid is
+                // cleared out on every shard.
+                const auto allShardIds =
+                    Grid::get(opCtx.get())->shardRegistry()->getAllShardIds(opCtx.get());
+                const auto& nss = coordinatorDoc.getSourceNss();
+                const auto& notMatchingThisUUID = coordinatorDoc.getReshardingUUID();
+                const auto cmdObj =
+                    ShardsvrDropCollectionIfUUIDNotMatchingRequest(nss, notMatchingThisUUID)
+                        .toBSON({});
+
+                try {
+                    sharding_ddl_util::sendAuthenticatedCommandToShards(
+                        opCtx.get(), nss.db(), cmdObj, allShardIds, **executor);
+                } catch (const DBException& ex) {
+                    if (ex.code() == ErrorCodes::CommandNotFound) {
+                        // TODO SERVER-60531 get rid of the catch logic
+                        // Cleanup failed because at least one shard could is using a binary
+                        // not supporting the ShardsvrDropCollectionIfUUIDNotMatching command.
+                        LOGV2_INFO(5423100,
+                                   "Resharding coordinator couldn't guarantee older incarnations "
+                                   "of the collection were dropped. A chunk migration to a shard "
+                                   "with an older incarnation of the collection will fail",
+                                   "namespace"_attr = nss.ns());
+                    } else if (opCtx->checkForInterruptNoAssert().isOK()) {
+                        LOGV2_INFO(
+                            5423101,
+                            "Resharding coordinator failed while trying to drop possible older "
+                            "incarnations of the collection. A chunk migration to a shard with "
+                            "an older incarnation of the collection will fail",
+                            "namespace"_attr = nss.ns(),
+                            "error"_attr = redact(ex.toStatus()));
+                    }
+                }
+            }
+
+            reshardingPauseCoordinatorBeforeRemovingStateDoc.pauseWhileSetAndNotCanceled(
+                opCtx.get(), _ctHolder->getStepdownToken());
 
             // Notify `ReshardingMetrics` as the operation is now complete for external observers.
             markCompleted(abortReason ? *abortReason : Status::OK());

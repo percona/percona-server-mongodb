@@ -1383,7 +1383,7 @@ Status IndexCatalogImpl::_indexKeys(OperationContext* opCtx,
             }
         }
 
-        int64_t inserted;
+        int64_t inserted = 0;
         status = index->indexBuildInterceptor()->sideWrite(opCtx,
                                                            keys,
                                                            multikeyMetadataKeys,
@@ -1395,7 +1395,7 @@ Status IndexCatalogImpl::_indexKeys(OperationContext* opCtx,
             *keysInsertedOut += inserted;
         }
     } else {
-        int64_t numInserted;
+        int64_t numInserted = 0;
         status = index->accessMethod()->insertKeysAndUpdateMultikeyPaths(
             opCtx,
             coll,
@@ -1419,6 +1419,7 @@ Status IndexCatalogImpl::_indexFilteredRecords(OperationContext* opCtx,
                                                const IndexCatalogEntry* index,
                                                const std::vector<BsonRecord>& bsonRecords,
                                                int64_t* keysInsertedOut) const {
+    SharedBufferFragmentBuilder pooledBuilder(KeyString::HeapBuilder::kHeapAllocatorDefaultBytes);
     auto& executionCtx = StorageExecutionContext::get(opCtx);
 
     InsertDeleteOptions options;
@@ -1439,7 +1440,7 @@ Status IndexCatalogImpl::_indexFilteredRecords(OperationContext* opCtx,
 
         index->accessMethod()->getKeys(opCtx,
                                        coll,
-                                       executionCtx.pooledBufferBuilder(),
+                                       pooledBuilder,
                                        *bsonRecord.docPtr,
                                        options.getKeysMode,
                                        IndexAccessMethod::GetKeysContext::kAddingKeys,
@@ -1560,7 +1561,7 @@ void IndexCatalogImpl::_unindexKeys(OperationContext* opCtx,
             }
         }
 
-        int64_t removed;
+        int64_t removed = 0;
         fassert(31155,
                 index->indexBuildInterceptor()->sideWrite(
                     opCtx, keys, {}, {}, loc, IndexBuildInterceptor::Op::kDelete, &removed));
@@ -1580,7 +1581,7 @@ void IndexCatalogImpl::_unindexKeys(OperationContext* opCtx,
     // duplicates. See SERVER-17487 for more details.
     options.dupsAllowed = options.dupsAllowed || !index->isReady(opCtx, collection);
 
-    int64_t removed;
+    int64_t removed = 0;
     Status status = index->accessMethod()->removeKeys(opCtx, keys, loc, options, &removed);
 
     if (!status.isOK()) {
@@ -1604,6 +1605,7 @@ void IndexCatalogImpl::_unindexRecord(OperationContext* opCtx,
                                       const RecordId& loc,
                                       bool logIfError,
                                       int64_t* keysDeletedOut) const {
+    SharedBufferFragmentBuilder pooledBuilder(KeyString::HeapBuilder::kHeapAllocatorDefaultBytes);
     auto& executionCtx = StorageExecutionContext::get(opCtx);
 
     // There's no need to compute the prefixes of the indexed fields that cause the index to be
@@ -1612,7 +1614,7 @@ void IndexCatalogImpl::_unindexRecord(OperationContext* opCtx,
     auto keys = executionCtx.keys();
     entry->accessMethod()->getKeys(opCtx,
                                    collection,
-                                   executionCtx.pooledBufferBuilder(),
+                                   pooledBuilder,
                                    obj,
                                    IndexAccessMethod::GetKeysMode::kRelaxConstraintsUnfiltered,
                                    IndexAccessMethod::GetKeysContext::kRemovingKeys,

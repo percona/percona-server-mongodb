@@ -299,7 +299,7 @@ private:
         std::vector<ChunkType> chunks = {ChunkType{
             _sourceUUID,
             ChunkRange{BSON(_currentShardKey << MINKEY), BSON(_currentShardKey << MAXKEY)},
-            ChunkVersion(100, 0, epoch, Timestamp()),
+            ChunkVersion(100, 0, epoch, Timestamp(1, 1)),
             _myDonorId}};
 
         auto rt = RoutingTableHistory::makeNew(_sourceNss,
@@ -308,7 +308,7 @@ private:
                                                nullptr /* defaultCollator */,
                                                false /* unique */,
                                                std::move(epoch),
-                                               Timestamp(),
+                                               Timestamp(1, 1),
                                                boost::none /* timeseriesFields */,
                                                boost::none /* reshardingFields */,
                                                boost::none /* chunkSizeBytes */,
@@ -316,7 +316,7 @@ private:
                                                chunks);
 
         return ChunkManager(_myDonorId,
-                            DatabaseVersion(UUID::gen(), Timestamp()),
+                            DatabaseVersion(UUID::gen(), Timestamp(1, 1)),
                             makeStandaloneRoutingTableHistory(std::move(rt)),
                             boost::none /* clusterTime */);
     }
@@ -324,7 +324,8 @@ private:
     RoutingTableHistoryValueHandle makeStandaloneRoutingTableHistory(RoutingTableHistory rt) {
         const auto version = rt.getVersion();
         return RoutingTableHistoryValueHandle(
-            std::move(rt), ComparableChunkVersion::makeComparableChunkVersion(version));
+            std::make_shared<RoutingTableHistory>(std::move(rt)),
+            ComparableChunkVersion::makeComparableChunkVersion(version));
     }
 
     const StringData _currentShardKey = "sk";

@@ -41,6 +41,7 @@
 #include "mongo/executor/thread_pool_task_executor_test_fixture.h"
 #include "mongo/idl/server_parameter_test_util.h"
 #include "mongo/logv2/log.h"
+#include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 
 namespace mongo {
@@ -229,14 +230,12 @@ TEST_F(ReshardingDonorOplogIterTest, BasicExhaust) {
     const auto oplog1 = makeInsertOplog(Timestamp(2, 4), BSON("x" << 1));
     const auto oplog2 = makeInsertOplog(Timestamp(33, 6), BSON("y" << 1));
     const auto finalOplog = makeFinalOplog(Timestamp(43, 24));
-    const auto oplogBeyond = makeInsertOplog(Timestamp(123, 46), BSON("z" << 1));
 
     DBDirectClient client(operationContext());
     const auto ns = oplogNss().ns();
     client.insert(ns, oplog1.toBSON());
     client.insert(ns, oplog2.toBSON());
     client.insert(ns, finalOplog.toBSON());
-    client.insert(ns, oplogBeyond.toBSON());
 
     ReshardingDonorOplogIterator iter(oplogNss(), kResumeFromBeginning, &onInsertAlwaysReady);
     auto executor = makeTaskExecutorForIterator();
@@ -289,7 +288,6 @@ TEST_F(ReshardingDonorOplogIterTest, ExhaustWithIncomingInserts) {
     const auto oplog1 = makeInsertOplog(Timestamp(2, 4), BSON("x" << 1));
     const auto oplog2 = makeInsertOplog(Timestamp(33, 6), BSON("y" << 1));
     const auto finalOplog = makeFinalOplog(Timestamp(43, 24));
-    const auto oplogBeyond = makeInsertOplog(Timestamp(123, 46), BSON("z" << 1));
 
     DBDirectClient client(operationContext());
     const auto ns = oplogNss().ns();
@@ -325,7 +323,6 @@ TEST_F(ReshardingDonorOplogIterTest, ExhaustWithIncomingInserts) {
                              client.insert(ns, oplog2.toBSON());
                          } else {
                              client.insert(ns, finalOplog.toBSON());
-                             client.insert(ns, oplogBeyond.toBSON());
                          }
                      }};
 
@@ -501,6 +498,37 @@ TEST_F(ReshardingDonorOplogIterTest, BatchIncludesProgressMarkEntries) {
 
     next = getNextBatch(&iter, executor, factory);
     ASSERT_TRUE(next.empty());
+}
+
+DEATH_TEST_REGEX_F(ReshardingDonorOplogIterTest,
+                   ThrowsIfProgressMarkEntriesAfterFinalOp,
+                   "Tripwire assertion.*6077499") {
+    RAIIServerParameterControllerForTest controller{"reshardingOplogBatchLimitOperations", 100};
+
+    const auto oplog1 = makeInsertOplog(Timestamp(2, 4), BSON("x" << 1));
+    const auto progressMarkOplog1 = makeProgressMarkOplogEntry(Timestamp(15, 3));
+    const auto finalOplog = makeFinalOplog(Timestamp(43, 24));
+    // reshardProgressMark entries inserted after the reshardFinalOp entry should be ignored.
+    const auto progressMarkOplog2 = makeProgressMarkOplogEntry(Timestamp(65, 2));
+    const auto progressMarkOplog3 = makeProgressMarkOplogEntry(Timestamp(65, 3));
+    const auto progressMarkOplog4 = makeProgressMarkOplogEntry(Timestamp(65, 4));
+
+    DBDirectClient client(operationContext());
+    const auto ns = oplogNss().ns();
+    client.insert(ns, oplog1.toBSON());
+    client.insert(ns, progressMarkOplog1.toBSON());
+    client.insert(ns, finalOplog.toBSON());
+    client.insert(ns, progressMarkOplog2.toBSON());
+    client.insert(ns, progressMarkOplog3.toBSON());
+    client.insert(ns, progressMarkOplog4.toBSON());
+
+    ReshardingDonorOplogIterator iter(oplogNss(), kResumeFromBeginning, &onInsertAlwaysReady);
+    auto executor = makeTaskExecutorForIterator();
+    auto factory = makeCancelableOpCtx();
+    auto altClient = makeKillableClient();
+    AlternativeClientRegion acr(altClient);
+
+    ASSERT_THROWS_CODE(getNextBatch(&iter, executor, factory), DBException, 6077499);
 }
 
 }  // anonymous namespace

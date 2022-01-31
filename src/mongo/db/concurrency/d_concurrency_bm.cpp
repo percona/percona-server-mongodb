@@ -31,6 +31,7 @@
 #include "mongo/platform/basic.h"
 #include <benchmark/benchmark.h>
 
+#include "mongo/base/init.h"
 #include "mongo/db/concurrency/d_concurrency.h"
 #include "mongo/db/concurrency/lock_manager_test_help.h"
 #include "mongo/db/storage/recovery_unit_noop.h"
@@ -42,6 +43,33 @@ namespace {
 
 const int kMaxPerfThreads = 16;  // max number of threads to use for lock perf
 
+MONGO_INITIALIZER_GENERAL(DConcurrencyTestServiceContext, ("DConcurrencyTestClientObserver"), ())
+(InitializerContext* context) {
+    setGlobalServiceContext(ServiceContext::make());
+}
+
+class LockerImplClientObserver : public ServiceContext::ClientObserver {
+public:
+    LockerImplClientObserver() = default;
+    ~LockerImplClientObserver() = default;
+
+    void onCreateClient(Client* client) final {}
+
+    void onDestroyClient(Client* client) final {}
+
+    void onCreateOperationContext(OperationContext* opCtx) override {
+        opCtx->setLockState(std::make_unique<LockerImpl>());
+    }
+
+    void onDestroyOperationContext(OperationContext* opCtx) final {}
+};
+
+const ServiceContext::ConstructorActionRegisterer clientObserverRegisterer{
+    "DConcurrencyTestClientObserver",
+    [](ServiceContext* service) {
+        service->registerClientObserver(std::make_unique<LockerImplClientObserver>());
+    },
+    [](ServiceContext* serviceContext) {}};
 
 class DConcurrencyTest : public benchmark::Fixture {
 public:
@@ -55,7 +83,6 @@ public:
             auto client = getGlobalServiceContext()->makeClient(str::stream()
                                                                 << "test client for thread " << i);
             auto opCtx = client->makeOperationContext();
-            client->swapLockState(std::make_unique<LockerImpl>());
             clients.emplace_back(std::move(client), std::move(opCtx));
         }
     }

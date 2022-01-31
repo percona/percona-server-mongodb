@@ -26,8 +26,3 @@ cd "$venv_dir/bin"
 rm python python3
 ln -s "$python_loc" python3
 ln -s python3 python
-python3_dot_locs=$(ls python3.*)
-for p in $python3_dot_locs; do
-  rm "$p"
-  ln -s python3 "$p"
-done

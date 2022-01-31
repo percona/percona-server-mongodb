@@ -691,6 +691,7 @@ DocumentSource::GetNextResult DocumentSourceInternalDensify::doGetNext() {
                     [&](Full) {
                         _current = val;
                         _globalMin = val;
+                        _globalMax = val;
                         _densifyState = DensifyState::kNeedGen;
                         return nextDoc;
                     },
@@ -861,8 +862,8 @@ DensifyValue DensifyValue::increment(const RangeStatement& range) const {
                 return DensifyValue(uassertStatusOK(ExpressionAdd::apply(val, range.getStep())));
             },
             [&](Date_t date) {
-                return DensifyValue(
-                    dateAdd(date, range.getUnit().get(), range.getStep().getDouble(), timezone()));
+                return DensifyValue(dateAdd(
+                    date, range.getUnit().value(), range.getStep().getDouble(), timezone()));
             }},
         _value);
 }
@@ -875,8 +876,8 @@ DensifyValue DensifyValue::decrement(const RangeStatement& range) const {
                     uassertStatusOK(ExpressionSubtract::apply(val, range.getStep())));
             },
             [&](Date_t date) {
-                return DensifyValue(
-                    dateAdd(date, range.getUnit().get(), -range.getStep().getDouble(), timezone()));
+                return DensifyValue(dateAdd(
+                    date, range.getUnit().value(), -range.getStep().getDouble(), timezone()));
             }},
         _value);
 }
@@ -890,7 +891,7 @@ bool DensifyValue::isOnStepRelativeTo(DensifyValue base, RangeStatement range) c
                 return remainder.getDouble() == 0.0;
             },
             [&](Date_t date) {
-                auto unit = range.getUnit().get();
+                auto unit = range.getUnit().value();
                 double step = range.getStep().getDouble();
                 auto baseDate = base.getDate();
 

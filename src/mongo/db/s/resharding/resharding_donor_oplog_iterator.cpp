@@ -188,6 +188,17 @@ std::vector<repl::OplogEntry> ReshardingDonorOplogIterator::_fillBatch(Pipeline&
         }
 
         numBytes += obj.objsize();
+
+        if (isFinalOplog(entry)) {
+            // The ReshardingOplogFetcher should never insert documents after the reshardFinalOp
+            // entry. We defensively check each oplog entry for being the reshardFinalOp and confirm
+            // the pipeline has been exhausted.
+            if (auto nextDoc = pipeline.getNext()) {
+                tasserted(6077499,
+                          fmt::format("Unexpectedly found entry after reshardFinalOp: {}",
+                                      redact(nextDoc->toString())));
+            }
+        }
     } while (numBytes < resharding::gReshardingOplogBatchLimitBytes.load() &&
              batch.size() < std::size_t(resharding::gReshardingOplogBatchLimitOperations.load()));
 

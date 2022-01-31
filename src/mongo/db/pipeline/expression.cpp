@@ -1044,6 +1044,19 @@ boost::intrusive_ptr<Expression> ExpressionCond::optimize() {
     return this;
 }
 
+boost::intrusive_ptr<Expression> ExpressionCond::create(ExpressionContext* const expCtx,
+                                                        boost::intrusive_ptr<Expression> ifExp,
+                                                        boost::intrusive_ptr<Expression> elseExpr,
+                                                        boost::intrusive_ptr<Expression> thenExpr) {
+    intrusive_ptr<ExpressionCond> ret = new ExpressionCond(expCtx);
+    ret->_children.resize(3);
+
+    ret->_children[0] = ifExp;
+    ret->_children[1] = elseExpr;
+    ret->_children[2] = thenExpr;
+    return ret;
+}
+
 intrusive_ptr<Expression> ExpressionCond::parse(ExpressionContext* const expCtx,
                                                 BSONElement expr,
                                                 const VariablesParseState& vps) {
@@ -3123,11 +3136,15 @@ public:
         } else {
             doubleProduct *= val.coerceToDouble();
 
-            if (!std::isfinite(val.coerceToDouble()) ||
-                overflow::mul(longProduct, val.coerceToLong(), &longProduct)) {
-                // The number is either Infinity or NaN, or the 'longProduct' would have
-                // overflowed, so we're abandoning it.
-                productType = NumberDouble;
+            if (productType != NumberDouble) {
+                // If `productType` is not a double, it must be one of the integer types, so we
+                // attempt to update `longProduct`.
+                if (!std::isfinite(val.coerceToDouble()) ||
+                    overflow::mul(longProduct, val.coerceToLong(), &longProduct)) {
+                    // The multiplier is either Infinity or NaN, or the `longProduct` would
+                    // have overflowed, so we're abandoning it.
+                    productType = NumberDouble;
+                }
             }
         }
     }
@@ -4145,10 +4162,23 @@ Value ExpressionRange::evaluate(const Document& root, Variables* variables) cons
         uassert(34449, "$range requires a non-zero step value", step != 0);
     }
 
+    // Calculate how much memory is needed to generate the array and avoid going over the memLimit.
+    auto steps = (end - current) / step;
+    // If steps not positive then no amount of steps can get you from start to end. For example
+    // with start=5, end=7, step=-1 steps would be negative and in this case we would return an
+    // empty array.
+    auto length = steps >= 0 ? 1 + steps : 0;
+    int64_t memNeeded = sizeof(std::vector<Value>) + length * startVal.getApproximateSize();
+    auto memLimit = internalQueryMaxRangeBytes.load();
+    uassert(ErrorCodes::ExceededMemoryLimit,
+            str::stream() << "$range would use too much memory (" << memNeeded << " bytes) "
+                          << "and cannot spill to disk. Memory limit: " << memLimit << " bytes",
+            memNeeded < memLimit);
+
     std::vector<Value> output;
 
     while ((step > 0 ? current < end : current > end)) {
-        output.push_back(Value(static_cast<int>(current)));
+        output.emplace_back(static_cast<int>(current));
         current += step;
     }
 
@@ -7214,6 +7244,10 @@ Value ExpressionDateSubtract::evaluateDateArithmetics(Date_t date,
                                                       TimeUnit unit,
                                                       long long amount,
                                                       const TimeZone& timezone) const {
+    // Long long min value cannot be negated.
+    uassert(6045000,
+            str::stream() << "invalid $dateSubtract 'amount' parameter value: " << amount,
+            amount != std::numeric_limits<long long>::min());
     return Value(dateAdd(date, unit, -amount, timezone));
 }
 

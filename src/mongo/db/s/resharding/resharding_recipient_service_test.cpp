@@ -80,7 +80,7 @@ public:
         std::vector<ChunkType> chunks = {ChunkType{
             _sourceUUID,
             ChunkRange{BSON(_currentShardKey << MINKEY), BSON(_currentShardKey << MAXKEY)},
-            ChunkVersion(100, 0, epoch, Timestamp()),
+            ChunkVersion(100, 0, epoch, Timestamp(1, 1)),
             _someDonorId}};
 
         auto rt = RoutingTableHistory::makeNew(_sourceNss,
@@ -89,7 +89,7 @@ public:
                                                nullptr /* defaultCollator */,
                                                false /* unique */,
                                                std::move(epoch),
-                                               Timestamp(),
+                                               Timestamp(1, 1),
                                                boost::none /* timeseriesFields */,
                                                boost::none /* reshardingFields */,
                                                boost::none /* chunkSizeBytes */,
@@ -97,7 +97,7 @@ public:
                                                chunks);
 
         return ChunkManager(_someDonorId,
-                            DatabaseVersion(UUID::gen(), Timestamp()),
+                            DatabaseVersion(UUID::gen(), Timestamp(1, 1)),
                             _makeStandaloneRoutingTableHistory(std::move(rt)),
                             boost::none /* clusterTime */);
     }
@@ -139,7 +139,8 @@ private:
     RoutingTableHistoryValueHandle _makeStandaloneRoutingTableHistory(RoutingTableHistory rt) {
         const auto version = rt.getVersion();
         return RoutingTableHistoryValueHandle(
-            std::move(rt), ComparableChunkVersion::makeComparableChunkVersion(version));
+            std::make_shared<RoutingTableHistory>(std::move(rt)),
+            ComparableChunkVersion::makeComparableChunkVersion(version));
     }
 
     const StringData _currentShardKey = "oldKey";
@@ -425,6 +426,49 @@ TEST_F(ReshardingRecipientServiceTest, StepDownStepUpEachTransition) {
         auto recipient = *maybeRecipient;
 
         stateTransitionsGuard.unset(RecipientStateEnum::kDone);
+        notifyReshardingCommitting(opCtx.get(), *recipient, doc);
+        ASSERT_OK(recipient->getCompletionFuture().getNoThrow());
+        checkStateDocumentRemoved(opCtx.get());
+    }
+}
+
+TEST_F(ReshardingRecipientServiceTest, OpCtxKilledWhileRestoringMetrics) {
+    for (bool isAlsoDonor : {false, true}) {
+        LOGV2(5992701,
+              "Running case",
+              "test"_attr = _agent.getTestName(),
+              "isAlsoDonor"_attr = isAlsoDonor);
+
+        // Initialize recipient.
+        auto doc = makeStateDocument(isAlsoDonor);
+        auto instanceId =
+            BSON(ReshardingRecipientDocument::kReshardingUUIDFieldName << doc.getReshardingUUID());
+        auto opCtx = makeOperationContext();
+        if (isAlsoDonor) {
+            createSourceCollection(opCtx.get(), doc);
+        }
+        RecipientStateMachine::insertStateDocument(opCtx.get(), doc);
+        auto recipient = RecipientStateMachine::getOrCreate(opCtx.get(), _service, doc.toBSON());
+
+        // In order to restore metrics, metrics need to exist in the first place, so put the
+        // recipient in the cloning state, then step down.
+        PauseDuringStateTransitions stateTransitionsGuard{controller(),
+                                                          RecipientStateEnum::kCloning};
+        notifyToStartCloning(opCtx.get(), *recipient, doc);
+        stateTransitionsGuard.wait(RecipientStateEnum::kCloning);
+        stepDown();
+        stateTransitionsGuard.unset(RecipientStateEnum::kCloning);
+        recipient.reset();
+
+        // Enable failpoint and step up.
+        auto fp = globalFailPointRegistry().find("reshardingOpCtxKilledWhileRestoringMetrics");
+        fp->setMode(FailPoint::nTimes, 1);
+        stepUp(opCtx.get());
+
+        // After the failpoint is disabled, the operation should succeed.
+        auto maybeRecipient = RecipientStateMachine::lookup(opCtx.get(), _service, instanceId);
+        ASSERT_TRUE(bool(maybeRecipient));
+        recipient = *maybeRecipient;
         notifyReshardingCommitting(opCtx.get(), *recipient, doc);
         ASSERT_OK(recipient->getCompletionFuture().getNoThrow());
         checkStateDocumentRemoved(opCtx.get());
@@ -766,7 +810,6 @@ TEST_F(ReshardingRecipientServiceTest, RestoreMetricsAfterStepUp) {
             default:
                 break;
         }
-
         // Step down before the transition to state can complete.
         stateTransitionsGuard.wait(state);
         if (state == RecipientStateEnum::kStrictConsistency) {
@@ -800,6 +843,12 @@ TEST_F(ReshardingRecipientServiceTest, RestoreMetricsAfterStepUp) {
                   ErrorCodes::InterruptedDueToReplStateChange);
 
         prevState = state;
+        if (state == RecipientStateEnum::kApplying ||
+            state == RecipientStateEnum::kStrictConsistency) {
+            // If metrics are being verified in the next pass, ensure a retry does not alter values.
+            auto fp = globalFailPointRegistry().find("reshardingOpCtxKilledWhileRestoringMetrics");
+            fp->setMode(FailPoint::nTimes, 1);
+        }
 
         recipient.reset();
         if (state != RecipientStateEnum::kDone)

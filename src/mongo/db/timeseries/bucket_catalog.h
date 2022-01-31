@@ -158,7 +158,7 @@ public:
         void _abort(const boost::optional<Status>& status, bool canAccessBucket);
 
 
-        Bucket* _bucket;
+        Bucket* const _bucket;
         OperationId _opId;
         std::shared_ptr<ExecutionStats> _stats;
 
@@ -400,7 +400,8 @@ public:
                                                  const std::shared_ptr<ExecutionStats>& stats);
 
         // Access to the bucket is controlled by this lock
-        mutable Mutex _mutex;
+        mutable Mutex _mutex =
+            MONGO_MAKE_LATCH(HierarchicalAcquisitionLevel(2), "BucketCatalog::Bucket::_mutex");
 
         // The bucket ID for the underlying document
         OID _id = OID::gen();
