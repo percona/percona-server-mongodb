@@ -208,6 +208,20 @@ get_system(){
     return
 }
 
+install_python3_7_12() {
+    if [ x"${DEBIAN}" = xxenial ]; then
+        wget https://www.python.org/ftp/python/3.7.12/Python-3.7.12.tgz -O /tmp/Python-3.7.12.tgz
+        CUR_DIR=$PWD
+        cd /tmp
+        tar -zxf Python-3.7.12.tgz
+        cd Python-3.7.12/
+        ./configure --enable-optimizations
+        make -j4 build_all
+        make altinstall
+        cd $CUR_DIR
+    fi
+}
+
 install_golang() {
     wget https://dl.google.com/go/go1.11.4.linux-amd64.tar.gz -O /tmp/golang1.11.tar.gz
     tar --transform=s,go,go1.11, -zxf /tmp/golang1.11.tar.gz
@@ -344,6 +358,7 @@ install_deps() {
       percona-release enable tools testing
       yum clean all
       yum install -y patchelf
+      install_gcc_8_centos
       RHEL=$(rpm --eval %rhel)
       if [ x"$RHEL" = x6 ]; then
         yum -y update
@@ -364,10 +379,13 @@ install_deps() {
         yum -y install cyrus-sasl-devel snappy-devel zlib-devel bzip2-devel scons rpmlint
         yum -y install rpm-build git python-pip python-devel libopcodes libcurl-devel rpmlint e2fsprogs-devel expat-devel lz4-devel which
         yum -y install openldap-devel krb5-devel
-        pip install --upgrade pip
-        pip2.7 install --user setuptools --upgrade
+        pip install --upgrade pip==20.3.4
         pip3.6 install --user typing pyyaml regex Cheetah3
-        pip2.7 install --user typing pyyaml regex Cheetah Cheetah3
+        pip2.7 install --user "setuptools==44.1.1" --upgrade # https://setuptools.pypa.io/en/latest/python%202%20sunset.html
+        pip2.7 install --user "Markdown==3.1" # https://github.com/Python-Markdown/markdown/issues/929
+        pip2.7 install --user typing Cheetah Cheetah3
+        pip2.7 install --user "pyyaml==5.4.1" # https://github.com/yaml/pyyaml/issues/476
+        pip2.7 install --user "regex==2021.11.10"
       else
         yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
         yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
@@ -377,7 +395,9 @@ install_deps() {
       fi
       if [ "x${RHEL}" == "x8" ]; then
         /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
-        /usr/bin/pip2.7 install --user typing pyyaml regex Cheetah
+        /usr/bin/pip2.7 install --user typing Cheetah
+        /usr/bin/pip2.7 install --user "pyyaml==5.4.1" # https://github.com/yaml/pyyaml/issues/476
+        /usr/bin/pip2.7 install --user "regex==2021.11.10"
       fi
 #
       wget http://curl.haxx.se/download/curl-7.66.0.tar.gz
@@ -388,7 +408,7 @@ install_deps() {
         make install
       cd ../
       install_golang
-      install_gcc_8_centos
+#      install_gcc_8_centos
       if [ -f /opt/rh/devtoolset-8/enable ]; then
         source /opt/rh/devtoolset-8/enable
         source /opt/rh/rh-python36/enable
@@ -410,7 +430,7 @@ EOL
         apt-get -y update
       fi
       wget https://repo.percona.com/apt/percona-release_latest.$(lsb_release -sc)_all.deb && dpkg -i percona-release_latest.$(lsb_release -sc)_all.deb
-      if [ x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" ]; then
+      if [ x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" ]; then
         add-apt-repository -y ppa:deadsnakes/ppa
       elif [ x"${DEBIAN}" = "xstretch" -o x"${DEBIAN}" = "xbuster" ]; then
         wget https://people.debian.org/~paravoid/python-all/unofficial-python-all.asc
@@ -421,12 +441,14 @@ EOL
       apt-get update
       if [ x"${DEBIAN}" = "xbullseye" ]; then
         INSTALL_LIST="python3 python3-dev python3-pip"
+      elif [ x"${DEBIAN}" = "xxenial" ]; then
+        INSTALL_LIST="build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libreadline-dev libffi-dev libsqlite3-dev"
       else
         INSTALL_LIST="python3.7 python3.7-dev dh-systemd"
       fi
       INSTALL_LIST="${INSTALL_LIST} git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
-      INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev patchelf"
-      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" ]; then
+      INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf libexpat1-dev"
+      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" -a x"${DEBIAN}" != "xxenial" ]; then
         INSTALL_LIST="${INSTALL_LIST} python3.7-distutils"
       fi
       until apt-get -y install dirmngr; do
@@ -443,6 +465,11 @@ EOL
       wget https://bootstrap.pypa.io/get-pip.py
       if [ x"${DEBIAN}" = "xbullseye" ]; then
         update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1
+      elif [ x"${DEBIAN}" = "xxenial" ]; then
+        install_python3_7_12
+        update-alternatives --install /usr/bin/python python /usr/local/bin/python3.7 1
+        ln -sf /usr/local/bin/python3.7 /usr/bin/python3
+        sed -i 's/python3 /python3.5 /g' /usr/bin/lsb_release
       else
         update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1
         ln -sf /usr/bin/python3.7 /usr/bin/python3
@@ -679,7 +706,7 @@ build_source_deb(){
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
-    if [ x"${DEBIAN}" = "xbullseye" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" ]; then
         sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
     fi
     #
@@ -747,7 +774,7 @@ build_deb(){
     cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
-    if [ x"${DEBIAN}" = "xbullseye" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" ]; then
         sed -i 's:dh-systemd,::' debian/control
         sed -i 's:etc/:/etc/:g' debian/percona-server-mongodb-server.conffiles
     fi
@@ -987,6 +1014,13 @@ build_tarball(){
         done
     }
 
+    function fix_sasl_lib {
+        # Details are in ticket PSMDB-950
+        patchelf --remove-needed libsasl2.so.3 bin/mongod
+        patchelf --remove-needed libsasl2.so.3 bin/mongo
+        patchelf --remove-needed libsasl2.so bin/mongo
+    }
+
     function replace_libs {
         local elf_path=$1
         for libpath_sorted in ${LIBPATH}; do
@@ -1045,6 +1079,9 @@ build_tarball(){
         for DIR in ${DIRLIST}; do
             replace_libs ${DIR}
         done
+
+        # Use system libsasl2 for some binaries
+        fix_sasl_lib
 
         # Create and replace by sparse file to reduce size
         create_sparse bin
