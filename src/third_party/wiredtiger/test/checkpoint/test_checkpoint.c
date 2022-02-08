@@ -41,6 +41,10 @@ static int wt_shutdown(void);
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -288,8 +292,8 @@ wt_connect(const char *config_open)
           config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
     else {
         testutil_check(__wt_snprintf(config, sizeof(config),
-          "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
-          "\"%s\"%s%s%s%s",
+          "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),log=(enabled),"
+          "error_prefix=\"%s\"%s%s%s%s",
           progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
           config_open == NULL ? "" : config_open, timing_stress ? timing_stress_cofing : ""));
     }
@@ -334,6 +338,10 @@ cleanup(bool remove_dir)
         testutil_make_work_dir(g.home);
 }
 
+/*
+ * handle_error --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
 {
@@ -344,6 +352,10 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
     return (fprintf(stderr, "%s\n", errmsg) < 0 ? -1 : 0);
 }
 
+/*
+ * handle_message --
+ *     TODO: Add a comment describing this function.
+ */
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
 {
@@ -547,11 +559,12 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-m] "
-      "[-n ops] [-r runs] [-s 1|2|3|4] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
+      "[-n ops] [-r runs] [-s 1|2|3|4|5] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c checkpoint name to used named checkpoints\n"
+      "\t-D debug mode\n"
       "\t-h set a database home directory\n"
       "\t-k set number of keys to load\n"
       "\t-l specify a log file\n"

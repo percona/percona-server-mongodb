@@ -154,5 +154,18 @@ TEST(RedactBSONTest, BSONWithArrays) {
 
     testBSONCases(testCases);
 }
+
+TEST(RedactBSONTest, RedactedObjectShouldBeSmallerOrEqualInSizeToOriginal) {
+    logv2::setShouldRedactLogs(true);
+    BSONObjBuilder bob;
+    for (int i = 0; i < 1024 * 1024; i++) {
+        auto fieldName = "abcdefg";
+        // The value of each field is smaller than the size of the kRedactionDefaultMask.
+        bob.append(fieldName, 1);
+    }
+    const auto obj = bob.obj();
+    const auto redactedObj = redact(obj);
+    ASSERT_LTE(redactedObj.objsize(), obj.objsize());
+}
 }  // namespace
 }  // namespace mongo

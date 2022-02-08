@@ -137,6 +137,10 @@ static pthread_rwlock_t ts_lock;
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -243,7 +247,7 @@ thread_flush_run(void *arg)
      */
     (void)unlink(sentinel_file);
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    for (i = 0;; ++i) {
+    for (i = 0;;) {
         sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
         sleep(sleep_time);
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
@@ -264,7 +268,7 @@ thread_flush_run(void *arg)
          * Create the sentinel file so that the parent process knows the desired number of
          * flush_tier calls have finished and can start its timer.
          */
-        if (i == flush_calls) {
+        if (++i == flush_calls) {
             testutil_assert_errno((fp = fopen(sentinel_file, "w")) != NULL);
             testutil_assert_errno(fclose(fp) == 0);
         }
@@ -420,6 +424,10 @@ rollback:
  * it is killed by the parent.
  */
 static void run_workload(uint32_t, const char *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * run_workload --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_workload(uint32_t nth, const char *build_dir)
 {
@@ -520,6 +528,10 @@ extern char *__wt_optarg;
 /*
  * Initialize a report structure. Since zero is a valid key we cannot just clear it.
  */
+/*
+ * initialize_rep --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 initialize_rep(REPORT *r)
 {
@@ -530,6 +542,10 @@ initialize_rep(REPORT *r)
 /*
  * Print out information if we detect missing records in the middle of the data of a report
  * structure.
+ */
+/*
+ * print_missing --
+ *     TODO: Add a comment describing this function.
  */
 static void
 print_missing(REPORT *r, const char *fname, const char *msg)
@@ -544,6 +560,10 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 /*
  * Signal handler to catch if the child died unexpectedly.
  */
+/*
+ * handler --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 handler(int sig)
 {
@@ -555,6 +575,10 @@ handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -576,19 +600,20 @@ main(int argc, char *argv[])
     char buf[512], bucket_dir[512], build_dir[512], fname[64], kname[64];
     char envconf[1024], extconf[512];
     char ts_string[WT_TS_HEX_STRING_SIZE];
-    bool fatal, rand_th, rand_time, verify_only;
+    bool fatal, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     use_ts = true;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.tiered-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "b:f:h:T:t:vz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "b:f:h:pT:t:vz")) != EOF)
         switch (ch) {
         case 'b': /* Build directory */
             opts->build_dir = dstrdup(__wt_optarg);
@@ -598,6 +623,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             working_dir = __wt_optarg;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'T':
             rand_th = false;
@@ -906,6 +934,13 @@ main(int argc, char *argv[])
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
     testutil_cleanup(opts);
     return (EXIT_SUCCESS);
 }

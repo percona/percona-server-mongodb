@@ -14,6 +14,14 @@
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
 
+/*
+ * A list of reasons for returning a rollback error from the API. These reasons can be queried via
+ * the session get rollback reason API call. Users of the API could have a dependency on the format
+ * of these messages so changing them must be done with care.
+ */
+#define WT_TXN_ROLLBACK_REASON_CACHE "oldest pinned transaction ID rolled back for eviction"
+#define WT_TXN_ROLLBACK_REASON_CONFLICT "conflict between concurrent operations"
+
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
 #define WT_TXN_LOG_CKPT_PREPARE 0x02u
@@ -196,8 +204,6 @@ typedef enum {
 struct __wt_txn_op {
     WT_BTREE *btree;
     WT_TXN_TYPE type;
-    WT_HAZARD_WEAK *whp;
-
     union {
         /* WT_TXN_OP_BASIC_ROW, WT_TXN_OP_INMEM_ROW */
         struct {
@@ -289,14 +295,8 @@ struct __wt_txn {
     u_int prepare_count;
 #endif
 
-    /* This is a temporary feature flag to simplify resolving uncommitted updates. */
-    bool resolve_weak_hazard_updates;
-
     /* Scratch buffer for in-memory log records. */
     WT_ITEM *logrec;
-
-    /* Requested notification when transactions are resolved. */
-    WT_TXN_NOTIFY *notify;
 
     /* Checkpoint status. */
     WT_LSN ckpt_lsn;

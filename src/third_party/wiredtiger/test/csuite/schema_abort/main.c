@@ -129,6 +129,10 @@ typedef struct {
 
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * usage --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 usage(void)
 {
@@ -171,6 +175,10 @@ static WT_EVENT_HANDLER event_handler = {
  * that we can verify the state of the schema too.
  */
 
+/*
+ * dump_ts --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 dump_ts(uint64_t nth)
 {
@@ -764,6 +772,10 @@ thread_run(void *arg)
  * it is killed by the parent.
  */
 static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+/*
+ * run_workload --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 run_workload(uint32_t nth)
 {
@@ -846,6 +858,10 @@ extern char *__wt_optarg;
 /*
  * Initialize a report structure. Since zero is a valid key we cannot just clear it.
  */
+/*
+ * initialize_rep --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 initialize_rep(REPORT *r)
 {
@@ -856,6 +872,10 @@ initialize_rep(REPORT *r)
 /*
  * Print out information if we detect missing records in the middle of the data of a report
  * structure.
+ */
+/*
+ * print_missing --
+ *     TODO: Add a comment describing this function.
  */
 static void
 print_missing(REPORT *r, const char *fname, const char *msg)
@@ -870,6 +890,10 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 /*
  * Signal handler to catch if the child died unexpectedly.
  */
+/*
+ * sig_handler --
+ *     TODO: Add a comment describing this function.
+ */
 static void
 sig_handler(int sig)
 {
@@ -883,6 +907,10 @@ sig_handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
+/*
+ * main --
+ *     TODO: Add a comment describing this function.
+ */
 int
 main(int argc, char *argv[])
 {
@@ -903,7 +931,7 @@ main(int argc, char *argv[])
     char buf[512], statname[1024];
     char fname[64], kname[64];
     const char *working_dir;
-    bool fatal, rand_th, rand_time, verify_only;
+    bool fatal, preserve, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
@@ -915,12 +943,13 @@ main(int argc, char *argv[])
      */
     use_txn = false;
     nth = MIN_TH;
+    preserve = false;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
     verify_only = false;
     working_dir = "WT_TEST.schema-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mT:t:vxz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mpT:t:vxz")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
@@ -934,6 +963,9 @@ main(int argc, char *argv[])
             break;
         case 'm':
             inmem = true;
+            break;
+        case 'p':
+            preserve = true;
             break;
         case 'T':
             rand_th = false;
@@ -1211,5 +1243,12 @@ main(int argc, char *argv[])
     if (fatal)
         return (EXIT_FAILURE);
     printf("%" PRIu64 " records verified\n", count);
+    if (!preserve) {
+        testutil_clean_test_artifacts(home);
+        /* At this point $PATH is inside `home`, which we intend to delete. cd to the parent dir. */
+        if (chdir("../") != 0)
+            testutil_die(errno, "root chdir: %s", home);
+        testutil_clean_work_dir(home);
+    }
     return (EXIT_SUCCESS);
 }

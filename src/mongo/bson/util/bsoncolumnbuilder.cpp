@@ -309,29 +309,45 @@ BSONColumnBuilder& BSONColumnBuilder::append(BSONElement elem) {
     auto obj = elem.Obj();
     // First validate that we don't store MinKey or MaxKey anywhere in the Object. If this is the
     // case, throw exception before we modify any state.
-    _traverse(obj, [](const BSONElement& elem, const BSONElement&) {
+    uint32_t numElements = 0;
+    _traverse(obj, [&numElements](const BSONElement& elem, const BSONElement&) {
+        ++numElements;
         uassert(ErrorCodes::InvalidBSONType,
                 "MinKey or MaxKey is not valid for storage",
                 elem.type() != MinKey && elem.type() != MaxKey);
     });
 
     if (_mode == Mode::kRegular) {
-        _startDetermineSubObjReference(obj);
+        if (numElements == 0) {
+            _state.append(elem);
+        } else {
+            _startDetermineSubObjReference(obj);
+        }
+
         return *this;
     }
 
     if (_mode == Mode::kSubObjDeterminingReference) {
         // We are in DeterminingReference mode, check if this current object is compatible and merge
         // in any new fields that are discovered.
-        uint32_t numElements = 0;
-        if (!traverseLockStep(_referenceSubObj,
-                              obj,
-                              [this, &numElements](const BSONElement& ref,
-                                                   const BSONElement& elem) { ++numElements; })) {
+        uint32_t numElementsReferenceObj = 0;
+        if (!traverseLockStep(
+                _referenceSubObj,
+                obj,
+                [this, &numElementsReferenceObj](const BSONElement& ref, const BSONElement& elem) {
+                    ++numElementsReferenceObj;
+                })) {
             BSONObj merged = mergeObj(_referenceSubObj, obj);
             if (merged.isEmptyPrototype()) {
                 // If merge failed, flush current sub-object compression and start over.
                 _flushSubObjMode();
+
+                // If we only contain empty subobj (no value elements) then append in regular mode
+                // instead of re-starting subobj compression.
+                if (numElements == 0) {
+                    _state.append(elem);
+                    return *this;
+                }
 
                 _referenceSubObj = obj.getOwned();
                 _bufferedObjElements.push_back(_referenceSubObj);
@@ -343,7 +359,7 @@ BSONColumnBuilder& BSONColumnBuilder::append(BSONElement elem) {
 
         // If we've buffered twice as many objects as we have sub-elements we will achieve good
         // compression so use the currently built reference.
-        if (numElements * 2 >= _bufferedObjElements.size()) {
+        if (numElementsReferenceObj * 2 >= _bufferedObjElements.size()) {
             _bufferedObjElements.push_back(obj.getOwned());
             return *this;
         }
@@ -352,7 +368,15 @@ BSONColumnBuilder& BSONColumnBuilder::append(BSONElement elem) {
     }
 
     // Reference already determined for sub-object compression, try to add this new object.
-    _appendSubElements(obj);
+    if (!_appendSubElements(obj)) {
+        // If we were not compatible restart subobj compression unless our object contain no value
+        // fields (just empty subobjects)
+        if (numElements == 0) {
+            _state.append(elem);
+        } else {
+            _startDetermineSubObjReference(obj);
+        }
+    }
     return *this;
 }
 
@@ -360,7 +384,17 @@ BSONColumnBuilder& BSONColumnBuilder::append(BSONElement elem) {
 BSONColumnBuilder& BSONColumnBuilder::skip() {
     if (_mode == Mode::kRegular) {
         _state.skip();
-    } else if (_mode == Mode::kSubObjDeterminingReference) {
+        return *this;
+    }
+
+    // If the reference object contain any empty subobjects we need to end interleaved mode as
+    // skipping in all substreams would not be encoded as skipped root object.
+    if (_hasEmptyObj(_referenceSubObj)) {
+        _flushSubObjMode();
+        return skip();
+    }
+
+    if (_mode == Mode::kSubObjDeterminingReference) {
         _bufferedObjElements.push_back(BSONObj());
     } else {
         for (auto&& state : _subobjStates) {
@@ -884,7 +918,7 @@ Simple8bWriteFn BSONColumnBuilder::EncodingState::_createBufferWriter() {
     };
 }
 
-void BSONColumnBuilder::_appendSubElements(const BSONObj& obj) {
+bool BSONColumnBuilder::_appendSubElements(const BSONObj& obj) {
     // Check if added object is compatible with selected reference object. Collect a flat vector of
     // all elements while we are doing this.
     _flattenedAppendedObj.clear();
@@ -893,8 +927,7 @@ void BSONColumnBuilder::_appendSubElements(const BSONObj& obj) {
                 _flattenedAppendedObj.push_back(elem);
             })) {
         _flushSubObjMode();
-        _startDetermineSubObjReference(obj);
-        return;
+        return false;
     }
 
     // We should have recieved one callback for every sub-element in reference object. This should
@@ -913,6 +946,7 @@ void BSONColumnBuilder::_appendSubElements(const BSONObj& obj) {
         else
             state.skip();
     }
+    return true;
 }
 
 void BSONColumnBuilder::_startDetermineSubObjReference(const BSONObj& obj) {
@@ -970,7 +1004,9 @@ void BSONColumnBuilder::_finishDetermineSubObjReference() {
     auto it = _bufferedObjElements.begin() + 1;
     auto end = _bufferedObjElements.end();
     for (; it != end; ++it) {
-        _appendSubElements(*it);
+        // The objects we append here should always be compatible with our reference object. If they
+        // are not then there is a bug somewhere.
+        invariant(_appendSubElements(*it));
     }
     _bufferedObjElements.clear();
 }
