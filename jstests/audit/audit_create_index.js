@@ -29,7 +29,7 @@ auditTest(
         const beforeLoad = Date.now();
         auditColl = getAuditEventsCollection(m, testDBName);
 
-        assert.eq(1, auditColl.count({
+        assert.eq(2, auditColl.count({
             atype: "createIndex",
             ts: withinInterval(beforeCmd, beforeLoad),
             'param.ns': testDBName + '.coll',
@@ -38,7 +38,7 @@ auditTest(
             result: 0,
         }), "FAILED background=false, audit log: " + tojson(auditColl.find().toArray()));
 
-        assert.eq(1, auditColl.count({
+        assert.eq(2, auditColl.count({
             atype: "createIndex",
             ts: withinInterval(beforeCmd, beforeLoad),
             'param.ns': testDBName + '.coll' ,

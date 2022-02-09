@@ -24,7 +24,7 @@ auditTestShard(
 
         const beforeLoad = Date.now();
         auditColl = loadAuditEventsIntoCollection(st.s0, getDBPath() + '/auditLog-c0.json', jsTestName(), 'auditEvents');
-        assert.eq(1, auditColl.count({
+        assert.eq(2, auditColl.count({
             atype: "removeShard",
             ts: withinInterval(beforeCmd, beforeLoad),
             'param.shard': 'removable',

@@ -26,7 +26,7 @@ auditTest(
         testDB.createUser(userObj);
 
         const beforeUpdateUser = Date.now();
-        var updateObj = { roles: [ { role:'userAdmin', db:testDBName}, { role:'dbAdmin', db:testDBName} ] }
+        var updateObj = { roles: [ { role:'dbAdmin', db:testDBName} ] }
         testDB.updateUser(userObj.user, updateObj);
         assert.eq(1, adminDB.system.users.count({ user: userObj.user, roles: updateObj.roles }),
                      "system.users update did not update role for user: " + userObj.user);
@@ -59,7 +59,6 @@ auditTest(
             'param.user': userObj.user,
             //'param.roles': updateObj.roles,
             'param.roles': { $elemMatch: updateObj.roles[0] },
-            'param.roles': { $elemMatch: updateObj.roles[1] },
             result: 0,
         }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
 
