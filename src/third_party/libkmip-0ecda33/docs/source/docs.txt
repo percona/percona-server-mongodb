@@ -1,0 +1,9 @@
+Welcome to libkmip
+
+1. Installation
+2. Changelog
+3. FAQ
+4. Development
+5. Client
+6. Community
+7. Glossary

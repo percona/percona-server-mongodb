@@ -1,0 +1,23 @@
+sudo: true
+
+language: c
+
+compiler:
+  - clang
+  - gcc
+
+os: linux
+dist: xenial
+
+before_install:
+  - mkdir -p ~/build/openssl
+  - curl -s https://www.openssl.org/source/openssl-1.1.0i.tar.gz | tar -C ~/build/openssl -xzf -
+  - pushd ~/build/openssl/openssl-1.1.0i
+  - ./Configure enable-crypto-mdebug enable-crypto-mdebug-backtrace linux-x86_64
+  - make &> ~/build/openssl/openssl-1.1.0i-make.log
+  - sudo make install &> ~/build/openssl/openssl-1.1.0i-make-install.log
+  - popd
+
+script:
+  - make && sudo make install
+  - make test
