@@ -208,6 +208,11 @@ get_system(){
     return
 }
 
+switch_to_vault_repo() {
+    sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-Linux-*
+    sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-Linux-*
+}
+
 install_golang() {
     wget https://dl.google.com/go/go1.11.4.linux-amd64.tar.gz -O /tmp/golang1.11.tar.gz
     tar --transform=s,go,go1.11, -zxf /tmp/golang1.11.tar.gz
@@ -314,6 +319,9 @@ install_deps() {
     fi
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
+      if [ x"$RHEL" = x8 ]; then
+          switch_to_vault_repo
+      fi
       yum -y update
       yum -y install wget
       add_percona_yum_repo
@@ -493,6 +501,9 @@ build_srpm(){
         echo "It is not possible to build src rpm here"
         exit 1
     fi
+    if [ x"$RHEL" = x8 ]; then
+        switch_to_vault_repo
+    fi
     cd $WORKDIR
     get_tar "source_tarball"
     rm -fr rpmbuild
@@ -536,6 +547,9 @@ build_rpm(){
     then
         echo "It is not possible to build rpm here"
         exit 1
+    fi
+    if [ x"$RHEL" = x8 ]; then
+        switch_to_vault_repo
     fi
     SRC_RPM=$(basename $(find $WORKDIR/srpm -name 'percona-server-mongodb*.src.rpm' | sort | tail -n1))
     if [ -z $SRC_RPM ]
@@ -727,6 +741,9 @@ build_tarball(){
     then
         echo "Binary tarball will not be created"
         return;
+    fi
+    if [ x"$RHEL" = x8 ]; then
+        switch_to_vault_repo
     fi
     get_tar "source_tarball"
     cd $WORKDIR
@@ -925,7 +942,10 @@ build_tarball(){
         # Details are in ticket PSMDB-950
         patchelf --remove-needed libsasl2.so.3 bin/mongod
         patchelf --remove-needed libsasl2.so.3 bin/mongo
-        patchelf --remove-needed libsasl2.so bin/mongo
+        if [ "x$OS" = "xrpm" ]
+        then
+            patchelf --remove-needed libsasl2.so bin/mongo
+        fi
     }
 
     function replace_libs {
