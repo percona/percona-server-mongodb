@@ -570,15 +570,20 @@ public:
                                         << " tailable cursor requested on non capped collection");
         }
 
-        // Fill in some opDebug information.
+        // Fill in some opDebug information, unless it has already been filled by an outer pipeline.
         const PlanCacheKey planCacheKey =
             plan_cache_key_factory::make<PlanCacheKey>(*_cq, _collection);
-        CurOp::get(_opCtx)->debug().queryHash = planCacheKey.queryHash();
+        OpDebug& opDebug = CurOp::get(_opCtx)->debug();
+        if (!opDebug.queryHash) {
+            opDebug.queryHash = planCacheKey.queryHash();
+        }
 
         // Check that the query should be cached.
         if (shouldCacheQuery(*_cq)) {
             // Fill in the 'planCacheKey' too if the query is actually being cached.
-            CurOp::get(_opCtx)->debug().planCacheKey = planCacheKey.planCacheKeyHash();
+            if (!opDebug.planCacheKey) {
+                opDebug.planCacheKey = planCacheKey.planCacheKeyHash();
+            }
 
             // Try to look up a cached solution for the query.
             if (auto cs = CollectionQueryInfo::get(_collection)
@@ -985,6 +990,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getClassicExecu
     std::unique_ptr<CanonicalQuery> canonicalQuery,
     PlanYieldPolicy::YieldPolicy yieldPolicy,
     size_t plannerOptions) {
+    // Mark that this query uses the classic engine, unless this has already been set.
+    OpDebug& opDebug = CurOp::get(opCtx)->debug();
+    if (!opDebug.classicEngineUsed) {
+        opDebug.classicEngineUsed = true;
+    }
     auto ws = std::make_unique<WorkingSet>();
     ClassicPrepareExecutionHelper helper{
         opCtx, *collection, ws.get(), canonicalQuery.get(), nullptr, plannerOptions};
@@ -1091,7 +1101,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getSlotBasedExe
     if (extractAndAttachPipelineStages) {
         extractAndAttachPipelineStages(cq.get());
     }
-
+    // Mark that this query uses the SBE engine, unless this has already been set.
+    OpDebug& opDebug = CurOp::get(opCtx)->debug();
+    if (!opDebug.classicEngineUsed) {
+        opDebug.classicEngineUsed = false;
+    }
     // Analyze the provided query and build the list of candidate plans for it.
     auto nss = cq->nss();
     auto yieldPolicy = makeSbeYieldPolicy(opCtx, requestedYieldPolicy, collection, nss);

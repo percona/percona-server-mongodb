@@ -34,17 +34,14 @@
 #include "mongo/db/catalog/collection.h"
 
 namespace mongo::trial_period {
-size_t getTrialPeriodMaxWorks(OperationContext* opCtx, const CollectionPtr& collection) {
-    // Run each plan some number of times. This number is at least as great as
-    // 'internalQueryPlanEvaluationWorks', but may be larger for big collections.
-    size_t numWorks = internalQueryPlanEvaluationWorks.load();
+size_t getTrialPeriodMaxWorks(OperationContext* opCtx,
+                              const CollectionPtr& collection,
+                              int maxWorksParam,
+                              double collFraction) {
+    size_t numWorks = static_cast<size_t>(maxWorksParam);
     if (collection) {
-        // For large collections, the number of works is set to be this fraction of the collection
-        // size.
-        double fraction = internalQueryPlanEvaluationCollFraction;
-
-        numWorks = std::max(static_cast<size_t>(internalQueryPlanEvaluationWorks.load()),
-                            static_cast<size_t>(fraction * collection->numRecords(opCtx)));
+        numWorks =
+            std::max(numWorks, static_cast<size_t>(collFraction * collection->numRecords(opCtx)));
     }
 
     return numWorks;

@@ -886,6 +886,10 @@ void OpDebug::report(OperationContext* opCtx,
         pAttrs->addDeepCopy("planCacheKey", zeroPaddedHex(*planCacheKey));
     }
 
+    if (classicEngineUsed) {
+        pAttrs->add("queryExecutionEngine", classicEngineUsed.get() ? "classic" : "sbe");
+    }
+
     if (!errInfo.isOK()) {
         pAttrs->add("ok", 0);
         if (!errInfo.reason().empty()) {
@@ -1041,6 +1045,10 @@ void OpDebug::append(OperationContext* opCtx,
     }
     if (planCacheKey) {
         b.append("planCacheKey", zeroPaddedHex(*planCacheKey));
+    }
+
+    if (classicEngineUsed) {
+        b.append("queryExecutionEngine", classicEngineUsed.get() ? "classic" : "sbe");
     }
 
     {
@@ -1312,6 +1320,12 @@ std::function<BSONObj(ProfileFilter::Args)> OpDebug::appendStaged(StringSet requ
     addIfNeeded("planCacheKey", [](auto field, auto args, auto& b) {
         if (args.op.planCacheKey) {
             b.append(field, zeroPaddedHex(*args.op.planCacheKey));
+        }
+    });
+
+    addIfNeeded("queryExecutionEngine", [](auto field, auto args, auto& b) {
+        if (args.op.classicEngineUsed) {
+            b.append("queryExecutionEngine", args.op.classicEngineUsed.get() ? "classic" : "sbe");
         }
     });
 

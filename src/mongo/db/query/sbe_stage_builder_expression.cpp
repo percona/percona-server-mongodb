@@ -783,7 +783,10 @@ public:
                                 makeNot(makeFunction("isDate", var.clone())));
         };
 
-        if (arity == 2) {
+        if (arity == 0) {
+            // Return a zero constant if the expression has no operand children.
+            _context->pushExpr(makeConstant(sbe::value::TypeTags::NumberInt32, 0));
+        } else if (arity == 2) {
             auto rhs = _context->popExpr();
             auto lhs = _context->popExpr();
             auto binds = sbe::makeEs(std::move(lhs), std::move(rhs));
@@ -1102,8 +1105,14 @@ public:
     void visit(const ExpressionConcat* expr) final {
         auto arity = expr->getChildren().size();
         _context->ensureArity(arity);
-        auto frameId = _context->state.frameId();
 
+        // Concatination of no strings is an empty string.
+        if (arity == 0) {
+            _context->pushExpr(makeConstant(""_sd));
+            return;
+        }
+
+        auto frameId = _context->state.frameId();
         sbe::EExpression::Vector binds;
         sbe::EExpression::Vector checkNullArg;
         sbe::EExpression::Vector checkStringArg;
@@ -1151,6 +1160,13 @@ public:
     void visit(const ExpressionConcatArrays* expr) final {
         auto numChildren = expr->getChildren().size();
         _context->ensureArity(numChildren);
+
+        // If there are no children, return an empty array.
+        if (numChildren == 0) {
+            auto [emptyArrTag, emptyArrValue] = sbe::value::makeNewArray();
+            _context->pushExpr(makeConstant(emptyArrTag, emptyArrValue));
+            return;
+        }
 
         sbe::EExpression::Vector nullChecks;
         std::vector<EvalStage> unionBranches;
@@ -2319,8 +2335,14 @@ public:
     void visit(const ExpressionMultiply* expr) final {
         auto arity = expr->getChildren().size();
         _context->ensureArity(arity);
-        auto frameId = _context->state.frameId();
 
+        // Return multiplicative identity if the $multiply expression has no operands.
+        if (arity == 0) {
+            _context->pushExpr(makeConstant(sbe::value::TypeTags::NumberInt32, 1));
+            return;
+        }
+
+        auto frameId = _context->state.frameId();
         sbe::EExpression::Vector binds;
         sbe::EExpression::Vector variables;
         sbe::EExpression::Vector checkExprsNull;
@@ -2560,6 +2582,12 @@ public:
         unsupportedExpression(expr->getOpName());
     }
     void visit(const ExpressionSetIntersection* expr) final {
+        if (expr->getChildren().size() == 0) {
+            auto [emptySetTag, emptySetValue] = sbe::value::makeNewArraySet();
+            _context->pushExpr(makeConstant(emptySetTag, emptySetValue));
+            return;
+        }
+
         generateSetExpression(expr, SetOperation::Intersection);
     }
 
@@ -2567,6 +2595,12 @@ public:
         unsupportedExpression(expr->getOpName());
     }
     void visit(const ExpressionSetUnion* expr) final {
+        if (expr->getChildren().size() == 0) {
+            auto [emptySetTag, emptySetValue] = sbe::value::makeNewArraySet();
+            _context->pushExpr(makeConstant(emptySetTag, emptySetValue));
+            return;
+        }
+
         generateSetExpression(expr, SetOperation::Union);
     }
 

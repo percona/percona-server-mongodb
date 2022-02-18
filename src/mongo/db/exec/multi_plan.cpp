@@ -163,7 +163,11 @@ Status MultiPlanStage::pickBestPlan(PlanYieldPolicy* yieldPolicy) {
     // make sense.
     auto optTimer = getOptTimer();
 
-    size_t numWorks = trial_period::getTrialPeriodMaxWorks(opCtx(), collection());
+    const size_t numWorks =
+        trial_period::getTrialPeriodMaxWorks(opCtx(),
+                                             collection(),
+                                             internalQueryPlanEvaluationWorks.load(),
+                                             internalQueryPlanEvaluationCollFraction.load());
     size_t numResults = trial_period::getTrialPeriodNumToReturn(*_query);
 
     try {

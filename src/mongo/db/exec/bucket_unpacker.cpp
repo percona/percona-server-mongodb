@@ -27,10 +27,9 @@
  *    it in the license file.
  */
 
-#include "mongo/platform/basic.h"
+#include "mongo/db/exec/bucket_unpacker.h"
 
 #include "mongo/bson/util/bsoncolumn.h"
-#include "mongo/db/exec/bucket_unpacker.h"
 #include "mongo/db/timeseries/timeseries_constants.h"
 
 namespace mongo {
@@ -43,17 +42,25 @@ public:
     virtual int measurementCount(const BSONElement& timeField) const = 0;
     virtual bool getNext(MutableDocument& measurement,
                          const BucketSpec& spec,
-                         const BSONElement& metaValue,
+                         const Value& metaValue,
                          bool includeTimeField,
                          bool includeMetaField) = 0;
     virtual void extractSingleMeasurement(MutableDocument& measurement,
                                           int j,
                                           const BucketSpec& spec,
+                                          const std::set<std::string>& unpackFieldsToIncludeExclude,
                                           BucketUnpacker::Behavior behavior,
                                           const BSONObj& bucket,
-                                          const BSONElement& metaValue,
+                                          const Value& metaValue,
                                           bool includeTimeField,
                                           bool includeMetaField) = 0;
+
+    // Provides an upper bound on the number of fields in each measurement.
+    virtual std::size_t numberOfFields() = 0;
+
+protected:
+    // Data field count is variable, but time and metadata are fixed.
+    constexpr static std::size_t kFixedFieldNumber = 2;
 };
 
 namespace {
@@ -87,17 +94,19 @@ public:
     int measurementCount(const BSONElement& timeField) const override;
     bool getNext(MutableDocument& measurement,
                  const BucketSpec& spec,
-                 const BSONElement& metaValue,
+                 const Value& metaValue,
                  bool includeTimeField,
                  bool includeMetaField) override;
     void extractSingleMeasurement(MutableDocument& measurement,
                                   int j,
                                   const BucketSpec& spec,
+                                  const std::set<std::string>& unpackFieldsToIncludeExclude,
                                   BucketUnpacker::Behavior behavior,
                                   const BSONObj& bucket,
-                                  const BSONElement& metaValue,
+                                  const Value& metaValue,
                                   bool includeTimeField,
                                   bool includeMetaField) override;
+    std::size_t numberOfFields() override;
 
 private:
     // Iterates the timestamp section of the bucket to drive the unpacking iteration.
@@ -150,17 +159,17 @@ int BucketUnpackerV1::measurementCount(const BSONElement& timeField) const {
 
 bool BucketUnpackerV1::getNext(MutableDocument& measurement,
                                const BucketSpec& spec,
-                               const BSONElement& metaValue,
+                               const Value& metaValue,
                                bool includeTimeField,
                                bool includeMetaField) {
     auto&& timeElem = _timeFieldIter.next();
     if (includeTimeField) {
-        measurement.addField(spec.timeField, Value{timeElem});
+        measurement.addField(spec.timeFieldHashed(), Value{timeElem});
     }
 
     // Includes metaField when we're instructed to do so and metaField value exists.
-    if (includeMetaField && metaValue) {
-        measurement.addField(*spec.metaField, Value{metaValue});
+    if (includeMetaField && !metaValue.missing()) {
+        measurement.addField(*spec.metaFieldHashed(), metaValue);
     }
 
     auto& currentIdx = timeElem.fieldNameStringData();
@@ -174,25 +183,27 @@ bool BucketUnpackerV1::getNext(MutableDocument& measurement,
     return _timeFieldIter.more();
 }
 
-void BucketUnpackerV1::extractSingleMeasurement(MutableDocument& measurement,
-                                                int j,
-                                                const BucketSpec& spec,
-                                                BucketUnpacker::Behavior behavior,
-                                                const BSONObj& bucket,
-                                                const BSONElement& metaValue,
-                                                bool includeTimeField,
-                                                bool includeMetaField) {
+void BucketUnpackerV1::extractSingleMeasurement(
+    MutableDocument& measurement,
+    int j,
+    const BucketSpec& spec,
+    const std::set<std::string>& unpackFieldsToIncludeExclude,
+    BucketUnpacker::Behavior behavior,
+    const BSONObj& bucket,
+    const Value& metaValue,
+    bool includeTimeField,
+    bool includeMetaField) {
     auto rowKey = std::to_string(j);
     auto targetIdx = StringData{rowKey};
     auto&& dataRegion = bucket.getField(timeseries::kBucketDataFieldName).Obj();
 
-    if (includeMetaField && !metaValue.isNull()) {
-        measurement.addField(*spec.metaField, Value{metaValue});
+    if (includeMetaField && !metaValue.missing()) {
+        measurement.addField(*spec.metaFieldHashed(), metaValue);
     }
 
     for (auto&& dataElem : dataRegion) {
         auto colName = dataElem.fieldNameStringData();
-        if (!determineIncludeField(colName, behavior, spec)) {
+        if (!determineIncludeField(colName, behavior, unpackFieldsToIncludeExclude)) {
             continue;
         }
         auto value = dataElem[targetIdx];
@@ -200,6 +211,12 @@ void BucketUnpackerV1::extractSingleMeasurement(MutableDocument& measurement,
             measurement.addField(dataElem.fieldNameStringData(), Value{value});
         }
     }
+}
+
+std::size_t BucketUnpackerV1::numberOfFields() {
+    // The data fields are tracked by _fieldIters, but we need to account also for the time field
+    // and possibly the meta field.
+    return kFixedFieldNumber + _fieldIters.size();
 }
 
 // Unpacker for V2 compressed buckets
@@ -211,17 +228,19 @@ public:
     int measurementCount(const BSONElement& timeField) const override;
     bool getNext(MutableDocument& measurement,
                  const BucketSpec& spec,
-                 const BSONElement& metaValue,
+                 const Value& metaValue,
                  bool includeTimeField,
                  bool includeMetaField) override;
     void extractSingleMeasurement(MutableDocument& measurement,
                                   int j,
                                   const BucketSpec& spec,
+                                  const std::set<std::string>& unpackFieldsToIncludeExclude,
                                   BucketUnpacker::Behavior behavior,
                                   const BSONObj& bucket,
-                                  const BSONElement& metaValue,
+                                  const Value& metaValue,
                                   bool includeTimeField,
                                   bool includeMetaField) override;
+    std::size_t numberOfFields() override;
 
 private:
     struct ColumnStore {
@@ -262,19 +281,19 @@ int BucketUnpackerV2::measurementCount(const BSONElement& timeField) const {
 
 bool BucketUnpackerV2::getNext(MutableDocument& measurement,
                                const BucketSpec& spec,
-                               const BSONElement& metaValue,
+                               const Value& metaValue,
                                bool includeTimeField,
                                bool includeMetaField) {
     // Get element and increment iterator
     const auto& timeElem = *_timeColumn.it;
     if (includeTimeField) {
-        measurement.addField(spec.timeField, Value{timeElem});
+        measurement.addField(spec.timeFieldHashed(), Value{timeElem});
     }
     ++_timeColumn.it;
 
     // Includes metaField when we're instructed to do so and metaField value exists.
-    if (includeMetaField && metaValue) {
-        measurement.addField(*spec.metaField, Value{metaValue});
+    if (includeMetaField && !metaValue.missing()) {
+        measurement.addField(*spec.metaFieldHashed(), metaValue);
     }
 
     for (auto& fieldColumn : _fieldColumns) {
@@ -284,7 +303,7 @@ bool BucketUnpackerV2::getNext(MutableDocument& measurement,
         const BSONElement& elem = *fieldColumn.it;
         // EOO represents missing field
         if (!elem.eoo()) {
-            measurement.addField(fieldColumn.column.name(), Value{elem});
+            measurement.addField(HashedFieldName{fieldColumn.column.nameHashed()}, Value{elem});
         }
         ++fieldColumn.it;
     }
@@ -292,53 +311,125 @@ bool BucketUnpackerV2::getNext(MutableDocument& measurement,
     return _timeColumn.it != _timeColumn.end;
 }
 
-void BucketUnpackerV2::extractSingleMeasurement(MutableDocument& measurement,
-                                                int j,
-                                                const BucketSpec& spec,
-                                                BucketUnpacker::Behavior behavior,
-                                                const BSONObj& bucket,
-                                                const BSONElement& metaValue,
-                                                bool includeTimeField,
-                                                bool includeMetaField) {
+void BucketUnpackerV2::extractSingleMeasurement(
+    MutableDocument& measurement,
+    int j,
+    const BucketSpec& spec,
+    const std::set<std::string>& unpackFieldsToIncludeExclude,
+    BucketUnpacker::Behavior behavior,
+    const BSONObj& bucket,
+    const Value& metaValue,
+    bool includeTimeField,
+    bool includeMetaField) {
     if (includeTimeField) {
         auto val = _timeColumn.column[j];
         uassert(
             6067500, "Bucket unexpectedly contained fewer values than count", val && !val->eoo());
-        measurement.addField(_timeColumn.column.name(), Value{*val});
+        measurement.addField(spec.timeFieldHashed(), Value{*val});
     }
 
-    if (includeMetaField && !metaValue.isNull()) {
-        measurement.addField(*spec.metaField, Value{metaValue});
+    if (includeMetaField && !metaValue.missing()) {
+        measurement.addField(*spec.metaFieldHashed(), metaValue);
     }
 
     if (includeTimeField) {
         for (auto& fieldColumn : _fieldColumns) {
             auto val = fieldColumn.column[j];
             uassert(6067600, "Bucket unexpectedly contained fewer values than count", val);
-            measurement.addField(fieldColumn.column.name(), Value{*val});
+            measurement.addField(HashedFieldName{fieldColumn.column.nameHashed()}, Value{*val});
         }
     }
 }
 
-/**
- * Erase computed meta projection fields if they are present in the exclusion field set.
- */
-void eraseExcludedComputedMetaProjFields(BucketUnpacker::Behavior unpackerBehavior,
-                                         BucketSpec* bucketSpec) {
-    if (unpackerBehavior == BucketUnpacker::Behavior::kExclude &&
-        bucketSpec->computedMetaProjFields.size() > 0) {
-        for (auto it = bucketSpec->computedMetaProjFields.begin();
-             it != bucketSpec->computedMetaProjFields.end();) {
-            if (bucketSpec->fieldSet.find(*it) != bucketSpec->fieldSet.end()) {
-                it = bucketSpec->computedMetaProjFields.erase(it);
-            } else {
-                it++;
-            }
-        }
-    }
+std::size_t BucketUnpackerV2::numberOfFields() {
+    // The data fields are tracked by _fieldColumns, but we need to account also for the time field
+    // and possibly the meta field.
+    return kFixedFieldNumber + _fieldColumns.size();
 }
 
 }  // namespace
+
+BucketSpec::BucketSpec(const std::string& timeField,
+                       const boost::optional<std::string>& metaField,
+                       const std::set<std::string>& fields,
+                       const std::set<std::string>& computedProjections)
+    : _fieldSet(fields),
+      _computedMetaProjFields(computedProjections),
+      _timeField(timeField),
+      _timeFieldHashed(FieldNameHasher().hashedFieldName(_timeField)),
+      _metaField(metaField) {
+    if (_metaField) {
+        _metaFieldHashed = FieldNameHasher().hashedFieldName(*_metaField);
+    }
+}
+
+BucketSpec::BucketSpec(const BucketSpec& other)
+    : _fieldSet(other._fieldSet),
+      _computedMetaProjFields(other._computedMetaProjFields),
+      _timeField(other._timeField),
+      _timeFieldHashed(HashedFieldName{_timeField, other._timeFieldHashed->hash()}),
+      _metaField(other._metaField) {
+    if (_metaField) {
+        _metaFieldHashed = HashedFieldName{*_metaField, other._metaFieldHashed->hash()};
+    }
+}
+
+BucketSpec::BucketSpec(BucketSpec&& other)
+    : _fieldSet(std::move(other._fieldSet)),
+      _computedMetaProjFields(std::move(other._computedMetaProjFields)),
+      _timeField(std::move(other._timeField)),
+      _timeFieldHashed(HashedFieldName{_timeField, other._timeFieldHashed->hash()}),
+      _metaField(std::move(other._metaField)) {
+    if (_metaField) {
+        _metaFieldHashed = HashedFieldName{*_metaField, other._metaFieldHashed->hash()};
+    }
+}
+
+BucketSpec& BucketSpec::operator=(const BucketSpec& other) {
+    if (&other != this) {
+        _fieldSet = other._fieldSet;
+        _computedMetaProjFields = other._computedMetaProjFields;
+        _timeField = other._timeField;
+        _timeFieldHashed = HashedFieldName{_timeField, other._timeFieldHashed->hash()};
+        _metaField = other._metaField;
+        if (_metaField) {
+            _metaFieldHashed = HashedFieldName{*_metaField, other._metaFieldHashed->hash()};
+        }
+    }
+    return *this;
+}
+
+void BucketSpec::setTimeField(std::string&& name) {
+    _timeField = std::move(name);
+    _timeFieldHashed = FieldNameHasher().hashedFieldName(_timeField);
+}
+
+const std::string& BucketSpec::timeField() const {
+    return _timeField;
+}
+
+HashedFieldName BucketSpec::timeFieldHashed() const {
+    invariant(_timeFieldHashed->key().rawData() == _timeField.data());
+    invariant(_timeFieldHashed->key() == _timeField);
+    return *_timeFieldHashed;
+}
+
+void BucketSpec::setMetaField(boost::optional<std::string>&& name) {
+    _metaField = std::move(name);
+    if (_metaField) {
+        _metaFieldHashed = FieldNameHasher().hashedFieldName(*_metaField);
+    } else {
+        _metaFieldHashed = boost::none;
+    }
+}
+
+const boost::optional<std::string>& BucketSpec::metaField() const {
+    return _metaField;
+}
+
+boost::optional<HashedFieldName> BucketSpec::metaFieldHashed() const {
+    return _metaFieldHashed;
+}
 
 BucketUnpacker::BucketUnpacker() = default;
 BucketUnpacker::BucketUnpacker(BucketUnpacker&& other) = default;
@@ -351,26 +442,37 @@ BucketUnpacker::BucketUnpacker(BucketSpec spec, Behavior unpackerBehavior) {
 
 void BucketUnpacker::addComputedMetaProjFields(const std::vector<StringData>& computedFieldNames) {
     for (auto&& field : computedFieldNames) {
-        _spec.computedMetaProjFields.emplace_back(field.toString());
+        _spec.addComputedMetaProjFields(field);
 
         // If we're already specifically including fields, we need to add the computed fields to
-        // the included field set to ensure they are unpacked.
+        // the included field set to indicate they're in the output doc.
         if (_unpackerBehavior == BucketUnpacker::Behavior::kInclude) {
-            _spec.fieldSet.emplace(field);
+            _spec.addIncludeExcludeField(field);
+        } else {
+            // Since exclude is applied after addComputedMetaProjFields, we must erase the new field
+            // from the include/exclude fields so this doesn't get removed.
+            _spec.removeIncludeExcludeField(field.toString());
         }
     }
+
+    // Recalculate _includeTimeField, since both computedMetaProjFields and fieldSet may have
+    // changed.
+    determineIncludeTimeField();
 }
 
 Document BucketUnpacker::getNext() {
     tassert(5521503, "'getNext()' requires the bucket to be owned", _bucket.isOwned());
     tassert(5422100, "'getNext()' was called after the bucket has been exhausted", hasNext());
 
-    auto measurement = MutableDocument{};
+    // MutableDocument reserves memory based on the number of fields, but uses a fixed size of 25
+    // bytes plus an allowance of 7 characters for the field name. Doubling the number of fields
+    // should give us enough overhead for longer field names without wasting too much memory.
+    auto measurement = MutableDocument{2 * _unpackingImpl->numberOfFields()};
     _hasNext = _unpackingImpl->getNext(
         measurement, _spec, _metaValue, _includeTimeField, _includeMetaField);
 
     // Add computed meta projections.
-    for (auto&& name : _spec.computedMetaProjFields) {
+    for (auto&& name : _spec.computedMetaProjFields()) {
         measurement.addField(name, Value{_computedMetaProjections[name]});
     }
 
@@ -387,6 +489,7 @@ Document BucketUnpacker::extractSingleMeasurement(int j) {
     _unpackingImpl->extractSingleMeasurement(measurement,
                                              j,
                                              _spec,
+                                             fieldsToIncludeExcludeDuringUnpack(),
                                              _unpackerBehavior,
                                              _bucket,
                                              _metaValue,
@@ -394,7 +497,7 @@ Document BucketUnpacker::extractSingleMeasurement(int j) {
                                              _includeMetaField);
 
     // Add computed meta projections.
-    for (auto&& name : _spec.computedMetaProjFields) {
+    for (auto&& name : _spec.computedMetaProjFields()) {
         measurement.addField(name, Value{_computedMetaProjections[name]});
     }
 
@@ -413,27 +516,27 @@ void BucketUnpacker::reset(BSONObj&& bucket) {
         return;
     }
 
-    auto&& timeFieldElem = dataRegion.getField(_spec.timeField);
+    auto&& timeFieldElem = dataRegion.getField(_spec.timeField());
     uassert(5346700,
             "The $_internalUnpackBucket stage requires the data region to have a timeField object",
             timeFieldElem);
 
-    _metaValue = _bucket[timeseries::kBucketMetaFieldName];
-    if (_spec.metaField) {
+    _metaValue = Value{_bucket[timeseries::kBucketMetaFieldName]};
+    if (_spec.metaField()) {
         // The spec indicates that there might be a metadata region. Missing metadata in
         // measurements is expressed with missing metadata in a bucket. But we disallow undefined
         // since the undefined BSON type is deprecated.
         uassert(5369600,
                 "The $_internalUnpackBucket stage allows metadata to be absent or otherwise, it "
                 "must not be the deprecated undefined bson type",
-                !_metaValue || _metaValue.type() != BSONType::Undefined);
+                _metaValue.missing() || _metaValue.getType() != BSONType::Undefined);
     } else {
         // If the spec indicates that the time series collection has no metadata field, then we
         // should not find a metadata region in the underlying bucket documents.
         uassert(5369601,
                 "The $_internalUnpackBucket stage expects buckets to have missing metadata regions "
                 "if the metaField parameter is not provided",
-                !_metaValue);
+                _metaValue.missing());
     }
 
 
@@ -465,7 +568,7 @@ void BucketUnpacker::reset(BSONObj&& bucket) {
     // include or exclude case.
     for (auto&& elem : dataRegion) {
         auto& colName = elem.fieldNameStringData();
-        if (colName == _spec.timeField) {
+        if (colName == _spec.timeField()) {
             // Skip adding a FieldIterator for the timeField since the timestamp value from
             // _timeFieldIter can be placed accordingly in the materialized measurement.
             continue;
@@ -473,16 +576,15 @@ void BucketUnpacker::reset(BSONObj&& bucket) {
 
         // Includes a field when '_unpackerBehavior' is 'kInclude' and it's found in 'fieldSet' or
         // _unpackerBehavior is 'kExclude' and it's not found in 'fieldSet'.
-        if (determineIncludeField(colName, _unpackerBehavior, _spec)) {
+        if (determineIncludeField(
+                colName, _unpackerBehavior, fieldsToIncludeExcludeDuringUnpack())) {
             _unpackingImpl->addField(elem);
         }
     }
 
     // Update computed meta projections with values from this bucket.
-    if (!_spec.computedMetaProjFields.empty()) {
-        for (auto&& name : _spec.computedMetaProjFields) {
-            _computedMetaProjections[name] = _bucket[name];
-        }
+    for (auto&& name : _spec.computedMetaProjFields()) {
+        _computedMetaProjections[name] = _bucket[name];
     }
 
     // Save the measurement count for the bucket.
@@ -525,13 +627,71 @@ int BucketUnpacker::computeMeasurementCount(const BSONObj& bucket, StringData ti
     }
 }
 
-void BucketUnpacker::setBucketSpecAndBehavior(BucketSpec&& bucketSpec, Behavior behavior) {
-    _includeMetaField = eraseMetaFromFieldSetAndDetermineIncludeMeta(behavior, &bucketSpec);
-    _includeTimeField = determineIncludeTimeField(behavior, &bucketSpec);
-    _unpackerBehavior = behavior;
+void BucketUnpacker::determineIncludeTimeField() {
+    const bool isInclude = _unpackerBehavior == BucketUnpacker::Behavior::kInclude;
+    const bool fieldSetContainsTime =
+        _spec.fieldSet().find(_spec.timeField()) != _spec.fieldSet().end();
 
-    eraseExcludedComputedMetaProjFields(behavior, &bucketSpec);
+    const auto& metaProjFields = _spec.computedMetaProjFields();
+    const bool metaProjContains = metaProjFields.find(_spec.timeField()) != metaProjFields.cend();
+
+    // If computedMetaProjFields contains the time field, we exclude it from unpacking no matter
+    // what, since it will be overwritten anyway.
+    _includeTimeField = isInclude == fieldSetContainsTime && !metaProjContains;
+}
+
+void BucketUnpacker::eraseMetaFromFieldSetAndDetermineIncludeMeta() {
+    if (!_spec.metaField() ||
+        _spec.computedMetaProjFields().find(*_spec.metaField()) !=
+            _spec.computedMetaProjFields().cend()) {
+        _includeMetaField = false;
+    } else if (auto itr = _spec.fieldSet().find(*_spec.metaField());
+               itr != _spec.fieldSet().end()) {
+        _spec.removeIncludeExcludeField(*_spec.metaField());
+        _includeMetaField = _unpackerBehavior == BucketUnpacker::Behavior::kInclude;
+    } else {
+        _includeMetaField = _unpackerBehavior == BucketUnpacker::Behavior::kExclude;
+    }
+}
+
+void BucketUnpacker::eraseExcludedComputedMetaProjFields() {
+    if (_unpackerBehavior == BucketUnpacker::Behavior::kExclude) {
+        for (const auto& field : _spec.fieldSet()) {
+            _spec.eraseFromComputedMetaProjFields(field);
+        }
+    }
+}
+
+void BucketUnpacker::setBucketSpecAndBehavior(BucketSpec&& bucketSpec, Behavior behavior) {
+    _unpackerBehavior = behavior;
     _spec = std::move(bucketSpec);
+
+    eraseMetaFromFieldSetAndDetermineIncludeMeta();
+    determineIncludeTimeField();
+    eraseExcludedComputedMetaProjFields();
+}
+
+const std::set<std::string>& BucketUnpacker::fieldsToIncludeExcludeDuringUnpack() {
+    if (_unpackFieldsToIncludeExclude) {
+        return *_unpackFieldsToIncludeExclude;
+    }
+
+    _unpackFieldsToIncludeExclude = std::set<std::string>();
+    const auto& metaProjFields = _spec.computedMetaProjFields();
+    if (_unpackerBehavior == BucketUnpacker::Behavior::kInclude) {
+        // For include, we unpack fieldSet - metaProjFields.
+        for (auto&& field : _spec.fieldSet()) {
+            if (metaProjFields.find(field) == metaProjFields.cend()) {
+                _unpackFieldsToIncludeExclude->insert(field);
+            }
+        }
+    } else {
+        // For exclude, we unpack everything but fieldSet + metaProjFields.
+        _unpackFieldsToIncludeExclude->insert(_spec.fieldSet().begin(), _spec.fieldSet().end());
+        _unpackFieldsToIncludeExclude->insert(metaProjFields.begin(), metaProjFields.end());
+    }
+
+    return *_unpackFieldsToIncludeExclude;
 }
 
 const std::set<StringData> BucketUnpacker::reservedBucketFieldNames = {
