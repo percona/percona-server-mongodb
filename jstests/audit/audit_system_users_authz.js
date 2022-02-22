@@ -28,8 +28,13 @@ auditTest(
         const beforeUpdateUser = Date.now();
         var updateObj = { roles: [ { role:'userAdmin', db:testDBName}, { role:'dbAdmin', db:testDBName} ] }
         testDB.updateUser(userObj.user, updateObj);
-        assert.eq(1, adminDB.system.users.count({ user: userObj.user, roles: updateObj.roles }),
-                     "system.users update did not update role for user: " + userObj.user);
+        assert.eq(1,
+            adminDB.system.users.count({
+                user : userObj.user,
+                roles : {$elemMatch : updateObj.roles[0]},
+                roles : {$elemMatch : updateObj.roles[1]}
+            }),
+            "system.users update did not update role for user: " + userObj.user);
 
         const beforeDropUser = Date.now();
         testDB.removeUser(userObj.user);
