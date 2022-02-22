@@ -1008,7 +1008,8 @@ build_tarball(){
         done
 
         # Use system libsasl2 for some binaries
-        fix_sasl_lib
+        # fix_sasl_lib
+        # No need to remove sasl lib from NEEDED, instead SASL_PATH=/usr/lib/x86_64-linux-gnu/sasl2 should be used on DEB systems with binary tarballs
 
         # Create and replace by sparse file to reduce size
         create_sparse bin
