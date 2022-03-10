@@ -174,12 +174,15 @@ bool QueryPlannerIXSelect::notEqualsNullCanUseIndex(const IndexEntry& index,
     }
 }
 
-static double fieldWithDefault(const BSONObj& infoObj, const string& name, double def) {
-    BSONElement e = infoObj[name];
-    if (e.isNumber()) {
-        return e.numberDouble();
-    }
-    return def;
+bool QueryPlannerIXSelect::canUseIndexForNin(const InMatchExpression* ime) {
+    const std::vector<BSONElement>& inList = ime->getEqualities();
+    auto containsNull = [](const BSONElement& elt) { return elt.type() == jstNULL; };
+    auto containsEmptyArray = [](const BSONElement& elt) {
+        return elt.type() == Array && elt.embeddedObject().isEmpty();
+    };
+    return ime->getRegexes().empty() && inList.size() == 2 &&
+        std::any_of(inList.begin(), inList.end(), containsNull) &&
+        std::any_of(inList.begin(), inList.end(), containsEmptyArray);
 }
 
 /**
@@ -432,10 +435,6 @@ bool QueryPlannerIXSelect::_compatible(const BSONElement& keyPatternElt,
                 return false;
             }
 
-            if (isEqualsArrayOrNotInArray(child)) {
-                return false;
-            }
-
             // Most of the time we can't use a multikey index for a $ne: null query, however there
             // are a few exceptions around $elemMatch.
             const bool canUseIndexForNeNull =
@@ -447,6 +446,12 @@ bool QueryPlannerIXSelect::_compatible(const BSONElement& keyPatternElt,
             // If it's a negated $in, it can't have any REGEX's inside.
             if (MatchExpression::MATCH_IN == childtype) {
                 InMatchExpression* ime = static_cast<InMatchExpression*>(node->getChild(0));
+
+                if (canUseIndexForNin(ime)) {
+                    // This is a case that we know is supported.
+                    return true;
+                }
+
                 if (!ime->getRegexes().empty()) {
                     return false;
                 }
@@ -457,6 +462,10 @@ bool QueryPlannerIXSelect::_compatible(const BSONElement& keyPatternElt,
                     return false;
                 }
             }
+
+            if (isEqualsArrayOrNotInArray(child)) {
+                return false;
+            }
         }
 
         // If this is an $elemMatch value, make sure _all_ of the children can use the index.
@@ -464,6 +473,16 @@ bool QueryPlannerIXSelect::_compatible(const BSONElement& keyPatternElt,
             ElemMatchContext newContext;
             newContext.fullPathToParentElemMatch = fullPathToNode;
             newContext.innermostParentElemMatch = static_cast<ElemMatchValueMatchExpression*>(node);
+
+            FieldRef path(fullPathToNode);
+            // If the index path has at least two components, and the last component of the path is
+            // numeric, this component could be an array index because the preceding path component
+            // may contain an array. Currently it is not known whether the preceding path component
+            // could be an array because indexes which positionally index array elements are not
+            // considered multikey.
+            if (path.numParts() > 1 && path.isNumericPathComponentStrict(path.numParts() - 1)) {
+                return false;
+            }
 
             auto* children = node->getChildVector();
             if (!std::all_of(children->begin(), children->end(), [&](MatchExpression* child) {

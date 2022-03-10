@@ -120,6 +120,16 @@ all:
     test_file: jstests/replsets/cluster_chaining_override.js
   - ticket: SERVER-59613
     test_file: jstests/aggregation/range.js
+  - ticket: SERVER-53335
+    test_file: jstests/sharding/collation_shard_targeting_hashed_shard_key.js
+  - ticket: SERVER-57588
+    test_file: jstests/core/match_numeric_components.js
+  - ticket: SERVER-60682
+    test_file: jstests/sharding/coordinate_txn_commit_with_tickets_exhausted.js
+  - ticket: SERVER-60685
+    test_file: jstests/sharding/cancel_coordinate_txn_commit_with_tickets_exhausted.js
+  - ticket: SERVER-62147
+    test_file: jstests/core/exhaust.js
 
 # Tests that should only be excluded from particular suites should be listed under that suite.
 suites:

@@ -44,6 +44,10 @@
 namespace mongo {
 
 const NamespaceString ChunkType::ConfigNS("config.chunks");
+
+// The final namespace of the cached chunks metadata is composed of the namespace of the related
+// sharded collection (i.e., config.cache.chunks.<ns>). As a result, the maximum namespace length of
+// sharded collections is reduced. See NamespaceString::MaxNsShardedCollectionLen.
 const std::string ChunkType::ShardNSPrefix = "config.cache.chunks.";
 
 const BSONField<std::string> ChunkType::name("_id");
@@ -56,6 +60,7 @@ const BSONField<bool> ChunkType::jumbo("jumbo");
 const BSONField<Date_t> ChunkType::lastmod("lastmod");
 const BSONField<OID> ChunkType::epoch("lastmodEpoch");
 const BSONField<BSONObj> ChunkType::history("history");
+const BSONField<bool> ChunkType::historyIsAt40("historyIsAt40");
 
 namespace {
 

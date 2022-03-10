@@ -329,8 +329,6 @@ variables:
   - enterprise-rhel-70-64-bit-kitchen-sink
   - enterprise-rhel-71-ppc64le
   - enterprise-rhel-71-ppc64le-inmem
-  - enterprise-rhel-72-s390x
-  - enterprise-rhel-72-s390x-inmem
   - enterprise-rhel-80-64-bit
   - enterprise-rhel-81-ppc64le
   - enterprise-suse12-64
@@ -341,7 +339,6 @@ variables:
   - enterprise-ubuntu1604-arm64
   - enterprise-ubuntu1804-64
   - enterprise-ubuntu1804-arm64
-  - enterprise-ubuntu1804-ppc64le
   - enterprise-windows-64-2k8
   - enterprise-windows-64-2k8-async
   - enterprise-windows-64-2k8-compile-all
@@ -7368,7 +7365,7 @@ buildvariants:
   display_name: ~ Linux Repeated Execution
   run_on:
   - rhel62-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     compile_flags: -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars --enable-free-mon=off --enable-http-client=off
     test_flags: >-
@@ -7450,7 +7447,7 @@ buildvariants:
   display_name: Linux (No Journal)
   run_on:
   - rhel62-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions: &linux-64-required-duroff-expansions
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -7489,7 +7486,7 @@ buildvariants:
   display_name: SSL Ubuntu 18.04
   run_on:
   - ubuntu1804-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -7544,7 +7541,7 @@ buildvariants:
   - enterprise
   run_on:
   - ubuntu1804-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -7592,7 +7589,7 @@ buildvariants:
   display_name: SSL Ubuntu 16.04
   run_on:
   - ubuntu1604-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -7660,7 +7657,7 @@ buildvariants:
   - enterprise
   run_on:
   - ubuntu1604-arm64-large
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -7709,7 +7706,7 @@ buildvariants:
   - enterprise
   run_on:
   - ubuntu1804-arm64-build
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -7755,7 +7752,7 @@ buildvariants:
   display_name: SSL Ubuntu 18.04 arm64
   run_on:
   - ubuntu1804-arm64-build
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -7782,68 +7779,13 @@ buildvariants:
     distros:
     - ubuntu1804-test
 
-- name: enterprise-ubuntu1804-ppc64le
-  display_name: Enterprise Ubuntu 18.04 PPC64LE
-  modules:
-  - enterprise
-  run_on:
-  - ubuntu1804-power8-test
-  batchtime: 10080 # 7 days
-  expansions:
-    push_path: linux
-    push_bucket: downloads.10gen.com
-    push_name: linux
-    push_arch: ppc64le-enterprise-ubuntu1804
-    compile_flags: --ssl MONGO_DISTMOD=ubuntu1804 -j$(echo "$(grep -c processor /proc/cpuinfo)/2" | bc) --release CCFLAGS="-mcpu=power8 -mtune=power8 -mcmodel=medium" --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
-    resmoke_jobs_max: 2
-    has_packages: true
-    packager_script: packager_enterprise.py
-    packager_arch: ppc64le
-    packager_distro: ubuntu1804
-    repo_edition: enterprise
-    tooltags: "ssl sasl gssapi"
-    build_mongoreplay: true
-    multiversion_platform: ubuntu1804
-    multiversion_architecture: ppc64le
-    multiversion_edition: enterprise
-    use_default_timeouts: true
-  tasks:
-  - name: compile_all_run_unittests_TG
-    distros:
-    - ubuntu1804-power8-build
-  - name: aggregation
-  - name: aggregation_wildcard_fuzzer_gen
-  - name: .auth !.audit !.multiversion !.jscore
-  - name: causally_consistent_jscore_txns_passthrough
-  - name: .misc_js
-  - name: .concurrency .common
-  - name: concurrency_replication_causal_consistency_gen
-    #- name: concurrency_sharded_replication_local_read_write_multi_stmt_txn # Removed until SERVER-38499 is resolved.
-    #- name: concurrency_sharded_replication_local_read_write_multi_stmt_txn_with_balancer # Removed until SERVER-38499 is resolved.
-    #- name: concurrency_sharded_replication_multi_stmt_txn # Removed until SERVER-38499 is resolved.
-    #- name: concurrency_sharded_replication_multi_stmt_txn_with_balancer # Removed until SERVER-38499 is resolved.
-  - name: fle
-  - name: .jscore .common !.auth
-  - name: .jstestfuzz .common
-  - name: .logical_session_cache .one_sec
-  - name: replica_sets
-  - name: .replica_sets .common
-  - name: .sharding .txns
-  - name: sharding_gen
-  - name: sharding_jscore_passthrough
-  - name: .ssl
-  - name: .stitch
-  - name: .publish
-    distros:
-    - ubuntu1804-test
-
 - name: enterprise-linux-64-amazon-ami
   display_name: "Enterprise Amazon Linux"
   modules:
   - enterprise
   run_on:
   - amazon1-2018-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -7897,7 +7839,7 @@ buildvariants:
   display_name: SSL Amazon Linux
   run_on:
   - amazon1-2018-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -7953,7 +7895,7 @@ buildvariants:
   - enterprise
   run_on:
   - amazon2-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     test_flags: >-
       --excludeWithAnyTags=SERVER-34286
@@ -8012,7 +7954,7 @@ buildvariants:
   - enterprise
   run_on:
   - amazon2-arm64-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     test_flags: >-
       --excludeWithAnyTags=SERVER-34286
@@ -8069,7 +8011,7 @@ buildvariants:
   display_name: SSL Amazon Linux 2
   run_on:
   - amazon2-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     test_flags: >-
       --excludeWithAnyTags=SERVER-34286
@@ -8127,7 +8069,7 @@ buildvariants:
   display_name: SSL Amazon Linux 2 ARM64
   run_on:
   - amazon2-arm64-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     test_flags: >-
       --excludeWithAnyTags=SERVER-34286
@@ -8186,7 +8128,7 @@ buildvariants:
   display_name: "~ TIG Daily Cron"
   run_on:
   - rhel62-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   stepback: false
   tasks:
   - name: lint_fuzzer_sanity_all
@@ -8407,7 +8349,7 @@ buildvariants:
   - enterprise
   run_on:
   - windows-vsCurrent-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     platform_decompress: unzip
     exe: ".exe"
@@ -8454,7 +8396,7 @@ buildvariants:
   display_name: Windows 2008R2
   run_on:
   - windows-vsCurrent-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     platform_decompress: unzip
     exe: ".exe"
@@ -8516,7 +8458,7 @@ buildvariants:
   - enterprise
   run_on:
   - windows-vsCurrent-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     platform_decompress: unzip
     exe: ".exe"
@@ -8548,7 +8490,7 @@ buildvariants:
   display_name: macOS
   run_on:
   - macos-1014
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     test_flags: --excludeWithAnyTags=requires_ssl_mongo_tools
     push_path: osx
@@ -8625,7 +8567,7 @@ buildvariants:
   - enterprise
   run_on:
   - macos-1014
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     test_flags: --excludeWithAnyTags=requires_ssl_mongo_tools
     push_path: osx
@@ -8691,7 +8633,7 @@ buildvariants:
   display_name: "Embedded SDK - Ubuntu 16.04 x86_64"
   run_on:
   - ubuntu1604-build
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     test_flags: --excludeWithAnyTags=uses_transactions
     # We need --allocator=system here to work around SERVER-27675
@@ -9033,7 +8975,7 @@ buildvariants:
   - enterprise
   run_on:
   - rhel62-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions: &enterprise-rhel-62-64-bit-majority-read-concern-off-expansions
     # Ban tests that run prepareTransaction or multi-shard transactions (which use
     # prepareTransaction). prepareTransaction is rejected on nodes with
@@ -9254,7 +9196,7 @@ buildvariants:
   - enterprise
   run_on:
   - rhel80-build
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -9373,7 +9315,7 @@ buildvariants:
 - <<: *enterprise-rhel-70-64-bit-template
   name: hot_backups-rhel-70-64-bit
   display_name: "hot_backups RHEL 7.0"
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   run_on:
   - rhel70
   expansions:
@@ -9413,7 +9355,7 @@ buildvariants:
   display_name: SSL RHEL 6.2
   run_on:
   - rhel62-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -9467,7 +9409,7 @@ buildvariants:
   display_name: SSL RHEL 7.0
   run_on:
   - rhel70-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -9520,7 +9462,7 @@ buildvariants:
   display_name: SSL RHEL 8.0
   run_on:
   - rhel80-build
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -9574,7 +9516,7 @@ buildvariants:
   display_name: RHEL 7.0/7.6 Cross-ABI
   run_on:
   - rhel76-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     compile_flags: --ssl MONGO_DISTMOD=rhel70 -j$(grep -c ^processor /proc/cpuinfo) --release --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
   tasks:
@@ -9703,63 +9645,6 @@ buildvariants:
     distros:
     - rhel70-small
 
-- name: enterprise-rhel-72-s390x
-  display_name: Enterprise RHEL 7.2 s390x
-  modules:
-  - enterprise
-  run_on:
-  - rhel72-zseries-test
-  batchtime: 10080 # 7 days
-  stepback: false
-  expansions:
-    compile_flags: --ssl MONGO_DISTMOD=rhel72 --release -j3 CCFLAGS="-march=z196 -mtune=zEC12" --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
-    resmoke_jobs_max: 2
-    has_packages: true
-    packager_script: packager_enterprise.py
-    packager_arch: s390x
-    packager_distro: rhel72
-    push_path: linux
-    push_bucket: downloads.10gen.com
-    push_name: linux
-    push_arch: s390x-enterprise-rhel72
-    repo_edition: enterprise
-    tooltags: "ssl sasl gssapi"
-    build_mongoreplay: true
-    multiversion_platform: rhel72
-    multiversion_architecture: s390x
-    multiversion_edition: enterprise
-  tasks:
-  - name: compile_all_run_unittests_TG
-    distros:
-    - rhel72-zseries-build
-  - name: .aggregation .common
-  - name: audit
-  - name: .auth !.multiversion !.jscore
-  - name: causally_consistent_jscore_txns_passthrough
-  - name: .misc_js
-  - name: .concurrency .common
-  - name: concurrency_replication_causal_consistency_gen
-  - name: .encrypt
-  - name: .integration !.audit
-    distros:
-    - rhel72-zseries-build
-  - name: .jscore .common !.auth
-  - name: jsCore_op_query
-  - name: .jstestfuzz .common
-  - name: .logical_session_cache .one_sec
-  - name: .read_write_concern
-  - name: replica_sets
-  - name: .replica_sets .common
-  - name: sasl
-  - name: secondary_reads_passthrough_gen
-  - name: .sharding .jscore !.wo_snapshot !.multi_stmt
-  - name: .sharding .common !.mixed_version
-  - name: snmp
-  - name: .stitch
-  - name: .publish
-    distros:
-    - rhel70-small
-
 ###########################################
 #          Ubuntu buildvariants           #
 ###########################################
@@ -9770,7 +9655,7 @@ buildvariants:
   - enterprise
   run_on:
   - ubuntu1604-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -9864,7 +9749,7 @@ buildvariants:
   - enterprise
   run_on:
   - suse12-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -9909,7 +9794,7 @@ buildvariants:
   display_name: SSL SUSE 12
   run_on:
   - suse12-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -9963,7 +9848,7 @@ buildvariants:
   - enterprise
   run_on:
   - suse15-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -10005,7 +9890,7 @@ buildvariants:
   display_name: SSL SUSE 15
   run_on:
   - suse15-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -10059,7 +9944,7 @@ buildvariants:
   - enterprise
   run_on:
   - debian92-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -10110,7 +9995,7 @@ buildvariants:
   - enterprise
   run_on:
   - debian10-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.10gen.com
@@ -10160,7 +10045,7 @@ buildvariants:
   display_name: SSL Debian 9.2
   run_on:
   - debian92-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -10216,7 +10101,7 @@ buildvariants:
   display_name: Debian 10
   run_on:
   - debian10-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     push_path: linux
     push_bucket: downloads.mongodb.org
@@ -10276,7 +10161,7 @@ buildvariants:
   display_name: RHEL 6.2 (Biggie)
   run_on:
   - rhel62-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     test_flags: --storageEngine=biggie --excludeWithAnyTags=SERVER-38379,requires_persistence,requires_journaling,uses_transactions,requires_wiredtiger,requires_snapshot_read
     compile_flags: MONGO_DISTMOD=rhel62 -j$(grep -c ^processor /proc/cpuinfo) --dbg=off --opt=on --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
@@ -10296,7 +10181,7 @@ buildvariants:
   - enterprise
   run_on:
   - rhel62-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions: &enterprise-rhel-62-64-bit-inmem-expansions
     test_flags: --storageEngine=inMemory --excludeWithAnyTags=requires_persistence,requires_journaling
     compile_flags: --ssl MONGO_DISTMOD=rhel62 -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
@@ -10356,7 +10241,7 @@ buildvariants:
   display_name: Linux (ephemeralForTest)
   run_on:
   - rhel62-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     # Transactions are not explicitly supported on the ephemeralForTest storage engine.
     # Speculative majority reads are currently only allowed for change streams, which are only supported on WiredTiger.
@@ -10446,50 +10331,6 @@ buildvariants:
   - name: snmp
   - name: .ssl
 
-- name: enterprise-rhel-72-s390x-inmem
-  display_name: Enterprise RHEL 7.2 s390x (inMemory) DEBUG
-  modules:
-  - enterprise
-  run_on:
-  - rhel72-zseries-test
-  batchtime: 10080 # 7 days
-  stepback: false
-  expansions:
-    compile_flags: --dbg=on --opt=on --ssl MONGO_DISTMOD=rhel72 -j3 CCFLAGS="-march=z196 -mtune=zEC12" --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars
-    resmoke_jobs_max: 2
-    test_flags: --storageEngine=inMemory --excludeWithAnyTags=requires_persistence,requires_journaling
-    tooltags: "ssl sasl gssapi"
-    build_mongoreplay: true
-    large_distro_name: rhel72-zeries-build
-  tasks:
-  - name: compile_all_run_unittests_TG
-    distros:
-    - rhel72-zseries-build
-  - name: .aggregation .common
-  - name: .auth !.multiversion
-  - name: audit
-  - name: causally_consistent_jscore_txns_passthrough
-  - name: .misc_js
-  - name: .concurrency .common
-    distros:
-    - rhel72-zseries-build
-  - name: concurrency_replication_causal_consistency_gen
-  - name: .integration !.audit
-    distros:
-    - rhel72-zseries-build
-  - name: .jscore .common !.decimal
-  - name: jsCore_op_query
-  - name: .logical_session_cache .one_sec
-  - name: .read_write_concern
-  - name: replica_sets
-  - name: .replica_sets .common
-  - name: sasl
-  - name: secondary_reads_passthrough_gen
-  - name: .sharding .jscore !.wo_snapshot !.multi_stmt
-  - name: .sharding .common !.mixed_version !.csrs
-  - name: snmp
-  - name: .ssl
-
 
 ###########################################
 #     Experimental buildvariants          #
@@ -10502,7 +10343,7 @@ buildvariants:
   run_on:
   - ubuntu1804-build
   stepback: true
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     # We need llvm-symbolizer in the PATH for ASAN for clang-3.7 or later.
     variant_path_suffix: /opt/mongodbtoolchain/v3/bin
@@ -10558,7 +10399,7 @@ buildvariants:
 
 - name: enterprise-ubuntu-sharding-opportunistic-secondary-targeting-1804-64-bit
   display_name: "~ Enterprise Ubuntu 18.04 (with {opportunisticSecondaryTargeting: true})"
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   run_on:
   - ubuntu1804-test
   modules:
@@ -10590,7 +10431,7 @@ buildvariants:
   run_on:
   - ubuntu1804-build
   stepback: true
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     # We need llvm-symbolizer in the PATH for ASAN for clang-3.7 or later.
     variant_path_suffix: /opt/mongodbtoolchain/v3/bin
@@ -10619,7 +10460,7 @@ buildvariants:
   run_on:
   - ubuntu1804-build
   stepback: true
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     # We need llvm-symbolizer in the PATH for UBSAN.
     variant_path_suffix: /opt/mongodbtoolchain/v3/bin
@@ -10701,7 +10542,7 @@ buildvariants:
   run_on:
   - ubuntu1804-build
   stepback: true
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   expansions:
     # We need llvm-symbolizer in the PATH for ASAN for clang-3.7 or later.
     variant_path_suffix: /opt/mongodbtoolchain/v3/bin
@@ -10766,7 +10607,7 @@ buildvariants:
 
 - name: enterprise-ubuntu-no-latch-1604-64-bit
   display_name: "~ Enterprise Ubuntu 16.04 (without Diagnostic Latches)"
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   modules:
   - enterprise
   expansions:
@@ -10778,7 +10619,7 @@ buildvariants:
 
 - name: enterprise-ubuntu-no-latch-1804-64-bit
   display_name: "~ Enterprise Ubuntu 18.04 DEBUG (Unoptimized)"
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   modules:
   - enterprise
   expansions:
@@ -10791,7 +10632,7 @@ buildvariants:
 
 - name: enterprise-ubuntu-task-executor-pool-size-1604-64-bit
   display_name: "~ Enterprise Ubuntu 16.04 (with {taskExecutorPoolSize: 4})"
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   run_on:
     - ubuntu1604-test
   modules:
@@ -10822,7 +10663,7 @@ buildvariants:
   display_name: "Shared SCons Cache Pruning"
   run_on:
   - ubuntu1604-test
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   stepback: false
   tasks:
   - name: shared_scons_cache_pruning
@@ -10832,7 +10673,7 @@ buildvariants:
   display_name: "Windows shared SCons Cache Pruning"
   run_on:
   - windows-vsCurrent-small
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   stepback: false
   tasks:
   - name: win_shared_scons_cache_pruning

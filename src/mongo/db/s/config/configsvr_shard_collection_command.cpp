@@ -498,7 +498,7 @@ void migrateAndFurtherSplitInitialChunks(OperationContext* opCtx,
                     chunkManager->getShardKeyPattern(),
                     chunkManager->getVersion(),
                     ChunkRange(currentChunk->getMin(), currentChunk->getMax()),
-                    subSplits);
+                    &subSplits);
                 if (!splitStatus.isOK()) {
                     warning() << "couldn't split chunk " << redact(currentChunk->toString())
                               << " while sharding collection " << nss.ns()
@@ -655,6 +655,11 @@ public:
         uassert(ErrorCodes::IllegalOperation,
                 str::stream() << "sharding not enabled for db " << nss.db(),
                 dbType.getSharded());
+
+        uassert(ErrorCodes::InvalidNamespace,
+                str::stream() << "Namespace too long. Namespace: " << nss
+                              << " Max: " << NamespaceString::MaxNsShardedCollectionLen,
+                nss.size() <= NamespaceString::MaxNsShardedCollectionLen);
 
         // Get variables required throughout this command.
 
