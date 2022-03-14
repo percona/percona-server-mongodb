@@ -153,22 +153,32 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr) {
 
     auto res = ldap_initialize(&ldap, uri.c_str());
     if (res != LDAP_SUCCESS) {
-        LOGV2_DEBUG(1, 29088, "Cannot initialize LDAP structure for {uri} ; LDAP error: {err}", "uri"_attr = uri, "err"_attr = ldap_err2string(res));
+        LOGV2_DEBUG(29088,
+                    1,
+                    "Cannot initialize LDAP structure for {uri} ; LDAP error: {err}",
+                    "uri"_attr = uri,
+                    "err"_attr = ldap_err2string(res));
         return nullptr;
     }
 
     if (!ldapGlobalParams.ldapFollowReferrals.load()) {
-        LOGV2_DEBUG(2, 29086, "Disabling referrals");
+        LOGV2_DEBUG(29086, 2, "Disabling referrals");
         res = ldap_set_option(ldap, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
         if (res != LDAP_OPT_SUCCESS) {
-            LOGV2_DEBUG(1, 29089, "Cannot disable LDAP referrals; LDAP error: {err}", "err"_attr = ldap_err2string(res));
+            LOGV2_DEBUG(29089,
+                        1,
+                        "Cannot disable LDAP referrals; LDAP error: {err}",
+                        "err"_attr = ldap_err2string(res));
             return nullptr;
         }
     }
 
     res = ldap_set_urllist_proc(ldap, cb_urllist_proc, nullptr);
     if (res != LDAP_OPT_SUCCESS) {
-        LOGV2_DEBUG(1, 29089, "Cannot set LDAP URLlist callback procedure", "err"_attr = ldap_err2string(res));
+        LOGV2_DEBUG(29089,
+                    1,
+                    "Cannot set LDAP URLlist callback procedure",
+                    "err"_attr = ldap_err2string(res));
         return nullptr;
     }
 
@@ -179,7 +189,10 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr) {
         conncb.lc_arg = connect_cb_arg;
         res = ldap_set_option(ldap, LDAP_OPT_CONNECT_CB, &conncb);
         if (res != LDAP_OPT_SUCCESS) {
-            LOGV2_DEBUG(1, 29089, "Cannot set LDAP connection callbacks; LDAP error: {err}", "err"_attr = ldap_err2string(res));
+            LOGV2_DEBUG(29089,
+                        1,
+                        "Cannot set LDAP connection callbacks; LDAP error: {err}",
+                        "err"_attr = ldap_err2string(res));
             return nullptr;
         }
     }
@@ -472,14 +485,20 @@ Status LDAPManagerImpl::initialize() {
 
     res = ldap_set_option(nullptr, LDAP_OPT_PROTOCOL_VERSION, &ldap_version);
     if (res != LDAP_OPT_SUCCESS) {
-      LOGV2_DEBUG(1, 29089, "Cannot set LDAP version; LDAP error: {err}", "err"_attr = ldap_err2string(res));
+        LOGV2_DEBUG(29089,
+                    1,
+                    "Cannot set LDAP version; LDAP error: {err}",
+                    "err"_attr = ldap_err2string(res));
     }
 
     if (ldapGlobalParams.ldapDebug.load()) {
         static const unsigned short debug_any = 0xffff;
         res = ldap_set_option(nullptr, LDAP_OPT_DEBUG_LEVEL, &debug_any);
         if (res != LDAP_OPT_SUCCESS) {
-          LOGV2_DEBUG(1, 29089, "Cannot set LDAP log level; LDAP error: {err}", "err"_attr = ldap_err2string(res));
+            LOGV2_DEBUG(29089,
+                        1,
+                        "Cannot set LDAP log level; LDAP error: {err}",
+                        "err"_attr = ldap_err2string(res));
         }
         ber_set_option(nullptr, LBER_OPT_LOG_PRINT_FN, reinterpret_cast<const void*>(cb_log));
     }
