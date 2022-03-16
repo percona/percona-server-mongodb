@@ -299,6 +299,20 @@ namespace mongo {
                         FMTSTR_MESSAGE,                                                   \
                         ##__VA_ARGS__)
 
+/**
+ * Log with custom severity.
+ *
+ * SEVERITY is an object of the `::mongo::logv2::LogSeverity` class
+ *
+ * See LOGV2() for documentation of the other parameters
+ */
+#define LOGV2_SEVERITY(ID, SEVERITY, FMTSTR_MESSAGE, ...)                        \
+    LOGV2_IMPL(ID,                                                               \
+               SEVERITY,                                                         \
+               ::mongo::logv2::LogOptions{MongoLogV2DefaultComponent_component}, \
+               FMTSTR_MESSAGE,                                                   \
+               ##__VA_ARGS__)
+
 inline bool shouldLog(logv2::LogComponent logComponent, logv2::LogSeverity severity) {
     return logv2::LogManager::global().getGlobalSettings().shouldLog(logComponent, severity);
 }
