@@ -147,17 +147,18 @@ struct LDAPConnInfo {
 
 using namespace fmt::literals;
 
-static LDAP* create_connection(void* connect_cb_arg = nullptr) {
+static LDAP* create_connection(void* connect_cb_arg = nullptr,
+                               logv2::LogSeverity logSeverity = logv2::LogSeverity::Debug(1)) {
     LDAP* ldap;
     auto uri = ldapGlobalParams.ldapURIList();
 
     auto res = ldap_initialize(&ldap, uri.c_str());
     if (res != LDAP_SUCCESS) {
-        LOGV2_DEBUG(29088,
-                    1,
-                    "Cannot initialize LDAP structure for {uri} ; LDAP error: {err}",
-                    "uri"_attr = uri,
-                    "err"_attr = ldap_err2string(res));
+        LOGV2_SEVERITY(29088,
+                       logSeverity,
+                       "Cannot initialize LDAP structure for {uri} ; LDAP error: {err}",
+                       "uri"_attr = uri,
+                       "err"_attr = ldap_err2string(res));
         return nullptr;
     }
 
@@ -165,20 +166,20 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr) {
         LOGV2_DEBUG(29086, 2, "Disabling referrals");
         res = ldap_set_option(ldap, LDAP_OPT_REFERRALS, LDAP_OPT_OFF);
         if (res != LDAP_OPT_SUCCESS) {
-            LOGV2_DEBUG(29089,
-                        1,
-                        "Cannot disable LDAP referrals; LDAP error: {err}",
-                        "err"_attr = ldap_err2string(res));
+            LOGV2_SEVERITY(29089,
+                           logSeverity,
+                           "Cannot disable LDAP referrals; LDAP error: {err}",
+                           "err"_attr = ldap_err2string(res));
             return nullptr;
         }
     }
 
     res = ldap_set_urllist_proc(ldap, cb_urllist_proc, nullptr);
     if (res != LDAP_OPT_SUCCESS) {
-        LOGV2_DEBUG(29089,
-                    1,
-                    "Cannot set LDAP URLlist callback procedure",
-                    "err"_attr = ldap_err2string(res));
+        LOGV2_SEVERITY(29089,
+                       logSeverity,
+                       "Cannot set LDAP URLlist callback procedure",
+                       "err"_attr = ldap_err2string(res));
         return nullptr;
     }
 
@@ -189,10 +190,10 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr) {
         conncb.lc_arg = connect_cb_arg;
         res = ldap_set_option(ldap, LDAP_OPT_CONNECT_CB, &conncb);
         if (res != LDAP_OPT_SUCCESS) {
-            LOGV2_DEBUG(29089,
-                        1,
-                        "Cannot set LDAP connection callbacks; LDAP error: {err}",
-                        "err"_attr = ldap_err2string(res));
+            LOGV2_SEVERITY(29089,
+                           logSeverity,
+                           "Cannot set LDAP connection callbacks; LDAP error: {err}",
+                           "err"_attr = ldap_err2string(res));
             return nullptr;
         }
     }
@@ -778,7 +779,10 @@ ServiceContext::ConstructorActionRegisterer ldapServerConfigValidationRegisterer
     [](ServiceContext* svcCtx) {
         if (!ldapGlobalParams.ldapServers->empty()
             && ldapGlobalParams.ldapValidateLDAPServerConfig) {
-            LDAP* ld = create_connection();
+            LDAP* ld = create_connection(nullptr, logv2::LogSeverity::Error());
+            uassert(ErrorCodes::LDAPLibraryError,
+                    "Failed to construct an LDAP connection",
+                    ld != nullptr);
             ON_BLOCK_EXIT([ld]{ ldap_unbind_ext(ld, nullptr, nullptr); });
             uassertStatusOK(LDAPbind(ld,
                         ldapGlobalParams.ldapQueryUser.get(),
