@@ -135,6 +135,14 @@ inline LogstreamBuilder log() {
 }
 
 /**
+ * Returns a LogstreamBuilder for logging a message with a custom severity.
+ */
+inline LogstreamBuilder log(logger::LogSeverity severity) {
+    return LogstreamBuilder(
+        logger::globalLogDomain(), getThreadName(), severity, ::MongoLogDefaultComponent_component);
+}
+
+/**
  * Returns a LogstreamBuilder that does not cache its ostream in a threadlocal cache.
  * Use this variant when logging from places that may not be able to access threadlocals,
  * such as from within other threadlocal-managed objects, or thread_specific_ptr-managed
