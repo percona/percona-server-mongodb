@@ -34,12 +34,14 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/base/string_data.h"
+
 namespace mongo {
 namespace logger {
 
     class AuditLog {
     public:
-        virtual void rotate() {};
+        virtual void rotate(bool rename, StringData renameSuffix){};
         virtual ~AuditLog() {};
     };
 
