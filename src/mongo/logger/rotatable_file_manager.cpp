@@ -76,7 +76,7 @@ RotatableFileManager::FileNameStatusPairVector RotatableFileManager::rotateAll(
         }
     }
     if (_auditLog) {
-        _auditLog->rotate();
+        _auditLog->rotate(renameFiles, renameTargetSuffix);
     }
     return badStatuses;
 }
