@@ -117,7 +117,7 @@ namespace audit {
                 appendMatched(obj, affects_durable_state);
             }
         }
-        virtual void rotate() override {
+        virtual void rotate(bool rename, StringData renameSuffix) override {
             // No need to override this method if there is nothing to rotate
             // like it is for 'console' and 'syslog' destinations
         }
@@ -197,22 +197,22 @@ namespace audit {
             invariant(_membuf.write(adapter->data(), adapter->size()));
         }
 
-        virtual void rotate() override {
+        virtual void rotate(bool rename, StringData renameSuffix) override {
             stdx::lock_guard<SimpleMutex> lck(_mutex);
 
             // Close the current file.
             _file.reset();
 
-            // Rename the current file
-            // Note: we append a timestamp to the file name.
-            std::stringstream ss;
-            ss << _fileName << "." << terseCurrentTime(false);
-            std::string s = ss.str();
-            int r = std::rename(_fileName.c_str(), s.c_str());
-            if (r != 0) {
-                error() << "Could not rotate audit log, but continuing normally "
-                        << "(error desc: " << errnoWithDescription() << ")"
-                        << std::endl;
+            if (rename) {
+                // Rename the current file
+                // Note: we append a timestamp to the file name.
+                std::string s = _fileName + renameSuffix;
+                int r = std::rename(_fileName.c_str(), s.c_str());
+                if (r != 0) {
+                    error() << "Could not rotate audit log, but continuing normally "
+                            << "(error desc: " << errnoWithDescription() << ")"
+                            << std::endl;
+                }
             }
 
             // Open a new file, with the same name as the original.
