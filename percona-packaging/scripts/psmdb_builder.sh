@@ -860,7 +860,7 @@ build_tarball(){
     PSMDIR_ABS=${WORKDIR}/${PSMDIR}
     TOOLSDIR=${PSMDIR}/mongo-tools
     TOOLSDIR_ABS=${WORKDIR}/${TOOLSDIR}
-    TOOLS_TAGS="ssl sasl"
+    TOOLS_TAGS="ssl sasl gssapi"
     NJOBS=4
 
     tar xzf $TARFILE
