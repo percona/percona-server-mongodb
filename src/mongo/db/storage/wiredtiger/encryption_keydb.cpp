@@ -420,13 +420,11 @@ void EncryptionKeyDB::clone(EncryptionKeyDB *old) {
 }
 
 void EncryptionKeyDB::store_masterkey() {
-    auto encode_master_key = [this]() {
-        return base64::encode(StringData{(const char*)_masterkey, _key_len});
-    };
+    auto encodedKey = base64::encode(StringData{(const char*)_masterkey, _key_len});
     if (!encryptionGlobalParams.kmipServerName.empty()) {
-        kmipWriteKey(encode_master_key());
+        kmipWriteKey(encodedKey);
     } else if (!encryptionGlobalParams.vaultServerName.empty()) {
-        vaultWriteKey(encode_master_key());
+        vaultWriteKey(encodedKey);
     } else {
         std::logic_error(
             "Can't save master key because neither HashiCorp's Vault nor "
