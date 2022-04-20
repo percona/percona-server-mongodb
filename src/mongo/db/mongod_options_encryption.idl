@@ -149,3 +149,10 @@ configs:
         short_name: kmipKeyIdentifier
         arg_vartype: String
         requires: 'security.kmip.keyIdentifier'
+
+    'security.kmip.rotateMasterKey':
+        description: 'Rotate master key and re-encrypt key db'
+        short_name: kmipRotateMasterKey
+        arg_vartype: Switch
+        requires: 'security.kmip.serverName'
+

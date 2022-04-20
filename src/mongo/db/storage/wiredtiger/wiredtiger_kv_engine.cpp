@@ -775,7 +775,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
         encryptionKeyDB->init();
         keyDBPathGuard.dismiss();
         // do master key rotation if necessary
-        if (encryptionGlobalParams.vaultRotateMasterKey) {
+        if (encryptionGlobalParams.shouldRotateMasterKey()) {
             fs::path newKeyDBPath = path;
             newKeyDBPath /= rotationDir;
             if (fs::exists(newKeyDBPath)) {

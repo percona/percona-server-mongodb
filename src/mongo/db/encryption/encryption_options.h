@@ -54,6 +54,11 @@ struct EncryptionGlobalParams {
     std::string kmipClientCertificateFile;
     std::string kmipClientKeyFile;
     std::string kmipKeyIdentifier;
+    bool kmipRotateMasterKey{false};
+
+    bool shouldRotateMasterKey() const noexcept {
+        return vaultRotateMasterKey || kmipRotateMasterKey;
+    }
 };
 
 extern EncryptionGlobalParams encryptionGlobalParams;
