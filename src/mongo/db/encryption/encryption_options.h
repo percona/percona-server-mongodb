@@ -56,7 +56,7 @@ struct EncryptionGlobalParams {
     std::string kmipKeyIdentifier;
     bool kmipRotateMasterKey{false};
 
-    constexpr bool shouldRotateMasterKey() const noexcept {
+    bool shouldRotateMasterKey() const noexcept {
         return vaultRotateMasterKey || kmipRotateMasterKey;
     }
 };
