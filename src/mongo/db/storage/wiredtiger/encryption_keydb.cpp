@@ -141,22 +141,29 @@ void EncryptionKeyDB::generate_secure_key(char key[]) {
 void EncryptionKeyDB::init_masterkey() {
     std::string encoded_key;
     if (!encryptionGlobalParams.kmipServerName.empty()) {
-        // read key from KMIP
-        encoded_key = kmipReadKey();
-        // empty key is returned when there was an error
-        // if this happens on first run (with empty keydb) then
-        // we can generate key here
-        if (encoded_key.empty()) {
-            if (!_just_created) {
-                throw std::runtime_error(
-                    "Cannot start. Master encryption key is absent in KMIP. Check "
-                    "configuration options.");
-            }
-            LOGV2(29043, "Master key is absent in KMIP. Generating and writing one.");
+        if (_rotation) {
+            // generate new key
             char newkey[_key_len];
             generate_secure_key(newkey);
             encoded_key = base64::encode(StringData{newkey, _key_len});
-            kmipWriteKey(encoded_key);
+        } else {
+            // read key from KMIP
+            encoded_key = kmipReadKey();
+            // empty key is returned when there was an error
+            // if this happens on first run (with empty keydb) then
+            // we can generate key here
+            if (encoded_key.empty()) {
+                if (!_just_created) {
+                    throw std::runtime_error(
+                        "Cannot start. Master encryption key is absent in KMIP. Check "
+                        "configuration options.");
+                }
+                LOGV2(29043, "Master key is absent in KMIP. Generating and writing one.");
+                char newkey[_key_len];
+                generate_secure_key(newkey);
+                encoded_key = base64::encode(StringData{newkey, _key_len});
+                kmipWriteKey(encoded_key);
+            }
         }
     } else if (!encryptionGlobalParams.vaultServerName.empty()) {
         if (encryptionGlobalParams.vaultToken.empty()) {
@@ -407,7 +414,16 @@ void EncryptionKeyDB::clone(EncryptionKeyDB *old) {
 }
 
 void EncryptionKeyDB::store_masterkey() {
-    vaultWriteKey(base64::encode(StringData{(const char*)_masterkey, _key_len}));
+    auto encodedKey = base64::encode(StringData{(const char*)_masterkey, _key_len});
+    if (!encryptionGlobalParams.kmipServerName.empty()) {
+        kmipWriteKey(encodedKey);
+    } else if (!encryptionGlobalParams.vaultServerName.empty()) {
+        vaultWriteKey(encodedKey);
+    } else {
+        std::logic_error(
+            "Can't save master key because neither HashiCorp's Vault nor "
+            "KMIP server is configured");
+    }
 }
 
 int EncryptionKeyDB::get_key_by_id(const char *keyid, size_t len, unsigned char *key, void *pe) {
