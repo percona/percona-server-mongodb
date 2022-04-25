@@ -426,7 +426,7 @@ void EncryptionKeyDB::store_masterkey() {
     } else if (!encryptionGlobalParams.vaultServerName.empty()) {
         vaultWriteKey(encodedKey);
     } else {
-        std::logic_error(
+        throw std::logic_error(
             "Can't save master key because neither HashiCorp's Vault nor "
             "KMIP server is configured");
     }
