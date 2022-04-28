@@ -62,6 +62,7 @@ configs:
     description: "the path to encryption key file"
     short_name: encryptionKeyFile
     arg_vartype: String
+    conflicts: [vaultServerName, kmipServerName]
 
   encryptionCipherMode:
     description: "the cipher mode to use for decryption (AES256-CBC/AES256-GCM)"
@@ -75,7 +76,7 @@ configs:
     short_name: vaultServerName
     arg_vartype: String
     requires: [ vaultPort, vaultTokenFile, vaultSecret ]
-    conflicts: encryptionKeyFile
+    conflicts: [encryptionKeyFile, kmipServerName]
 
   vaultPort:
     description: "port name the Vault server is listening on"
@@ -120,8 +121,8 @@ configs:
     description: "hostname or IP address of the KMIP server"
     short_name: kmipServerName
     arg_vartype: String
-    requires: [ kmipPort, kmipServerCAFile, kmipClientCertificateFile, kmipClientKeyFile, kmipKeyIdentifier ]
-    conflicts: encryptionKeyFile
+    requires: [ kmipPort, kmipClientCertificateFile, kmipClientKeyFile, kmipKeyIdentifier ]
+    conflicts: [encryptionKeyFile, vaultServerName]
 
   kmipPort:
     description: "port name the KMIP server is listening on"
@@ -134,19 +135,21 @@ configs:
 
   kmipServerCAFile:
     description: >-
-      CA certificate that was used to sign KMIP's certificates
+        CA certificate that was used to sign KMIP server's certificates
+        - should be used when the KMIP server's CA certificate is not
+        trusted by the machine that is going to connect to the KMIP server
     short_name: kmipServerCAFile
     arg_vartype: String
     requires: kmipServerName
 
   kmipClientCertificateFile:
-    description: Name of the KMIP CA file to use
+    description: Path to the KMIP client certificate
     short_name: kmipClientCertificateFile
     arg_vartype: String
     requires: kmipServerName
 
   kmipClientKeyFile:
-    description: Name of the KMIP CA key to use
+    description: Path to the KMIP client key file
     short_name: kmipClientKeyFile
     arg_vartype: String
     requires: kmipServerName
