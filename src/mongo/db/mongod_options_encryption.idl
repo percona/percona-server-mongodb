@@ -57,13 +57,14 @@ configs:
         short_name: encryptionKeyFile
         arg_vartype: String
         requires: 'security.enableEncryption'
+        conflicts: ['security.vault.serverName', 'security.kmip.serverName']
 
     'security.vault.serverName':
         description: 'Hostname or IP address of the Vault server'
         short_name: vaultServerName
         arg_vartype: String
         requires: [ 'security.enableEncryption', 'security.vault.port', 'security.vault.tokenFile', 'security.vault.secret']
-        conflicts: 'security.encryptionKeyFile'
+        conflicts: ['security.encryptionKeyFile', 'security.kmip.serverName']
 
     'security.vault.port':
         description: 'Port name the Vault server is listening on'
@@ -114,8 +115,8 @@ configs:
         description: 'Hostname or IP address of the KMIP server'
         short_name: kmipServerName
         arg_vartype: String
-        requires: [ 'security.enableEncryption', 'security.kmip.port', 'security.kmip.serverCAFile', 'security.kmip.clientCertificateFile', 'security.kmip.clientKeyFile', 'security.kmip.keyIdentifier' ]
-        conflicts: ['security.encryptionKeyFile', 'security.vault.ServerName']
+        requires: [ 'security.enableEncryption', 'security.kmip.port', 'security.kmip.clientCertificateFile', 'security.kmip.clientKeyFile', 'security.kmip.keyIdentifier' ]
+        conflicts: ['security.encryptionKeyFile', 'security.vault.serverName']
 
     'security.kmip.port':
         description: 'Port name the KMIP server is listening on'
@@ -127,28 +128,31 @@ configs:
             lte: 65535
 
     'security.kmip.serverCAFile':
-        description: 'Name of the KMIP server CA file'
+        description: >-
+            CA certificate that was used to sign KMIP server's certificates
+            - should be used when the KMIP server's CA certificate is not
+            trusted by the machine that is going to connect to the KMIP server
         short_name: kmipServerCAFile
         arg_vartype: String
-        requires: 'security.kmip.serverCAFile'
+        requires: 'security.kmip.serverName'
 
     'security.kmip.clientCertificateFile':
-        description: 'Name of the KMIP client CA file'
+        description: 'Path to the KMIP client certificate'
         short_name: kmipClientCertificateFile
         arg_vartype: String
-        requires: 'security.kmip.clientCertificateFile'
+        requires: 'security.kmip.serverName'
 
     'security.kmip.clientKeyFile':
-        description: 'Name of the KMIP client key file'
+        description: 'Path to the KMIP client key file'
         short_name: kmipClientKeyFile
         arg_vartype: String
-        requires: 'security.kmip.clientKeyFile'
+        requires: 'security.kmip.serverName'
 
     'security.kmip.keyIdentifier':
         description: 'Name of the KMIP key to use'
         short_name: kmipKeyIdentifier
         arg_vartype: String
-        requires: 'security.kmip.keyIdentifier'
+        requires: 'security.kmip.serverName'
 
     'security.kmip.rotateMasterKey':
         description: 'Rotate master key and re-encrypt key db'
