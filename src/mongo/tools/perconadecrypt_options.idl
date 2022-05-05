@@ -121,11 +121,11 @@ configs:
     description: "hostname or IP address of the KMIP server"
     short_name: kmipServerName
     arg_vartype: String
-    requires: [ kmipPort, kmipClientCertificateFile, kmipClientKeyFile, kmipKeyIdentifier ]
+    requires: [ kmipClientCertificateFile, kmipClientKeyFile, kmipKeyIdentifier ]
     conflicts: [encryptionKeyFile, vaultServerName]
 
   kmipPort:
-    description: "port name the KMIP server is listening on"
+    description: "port number the KMIP server is listening on, default is 5696"
     short_name: kmipPort
     arg_vartype: Int
     requires: kmipServerName

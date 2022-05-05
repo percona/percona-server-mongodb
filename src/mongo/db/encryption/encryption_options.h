@@ -49,7 +49,7 @@ struct EncryptionGlobalParams {
     bool vaultDisableTLS{false};
     long vaultTimeout{15L};
     std::string kmipServerName;
-    int kmipPort;
+    int kmipPort{5696};
     std::string kmipServerCAFile;
     std::string kmipClientCertificateFile;
     std::string kmipClientKeyFile;
