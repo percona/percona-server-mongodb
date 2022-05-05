@@ -115,11 +115,11 @@ configs:
         description: 'Hostname or IP address of the KMIP server'
         short_name: kmipServerName
         arg_vartype: String
-        requires: [ 'security.enableEncryption', 'security.kmip.port', 'security.kmip.clientCertificateFile', 'security.kmip.clientKeyFile', 'security.kmip.keyIdentifier' ]
+        requires: [ 'security.enableEncryption', 'security.kmip.clientCertificateFile', 'security.kmip.clientKeyFile', 'security.kmip.keyIdentifier' ]
         conflicts: ['security.encryptionKeyFile', 'security.vault.serverName']
 
     'security.kmip.port':
-        description: 'Port name the KMIP server is listening on'
+        description: 'Port number the KMIP server is listening on, default is 5696'
         short_name: kmipPort
         arg_vartype: Int
         requires: 'security.kmip.serverName'
