@@ -1035,7 +1035,10 @@ build_tarball(){
         # Details are in ticket PSMDB-950
         patchelf --remove-needed libsasl2.so.3 bin/mongod
         patchelf --remove-needed libsasl2.so.3 bin/mongo
-        patchelf --remove-needed libsasl2.so bin/mongo
+        if [ "x$OS" = "xrpm" ]
+        then
+            patchelf --remove-needed libsasl2.so bin/mongo
+        fi
     }
 
     function replace_libs {
