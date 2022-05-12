@@ -21,7 +21,10 @@ namespace kmippp {
       using ids_t = std::vector<std::string>;
       using name_t = std::string;
 
-      context(std::string server_address, std::string server_port, std::string client_cert_fn, std::string client_key_fn, std::string ca_cert_fn);
+      context(std::string server_address,
+              std::string server_port,
+              std::string client_cert_fn,
+              std::string ca_cert_fn);
       ~context();
 
       context(context &&) noexcept = default;
