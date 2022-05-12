@@ -115,7 +115,7 @@ configs:
         description: 'Hostname or IP address of the KMIP server'
         short_name: kmipServerName
         arg_vartype: String
-        requires: [ 'security.enableEncryption', 'security.kmip.clientCertificateFile', 'security.kmip.clientKeyFile', 'security.kmip.keyIdentifier' ]
+        requires: [ 'security.enableEncryption', 'security.kmip.clientCertificateFile', 'security.kmip.keyIdentifier' ]
         conflicts: ['security.encryptionKeyFile', 'security.vault.serverName']
 
     'security.kmip.port':
@@ -137,14 +137,8 @@ configs:
         requires: 'security.kmip.serverName'
 
     'security.kmip.clientCertificateFile':
-        description: 'Path to the KMIP client certificate'
+        description: 'Path to the PEM file with KMIP client private key and certificate chain'
         short_name: kmipClientCertificateFile
-        arg_vartype: String
-        requires: 'security.kmip.serverName'
-
-    'security.kmip.clientKeyFile':
-        description: 'Path to the KMIP client key file'
-        short_name: kmipClientKeyFile
         arg_vartype: String
         requires: 'security.kmip.serverName'
 

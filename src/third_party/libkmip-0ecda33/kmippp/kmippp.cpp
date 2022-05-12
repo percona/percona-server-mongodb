@@ -18,17 +18,14 @@ namespace kmippp {
 context::context(std::string server_address,
                                std::string server_port,
                                std::string client_cert_fn,
-                               std::string client_key_fn,
                                std::string ca_cert_fn) {
     ctx_= SSL_CTX_new(SSLv23_method());
 
-    if(SSL_CTX_use_certificate_file(ctx_, client_cert_fn.c_str(), SSL_FILETYPE_PEM) != 1)
-    {
+    if (SSL_CTX_use_certificate_chain_file(ctx_, client_cert_fn.c_str()) != 1) {
         SSL_CTX_free(ctx_);
         throw std::runtime_error("Loading the client certificate failed");
     }
-    if(SSL_CTX_use_PrivateKey_file(ctx_, client_key_fn.c_str(), SSL_FILETYPE_PEM) != 1)
-    {
+    if (SSL_CTX_use_PrivateKey_file(ctx_, client_cert_fn.c_str(), SSL_FILETYPE_PEM) != 1) {
         SSL_CTX_free(ctx_);
         throw std::runtime_error("Loading the client key failed");
     }
