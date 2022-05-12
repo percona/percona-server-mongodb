@@ -507,10 +507,6 @@ Status storeMongodOptions(const moe::Environment& params) {
         encryptionGlobalParams.kmipClientCertificateFile = params["security.kmip.clientCertificateFile"].as<std::string>();
     }
 
-    if (params.count("security.kmip.clientKeyFile")) {
-        encryptionGlobalParams.kmipClientKeyFile = params["security.kmip.clientKeyFile"].as<std::string>();
-    }
-
     if (params.count("security.kmip.keyIdentifier")) {
         encryptionGlobalParams.kmipKeyIdentifier = params["security.kmip.keyIdentifier"].as<std::string>();
     }
