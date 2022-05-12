@@ -121,7 +121,7 @@ configs:
     description: "hostname or IP address of the KMIP server"
     short_name: kmipServerName
     arg_vartype: String
-    requires: [ kmipClientCertificateFile, kmipClientKeyFile, kmipKeyIdentifier ]
+    requires: [ kmipClientCertificateFile, kmipKeyIdentifier ]
     conflicts: [encryptionKeyFile, vaultServerName]
 
   kmipPort:
@@ -143,14 +143,8 @@ configs:
     requires: kmipServerName
 
   kmipClientCertificateFile:
-    description: Path to the KMIP client certificate
+    description: Path to the PEM file with KMIP client private key and certificate chain
     short_name: kmipClientCertificateFile
-    arg_vartype: String
-    requires: kmipServerName
-
-  kmipClientKeyFile:
-    description: Path to the KMIP client key file
-    short_name: kmipClientKeyFile
     arg_vartype: String
     requires: kmipServerName
 
