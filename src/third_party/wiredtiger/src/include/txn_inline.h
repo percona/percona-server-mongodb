@@ -329,21 +329,16 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 static inline void
 __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
-    WT_BTREE *btree;
     WT_TXN *txn;
     WT_UPDATE *upd;
 
-    btree = op->btree;
     txn = session->txn;
 
     /*
-     * Metadata updates, updates with no commit time, and logged objects don't have timestamps, and
-     * only the most recently committed data matches files on disk. The check for in-memory files
-     * comes first: in-memory files do have timestamps, but aren't logged.
+     * Updates in the metadata never get timestamps (either now or at commit): metadata cannot be
+     * read at a point in time, only the most recently committed data matches files on disk.
      */
-    if (WT_IS_METADATA(btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-        return;
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !F_ISSET(btree, WT_BTREE_NO_LOGGING))
+    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -481,7 +476,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
     WT_READ_BARRIER();
 
     if (!F_ISSET(conn, WT_CONN_RECOVERING) || session->dhandle == NULL ||
-      !F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING)) {
+      __wt_btree_immediately_durable(session)) {
         /*
          * Checkpoint transactions often fall behind ordinary application threads. If there is an
          * active checkpoint, keep changes until checkpoint is finished.
@@ -1373,8 +1368,13 @@ __wt_txn_modify_check(
      * Check conflict against any on-page value if there is no update on the update chain except
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
+     *
+     * In the case of row-store we also need to check that the insert list is empty as the existence
+     * of it implies there is no on disk value for the given key. However we can still get a
+     * time-window from an unrelated on-disk value if we are not careful as the slot can still be
+     * set on the cursor b-tree.
      */
-    if (!rollback && upd == NULL) {
+    if (!rollback && upd == NULL && (CUR2BT(cbt)->type != BTREE_ROW || cbt->ins == NULL)) {
         tw_found = __wt_read_cell_time_window(cbt, &tw);
         if (tw_found) {
             if (WT_TIME_WINDOW_HAS_STOP(&tw)) {

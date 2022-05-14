@@ -92,6 +92,8 @@ private:
     // ReplicaSetAwareService methods implementation
 
     void onStartup(OperationContext* opCtx) override {}
+    void onStartupRecoveryComplete(OperationContext* opCtx) override {}
+    void onInitialSyncComplete(OperationContext* opCtx) override {}
     void onShutdown() override {}
     void onStepUpBegin(OperationContext* opCtx, long long term) override;
     void onStepUpComplete(OperationContext* opCtx, long long term) override {}
@@ -184,6 +186,30 @@ VectorClockMongoD::~VectorClockMongoD() = default;
 void VectorClockMongoD::onStepUpBegin(OperationContext* opCtx, long long term) {
     stdx::lock_guard lg(_mutex);
     _durableTime.reset();
+
+    // Initialize the config server's topology time to the maximum topology time from
+    // `config.shards` collection instead of using `Timestamp(0 ,0)`.
+    if (serverGlobalParams.clusterRole == ClusterRole::ConfigServer) {
+        const auto maxTopologyTime{[&opCtx]() -> boost::optional<Timestamp> {
+            DBDirectClient client{opCtx};
+            FindCommandRequest findRequest{ShardType::ConfigNS};
+            findRequest.setSort(BSON(ShardType::topologyTime << -1));
+            findRequest.setLimit(1);
+            auto cursor{client.find(std::move(findRequest))};
+            invariant(cursor);
+            if (!cursor->more()) {
+                // No shards are available yet.
+                return boost::none;
+            }
+
+            const auto shardEntry{uassertStatusOK(ShardType::fromBSON(cursor->nextSafe()))};
+            return shardEntry.getTopologyTime();
+        }()};
+
+        if (maxTopologyTime) {
+            _advanceComponentTimeTo(Component::TopologyTime, LogicalTime(*maxTopologyTime));
+        }
+    }
 }
 
 void VectorClockMongoD::onStepDown() {
@@ -243,7 +269,7 @@ VectorClock::VectorTime VectorClockMongoD::recoverDirect(OperationContext* opCtx
                       return true;
                   });
 
-    const auto newDurableTime = VectorTime({LogicalTime(Timestamp(0)),
+    const auto newDurableTime = VectorTime({VectorClock::kInitialComponentTime,
                                             LogicalTime(durableVectorClock.getConfigTime()),
                                             LogicalTime(durableVectorClock.getTopologyTime())});
 
@@ -340,14 +366,17 @@ Future<void> VectorClockMongoD::_doWhileQueueNotEmptyOrError(ServiceContext* ser
             }
 
             auto vectorTime = getTime();
-            const VectorClockDocument vcd(vectorTime.configTime().asTimestamp(),
-                                          vectorTime.topologyTime().asTimestamp());
+
+            VectorClockDocument vcd;
+            vcd.setConfigTime(vectorTime.configTime().asTimestamp());
+            vcd.setTopologyTime(vectorTime.topologyTime().asTimestamp());
 
             PersistentTaskStore<VectorClockDocument> store(NamespaceString::kVectorClockNamespace);
             store.upsert(opCtx,
                          BSON(VectorClockDocument::k_idFieldName << vcd.get_id()),
                          vcd.toBSON(),
                          WriteConcerns::kMajorityWriteConcernNoTimeout);
+
             return vectorTime;
         })
         .getAsync([this, promise = std::move(p)](StatusWith<VectorTime> swResult) mutable {

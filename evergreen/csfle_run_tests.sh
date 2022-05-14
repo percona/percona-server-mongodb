@@ -37,6 +37,8 @@ echo "Running CSFLE exported symbols test"
 expect='A MONGO_CSFLE_1.0
 T mongo_csfle_v1_analyze_query
 T mongo_csfle_v1_bson_free
+T mongo_csfle_v1_get_version
+T mongo_csfle_v1_get_version_str
 T mongo_csfle_v1_lib_create
 T mongo_csfle_v1_lib_destroy
 T mongo_csfle_v1_query_analyzer_create
@@ -56,7 +58,7 @@ if [ "$actual" != "$expect" ]; then
   exit 1
 fi
 
-echo "CSFLE exported symbols test succeeded!"
+echo "CSFLE exported symbols test succeeded"
 
 #
 # If the shared library version of the unit tests exists, run it,
@@ -78,4 +80,4 @@ fi
 
 echo "Running CSFLE shared library debuggability test"
 $GDB_PATH "$UNITTEST_PATH" --batch -ex "source ${EXTRACT_DIR}/csfle_debuggability_test.py"
-echo "CSFLE shared library debuggability test succeeded!"
+echo "CSFLE shared library debuggability test succeeded"

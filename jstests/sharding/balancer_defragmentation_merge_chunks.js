@@ -61,7 +61,8 @@ function setupCollection() {
                                                    targetChunkSizeMB / 2 /* maxChunkFillMB */,
                                                    0 /* numZones */,
                                                    32 * 1024 /* docSizeBytes */,
-                                                   1000 /* chunkSpacing */);
+                                                   1000 /* chunkSpacing */,
+                                                   false /* disableCollectionBalancing */);
     jsTest.log("Collection " + coll.getFullName() + ", number of chunks before defragmentation: " +
                findChunksUtil.countChunksForNs(st.s.getDB('config'), coll.getFullName()));
     return coll;
@@ -116,8 +117,11 @@ jsTest.log("Split chunks while defragmenting");
     const chunks = findChunksUtil.findChunksByNs(st.config, nss).toArray();
     assert.eq(1, chunks.length);
     assert.commandWorked(st.s.adminCommand({split: nss, middle: {skey: 0}}));
-    assert.commandWorked(st.s.adminCommand(
-        {moveChunk: nss, find: {skey: 0}, to: st.getOther(chunks[0]['shard']).name}));
+
+    const primaryShard = st.getPrimaryShard(coll.getDB().getName());
+    assert.eq(st.normalize(primaryShard.name), st.normalize(chunks[0]['shard']));
+    assert.commandWorked(
+        st.s.adminCommand({moveChunk: nss, find: {skey: 0}, to: st.getOther(primaryShard).name}));
 
     // Pause defragmentation after initialization but before phase 1 runs
     setFailPointOnConfigNodes("afterBuildingNextDefragmentationPhase", {skip: 1});
@@ -272,10 +276,6 @@ jsTest.log("Changed uuid causes defragmentation to restart");
     st.startBalancer();
     // Reshard collection
     assert.commandWorked(db.adminCommand({reshardCollection: nss, key: {key2: 1}}));
-    assert.commandWorked(
-        db.adminCommand({moveChunk: nss, find: {key2: MinKey}, to: st.shard0.shardName}));
-    assert.commandWorked(
-        db.adminCommand({moveChunk: nss, find: {key2: 1}, to: st.shard0.shardName}));
     // Let defragementation run
     clearFailPointOnConfigNodes("afterBuildingNextDefragmentationPhase");
     defragmentationUtil.waitForEndOfDefragmentation(st.s, nss);

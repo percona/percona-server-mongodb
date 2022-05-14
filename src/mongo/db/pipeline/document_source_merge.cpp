@@ -136,7 +136,7 @@ MergeStrategy makeInsertStrategy() {
         // The batch stores replacement style updates, but for this "insert" style of $merge we'd
         // like to just insert the new document without attempting any sort of replacement.
         std::transform(batch.begin(), batch.end(), objectsToInsert.begin(), [](const auto& obj) {
-            return std::get<UpdateModification>(obj).getUpdateClassic();
+            return std::get<UpdateModification>(obj).getUpdateReplacement();
         });
         uassertStatusOK(expCtx->mongoProcessInterface->insert(
             expCtx, ns, std::move(objectsToInsert), wc, epoch));
@@ -151,7 +151,7 @@ BatchTransform makeUpdateTransform(const std::string& updateOp) {
     return [updateOp](auto& batch) {
         for (auto&& obj : batch) {
             std::get<UpdateModification>(obj) = UpdateModification::parseFromClassicUpdate(
-                BSON(updateOp << std::get<UpdateModification>(obj).getUpdateClassic()));
+                BSON(updateOp << std::get<UpdateModification>(obj).getUpdateReplacement()));
         }
     };
 }
@@ -404,7 +404,7 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceMerge::create(
 
     uassert(ErrorCodes::OperationNotSupportedInTransaction,
             "{} cannot be used in a transaction"_format(kStageName),
-            !expCtx->inMultiDocumentTransaction);
+            !expCtx->opCtx->inMultiDocumentTransaction());
 
     uassert(31319,
             "Cannot {} to special collection: {}"_format(kStageName, outputNs.coll()),

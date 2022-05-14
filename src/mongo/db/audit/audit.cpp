@@ -774,19 +774,21 @@ namespace audit {
             return;
         }
 
+        using UpdateType = write_ops::UpdateModification::Type;
+        const auto updateType = update.type();
+        invariant(updateType == UpdateType::kReplacement || updateType == UpdateType::kModifier);
+        const auto& updateObj = updateType == UpdateType::kReplacement
+            ? update.getUpdateReplacement()
+            : update.getUpdateModifier();
         {
-            const BSONObj args = BSON("pattern" << query <<
-                                      "updateObj" << update.getUpdateClassic() <<
-                                      "upsert" << isUpsert <<
-                                      "multi" << isMulti); 
+            const BSONObj args = BSON("pattern" << query << "updateObj" << updateObj << "upsert"
+                                                << isUpsert << "multi" << isMulti);
             _auditAuthz(client, ns, "update", args, result);
         }
         {
-            const BSONObj params = BSON("db" << ns.db() <<
-                                        "pattern" << query <<
-                                        "updateObj" << update.getUpdateClassic() <<
-                                        "upsert" << isUpsert <<
-                                        "multi" << isMulti); 
+            const BSONObj params =
+                BSON("db" << ns.db() << "pattern" << query << "updateObj" << updateObj << "upsert"
+                          << isUpsert << "multi" << isMulti);
             _auditSystemUsers(client, ns, "updateUser", params, result);
         }
     }
