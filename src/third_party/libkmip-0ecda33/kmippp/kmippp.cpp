@@ -1,4 +1,3 @@
-
 #include "kmippp.h"
 
 #include <openssl/err.h>
@@ -15,10 +14,10 @@
 
 namespace kmippp {
 
-context::context(std::string server_address,
-                               std::string server_port,
-                               std::string client_cert_fn,
-                               std::string ca_cert_fn) {
+context::context(const std::string& server_address,
+                 const std::string& server_port,
+                 const std::string& client_cert_fn,
+                 const std::string& ca_cert_fn) {
     ctx_= SSL_CTX_new(SSLv23_method());
 
     if (SSL_CTX_use_certificate_chain_file(ctx_, client_cert_fn.c_str()) != 1) {
@@ -53,7 +52,6 @@ context::context(std::string server_address,
         SSL_CTX_free(ctx_);
         throw std::runtime_error("BIO_do_connect failed");
     }
-
 }
 
 context::~context() {
@@ -61,7 +59,7 @@ context::~context() {
         SSL_CTX_free(ctx_);
 }
 
-context::id_t context::op_create(context::name_t name, context::name_t group) {
+context::id_t context::op_create(const name_t& name, const name_t& group) {
     Attribute a[5];
     for(int i = 0; i < 5; i++) {
         kmip_init_attribute(&a[i]);
@@ -114,10 +112,9 @@ context::id_t context::op_create(context::name_t name, context::name_t group) {
     }
 
     return ret;
-
 }
 
-context::id_t context::op_register(context::name_t name, name_t group, key_t key) {
+context::id_t context::op_register(const name_t& name, const name_t& group, const key_t& key) {
     Attribute a[5];
     for(int i = 0; i < 5; i++) {
         kmip_init_attribute(&a[i]);
@@ -157,8 +154,10 @@ context::id_t context::op_register(context::name_t name, name_t group, key_t key
 
     int id_max_len = 64;
     char* idp = nullptr;
-    int result = kmip_bio_register_symmetric_key(bio_, &ta, reinterpret_cast<char*>(key.data()), key.size(), &idp, &id_max_len);
-    
+    auto key_data = reinterpret_cast<char*>(const_cast<unsigned char*>(key.data()));
+    int result =
+        kmip_bio_register_symmetric_key(bio_, &ta, key_data, key.size(), &idp, &id_max_len);
+
     std::string ret;
     if(idp != nullptr) {
       ret = std::string(idp, id_max_len);
@@ -170,11 +169,9 @@ context::id_t context::op_register(context::name_t name, name_t group, key_t key
     }
 
     return ret;
-
 }
 
-context::key_t context::op_get(context::id_t id) {
-
+context::key_t context::op_get(const id_t& id) {
     int key_len = 0;
     char* keyp = nullptr;
     int result = kmip_bio_get_symmetric_key(bio_, const_cast<char*>(id.c_str()), id.length(), &keyp, &key_len);
@@ -190,21 +187,14 @@ context::key_t context::op_get(context::id_t id) {
     }
 
     return key;
-
 }
 
-bool context::op_destroy(context::id_t id) {
-
-    int key_len = 0;
-    char* keyp = nullptr;
-    int result = kmip_bio_destroy_symmetric_key(bio_, const_cast<char*>(id.c_str()), id.length());
-    
-    return result == KMIP_OK;
-
+bool context::op_destroy(const id_t& id) {
+    return kmip_bio_destroy_symmetric_key(bio_, const_cast<char*>(id.c_str()), id.length()) ==
+        KMIP_OK;
 }
 
-context::name_t context::op_get_name_attr(context::id_t id) {
-
+context::name_t context::op_get_name_attr(const id_t& id) {
     int key_len = 0;
     char* keyp = nullptr;
     int result = kmip_bio_get_name_attribute(bio_, const_cast<char*>(id.c_str()), id.length(), &keyp, &key_len);
@@ -220,10 +210,9 @@ context::name_t context::op_get_name_attr(context::id_t id) {
     }
 
     return key;
-
 }
 
-context::ids_t context::op_locate(context::name_t name) {
+context::ids_t context::op_locate(const name_t& name) {
     Attribute a[3];
     for(int i = 0; i < 3; i++) {
         kmip_init_attribute(&a[i]);
@@ -256,8 +245,8 @@ context::ids_t context::op_locate(context::name_t name) {
         return {};
       }
 
-      for (int i = 0; i < locate_result.ids_size; ++i) {
-        ret.push_back(locate_result.ids[i]);
+      for (std::size_t i = 0; i < locate_result.ids_size; ++i) {
+          ret.push_back(locate_result.ids[i]);
       }
       if (locate_result.located_items != 0) {
         all = locate_result.located_items;  // shouldn't change after its != 1
@@ -272,10 +261,9 @@ context::ids_t context::op_locate(context::name_t name) {
     }
 
     return ret;
-
 }
 
-context::ids_t context::op_locate_by_group(context::name_t group) {
+context::ids_t context::op_locate_by_group(const name_t& group) {
     Attribute a[2];
     for(int i = 0; i < 2; i++) {
         kmip_init_attribute(&a[i]);
@@ -308,8 +296,8 @@ context::ids_t context::op_locate_by_group(context::name_t group) {
         return {};
       }
 
-      for (int i = 0; i < locate_result.ids_size; ++i) {
-        ret.push_back(locate_result.ids[i]);
+      for (std::size_t i = 0; i < locate_result.ids_size; ++i) {
+          ret.push_back(locate_result.ids[i]);
       }
       if (locate_result.located_items != 0) {
         all = locate_result.located_items;  // shouldn't change after its != 1
@@ -325,7 +313,6 @@ context::ids_t context::op_locate_by_group(context::name_t group) {
 
 
     return ret;
-
 }
 
 context::ids_t context::op_all() {
@@ -351,8 +338,8 @@ context::ids_t context::op_all() {
         return {};
       }
 
-      for (int i = 0; i < locate_result.ids_size; ++i) {
-        ret.push_back(locate_result.ids[i]);
+      for (std::size_t i = 0; i < locate_result.ids_size; ++i) {
+          ret.push_back(locate_result.ids[i]);
       }
       if (locate_result.located_items != 0) {
         all = locate_result.located_items;  // shouldn't change after its != 1
@@ -366,9 +353,7 @@ context::ids_t context::op_all() {
       upto += locate_result.ids_size;
     }
 
-
     return ret;
-
 }
 
 }
