@@ -22,10 +22,10 @@ namespace kmippp {
               const std::string& ca_cert_fn);
       ~context();
 
-      context(context &&) noexcept = default;
+      context(context&&) noexcept;
       context(context const&) = delete;
 
-      context& operator=(context&&) noexcept = default;
+      context& operator=(context&&) noexcept;
       context& operator=(context const&) = delete;
 
       // KMIP::create operation, generates a new AES symmetric key on the server
@@ -53,7 +53,14 @@ namespace kmippp {
       ids_t op_all();
 
     private:
-      SSL_CTX *ctx_ = nullptr;
-      BIO* bio_;
+      struct ssl_ctx_deleter {
+        void operator()(SSL_CTX* p) const noexcept;
+      };
+      struct bio_deleter {
+        void operator()(BIO* p) const noexcept;
+      };
+
+      std::unique_ptr<SSL_CTX, ssl_ctx_deleter> ctx_;
+      std::unique_ptr<BIO, bio_deleter> bio_;
   };
 }
