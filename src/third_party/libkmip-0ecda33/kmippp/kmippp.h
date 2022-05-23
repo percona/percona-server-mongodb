@@ -19,6 +19,7 @@ namespace kmippp {
       context(const std::string& server_address,
               const std::string& server_port,
               const std::string& client_cert_fn,
+              const std::string& client_cert_passwd,
               const std::string& ca_cert_fn);
       ~context();
 

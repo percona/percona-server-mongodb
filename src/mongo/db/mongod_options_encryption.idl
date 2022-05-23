@@ -142,6 +142,15 @@ configs:
         arg_vartype: String
         requires: 'security.kmip.serverName'
 
+    'security.kmip.clientCertificatePassword':
+        description: >-
+            Password for the KMIP client private key or/and certificate.
+            Should be used only if either the private key or certificate
+            is encrypted.
+        short_name: kmipClientCertificatePassword
+        arg_vartype: String
+        requires: 'security.kmip.clientCertificateFile'
+
     'security.kmip.keyIdentifier':
         description: 'Name of the KMIP key to use'
         short_name: kmipKeyIdentifier

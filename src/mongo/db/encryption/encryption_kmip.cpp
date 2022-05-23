@@ -41,6 +41,7 @@ kmippp::context kmipCreateContext() {
     return kmippp::context{encryptionGlobalParams.kmipServerName,
                            portStr,
                            encryptionGlobalParams.kmipClientCertificateFile,
+                           encryptionGlobalParams.kmipClientCertificatePassword,
                            encryptionGlobalParams.kmipServerCAFile};
 }
 

@@ -52,6 +52,7 @@ struct EncryptionGlobalParams {
     int kmipPort{5696};
     std::string kmipServerCAFile;
     std::string kmipClientCertificateFile;
+    std::string kmipClientCertificatePassword;
     std::string kmipKeyIdentifier;
     bool kmipRotateMasterKey{false};
 
