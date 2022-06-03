@@ -8,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <functional>
 #include <sstream>
 #include <stdexcept>
 
@@ -62,7 +63,9 @@ auto open_file(const std::string& client_cert_fn) {
     return std::unique_ptr<FILE, decltype(close_file)>(p, close_file);
 }
 
-void raise(const std::string& client_cert_fn, const std::string& entry, unsigned long ssl_error) {
+void raise_crt_error(const std::string& client_cert_fn,
+                     const std::string& entry,
+                     unsigned long ssl_error = ERR_peek_last_error()) {
     std::ostringstream what;
     what << "Can't read the " << entry << " from the '" << client_cert_fn << "' file";
 
@@ -88,22 +91,20 @@ auto read_private_key(const std::string& client_cert_fn,
     EVP_PKEY* key =
         PEM_read_PrivateKey(open_file(client_cert_fn).get(), nullptr, passwd_cb, cb_data);
     if (key == nullptr) {
-        raise(client_cert_fn, "private key", ERR_peek_last_error());
+        raise_crt_error(client_cert_fn, "private key");
     }
     auto key_deleter = [](EVP_PKEY* p) { if (p) { EVP_PKEY_free(p); } };
     return std::unique_ptr<EVP_PKEY, decltype(key_deleter)> (key, key_deleter);
 }
 
-struct cert_deleter {
-    void operator()(X509* p) const noexcept {
-        if (p) {
-            X509_free(p);
-        }
+void delete_cert(X509* p) {
+    if (p) {
+        X509_free(p);
     }
-};
-using cert_ptr = std::unique_ptr<X509, cert_deleter>;
+}
+using cert_ptr = std::unique_ptr<X509, std::function<void(X509*)>>;
 
-/// @breif A certificate chain.
+/// @brief A certificate chain.
 struct cert_chain {
     /// @brief The certificate of the host itself.
     ///
@@ -116,7 +117,7 @@ struct cert_chain {
     std::vector<cert_ptr> ca_certs;
 };
 
-/// @breif Reads a certificate chain from a PEM file.
+/// @brief Reads a certificate chain from a PEM file.
 ///
 /// Note. The implementation is inspired by the
 /// [use_certificate_chain_file](https://github.com/openssl/openssl/blob/36eadf1f84daa965041cce410b4ff32cbda4ef08/ssl/ssl_rsa.c#L589)
@@ -135,13 +136,13 @@ cert_chain read_certificate_chain(const std::string& client_cert_fn,
     auto cb_data = const_cast<std::string*>(&client_cert_passwd);
     X509* cert = PEM_read_X509_AUX(file.get(), nullptr, passwd_cb, cb_data);
     if (cert == nullptr) {
-        raise(client_cert_fn, "host certificate", ERR_peek_last_error());
+        raise_crt_error(client_cert_fn, "host certificate");
     }
     cert_chain chain;
-    chain.host_cert = cert_ptr(cert, cert_deleter());
+    chain.host_cert = cert_ptr(cert, &delete_cert);
 
     while ((cert = PEM_read_X509(file.get(), nullptr, passwd_cb, cb_data)) != nullptr) {
-        chain.ca_certs.emplace_back(cert, cert_deleter());
+        chain.ca_certs.emplace_back(cert, &delete_cert);
     }
     // If the last error is "no start line of a PEM entry", then the end of the PEM file has been
     // successfully reached. Otherwise, the real error has happend.
@@ -149,7 +150,7 @@ cert_chain read_certificate_chain(const std::string& client_cert_fn,
     bool ok =
         ERR_GET_LIB(ssl_error) == ERR_LIB_PEM && ERR_GET_REASON(ssl_error) == PEM_R_NO_START_LINE;
     if (!ok) {
-        raise(client_cert_fn, "intermediate CA certificate", ssl_error);
+        raise_crt_error(client_cert_fn, "intermediate CA certificate", ssl_error);
     }
     return chain;
 }
