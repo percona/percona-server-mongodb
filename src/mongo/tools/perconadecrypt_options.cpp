@@ -120,6 +120,11 @@ Status storePerconaDecryptOptions(const moe::Environment& params,
         encryptionGlobalParams.kmipClientCertificateFile = params["kmipClientCertificateFile"].as<std::string>();
     }
 
+    if (params.count("kmipClientCertificatePassword")) {
+        encryptionGlobalParams.kmipClientCertificatePassword =
+            params["kmipClientCertificatePassword"].as<std::string>();
+    }
+
     if (params.count("kmipKeyIdentifier")) {
         encryptionGlobalParams.kmipKeyIdentifier = params["kmipKeyIdentifier"].as<std::string>();
     }
