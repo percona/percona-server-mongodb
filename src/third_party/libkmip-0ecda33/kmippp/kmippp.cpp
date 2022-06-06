@@ -8,7 +8,6 @@
 #include <string.h>
 #include <time.h>
 
-#include <functional>
 #include <sstream>
 #include <stdexcept>
 
@@ -97,12 +96,14 @@ auto read_private_key(const std::string& client_cert_fn,
     return std::unique_ptr<EVP_PKEY, decltype(key_deleter)> (key, key_deleter);
 }
 
-void delete_cert(X509* p) {
-    if (p) {
-        X509_free(p);
+struct cert_deleter {
+    void operator()(X509* p) const noexcept {
+        if (p) {
+            X509_free(p);
+        }
     }
-}
-using cert_ptr = std::unique_ptr<X509, std::function<void(X509*)>>;
+};
+using cert_ptr = std::unique_ptr<X509, cert_deleter>;
 
 /// @brief A certificate chain.
 struct cert_chain {
@@ -139,10 +140,10 @@ cert_chain read_certificate_chain(const std::string& client_cert_fn,
         raise_crt_error(client_cert_fn, "host certificate");
     }
     cert_chain chain;
-    chain.host_cert = cert_ptr(cert, &delete_cert);
+    chain.host_cert = cert_ptr(cert, cert_deleter());
 
     while ((cert = PEM_read_X509(file.get(), nullptr, passwd_cb, cb_data)) != nullptr) {
-        chain.ca_certs.emplace_back(cert, &delete_cert);
+        chain.ca_certs.emplace_back(cert, cert_deleter());
     }
     // If the last error is "no start line of a PEM entry", then the end of the PEM file has been
     // successfully reached. Otherwise, the real error has happend.
