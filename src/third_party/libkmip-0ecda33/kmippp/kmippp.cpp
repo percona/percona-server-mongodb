@@ -9,7 +9,6 @@
 #include <time.h>
 
 #include <sstream>
-#include <stdexcept>
 
 #include "kmip.h"
 #include "kmip_bio.h"
@@ -206,9 +205,8 @@ context::context(const std::string& server_address,
     BIO_set_conn_hostname(bio_.get(), server_address.c_str());
     BIO_set_conn_port(bio_.get(), server_port.c_str());
     if (BIO_do_connect(bio_.get()) != 1) {
-        std::ostringstream what;
-        what << "Failed to connect to '" << server_address << ":" << server_port << "'";
-        raise(what.str());
+        throw connection_error(
+            server_address, server_port, ERR_reason_error_string(ERR_peek_last_error()));
     }
 }
 
