@@ -28,6 +28,10 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include <kmippp/kmippp.h>
 
+#include <vector>
+
+#include <boost/algorithm/string/split.hpp>
+
 #include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/json.h"
@@ -37,12 +41,29 @@ namespace mongo {
 
 namespace {
 kmippp::context kmipCreateContext() {
+    std::vector<std::string> serverNames;
+    boost::algorithm::split(
+        serverNames, encryptionGlobalParams.kmipServerName, [](char c) { return c == ','; });
     std::string portStr = std::to_string(encryptionGlobalParams.kmipPort);
-    return kmippp::context{encryptionGlobalParams.kmipServerName,
-                           portStr,
-                           encryptionGlobalParams.kmipClientCertificateFile,
-                           encryptionGlobalParams.kmipClientCertificatePassword,
-                           encryptionGlobalParams.kmipServerCAFile};
+    for (const auto& serverName : serverNames) {
+        try {
+            return kmippp::context{serverName,
+                                   portStr,
+                                   encryptionGlobalParams.kmipClientCertificateFile,
+                                   encryptionGlobalParams.kmipClientCertificatePassword,
+                                   encryptionGlobalParams.kmipServerCAFile};
+
+        } catch (const kmippp::connection_error& e) {
+            LOGV2_DEBUG(29106,
+                        2,
+                        "Cannot connect to the KMIP server",
+                        "serverName"_attr = e.server_name,
+                        "port"_attr = e.port,
+                        "reason"_attr = e.reason);
+            continue;
+        }
+    }
+    throw std::runtime_error("Can't connect to any of KMIP servers specified in the configuration");
 }
 
 }  // namespace
