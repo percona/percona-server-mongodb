@@ -54,11 +54,12 @@ kmippp::context kmipCreateContext() {
                                    encryptionGlobalParams.kmipServerCAFile};
 
         } catch (const kmippp::connection_error& e) {
-            LOGV2_WARNING(1045,
-                          "Failed to connect to the KMIP server",
-                          "serverName"_attr = e.server_name,
-                          "port"_attr = e.port,
-                          "reason"_attr = e.reason);
+            LOGV2_DEBUG(29106,
+                        2,
+                        "Cannot connect to the KMIP server",
+                        "serverName"_attr = e.server_name,
+                        "port"_attr = e.port,
+                        "reason"_attr = e.reason);
             continue;
         }
     }
