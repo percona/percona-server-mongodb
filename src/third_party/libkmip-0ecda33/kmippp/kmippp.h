@@ -1,7 +1,8 @@
-#include <memory>
 #include <cstdint>
-#include <vector>
+#include <memory>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 extern "C" {
 typedef struct ssl_ctx_st SSL_CTX;
@@ -9,6 +10,22 @@ typedef struct bio_st BIO;
 }
 
 namespace kmippp {
+  struct connection_error : public std::runtime_error {
+      connection_error(const std::string& server_name,
+                       const std::string& port,
+                       const std::string& reason)
+          : std::runtime_error([&server_name, &port, &reason]() {
+                return "Failed to connect to '" + server_name + ":" + port + "': " + reason;
+            }()),
+            server_name(server_name),
+            port(port),
+            reason(reason) {}
+
+      std::string server_name;
+      std::string port;
+      std::string reason;
+  };
+
   class context {
     public:
       using key_t = std::vector<unsigned char>;
