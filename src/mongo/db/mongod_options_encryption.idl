@@ -112,7 +112,13 @@ configs:
         requires: 'security.vault.serverName'
 
     'security.kmip.serverName':
-        description: 'Hostname or IP address of the KMIP server'
+        description: >-
+            Hostname or IP address of the KMIP server. It may also be a
+            comma-separated list of hostnames or IP addresses in which case
+            they are tried one-by-one until a connection is successfully
+            established. The value of the `security.kmip.port` configuration
+            parameter is used as a port number for each hostname or
+            IP address.
         short_name: kmipServerName
         arg_vartype: String
         requires: [ 'security.enableEncryption', 'security.kmip.clientCertificateFile', 'security.kmip.keyIdentifier' ]
