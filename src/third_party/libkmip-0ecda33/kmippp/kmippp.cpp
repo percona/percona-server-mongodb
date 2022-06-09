@@ -2,7 +2,6 @@
 
 #include <errno.h>
 #include <openssl/err.h>
-#include <openssl/pemerr.h>
 #include <openssl/ssl.h>
 #include <stdio.h>
 #include <string.h>
