@@ -216,7 +216,7 @@ install_python3_7_12() {
         tar -zxf Python-3.7.12.tgz
         cd Python-3.7.12/
         ./configure --enable-optimizations
-        make -j4 build_all
+        make -j${NCPU} build_all
         make altinstall
         cd $CUR_DIR
     fi
@@ -269,6 +269,9 @@ install_gcc_8_deb(){
         rm -rf /usr/local/gcc-8.3.0
         mv gcc-8.3.0 /usr/local/
     fi
+    if [ x"${DEBIAN}" = xjammy ]; then
+        apt-get -y install gcc-10 g++-10
+    fi
     if [ x"${DEBIAN}" = xstretch ]; then
         wget https://jenkins.percona.com/downloads/gcc8/gcc-8.3.0_Debian-stretch-x64.tar.gz -O /tmp/gcc-8.3.0_Debian-stretch-x64.tar.gz
         tar -zxf /tmp/gcc-8.3.0_Debian-stretch-x64.tar.gz
@@ -285,6 +288,9 @@ set_compiler(){
 	elif [ x"${DEBIAN}" = xbullseye ]; then
             export CC=/usr/local/gcc-8.3.0/bin/gcc-8.3
             export CXX=/usr/local/gcc-8.3.0/bin/g++-8.3
+        elif [ x"${DEBIAN}" = xjammy ]; then
+            export CC=/usr/bin/gcc-10
+            export CXX=/usr/bin/g++-10
         else
             export CC=/usr/local/gcc-8.3.0/bin/gcc-8.3
             export CXX=/usr/local/gcc-8.3.0/bin/g++-8.3
@@ -307,6 +313,9 @@ fix_rules(){
     elif [ x"${DEBIAN}" = xbullseye ]; then
         sed -i 's|CC = gcc-5|CC = /usr/local/gcc-8.3.0/bin/gcc-8.3|' debian/rules
         sed -i 's|CXX = g++-5|CXX = /usr/local/gcc-8.3.0/bin/g++-8.3|' debian/rules
+    elif [ x"${DEBIAN}" = xjammy ]; then
+        sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-10|' debian/rules
+        sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-10|' debian/rules
     else
         sed -i 's|CC = gcc-5|CC = /usr/local/gcc-8.3.0/bin/gcc-8.3|' debian/rules
         sed -i 's|CXX = g++-5|CXX = /usr/local/gcc-8.3.0/bin/g++-8.3|' debian/rules
@@ -331,12 +340,16 @@ aws_sdk_build(){
                 fi
             fi
             set_compiler
-            if [ -z "${CC}" -a -z "${CXX}" ]; then
-                ${CMAKE_CMD} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON || exit $?
-            else
-                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON || exit $?
+            CMAKE_CXX_FLAGS=""
+            if [ x"${DEBIAN}" = xjammy ]; then
+                CMAKE_CXX_FLAGS="-Wno-maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
             fi
-            make -j4 || exit $?
+            if [ -z "${CC}" -a -z "${CXX}" ]; then
+                ${CMAKE_CMD} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON || exit $?
+            else
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON || exit $?
+            fi
+            make -j${NCPU} || exit $?
             make install
     cd ${WORKDIR}
 }
@@ -377,7 +390,7 @@ install_deps() {
         yum -y install percona-devtoolset-gcc-c++ percona-devtoolset-libstdc++-devel percona-devtoolset-valgrind-devel
         yum -y install python27 python27-devel rpmlint libcurl-devel e2fsprogs-devel expat-devel lz4-devel git cmake3
         yum -y install openldap-devel krb5-devel
-        wget https://bootstrap.pypa.io/get-pip.py
+        wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
         python2.7 get-pip.py
         rm -rf /usr/bin/python2
         ln -s /usr/bin/python2.7 /usr/bin/python2
@@ -447,7 +460,7 @@ EOL
       fi
       percona-release enable tools testing
       apt-get update
-      if [ x"${DEBIAN}" = "xbullseye" ]; then
+      if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xjammy" ]; then
         INSTALL_LIST="python3 python3-dev python3-pip"
       elif [ x"${DEBIAN}" = "xxenial" ]; then
         INSTALL_LIST="build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libreadline-dev libffi-dev libsqlite3-dev"
@@ -456,7 +469,7 @@ EOL
       fi
       INSTALL_LIST="${INSTALL_LIST} git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
       INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf libexpat1-dev"
-      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" -a x"${DEBIAN}" != "xxenial" ]; then
+      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" -a x"${DEBIAN}" != "xxenial" -a x"${DEBIAN}" != "xjammy" ]; then
         INSTALL_LIST="${INSTALL_LIST} python3.7-distutils"
       fi
       until apt-get -y install dirmngr; do
@@ -470,9 +483,11 @@ EOL
       apt-get -y install libext2fs-dev || apt-get -y install e2fslibs-dev
       install_golang
       install_gcc_8_deb
-      wget https://bootstrap.pypa.io/get-pip.py
+      wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
       if [ x"${DEBIAN}" = "xbullseye" ]; then
         update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1
+      elif [ x"${DEBIAN}" = "xjammy" ]; then
+        update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
       elif [ x"${DEBIAN}" = "xxenial" ]; then
         install_python3_7_12
         update-alternatives --install /usr/bin/python python /usr/local/bin/python3.7 1
@@ -861,7 +876,6 @@ build_tarball(){
     TOOLSDIR=${PSMDIR}/mongo-tools
     TOOLSDIR_ABS=${WORKDIR}/${TOOLSDIR}
     TOOLS_TAGS="ssl sasl gssapi"
-    NJOBS=4
 
     tar xzf $TARFILE
     rm -f $TARFILE
@@ -908,12 +922,15 @@ build_tarball(){
             mkdir build
             cd build
             set_compiler
-            if [ -z "${CC}" -a -z "${CXX}" ]; then
-                cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
-            else
-                cmake CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+            if [ x"${DEBIAN}" = xjammy ]; then
+                CMAKE_CXX_FLAGS="-Wno-maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
             fi
-            make -j4 || exit $?
+            if [ -z "${CC}" -a -z "${CXX}" ]; then
+                cmake .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+            else
+                cmake CC=${CC} CXX=${CXX} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+            fi
+            make -j${NCPU} || exit $?
             make install
             mkdir -p ${INSTALLDIR}/include/
             mkdir -p ${INSTALLDIR}/lib/
@@ -929,9 +946,9 @@ build_tarball(){
       export LINKFLAGS="${LINKFLAGS} ${CURL_LINKFLAGS}"
     fi
     if [ ${DEBUG} = 0 ]; then
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j$NJOBS --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${LINKFLAGS}" ${PSM_TARGETS} || exit $?
+        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${LINKFLAGS}" ${PSM_TARGETS} || exit $?
     else
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --ssl --dbg=on -j$NJOBS --use-sasl-client \
+        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --ssl --dbg=on -j${NCPU} --use-sasl-client \
         CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${LINKFLAGS}" --wiredtiger --inmemory --hotbackup ${PSM_TARGETS} || exit $?
     fi
     #
@@ -1176,6 +1193,12 @@ PRODUCT_FULL=${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
 PSM_BRANCH=${BRANCH}
 if [ ${DEBUG} = 1 ]; then
   TARBALL=1
+fi
+if test -e "/proc/cpuinfo"
+then
+    NCPU="$(grep -c ^processor /proc/cpuinfo)"
+else
+    NCPU=4
 fi
 
 check_workdir
