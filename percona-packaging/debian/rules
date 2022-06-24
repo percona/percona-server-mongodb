@@ -17,6 +17,9 @@ CXX = g++-5
 %:
 	dh $@
 
+override_dh_builddeb:
+	dh_builddeb -- -Zgzip
+
 override_dh_auto_clean:
 	dh_auto_clean
 	rm -fr $(PSMSRC)/bin
