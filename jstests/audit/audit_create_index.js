@@ -22,30 +22,22 @@ auditTest(
 
         const beforeCmd = Date.now();
 
-        assert.commandWorked(testDB.coll.createIndex({ a: 1 }, { name: 'cold', background: false }));
-
-        assert.commandWorked(testDB.coll.createIndex({ b: 1 }, { name: 'hot', background: true }));
+        assert.commandWorked(testDB.coll.createIndex({ a: 1 }, { name: 'idx_a' }));
 
         const beforeLoad = Date.now();
         auditColl = getAuditEventsCollection(m, testDBName);
 
-        assert.eq(1, auditColl.count({
+        // two records are logged with param.indexBuildState:
+        // - IndexBuildStarted
+        // - IndexBuildSucceeded
+        assert.eq(2, auditColl.count({
             atype: "createIndex",
             ts: withinInterval(beforeCmd, beforeLoad),
             'param.ns': testDBName + '.coll',
             'param.indexSpec.key': { a: 1 },
-            'param.indexName': 'cold',
+            'param.indexName': 'idx_a',
             result: 0,
-        }), "FAILED background=false, audit log: " + tojson(auditColl.find().toArray()));
-
-        assert.eq(1, auditColl.count({
-            atype: "createIndex",
-            ts: withinInterval(beforeCmd, beforeLoad),
-            'param.ns': testDBName + '.coll' ,
-            'param.indexSpec.key': { b: 1 },
-            'param.indexName': 'hot',
-            result: 0,
-        }), "FAILED background=true, audit log: " + tojson(auditColl.find().toArray()));
+        }), "FAILED idx_a, audit log: " + tojson(auditColl.find().toArray()));
     },
     { /* no special mongod options */ }
 );
