@@ -79,6 +79,7 @@
 #include "mongo/db/commands/server_status_metric.h"
 #include "mongo/db/concurrency/locker.h"
 #include "mongo/db/concurrency/write_conflict_exception.h"
+#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/global_settings.h"
 #include "mongo/db/index/index_descriptor.h"
@@ -91,11 +92,13 @@
 #include "mongo/db/snapshot_window_options_gen.h"
 #include "mongo/db/storage/journal_listener.h"
 #include "mongo/db/storage/key_format.h"
+#include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/storage_file_util.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/storage_repair_observer.h"
 #include "mongo/db/storage/ticketholders.h"
+#include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_cursor.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
@@ -487,7 +490,8 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
                                        bool durable,
                                        bool ephemeral,
                                        bool repair,
-                                       bool readOnly)
+                                       bool readOnly,
+                                       KmipKeyIdPair& kmipKeyIds)
     : _clockSource(cs),
       _oplogManager(std::make_unique<WiredTigerOplogManager>()),
       _canonicalName(canonicalName),
@@ -576,8 +580,9 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
                 }
             }
         }
-        auto encryptionKeyDB = std::make_unique<EncryptionKeyDB>(just_created, keyDBPath.string());
-        encryptionKeyDB->init();
+        auto encryptionKeyDB = just_created
+            ? EncryptionKeyDB::create(keyDBPath.string(), kmipKeyIds.encryption)
+            : EncryptionKeyDB::read(keyDBPath.string(), kmipKeyIds.decryption);
         keyDBPathGuard.dismiss();
         // do master key rotation if necessary
         if (encryptionGlobalParams.shouldRotateMasterKey()) {
@@ -597,11 +602,9 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
                       "what"_attr = e.what());
                 throw;
             }
-            auto rotationKeyDB = std::make_unique<EncryptionKeyDB>(newKeyDBPath.string(), true);
-            rotationKeyDB->init();
-            rotationKeyDB->clone(encryptionKeyDB.get());
-            // store new key to the Vault
-            rotationKeyDB->store_masterkey();
+            auto rotationKeyDB =
+                encryptionKeyDB->clone(newKeyDBPath.string(), kmipKeyIds.encryption);
+            kmipKeyIds.encryption = rotationKeyDB->kmipMasterKeyId();
             // close key db instances and rename dirs
             encryptionKeyDB.reset(nullptr);
             rotationKeyDB.reset(nullptr);
@@ -610,9 +613,10 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
             fs::remove_all(backupKeyDBPath);
             fs::rename(keyDBPath, backupKeyDBPath);
             fs::rename(newKeyDBPath, keyDBPath);
-            throw std::runtime_error("master key rotation finished successfully");
+            throw MasterKeyRotationCompleted("master key rotation finished successfully");
         }
         _encryptionKeyDB = std::move(encryptionKeyDB);
+        kmipKeyIds.encryption = _encryptionKeyDB->kmipMasterKeyId();
         // add Percona encryption extension
         std::stringstream ss;
         ss << "local=(entry=percona_encryption_extension_init,early_load=true,config=(cipher=" << encryptionGlobalParams.encryptionCipherMode << "))";

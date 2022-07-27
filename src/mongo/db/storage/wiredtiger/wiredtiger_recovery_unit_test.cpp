@@ -31,6 +31,7 @@
 
 #include "mongo/base/checked_cast.h"
 #include "mongo/db/concurrency/write_conflict_exception.h"
+#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/service_context.h"
@@ -61,7 +62,8 @@ public:
                   false,                  // .durable
                   false,                  // .ephemeral
                   false,                  // .repair
-                  false                   // .readOnly
+                  false,                  // .readOnly
+                  _stub                   // .kmipKeyIds
           ) {
         repl::ReplicationCoordinator::set(
             getGlobalServiceContext(),
@@ -128,6 +130,7 @@ public:
 private:
     unittest::TempDir _dbpath;
     ClockSourceMock _cs;
+    KmipKeyIdPair _stub;
     WiredTigerKVEngine _engine;
 };
 

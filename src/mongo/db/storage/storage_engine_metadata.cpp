@@ -113,6 +113,7 @@ StorageEngineMetadata::~StorageEngineMetadata() {}
 void StorageEngineMetadata::reset() {
     _storageEngine.clear();
     _storageEngineOptions = BSONObj();
+    _kmipMasterKeyId.clear();
 }
 
 const std::string& StorageEngineMetadata::getStorageEngine() const {
@@ -123,12 +124,18 @@ const BSONObj& StorageEngineMetadata::getStorageEngineOptions() const {
     return _storageEngineOptions;
 }
 
+const std::string& StorageEngineMetadata::getKmipMasterKeyId() const noexcept {
+    return _kmipMasterKeyId;
+}
+
 void StorageEngineMetadata::setStorageEngine(const std::string& storageEngine) {
     _storageEngine = storageEngine;
 }
 
-void StorageEngineMetadata::setStorageEngineOptions(const BSONObj& storageEngineOptions) {
+BSONObj StorageEngineMetadata::resetStorageEngineOptions(const BSONObj& storageEngineOptions) {
+    BSONObj oldStorageEngineOptions = _storageEngineOptions.getOwned();
     _storageEngineOptions = storageEngineOptions.getOwned();
+    return oldStorageEngineOptions;
 }
 
 Status StorageEngineMetadata::read() {
@@ -208,7 +215,26 @@ Status StorageEngineMetadata::read() {
                               << "The 'storage.options' field in metadata must be a string: "
                               << storageEngineOptionsElement.toString());
         }
-        setStorageEngineOptions(storageEngineOptionsElement.Obj());
+        resetStorageEngineOptions(storageEngineOptionsElement.Obj());
+    }
+
+    BSONElement kmipMasterKeyIdElement =
+        dps::extractElementAtPath(_storageEngineOptions, "kmipMasterKeyId");
+    if (!kmipMasterKeyIdElement.eoo()) {
+        if (kmipMasterKeyIdElement.type() != mongo::String) {
+            return Status(
+                ErrorCodes::FailedToParse,
+                str::stream()
+                    << "The 'storage.options.kmipMasterKeyId' field in metadata must be a string: "
+                    << kmipMasterKeyIdElement.toString());
+        }
+        std::string kmipMasterKeyId = kmipMasterKeyIdElement.String();
+        if (kmipMasterKeyId.empty()) {
+            return Status(ErrorCodes::FailedToParse,
+                          "The 'storage.options.kmipMasterKeyId' field in metadata cannot be "
+                          "an empty string.");
+        }
+        _kmipMasterKeyId = std::move(kmipMasterKeyId);
     }
 
     return Status::OK();

@@ -30,6 +30,7 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/base/init.h"
+#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/devnull/devnull_kv_engine.h"
 #include "mongo/db/storage/storage_engine_impl.h"
@@ -42,9 +43,10 @@ namespace mongo {
 namespace {
 class DevNullStorageEngineFactory : public StorageEngine::Factory {
 public:
-    virtual std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
-                                                  const StorageGlobalParams& params,
-                                                  const StorageEngineLockFile* lockFile) const {
+    std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
+                                          const StorageGlobalParams& params,
+                                          const StorageEngineLockFile* lockFile,
+                                          KmipKeyIdPair& kmipKeyIds) const override {
         StorageEngineOptions options;
         options.directoryPerDB = params.directoryperdb;
         options.forRepair = params.repair;

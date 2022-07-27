@@ -37,6 +37,7 @@
 
 #include "mongo/base/init.h"
 #include "mongo/db/catalog/collection_options.h"
+#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/storage_engine_impl.h"
@@ -67,9 +68,10 @@ std::string kWiredTigerBackupFile = "WiredTiger.backup";
 class WiredTigerFactory : public StorageEngine::Factory {
 public:
     virtual ~WiredTigerFactory() {}
-    virtual std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
-                                                  const StorageGlobalParams& params,
-                                                  const StorageEngineLockFile* lockFile) const {
+    std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
+                                          const StorageGlobalParams& params,
+                                          const StorageEngineLockFile* lockFile,
+                                          KmipKeyIdPair& kmipKeyIds) const override {
         if (lockFile && lockFile->createdByUncleanShutdown()) {
             LOGV2_WARNING(22302, "Recovering data from the last clean checkpoint.");
 
@@ -128,7 +130,8 @@ public:
                                                  params.dur,
                                                  ephemeral,
                                                  params.repair,
-                                                 params.readOnly);
+                                                 params.readOnly,
+                                                 kmipKeyIds);
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
         kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);
 

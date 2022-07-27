@@ -38,6 +38,7 @@
 #include <memory>
 
 #include "mongo/base/init.h"
+#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/global_settings.h"
 #include "mongo/db/operation_context_noop.h"
 #include "mongo/db/repl/repl_settings.h"
@@ -100,12 +101,14 @@ private:
                                                     true,
                                                     false,
                                                     _forRepair,
-                                                    false);
+                                                    false,
+                                                    _stub);
     }
 
     const std::unique_ptr<ClockSource> _cs = std::make_unique<ClockSourceMock>();
     unittest::TempDir _dbpath;
     bool _forRepair;
+    KmipKeyIdPair _stub;
     std::unique_ptr<WiredTigerKVEngine> _engine;
 };
 

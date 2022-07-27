@@ -152,6 +152,55 @@ TEST(StorageEngineMetadataTest, InvalidMetadataFileStorageEngineOptionsFieldNotO
     }
 }
 
+TEST(StorageEngineMetadataTest, InvalidMetadataFileKmipMasterKeyIdIsNotString) {
+    TempDir tempDir("StorageEngineMetadataTest_InvalidMetadataFileKmipMasterKeyIdIsNotString");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj =
+            fromjson("{storage: {engine: \"storageEngine1\", options: {kmipMasterKeyId: 42}}}");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_NOT_OK(metadata.read());
+    }
+}
+
+TEST(StorageEngineMetadataTest, KmipMasterKeyIdMissing) {
+    TempDir tempDir("StorageEngineMetadataTest_KmipMasterKeyIdMissing");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj = fromjson("{storage: {engine: \"storageEngine1\", options: {}}}");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_OK(metadata.read());
+        ASSERT_EQUALS("", metadata.getKmipMasterKeyId());
+    }
+}
+
+TEST(StorageEngineMetadataTest, KmipMasterKeyIdIsString) {
+    TempDir tempDir("StorageEngineMetadataTest_KmipMasterKeyIdIsString");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj =
+            fromjson("{storage: {engine: \"storageEngine1\", options: {kmipMasterKeyId: \"42\"}}}");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_OK(metadata.read());
+        ASSERT_EQUALS("42", metadata.getKmipMasterKeyId());
+    }
+}
+
 // Metadata parser should ignore unknown metadata fields.
 TEST(StorageEngineMetadataTest, IgnoreUnknownField) {
     TempDir tempDir("StorageEngineMetadataTest_IgnoreUnknownField");
@@ -184,7 +233,7 @@ TEST(StorageEngineMetadataTest, Roundtrip) {
     {
         StorageEngineMetadata metadata(tempDir.path());
         metadata.setStorageEngine("storageEngine1");
-        metadata.setStorageEngineOptions(options);
+        metadata.resetStorageEngineOptions(options);
         ASSERT_OK(metadata.write());
     }
     // Read back storage engine name.
@@ -205,7 +254,7 @@ TEST(StorageEngineMetadataTest, ValidateStorageEngineOption) {
     // call read() or write().
     StorageEngineMetadata metadata("no_such_directory");
     BSONObj options = fromjson("{x: true, y: false, z: 123}");
-    metadata.setStorageEngineOptions(options);
+    metadata.resetStorageEngineOptions(options);
 
     // Non-existent field.
     ASSERT_EQUALS(

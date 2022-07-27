@@ -81,8 +81,7 @@ public:
             encryptionGlobalParams.encryptionKeyFile,
             boost::filesystem::owner_read | boost::filesystem::owner_write);
 
-        _encryptionKeyDB = std::make_unique<EncryptionKeyDB>(_keydbpath.path());
-        _encryptionKeyDB->init();
+        _encryptionKeyDB = EncryptionKeyDB::create(_keydbpath.path(), "");
     }
 
     ~EncryptionHarness() {

@@ -81,14 +81,24 @@ public:
     const BSONObj& getStorageEngineOptions() const;
 
     /**
+     * Returns the identifier of the KMIP master key if it exists in the
+     * storage engine options or an empty string otherwise.
+     */
+    const std::string& getKmipMasterKeyId() const noexcept;
+
+    /**
      * Sets name of storage engine in metadata.
      */
     void setStorageEngine(const std::string& storageEngine);
 
     /**
-     * Sets storage engine options in metadata.
+     * @brief Sets storage engine options in metadata.
+     *
+     * @param storageEngineOptions New opitons of the storage engine
+     *
+     * @returns Old options of the storage engine
      */
-    void setStorageEngineOptions(const BSONObj& storageEngineOptions);
+    BSONObj resetStorageEngineOptions(const BSONObj& storageEngineOptions);
 
     /**
      * Resets fields to default values.
@@ -119,6 +129,7 @@ private:
     std::string _dbpath;
     std::string _storageEngine;
     BSONObj _storageEngineOptions;
+    std::string _kmipMasterKeyId;
 };
 
 bool fsyncFile(boost::filesystem::path path);

@@ -68,17 +68,9 @@ kmippp::context kmipCreateContext() {
 
 }  // namespace
 
-std::string kmipReadKey() {
+std::string kmipReadKey(const std::string& keyId) {
     auto ctx = kmipCreateContext();
-
-    const auto id = ctx.op_locate(encryptionGlobalParams.kmipKeyIdentifier);
-
-    if (id.empty()) {
-        LOGV2_DEBUG(29044, 4, "Encryption key doesn't exists on KMIP server");
-        return "";
-    }
-
-    const auto key = ctx.op_get(id[0]);
+    const auto key = ctx.op_get(keyId);
 
     if (key.empty()) {
         LOGV2_DEBUG(
@@ -89,17 +81,16 @@ std::string kmipReadKey() {
     return std::string(key.begin(), key.end());
 }
 
-bool kmipWriteKey(std::string const& key) {
+std::string kmipWriteKey(std::string const& keyData) {
     auto ctx = kmipCreateContext();
 
-    auto ret = ctx.op_register(encryptionGlobalParams.kmipKeyIdentifier, "", kmippp::context::key_t(key.begin(), key.end()));
+    auto keyId = ctx.op_register("", "", kmippp::context::key_t(keyData.begin(), keyData.end()));
 
-    if (ret == "") {
+    if (keyId.empty()) {
         LOGV2_ERROR(29046, "Couldn't save encryption key on KMIP server.");
-        return false;
     }
 
-    return true;
+    return keyId;
 }
 
 }  // namespace mongo

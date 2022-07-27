@@ -35,11 +35,12 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/init.h"
 #include "mongo/db/catalog/collection_options.h"
+#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/inmemory/inmemory_global_options.h"
-#include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_engine_impl.h"
+#include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_engine_lock_file.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/db/storage/storage_options.h"
@@ -62,9 +63,10 @@ const std::string kInMemoryEngineName = "inMemory";
 class InMemoryFactory : public StorageEngine::Factory {
 public:
     virtual ~InMemoryFactory() {}
-    virtual std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
-                                                  const StorageGlobalParams& params,
-                                                  const StorageEngineLockFile*) const {
+    std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
+                                          const StorageGlobalParams& params,
+                                          const StorageEngineLockFile*,
+                                          KmipKeyIdPair& kmipKeyIds) const override {
         syncInMemoryAndWiredTigerOptions();
 
         size_t cacheMB = WiredTigerUtil::getCacheSizeMB(wiredTigerGlobalOptions.cacheSizeGB);
@@ -81,7 +83,8 @@ public:
                                                  durable,
                                                  ephemeral,
                                                  params.repair,
-                                                 readOnly);
+                                                 readOnly,
+                                                 kmipKeyIds);
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
         kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);
 
