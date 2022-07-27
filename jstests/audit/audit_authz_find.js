@@ -27,11 +27,11 @@ auditTest(
         // Admin tries to run a query with auditAuthorizationSuccess=false and then
         // with auditAuthorizationSuccess=true. Only one event should be logged
         var cursor = testDB.foo.find( {_id:1} );
-        assert.eq(null, testDB.getLastError());
+        assert(cursor.hasNext());
         cursor.next();
         adminDB.runCommand({ setParameter: 1, 'auditAuthorizationSuccess': true });
         cursor = testDB.foo.find( {_id:1} );
-        assert.eq(null, testDB.getLastError());
+        assert(cursor.hasNext());
         cursor.next();
         adminDB.runCommand({ setParameter: 1, 'auditAuthorizationSuccess': false });
         adminDB.logout();
@@ -45,7 +45,7 @@ auditTest(
         // returned cursor.  This will throw, so we 
         // have to ignore that exception in this test.
         cursor = testDB.foo.find( {_id:1} );
-        assert.eq(null, testDB.getLastError());
+        assert.neq(null, cursor);
         assert.throws( function(){ cursor.next(); } );
 
         // Tom logs out.
