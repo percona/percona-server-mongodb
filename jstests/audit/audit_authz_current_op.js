@@ -52,7 +52,7 @@ auditTest(
             atype: "authCheck",
             ts: withinInterval(beforeCmd, beforeLoad),
             users: { $elemMatch: { user:'tom', db:testDBName} },
-            'param.command': 'currentOp',
+            'param.command': 'aggregate',
             result: 13, // <-- Unauthorized error, see error_codes.err...
         }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
 
@@ -61,7 +61,7 @@ auditTest(
             atype: "authCheck",
             ts: withinInterval(beforeCmd, beforeLoad),
             users: { $elemMatch: { user:'admin', db:'admin'} },
-            'param.command': 'currentOp',
+            'param.command': 'aggregate',
             result: 0, // <-- Authorization successful
         }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
     },
