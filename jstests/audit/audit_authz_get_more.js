@@ -36,7 +36,6 @@ auditTest(
         // Run getMore as admin with auditAuthorizationSuccess=false
         for (var i = 0; i < 100; i++) {
             printjson(myCursor.next());
-            assert.eq(null, testDB.getLastError());
         }
         myCursor.next();
 
@@ -44,7 +43,6 @@ auditTest(
         // one audit event for user admin
         for (i = 1; i < 100; i++) {
             printjson(myCursor.next());
-            assert.eq(null, testDB.getLastError());
         }
         adminDB.runCommand({ setParameter: 1, 'auditAuthorizationSuccess': true });
         myCursor.next();
@@ -53,7 +51,6 @@ auditTest(
         // prepare to run getMore as tom
         for (i = 1; i < 100; i++) {
             printjson(myCursor.next());
-            assert.eq(null, testDB.getLastError());
         }
 
         adminDB.logout();

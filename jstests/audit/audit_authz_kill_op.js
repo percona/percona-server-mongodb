@@ -25,7 +25,6 @@ auditTest(
 
         // Admin tries to kill an operation with auditAuthorizationSuccess=false
         var operation = testDB.currentOp(false);
-        assert.eq(null, testDB.getLastError());
         var first = operation.inprog[0];
         var id = first.opid;
         testDB.killOp(id);
@@ -33,7 +32,6 @@ auditTest(
         // Admin tries to kill an operation with auditAuthorizationSuccess=true, only
         // one operation should be killed
         operation = testDB.currentOp(false);
-        assert.eq(null, testDB.getLastError());
         first = operation.inprog[0];
         id = first.opid;
         adminDB.runCommand({ setParameter: 1, 'auditAuthorizationSuccess': true });
@@ -42,7 +40,6 @@ auditTest(
 
         // Get next operation id to kill as tom
         operation = testDB.currentOp(false);
-        assert.eq(null, testDB.getLastError());
         first = operation.inprog[0];
         id = first.opid;
         adminDB.logout();
