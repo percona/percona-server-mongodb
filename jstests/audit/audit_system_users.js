@@ -13,7 +13,6 @@ auditTest(
     function(m) {
         testDB = m.getDB(testDBName);
 
-        // use admin DB to count matching users in adminDB.system.users
         var adminDB = m.getDB('admin');
         adminDB.auth('admin','admin');
 
@@ -25,13 +24,9 @@ auditTest(
         const beforeUpdateUser = Date.now();
         var updateObj = { roles: [ { role:'userAdmin', db:testDBName}, { role:'dbAdmin', db:testDBName} ] }
         testDB.updateUser(userObj.user, updateObj);
-        assert.eq(1, adminDB.system.users.count({ user: userObj.user, roles: updateObj.roles }),
-                     "system.users update did not update role for user: " + userObj.user);
 
         const beforeDropUser = Date.now();
-        testDB.removeUser(userObj.user);
-        assert.eq(0, testDB.system.users.count({ user: userObj.user }),
-                     "removeUser did not remove user:" + userObj.user);
+        testDB.dropUser(userObj.user);
 
         const beforeLoad = Date.now();
         var auditColl = getAuditEventsCollection(m, testDBName);
