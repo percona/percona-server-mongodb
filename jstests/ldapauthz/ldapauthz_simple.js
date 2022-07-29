@@ -36,6 +36,8 @@
 
         // ensure user have got correct set of privileges
         checkConnectionStatus(username, db.runCommand({connectionStatus: 1}));
+        
+        db.logout();
     });
 
     MongoRunner.stopMongod(conn);
