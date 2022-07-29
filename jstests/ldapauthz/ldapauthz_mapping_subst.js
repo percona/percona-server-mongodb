@@ -41,6 +41,7 @@
                 return 'cn=' + name + ',dc=percona,dc=com';
             }
         );
+        db.logout();
     });
 
     MongoRunner.stopMongod(conn);
