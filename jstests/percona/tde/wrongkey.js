@@ -31,13 +31,16 @@
     MongoRunner.stopMongod(conn);
 
     // Start with the wrong key - ensure it fails
-    assert.isnull(MongoRunner.runMongod({
+    clearRawMongoProgramOutput();
+    assert.throws(() => MongoRunner.runMongod({
         noCleanData: true,
         dbpath: backupPath,
         enableEncryption: '',
         encryptionKeyFile: TestData.keyFileWrong,
         encryptionCipherMode: TestData.cipherMode,
     }));
+    assert(rawMongoProgramOutput().includes(
+        "EncryptionKeyDB: Failed to start up WiredTiger under any compatibility version."));
 
     // Start with the correct key - ensure it succeeds and DBHash is correct
     var conn = MongoRunner.runMongod({
