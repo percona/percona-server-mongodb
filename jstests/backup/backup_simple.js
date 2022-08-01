@@ -19,12 +19,19 @@ load('jstests/backup/_backup_helpers.js');
     fillData(conn, 500);
     MongoRunner.stopMongod(conn);
 
+    clearRawMongoProgramOutput();
     // Check that backup instanse has engine metadata copied.
-    assert.isnull(MongoRunner.runMongod({
+    assert.throws(() => MongoRunner.runMongod({
         dbpath: backupPath,
         noCleanData: true,
-        storageEngine: 'mmapv1',
+        storageEngine: 'inMemory',
     }));
+    // The log should contain specific error message to avoid false success
+    assert(rawMongoProgramOutput().includes(
+        "Location28662: Cannot start server. " +
+        "Detected data files in " + backupPath +
+        " created by the 'wiredTiger' storage engine, " +
+        "but the specified storage engine was 'inMemory'."));
 
     // Run the backup instance.
     var conn = MongoRunner.runMongod({
