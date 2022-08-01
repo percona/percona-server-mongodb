@@ -30,6 +30,8 @@
     MongoRunner.stopMongod(conn);
 
     // ensure that mongod does not accept non-default values for both --rateLimit and --slowOpSampleRate
-    conn = MongoRunner.runMongod( {rateLimit: 100, slowOpSampleRate: 0.7} );
-    assert.eq(conn, null);
+    clearRawMongoProgramOutput();
+    assert.throws(() => MongoRunner.runMongod({rateLimit: 100, slowOpSampleRate: 0.7}));
+    assert(rawMongoProgramOutput().includes(
+        "Can't specify non-default values for both --rateLimit and --slowOpSampleRate options."));
 })();
