@@ -18,7 +18,7 @@ SCons with the `--audit` argument:
 
 The following server parameters control auditing.  They are entered at the command line when starting a server instance.
 
-###--auditDestination
+### --auditDestination
 
 By default, even when auditing functionality is compiled into the server executable, audit logging is disabled.  
 Auditing and audit log generation are activated when this parameter is present on the command line at server startup.
@@ -32,7 +32,7 @@ mongod --auditDestination=file
 
 **Note:** Auditing remains active until shutdown, it cannot be disabled dynamically at runtime.
 
-###--auditFormat
+### --auditFormat
 
 This is the format of each audit event stored in the audit log. Format can
 be set only when `auditDestination` is `file`. For `console` and `syslog` destinations output format is always `JSON`.
@@ -46,7 +46,7 @@ When `BSON` format is specified you can decode audit log file using `bsondump` u
 mongod --auditDestination=file --auditFormat=BSON
 ```
 
-###--auditPath
+### --auditPath
 
 This is the fully qualified path to the file you want the server to create.
 If this parameter is not specified then `auditLog.json` file will be created in server's configured log path.
@@ -60,10 +60,10 @@ If log path is not configured then `auditLog.json` will be created in the curren
 **Note:** This file will rotate in the same manner as the system logpath, either on server reboot or 
 using the logRotate command. The time of the rotation will be added to old file’s name.
 
-###--auditFilter
+### --auditFilter
 
 This parameter specifies a filter to apply to incoming audit events, 
-allowing the administrator to only capture a subset of all possible audit events.  
+allowing the administrator to only capture a subset of all possible audit events.
 
 This filter should be a JSON string that can be interpreted as a query object; 
 each audit log event that matches this query will be logged, 
@@ -82,7 +82,7 @@ $ mongod                                \
 --auditFilter '{ "users.user" : "tim" }'
 ```
 
-###auditAuthorizationSuccess parameter
+### auditAuthorizationSuccess parameter
 
 By default auditing in Percona Server for MongoDB logs `authCheck` events only for unauthorized operations.
 With `auditAuthorizationSuccess` parameter set to `true` both authorized and unauthorized operations will be logged.
