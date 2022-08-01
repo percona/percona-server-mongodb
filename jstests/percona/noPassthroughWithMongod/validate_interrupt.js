@@ -19,12 +19,12 @@
     var bulk = t.initializeUnorderedBulkOp();
 
     var i;
-    for (i = 0; i < 1000000; i++) {
+    for (i = 0; i < 500000; i++) {
         bulk.insert({a: i});
     }
     assert.writeOK(bulk.execute());
 
-    var res = t.runCommand({validate: t.getName(), full: true, maxTimeMS: 1});
+    var res = t.runCommand({validate: t.getName(), full: true, maxTimeMS: 1000});
 
     if (res.ok === 0) {
         assert.eq(res.code,
