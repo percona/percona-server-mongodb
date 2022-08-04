@@ -77,7 +77,7 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
         return;
     }
     bool metadataNeedsWriting = false;
-    BSONObj options = metadata ? metadata->resetStorageEngineOptions(BSONObj())
+    BSONObj options = metadata ? metadata->getStorageEngineOptions()
                                : factory->createMetadataOptions(params);
     if (!metadata) {
         metadataNeedsWriting = true;
@@ -89,7 +89,7 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
         options = options.removeField("kmipMasterKeyId");
         options = options.addFields(BSON("kmipMasterKeyId" << kmipKeyIds.encryption));
     }
-    metadata->resetStorageEngineOptions(options);
+    metadata->setStorageEngineOptions(options);
     if (metadataNeedsWriting) {
         invariant(!storageGlobalParams.readOnly);
         uassertStatusOK(metadata->write());

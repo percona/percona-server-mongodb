@@ -78,7 +78,7 @@ void _testValidateMetadata(const StorageEngine::Factory* factory,
     // It is fine to specify an invalid data directory for the metadata
     // as long as we do not invoke read() or write().
     StorageEngineMetadata metadata("no_such_directory");
-    metadata.resetStorageEngineOptions(metadataOptions);
+    metadata.setStorageEngineOptions(metadataOptions);
 
     StorageGlobalParams storageOptions;
     storageOptions.directoryperdb = directoryPerDB;

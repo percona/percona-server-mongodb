@@ -233,7 +233,7 @@ TEST(StorageEngineMetadataTest, Roundtrip) {
     {
         StorageEngineMetadata metadata(tempDir.path());
         metadata.setStorageEngine("storageEngine1");
-        metadata.resetStorageEngineOptions(options);
+        metadata.setStorageEngineOptions(options);
         ASSERT_OK(metadata.write());
     }
     // Read back storage engine name.
@@ -254,7 +254,7 @@ TEST(StorageEngineMetadataTest, ValidateStorageEngineOption) {
     // call read() or write().
     StorageEngineMetadata metadata("no_such_directory");
     BSONObj options = fromjson("{x: true, y: false, z: 123}");
-    metadata.resetStorageEngineOptions(options);
+    metadata.setStorageEngineOptions(options);
 
     // Non-existent field.
     ASSERT_EQUALS(

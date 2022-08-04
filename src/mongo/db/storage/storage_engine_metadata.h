@@ -92,13 +92,9 @@ public:
     void setStorageEngine(const std::string& storageEngine);
 
     /**
-     * @brief Sets storage engine options in metadata.
-     *
-     * @param storageEngineOptions New opitons of the storage engine
-     *
-     * @returns Old options of the storage engine
+     * Sets storage engine options in metadata.
      */
-    BSONObj resetStorageEngineOptions(const BSONObj& storageEngineOptions);
+    void setStorageEngineOptions(const BSONObj& storageEngineOptions);
 
     /**
      * Resets fields to default values.

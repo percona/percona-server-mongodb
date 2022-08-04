@@ -132,10 +132,8 @@ void StorageEngineMetadata::setStorageEngine(const std::string& storageEngine) {
     _storageEngine = storageEngine;
 }
 
-BSONObj StorageEngineMetadata::resetStorageEngineOptions(const BSONObj& storageEngineOptions) {
-    BSONObj oldStorageEngineOptions = _storageEngineOptions.getOwned();
+void StorageEngineMetadata::setStorageEngineOptions(const BSONObj& storageEngineOptions) {
     _storageEngineOptions = storageEngineOptions.getOwned();
-    return oldStorageEngineOptions;
 }
 
 Status StorageEngineMetadata::read() {
@@ -215,7 +213,7 @@ Status StorageEngineMetadata::read() {
                               << "The 'storage.options' field in metadata must be a string: "
                               << storageEngineOptionsElement.toString());
         }
-        resetStorageEngineOptions(storageEngineOptionsElement.Obj());
+        setStorageEngineOptions(storageEngineOptionsElement.Obj());
     }
 
     BSONElement kmipMasterKeyIdElement =
