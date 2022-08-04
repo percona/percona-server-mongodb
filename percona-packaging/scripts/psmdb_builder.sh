@@ -104,6 +104,7 @@ get_sources(){
         return 0
     fi
     PRODUCT=percona-server-mongodb
+    JEMALLOC_TAG=psmdb-3.2.11-3.1
     echo "PRODUCT=${PRODUCT}" > percona-server-mongodb-40.properties
 
     echo "PSM_BRANCH=${PSM_BRANCH}" >> percona-server-mongodb-40.properties
