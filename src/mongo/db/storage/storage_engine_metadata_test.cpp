@@ -157,8 +157,12 @@ TEST(StorageEngineMetadataTest, InvalidMetadataFileKmipMasterKeyIdIsNotString) {
     {
         std::string filename(tempDir.path() + "/storage.bson");
         std::ofstream ofs(filename.c_str());
-        BSONObj obj =
-            fromjson("{storage: {engine: \"storageEngine1\", options: {kmipMasterKeyId: 42}}}");
+        BSONObj obj = fromjson(R"json({
+            storage: {
+                engine: "storageEngine1",
+                options: {encryption: {kmip: {keyId: 42}}}
+            }
+        })json");
         ofs.write(obj.objdata(), obj.objsize());
         ofs.flush();
     }
@@ -173,7 +177,7 @@ TEST(StorageEngineMetadataTest, KmipMasterKeyIdMissing) {
     {
         std::string filename(tempDir.path() + "/storage.bson");
         std::ofstream ofs(filename.c_str());
-        BSONObj obj = fromjson("{storage: {engine: \"storageEngine1\", options: {}}}");
+        BSONObj obj = fromjson(R"json({storage: {engine: "storageEngine1", options: {}}})json");
         ofs.write(obj.objdata(), obj.objsize());
         ofs.flush();
     }
@@ -189,8 +193,12 @@ TEST(StorageEngineMetadataTest, KmipMasterKeyIdIsString) {
     {
         std::string filename(tempDir.path() + "/storage.bson");
         std::ofstream ofs(filename.c_str());
-        BSONObj obj =
-            fromjson("{storage: {engine: \"storageEngine1\", options: {kmipMasterKeyId: \"42\"}}}");
+        BSONObj obj = fromjson(R"json({
+            storage: {
+                engine: "storageEngine1",
+                options: {encryption: {kmip: {keyId: "42"}}}
+            }
+        })json");
         ofs.write(obj.objdata(), obj.objsize());
         ofs.flush();
     }

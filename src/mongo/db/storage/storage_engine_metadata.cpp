@@ -217,14 +217,13 @@ Status StorageEngineMetadata::read() {
     }
 
     BSONElement kmipMasterKeyIdElement =
-        dps::extractElementAtPath(_storageEngineOptions, "kmipMasterKeyId");
+        dps::extractElementAtPath(_storageEngineOptions, "encryption.kmip.keyId");
     if (!kmipMasterKeyIdElement.eoo()) {
         if (kmipMasterKeyIdElement.type() != mongo::String) {
-            return Status(
-                ErrorCodes::FailedToParse,
-                str::stream()
-                    << "The 'storage.options.kmipMasterKeyId' field in metadata must be a string: "
-                    << kmipMasterKeyIdElement.toString());
+            return Status(ErrorCodes::FailedToParse,
+                          str::stream() << "The 'storage.options.encryption.kmip.keyId' field in "
+                                           "metadata must be a string: "
+                                        << kmipMasterKeyIdElement.toString());
         }
         std::string kmipMasterKeyId = kmipMasterKeyIdElement.String();
         if (kmipMasterKeyId.empty()) {

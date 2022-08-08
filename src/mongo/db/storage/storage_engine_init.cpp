@@ -86,8 +86,20 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
     }
     if (!kmipKeyIds.encryption.empty() && kmipKeyIds.encryption != metadata->getKmipMasterKeyId()) {
         metadataNeedsWriting = true;
-        options = options.removeField("kmipMasterKeyId");
-        options = options.addFields(BSON("kmipMasterKeyId" << kmipKeyIds.encryption));
+        // Presence of the "encryption" field means that the data at rest is encypted.
+        // The value of the field is an object whose fields are methods of encryption, e.g.
+        // "keyFile", "vault" or "kmip". For now, only "kmip" is supported.
+        // An object is associated with each encryption type (even though this object is empty
+        // at present) in order to preserve backward and _forward_ compatibility in case when
+        // encryption type needs for parameters.
+        // Examples:
+        // 1. `encryption: {keyFile: {}}`
+        // 2. `encryption: {vault: {}}`
+        // 3. `encryption: {kmip: {keyId: "42"}}`
+        // @note: the "keyFile", "vault" and "kmip" encryption methods are mutually exclusive.
+        options = options.removeField("encryption");
+        options = options.addFields(
+            BSON("encryption" << BSON("kmip" << BSON("keyId" << kmipKeyIds.encryption))));
     }
     metadata->setStorageEngineOptions(options);
     if (metadataNeedsWriting) {
