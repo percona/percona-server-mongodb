@@ -438,11 +438,13 @@ void EncryptionKeyDB::import_data_from(EncryptionKeyDB* proto) {
 
 void EncryptionKeyDB::store_masterkey() {
     auto encodedKey = base64::encode(StringData{(const char*)_masterkey, _key_len});
-    if (!encryptionGlobalParams.kmipServerName.empty() && _kmipMasterKeyId.empty()) {
-        _kmipMasterKeyId = kmipWriteKey(encodedKey);
-        LOGV2(29109,
-              "Master key has been created on the KMIP server",
-              "kmipMasterKeyId"_attr = _kmipMasterKeyId);
+    if (!encryptionGlobalParams.kmipServerName.empty()) {
+        if (_kmipMasterKeyId.empty()) {
+            _kmipMasterKeyId = kmipWriteKey(encodedKey);
+            LOGV2(29109,
+                  "Master key has been created on the KMIP server",
+                  "kmipMasterKeyId"_attr = _kmipMasterKeyId);
+        }
     } else if (!encryptionGlobalParams.vaultServerName.empty()) {
         vaultWriteKey(encodedKey);
         return;
