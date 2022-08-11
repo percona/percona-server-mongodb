@@ -35,12 +35,6 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-/// @brief A pair of identifiers of the keys managed by a KMIP-based facility.
-struct KmipKeyIdPair {
-    std::string encryption;  ///< Identifier of the encryption key.
-    std::string decryption;  ///< Identifier of the decryption key.
-};
-
 /// @brief Reads a key from the KMIP server specified in the configuration
 ///
 /// @param keyId Identifier of the key to read

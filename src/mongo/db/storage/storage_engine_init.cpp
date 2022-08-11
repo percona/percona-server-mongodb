@@ -40,7 +40,6 @@
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/concurrency/lock_state.h"
-#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/storage/control/storage_control.h"
@@ -248,26 +247,30 @@ StorageEngine::LastShutdownState initializeStorageEngine(OperationContext* opCtx
         }
     });
 
-    KmipKeyIdPair kmipKeyIds{encryptionGlobalParams.kmipKeyIdentifier,
-                             metadata ? metadata->getKmipMasterKeyId()
-                                      : encryptionGlobalParams.kmipKeyIdentifier};
+    encryptionGlobalParams.kmipKeyIds.encryption = encryptionGlobalParams.kmipKeyIdentifier;
+    encryptionGlobalParams.kmipKeyIds.decryption =
+        metadata ? metadata->getKmipMasterKeyId() : encryptionGlobalParams.kmipKeyIdentifier;
     auto& lockFile = StorageEngineLockFile::get(service);
     try {
         if ((initFlags & StorageEngineInitFlags::kForRestart) == StorageEngineInitFlags{}) {
             auto storageEngine = std::unique_ptr<StorageEngine>(factory->create(
-                opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr, kmipKeyIds));
+                opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr));
             service->setStorageEngine(std::move(storageEngine));
         } else {
             auto storageEngineChangeContext = StorageEngineChangeContext::get(service);
             auto token = storageEngineChangeContext->killOpsForStorageEngineChange(service);
             auto storageEngine = std::unique_ptr<StorageEngine>(factory->create(
-                opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr, kmipKeyIds));
+                opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr));
             storageEngineChangeContext->changeStorageEngine(
                 service, std::move(token), std::move(storageEngine));
         }
     } catch (const MasterKeyRotationCompleted&) {
         // Write metadata because KMIP master key ID has been updated.
-        writeMetadata(std::move(metadata), factory, storageGlobalParams, kmipKeyIds, initFlags);
+        writeMetadata(std::move(metadata),
+                      factory,
+                      storageGlobalParams,
+                      encryptionGlobalParams.kmipKeyIds,
+                      initFlags);
         throw;
     }
 
@@ -276,7 +279,11 @@ StorageEngine::LastShutdownState initializeStorageEngine(OperationContext* opCtx
     }
 
     // Write a new metadata file if it is not present.
-    writeMetadata(std::move(metadata), factory, storageGlobalParams, kmipKeyIds, initFlags);
+    writeMetadata(std::move(metadata),
+                  factory,
+                  storageGlobalParams,
+                  encryptionGlobalParams.kmipKeyIds,
+                  initFlags);
 
     guard.dismiss();
 
