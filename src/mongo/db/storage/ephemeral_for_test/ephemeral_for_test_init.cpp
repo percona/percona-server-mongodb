@@ -30,7 +30,6 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/base/init.h"
-#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/ephemeral_for_test/ephemeral_for_test_kv_engine.h"
 #include "mongo/db/storage/ephemeral_for_test/ephemeral_for_test_record_store.h"
@@ -50,10 +49,9 @@ namespace ephemeral_for_test {
 namespace {
 class EphemeralForTestStorageEngineFactory : public StorageEngine::Factory {
 public:
-    std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
-                                          const StorageGlobalParams& params,
-                                          const StorageEngineLockFile* lockFile,
-                                          KmipKeyIdPair& kmipKeyIds) const override {
+    virtual std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
+                                                  const StorageGlobalParams& params,
+                                                  const StorageEngineLockFile* lockFile) const {
         auto kv = std::make_unique<KVEngine>();
         // We must only add the server parameters to the global registry once during unit testing.
         static int setupCountForUnitTests = 0;

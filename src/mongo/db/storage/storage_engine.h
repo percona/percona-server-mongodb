@@ -50,7 +50,6 @@ class BackupBlock;
 class JournalListener;
 class DurableCatalog;
 class KVEngine;
-class KmipKeyIdPair;
 class OperationContext;
 class RecoveryUnit;
 class SnapshotManager;
@@ -105,10 +104,10 @@ public:
          * Return a new instance of the StorageEngine. The lockFile parameter may be null if
          * params.readOnly is set. Caller owns the returned pointer.
          */
-        virtual std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
-                                                      const StorageGlobalParams& params,
-                                                      const StorageEngineLockFile* lockFile,
-                                                      KmipKeyIdPair& kmipKeyIds) const = 0;
+        virtual std::unique_ptr<StorageEngine> create(
+            OperationContext* opCtx,
+            const StorageGlobalParams& params,
+            const StorageEngineLockFile* lockFile) const = 0;
 
         /**
          * Returns the name of the storage engine.

@@ -30,7 +30,6 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/db/concurrency/locker_noop_service_context_test_fixture.h"
-#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/storage/record_store_test_harness.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/unittest/temp_dir.h"
@@ -83,7 +82,6 @@ private:
     // the client observer for LockerNoop before creating the storage engine to avoid a
     // potential data race (that might be reported by a tool like TSAN).
     LockerNoopClientObserverRegisterer _lockerNoopClientObserverRegisterer;
-    KmipKeyIdPair _stub;
     WiredTigerKVEngine _engine;
 };
 }  // namespace mongo

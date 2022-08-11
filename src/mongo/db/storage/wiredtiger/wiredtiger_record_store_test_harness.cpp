@@ -54,8 +54,7 @@ WiredTigerHarnessHelper::WiredTigerHarnessHelper(StringData extraStrings)
               true,
               false,
               false,
-              false,
-              _stub) {
+              false) {
     repl::ReplicationCoordinator::set(
         serviceContext(),
         std::make_unique<repl::ReplicationCoordinatorMock>(serviceContext(), repl::ReplSettings()));

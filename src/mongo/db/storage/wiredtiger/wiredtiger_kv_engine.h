@@ -56,7 +56,6 @@ namespace mongo {
 
 class ClockSource;
 class JournalListener;
-class KmipKeyIdPair;
 class WiredTigerRecordStore;
 class WiredTigerSessionCache;
 class WiredTigerSizeStorer;
@@ -112,8 +111,7 @@ public:
                        bool durable,
                        bool ephemeral,
                        bool repair,
-                       bool readOnly,
-                       KmipKeyIdPair& kmipKeyIds);
+                       bool readOnly);
 
     ~WiredTigerKVEngine();
 

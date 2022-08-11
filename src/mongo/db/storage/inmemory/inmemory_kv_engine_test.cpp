@@ -32,7 +32,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/kv/kv_engine_test_harness.h"
 
 #include "mongo/base/init.h"
-#include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/service_context.h"
@@ -53,20 +52,13 @@ public:
         const bool readOnly = false;
         if (!hasGlobalServiceContext())
             setGlobalServiceContext(ServiceContext::make());
-        _engine.reset(new WiredTigerKVEngine(kInMemoryEngineName,
-                                             _dbpath.path(),
-                                             _cs.get(),
-                                             "in_memory=true,"
-                                             "log=(enabled=false),"
-                                             "file_manager=(close_idle_time=0),"
-                                             "checkpoint=(wait=0,log_size=0)",
-                                             100,
-                                             0,
-                                             false,
-                                             true,
-                                             false,
-                                             readOnly,
-                                             _stub));
+        _engine.reset(new WiredTigerKVEngine(
+            kInMemoryEngineName, _dbpath.path(), _cs.get(),
+            "in_memory=true,"
+            "log=(enabled=false),"
+            "file_manager=(close_idle_time=0),"
+            "checkpoint=(wait=0,log_size=0)",
+            100, 0, false, true, false, readOnly));
         repl::ReplicationCoordinator::set(
             svcCtx,
             std::unique_ptr<repl::ReplicationCoordinator>(
@@ -91,7 +83,6 @@ public:
 private:
     const std::unique_ptr<ClockSource> _cs = std::make_unique<ClockSourceMock>();
     unittest::TempDir _dbpath;
-    KmipKeyIdPair _stub;
     std::unique_ptr<WiredTigerKVEngine> _engine;
 };
 
