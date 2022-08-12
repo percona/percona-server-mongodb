@@ -57,7 +57,7 @@ public:
     ///     a key management solution, this is the identifier of the database master key.
     ///     If it is an empty string, then the function automatically creates a master key.
     ///     and uploads it to the KMIP server specified in configuration.
-    ///     IF KMIP is not used, the parameter is ignored.
+    ///     If KMIP is not used, the parameter is ignored.
     ///
     /// @returns Crated key database
     ///
@@ -97,8 +97,7 @@ public:
     /// Plase see the `create` function for the descriptions of parameters and thrown excepitons.
     /// Additionally, the function throws `std::runtime_error` if it can't copy this key database.
     ///
-    /// @returns Identifier of a new KMIP master key if encryption is enabled and KMIP is used as
-    ///     a key management solution and an empty string in all other cases.
+    /// @returns Copy of this encryption key database suitable for master key rotation.
     std::unique_ptr<EncryptionKeyDB> clone(const std::string& path,
                                            const std::string& kmipMasterKeyId);
 

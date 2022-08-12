@@ -90,7 +90,7 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
         // "keyFile", "vault" or "kmip". For now, only "kmip" is supported.
         // An object is associated with each encryption type (even though this object is empty
         // at present) in order to preserve backward and _forward_ compatibility in case when
-        // encryption type needs for parameters.
+        // encryption type needs more parameters.
         // Examples:
         // 1. `encryption: {keyFile: {}}`
         // 2. `encryption: {vault: {}}`
