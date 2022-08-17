@@ -152,6 +152,63 @@ TEST(StorageEngineMetadataTest, InvalidMetadataFileStorageEngineOptionsFieldNotO
     }
 }
 
+TEST(StorageEngineMetadataTest, InvalidMetadataFileKmipMasterKeyIdIsNotString) {
+    TempDir tempDir("StorageEngineMetadataTest_InvalidMetadataFileKmipMasterKeyIdIsNotString");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj = fromjson(R"json({
+            storage: {
+                engine: "storageEngine1",
+                options: {encryption: {kmip: {keyId: 42}}}
+            }
+        })json");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_NOT_OK(metadata.read());
+    }
+}
+
+TEST(StorageEngineMetadataTest, KmipMasterKeyIdMissing) {
+    TempDir tempDir("StorageEngineMetadataTest_KmipMasterKeyIdMissing");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj = fromjson(R"json({storage: {engine: "storageEngine1", options: {}}})json");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_OK(metadata.read());
+        ASSERT_EQUALS("", metadata.getKmipMasterKeyId());
+    }
+}
+
+TEST(StorageEngineMetadataTest, KmipMasterKeyIdIsString) {
+    TempDir tempDir("StorageEngineMetadataTest_KmipMasterKeyIdIsString");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj = fromjson(R"json({
+            storage: {
+                engine: "storageEngine1",
+                options: {encryption: {kmip: {keyId: "42"}}}
+            }
+        })json");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_OK(metadata.read());
+        ASSERT_EQUALS("42", metadata.getKmipMasterKeyId());
+    }
+}
+
 // Metadata parser should ignore unknown metadata fields.
 TEST(StorageEngineMetadataTest, IgnoreUnknownField) {
     TempDir tempDir("StorageEngineMetadataTest_IgnoreUnknownField");
