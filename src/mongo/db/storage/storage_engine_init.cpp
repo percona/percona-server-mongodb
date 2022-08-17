@@ -36,10 +36,12 @@
 #include <map>
 
 #include "mongo/base/init.h"
+#include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/concurrency/lock_state.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/storage_engine_lock_file.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/db/storage/storage_options.h"
@@ -58,6 +60,46 @@ namespace {
  * as appropriate.
  */
 void createLockFile(ServiceContext* service);
+
+void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
+                   const StorageEngine::Factory* factory,
+                   const StorageGlobalParams& params,
+                   const std::string& kmipEncryptionKeyId,
+                   StorageEngineInitFlags initFlags) {
+    if ((initFlags & StorageEngineInitFlags::kSkipMetadataFile) != StorageEngineInitFlags{}) {
+        return;
+    }
+    bool metadataNeedsWriting = false;
+    BSONObj options = metadata ? metadata->getStorageEngineOptions()
+                               : factory->createMetadataOptions(params);
+    if (!metadata) {
+        metadataNeedsWriting = true;
+        metadata = std::make_unique<StorageEngineMetadata>(storageGlobalParams.dbpath);
+        metadata->setStorageEngine(factory->getCanonicalName().toString());
+    }
+    if (!kmipEncryptionKeyId.empty() && kmipEncryptionKeyId != metadata->getKmipMasterKeyId()) {
+        metadataNeedsWriting = true;
+        // Presence of the "encryption" field means that the data at rest is encypted.
+        // The value of the field is an object whose fields are methods of encryption, e.g.
+        // "keyFile", "vault" or "kmip". For now, only "kmip" is supported.
+        // An object is associated with each encryption type (even though this object is empty
+        // at present) in order to preserve backward and _forward_ compatibility in case when
+        // encryption type needs more parameters.
+        // Examples:
+        // 1. `encryption: {keyFile: {}}`
+        // 2. `encryption: {vault: {}}`
+        // 3. `encryption: {kmip: {keyId: "42"}}`
+        // @note: the "keyFile", "vault" and "kmip" encryption methods are mutually exclusive.
+        options = options.removeField("encryption");
+        options = options.addFields(
+            BSON("encryption" << BSON("kmip" << BSON("keyId" << kmipEncryptionKeyId))));
+    }
+    metadata->setStorageEngineOptions(options);
+    if (metadataNeedsWriting) {
+        invariant(!storageGlobalParams.readOnly);
+        uassertStatusOK(metadata->write());
+    }
+}
 }  // namespace
 
 extern bool _supportsDocLocking;
@@ -185,23 +227,34 @@ void initializeStorageEngine(ServiceContext* service, const StorageEngineInitFla
         }
     });
 
+    encryptionGlobalParams.kmipKeyIds.encryption = encryptionGlobalParams.kmipKeyIdentifier;
+    encryptionGlobalParams.kmipKeyIds.decryption =
+        metadata ? metadata->getKmipMasterKeyId() : encryptionGlobalParams.kmipKeyIdentifier;
     auto& lockFile = StorageEngineLockFile::get(service);
-    service->setStorageEngine(std::unique_ptr<StorageEngine>(
-        factory->create(storageGlobalParams, lockFile ? &*lockFile : nullptr)));
-    service->getStorageEngine()->finishInit();
+    try {
+        service->setStorageEngine(std::unique_ptr<StorageEngine>(
+            factory->create(storageGlobalParams, lockFile ? &*lockFile : nullptr)));
+        service->getStorageEngine()->finishInit();
+    } catch (const MasterKeyRotationCompleted&) {
+        // Write metadata because KMIP master key ID has been updated.
+        writeMetadata(std::move(metadata),
+                      factory,
+                      storageGlobalParams,
+                      encryptionGlobalParams.kmipKeyIds.encryption,
+                      initFlags);
+        throw;
+    }
 
     if (lockFile) {
         uassertStatusOK(lockFile->writePid());
     }
 
     // Write a new metadata file if it is not present.
-    if (!metadata.get()) {
-        invariant(!storageGlobalParams.readOnly);
-        metadata.reset(new StorageEngineMetadata(storageGlobalParams.dbpath));
-        metadata->setStorageEngine(factory->getCanonicalName().toString());
-        metadata->setStorageEngineOptions(factory->createMetadataOptions(storageGlobalParams));
-        uassertStatusOK(metadata->write());
-    }
+    writeMetadata(std::move(metadata),
+                  factory,
+                  storageGlobalParams,
+                  encryptionGlobalParams.kmipKeyIds.encryption,
+                  initFlags);
 
     guard.dismiss();
 
