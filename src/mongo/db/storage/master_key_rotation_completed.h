@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -31,29 +31,16 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <string>
+#include <stdexcept>
 
 namespace mongo {
 
-/// @brief Reads a key from the KMIP server specified in the configuration
+/// @brief Thrown as a way to notify that key rotation has completed _successfully_.
 ///
-/// @param keyId Identifier of the key to read
-///
-/// @returns Key data if the reading succeeds or an empty string if no key data
-///     is associated with the key identifier
-///
-/// @throws std::runtime_error if the server can't connect to any of the KMIP
-///     servers listed in the configuration
-std::string kmipReadKey(const std::string& keyId);
-
-/// @brief Writes the key to the KMIP server specified in the configuration.
-///
-/// @param keyData The key data, should be base64-encoded
-///
-/// @returns Key identifier if the writing succeeds or an empty string otherwise.
-///
-/// @throws std::runtime_error if the server can't connect to any of the KMIP
-///     servers listed in the configuration
-std::string kmipWriteKey(std::string const& keyData);
+/// @todo Try to refactor the code so that thre is no need in throwing an exception
+/// in case of successfull execution.
+struct MasterKeyRotationCompleted : std::runtime_error {
+    explicit MasterKeyRotationCompleted(const char* msg) : std::runtime_error(msg) {}
+};
 
 }  // namespace mongo
