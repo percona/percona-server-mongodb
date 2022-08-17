@@ -70,7 +70,7 @@ void createLockFile(ServiceContext* service);
 void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
                    const StorageEngine::Factory* factory,
                    const StorageGlobalParams& params,
-                   const KmipKeyIdPair& kmipKeyIds,
+                   const std::string& kmipEncryptionKeyId,
                    StorageEngineInitFlags initFlags) {
     if ((initFlags & StorageEngineInitFlags::kSkipMetadataFile) != StorageEngineInitFlags{}) {
         return;
@@ -83,7 +83,7 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
         metadata = std::make_unique<StorageEngineMetadata>(storageGlobalParams.dbpath);
         metadata->setStorageEngine(factory->getCanonicalName().toString());
     }
-    if (!kmipKeyIds.encryption.empty() && kmipKeyIds.encryption != metadata->getKmipMasterKeyId()) {
+    if (!kmipEncryptionKeyId.empty() && kmipEncryptionKeyId != metadata->getKmipMasterKeyId()) {
         metadataNeedsWriting = true;
         // Presence of the "encryption" field means that the data at rest is encypted.
         // The value of the field is an object whose fields are methods of encryption, e.g.
@@ -98,7 +98,7 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
         // @note: the "keyFile", "vault" and "kmip" encryption methods are mutually exclusive.
         options = options.removeField("encryption");
         options = options.addFields(
-            BSON("encryption" << BSON("kmip" << BSON("keyId" << kmipKeyIds.encryption))));
+            BSON("encryption" << BSON("kmip" << BSON("keyId" << kmipEncryptionKeyId))));
     }
     metadata->setStorageEngineOptions(options);
     if (metadataNeedsWriting) {
@@ -269,7 +269,7 @@ StorageEngine::LastShutdownState initializeStorageEngine(OperationContext* opCtx
         writeMetadata(std::move(metadata),
                       factory,
                       storageGlobalParams,
-                      encryptionGlobalParams.kmipKeyIds,
+                      encryptionGlobalParams.kmipKeyIds.encryption,
                       initFlags);
         throw;
     }
@@ -282,7 +282,7 @@ StorageEngine::LastShutdownState initializeStorageEngine(OperationContext* opCtx
     writeMetadata(std::move(metadata),
                   factory,
                   storageGlobalParams,
-                  encryptionGlobalParams.kmipKeyIds,
+                  encryptionGlobalParams.kmipKeyIds.encryption,
                   initFlags);
 
     guard.dismiss();
