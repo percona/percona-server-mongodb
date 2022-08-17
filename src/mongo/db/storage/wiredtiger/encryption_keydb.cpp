@@ -100,7 +100,7 @@ std::unique_ptr<EncryptionKeyDB> EncryptionKeyDB::create(const std::string& path
     return db;
 }
 
-std::unique_ptr<EncryptionKeyDB> EncryptionKeyDB::read(const std::string& path,
+std::unique_ptr<EncryptionKeyDB> EncryptionKeyDB::open(const std::string& path,
                                                        const std::string& kmipMasterKeyId) {
     std::unique_ptr<EncryptionKeyDB> db(new EncryptionKeyDB(true, path, kmipMasterKeyId, false));
     db->init();
@@ -447,7 +447,6 @@ void EncryptionKeyDB::store_masterkey() {
         }
     } else if (!encryptionGlobalParams.vaultServerName.empty()) {
         vaultWriteKey(encodedKey);
-        return;
     } else {
         throw std::logic_error(
             "Can't save master key because neither HashiCorp's Vault nor "

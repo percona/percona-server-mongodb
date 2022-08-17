@@ -581,7 +581,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
         auto encryptionKeyDB = just_created
             ? EncryptionKeyDB::create(keyDBPath.string(),
                                       encryptionGlobalParams.kmipKeyIds.encryption)
-            : EncryptionKeyDB::read(keyDBPath.string(),
+            : EncryptionKeyDB::open(keyDBPath.string(),
                                     encryptionGlobalParams.kmipKeyIds.decryption);
         keyDBPathGuard.dismiss();
         // do master key rotation if necessary

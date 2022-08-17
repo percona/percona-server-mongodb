@@ -49,7 +49,7 @@ class EncryptionKeyDB
 public:
     ~EncryptionKeyDB();
 
-    /// @brief Creates a (possibly encrypted at rest) new encryption key database.
+    /// @brief Creates a new encryption key database.
     ///
     /// @param path Path to the directory where the key db should be created;
     ///     the path must point to an existing empty directory
@@ -59,7 +59,7 @@ public:
     ///     and uploads it to the KMIP server specified in configuration.
     ///     If KMIP is not used, the parameter is ignored.
     ///
-    /// @returns Crated key database
+    /// @returns Pointer to the created key database
     ///
     /// @throws std::runtime_error if
     ///     1. the master key can't be read from or written to a KMIP or Vault server
@@ -68,7 +68,7 @@ public:
     static std::unique_ptr<EncryptionKeyDB> create(const std::string& path,
                                                    const std::string& kmipMasterKeyId);
 
-    /// @brief Reads (possibly encrypted at rest) the encryption key database.
+    /// @brief Opens an encryption key database.
     ///
     /// @param path Path to the directory with the encyption key database
     /// @param kmipMasterKeyId If the database is encrypted with a key stored using a KMIP-based
@@ -76,15 +76,15 @@ public:
     ///     It can't be impty if the database is encrypted in that case. In all other cases,
     ///     the argument must be an empty string.
     ///
-    /// @returns Read key database
+    /// @returns Pointer to the opened key database
     ///
     /// @throws std::runtime_error if
     ///     1. the master key can't be read from a KMIP or Vault server
     ///     2. Vault token file can't be read
-    ///     3. can't read encryption key db at the specified path
+    ///     3. can't open encryption key db at the specified path
     ///
     /// @note The function can't encrypt already existing non-encrypted key database.
-    static std::unique_ptr<EncryptionKeyDB> read(const std::string& path,
+    static std::unique_ptr<EncryptionKeyDB> open(const std::string& path,
                                                  const std::string& kmipMasterKeyId);
 
     /// @brief Clones the database.
