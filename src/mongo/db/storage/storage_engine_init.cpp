@@ -91,8 +91,10 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
         // 3. `encryption: {kmip: {keyId: "42"}}`
         // @note: the "keyFile", "vault" and "kmip" encryption methods are mutually exclusive.
         options = options.removeField("encryption");
-        options = options.addFields(
-            BSON("encryption" << BSON("kmip" << BSON("keyId" << kmipEncryptionKeyId))));
+        BSONObj encryptionObj =
+            BSON("encryption" << BSON("kmip" << BSON("keyId" << kmipEncryptionKeyId)));
+        BSONElement encryptionElem = encryptionObj.firstElement();
+        options = options.addField(encryptionElem);
     }
     metadata->setStorageEngineOptions(options);
     if (metadataNeedsWriting) {
