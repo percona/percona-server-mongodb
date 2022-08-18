@@ -132,6 +132,15 @@ WT_CURSOR* WiredTigerSession::getReadOnceCursor(const std::string& uri, bool all
 }
 
 void WiredTigerSession::releaseCursor(uint64_t id, WT_CURSOR* cursor) {
+    // When releasing the cursor, we would want to check if the session cache is already in shutdown
+    // and prevent the race condition that the shutdown starts after the check.
+    WiredTigerSessionCache::BlockShutdown blockShutdown(_cache);
+
+    // Avoids the cursor already being destroyed during the shutdown.
+    if (_cache->isShuttingDown()) {
+        return;
+    }
+
     invariant(_session);
     invariant(cursor);
     _cursorsOut--;
@@ -220,12 +229,16 @@ void WiredTigerSessionCache::shuttingDown() {
     if (_shuttingDown.fetchAndBitOr(kShuttingDownMask) & kShuttingDownMask)
         return;
 
-    // Spin as long as there are threads in releaseSession
+    // Spin as long as there are threads blocking shutdown.
     while (_shuttingDown.load() != kShuttingDownMask) {
         sleepmillis(1);
     }
 
     closeAll();
+}
+
+bool WiredTigerSessionCache::isShuttingDown() {
+    return _shuttingDown.load() & kShuttingDownMask;
 }
 
 void WiredTigerSessionCache::waitUntilDurable(bool forceCheckpoint, bool stableCheckpoint) {
@@ -235,12 +248,11 @@ void WiredTigerSessionCache::waitUntilDurable(bool forceCheckpoint, bool stableC
         return;
     }
 
-    const int shuttingDown = _shuttingDown.fetchAndAdd(1);
-    ON_BLOCK_EXIT([this] { _shuttingDown.fetchAndSubtract(1); });
+    BlockShutdown blockShutdown(this);
 
     uassert(ErrorCodes::ShutdownInProgress,
             "Cannot wait for durability because a shutdown is in progress",
-            !(shuttingDown & kShuttingDownMask));
+            !isShuttingDown());
 
     // Stable checkpoints are only meaningful in a replica set. Replication sets the "stable
     // timestamp". If the stable timestamp is unset, WiredTiger takes a full checkpoint, which is
@@ -449,12 +461,12 @@ UniqueWiredTigerSession WiredTigerSessionCache::getSession() {
 
 void WiredTigerSessionCache::releaseSession(WiredTigerSession* session) {
     invariant(session);
-    invariant(session->cursorsOut() == 0);
+    // We might have skipped releasing some cursors during the shutdown.
+    invariant(session->cursorsOut() == 0 || isShuttingDown());
 
-    const int shuttingDown = _shuttingDown.fetchAndAdd(1);
-    ON_BLOCK_EXIT([this] { _shuttingDown.fetchAndSubtract(1); });
+    BlockShutdown blockShutdown(this);
 
-    if (shuttingDown & kShuttingDownMask) {
+    if (isShuttingDown()) {
         // There is a race condition with clean shutdown, where the storage engine is ripped from
         // underneath OperationContexts, which are not "active" (i.e., do not have any locks), but
         // are just about to delete the recovery unit. See SERVER-16031 for more information. Since
