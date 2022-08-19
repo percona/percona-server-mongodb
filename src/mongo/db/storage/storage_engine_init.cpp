@@ -66,9 +66,6 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
                    const StorageGlobalParams& params,
                    const std::string& kmipEncryptionKeyId,
                    StorageEngineInitFlags initFlags) {
-    if ((initFlags & StorageEngineInitFlags::kSkipMetadataFile) != StorageEngineInitFlags{}) {
-        return;
-    }
     bool metadataNeedsWriting = false;
     BSONObj options = metadata ? metadata->getStorageEngineOptions()
                                : factory->createMetadataOptions(params);
