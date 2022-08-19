@@ -35,6 +35,12 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
+/// A pair of identifiers of the keys managed by a KMIP-based facility.
+struct KmipKeyIdPair {
+    std::string encryption;  ///< Identifier of the encryption key.
+    std::string decryption;  ///< Identifier of the decryption key.
+};
+
 struct EncryptionGlobalParams {
     bool enableEncryption{false};
     std::string encryptionCipherMode{"AES256-CBC"};
@@ -54,6 +60,23 @@ struct EncryptionGlobalParams {
     std::string kmipClientCertificateFile;
     std::string kmipClientCertificatePassword;
     std::string kmipKeyIdentifier;
+    /// Identifiers of the keys the data at rest should be encrypted and/or
+    /// decrypted with.
+    ///
+    /// The encryption key identifier is either equal to `kmipKeyIdentifier`
+    /// or empty. In the latter case, encryption key identifier is assigned
+    /// by a KMIP-server. The decryption key identifier can be read from
+    /// either a storage engine metadata or a configuration. In the latter
+    /// case it equals to `kmipKeyIdentifier`.
+    ///
+    /// @see The function `initializeStorageEngine` and
+    /// the `WiredTigerKVEngine` class constructor for the details.
+    /// @note Though encryption key identifier initially equals to
+    /// `kmipKeyIdentifer`, it is kept in a dedicated variable anyway.
+    /// Indeed, it may be assigned with a new value but the data which is
+    /// read from the config or command line is better kept intact.
+    /// @todo Refactor the code so that this data member is eliminated.
+    KmipKeyIdPair kmipKeyIds;
     bool kmipRotateMasterKey{false};
 
     bool shouldRotateMasterKey() const noexcept {

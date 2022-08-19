@@ -223,7 +223,7 @@ int decryptMain(int argc, char** argv, char** envp) {
         std::string encoded_key;
         if (!encryptionGlobalParams.kmipServerName.empty()) {
             std::cout << "Loading encryption key from the KMIP server" << std::endl;
-            encoded_key = kmipReadKey();
+            encoded_key = kmipReadKey(encryptionGlobalParams.kmipKeyIdentifier);
         } else if (!encryptionGlobalParams.vaultServerName.empty()) {
             if (encryptionGlobalParams.vaultToken.empty()) {
                 if (!boost::filesystem::exists(encryptionGlobalParams.vaultTokenFile)) {

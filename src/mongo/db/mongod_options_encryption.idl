@@ -121,7 +121,7 @@ configs:
             IP address.
         short_name: kmipServerName
         arg_vartype: String
-        requires: [ 'security.enableEncryption', 'security.kmip.clientCertificateFile', 'security.kmip.keyIdentifier' ]
+        requires: [ 'security.enableEncryption', 'security.kmip.clientCertificateFile']
         conflicts: ['security.encryptionKeyFile', 'security.vault.serverName']
 
     'security.kmip.port':
