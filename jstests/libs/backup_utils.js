@@ -16,6 +16,10 @@ function openBackupCursor(mongo) {
         try {
             return mongo.getDB("admin").aggregate([{$backupCursor: {}}]);
         } catch (exc) {
+            // Avoid infinite loop if Location31403
+            if ( exc.toString().includes("Location31403") ) {
+                throw exc;
+            }
             jsTestLog({"Failed to open a backup cursor, retrying.": exc});
         }
     }
