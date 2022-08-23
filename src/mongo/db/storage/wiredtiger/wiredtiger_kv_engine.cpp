@@ -573,13 +573,15 @@ StatusWith<StorageEngine::BackupInformation> getBackupInformationFromBackupCurso
     const char* filename;
     const auto directoryPath = boost::filesystem::path(dbPath);
     const auto wiredTigerLogFilePrefix = "WiredTigerLog";
+    const auto isKeyDB = directoryPath.filename() == keydbDir;
     while ((wtRet = cursor->next(cursor)) == 0) {
         invariantWTOK(cursor->get_key(cursor, &filename));
 
         std::string name(filename);
 
         boost::filesystem::path filePath = directoryPath;
-        if (name.find(wiredTigerLogFilePrefix) == 0) {
+        // KeyDB is configured to keep log files in the base dir.
+        if (!isKeyDB && name.find(wiredTigerLogFilePrefix) == 0) {
             // TODO SERVER-13455:replace `journal/` with the configurable journal path.
             filePath /= boost::filesystem::path("journal");
         }
