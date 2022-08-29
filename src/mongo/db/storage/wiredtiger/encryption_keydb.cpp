@@ -305,11 +305,13 @@ int EncryptionKeyDB::_openWiredTiger(const std::string& path, const std::string&
     LOGV2_WARNING(29054,
         "EncryptionKeyDB: Failed to start up WiredTiger under any compatibility version.");
     if (ret == WT_TRY_SALVAGE)
-        LOGV2_WARNING(29055, "EncryptionKeyDB: WiredTiger metadata corruption detected");
+        LOGV2_WARNING(29055,
+                      "EncryptionKeyDB: WiredTiger metadata corruption detected or "
+                      "an invalid encryption key is used");
 
-    LOGV2_FATAL(29056,
-                "Reason: {wtRCToStatus_ret_reason}",
-                "wtRCToStatus_ret_reason"_attr = wtRCToStatus(ret, nullptr).reason());
+    LOGV2_FATAL_NOTRACE(29056,
+                        "Reason: {wtRCToStatus_ret_reason}",
+                        "wtRCToStatus_ret_reason"_attr = wtRCToStatus(ret, nullptr).reason());
 
     return ret;
 }
