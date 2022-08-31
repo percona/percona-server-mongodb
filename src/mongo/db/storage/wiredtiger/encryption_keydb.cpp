@@ -318,9 +318,11 @@ int EncryptionKeyDB::_openWiredTiger(const std::string& path, const std::string&
 
     warning() << "EncryptionKeyDB: Failed to start up WiredTiger under any compatibility version.";
     if (ret == WT_TRY_SALVAGE)
-        warning() << "EncryptionKeyDB: WiredTiger metadata corruption detected";
+        warning() << "EncryptionKeyDB: WiredTiger metadata corruption detected or "
+                  << "an invalid encryption key is used";
 
     severe() << "Reason: " << wtRCToStatus(ret).reason();
+    fassertFailedNoTrace(29056);
 
     return ret;
 }
