@@ -993,9 +993,7 @@ void WiredTigerKVEngine::_openWiredTiger(const std::string& path, const std::str
     }
 
     if (ret == WT_TRY_SALVAGE) {
-        LOGV2_WARNING(22348,
-                      "WiredTiger metadata corruption detected or "
-                      "an invalid encryption key is used");
+        LOGV2_WARNING(22348, "WiredTiger metadata corruption detected");
         if (!_inRepairMode) {
             LOGV2_FATAL_NOTRACE(50944, kWTRepairMsg);
         }
