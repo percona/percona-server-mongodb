@@ -174,9 +174,10 @@ void EncryptionKeyDB::init_masterkey() {
         } else {
             encoded_key = kmipReadKey(_kmipMasterKeyId);
             if (encoded_key.empty()) {
-                throw std::runtime_error(
-                    "Cannot start. Master encryption key is absent in KMIP. Check "
-                    "configuration options.");
+                LOGV2_FATAL_NOTRACE(29110,
+                                    "Cannot start. Master encryption key is absent in KMIP. "
+                                    "Check configuration options.",
+                                    "kmipMasterKeyId"_attr = _kmipMasterKeyId);
             }
             LOGV2(29108,
                   "Master key has been read from the KMIP server",
