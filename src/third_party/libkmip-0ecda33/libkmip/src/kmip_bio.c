@@ -120,6 +120,7 @@ int kmip_bio_create_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(encode_result);
     }
@@ -129,12 +130,14 @@ int kmip_bio_create_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_IO_FAILURE);
     }
     
     kmip_free_buffer(&ctx, encoding, buffer_total_size);
     encoding = NULL;
+    kmip_set_buffer(&ctx, NULL, 0);
     
     /* Read the response message. Dynamically resize the encoding buffer  */
     /* to align with the message size advertised by the message encoding. */
@@ -169,6 +172,7 @@ int kmip_bio_create_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_EXCEED_MAX_MESSAGE_SIZE);
     }
@@ -201,6 +205,7 @@ int kmip_bio_create_symmetric_key(BIO *bio,
         kmip_free_response_message(&ctx, &resp_m);
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(decode_result);
     }
@@ -210,6 +215,7 @@ int kmip_bio_create_symmetric_key(BIO *bio,
         kmip_free_response_message(&ctx, &resp_m);
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_MALFORMED_RESPONSE);
     }
@@ -364,6 +370,7 @@ int kmip_bio_register_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(encode_result);
     }
@@ -373,12 +380,14 @@ int kmip_bio_register_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_IO_FAILURE);
     }
     
     kmip_free_buffer(&ctx, encoding, buffer_total_size);
     encoding = NULL;
+    kmip_set_buffer(&ctx, NULL, 0);
     
     /* Read the response message. Dynamically resize the encoding buffer  */
     /* to align with the message size advertised by the message encoding. */
@@ -413,6 +422,7 @@ int kmip_bio_register_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_EXCEED_MAX_MESSAGE_SIZE);
     }
@@ -445,6 +455,7 @@ int kmip_bio_register_symmetric_key(BIO *bio,
         kmip_free_response_message(&ctx, &resp_m);
         //kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(decode_result);
     }
@@ -454,6 +465,7 @@ int kmip_bio_register_symmetric_key(BIO *bio,
         kmip_free_response_message(&ctx, &resp_m);
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_MALFORMED_RESPONSE);
     }
@@ -590,6 +602,7 @@ int kmip_bio_destroy_symmetric_key(BIO *bio, char *uuid, int uuid_size)
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(encode_result);
     }
@@ -599,12 +612,14 @@ int kmip_bio_destroy_symmetric_key(BIO *bio, char *uuid, int uuid_size)
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_IO_FAILURE);
     }
     
     kmip_free_buffer(&ctx, encoding, buffer_total_size);
     encoding = NULL;
+    kmip_set_buffer(&ctx, NULL, 0);
     
     /* Read the response message. Dynamically resize the encoding buffer  */
     /* to align with the message size advertised by the message encoding. */
@@ -639,6 +654,7 @@ int kmip_bio_destroy_symmetric_key(BIO *bio, char *uuid, int uuid_size)
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_EXCEED_MAX_MESSAGE_SIZE);
     }
@@ -704,6 +720,7 @@ int kmip_bio_destroy_symmetric_key(BIO *bio, char *uuid, int uuid_size)
         kmip_free_response_message(&ctx, &resp_m);
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(decode_result);
     }
@@ -713,6 +730,7 @@ int kmip_bio_destroy_symmetric_key(BIO *bio, char *uuid, int uuid_size)
         kmip_free_response_message(&ctx, &resp_m);
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_MALFORMED_RESPONSE);
     }
@@ -817,6 +835,7 @@ int kmip_bio_get_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(encode_result);
     }
@@ -826,12 +845,14 @@ int kmip_bio_get_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_IO_FAILURE);
     }
     
     kmip_free_buffer(&ctx, encoding, buffer_total_size);
     encoding = NULL;
+    kmip_set_buffer(&ctx, NULL, 0);
     
     /* Read the response message. Dynamically resize the encoding buffer  */
     /* to align with the message size advertised by the message encoding. */
@@ -866,6 +887,7 @@ int kmip_bio_get_symmetric_key(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_EXCEED_MAX_MESSAGE_SIZE);
     }
@@ -900,6 +922,7 @@ int kmip_bio_get_symmetric_key(BIO *bio,
         kmip_free_response_message(&ctx, &resp_m);
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(decode_result);
     }
@@ -1347,6 +1370,7 @@ int kmip_bio_get_symmetric_key_with_context(KMIP *ctx, BIO *bio,
     {
         kmip_free_buffer(ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(ctx, NULL, 0);
         return(encode_result);
     }
     
@@ -1354,11 +1378,14 @@ int kmip_bio_get_symmetric_key_with_context(KMIP *ctx, BIO *bio,
     if(sent != ctx->index - ctx->buffer)
     {
         kmip_free_buffer(ctx, encoding, buffer_total_size);
+        encoding = NULL;
+        kmip_set_buffer(ctx, NULL, 0);
         return(KMIP_IO_FAILURE);
     }
     
     kmip_free_buffer(ctx, encoding, buffer_total_size);
     encoding = NULL;
+    kmip_set_buffer(ctx, NULL, 0);
     
     /* Read the response message. Dynamically resize the encoding buffer  */
     /* to align with the message size advertised by the message encoding. */
@@ -1391,6 +1418,7 @@ int kmip_bio_get_symmetric_key_with_context(KMIP *ctx, BIO *bio,
     {
         kmip_free_buffer(ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(ctx, NULL, 0);
         return(KMIP_EXCEED_MAX_MESSAGE_SIZE);
     }
     
@@ -1426,6 +1454,7 @@ int kmip_bio_get_symmetric_key_with_context(KMIP *ctx, BIO *bio,
         kmip_free_response_message(ctx, &resp_m);
         kmip_free_buffer(ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(ctx, NULL, 0);
         return(decode_result);
     }
     
@@ -1873,6 +1902,7 @@ int kmip_bio_locate_with_context(KMIP *ctx, BIO *bio, Attribute* attribs, size_t
     kmip_free_response_message(ctx, &resp_m);
     kmip_free_buffer(ctx, response, response_size);
     response = NULL;
+    kmip_set_buffer(ctx, NULL, 0);
 
     return(result_status);
 }
@@ -2106,6 +2136,7 @@ int kmip_bio_query_with_context(KMIP *ctx, BIO *bio, enum query_function queries
     kmip_free_response_message(ctx, &resp_m);
     kmip_free_buffer(ctx, response, response_size);
     response = NULL;
+    kmip_set_buffer(ctx, NULL, 0);
 
     return(result_status);
 }
@@ -2201,6 +2232,7 @@ int kmip_bio_get_name_attribute(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(encode_result);
     }
@@ -2210,12 +2242,14 @@ int kmip_bio_get_name_attribute(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_IO_FAILURE);
     }
     
     kmip_free_buffer(&ctx, encoding, buffer_total_size);
     encoding = NULL;
+    kmip_set_buffer(&ctx, NULL, 0);
     
     /* Read the response message. Dynamically resize the encoding buffer  */
     /* to align with the message size advertised by the message encoding. */
@@ -2250,6 +2284,7 @@ int kmip_bio_get_name_attribute(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_EXCEED_MAX_MESSAGE_SIZE);
     }
@@ -2270,6 +2305,7 @@ int kmip_bio_get_name_attribute(BIO *bio,
     {
         kmip_free_buffer(&ctx, encoding, buffer_total_size);
         encoding = NULL;
+        kmip_set_buffer(&ctx, NULL, 0);
         kmip_destroy(&ctx);
         return(KMIP_IO_FAILURE);
     }
