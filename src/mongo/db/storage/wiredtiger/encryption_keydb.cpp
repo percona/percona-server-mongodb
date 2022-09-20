@@ -138,6 +138,8 @@ EncryptionKeyDB::~EncryptionKeyDB() {
 void EncryptionKeyDB::close_handles() {
     if (kDebugBuild && _sess)
         dump_table(_sess, _key_len, "dump_table from destructor");
+    _backupSession.reset();
+    _backupCursor = nullptr;
     if (_sess) {
         _gcm_iv_reserved = _gcm_iv;
         store_gcm_iv_reserved();
