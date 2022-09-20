@@ -33,6 +33,7 @@
 
 #include "mongo/db/storage/storage_engine_init.h"
 
+#include <cstdlib>
 #include <map>
 #include <memory>
 
@@ -51,6 +52,7 @@
 #include "mongo/db/unclean_shutdown.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/quick_exit.h"
 #include "mongo/util/str.h"
 
 namespace mongo {
@@ -219,7 +221,15 @@ LastStorageEngineShutdownState initializeStorageEngine(ServiceContext* service,
                       storageGlobalParams,
                       encryptionGlobalParams.kmipKeyIds.encryption,
                       initFlags);
-        throw;
+        if (!encryptionGlobalParams.kmipServerName.empty()) {
+            LOGV2(29111,
+                  "Rotated master encryption key",
+                  "oldMasterKeyId"_attr = encryptionGlobalParams.kmipKeyIds.decryption,
+                  "newMasterKeyId"_attr = encryptionGlobalParams.kmipKeyIds.encryption);
+        } else {
+            LOGV2(29111, "Rotated master encryption key");
+        }
+        quickExit(EXIT_SUCCESS);
     }
 
     if (lockFile) {
