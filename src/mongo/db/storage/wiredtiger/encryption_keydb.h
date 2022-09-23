@@ -144,6 +144,8 @@ private:
 
     int _openWiredTiger(const std::string& path, const std::string& wtOpenConfig);
 
+    void close_handles();
+
     // during rotation copies data from provided instance
     void import_data_from(EncryptionKeyDB* proto);
 
