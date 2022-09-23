@@ -127,21 +127,27 @@ EncryptionKeyDB::EncryptionKeyDB(const bool pre_existed,
 }
 
 EncryptionKeyDB::~EncryptionKeyDB() {
-    DEV if (_sess)
-        dump_table(_sess, _key_len, "dump_table from destructor");
-    if (_sess) {
-        _gcm_iv_reserved = _gcm_iv;
-        store_gcm_iv_reserved();
-    }
-    if (_sess)
-        _sess->close(_sess, nullptr);
-    if (_conn)
-        _conn->close(_conn, nullptr);
+    close_handles();
     // should be the last line because closing wiredTiger's handles may write to DB
     if (!_rotation)
         encryptionKeyDB = nullptr;
     else
         rotationKeyDB = nullptr;
+}
+
+void EncryptionKeyDB::close_handles() {
+    DEV if (_sess)
+        dump_table(_sess, _key_len, "dump_table from destructor");
+    if (_sess) {
+        _gcm_iv_reserved = _gcm_iv;
+        store_gcm_iv_reserved();
+        _sess->close(_sess, nullptr);
+        _sess = nullptr;
+    }
+    if (_conn) {
+        _conn->close(_conn, nullptr);
+        _conn = nullptr;
+    }
 }
 
 // this function uses _srng without synchronization
