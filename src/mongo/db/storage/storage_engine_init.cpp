@@ -265,7 +265,11 @@ StorageEngine::LastShutdownState initializeStorageEngine(OperationContext* opCtx
                 29113,
                 "The provided (via the command line option or the configuration file) KMIP "
                 "keyIdentifier is not equal to that the system is already configured with. "
-                "Don't provide keyIdentifier or rotate master key.",
+                "If it was intended to rotate the master key, please add the "
+                "`--kmipRotateMasterKey` command line option or the "
+                "`security.kmip.rotateMasterKey` configuration file parameter. "
+                "Otherwise, please omit the `--kmipMasterKeyId` command line option and "
+                "the `security.kmip.keyIdentifier` configuration parameter.",
                 "providedKmipKeyIdentifier"_attr = providedId,
                 "configuredKmipKeyIdentifier"_attr = configuredId);
         }
