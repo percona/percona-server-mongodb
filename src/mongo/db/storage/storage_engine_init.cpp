@@ -206,9 +206,34 @@ LastStorageEngineShutdownState initializeStorageEngine(ServiceContext* service,
         }
     });
 
-    encryptionGlobalParams.kmipKeyIds.encryption = encryptionGlobalParams.kmipKeyIdentifier;
-    encryptionGlobalParams.kmipKeyIds.decryption =
-        metadata ? metadata->getKmipMasterKeyId() : encryptionGlobalParams.kmipKeyIdentifier;
+    if (!encryptionGlobalParams.kmipServerName.empty()) {
+        const std::string& configuredId = metadata ? metadata->getKmipMasterKeyId() : "";
+        const std::string& providedId = encryptionGlobalParams.kmipKeyIdentifier;
+        if (encryptionGlobalParams.kmipRotateMasterKey && configuredId.empty()) {
+            LOGV2_FATAL_NOTRACE(
+                29112,
+                "The system is not configured with a KMIP-managed key but the command line opiton "
+                "or the configuration file asks to rotate the KMIP master key.");
+        }
+        bool keyIdMisconfig = !encryptionGlobalParams.kmipRotateMasterKey &&
+            !configuredId.empty() && !providedId.empty() && configuredId != providedId;
+        if (keyIdMisconfig) {
+            LOGV2_FATAL_NOTRACE(
+                29113,
+                "The provided (via the command line option or the configuration file) KMIP "
+                "keyIdentifier is not equal to that the system is already configured with. "
+                "If it was intended to rotate the master key, please add the "
+                "`--kmipRotateMasterKey` command line option or the "
+                "`security.kmip.rotateMasterKey` configuration file parameter. "
+                "Otherwise, please omit the `--kmipMasterKeyId` command line option and "
+                "the `security.kmip.keyIdentifier` configuration parameter.",
+                "providedKmipKeyIdentifier"_attr = providedId,
+                "configuredKmipKeyIdentifier"_attr = configuredId);
+        }
+        encryptionGlobalParams.kmipKeyIds.encryption = providedId;
+        encryptionGlobalParams.kmipKeyIds.decryption =
+            configuredId.empty() ? providedId : configuredId;
+    }
     auto& lockFile = StorageEngineLockFile::get(service);
     try {
         service->setStorageEngine(std::unique_ptr<StorageEngine>(
