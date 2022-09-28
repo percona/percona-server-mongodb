@@ -228,9 +228,32 @@ void initializeStorageEngine(ServiceContext* service, const StorageEngineInitFla
         }
     });
 
-    encryptionGlobalParams.kmipKeyIds.encryption = encryptionGlobalParams.kmipKeyIdentifier;
-    encryptionGlobalParams.kmipKeyIds.decryption =
-        metadata ? metadata->getKmipMasterKeyId() : encryptionGlobalParams.kmipKeyIdentifier;
+    if (!encryptionGlobalParams.kmipServerName.empty()) {
+        const std::string& configuredId = metadata ? metadata->getKmipMasterKeyId() : "";
+        const std::string& providedId = encryptionGlobalParams.kmipKeyIdentifier;
+        if (encryptionGlobalParams.kmipRotateMasterKey && configuredId.empty()) {
+            severe() << "The system is not configured with a KMIP-managed key but the command line "
+                        "opiton or the configuration file asks to rotate the KMIP master key.";
+            fassertFailedNoTrace(29112);
+        }
+        bool keyIdMisconfig = !encryptionGlobalParams.kmipRotateMasterKey &&
+            !configuredId.empty() && !providedId.empty() && configuredId != providedId;
+        if (keyIdMisconfig) {
+            severe() << "The provided (via the command line option or the configuration file) KMIP "
+                     << "keyIdentifier is not equal to that the system is already configured with. "
+                     << "If it was intended to rotate the master key, please add the "
+                     << "`--kmipRotateMasterKey` command line option or the "
+                     << "`security.kmip.rotateMasterKey` configuration file parameter. "
+                     << "Otherwise, please omit the `--kmipMasterKeyId` command line option and "
+                     << "the `security.kmip.keyIdentifier` configuration parameter. "
+                     << "Attributes: providedKmipKeyIdentifier = `" << providedId
+                     << "`, configuredKmipKeyIdentifier = `" << configuredId << "`.";
+            fassertFailedNoTrace(29113);
+        }
+        encryptionGlobalParams.kmipKeyIds.encryption = providedId;
+        encryptionGlobalParams.kmipKeyIds.decryption =
+            configuredId.empty() ? providedId : configuredId;
+    }
     auto& lockFile = StorageEngineLockFile::get(service);
     try {
         service->setStorageEngine(std::unique_ptr<StorageEngine>(
