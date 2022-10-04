@@ -41,6 +41,7 @@
 #include "mongo/db/catalog/index_catalog.h"
 #include "mongo/db/catalog/index_consistency.h"
 #include "mongo/db/client.h"
+#include "mongo/db/commands/server_status.h"
 #include "mongo/db/concurrency/write_conflict_exception.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/index/index_access_method_gen.h"
@@ -52,6 +53,7 @@
 #include "mongo/db/repl/timestamp_block.h"
 #include "mongo/db/storage/durable_catalog.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/platform/atomic_word.h"
 #include "mongo/util/log.h"
 #include "mongo/util/progress_meter.h"
 #include "mongo/util/scopeguard.h"
@@ -70,6 +72,44 @@ namespace {
 // Reserved RecordId against which multikey metadata keys are indexed.
 static const RecordId kMultikeyMetadataKeyId =
     RecordId{RecordId::ReservedId::kWildcardMultikeyMetadataId};
+
+/**
+ * Metrics for index bulk builder operations. Intended to support index build diagnostics
+ * during the following scenarios:
+ * - createIndex commands;
+ * - collection cloning during initial sync; and
+ * - resuming index builds at startup.
+ *
+ * Also includes statistics for disk usage (by the external sorter) for index builds that
+ * do not fit in memory.
+ */
+class IndexBulkBuilderSSS : public ServerStatusSection {
+public:
+    IndexBulkBuilderSSS() : ServerStatusSection("indexBulkBuilder") {}
+
+    bool includeByDefault() const final {
+        return true;
+    }
+
+    void addRequiredPrivileges(std::vector<Privilege>* out) final {}
+
+    BSONObj generateSection(OperationContext* opCtx, const BSONElement& configElement) const final {
+        BSONObjBuilder builder;
+        builder.append("count", count.loadRelaxed());
+        builder.append("filesOpenedForExternalSort", sorterFileStats.opened.loadRelaxed());
+        builder.append("filesClosedForExternalSort", sorterFileStats.closed.loadRelaxed());
+        return builder.obj();
+    }
+
+    // Number of instances of the bulk builder created.
+    AtomicWord<long long> count;
+
+    // Number of times the external sorter opened/closed a file handle to spill data to disk.
+    // This pair of counters in aggregate indicate the number of open file handles used by
+    // the external sorter and may be useful in diagnosing situations where the process is
+    // close to exhausting this finite resource.
+    SorterFileStats sorterFileStats;
+} indexBulkBuilderSSS;
 
 /**
  * Returns true if at least one prefix of any of the indexed fields causes the index to be
@@ -598,9 +638,12 @@ AbstractIndexAccessMethod::BulkBuilderImpl::BulkBuilderImpl(const IndexAccessMet
           SortOptions()
               .TempDir(storageGlobalParams.dbpath + "/_tmp")
               .ExtSortAllowed()
+              .FileStats(&indexBulkBuilderSSS.sorterFileStats)
               .MaxMemoryUsageBytes(maxMemoryUsageBytes),
           BtreeExternalSortComparison(descriptor->keyPattern(), descriptor->version()))),
-      _real(index) {}
+      _real(index) {
+    indexBulkBuilderSSS.count.addAndFetch(1);
+}
 
 Status AbstractIndexAccessMethod::BulkBuilderImpl::insert(OperationContext* opCtx,
                                                           const BSONObj& obj,
