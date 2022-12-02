@@ -188,6 +188,17 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
         builder << "checkpointTimestamp" << checkpointTimestamp.get();
     }
 
+    // Copy backup options to metadata
+    builder << "disableIncrementalBackup" << options.disableIncrementalBackup;
+    builder << "incrementalBackup" << options.incrementalBackup;
+    builder << "blockSize" << options.blockSizeMB;
+    if (options.thisBackupName) {
+        builder << "thisBackupName" << *options.thisBackupName;
+    }
+    if (options.srcBackupName) {
+        builder << "srcBackupName" << *options.srcBackupName;
+    }
+
     Document preamble{{"metadata"_sd, builder.obj()}};
 
     closeCursorGuard.dismiss();
