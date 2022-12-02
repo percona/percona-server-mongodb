@@ -88,6 +88,11 @@ DocumentSource::GetNextResult DocumentSourceBackupCursor::doGetNext() {
         return doc;
     }
 
+    // Streaming cursor may be absent when options.disableIncrementalBackup == true
+    if (!_backupCursorState.streamingCursor) {
+        return GetNextResult::makeEOF();
+    }
+
     if (_docIt == _backupBlocks.cend()) {
         constexpr std::size_t batchSize = 100;
         _backupBlocks = uassertStatusOK(
