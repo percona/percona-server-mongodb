@@ -108,6 +108,8 @@ private:
     const StorageEngine::BackupInformation& _backupInformation;
     // Document iterator
     StorageEngine::BackupInformation::const_iterator _docIt;
+    // Block iterator (for incremental backups)
+    std::vector<StorageEngine::BackupBlock>::const_iterator _blockIt;
 };
 
 }  // namespace mongo

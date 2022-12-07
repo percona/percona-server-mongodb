@@ -87,15 +87,29 @@ DocumentSource::GetNextResult DocumentSourceBackupCursor::doGetNext() {
         return doc;
     }
 
-    if (_docIt != _backupInformation.end()) {
-        Document doc = {{"filename"_sd, _docIt->first},
-                        {"fileSize"_sd, static_cast<long long>(_docIt->second.fileSize)}};
-        ++_docIt;
-
-        return doc;
+    if (_docIt == _backupInformation.end()) {
+        return GetNextResult::makeEOF();
     }
 
-    return GetNextResult::makeEOF();
+    // Output 4 fields if there is block descriptor (this may happen in case of incremental backup)
+    // otherwise output filename, fileSize only
+    BSONObjBuilder builder;
+    builder << "filename"_sd << _docIt->first;
+    builder << "fileSize"_sd << static_cast<long long>(_docIt->second.fileSize);
+    if (_blockIt != _docIt->second.blocksToCopy.cend()) {
+        builder << "offset"_sd << static_cast<long long>(_blockIt->offset);
+        builder << "length"_sd << static_cast<long long>(_blockIt->length);
+        ++_blockIt;
+    }
+
+    if (_blockIt == _docIt->second.blocksToCopy.cend()) {
+        ++_docIt;
+        if (_docIt != _backupInformation.end()) {
+            _blockIt = _docIt->second.blocksToCopy.cbegin();
+        }
+    }
+
+    return Document{builder.obj()};
 }
 
 intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
@@ -180,7 +194,10 @@ DocumentSourceBackupCursor::DocumentSourceBackupCursor(
       _backupCursorState(
           pExpCtx->mongoProcessInterface->openBackupCursor(pExpCtx->opCtx, _backupOptions)),
       _backupInformation(_backupCursorState.backupInformation),
-      _docIt(_backupInformation.begin()) {}
+      _docIt(_backupInformation.begin()),
+      _blockIt(_docIt != _backupInformation.end()
+                   ? _docIt->second.blocksToCopy.cbegin()
+                   : std::vector<StorageEngine::BackupBlock>::const_iterator{}) {}
 
 DocumentSourceBackupCursor::~DocumentSourceBackupCursor() {
     try {
