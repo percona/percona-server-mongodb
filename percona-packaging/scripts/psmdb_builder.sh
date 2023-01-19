@@ -186,7 +186,7 @@ get_sources(){
             cd aws-sdk-cpp
                 git reset --hard
                 git clean -xdf
-                git checkout 1.8.56
+                git checkout 1.8.187
                 if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
                     sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                     sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
@@ -296,7 +296,7 @@ aws_sdk_build(){
         cd aws-sdk-cpp
             git reset --hard
             git clean -xdf
-            git checkout 1.8.56
+            git checkout 1.8.187
             if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
                 sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                 sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
@@ -902,7 +902,7 @@ build_tarball(){
             cd aws-sdk-cpp
             git reset --hard
             git clean -xdf
-            git checkout 1.8.56
+            git checkout 1.8.187
             if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
                 sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                 sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake

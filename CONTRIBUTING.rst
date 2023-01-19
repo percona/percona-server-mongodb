@@ -193,12 +193,12 @@ Debian/Ubuntu
 
       export AWS_LIBS=/tmp/lib/aws
 
-   -  Percona Server for MongoDB is built with AWS SDK CPP 1.8.56
+   -  Percona Server for MongoDB is built with AWS SDK CPP 1.8.187
       version. Switch to this version
 
    .. code:: sh
 
-      cd aws-sdk-cpp && git checkout 1.8.56
+      cd aws-sdk-cpp && git checkout 1.8.187
 
    -  It is recommended to keep build files outside the SDK directory.
       Create a build directory and navigate to it
@@ -308,12 +308,12 @@ Red Hat Enterprise Linux/CentOS
 
       export AWS_LIBS=/tmp/lib/aws
 
-   -  Percona Server for MongoDB is built with AWS SDK CPP 1.8.56
+   -  Percona Server for MongoDB is built with AWS SDK CPP 1.8.187
       version. Switch to this version
 
    .. code:: sh
 
-      cd aws-sdk-cpp && git checkout 1.8.56
+      cd aws-sdk-cpp && git checkout 1.8.187
 
    -  It is recommended to keep build files outside of the SDK
       directory. Create a build directory and navigate to it
