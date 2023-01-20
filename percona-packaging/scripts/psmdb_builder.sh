@@ -186,7 +186,7 @@ get_sources(){
             cd aws-sdk-cpp
                 git reset --hard
                 git clean -xdf
-                git checkout 1.8.56
+                git checkout 1.8.187
                 mkdir build
     cd ../../
     tar --owner=0 --group=0 --exclude=.* -czf ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
@@ -326,7 +326,7 @@ aws_sdk_build(){
         cd aws-sdk-cpp
             git reset --hard
             git clean -xdf
-            git checkout 1.8.56
+            git checkout 1.8.187
             mkdir build
             cd build
             CMAKE_CMD="cmake"
@@ -904,7 +904,7 @@ build_tarball(){
             cd aws-sdk-cpp
             git reset --hard
             git clean -xdf
-            git checkout 1.8.56
+            git checkout 1.8.187
             mkdir build
             cd build
             set_compiler
