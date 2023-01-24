@@ -87,7 +87,7 @@ std::string kmipWriteKey(std::string const& keyData) {
     auto keyId = ctx.op_register("", "", kmippp::context::key_t(keyData.begin(), keyData.end()));
 
     if (keyId.empty()) {
-        LOGV2_ERROR(29046, "Couldn't save encryption key on KMIP server.");
+        throw std::runtime_error("Couldn't save encryption key on KMIP server.");
     }
 
     return keyId;
