@@ -6,6 +6,7 @@ env = env.Clone()
 env.Library(
     target='externalsaslauth',
     source=[
+        'awsiam_server_mechanism.cpp',
         'cyrus_sasl_server_session.cpp',
         'external_sasl_authentication_session.cpp',
         'gssapi_server_mechanism.cpp',
