@@ -33,8 +33,8 @@ Copyright (C) 2020-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/auth/external/cyrus_sasl_server_session.h"
 
-#include <gssapi/gssapi.h>
 #include <fmt/format.h>
+#include <gssapi/gssapi.h>
 
 #include "mongo/db/auth/sasl_command_constants.h"
 #include "mongo/db/auth/sasl_options.h"
@@ -51,8 +51,7 @@ static Status getInitializationError(int result) {
 }
 
 CyrusSASLServerSession::CyrusSASLServerSession(const StringData mechanismName)
-    : _mechanismName(mechanismName) {
-}
+    : _mechanismName(mechanismName) {}
 
 CyrusSASLServerSession::~CyrusSASLServerSession() {
     if (_saslConnection) {
@@ -81,15 +80,23 @@ struct gss_result {
     OM_uint32 major = 0;
     OM_uint32 minor = 0;
     void check(const char* loc) const {
-        if (major != GSS_S_COMPLETE)
-            throw std::runtime_error(fmt::format("{} error: major: {}; minor: {}",
-                                                 loc, major, minor));
+        if (major != GSS_S_COMPLETE) {
+            throw std::runtime_error(
+                fmt::format("{} error: major: {}; minor: {}", loc, major, minor));
+        }
     }
 };
 
 class auto_gss_name_t {
 public:
-    auto_gss_name_t() : _v(nullptr) {}
+    // Scope guard is the only intended usage
+    // so make this class noncopyable/nonmoveable
+    auto_gss_name_t(const auto_gss_name_t&) = delete;
+    auto_gss_name_t(auto_gss_name_t&&) = delete;
+    auto_gss_name_t& operator=(const auto_gss_name_t&) = delete;
+    auto_gss_name_t& operator=(auto_gss_name_t&&) = delete;
+
+    auto_gss_name_t() = default;
     ~auto_gss_name_t() {
         gss_result gr;
         gr.major = gss_release_name(&gr.minor, &_v);
@@ -97,34 +104,42 @@ public:
     operator gss_name_t() const {
         return _v;
     }
-    gss_name_t* operator &() {
+    gss_name_t* operator&() {
         return &_v;
     }
+
 private:
-    gss_name_t _v;
+    gss_name_t _v = nullptr;
 };
 
 class auto_gss_buffer_desc : public gss_buffer_desc {
 public:
+    // Scope guard is the only intended usage
+    // so make this class noncopyable/nonmoveable
+    auto_gss_buffer_desc(const auto_gss_buffer_desc&) = delete;
+    auto_gss_buffer_desc(auto_gss_buffer_desc&&) = delete;
+    auto_gss_buffer_desc& operator=(const auto_gss_buffer_desc&) = delete;
+    auto_gss_buffer_desc& operator=(auto_gss_buffer_desc&&) = delete;
+
     auto_gss_buffer_desc() : gss_buffer_desc{.length = 0, .value = nullptr} {}
     ~auto_gss_buffer_desc() {
         gss_result gr;
         gr.major = gss_release_buffer(&gr.minor, this);
     }
     operator std::string() const {
-        return {(const char*)value, length};
+        return {static_cast<const char*>(value), length};
     }
 };
 
-void canonicalizeGSSAPIUser(const std::string v, std::string& o) {
+std::string canonicalizeGSSAPIUser(const StringData v) {
     // It is possible to get OID using gss_str_to_oid("1.2.840.113554.1.2.2")
     // But result will be the same
     // https://docs.oracle.com/cd/E19683-01/816-1331/6m7oo9sno/index.html
-    static gss_OID_desc mech_krb5 = { 9, (void*)"\052\206\110\206\367\022\001\002\002" };
+    gss_OID_desc mech_krb5 = {9, const_cast<char*>("\052\206\110\206\367\022\001\002\002")};
     gss_OID mech_type = &mech_krb5;
 
     gss_result gr;
-    gss_buffer_desc input_name_buffer{.length = v.length(), .value = (void*)v.c_str()};
+    gss_buffer_desc input_name_buffer{.length = v.size(), .value = const_cast<char*>(v.rawData())};
     auto_gss_name_t gssname;
     gr.major = gss_import_name(&gr.minor, &input_name_buffer, GSS_C_NT_USER_NAME, &gssname);
     gr.check("gss_import_name");
@@ -134,11 +149,11 @@ void canonicalizeGSSAPIUser(const std::string v, std::string& o) {
     gr.check("gss_canonicalize_name");
 
     auto_gss_buffer_desc displayname;
-    gss_OID nt;
+    gss_OID nt = nullptr;
     gr.major = gss_display_name(&gr.minor, canonname, &displayname, &nt);
     gr.check("gss_display_name");
 
-    o = displayname;
+    return displayname;
 }
 
 /* improved callback to verify authorization;
@@ -154,29 +169,36 @@ void canonicalizeGSSAPIUser(const std::string v, std::string& o) {
  * returns SASL_OK on success,
  *         SASL_NOAUTHZ or other SASL response on failure
  */
-int saslSessionProxyPolicy(sasl_conn_t *conn,
-                           void *context,
-                           const char *requested_user, unsigned rlen,
-                           const char *auth_identity, unsigned alen,
-                           const char *def_realm, unsigned urlen,
-                           struct propctx *propctx) throw() {
+int saslSessionProxyPolicy(sasl_conn_t* conn,
+                           void* context,
+                           const char* requested_user,
+                           unsigned rlen,
+                           const char* auth_identity,
+                           unsigned alen,
+                           const char* def_realm,
+                           unsigned urlen,
+                           struct propctx* propctx) {
     try {
-        LOGV2_DEBUG(29053, 2,
-            "saslSessionProxyPolicy: {{ requested_user: '{user}', auth_identity: '{ident}', default_realm: '{realm}' }}",
-            "user"_attr = requested_user ? requested_user : "nullptr",
-            "ident"_attr = auth_identity ? auth_identity : "nullptr",
-            "realm"_attr = def_realm ? def_realm : "nullptr");
-        std::string canon_auth_identity;
-        canonicalizeGSSAPIUser(std::string{auth_identity, alen}, canon_auth_identity);
+        LOGV2_DEBUG(29053,
+                    2,
+                    "saslSessionProxyPolicy: {{ requested_user: '{user}', auth_identity: "
+                    "'{ident}', default_realm: '{realm}' }}",
+                    "user"_attr = requested_user ? requested_user : "nullptr",
+                    "ident"_attr = auth_identity ? auth_identity : "nullptr",
+                    "realm"_attr = def_realm ? def_realm : "nullptr");
+        const std::string canon_auth_identity = canonicalizeGSSAPIUser({auth_identity, alen});
         const std::string str_requested_user{requested_user, rlen};
         if (str_requested_user != canon_auth_identity) {
-            saslSetError(conn, fmt::format("{} is not authorized to act as {}",
-                         canon_auth_identity, str_requested_user));
+            saslSetError(conn,
+                         fmt::format("{} is not authorized to act as {}",
+                                     canon_auth_identity,
+                                     str_requested_user));
             return SASL_NOAUTHZ;
         }
     } catch (...) {
-        saslSetError(conn, fmt::format("Caught unhandled exception in saslSessionProxyPolicy: {}",
-                     exceptionToStatus().reason()));
+        saslSetError(conn,
+                     fmt::format("Caught unhandled exception in saslSessionProxyPolicy: {}",
+                                 exceptionToStatus().reason()));
         return SASL_FAIL;
     }
     return SASL_OK;
@@ -188,16 +210,17 @@ Status CyrusSASLServerSession::initializeConnection() {
     typedef int (*SaslCallbackFn)();
     static const sasl_callback_t callbacks[] = {
         {SASL_CB_PROXY_POLICY, SaslCallbackFn(saslSessionProxyPolicy), nullptr},
-        {SASL_CB_LIST_END}
-    };
-    int result = sasl_server_new(saslGlobalParams.serviceName.c_str(),
-                                 saslGlobalParams.hostName.c_str(), // Fully Qualified Domain Name (FQDN), nullptr => gethostname()
-                                 nullptr, // User Realm string, nullptr forces default value: FQDN.
-                                 nullptr, // Local IP address
-                                 nullptr, // Remote IP address
-                                 callbacks, // Callbacks specific to this connection.
-                                 0,    // Security flags.
-                                 &_saslConnection); // Connection object output parameter.
+        {SASL_CB_LIST_END}};
+    int result = sasl_server_new(
+        saslGlobalParams.serviceName.c_str(),
+        saslGlobalParams.hostName
+            .c_str(),       // Fully Qualified Domain Name (FQDN), nullptr => gethostname()
+        nullptr,            // User Realm string, nullptr forces default value: FQDN.
+        nullptr,            // Local IP address
+        nullptr,            // Remote IP address
+        callbacks,          // Callbacks specific to this connection.
+        0,                  // Security flags.
+        &_saslConnection);  // Connection object output parameter.
     if (result != SASL_OK) {
         return getInitializationError(result);
     }
@@ -205,10 +228,22 @@ Status CyrusSASLServerSession::initializeConnection() {
     return Status::OK();
 }
 
-StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processInitialClientPayload(const StringData& payload) {
+StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processInitialClientPayload(
+    const StringData& payload) {
     _results.initialize_results();
     _results.result = sasl_server_start(_saslConnection,
-                                       _mechanismName.c_str(),
+                                        _mechanismName.c_str(),
+                                        payload.rawData(),
+                                        static_cast<unsigned>(payload.size()),
+                                        &_results.output,
+                                        &_results.length);
+    return getStepResult();
+}
+
+StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processNextClientPayload(
+    const StringData& payload) {
+    _results.initialize_results();
+    _results.result = sasl_server_step(_saslConnection,
                                        payload.rawData(),
                                        static_cast<unsigned>(payload.size()),
                                        &_results.output,
@@ -216,17 +251,7 @@ StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processInitial
     return getStepResult();
 }
 
-StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processNextClientPayload(const StringData& payload) {
-    _results.initialize_results();
-    _results.result = sasl_server_step(_saslConnection,
-                                      payload.rawData(),
-                                      static_cast<unsigned>(payload.size()),
-                                      &_results.output,
-                                      &_results.length);
-    return getStepResult();
-}
-
-StatusWith<std::tuple<bool, std::string> > CyrusSASLServerSession::step(StringData inputData) {
+StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::step(StringData inputData) {
     if (_step++ == 0) {
         Status status = initializeConnection();
         if (!status.isOK()) {
@@ -238,8 +263,9 @@ StatusWith<std::tuple<bool, std::string> > CyrusSASLServerSession::step(StringDa
 }
 
 StringData CyrusSASLServerSession::getPrincipalName() const {
-    const char* username;
-    int result = sasl_getprop(_saslConnection, SASL_USERNAME, (const void**)&username);
+    const char* username = nullptr;
+    int result =
+        sasl_getprop(_saslConnection, SASL_USERNAME, reinterpret_cast<const void**>(&username));
     if (result == SASL_OK) {
         return username;
     }
