@@ -43,7 +43,11 @@ namespace mongo {
 
 class CyrusSASLServerSession {
 public:
-    CyrusSASLServerSession(const StringData mechanismName);
+    CyrusSASLServerSession(const CyrusSASLServerSession&) = delete;
+    CyrusSASLServerSession(CyrusSASLServerSession&&) = delete;
+    CyrusSASLServerSession& operator=(const CyrusSASLServerSession&) = delete;
+    CyrusSASLServerSession& operator=(CyrusSASLServerSession&&) = delete;
+    explicit CyrusSASLServerSession(const StringData mechanismName);
     ~CyrusSASLServerSession();
 
     StatusWith<std::tuple<bool, std::string>> step(StringData inputData);
@@ -51,16 +55,16 @@ public:
 
 private:
     int _step{0};
-    sasl_conn_t * _saslConnection{nullptr};
+    sasl_conn_t* _saslConnection{nullptr};
     std::string _mechanismName;
 
     struct SaslServerResults {
-        int result;
-        const char *output;
-        unsigned length;
+        int result = SASL_FAIL;
+        const char* output = nullptr;
+        unsigned length = 0;
         inline void initialize_results() {
             result = SASL_OK;
-            output = NULL;
+            output = nullptr;
             length = 0;
         };
         inline bool resultsAreOK() const {
@@ -72,10 +76,10 @@ private:
     } _results;
 
     Status initializeConnection();
-    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(const StringData& payload);
+    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(
+        const StringData& payload);
     StatusWith<std::tuple<bool, std::string>> processNextClientPayload(const StringData& payload);
     StatusWith<std::tuple<bool, std::string>> getStepResult() const;
-
 };
 
 }  // namespace mongo
