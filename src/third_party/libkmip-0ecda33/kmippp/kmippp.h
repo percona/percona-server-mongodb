@@ -7,6 +7,7 @@
 extern "C" {
 typedef struct ssl_ctx_st SSL_CTX;
 typedef struct bio_st BIO;
+typedef struct last_result LastResult;
 }
 
 namespace kmippp {
@@ -24,6 +25,11 @@ namespace kmippp {
       std::string server_name;
       std::string port;
       std::string reason;
+  };
+
+  class operation_error : public std::runtime_error {
+    public:
+      operation_error(int status, const LastResult* last_result);
   };
 
   class context {
