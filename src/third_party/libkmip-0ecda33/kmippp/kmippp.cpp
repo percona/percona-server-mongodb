@@ -9,6 +9,7 @@
 
 #include <array>
 #include <sstream>
+#include <utility>
 
 #include "kmip.h"
 #include "kmip_bio.h"
@@ -235,7 +236,7 @@ std::string generate_error_message(int status, const LastResult* last_result) {
     if (status < 0) {
         // @see the `KMIP_<smth>` constants in the beginning
         // of the `kmip.h` file
-        static const std::array<const char*, 21> errors = {
+        static constexpr std::array<const char*, 21> errors = {
             "not implemented",       "buffer full",
             "unsupported attribute", "tag mismatch",
             "type mismatch",         "length mismatch",
@@ -256,7 +257,7 @@ std::string generate_error_message(int status, const LastResult* last_result) {
         return msg.str();
     } else if (status > 0) {
         // @see the `result_status` enum in the `kmip.h` file
-        static const std::array<const char*, 3> serverStatuses = {
+        static constexpr std::array<const char*, 3> serverStatuses = {
             "the KMIP server returned the 'operation failed' status",
             "the KMIP server returned the 'operation pendind' status",
             "the KMIP server returned the 'operation undone' status"};
@@ -275,6 +276,27 @@ std::string generate_error_message(int status, const LastResult* last_result) {
     }
     return "not an error";
 }
+
+template <typename Functor>
+class scope_guard {
+public:
+    explicit scope_guard(Functor&& functor) : _functor(std::move(functor)) {}
+    ~scope_guard() {
+        _functor();
+    }
+
+    scope_guard(const scope_guard&) = delete;
+    scope_guard& operator=(const scope_guard&) = delete;
+
+    scope_guard(scope_guard&&) = delete;
+    scope_guard& operator=(scope_guard&&) = delete;
+
+private:
+    Functor _functor;
+};
+
+template <typename Functor>
+scope_guard(Functor&&) -> scope_guard<std::decay_t<Functor>>;
 }  // namespace
 
 operation_error::operation_error(int status, const LastResult* last_result)
@@ -395,7 +417,8 @@ context::id_t context::op_create(const name_t& name, const name_t& group) {
 
 context::id_t context::op_register(const name_t& name, const name_t& group, const key_t& key) {
     KMIP ctx = {0};
-    kmip_init(&ctx, NULL, 0, KMIP_1_0);
+    kmip_init(&ctx, nullptr, 0, KMIP_1_0);
+    scope_guard ctx_guard([&ctx]() { kmip_destroy(&ctx); });
 
     Attribute a[5];
     for(int i = 0; i < 5; i++) {
@@ -444,7 +467,7 @@ context::id_t context::op_register(const name_t& name, const name_t& group, cons
     }
     if (id_data) {
         id_t id(id_data, id_data_size);
-        free(id_data);
+        kmip_free_buffer(&ctx, id_data, id_data_size);
         return id;
     }
     return id_t();
@@ -452,7 +475,8 @@ context::id_t context::op_register(const name_t& name, const name_t& group, cons
 
 context::key_t context::op_get(const id_t& id) {
     KMIP ctx = {0};
-    kmip_init(&ctx, NULL, 0, KMIP_1_0);
+    kmip_init(&ctx, nullptr, 0, KMIP_1_0);
+    scope_guard ctx_guard([&ctx]() { kmip_destroy(&ctx); });
 
     char* key_data = nullptr;
     int key_data_size = 0;
@@ -470,7 +494,7 @@ context::key_t context::op_get(const id_t& id) {
     if (key_data) {
         key_t key(key_data_size);
         memcpy(key.data(), key_data, key_data_size);
-        free(key_data);
+        kmip_free_buffer(&ctx, key_data, key_data_size);
         return key;
     }
     return key_t();
