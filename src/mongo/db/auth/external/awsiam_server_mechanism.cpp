@@ -34,6 +34,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/external/awsiam_server_mechanism.h"
 
 #include <algorithm>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -157,6 +158,18 @@ void ServerMechanism::_parseStsResponse(StringData body) {
     _userId = pt.get<std::string>("GetCallerIdentityResponse.GetCallerIdentityResult.UserId");
     ServerMechanismBase::_principalName =
         pt.get<std::string>("GetCallerIdentityResponse.GetCallerIdentityResult.Arn");
+
+    // Convert assumed-role to role
+    static const std::regex assumedRoleRegex(R"(^arn:aws:sts::(\d+):assumed-role/([^/]+)/)");
+    if (std::smatch matches;
+        std::regex_search(ServerMechanismBase::_principalName, matches, assumedRoleRegex)) {
+        ServerMechanismBase::_principalName =
+            fmt::format("arn:aws:iam::{}:role/{}", matches[1].str(), matches[2].str());
+        LOGV2_DEBUG(29115,
+                    3,
+                    "Assumed role ARN converted to role ARN",
+                    "roleArn"_attr = ServerMechanismBase::_principalName);
+    }
 }
 
 namespace {
