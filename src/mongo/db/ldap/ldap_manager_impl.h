@@ -58,7 +58,9 @@ private:
     LDAP* borrow_search_connection();
     void return_search_connection(LDAP* ldap);
 
-    Status execQuery(std::string& ldapurl, std::vector<std::string>& results);
+    Status execQuery(const std::string& ldapurl,
+                     bool entitiesonly,
+                     std::vector<std::string>& results);
 };
 
 // bind either simple or sasl using global LDAP parameters
