@@ -542,7 +542,11 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
     LDAPMessage*answer = nullptr;
     LDAPURLDesc *ludp{nullptr};
     int res = ldap_url_parse(ldapurl.c_str(), &ludp);
-    ON_BLOCK_EXIT([&] { ldap_free_urldesc(ludp); return_search_connection(ldap); });
+    // 'ldap' should be captured by reference
+    ON_BLOCK_EXIT([&, ludp] {
+        ldap_free_urldesc(ludp);
+        return_search_connection(ldap);
+    });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
                       "Cannot parse LDAP URL: {}"_format(
@@ -582,7 +586,7 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
         }
     } while (retrycnt-- > 0);
 
-    ON_BLOCK_EXIT([&] { ldap_msgfree(answer); });
+    ON_BLOCK_EXIT([=] { ldap_msgfree(answer); });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
                       "LDAP search failed with error: {}"_format(
@@ -593,7 +597,7 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
     while (entry) {
         if (entitiesonly) {
             auto dn = ldap_get_dn(ldap, entry);
-            ON_BLOCK_EXIT([&] { ldap_memfree(dn); });
+            ON_BLOCK_EXIT([=] { ldap_memfree(dn); });
             if (!dn) {
                 int ld_errno = 0;
                 ldap_get_option(ldap, LDAP_OPT_RESULT_CODE, &ld_errno);
@@ -605,12 +609,12 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
         } else {
             BerElement *ber = nullptr;
             auto attribute = ldap_first_attribute(ldap, entry, &ber);
-            ON_BLOCK_EXIT([&] { ber_free(ber, 0); });
+            ON_BLOCK_EXIT([=] { ber_free(ber, 0); });
             while (attribute) {
-                ON_BLOCK_EXIT([&] { ldap_memfree(attribute); });
+                ON_BLOCK_EXIT([=] { ldap_memfree(attribute); });
 
                 auto const values = ldap_get_values_len(ldap, entry, attribute);
-                ON_BLOCK_EXIT([&] { ldap_value_free_len(values); });
+                ON_BLOCK_EXIT([=] { ldap_value_free_len(values); });
                 if (values) {
                     auto curval = values;
                     while (*curval) {
