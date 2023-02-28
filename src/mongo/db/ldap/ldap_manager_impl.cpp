@@ -528,7 +528,9 @@ static void init_ldap_timeout(timeval* tv) {
     tv->tv_usec = (timeout % 1000) * 1000;
 }
 
-Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>& results) {
+Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
+                                  bool entitiesonly,
+                                  std::vector<std::string>& results) {
 
     auto ldap = borrow_search_connection();
 
@@ -542,7 +544,12 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
     LDAPMessage*answer = nullptr;
     LDAPURLDesc *ludp{nullptr};
     int res = ldap_url_parse(ldapurl.c_str(), &ludp);
-    ON_BLOCK_EXIT([&] { ldap_free_urldesc(ludp); return_search_connection(ldap); });
+    // 'ldap' should be captured by reference because its value can be changed as part of retry
+    // logic below (search for 'borrow_search_connection' call)
+    ON_BLOCK_EXIT([&, ludp] {
+        ldap_free_urldesc(ludp);
+        return_search_connection(ldap);
+    });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
                       "Cannot parse LDAP URL: {}"_format(
@@ -550,7 +557,7 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
     }
 
     // if attributes are not specified assume query returns set of entities (groups)
-    const bool entitiesonly = !ludp->lud_attrs || !ludp->lud_attrs[0];
+    entitiesonly = entitiesonly || !ludp->lud_attrs || !ludp->lud_attrs[0];
 
     LOG(1) << fmt::format("Parsing LDAP URL: {ldapurl}; dn: {dn}; scope: {scope}; filter: {filter}",
             fmt::arg("ldapurl", ldapurl),
@@ -582,7 +589,7 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
         }
     } while (retrycnt-- > 0);
 
-    ON_BLOCK_EXIT([&] { ldap_msgfree(answer); });
+    ON_BLOCK_EXIT([=] { ldap_msgfree(answer); });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
                       "LDAP search failed with error: {}"_format(
@@ -593,7 +600,7 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
     while (entry) {
         if (entitiesonly) {
             auto dn = ldap_get_dn(ldap, entry);
-            ON_BLOCK_EXIT([&] { ldap_memfree(dn); });
+            ON_BLOCK_EXIT([=] { ldap_memfree(dn); });
             if (!dn) {
                 int ld_errno = 0;
                 ldap_get_option(ldap, LDAP_OPT_RESULT_CODE, &ld_errno);
@@ -605,12 +612,12 @@ Status LDAPManagerImpl::execQuery(std::string& ldapurl, std::vector<std::string>
         } else {
             BerElement *ber = nullptr;
             auto attribute = ldap_first_attribute(ldap, entry, &ber);
-            ON_BLOCK_EXIT([&] { ber_free(ber, 0); });
+            ON_BLOCK_EXIT([=] { ber_free(ber, 0); });
             while (attribute) {
-                ON_BLOCK_EXIT([&] { ldap_memfree(attribute); });
+                ON_BLOCK_EXIT([=] { ldap_memfree(attribute); });
 
                 auto const values = ldap_get_values_len(ldap, entry, attribute);
-                ON_BLOCK_EXIT([&] { ldap_value_free_len(values); });
+                ON_BLOCK_EXIT([=] { ldap_value_free_len(values); });
                 if (values) {
                     auto curval = values;
                     while (*curval) {
@@ -671,7 +678,7 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
                 fmt::arg("Servers", "ldap.server"),
                 fmt::arg("Query", out));
             std::vector<std::string> qresult;
-            auto status = execQuery(ldapurl, qresult);
+            auto status = execQuery(ldapurl, true, qresult);
             if (!status.isOK())
                 return status;
             // query succeeded only if we have single result
@@ -706,7 +713,7 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
             fmt::arg("PROVIDED_USER", providedUser));
 
     std::vector<std::string> qresult;
-    auto status = execQuery(ldapurl, qresult);
+    auto status = execQuery(ldapurl, false, qresult);
     if (status.isOK()) {
         for (auto& dn: qresult) {
             roles.insert(RoleName{dn, kAdmin});
