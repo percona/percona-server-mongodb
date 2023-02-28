@@ -232,49 +232,73 @@ const char* kmip_reason_to_str(result_reason reason) {
     return "Unknown";
 }
 
+const char* kmip_error_to_str(int error_code) {
+    // @see the `KMIP_<smth>` constants in the beginning
+    // of the `kmip.h` file
+    switch (error_code) {
+        case KMIP_OK:                      return "not an error";
+        case KMIP_NOT_IMPLEMENTED:         return "not implemented";
+        case KMIP_ERROR_BUFFER_FULL:       return "buffer full";
+        case KMIP_ERROR_ATTR_UNSUPPORTED:  return "unsupported attribute";
+        case KMIP_TAG_MISMATCH:            return "tag mismatch";
+        case KMIP_TYPE_MISMATCH:           return "type mismatch";
+        case KMIP_LENGTH_MISMATCH:         return "length mismatch";
+        case KMIP_PADDING_MISMATCH:        return "padding mismatch";
+        case KMIP_BOOLEAN_MISMATCH:        return "boolean mismatch";
+        case KMIP_ENUM_MISMATCH:           return "enum mismatch";
+        case KMIP_ENUM_UNSUPPORTED:        return "enum unsupported";
+        case KMIP_INVALID_FOR_VERSION:     return "invalid for version";
+        case KMIP_MEMORY_ALLOC_FAILED:     return "memory allocation failed";
+        case KMIP_IO_FAILURE:              return "i/o failure";
+        case KMIP_EXCEED_MAX_MESSAGE_SIZE: return "maximum message size is exceeded";
+        case KMIP_MALFORMED_RESPONSE:      return "malformed response";
+        case KMIP_OBJECT_MISMATCH:         return "object mismatch";
+        case KMIP_ARG_INVALID:             return "invalid argument";
+        case KMIP_ERROR_BUFFER_UNDERFULL:  return "buffer underfull";
+        case KMIP_INVALID_ENCODING:        return "invalid encoding";
+        case KMIP_INVALID_FIELD:           return "invalid field";
+        case KMIP_INVALID_LENGTH:          return "invalid length";
+    }
+    return nullptr;
+}
+
+const char* kmip_server_status_to_str(int server_status) {
+    // @see the `result_status` enum in the `kmip.h` file
+    // @note the function uses an `int` argument rather than `result_status`
+    // because the status retuned by any of the `kmip_bio_*` as `int` can't be
+    // reliably converted back to the `result_status` enum.
+    switch (server_status) {
+        case KMIP_STATUS_SUCCESS:           return "operation succeeded";
+        case KMIP_STATUS_OPERATION_FAILED:  return "operation failed";
+        case KMIP_STATUS_OPERATION_PENDING: return "operation pending";
+        case KMIP_STATUS_OPERATION_UNDONE:  return "operation undone";
+    }
+    return nullptr;
+}
+
 std::string generate_error_message(int status, const LastResult* last_result) {
-    if (status < 0) {
-        // @see the `KMIP_<smth>` constants in the beginning
-        // of the `kmip.h` file
-        static constexpr std::array<const char*, 21> errors = {
-            "not implemented",       "buffer full",
-            "unsupported attribute", "tag mismatch",
-            "type mismatch",         "length mismatch",
-            "padding mismatch",      "boolean mismatch",
-            "enum mismatch",         "unsupported enum",
-            "invalid for version",   "memory allocation failed",
-            "i/o failure",           "maximum message size is exceeded",
-            "malformed response",    "object mismatch",
-            "invalid argument",      "buffer underfull",
-            "invalid encoding",      "invalid field",
-            "invalid length"};
-        std::size_t index = static_cast<std::size_t>(-status - 1);
-        if (index < errors.size()) {
-            return errors[index];
+    if (status <= 0) {
+        if (const char* error = kmip_error_to_str(status); error) {
+            return error;
         }
         std::ostringstream msg;
         msg << "unknown error: status code " << status;
         return msg.str();
-    } else if (status > 0) {
-        // @see the `result_status` enum in the `kmip.h` file
-        static constexpr std::array<const char*, 3> serverStatuses = {
-            "the KMIP server returned the 'operation failed' status",
-            "the KMIP server returned the 'operation pendind' status",
-            "the KMIP server returned the 'operation undone' status"};
-        std::size_t index = static_cast<std::size_t>(status - 1);
-        std::ostringstream msg;
-        if (index < serverStatuses.size()) {
-            msg << serverStatuses[index];
-        } else {
-            msg << "the KMIP server returned unknown status code " << status;
-        }
-        if (last_result) {
-            msg << "; reason: " << kmip_reason_to_str(last_result->result_reason)
-                << "; message: " << last_result->result_message;
-        }
-        return msg.str();
     }
-    return "not an error";
+
+    std::ostringstream msg;
+    if (const char* str = kmip_server_status_to_str(status); str) {
+        msg << "the KMIP server returned the '" << str << "' status";
+    } else {
+        msg << "the KMIP server returned unknown status code " << status;
+    }
+    if (last_result) {
+        msg << "; reason: " << kmip_reason_to_str(last_result->result_reason);
+        if (last_result->result_message) {
+            msg << "; message: " << last_result->result_message;
+        }
+    }
+    return msg.str();
 }
 
 template <typename Functor>
@@ -418,7 +442,10 @@ context::id_t context::op_create(const name_t& name, const name_t& group) {
 context::id_t context::op_register(const name_t& name, const name_t& group, const key_t& key) {
     KMIP ctx = {0};
     kmip_init(&ctx, nullptr, 0, KMIP_1_0);
-    scope_guard ctx_guard([&ctx]() { kmip_destroy(&ctx); });
+    scope_guard guard([&ctx]() {
+        kmip_clear_last_result();
+        kmip_destroy(&ctx);
+    });
 
     Attribute a[5];
     for(int i = 0; i < 5; i++) {
@@ -476,7 +503,10 @@ context::id_t context::op_register(const name_t& name, const name_t& group, cons
 context::key_t context::op_get(const id_t& id) {
     KMIP ctx = {0};
     kmip_init(&ctx, nullptr, 0, KMIP_1_0);
-    scope_guard ctx_guard([&ctx]() { kmip_destroy(&ctx); });
+    scope_guard guard([&ctx]() {
+        kmip_clear_last_result();
+        kmip_destroy(&ctx);
+    });
 
     char* key_data = nullptr;
     int key_data_size = 0;
