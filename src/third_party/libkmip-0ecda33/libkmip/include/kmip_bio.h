@@ -45,6 +45,7 @@ int kmip_bio_get_name_attribute(BIO *, char *, int, char **, int *);
 int kmip_bio_destroy_symmetric_key(BIO *, char *, int);
 
 int kmip_bio_create_symmetric_key_with_context(KMIP *, BIO *, TemplateAttribute *, char **, int *);
+int kmip_bio_register_symmetric_key_with_context(KMIP *, BIO *, TemplateAttribute *, char*, int, char **, int *);
 int kmip_bio_get_symmetric_key_with_context(KMIP *, BIO *, char *, int, char **, int *);
 int kmip_bio_destroy_symmetric_key_with_context(KMIP *, BIO *, char *, int);
 
