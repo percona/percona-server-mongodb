@@ -40,36 +40,56 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/assert_util_core.h"
 
 namespace mongo::encryption {
-std::optional<KeyKeyIdPair> ReadKeyFile::operator()() const {
+std::optional<KeyKeyIdPair> ReadKeyFile::operator()() const try {
     return KeyKeyIdPair{Key(detail::SecretString::readFromFile(_path.toString(), "encryption key")),
                         _path.clone()};
+} catch (const std::runtime_error& e) {
+    std::ostringstream msg;
+    msg << "reading the master key from the encryption key file failed: " << e.what();
+    throw KeyErrorBuilder(StringData(msg.str())).error();
 }
 
 std::pair<std::string, std::uint64_t> ReadVaultSecret::_read(const VaultSecretId& id) const {
     return detail::vaultReadKey(id.path(), id.version());
 }
 
-std::optional<KeyKeyIdPair> ReadVaultSecret::operator()() const {
+std::optional<KeyKeyIdPair> ReadVaultSecret::operator()() const try {
     if (auto [encodedKey, version] = _read(_id); !encodedKey.empty()) {
         return KeyKeyIdPair{Key(encodedKey), std::make_unique<VaultSecretId>(_id.path(), version)};
     }
     return std::nullopt;
+} catch (const std::runtime_error& e) {
+    std::ostringstream msg;
+    msg << "reading the master key from the Vault server failed: " << e.what();
+    throw KeyErrorBuilder(StringData(msg.str())).error();
 }
 
-std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const {
+std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
     return std::make_unique<VaultSecretId>(_secretPath,
                                            detail::vaultWriteKey(_secretPath, k.base64()));
+} catch (const std::runtime_error& e) {
+    std::ostringstream msg;
+    msg << "saving the master key to the Vault server failed: " << e.what();
+    throw KeyErrorBuilder(StringData(msg.str())).error();
 }
 
-std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const {
+std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
     if (auto encodedKey = detail::kmipReadKey(_id.toString()); !encodedKey.empty()) {
         return KeyKeyIdPair{Key(encodedKey), _id.clone()};
     }
     return std::nullopt;
+} catch (const std::runtime_error& e) {
+    std::ostringstream msg;
+    msg << "reading the master key from the KMIP server failed: " << e.what();
+    throw KeyErrorBuilder(StringData(msg.str())).error();
 }
 
-std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const {
+std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
     return std::make_unique<KmipKeyId>(detail::kmipWriteKey(k.base64()));
+} catch (const std::runtime_error& e) {
+    std::ostringstream msg;
+    msg << "saving the master key to the KMIP server failed: " << e.what();
+    throw KeyErrorBuilder(StringData(msg.str())).error();
 }
 
 std::unique_ptr<KeyOperationFactory> KeyOperationFactory::create(
