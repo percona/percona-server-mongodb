@@ -7,7 +7,9 @@
 #include <string.h>
 #include <time.h>
 
+#include <array>
 #include <sstream>
+#include <utility>
 
 #include "kmip.h"
 #include "kmip_bio.h"
@@ -153,7 +155,176 @@ cert_chain read_certificate_chain(const std::string& client_cert_fn,
     }
     return chain;
 }
+
+const char* kmip_reason_to_str(result_reason reason) {
+    switch (reason) {
+        case KMIP_REASON_GENERAL_FAILURE:                        return "General Failure";
+        case KMIP_REASON_ITEM_NOT_FOUND :                        return "Item Not Found";
+        case KMIP_REASON_RESPONSE_TOO_LARGE:                     return "Response Too Large";
+        case KMIP_REASON_AUTHENTICATION_NOT_SUCCESSFUL:          return "Authentication Not Successful";
+        case KMIP_REASON_INVALID_MESSAGE:                        return "Invalid Message";
+        case KMIP_REASON_OPERATION_NOT_SUPPORTED:                return "Operation Not Supported";
+        case KMIP_REASON_MISSING_DATA:                           return "Missing Data";
+        case KMIP_REASON_INVALID_FIELD:                          return "Invalid Field";
+        case KMIP_REASON_FEATURE_NOT_SUPPORTED:                  return "Feature Not Supported";
+        case KMIP_REASON_OPERATION_CANCELED_BY_REQUESTER:        return "Operation Canceled By Requester";
+        case KMIP_REASON_CRYPTOGRAPHIC_FAILURE:                  return "Cryptographic Failure";
+        case KMIP_REASON_ILLEGAL_OPERATION:                      return "Illegal Operation";
+        case KMIP_REASON_PERMISSION_DENIED:                      return "Permission Denied";
+        case KMIP_REASON_OBJECT_ARCHIVED:                        return "Object Archived";
+        case KMIP_REASON_INDEX_OUT_OF_BOUNDS:                    return "Index Out Of Bounds";
+        case KMIP_REASON_APPLICATION_NAMESPACE_NOT_SUPPORTED:    return "Application Namespace Not Supported";
+        case KMIP_REASON_KEY_FORMAT_TYPE_NOT_SUPPORTED:          return "Key Format Type Not Supported";
+        case KMIP_REASON_KEY_COMPRESSION_TYPE_NOT_SUPPORTED:     return "Key Compression Type Not Supported";
+        case KMIP_REASON_ENCODING_OPTION_FAILURE:                return "Encoding Option Failure";
+        case KMIP_REASON_KEY_VALUE_NOT_PRESENT:                  return "Key Value Not Present";
+        case KMIP_REASON_ATTESTATION_REQUIRED:                   return "Attestation Required";
+        case KMIP_REASON_ATTESTATION_FAILED:                     return "Attestation Failed";
+        case KMIP_REASON_SENSITIVE:                              return "Sensitive";
+        case KMIP_REASON_NOT_EXTRACTABLE:                        return "Not Extractable";
+        case KMIP_REASON_OBJECT_ALREADY_EXISTS:                  return "Object Already Exists";
+        case KMIP_REASON_INVALID_TICKET:                         return "Invalid Ticket";
+        case KMIP_REASON_USAGE_LIMIT_EXCEEDED:                   return "Usage Limit Exceeded";
+        case KMIP_REASON_NUMERIC_RANGE:                          return "Numeric Range";
+        case KMIP_REASON_INVALID_DATA_TYPE:                      return "Invalid Data Type";
+        case KMIP_REASON_READ_ONLY_ATTRIBUTE:                    return "Read Only Attribute";
+        case KMIP_REASON_MULTI_VALUED_ATTRIBUTE:                 return "Multi Valued Attribute";
+        case KMIP_REASON_UNSUPPORTED_ATTRIBUTE:                  return "Unsupported Attribute";
+        case KMIP_REASON_ATTRIBUTE_INSTANCE_NOT_FOUND:           return "Attribute Instance Not Found";
+        case KMIP_REASON_ATTRIBUTE_NOT_FOUND:                    return "Attribute Not Found";
+        case KMIP_REASON_ATTRIBUTE_READ_ONLY:                    return "Attribute Read Only";
+        case KMIP_REASON_ATTRIBUTE_SINGLE_VALUED:                return "Attribute Single Valued";
+        case KMIP_REASON_BAD_CRYPTOGRAPHIC_PARAMETERS:           return "Bad Cryptographic Parameters";
+        case KMIP_REASON_BAD_PASSWORD:                           return "Bad Password";
+        case KMIP_REASON_CODEC_ERROR:                            return "Codec Error";
+        case KMIP_REASON_ILLEGAL_OBJECT_TYPE:                    return "Illegal Object Type";
+        case KMIP_REASON_INCOMPATIBLE_CRYPTOGRAPHIC_USAGE_MASK:  return "Incompatible Cryptographic Usage Mask";
+        case KMIP_REASON_INTERNAL_SERVER_ERROR:                  return "Internal Server Error";
+        case KMIP_REASON_INVALID_ASYNCHRONOUS_CORRELATION_VALUE: return "Invalid Asynchronous Correlation Value";
+        case KMIP_REASON_INVALID_ATTRIBUTE:                      return "Invalid Attribute";
+        case KMIP_REASON_INVALID_ATTRIBUTE_VALUE:                return "Invalid Attribute Value";
+        case KMIP_REASON_INVALID_CORRELATION_VALUE:              return "Invalid Correlation Value";
+        case KMIP_REASON_INVALID_CSR:                            return "Invalid CSR";
+        case KMIP_REASON_INVALID_OBJECT_TYPE:                    return "Invalid Object Type";
+        case KMIP_REASON_KEY_WRAP_TYPE_NOT_SUPPORTED:            return "Key Wrap Type Not Supported";
+        case KMIP_REASON_MISSING_INITIALIZATION_VECTOR:          return "Missing Initialization Vector";
+        case KMIP_REASON_NON_UNIQUE_NAME_ATTRIBUTE:              return "Non Unique Name Attribute";
+        case KMIP_REASON_OBJECT_DESTROYED:                       return "Object Destroyed";
+        case KMIP_REASON_OBJECT_NOT_FOUND:                       return "Object Not Found";
+        case KMIP_REASON_NOT_AUTHORISED:                         return "Not Authorised";
+        case KMIP_REASON_SERVER_LIMIT_EXCEEDED:                  return "Server Limit Exceeded";
+        case KMIP_REASON_UNKNOWN_ENUMERATION:                    return "Unknown Enumeration";
+        case KMIP_REASON_UNKNOWN_MESSAGE_EXTENSION:              return "Unknown Message Extension";
+        case KMIP_REASON_UNKNOWN_TAG:                            return "Unknown Tag";
+        case KMIP_REASON_UNSUPPORTED_CRYPTOGRAPHIC_PARAMETERS:   return "Unsupported Cryptographic Parameters";
+        case KMIP_REASON_UNSUPPORTED_PROTOCOL_VERSION:           return "Unsupported Protocol Version";
+        case KMIP_REASON_WRAPPING_OBJECT_ARCHIVED:               return "Wrapping Object Archived";
+        case KMIP_REASON_WRAPPING_OBJECT_DESTROYED:              return "Wrapping Object Destroyed";
+        case KMIP_REASON_WRAPPING_OBJECT_NOT_FOUND:              return "Wrapping Object Not Found";
+        case KMIP_REASON_WRONG_KEY_LIFECYCLE_STATE:              return "Wrong Key Lifecycle State";
+        case KMIP_REASON_PROTECTION_STORAGE_UNAVAILABLE:         return "Protection Storage Unavailable";
+        case KMIP_REASON_PKCS11_CODEC_ERROR:                     return "PKCS#11 Codec Error";
+        case KMIP_REASON_PKCS11_INVALID_FUNCTION:                return "PKCS#11 Invalid Function";
+        case KMIP_REASON_PKCS11_INVALID_INTERFACE:               return "PKCS#11 Invalid Interface";
+        case KMIP_REASON_PRIVATE_PROTECTION_STORAGE_UNAVAILABLE: return "Private Protection Storage Unavailable";
+        case KMIP_REASON_PUBLIC_PROTECTION_STORAGE_UNAVAILABLE:  return "Public Protection Storage Unavailable";
+    }
+    return "Unknown";
+}
+
+const char* kmip_error_to_str(int error_code) {
+    // @see the `KMIP_<smth>` constants in the beginning
+    // of the `kmip.h` file
+    switch (error_code) {
+        case KMIP_OK:                      return "not an error";
+        case KMIP_NOT_IMPLEMENTED:         return "not implemented";
+        case KMIP_ERROR_BUFFER_FULL:       return "buffer full";
+        case KMIP_ERROR_ATTR_UNSUPPORTED:  return "unsupported attribute";
+        case KMIP_TAG_MISMATCH:            return "tag mismatch";
+        case KMIP_TYPE_MISMATCH:           return "type mismatch";
+        case KMIP_LENGTH_MISMATCH:         return "length mismatch";
+        case KMIP_PADDING_MISMATCH:        return "padding mismatch";
+        case KMIP_BOOLEAN_MISMATCH:        return "boolean mismatch";
+        case KMIP_ENUM_MISMATCH:           return "enum mismatch";
+        case KMIP_ENUM_UNSUPPORTED:        return "enum unsupported";
+        case KMIP_INVALID_FOR_VERSION:     return "invalid for version";
+        case KMIP_MEMORY_ALLOC_FAILED:     return "memory allocation failed";
+        case KMIP_IO_FAILURE:              return "i/o failure";
+        case KMIP_EXCEED_MAX_MESSAGE_SIZE: return "maximum message size is exceeded";
+        case KMIP_MALFORMED_RESPONSE:      return "malformed response";
+        case KMIP_OBJECT_MISMATCH:         return "object mismatch";
+        case KMIP_ARG_INVALID:             return "invalid argument";
+        case KMIP_ERROR_BUFFER_UNDERFULL:  return "buffer underfull";
+        case KMIP_INVALID_ENCODING:        return "invalid encoding";
+        case KMIP_INVALID_FIELD:           return "invalid field";
+        case KMIP_INVALID_LENGTH:          return "invalid length";
+    }
+    return nullptr;
+}
+
+const char* kmip_server_status_to_str(int server_status) {
+    // @see the `result_status` enum in the `kmip.h` file
+    // @note the function uses an `int` argument rather than `result_status`
+    // because the status retuned by any of the `kmip_bio_*` as `int` can't be
+    // reliably converted back to the `result_status` enum.
+    switch (server_status) {
+        case KMIP_STATUS_SUCCESS:           return "operation succeeded";
+        case KMIP_STATUS_OPERATION_FAILED:  return "operation failed";
+        case KMIP_STATUS_OPERATION_PENDING: return "operation pending";
+        case KMIP_STATUS_OPERATION_UNDONE:  return "operation undone";
+    }
+    return nullptr;
+}
+
+std::string generate_error_message(int status, const LastResult* last_result) {
+    if (status <= 0) {
+        if (const char* error = kmip_error_to_str(status); error) {
+            return error;
+        }
+        std::ostringstream msg;
+        msg << "unknown error: status code " << status;
+        return msg.str();
+    }
+
+    std::ostringstream msg;
+    if (const char* str = kmip_server_status_to_str(status); str) {
+        msg << "the KMIP server returned the '" << str << "' status";
+    } else {
+        msg << "the KMIP server returned unknown status code " << status;
+    }
+    if (last_result) {
+        msg << "; reason: " << kmip_reason_to_str(last_result->result_reason);
+        if (last_result->result_message) {
+            msg << "; message: " << last_result->result_message;
+        }
+    }
+    return msg.str();
+}
+
+template <typename Functor>
+class scope_guard {
+public:
+    explicit scope_guard(Functor&& functor) : _functor(std::move(functor)) {}
+    ~scope_guard() {
+        _functor();
+    }
+
+    scope_guard(const scope_guard&) = delete;
+    scope_guard& operator=(const scope_guard&) = delete;
+
+    scope_guard(scope_guard&&) = delete;
+    scope_guard& operator=(scope_guard&&) = delete;
+
+private:
+    Functor _functor;
+};
+
+template <typename Functor>
+scope_guard(Functor&&) -> scope_guard<std::decay_t<Functor>>;
 }  // namespace
+
+operation_error::operation_error(int status, const LastResult* last_result)
+    : std::runtime_error(generate_error_message(status, last_result)) {}
 
 void context::ssl_ctx_deleter::operator()(SSL_CTX* p) const noexcept {
     if (p) {
@@ -269,15 +440,22 @@ context::id_t context::op_create(const name_t& name, const name_t& group) {
 }
 
 context::id_t context::op_register(const name_t& name, const name_t& group, const key_t& key) {
+    KMIP ctx = {0};
+    kmip_init(&ctx, nullptr, 0, KMIP_1_0);
+    scope_guard guard([&ctx]() {
+        kmip_clear_last_result();
+        kmip_destroy(&ctx);
+    });
+
     Attribute a[5];
     for(int i = 0; i < 5; i++) {
         kmip_init_attribute(&a[i]);
     }
-    
+
     enum cryptographic_algorithm algorithm = KMIP_CRYPTOALG_AES;
     a[0].type = KMIP_ATTR_CRYPTOGRAPHIC_ALGORITHM;
     a[0].value = &algorithm;
-    
+
     int32 length = key.size()*8;
     a[1].type = KMIP_ATTR_CRYPTOGRAPHIC_LENGTH;
     a[1].value = &length;
@@ -294,7 +472,7 @@ context::id_t context::op_register(const name_t& name, const name_t& group, cons
     ts.type = KMIP_NAME_UNINTERPRETED_TEXT_STRING;
     a[3].type = KMIP_ATTR_NAME;
     a[3].value = &ts;
-    
+
     TextString gs2 = {0,0};
     gs2.value = const_cast<char*>(group.c_str());
     gs2.size = kmip_strnlen_s(gs2.value, 250);
@@ -305,43 +483,51 @@ context::id_t context::op_register(const name_t& name, const name_t& group, cons
     ta.attributes = a;
     ta.attribute_count = ARRAY_LENGTH(a);
 
-
-    int id_max_len = 64;
-    char* idp = nullptr;
+    char* id_data = nullptr;
+    int id_data_size = 0;
     auto key_data = reinterpret_cast<char*>(const_cast<unsigned char*>(key.data()));
-    int result =
-        kmip_bio_register_symmetric_key(bio_.get(), &ta, key_data, key.size(), &idp, &id_max_len);
+    int status = kmip_bio_register_symmetric_key_with_context(
+        &ctx, bio_.get(), &ta, key_data, key.size(), &id_data, &id_data_size);
 
-    std::string ret;
-    if(idp != nullptr) {
-      ret = std::string(idp, id_max_len);
-      free(idp);
+    if (status != 0) {
+        throw operation_error(status, kmip_get_last_result());
     }
-
-    if(result != 0) {
-      return "";
+    if (id_data) {
+        id_t id(id_data, id_data_size);
+        kmip_free_buffer(&ctx, id_data, id_data_size);
+        return id;
     }
-
-    return ret;
+    return id_t();
 }
 
 context::key_t context::op_get(const id_t& id) {
-    int key_len = 0;
-    char* keyp = nullptr;
-    int result = kmip_bio_get_symmetric_key(
-        bio_.get(), const_cast<char*>(id.c_str()), id.length(), &keyp, &key_len);
+    KMIP ctx = {0};
+    kmip_init(&ctx, nullptr, 0, KMIP_1_0);
+    scope_guard guard([&ctx]() {
+        kmip_clear_last_result();
+        kmip_destroy(&ctx);
+    });
 
-    key_t key(key_len);
-    if(keyp != nullptr) {
-      memcpy(key.data(), keyp, key_len);
-      free(keyp);
+    char* key_data = nullptr;
+    int key_data_size = 0;
+
+    int status = kmip_bio_get_symmetric_key_with_context(
+        &ctx, bio_.get(), const_cast<char*>(id.c_str()), id.length(), &key_data, &key_data_size);
+
+    if (status != 0) {
+        const LastResult* last_result = kmip_get_last_result();
+        if (last_result && last_result->result_reason == KMIP_REASON_ITEM_NOT_FOUND) {
+            return key_t();
+        }
+        throw operation_error(status, last_result);
     }
-
-    if(result != 0) {
-      return {};
+    if (key_data) {
+        key_t key(key_data_size);
+        memcpy(key.data(), key_data, key_data_size);
+        kmip_free_buffer(&ctx, key_data, key_data_size);
+        return key;
     }
-
-    return key;
+    return key_t();
 }
 
 bool context::op_destroy(const id_t& id) {

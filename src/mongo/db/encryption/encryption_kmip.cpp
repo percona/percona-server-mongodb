@@ -69,7 +69,7 @@ std::string kmipReadKey(const std::string& keyId) {
     const auto key = ctx.op_get(keyId);
 
     if (key.empty()) {
-        LOG(4) << "ID found on KMIP server, but not actual data. Internal server error?";
+        LOG(4) << "No key is found on the KMIP server";
         return "";
     }
 
@@ -78,14 +78,7 @@ std::string kmipReadKey(const std::string& keyId) {
 
 std::string kmipWriteKey(std::string const& keyData) {
     auto ctx = kmipCreateContext();
-
-    auto keyId = ctx.op_register("", "", kmippp::context::key_t(keyData.begin(), keyData.end()));
-
-    if (keyId.empty()) {
-        throw std::runtime_error("Couldn't save encryption key on KMIP server.");
-    }
-
-    return keyId;
+    return ctx.op_register("", "", kmippp::context::key_t(keyData.begin(), keyData.end()));
 }
 
 }  // namespace mongo
