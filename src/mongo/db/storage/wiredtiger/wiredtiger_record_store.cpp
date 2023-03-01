@@ -92,6 +92,7 @@ void checkOplogFormatVersion(OperationContext* opCtx, const std::string& uri) {
 }  // namespace
 
 MONGO_FAIL_POINT_DEFINE(WTCompactRecordStoreEBUSY);
+MONGO_FAIL_POINT_DEFINE(WTRecordStoreUassertOutOfOrder);
 MONGO_FAIL_POINT_DEFINE(WTWriteConflictException);
 MONGO_FAIL_POINT_DEFINE(WTWriteConflictExceptionForReads);
 
@@ -1979,17 +1980,20 @@ boost::optional<Record> WiredTigerRecordStoreCursorBase::next() {
         return {};
     }
 
-    if (_forward && _lastReturnedId >= id) {
-        log() << "WTCursor::next -- c->next_key ( " << id
-              << ") was not greater than _lastReturnedId (" << _lastReturnedId
-              << ") which is a bug.";
+    const bool failWithOutOfOrderForTest = WTRecordStoreUassertOutOfOrder.shouldFail();
+    if ((_forward && _lastReturnedId >= id) || MONGO_unlikely(failWithOutOfOrderForTest)) {
+        // Crash when test commands are enabled and not explicitly uasserting on out-of-order keys.
+        if (!failWithOutOfOrderForTest) {
+            invariant(!getTestCommandsEnabled());
+        }
 
-        // Crash when test commands are enabled.
-        invariant(!getTestCommandsEnabled());
-
-        // Force a retry of the operation from our last known position by acting as-if
-        // we received a WT_ROLLBACK error.
-        throw WriteConflictException();
+        // uassert with 'DataCorruptionDetected' after logging.
+        std::stringstream ss;
+        ss << "WT_Cursor::next -- returned out-of-order keys. Forward: " << _forward
+           << ", next: " << id << ", last: " << _lastReturnedId << ", ident: " << _rs._ident
+           << ", ns: " << _rs._ns;
+        log() << ss.str();
+        uasserted(ErrorCodes::DataCorruptionDetected, ss.str());
     }
 
     WT_ITEM value;

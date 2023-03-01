@@ -165,41 +165,6 @@ public:
 
 } cmdDropDatabase;
 
-static const char* repairRemovedMessage =
-    "This command has been removed. If you would like to compact your data, use the 'compact' "
-    "command. If you would like to rebuild indexes, use the 'reIndex' command. If you need to "
-    "recover data, please see the documentation for repairing your database offline: "
-    "http://dochub.mongodb.org/core/repair";
-
-class CmdRepairDatabase : public ErrmsgCommandDeprecated {
-public:
-    AllowedOnSecondary secondaryAllowed(ServiceContext*) const override {
-        return AllowedOnSecondary::kAlways;
-    }
-    virtual bool maintenanceMode() const {
-        return false;
-    }
-
-    std::string help() const override {
-        return repairRemovedMessage;
-    }
-    virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
-        return false;
-    }
-
-    CmdRepairDatabase() : ErrmsgCommandDeprecated("repairDatabase") {}
-
-    bool errmsgRun(OperationContext* opCtx,
-                   const string& dbname,
-                   const BSONObj& cmdObj,
-                   string& errmsg,
-                   BSONObjBuilder& result) {
-
-        uasserted(ErrorCodes::CommandNotFound, repairRemovedMessage);
-        return false;
-    }
-} cmdRepairDatabase;
-
 /* drop collection */
 class CmdDrop : public ErrmsgCommandDeprecated {
 public:
@@ -502,7 +467,7 @@ public:
                 result.append("millis", timer.millis());
                 return 1;
             }
-            exec = InternalPlanner::collectionScan(opCtx, ns, collection, PlanExecutor::NO_YIELD);
+            exec = InternalPlanner::collectionScan(opCtx, ns, collection, PlanExecutor::YIELD_AUTO);
         } else if (min.isEmpty() || max.isEmpty()) {
             errmsg = "only one of min or max specified";
             return false;
@@ -532,7 +497,7 @@ public:
                                               min,
                                               max,
                                               BoundInclusion::kIncludeStartKeyOnly,
-                                              PlanExecutor::NO_YIELD);
+                                              PlanExecutor::YIELD_AUTO);
         }
 
         long long avgObjSize = collection->dataSize(opCtx) / numRecords;
