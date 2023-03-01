@@ -14609,7 +14609,7 @@ kmip_decode_response_batch_item(KMIP *ctx, ResponseBatchItem *value)
     }
     
     /* NOTE (ph) Omitting the tag check is a good way to test error output. */
-    //if(kmip_is_tag_next(ctx, KMIP_TAG_RESPONSE_PAYLOAD))
+    if(kmip_is_tag_next(ctx, KMIP_TAG_RESPONSE_PAYLOAD))
     {
         switch(value->operation)
         {
