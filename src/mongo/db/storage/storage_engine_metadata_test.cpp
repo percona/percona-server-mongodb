@@ -37,6 +37,7 @@
 #include <ostream>
 
 #include "mongo/bson/bsonobj.h"
+#include "mongo/bson/bsonmisc.h"
 #include "mongo/db/json.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/unittest/temp_dir.h"
@@ -152,14 +153,93 @@ TEST(StorageEngineMetadataTest, InvalidMetadataFileStorageEngineOptionsFieldNotO
     }
 }
 
-TEST(StorageEngineMetadataTest, InvalidMetadataFileKmipMasterKeyIdIsNotString) {
-    TempDir tempDir("StorageEngineMetadataTest_InvalidMetadataFileKmipMasterKeyIdIsNotString");
+TEST(StorageEngineMetadataTest, NoOptionsIsOk) {
+    TempDir tempDir("StorageEngineMetadataTest_NoOptionsIsOk");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj = fromjson(R"json({storage: {engine: "storageEngine1"}})json");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_OK(metadata.read());
+        ASSERT_EQUALS("storageEngine1", metadata.getStorageEngine());
+        ASSERT_TRUE(metadata.getStorageEngineOptions().isEmpty());
+        ASSERT_EQUALS(nullptr, metadata.keyId());
+    }
+}
+
+TEST(StorageEngineMetadataTest, NoEncryptionOptionsIsOk) {
+    TempDir tempDir("StorageEngineMetadataTest_NoEncryptionOptionsIsOk");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj = fromjson(R"json({storage: {engine: "storageEngine1", options: {}}})json");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_OK(metadata.read());
+        ASSERT_EQUALS("storageEngine1", metadata.getStorageEngine());
+        ASSERT_TRUE(metadata.getStorageEngineOptions().isEmpty());
+        ASSERT_EQUALS(nullptr, metadata.keyId());
+    }
+}
+
+TEST(StorageEngineMetadataTest, NonObjectEncryptionOptionsIsNotOk) {
+    TempDir tempDir("StorageEngineMetadataTest_NonObjectEncryptionOptionsIsNotOk");
     {
         std::string filename(tempDir.path() + "/storage.bson");
         std::ofstream ofs(filename.c_str());
         BSONObj obj = fromjson(R"json({
             storage: {
                 engine: "storageEngine1",
+                options: {encryption: "foobar"}
+            }
+        })json");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_NOT_OK(metadata.read());
+    }
+}
+
+TEST(StorageEngineMetadataTest, EmptyEncryptionOptionsIsOk) {
+    TempDir tempDir("StorageEngineMetadataTest_EmptyEncryptionOptionsIsOk");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj = fromjson(R"json({
+            storage: {
+                engine: "storageEngine1",
+                options: {encryption: {}}
+            }
+        })json");
+        ofs.write(obj.objdata(), obj.objsize());
+        ofs.flush();
+    }
+    {
+        StorageEngineMetadata metadata(tempDir.path());
+        ASSERT_OK(metadata.read());
+        ASSERT_EQUALS("storageEngine1", metadata.getStorageEngine());
+        const auto expectedOpts = BSON("encryption" << BSONObj());
+        ASSERT_EQUALS(0, metadata.getStorageEngineOptions().woCompare(expectedOpts));
+        ASSERT_EQUALS(nullptr, metadata.keyId());
+    }
+}
+
+TEST(StorageEngineMetadataTest, InvalidEncryptionOptionsIsNotOk) {
+    TempDir tempDir("StorageEngineMetadataTest_InvalidEncryptionOptionsIsNotOK");
+    {
+        std::string filename(tempDir.path() + "/storage.bson");
+        std::ofstream ofs(filename.c_str());
+        BSONObj obj = fromjson(R"json({
+            storage: {
                 options: {encryption: {kmip: {keyId: 42}}}
             }
         })json");
@@ -172,24 +252,8 @@ TEST(StorageEngineMetadataTest, InvalidMetadataFileKmipMasterKeyIdIsNotString) {
     }
 }
 
-TEST(StorageEngineMetadataTest, KmipMasterKeyIdMissing) {
-    TempDir tempDir("StorageEngineMetadataTest_KmipMasterKeyIdMissing");
-    {
-        std::string filename(tempDir.path() + "/storage.bson");
-        std::ofstream ofs(filename.c_str());
-        BSONObj obj = fromjson(R"json({storage: {engine: "storageEngine1", options: {}}})json");
-        ofs.write(obj.objdata(), obj.objsize());
-        ofs.flush();
-    }
-    {
-        StorageEngineMetadata metadata(tempDir.path());
-        ASSERT_OK(metadata.read());
-        ASSERT_EQUALS("", metadata.getKmipMasterKeyId());
-    }
-}
-
-TEST(StorageEngineMetadataTest, KmipMasterKeyIdIsString) {
-    TempDir tempDir("StorageEngineMetadataTest_KmipMasterKeyIdIsString");
+TEST(StorageEngineMetadataTest, ValidEncryptionOptionsIsOk) {
+    TempDir tempDir("StorageEngineMetadataTest_InvalidEncryptionOptionsIsNotOK");
     {
         std::string filename(tempDir.path() + "/storage.bson");
         std::ofstream ofs(filename.c_str());
@@ -205,7 +269,12 @@ TEST(StorageEngineMetadataTest, KmipMasterKeyIdIsString) {
     {
         StorageEngineMetadata metadata(tempDir.path());
         ASSERT_OK(metadata.read());
-        ASSERT_EQUALS("42", metadata.getKmipMasterKeyId());
+        ASSERT_EQUALS("storageEngine1", metadata.getStorageEngine());
+        const auto expectedOpts = BSON("encryption" << BSON("kmip" << BSON("keyId" << "42")));
+        ASSERT_EQUALS(0, metadata.getStorageEngineOptions().woCompare(expectedOpts));
+        // For more tests on key id itself, please @see the
+        // `src/mongo/db/encryption/key_id_test.cpp` file
+        ASSERT_NOT_EQUALS(nullptr, metadata.keyId());
     }
 }
 
