@@ -43,6 +43,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/init.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/encryption/encryption_options.h"
+#include "mongo/db/encryption/key.h"
 #include "mongo/db/json.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_data_protector.h"
@@ -81,7 +82,7 @@ public:
             encryptionGlobalParams.encryptionKeyFile,
             boost::filesystem::owner_read | boost::filesystem::owner_write);
 
-        _encryptionKeyDB = EncryptionKeyDB::create(_keydbpath.path(), "");
+        _encryptionKeyDB = EncryptionKeyDB::create(_keydbpath.path(), encryption::Key());
     }
 
     ~EncryptionHarness() {
