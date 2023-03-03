@@ -302,6 +302,7 @@ env.Library(
     LIBDEPS=[
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/encryption/key',
         '$BUILD_DIR/mongo/db/service_context',
         '$BUILD_DIR/mongo/db/concurrency/lock_manager',
         'storage_control',
@@ -346,9 +347,9 @@ env.Library(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
-        '$BUILD_DIR/mongo/db/server_options_core',
         '$BUILD_DIR/mongo/db/bson/dotted_path_support',
         '$BUILD_DIR/mongo/db/encryption/key',
+        '$BUILD_DIR/mongo/db/server_options_core',
     ],
 )
 
