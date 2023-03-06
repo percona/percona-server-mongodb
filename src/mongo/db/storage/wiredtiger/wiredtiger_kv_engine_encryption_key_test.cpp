@@ -29,8 +29,10 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
+#include <string.h>    // for `::strerror`
+#include <sys/stat.h>  // for `::chmod`
+
 #include <cstdint>
-#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <optional>
@@ -388,8 +390,11 @@ protected:
             FAIL("Can't create the encryption key file");
         }
         f.close();
-        namespace fs = std::filesystem;
-        fs::permissions(fullpath, fs::perms::owner_read | fs::perms::owner_write);
+        if (::chmod(fullpath.c_str(), S_IRUSR | S_IWUSR) != 0) {
+            std::string msg = "Can't set permissions on the encryption key file: ";
+            msg.append(::strerror(errno));
+            FAIL(msg);
+        }
         return fullpath;
     }
 
