@@ -167,7 +167,7 @@ TEST(StorageEngineMetadataTest, NoOptionsIsOk) {
         ASSERT_OK(metadata.read());
         ASSERT_EQUALS("storageEngine1", metadata.getStorageEngine());
         ASSERT_TRUE(metadata.getStorageEngineOptions().isEmpty());
-        ASSERT_EQUALS(nullptr, metadata.keyId());
+        ASSERT_TRUE(nullptr == metadata.keyId());
     }
 }
 
@@ -185,7 +185,7 @@ TEST(StorageEngineMetadataTest, NoEncryptionOptionsIsOk) {
         ASSERT_OK(metadata.read());
         ASSERT_EQUALS("storageEngine1", metadata.getStorageEngine());
         ASSERT_TRUE(metadata.getStorageEngineOptions().isEmpty());
-        ASSERT_EQUALS(nullptr, metadata.keyId());
+        ASSERT_TRUE(nullptr == metadata.keyId());
     }
 }
 
@@ -229,7 +229,7 @@ TEST(StorageEngineMetadataTest, EmptyEncryptionOptionsIsOk) {
         ASSERT_EQUALS("storageEngine1", metadata.getStorageEngine());
         const auto expectedOpts = BSON("encryption" << BSONObj());
         ASSERT_EQUALS(0, metadata.getStorageEngineOptions().woCompare(expectedOpts));
-        ASSERT_EQUALS(nullptr, metadata.keyId());
+        ASSERT_TRUE(nullptr == metadata.keyId());
     }
 }
 
@@ -274,7 +274,7 @@ TEST(StorageEngineMetadataTest, ValidEncryptionOptionsIsOk) {
         ASSERT_EQUALS(0, metadata.getStorageEngineOptions().woCompare(expectedOpts));
         // For more tests on key id itself, please @see the
         // `src/mongo/db/encryption/key_id_test.cpp` file
-        ASSERT_NOT_EQUALS(nullptr, metadata.keyId());
+        ASSERT_TRUE(nullptr != metadata.keyId());
     }
 }
 
