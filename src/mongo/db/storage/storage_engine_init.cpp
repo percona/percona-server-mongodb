@@ -188,6 +188,13 @@ StorageEngine::LastShutdownState initializeStorageEngine(OperationContext* opCtx
         uassertStatusOK(factory->validateMetadata(*metadata, storageGlobalParams));
     }
 
+    // copy the identifier of the configured key (if any) from the metadata to
+    // the special storage for further use during the `WiredTigerKVEngine`
+    // construction
+    if (auto keyId = metadata ? metadata->keyId() : nullptr; keyId) {
+        encryption::WtKeyIds::instance().configured = keyId->clone();
+    }
+
     auto guard = makeGuard([&] {
         auto& lockFile = StorageEngineLockFile::get(service);
         if (lockFile) {
