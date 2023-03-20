@@ -59,6 +59,7 @@ KeyKeyIdPair MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateK
     auto keyKeyId = read();
     if (!keyKeyId) {
         KeyErrorBuilder b(
+            KeyOperationType::read,
             "Cannot start. Master encryption key is absent on the key management facility. "
             "Check configuration options.");
         b.append("keyManagementFacilityType", read.facilityType());
@@ -100,12 +101,13 @@ Key MasterKeyProvider::readMasterKey() const try {
 } catch (const KeyError& e) {
     LOGV2_FATAL_OPTIONS(29117,
                         logv2::LogOptions(_logComponent, logv2::FatalMode::kAssertNoTrace),
-                        "Unable to retrieve master encryption key",
+                        "Key operation failed",
                         "error"_attr = e);
     throw;  // suppress the `control reaches end of non-void function` warning
 }
 
-std::pair<Key, std::unique_ptr<KeyId>> MasterKeyProvider::obtainMasterKey(bool saveKey) const try {
+std::pair<Key, std::unique_ptr<KeyId>>
+MasterKeyProvider::obtainMasterKey(bool saveKey, bool raiseOnError) const try {
     if (auto read = _factory->createProvidedRead(); read) {
         auto keyKeyId = _readMasterKey(*read, false);
         if (keyKeyId.keyId->needsSerializationToStorageEngineEncryptionOptions()) {
@@ -121,19 +123,17 @@ std::pair<Key, std::unique_ptr<KeyId>> MasterKeyProvider::obtainMasterKey(bool s
     }
     return {key, std::move(keyId)};
 } catch (const KeyError& e) {
+    if (raiseOnError) {
+        throw;
+    }
     LOGV2_FATAL_OPTIONS(29118,
                         logv2::LogOptions(_logComponent, logv2::FatalMode::kAssertNoTrace),
-                        "Unable to obtain master encryption key",
+                        "Key operation failed",
                         "error"_attr = e);
     throw;  // suppress the `control reaches end of non-void function` warning
 }
 
-void MasterKeyProvider::saveMasterKey(const Key& key) const try {
+void MasterKeyProvider::saveMasterKey(const Key& key) const {
     _saveMasterKey(*_factory->createSave(_wtKeyIds.configured.get()), key);
-} catch (const KeyError& e) {
-    LOGV2_FATAL_OPTIONS(29119,
-                        logv2::LogOptions(_logComponent, logv2::FatalMode::kAssertNoTrace),
-                        "Unable to save master encryption key",
-                        "error"_attr = e);
 }
 }  // namespace mongo::encryption
