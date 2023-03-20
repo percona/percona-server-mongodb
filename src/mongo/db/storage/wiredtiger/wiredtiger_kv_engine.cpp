@@ -81,6 +81,7 @@
 #include "mongo/db/concurrency/write_conflict_exception.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/key_error.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/master_key_provider.h"
 #include "mongo/db/global_settings.h"
@@ -121,6 +122,7 @@
 #include "mongo/util/concurrency/ticketholder.h"
 #include "mongo/util/debug_util.h"
 #include "mongo/util/exit.h"
+#include "mongo/util/exit_code.h"
 #include "mongo/util/log_and_backoff.h"
 #include "mongo/util/processinfo.h"
 #include "mongo/util/quick_exit.h"
@@ -641,10 +643,25 @@ WiredTigerKVEngine::WiredTigerKVEngine(
                 throw;
             }
 
-            auto [masterKey, masterKeyId] = keyProvider->obtainMasterKey(/* saveKey = */ false);
-            auto rotationKeyDB = encryptionKeyDB->clone(newKeyDBPath.string(), masterKey);
-            if (!masterKeyId) {
-                keyProvider->saveMasterKey(masterKey);
+            std::unique_ptr<EncryptionKeyDB> rotationKeyDB;
+            try {
+                auto [masterKey, masterKeyId] = keyProvider->obtainMasterKey(
+                    /* saveKey = */ false, /* raiseOnError = */ true);
+                rotationKeyDB = encryptionKeyDB->clone(newKeyDBPath.string(), masterKey);
+                if (!masterKeyId) {
+                    keyProvider->saveMasterKey(masterKey);
+                }
+            } catch (const encryption::KeyError& e) {
+                fs::remove_all(newKeyDBPath);
+                LOGV2_FATAL_CONTINUE(29120,
+                                     "Failed to rotate master encrypion key: key operation failed",
+                                     "error"_attr = e);
+                exitCleanly(EXIT_PERCONA_MASTER_KEY_ROTATION_ERROR);
+            } catch (const std::runtime_error& e) {
+                fs::remove_all(newKeyDBPath);
+                LOGV2_FATAL_CONTINUE(
+                    29121, "Failed to rotate master encrypion key", "reason"_attr = e.what());
+                exitCleanly(EXIT_PERCONA_MASTER_KEY_ROTATION_ERROR);
             }
             // close key db instances and rename dirs
             encryptionKeyDB.reset(nullptr);

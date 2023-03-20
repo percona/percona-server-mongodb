@@ -46,7 +46,7 @@ std::optional<KeyKeyIdPair> ReadKeyFile::operator()() const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the encryption key file failed: " << e.what();
-    throw KeyErrorBuilder(StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::read, StringData(msg.str())).error();
 }
 
 std::pair<std::string, std::uint64_t> ReadVaultSecret::_read(const VaultSecretId& id) const {
@@ -61,7 +61,7 @@ std::optional<KeyKeyIdPair> ReadVaultSecret::operator()() const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the Vault server failed: " << e.what();
-    throw KeyErrorBuilder(StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::read, StringData(msg.str())).error();
 }
 
 std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
@@ -70,7 +70,7 @@ std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the Vault server failed: " << e.what();
-    throw KeyErrorBuilder(StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::save, StringData(msg.str())).error();
 }
 
 std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
@@ -81,7 +81,7 @@ std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the KMIP server failed: " << e.what();
-    throw KeyErrorBuilder(StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::read, StringData(msg.str())).error();
 }
 
 std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
@@ -89,7 +89,7 @@ std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the KMIP server failed: " << e.what();
-    throw KeyErrorBuilder(StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::save, StringData(msg.str())).error();
 }
 
 std::unique_ptr<KeyOperationFactory> KeyOperationFactory::create(
@@ -195,7 +195,8 @@ constexpr const char* kNotEqualSecretPathsMsg =
 template <typename Id>
 class ConfiguredKeyIdDispatcher : public KeyIdConstVisitor {
 public:
-    ConfiguredKeyIdDispatcher(const Id*& target) : _target(target) {}
+    ConfiguredKeyIdDispatcher(const Id*& target, KeyOperationType opType)
+        : _target(target), _opType(opType) {}
 
 private:
     void visit(const KeyFilePath& configured) override {
@@ -213,8 +214,9 @@ private:
     static void _visit(const Id*& target, const Id& configured) {
         target = &configured;
     }
-    static void _visit(const KmipKeyId*& target, const VaultSecretId& configured) {
+    void _visit(const KmipKeyId*& target, const VaultSecretId& configured) {
         KeyErrorBuilder b(
+            _opType,
             "Trying to decrypt the data-at-rest with the key from a KMIP server "
             "but the system was configured with a key from a Vault server. "
             "Please replace the `--vaultServerName` command line option with `--kmipServerName` "
@@ -224,8 +226,9 @@ private:
             "and migrate all the data to the new database.");
         throw b.error();
     }
-    static void _visit(const VaultSecretId*& target, const KmipKeyId& configured) {
+    void _visit(const VaultSecretId*& target, const KmipKeyId& configured) {
         KeyErrorBuilder b(
+            _opType,
             "Trying to decrypt the data-at-rest with the key from a Vault server "
             "but the system was configured with a key from a KMIP server. "
             "Please replace the `--kmipServerName` command line option with `--vaultServerName` "
@@ -237,6 +240,7 @@ private:
     }
 
     const Id*& _target;
+    KeyOperationType _opType;
 };
 
 template <typename Derived>
@@ -253,16 +257,17 @@ std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createRead(const KeyId* confi
     auto derived = static_cast<const Derived*>(this);
 
     if (configured) {
-        auto d = detail::ConfiguredKeyIdDispatcher(derived->_configured);
+        auto d = detail::ConfiguredKeyIdDispatcher(derived->_configured, KeyOperationType::read);
         configured->accept(d);
     }
 
     if (derived->_rotateMasterKey) {
         if (!derived->_configured) {
-            throw KeyErrorBuilder(Messages<Derived>::kNotConfigured).error();
+            throw KeyErrorBuilder(KeyOperationType::read, Messages<Derived>::kNotConfigured)
+                .error();
         }
         if (derived->_provided && *derived->_provided == *derived->_configured) {
-            KeyErrorBuilder b(kRotationEqualKeyIdsMsg);
+            KeyErrorBuilder b(KeyOperationType::read, kRotationEqualKeyIdsMsg);
             b.append("configured", *derived->_configured);
             b.append("provided", *derived->_provided);
             throw b.error();
@@ -272,7 +277,7 @@ std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createRead(const KeyId* confi
 
     if (derived->_configured) {
         if (derived->_provided && *derived->_provided != *derived->_configured) {
-            KeyErrorBuilder b(Messages<Derived>::kNotEqualKeyIds);
+            KeyErrorBuilder b(KeyOperationType::read, Messages<Derived>::kNotEqualKeyIds);
             b.append("configured", *derived->_configured);
             b.append("provided", *derived->_provided);
             throw b.error();
@@ -280,7 +285,7 @@ std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createRead(const KeyId* confi
         if constexpr (std::is_same_v<Derived, VaultSecretOperationFactory>) {
             if (!derived->_providedSecretPath.empty() &&
                 derived->_providedSecretPath != derived->_configured->path()) {
-                KeyErrorBuilder b(kNotEqualSecretPathsMsg);
+                KeyErrorBuilder b(KeyOperationType::read, kNotEqualSecretPathsMsg);
                 b.append("configuredSecretPath", derived->_configured->path());
                 b.append("providedSecretPath", derived->_providedSecretPath);
                 throw b.error();
@@ -303,7 +308,7 @@ std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createRead(const KeyId* confi
         }
     }
 
-    throw KeyErrorBuilder(Messages<Derived>::kNotConfigured).error();
+    throw KeyErrorBuilder(KeyOperationType::read, Messages<Derived>::kNotConfigured).error();
 }
 }  // namespace detail
 
@@ -329,7 +334,7 @@ std::unique_ptr<SaveKey> VaultSecretOperationFactory::createSave(const KeyId* co
     }
 
     if (configured) {
-        auto d = detail::ConfiguredKeyIdDispatcher(_configured);
+        auto d = detail::ConfiguredKeyIdDispatcher(_configured, KeyOperationType::save);
         configured->accept(d);
         if (_configured) {
             return _doCreateSave(_configured->path());
@@ -337,6 +342,7 @@ std::unique_ptr<SaveKey> VaultSecretOperationFactory::createSave(const KeyId* co
     }
 
     KeyErrorBuilder b(
+        KeyOperationType::save,
         "No Vault secret path is provided. Please specify either the `--vaultSecret` "
         "command line option or the `security.vault.secret` configuration file parameter.");
     throw b.error();
