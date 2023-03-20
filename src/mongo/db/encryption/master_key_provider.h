@@ -82,22 +82,29 @@ public:
     /// Intendend to be called for obtaining the master key for
     /// a _just created_ encryption key database.
     ///
-    /// Initiates a graceful exit from the program if can't unambiguously
-    /// read the key from or save the key to the key management facility.
+    /// If the function can't unambiguously read the key from or save the key
+    /// to the key management facility, it either initiates a graceful exit from
+    /// the program or throws a `KeyError` exception depending on the value
+    /// of the `raiseOnError` argument.
     ///
     /// @param saveKey if true, the generated key is immediately saved
     ///                to the key management facility
+    /// @param raiseOnError if true, throws a `KeyError` exception when
+    ///                     operation on the key fails; otherwise initiates
+    ///                     a graceful exit from the program.
     ///
     /// @returns the read or generated encryption key and its identifier;
     ///          the latter is not `nullptr` if `saveKey` is `true`
-    std::pair<Key, std::unique_ptr<KeyId>> obtainMasterKey(bool saveKey = true) const;
+    ///
+    /// @throw `KeyError` @see above
+    std::pair<Key, std::unique_ptr<KeyId>> obtainMasterKey(bool saveKey = true,
+                                                           bool raiseOnError = false) const;
 
     /// @brief Saves the master key to a key manageent facitlity.
     ///
-    /// Initiates a graceful exit from the program if can't unambiguously save
-    /// the master encryption key.
-    ///
     /// @param key an encryption key to be saves
+    ///
+    /// @throws `KeyError` if can't unambiguously save the master encryption key.
     void saveMasterKey(const Key& key) const;
 
 private:

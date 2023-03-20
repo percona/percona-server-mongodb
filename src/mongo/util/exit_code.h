@@ -61,7 +61,10 @@ enum ExitCode : int {
     EXIT_AUDIT_ERROR = 70,
     EXIT_UNCAUGHT = 100,             // top level exception that wasn't caught
     EXIT_TEST = 101,
-    EXIT_AUDIT_ROTATE_ERROR = 102  // The startup rotation of audit logs failed
+    EXIT_AUDIT_ROTATE_ERROR = 102,  // The startup rotation of audit logs failed
+
+    // Percona specific exit codes
+    EXIT_PERCONA_MASTER_KEY_ROTATION_ERROR = 1001
 };
 
 }  // namespace mongo
