@@ -31,8 +31,10 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
@@ -61,9 +63,23 @@ private:
     BSONObj _info;
 };
 
+enum class KeyOperationType : std::uint8_t {
+    read,
+    save
+};
+
+inline StringData to_string(KeyOperationType opType) {
+    switch (opType) {
+        case KeyOperationType::read: return "read";
+        case KeyOperationType::save: return "save";
+    }
+    throw std::invalid_argument(std::to_string(std::underlying_type_t<KeyOperationType>(opType)));
+}
+
 class KeyErrorBuilder {
 public:
-    explicit KeyErrorBuilder(const StringData& reason) {
+    KeyErrorBuilder(KeyOperationType opType, const StringData& reason) {
+        _builder.append("failedOperation", to_string(opType));
         _builder.append("reason", reason.empty() ? StringData("") : reason);
     }
 

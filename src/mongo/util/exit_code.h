@@ -60,7 +60,10 @@ enum ExitCode : int {
     EXIT_PROCESS_HEALTH_CHECK = 67,  // Process health check triggered the crash.
     EXIT_AUDIT_ERROR = 70,
     EXIT_UNCAUGHT = 100,             // top level exception that wasn't caught
-    EXIT_TEST = 101
+    EXIT_TEST = 101,
+
+    // Percona specific exit codes
+    EXIT_PERCONA_MASTER_KEY_ROTATION_ERROR = 1001
 };
 
 }  // namespace mongo
