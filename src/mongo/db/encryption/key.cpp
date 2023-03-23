@@ -63,6 +63,10 @@ Key::Key(const std::string& base64EncodedKey) {
     std::memcpy(data(), decodedKey.c_str(), size());
 }
 
+Key::Key(const std::uint8_t* keyData) {
+    std::copy(keyData, keyData + kLength, data());
+}
+
 std::string Key::base64() const {
     return base64::encode(StringData(reinterpret_cast<const char*>(data()), size()));
 }
