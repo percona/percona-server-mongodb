@@ -1314,7 +1314,6 @@ int kmip_bio_register_symmetric_key_with_context(KMIP *ctx, BIO *bio,
     crp.object.key_block = &kb;
     kmip_init_key_block(crp.object.key_block);
     crp.object.key_block->key_format_type = KMIP_KEYFORMAT_RAW;
-    crp.object.key_block->key_compression_type = KMIP_KEYCOMP_EC_PUB_UNCOMPRESSED;
 
     ByteString bs;
     bs.value = (unsigned char*)key;
