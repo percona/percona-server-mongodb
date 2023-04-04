@@ -64,7 +64,7 @@ Key::Key(const std::uint8_t* keyData, std::size_t keyDataSize) {
         return;
     } else {
         std::ostringstream msg;
-        msg << "invalid data for an encryption key: it must be a byte string of legth " << kLength
+        msg << "invalid data for an encryption key: it must be a byte string of length " << kLength
             << " in either raw or base64-encoded form";
         throw std::runtime_error(msg.str());
     }
