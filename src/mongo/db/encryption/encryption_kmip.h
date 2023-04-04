@@ -31,7 +31,9 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include <cstdint>
 #include <string>
+#include <vector>
 
 /// The code in this namespace is not intended to be called from outside
 /// the `mongo::encryption` namespace
@@ -41,21 +43,21 @@ namespace mongo::encryption::detail {
 ///
 /// @param keyId Identifier of the key to read
 ///
-/// @returns Key data if the reading succeeds or an empty string if no key data
+/// @returns Key data if the reading succeeds or an empty vector if no key data
 ///     is associated with the key identifier
 ///
 /// @throws std::runtime_error if the server can't connect to any of the KMIP
 ///     servers listed in the configuration
-std::string kmipReadKey(const std::string& keyId);
+std::vector<std::uint8_t> kmipReadKey(const std::string& keyId);
 
 /// @brief Writes the key to the KMIP server specified in the configuration.
 ///
-/// @param keyData The key data, should be base64-encoded
+/// @param keyData The key data
 ///
 /// @returns Key identifier if the writing succeeds or an empty string otherwise.
 ///
 /// @throws std::runtime_error if the server can't connect to any of the KMIP
 ///     servers listed in the configuration
-std::string kmipWriteKey(std::string const& keyData);
+std::string kmipWriteKey(const std::vector<std::uint8_t>& keyData);
 
 }  // namespace mongo::encryption::detail

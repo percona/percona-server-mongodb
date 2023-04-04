@@ -56,7 +56,7 @@ namespace kmippp {
       id_t op_create(const name_t& name, const name_t& group);
 
       // KMIP::register operation, stores an existing symmetric key on the server
-      id_t op_register(const name_t& name, const name_t& group, const key_t& k);
+      id_t op_register(const key_t& k);
 
       // KMIP::get operation, retrieve a symmetric key by id
       key_t op_get(const id_t& id);
