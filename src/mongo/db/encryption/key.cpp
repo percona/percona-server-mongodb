@@ -52,14 +52,21 @@ Key::Key() {
     SecureRandom().fill(data(), size());
 }
 
-Key::Key(const std::string& base64EncodedKey) {
-    std::string decodedKey = base64::decode(base64EncodedKey);
-    if (decodedKey.size() != size()) {
+Key::Key(const std::uint8_t* keyData, std::size_t keyDataSize) {
+    StringData s(reinterpret_cast<const char*>(keyData), keyDataSize);
+    if (keyDataSize == base64::encodedLength(kLength) && base64::validate(s)) {
+        std::string decodedKey = base64::decode(s);
+        std::memcpy(data(), decodedKey.c_str(), kLength);
+        return;
+    } else if (keyDataSize == kLength) {
+        std::memcpy(data(), keyData, kLength);
+        return;
+    } else {
         std::ostringstream msg;
-        msg << "encryption key length should be " << size() << " bytes";
+        msg << "invalid data for an encryption key: it must be a byte string of length " << kLength
+            << " in either raw or base64-encoded form";
         throw std::runtime_error(msg.str());
     }
-    std::memcpy(data(), decodedKey.c_str(), size());
 }
 
 std::string Key::base64() const {

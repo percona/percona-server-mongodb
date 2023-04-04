@@ -35,6 +35,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <type_traits>
 
 namespace mongo {
 class SecureRandom;
@@ -51,7 +52,22 @@ public:
 
     Key();
     explicit Key(SecureRandom& srng);
-    explicit Key(const std::string& base64);
+    Key(const std::uint8_t* keyData, std::size_t keyDataSize);
+
+    // @note. The `enable_if_t` instantiation verifies that the container type:
+    // 1. has integral value type;
+    // 2. has value type of size 1;
+    // 3. has the `data` and the `size` member functions.
+    template <
+        typename ContiguousContainer,
+        typename = std::enable_if_t<
+            std::is_integral_v<typename ContiguousContainer::value_type> &&
+            sizeof(typename ContiguousContainer::value_type) == 1 &&
+            std::is_void_v<std::void_t<decltype(std::declval<ContiguousContainer>().data()),
+                                       decltype(std::declval<ContiguousContainer>().size())>>>>
+    explicit Key(const ContiguousContainer& keyData)
+        : Key(reinterpret_cast<const std::uint8_t*>(keyData.data()), keyData.size()) {}
+
 
     friend bool operator==(const Key& lhs, const Key& rhs) noexcept {
         return lhs._data == rhs._data;

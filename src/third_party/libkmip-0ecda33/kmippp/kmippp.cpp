@@ -8,6 +8,7 @@
 #include <time.h>
 
 #include <array>
+#include <cstddef>  // for std::size_t
 #include <sstream>
 #include <utility>
 
@@ -439,7 +440,7 @@ context::id_t context::op_create(const name_t& name, const name_t& group) {
     return ret;
 }
 
-context::id_t context::op_register(const name_t& name, const name_t& group, const key_t& key) {
+context::id_t context::op_register(const key_t& key) {
     KMIP ctx = {0};
     kmip_init(&ctx, nullptr, 0, KMIP_1_0);
     scope_guard guard([&ctx]() {
@@ -447,8 +448,8 @@ context::id_t context::op_register(const name_t& name, const name_t& group, cons
         kmip_destroy(&ctx);
     });
 
-    Attribute a[5];
-    for(int i = 0; i < 5; i++) {
+    Attribute a[3];
+    for (std::size_t i = 0; i < ARRAY_LENGTH(a); i++) {
         kmip_init_attribute(&a[i]);
     }
 
@@ -463,21 +464,6 @@ context::id_t context::op_register(const name_t& name, const name_t& group, cons
     int32 mask = KMIP_CRYPTOMASK_ENCRYPT | KMIP_CRYPTOMASK_DECRYPT;
     a[2].type = KMIP_ATTR_CRYPTOGRAPHIC_USAGE_MASK;
     a[2].value = &mask;
-
-    Name ts;
-    TextString ts2 = {0,0};
-    ts2.value = const_cast<char*>(name.c_str());
-    ts2.size = kmip_strnlen_s(ts2.value, 250);
-    ts.value = &ts2;
-    ts.type = KMIP_NAME_UNINTERPRETED_TEXT_STRING;
-    a[3].type = KMIP_ATTR_NAME;
-    a[3].value = &ts;
-
-    TextString gs2 = {0,0};
-    gs2.value = const_cast<char*>(group.c_str());
-    gs2.size = kmip_strnlen_s(gs2.value, 250);
-    a[4].type = KMIP_ATTR_OBJECT_GROUP;
-    a[4].value = &gs2;
 
     TemplateAttribute ta = {0};
     ta.attributes = a;
