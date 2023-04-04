@@ -41,8 +41,8 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo::encryption {
 std::optional<KeyKeyIdPair> ReadKeyFile::operator()() const try {
-    return KeyKeyIdPair{Key(detail::SecretString::readFromFile(_path.toString(), "encryption key")),
-                        _path.clone()};
+    auto s = detail::SecretString::readFromFile(_path.toString(), "encryption key");
+    return KeyKeyIdPair{Key(static_cast<const std::string&>(s)), _path.clone()};
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the encryption key file failed: " << e.what();
@@ -74,8 +74,8 @@ std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
 }
 
 std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
-    if (auto encodedKey = detail::kmipReadKey(_id.toString()); !encodedKey.empty()) {
-        return KeyKeyIdPair{Key(encodedKey), _id.clone()};
+    if (auto rawKeyData = detail::kmipReadKey(_id.toString()); !rawKeyData.empty()) {
+        return KeyKeyIdPair{Key(rawKeyData), _id.clone()};
     }
     return std::nullopt;
 } catch (const std::runtime_error& e) {
@@ -85,7 +85,9 @@ std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
 }
 
 std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
-    return std::make_unique<KmipKeyId>(detail::kmipWriteKey(k.base64()));
+    std::vector<std::uint8_t> rawKeyData(k.size(), 0);
+    std::copy(k.data(), k.data() + k.size(), rawKeyData.begin());
+    return std::make_unique<KmipKeyId>(detail::kmipWriteKey(rawKeyData));
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the KMIP server failed: " << e.what();

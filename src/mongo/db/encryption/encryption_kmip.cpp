@@ -68,21 +68,19 @@ kmippp::context kmipCreateContext() {
 
 }  // namespace
 
-std::string kmipReadKey(const std::string& keyId) {
+std::vector<std::uint8_t> kmipReadKey(const std::string& keyId) {
     auto ctx = kmipCreateContext();
     const auto key = ctx.op_get(keyId);
 
     if (key.empty()) {
         LOGV2_DEBUG(29045, 4, "No key is found on the KMIP server");
-        return "";
     }
-
-    return std::string(key.begin(), key.end());
+    return key;
 }
 
-std::string kmipWriteKey(std::string const& keyData) {
+std::string kmipWriteKey(const std::vector<std::uint8_t>& keyData) {
     auto ctx = kmipCreateContext();
-    return ctx.op_register("", "", kmippp::context::key_t(keyData.begin(), keyData.end()));
+    return ctx.op_register(keyData);
 }
 
 }  // namespace mongo::encryption::detail
