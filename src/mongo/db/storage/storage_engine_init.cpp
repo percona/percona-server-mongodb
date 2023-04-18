@@ -207,19 +207,19 @@ StorageEngine::LastShutdownState initializeStorageEngine(OperationContext* opCtx
             factory->create(opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr)));
         service->getStorageEngine()->finishInit();
     } catch (const MasterKeyRotationCompleted&) {
+        const encryption::WtKeyIds& keyIds = encryption::WtKeyIds::instance();
+        invariant(keyIds.decryption && keyIds.futureConfigured);
         // Write metadata because KMIP master key ID has been updated.
         writeMetadata(std::move(metadata),
                       factory,
                       storageGlobalParams,
-                      encryption::WtKeyIds::instance().futureConfigured.get(),
+                      keyIds.futureConfigured.get(),
                       initFlags);
-        const encryption::WtKeyIds& keyIds = encryption::WtKeyIds::instance();
-        invariant(keyIds.decryption && keyIds.futureConfigured);
         LOGV2(29111,
               "Rotated master encryption key",
               "oldKeyIdentifier"_attr = *keyIds.decryption,
               "newKeyIdentifier"_attr = *keyIds.futureConfigured);
-        quickExit(EXIT_SUCCESS);
+        throw;
     }
 
     if (lockFile) {

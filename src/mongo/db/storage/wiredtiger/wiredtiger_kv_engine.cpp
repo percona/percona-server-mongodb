@@ -81,8 +81,9 @@
 #include "mongo/db/concurrency/locker.h"
 #include "mongo/db/concurrency/write_conflict_exception.h"
 #include "mongo/db/encryption/encryption_options.h"
+#include "mongo/db/encryption/error.h"
+#include "mongo/db/encryption/error_builder.h"
 #include "mongo/db/encryption/key.h"
-#include "mongo/db/encryption/key_error.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/master_key_provider.h"
 #include "mongo/db/global_settings.h"
@@ -288,9 +289,9 @@ std::string toString(const StorageEngine::OldestActiveTransactionTimestampResult
 namespace {
 TicketHolder openWriteTransaction(128);
 TicketHolder openReadTransaction(128);
-constexpr auto keydbDir = "key.db";
-constexpr auto rotationDir = "key.db.rotation";
-constexpr auto keydbBackupDir = "key.db.rotated";
+constexpr auto kKeyDbDirBasename = "key.db";
+constexpr auto kRotationKeyDbDirBasename = "key.db.rotation";
+constexpr auto kBackupKeyDbDirBasename = "key.db.rotated";
 }  // namespace
 
 OpenWriteTransactionParam::OpenWriteTransactionParam(StringData name, ServerParameterType spt)
@@ -391,7 +392,7 @@ StatusWith<std::deque<StorageEngine::BackupBlock>> getBackupBlocksFromBackupCurs
     const char* filename;
     const auto directoryPath = boost::filesystem::path(dbPath);
     const auto wiredTigerLogFilePrefix = "WiredTigerLog";
-    const auto isKeyDB = directoryPath.filename() == keydbDir;
+    const auto isKeyDB = directoryPath.filename() == kKeyDbDirBasename;
     while ((wtRet = cursor->next(cursor)) == 0) {
         invariantWTOK(cursor->get_key(cursor, &filename), session);
 
@@ -473,11 +474,86 @@ StatusWith<std::deque<StorageEngine::BackupBlock>> getBackupBlocksFromBackupCurs
     return backupBlocks;
 }
 
-void validateRotationIsPossible(const std::string& keyDbPath,
-                                bool keyDbPathIsJustCreated,
+
+/// Prepares directory for the encryption key database.
+///
+/// If the directory at `keyDbPath` exists, the function does nothing.
+/// Otherwise, tries to reuse the data from the `betaKeyDbPath` if the latter
+/// exists. If not, creates the directory at `keyDbpath`.
+///
+/// @param keyDbDir      the directory for encryption key database
+/// @param betaKeyDbDir  the directory to import existing encryption key
+///                      database files from
+///
+/// @returns `true` if fresh new directory has been created and `false` if
+///           existing key database files are imported
+/// @throws `encryption::Error` in case of any error
+bool prepareKeyDbDir(const boost::filesystem::path& keyDbDir,
+                     const boost::filesystem::path& betaKeyDbDir,
+                     bool directoryPerDb) {
+    namespace fs = boost::filesystem;
+    if (fs::exists(keyDbDir)) {
+        return false;
+    }
+    if (!fs::exists(betaKeyDbDir)) {
+        try {
+            fs::create_directory(keyDbDir);
+            return true;
+        } catch (std::exception& e) {
+            throw encryption::ErrorBuilder("Can't create the encryption key database directory",
+                                           e.what())
+                .append("encryptionKeyDatabaseDirectory", keyDbDir.string())
+                .error();
+        }
+    }
+
+    if (!directoryPerDb) {
+        // --directoryperdb is not specified - just rename
+        try {
+            fs::rename(betaKeyDbDir, keyDbDir);
+            return false;
+        } catch (std::exception& e) {
+            throw encryption::ErrorBuilder("Can't rename the encryption key database directory",
+                                           e.what())
+                .append("oldName", betaKeyDbDir.string())
+                .append("newName", keyDbDir.string())
+                .error();
+        }
+    }
+    // --directoryperdb specified - there are chances betaKeyDbPath contains
+    // user data from 'keydb' database
+    // move everything except
+    //   collection-*.wt
+    //   index-*.wt
+    //   collection/*.wt
+    //   index/*.wt
+    try {
+        std::vector<fs::path> emptyDirs;
+        std::vector<fs::path> copiedFiles;
+        copy_keydb_files(betaKeyDbDir, keyDbDir, emptyDirs, copiedFiles);
+        for (auto&& file : copiedFiles) {
+            fs::remove(file);
+        }
+        for (auto&& dir : emptyDirs) {
+            fs::remove(dir);
+        }
+        return false;
+    } catch (std::exception& e) {
+        throw encryption::ErrorBuilder(
+            "Can't move encryption key database files from the old location to the new one",
+            e.what())
+            .append("oldLocation", betaKeyDbDir.string())
+            .append("newLocation", keyDbDir.string())
+            .error();
+    }
+}
+
+void validateRotationIsPossible(const std::string& keyDbDir,
+                                bool keyDbDirIsFresh,
+                                const std::string& dbPath,
                                 bool vaultRotateMasterKey,
                                 bool kmipRotateMasterKey) {
-    const char* kDbPathMsg =
+    const char* kDbDirMsg =
         "For opening an existing encrypted database, check correctness of the `--dbPath` command "
         "line option or the `storage.dbPath` configuration parameter";
     const char* kRemoveVaultRotatationMsg =
@@ -487,18 +563,143 @@ void validateRotationIsPossible(const std::string& keyDbPath,
         "For creating a new empty encrypted database, remove the `--kmipRotateMasterKey` command "
         "line option and the `security.kmip.rotateMasterKey` configuration parameter.";
 
-    if (keyDbPathIsJustCreated && (vaultRotateMasterKey || kmipRotateMasterKey)) {
+    if (keyDbDirIsFresh && (vaultRotateMasterKey || kmipRotateMasterKey)) {
         std::array<const char*, 2u> actions = {
-            {kDbPathMsg,
+            {kDbDirMsg,
              (vaultRotateMasterKey ? kRemoveVaultRotatationMsg : kRemoveKmipRotationMsg)}};
-        LOGV2_FATAL_NOTRACE(
-            29114,
-            "Master key rotation is in effect but there is no existing encryption key database.",
-            "encryptionKeyDatabasePath"_attr = keyDbPath,
-            "possibleRemediationActions"_attr = actions);
+
+        throw encryption::ErrorBuilder(
+            "Master key rotation is in effect but there is no existing encryption key database.")
+            .append("dbPath", dbPath)
+            .append("encryptionKeyDatabaseDirectory", keyDbDir)
+            .append("possibleRemediationActions", actions.begin(), actions.end())
+            .error();
     }
 }
 
+template <typename KeyDbDirHook>
+std::unique_ptr<EncryptionKeyDB> createKeyDb(const boost::filesystem::path& dbPath,
+                                             KeyDbDirHook keyDbDirHook,
+                                             const encryption::MasterKeyProvider& keyProvider,
+                                             bool directoryPerDb) {
+    namespace fs = boost::filesystem;
+    fs::path keyDbDir = dbPath / kKeyDbDirBasename;
+    bool keyDbDirIsFresh = prepareKeyDbDir(keyDbDir, dbPath / "keydb", directoryPerDb);
+
+    // It is required to remove the data in the `keyDbDir` directory if that
+    // data has been created by a failed call to the `EncryptionKeyDB::create`
+    // function (see below) and keep the data if it existed before the call.
+    // Since we need to detect existing data in advance, we can't simply call
+    // `boost::filesystem::is_empty` in the scope guard's functor.
+    auto keyDbDirGuard = makeGuard([&keyDbDir, keyDbDirIsFresh] {
+        if (keyDbDirIsFresh) {
+            fs::remove_all(keyDbDir);
+        }
+    });
+
+    keyDbDirHook(keyDbDir.string(), keyDbDirIsFresh);
+
+    try {
+        auto keyDb = EncryptionKeyDB::create(keyDbDir.string(),
+                                             keyDbDirIsFresh ? keyProvider.obtainMasterKey().first
+                                                             : keyProvider.readMasterKey());
+        keyDbDirGuard.dismiss();
+        return keyDb;
+    } catch (const encryption::Error& e) {
+        throw encryption::ErrorBuilder("Can't create encryption key database", e)
+            .append("encryptionKeyDatabaseDirectory", keyDbDir.string())
+            .error();
+    } catch (const std::exception& e) {
+        throw encryption::ErrorBuilder("Can't create encryption key database", e.what())
+            .append("encryptionKeyDatabaseDirectory", keyDbDir.string())
+            .error();
+    }
+}
+
+void keyDbRotateMasterKey(std::unique_ptr<const EncryptionKeyDB> keyDb,
+                          const boost::filesystem::path& dbPath,
+                          const encryption::MasterKeyProvider& keyProvider) try {
+    namespace fs = boost::filesystem;
+    fs::path rotationKeyDbDir = dbPath / kRotationKeyDbDirBasename;
+    if (fs::exists(rotationKeyDbDir)) {
+        throw encryption::ErrorBuilder("Rotation key database directory already exists")
+            .append("rotationKeyDatabaseDirectory", rotationKeyDbDir.string())
+            .error();
+    }
+    try {
+        fs::create_directory(rotationKeyDbDir);
+    } catch (std::exception& e) {
+        throw encryption::ErrorBuilder("Can't create rotation key database directory")
+            .append("rotationKeyDatabaseDirectory", rotationKeyDbDir.string())
+            .error();
+    }
+    auto rotationKeyDbDirGuard = makeGuard([&] { fs::remove_all(rotationKeyDbDir); });
+
+    auto [masterKey, masterKeyId] = keyProvider.obtainMasterKey(/* saveKey = */ false);
+    std::unique_ptr<EncryptionKeyDB> rotationKeyDb =
+        keyDb->clone(rotationKeyDbDir.string(), masterKey);
+    if (!masterKeyId) {
+        keyProvider.saveMasterKey(masterKey);
+    }
+    rotationKeyDbDirGuard.dismiss();
+
+    // close key db instances and rename dirs
+    fs::path keyDbDir(keyDb->path());
+    fs::path backupKeyDbDir = dbPath / kBackupKeyDbDirBasename;
+    rotationKeyDb.reset(nullptr);
+    keyDb.reset(nullptr);
+    fs::remove_all(backupKeyDbDir);
+    fs::rename(keyDbDir, backupKeyDbDir);
+    fs::rename(rotationKeyDbDir, keyDbDir);
+} catch (const encryption::Error& e) {
+    throw encryption::ErrorBuilder("Can't rotate master encryption key", e).error();
+} catch (const std::exception& e) {
+    throw encryption::ErrorBuilder("Can't rotate master encryption key", e.what()).error();
+}
+
+void setUpWiredTigerEncryption(const std::string& cipherMode, EncryptionKeyDB* keyDb) {
+    // add Percona encryption extension
+    std::stringstream ss;
+    ss << "local=(entry=percona_encryption_extension_init,early_load=true,config=(cipher="
+       << cipherMode << "))";
+    WiredTigerExtensions::get(getGlobalServiceContext())->addExtension(ss.str());
+
+    // setup encryption hooks
+    // WiredTigerEncryptionHooks instance should be created after EncryptionKeyDB (depends on it)
+    std::unique_ptr<WiredTigerEncryptionHooks> hooks;
+    if (cipherMode == "AES256-CBC") {
+        hooks = std::make_unique<WiredTigerEncryptionHooksCBC>(keyDb);
+    } else {  // AES256-GCM
+        hooks = std::make_unique<WiredTigerEncryptionHooksGCM>(keyDb);
+    }
+    EncryptionHooks::set(getGlobalServiceContext(), std::move(hooks));
+}
+
+/// Creates encryption key database and sets up wiredtiger add-ons
+std::unique_ptr<EncryptionKeyDB> setUpDataAtRestEncryption(
+    const EncryptionGlobalParams& params,
+    const boost::filesystem::path& dbPath,
+    const encryption::MasterKeyProviderFactory& keyProviderFactory,
+    bool directoryPerDb) {
+    if (!params.enableEncryption) {
+        return nullptr;
+    }
+
+    auto keyProvider = keyProviderFactory(params, logv2::LogComponent::kStorage);
+    invariant(keyProvider);
+
+    auto hook = [&dbPath, vault = params.vaultRotateMasterKey, kmip = params.kmipRotateMasterKey](
+                    const std::string& keyDbDir, bool keyDbDirIsFresh) {
+        validateRotationIsPossible(keyDbDir, keyDbDirIsFresh, dbPath.string(), vault, kmip);
+    };
+    auto keyDb = createKeyDb(dbPath, hook, *keyProvider, directoryPerDb);
+    if (params.shouldRotateMasterKey()) {
+        keyDbRotateMasterKey(std::move(keyDb), dbPath, *keyProvider);
+        throw MasterKeyRotationCompleted();
+    }
+    setUpWiredTigerEncryption(params.encryptionCipherMode, keyDb.get());
+    return keyDb;
+}
 }  // namespace
 
 StringData WiredTigerKVEngine::kTableUriPrefix = "table:"_sd;
@@ -515,7 +716,11 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     bool repair,
     bool readOnly,
     const encryption::MasterKeyProviderFactory& keyProviderFactory)
-    : _clockSource(cs),
+    : _encryptionKeyDB(setUpDataAtRestEncryption(encryptionGlobalParams,
+                                                 boost::filesystem::path(path),
+                                                 keyProviderFactory,
+                                                 storageGlobalParams.directoryperdb)),
+      _clockSource(cs),
       _oplogManager(std::make_unique<WiredTigerOplogManager>()),
       _canonicalName(canonicalName),
       _path(path),
@@ -544,138 +749,6 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     }
 
     _previousCheckedDropsQueued.store(_clockSource->now().toMillisSinceEpoch());
-
-    if (encryptionGlobalParams.enableEncryption) {
-        namespace fs = boost::filesystem;
-        bool just_created{false};
-        fs::path keyDBPath = path;
-        keyDBPath /= keydbDir;
-        auto keyDBPathGuard = makeGuard([&] { if (just_created) fs::remove_all(keyDBPath); });
-        if (!fs::exists(keyDBPath)) {
-            fs::path betaKeyDBPath = path;
-            betaKeyDBPath /= "keydb";
-            if (!fs::exists(betaKeyDBPath)) {
-                try {
-                    fs::create_directory(keyDBPath);
-                    just_created = true;
-                } catch (std::exception& e) {
-                    LOGV2(29007, "error creating KeyDB dir {path} {what}",
-                          "path"_attr = keyDBPath.string(),
-                          "what"_attr = e.what());
-                    throw;
-                }
-            } else if (!storageGlobalParams.directoryperdb) {
-                // --directoryperdb is not specified - just rename
-                try {
-                    fs::rename(betaKeyDBPath, keyDBPath);
-                } catch (std::exception& e) {
-                    LOGV2(29008, "error renaming KeyDB directory from {path1} to {path2} {what}",
-                          "path1"_attr = betaKeyDBPath.string(),
-                          "path2"_attr = keyDBPath.string(),
-                          "what"_attr = e.what());
-                    throw;
-                }
-            } else {
-                // --directoryperdb specified - there are chances betaKeyDBPath contains
-                // user data from 'keydb' database
-                // move everything except
-                //   collection-*.wt
-                //   index-*.wt
-                //   collection/*.wt
-                //   index/*.wt
-                try {
-                    std::vector<fs::path> emptyDirs;
-                    std::vector<fs::path> copiedFiles;
-                    copy_keydb_files(betaKeyDBPath, keyDBPath, emptyDirs, copiedFiles);
-                    for (auto&& file : copiedFiles)
-                        fs::remove(file);
-                    for (auto&& dir : emptyDirs)
-                        fs::remove(dir);
-                } catch (std::exception& e) {
-                    LOGV2(29009, "error moving KeyDB files from {path1} to {path2} {what}",
-                          "path1"_attr = betaKeyDBPath.string(),
-                          "path2"_attr = keyDBPath.string(),
-                          "what"_attr = e.what());
-                    throw;
-                }
-            }
-        }
-
-        validateRotationIsPossible(keyDBPath.string(),
-                                   just_created,
-                                   encryptionGlobalParams.vaultRotateMasterKey,
-                                   encryptionGlobalParams.kmipRotateMasterKey);
-        auto keyProvider =
-            keyProviderFactory(encryptionGlobalParams, logv2::LogComponent::kStorage);
-        auto encryptionKeyDB = EncryptionKeyDB::create(
-            keyDBPath.string(),
-            just_created ? keyProvider->obtainMasterKey().first : keyProvider->readMasterKey());
-        keyDBPathGuard.dismiss();
-        // do master key rotation if necessary
-        if (encryptionGlobalParams.shouldRotateMasterKey()) {
-            fs::path newKeyDBPath = path;
-            newKeyDBPath /= rotationDir;
-            if (fs::exists(newKeyDBPath)) {
-                std::stringstream ss;
-                ss << "Cannot do master key rotation. ";
-                ss << "Rotation directory '" << newKeyDBPath << "' already exists.";
-                throw std::runtime_error(ss.str());
-            }
-            try {
-                fs::create_directory(newKeyDBPath);
-            } catch (std::exception& e) {
-                LOGV2(29010, "error creating rotation directory {path} {what}",
-                      "path"_attr = newKeyDBPath.string(),
-                      "what"_attr = e.what());
-                throw;
-            }
-
-            std::unique_ptr<EncryptionKeyDB> rotationKeyDB;
-            try {
-                auto [masterKey, masterKeyId] = keyProvider->obtainMasterKey(
-                    /* saveKey = */ false, /* raiseOnError = */ true);
-                rotationKeyDB = encryptionKeyDB->clone(newKeyDBPath.string(), masterKey);
-                if (!masterKeyId) {
-                    keyProvider->saveMasterKey(masterKey);
-                }
-            } catch (const encryption::KeyError& e) {
-                fs::remove_all(newKeyDBPath);
-                LOGV2_FATAL_CONTINUE(29120,
-                                     "Failed to rotate master encrypion key: key operation failed",
-                                     "error"_attr = e);
-                exitCleanly(EXIT_PERCONA_MASTER_KEY_ROTATION_ERROR);
-            } catch (const std::runtime_error& e) {
-                fs::remove_all(newKeyDBPath);
-                LOGV2_FATAL_CONTINUE(
-                    29121, "Failed to rotate master encrypion key", "reason"_attr = e.what());
-                exitCleanly(EXIT_PERCONA_MASTER_KEY_ROTATION_ERROR);
-            }
-            // close key db instances and rename dirs
-            encryptionKeyDB.reset(nullptr);
-            rotationKeyDB.reset(nullptr);
-            fs::path backupKeyDBPath = path;
-            backupKeyDBPath /= keydbBackupDir;
-            fs::remove_all(backupKeyDBPath);
-            fs::rename(keyDBPath, backupKeyDBPath);
-            fs::rename(newKeyDBPath, keyDBPath);
-            throw MasterKeyRotationCompleted("master key rotation finished successfully");
-        }
-        _encryptionKeyDB = std::move(encryptionKeyDB);
-        // add Percona encryption extension
-        std::stringstream ss;
-        ss << "local=(entry=percona_encryption_extension_init,early_load=true,config=(cipher=" << encryptionGlobalParams.encryptionCipherMode << "))";
-        WiredTigerExtensions::get(getGlobalServiceContext())->addExtension(ss.str());
-        // setup encryption hooks
-        // WiredTigerEncryptionHooks instance should be created after EncryptionKeyDB (depends on it)
-        if (encryptionGlobalParams.encryptionCipherMode == "AES256-CBC")
-            EncryptionHooks::set(
-                getGlobalServiceContext(),
-                std::make_unique<WiredTigerEncryptionHooksCBC>(_encryptionKeyDB.get()));
-        else // AES256-GCM
-            EncryptionHooks::set(
-                getGlobalServiceContext(),
-                std::make_unique<WiredTigerEncryptionHooksGCM>(_encryptionKeyDB.get()));
-    }
 
     std::stringstream ss;
     ss << "create,";
@@ -1880,7 +1953,8 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
         if (ret != 0) {
             return wtRCToStatus(ret, s);
         }
-        dbList.emplace_back(fs::path{_path} / keydbDir, destPath / keydbDir, session, c);
+        dbList.emplace_back(
+            fs::path{_path} / kKeyDbDirBasename, destPath / kKeyDbDirBasename, session, c);
     }
 
     // Populate list of files to copy

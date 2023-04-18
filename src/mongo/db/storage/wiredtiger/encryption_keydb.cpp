@@ -269,7 +269,7 @@ void EncryptionKeyDB::init() {
     LOGV2(29039, "Encryption keys DB is initialized successfully");
 }
 
-void EncryptionKeyDB::import_data_from(EncryptionKeyDB* proto) {
+void EncryptionKeyDB::import_data_from(const EncryptionKeyDB* proto) {
     // not doing any synchronization here because key rotation process is single threaded
     try {
         // copy parameters table
@@ -312,7 +312,7 @@ void EncryptionKeyDB::import_data_from(EncryptionKeyDB* proto) {
 }
 
 std::unique_ptr<EncryptionKeyDB> EncryptionKeyDB::clone(const std::string& path,
-                                                        const encryption::Key& masterKey) {
+                                                        const encryption::Key& masterKey) const {
     std::unique_ptr<EncryptionKeyDB> duplicate(new EncryptionKeyDB(path, masterKey, true));
     duplicate->init();
     duplicate->import_data_from(this);

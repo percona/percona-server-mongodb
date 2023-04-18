@@ -63,7 +63,7 @@ enum ExitCode : int {
     EXIT_TEST = 101,
 
     // Percona specific exit codes
-    EXIT_PERCONA_MASTER_KEY_ROTATION_ERROR = 1001
+    EXIT_PERCONA_DATA_AT_REST_ENCRYPTION_ERROR = 1001
 };
 
 }  // namespace mongo
