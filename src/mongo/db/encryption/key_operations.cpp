@@ -34,8 +34,8 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/encryption_kmip.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/encryption_vault.h"
+#include "mongo/db/encryption/error_builder.h"
 #include "mongo/db/encryption/key.h"
-#include "mongo/db/encryption/key_error.h"
 #include "mongo/db/encryption/secret_string.h"
 #include "mongo/util/invariant.h"
 

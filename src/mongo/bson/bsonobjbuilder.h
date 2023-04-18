@@ -820,6 +820,9 @@ public:
     template <class T>
     BSONArrayBuilder& append(const std::set<T>& vals);
 
+    template <class It>
+    BSONArrayBuilder& append(It begin, It end);
+
     // These two just use next position
     BufBuilder& subobjStart() {
         return _b.subobjStart(_fieldCount++);
@@ -954,6 +957,14 @@ inline BSONArrayBuilder& BSONArrayBuilder::append(const std::list<T>& vals) {
 template <class T>
 inline BSONArrayBuilder& BSONArrayBuilder::append(const std::set<T>& vals) {
     return _appendArrayIt<std::set<T>>(*this, vals);
+}
+
+template <class It>
+inline BSONArrayBuilder& BSONArrayBuilder::append(It begin, It end) {
+    while (begin != end) {
+        this->append(*begin++);
+    }
+    return *this;
 }
 
 template <typename T>
