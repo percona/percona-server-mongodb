@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -31,18 +31,13 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <cstdint>
 #include <stdexcept>
-#include <string>
-#include <type_traits>
+#include <utility>
 
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
-#include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/encryption/key_id.h"
 
 namespace mongo::encryption {
-class KeyError : public std::runtime_error {
+class Error : public std::runtime_error {
 public:
     /// @brief Returns more detailed explanatory information about the error
     /// than the `what` member function does.
@@ -53,53 +48,13 @@ public:
     }
 
     const char* what() const noexcept override {
-        return _info.getField("reason").valueStringData().rawData();
+        return _info.getField("what").valueStringData().rawData();
     }
 
 private:
-    friend class KeyErrorBuilder;
-    explicit KeyError(BSONObj&& info) : std::runtime_error(""), _info(std::move(info)) {}
+    friend class ErrorBuilder;
+    explicit Error(BSONObj&& info) : std::runtime_error(""), _info(std::move(info)) {}
 
     BSONObj _info;
-};
-
-enum class KeyOperationType : std::uint8_t {
-    read,
-    save
-};
-
-inline StringData to_string(KeyOperationType opType) {
-    switch (opType) {
-        case KeyOperationType::read: return "read";
-        case KeyOperationType::save: return "save";
-    }
-    throw std::invalid_argument(std::to_string(std::underlying_type_t<KeyOperationType>(opType)));
-}
-
-class KeyErrorBuilder {
-public:
-    KeyErrorBuilder(KeyOperationType opType, const StringData& reason) {
-        _builder.append("failedOperation", to_string(opType));
-        _builder.append("reason", reason.empty() ? StringData("") : reason);
-    }
-
-    KeyErrorBuilder& append(const StringData& name, const StringData& value) {
-        _builder.append(name, value);
-        return *this;
-    }
-
-    KeyErrorBuilder& append(const StringData& name, const KeyId& value) {
-        BSONObjBuilder sb = _builder.subobjStart(name);
-        value.serialize(&sb);
-        sb.done();
-        return *this;
-    }
-
-    KeyError error() {
-        return KeyError(_builder.obj());
-    }
-
-private:
-    BSONObjBuilder _builder;
 };
 }  // namespace mongo::encryption

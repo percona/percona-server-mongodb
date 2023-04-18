@@ -40,7 +40,8 @@ namespace mongo {
 /// @todo Try to refactor the code so that thre is no need in throwing an exception
 /// in case of successfull execution.
 struct MasterKeyRotationCompleted : std::runtime_error {
-    explicit MasterKeyRotationCompleted(const char* msg) : std::runtime_error(msg) {}
+    explicit MasterKeyRotationCompleted()
+        : std::runtime_error("master key rotation finished successfully") {}
 };
 
 }  // namespace mongo

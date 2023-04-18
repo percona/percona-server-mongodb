@@ -70,10 +70,10 @@ public:
     /// Intended to be called for retrieving the master key for an _existing_
     /// encyption key database.
     ///
-    /// Initiates a graceful exit from the program if can't unambiguously read
-    /// the master encryption key.
+    /// @returns the master encryption key
     ///
-    /// @return the master encryption key
+    /// @throws `encryption::Error` if can't unambiguously read the key from
+    /// the key management facility
     Key readMasterKey() const;
 
     /// @brief Reads an existing master key from a key management factility or
@@ -81,11 +81,6 @@ public:
     ///
     /// Intendend to be called for obtaining the master key for
     /// a _just created_ encryption key database.
-    ///
-    /// If the function can't unambiguously read the key from or save the key
-    /// to the key management facility, it either initiates a graceful exit from
-    /// the program or throws a `KeyError` exception depending on the value
-    /// of the `raiseOnError` argument.
     ///
     /// @param saveKey if true, the generated key is immediately saved
     ///                to the key management facility
@@ -96,15 +91,16 @@ public:
     /// @returns the read or generated encryption key and its identifier;
     ///          the latter is not `nullptr` if `saveKey` is `true`
     ///
-    /// @throw `KeyError` @see above
-    std::pair<Key, std::unique_ptr<KeyId>> obtainMasterKey(bool saveKey = true,
-                                                           bool raiseOnError = false) const;
+    /// @throws `encryption::Error` if can't unambiguously read the key from or
+    /// save the key to the key management facility
+    std::pair<Key, std::unique_ptr<KeyId>> obtainMasterKey(bool saveKey = true) const;
 
     /// @brief Saves the master key to a key manageent facitlity.
     ///
     /// @param key an encryption key to be saves
     ///
-    /// @throws `KeyError` if can't unambiguously save the master encryption key.
+    /// @throws `encryption::Error` if can't unambiguously save the key to
+    /// the key management facility
     void saveMasterKey(const Key& key) const;
 
 private:
