@@ -79,7 +79,7 @@ public:
     /// @throws std::runtime_error if can't craete a key database new one at the specified path or
     /// can't copy the data to the just created database.
     std::unique_ptr<EncryptionKeyDB> clone(const std::string& path,
-                                           const encryption::Key& masterKey);
+                                           const encryption::Key& masterKey) const;
 
     // returns encryption key from keys DB
     // create key if it does not exists
@@ -120,6 +120,10 @@ public:
         return _masterkey;
     }
 
+    const std::string& path() const noexcept {
+        return _path;
+    }
+
 private:
     typedef boost::multiprecision::uint128_t _gcm_iv_type;
 
@@ -133,7 +137,7 @@ private:
     int _openWiredTiger(const std::string& path, const std::string& wtOpenConfig);
 
     // during rotation copies data from provided instance
-    void import_data_from(EncryptionKeyDB* proto);
+    void import_data_from(const EncryptionKeyDB* proto);
 
     StatusWith<std::deque<BackupBlock>> _disableIncrementalBackup();
 

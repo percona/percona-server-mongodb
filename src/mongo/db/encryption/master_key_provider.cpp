@@ -34,8 +34,8 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/master_key_provider.h"
 
 #include "mongo/db/encryption/encryption_options.h"
+#include "mongo/db/encryption/error_builder.h"
 #include "mongo/db/encryption/key.h"
-#include "mongo/db/encryption/key_error.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/key_operations.h"
 #include "mongo/logv2/log.h"
@@ -96,18 +96,11 @@ std::unique_ptr<KeyId> MasterKeyProvider::_saveMasterKey(const SaveKey& save,
     return keyId;
 }
 
-Key MasterKeyProvider::readMasterKey() const try {
+Key MasterKeyProvider::readMasterKey() const {
     return _readMasterKey(*_factory->createRead(_wtKeyIds.configured.get())).key;
-} catch (const KeyError& e) {
-    LOGV2_FATAL_OPTIONS(29117,
-                        logv2::LogOptions(_logComponent, logv2::FatalMode::kAssertNoTrace),
-                        "Key operation failed",
-                        "error"_attr = e);
-    throw;  // suppress the `control reaches end of non-void function` warning
 }
 
-std::pair<Key, std::unique_ptr<KeyId>>
-MasterKeyProvider::obtainMasterKey(bool saveKey, bool raiseOnError) const try {
+std::pair<Key, std::unique_ptr<KeyId>> MasterKeyProvider::obtainMasterKey(bool saveKey) const {
     if (auto read = _factory->createProvidedRead(); read) {
         auto keyKeyId = _readMasterKey(*read, false);
         if (keyKeyId.keyId->needsSerializationToStorageEngineEncryptionOptions()) {
@@ -122,15 +115,6 @@ MasterKeyProvider::obtainMasterKey(bool saveKey, bool raiseOnError) const try {
         keyId = _saveMasterKey(*_factory->createSave(_wtKeyIds.configured.get()), key);
     }
     return {key, std::move(keyId)};
-} catch (const KeyError& e) {
-    if (raiseOnError) {
-        throw;
-    }
-    LOGV2_FATAL_OPTIONS(29118,
-                        logv2::LogOptions(_logComponent, logv2::FatalMode::kAssertNoTrace),
-                        "Key operation failed",
-                        "error"_attr = e);
-    throw;  // suppress the `control reaches end of non-void function` warning
 }
 
 void MasterKeyProvider::saveMasterKey(const Key& key) const {

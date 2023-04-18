@@ -80,6 +80,7 @@
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/dbmessage.h"
+#include "mongo/db/encryption/error.h"
 #include "mongo/db/exec/working_set_common.h"
 #include "mongo/db/fcv_op_observer.h"
 #include "mongo/db/fle_crud.h"
@@ -171,6 +172,7 @@
 #include "mongo/db/storage/encryption_hooks.h"
 #include "mongo/db/storage/flow_control.h"
 #include "mongo/db/storage/flow_control_parameters_gen.h"
+#include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_engine_lock_file.h"
@@ -428,7 +430,21 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     // initialized, a noop recovery unit is used until the initialization is complete.
     auto startupOpCtx = serviceContext->makeOperationContext(&cc());
 
-    auto lastShutdownState = initializeStorageEngine(startupOpCtx.get(), StorageEngineInitFlags{});
+    auto lastShutdownState = [&startupOpCtx]() {
+        try {
+            return initializeStorageEngine(startupOpCtx.get(), StorageEngineInitFlags{});
+        } catch (const MasterKeyRotationCompleted&) {
+            exitCleanly(EXIT_CLEAN);
+        } catch (const encryption::Error& e) {
+            LOGV2_FATAL_OPTIONS(
+                29120,
+                logv2::LogOptions(logv2::LogComponent::kStorage, logv2::FatalMode::kContinue),
+                "Data-at-Rest Encryption Error",
+                "error"_attr = e);
+            exitCleanly(EXIT_PERCONA_DATA_AT_REST_ENCRYPTION_ERROR);
+        }
+        throw;  // suppress the `control reaches end of non-void function` warning
+    }();
     StorageControl::startStorageControls(serviceContext);
 
 #ifdef MONGO_CONFIG_WIREDTIGER_ENABLED
