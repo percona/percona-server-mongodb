@@ -942,29 +942,22 @@ inline BSONObjBuilder& BSONObjBuilder::append(StringData fieldName, const std::m
     return *this;
 }
 
-template <class L>
-inline BSONArrayBuilder& _appendArrayIt(BSONArrayBuilder& _this, const L& vals) {
-    for (typename L::const_iterator i = vals.begin(); i != vals.end(); i++)
-        _this.append(*i);
-    return _this;
-}
-
-template <class T>
-inline BSONArrayBuilder& BSONArrayBuilder::append(const std::list<T>& vals) {
-    return _appendArrayIt<std::list<T>>(*this, vals);
-}
-
-template <class T>
-inline BSONArrayBuilder& BSONArrayBuilder::append(const std::set<T>& vals) {
-    return _appendArrayIt<std::set<T>>(*this, vals);
-}
-
 template <class It>
 inline BSONArrayBuilder& BSONArrayBuilder::append(It begin, It end) {
     while (begin != end) {
         this->append(*begin++);
     }
     return *this;
+}
+
+template <class T>
+inline BSONArrayBuilder& BSONArrayBuilder::append(const std::list<T>& vals) {
+    return append(vals.begin(), vals.end());
+}
+
+template <class T>
+inline BSONArrayBuilder& BSONArrayBuilder::append(const std::set<T>& vals) {
+    return append(vals.begin(), vals.end());
 }
 
 template <typename T>
