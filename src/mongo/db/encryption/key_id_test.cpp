@@ -39,9 +39,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/unittest/unittest.h"
 
 namespace mongo {
-namespace {
-using namespace encryption;
-
+namespace encryption {
 std::ostream& operator<<(std::ostream& os, const VaultSecretId& id) {
     os << "{path : " << id.path() << ", version : " << id.version() << "}";
     return os;
@@ -51,6 +49,9 @@ std::ostream& operator<<(std::ostream& os, const KmipKeyId& id) {
     os << id.toString();
     return os;
 }
+}  // namespace encryption
+namespace {
+using namespace encryption;
 
 TEST(KeyIdTest, CreateWithValidBsonIsOk) {
     ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra" << "version"<< "1")),
