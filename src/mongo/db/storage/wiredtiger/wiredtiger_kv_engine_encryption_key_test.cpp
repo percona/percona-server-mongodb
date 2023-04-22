@@ -39,7 +39,9 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <string>
 #include <utility>
 
+#include "mongo/base/string_data.h"
 #include "mongo/db/encryption/encryption_options.h"
+#include "mongo/db/encryption/error.h"
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/key_operations.h"
@@ -50,20 +52,20 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/logv2/log_component.h"
-#include "mongo/unittest/death_test.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/clock_source_mock.h"
 #include "mongo/util/invariant.h"
 
 namespace mongo {
-namespace {
-using namespace encryption;
-
+namespace encryption {
 std::ostream& operator<<(std::ostream& os, const Key& key) {
     os << key.base64();
     return os;
 }
+}  // namespace encryption
+namespace {
+using namespace encryption;
 
 EncryptionGlobalParams encryptionParamsKeyFile(const std::string& keyFilePath) {
     EncryptionGlobalParams params;
@@ -407,6 +409,23 @@ protected:
     std::unique_ptr<WiredTigerKVEngine> _engine;
 };
 
+#define ASSERT_CREATE_ENGINE_THROWS_WHAT(EXPECTED_WHAT) \
+    ASSERT_THROWS_WHAT(_createWiredTigerKVEngine(), encryption::Error, EXPECTED_WHAT)
+
+#define ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS(EXPECTED_REASON)                     \
+    ASSERT_THROWS_WITH_CHECK(                                                            \
+        _createWiredTigerKVEngine(), encryption::Error, [](const encryption::Error& e) { \
+            ASSERT_STRING_CONTAINS(e.toBSON()["reason"]["reason"].valueStringData(),     \
+                                   EXPECTED_REASON);                                     \
+        });
+
+#define ASSERT_CREATE_ENGINE_THROWS_REASON_REGEX(EXPECTED_REASON)                        \
+    ASSERT_THROWS_WITH_CHECK(                                                            \
+        _createWiredTigerKVEngine(), encryption::Error, [](const encryption::Error& e) { \
+            ASSERT_STRING_SEARCH_REGEX(e.toBSON()["reason"]["reason"].valueStringData(), \
+                                       EXPECTED_REASON);                                 \
+        });
+
 class WiredTigerKVEngineEncryptionKeyNewEngineTest : public WiredTigerKVEngineEncryptionKeyTest {
 protected:
     void _setUpPreconfiguredEngine() override {}
@@ -420,23 +439,20 @@ TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, KeyFileIsUsedIfItIsInParams
     ASSERT_FALSE(WtKeyIds::instance().futureConfigured);
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest,
-             DeathIfVaultRotation,
-             "Master key rotation is in effect but there is no existing encryption key database") {
+TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, ErrorIfVaultRotation) {
     VaultSecretId id = _vaultServer.saveKey("charlie/delta", Key());
     encryptionGlobalParams = encryptionParamsVault(id);
     encryptionGlobalParams.vaultRotateMasterKey = true;
 
-    _engine = _createWiredTigerKVEngine();
+    ASSERT_CREATE_ENGINE_THROWS_WHAT(
+        "Master key rotation is in effect but there is no existing encryption key database.");
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest,
-             DeathIfNoVaultSecretPathInParams,
-             "No Vault secret path is provided") {
+TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, ErrorIfNoVaultSecretPathInParams) {
     VaultSecretId id = _vaultServer.saveKey("charlie/delta", Key());
     encryptionGlobalParams = encryptionParamsVault();
 
-    _engine = _createWiredTigerKVEngine();
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS("No Vault secret path is provided");
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, VaultSecretIsGeneratedIfVersionIsNotInParams) {
@@ -459,14 +475,13 @@ TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, VaultSecretVersionIsUsedIfI
     ASSERT_EQ(toJsonText(*WtKeyIds::instance().futureConfigured), toJsonText(id));
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest,
-             DeathIfKmipRotation,
-             "Master key rotation is in effect but there is no existing encryption key database") {
+TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, ErrorIfKmipRotation) {
     KmipKeyId id = _kmipServer.saveKey(Key());
     encryptionGlobalParams = encryptionParamsKmip(id);
     encryptionGlobalParams.kmipRotateMasterKey = true;
 
-    _engine = _createWiredTigerKVEngine();
+    ASSERT_CREATE_ENGINE_THROWS_WHAT(
+        "Master key rotation is in effect but there is no existing encryption key database.");
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, KmipKeyIsGeneratedIfNoIdInParams) {
@@ -511,11 +526,9 @@ TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, SameKeyInAnotherFileIsOk) {
     ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(anotherKeyFilePath));
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyFileTest,
-             DeathIfVaultWithtouSecretIdInParams,
-             "the system was not configured using Vault") {
+TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, ErrorIfVaultWithoutSecretIdInParams) {
     encryptionGlobalParams = encryptionParamsVault();
-    _engine = _createWiredTigerKVEngine();
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS("the system was not configured using Vault");
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyFileTest,
@@ -532,14 +545,13 @@ TEST_F(WiredTigerKVEngineEncryptionKeyFileTest,
     ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyFileTest,
-             DeathIfVaultRotationInParams,
-             "the system was not configured using Vault") {
+TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, ErrorIfVaultRotationInParams) {
     VaultSecretId id = _vaultServer.saveKey("charlie/delta", *_key);
     _key.reset();
     encryptionGlobalParams = encryptionParamsVault(id);
     encryptionGlobalParams.vaultRotateMasterKey = true;
-    _engine = _createWiredTigerKVEngine();
+
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS("the system was not configured using Vault");
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, VaultSecretIdIsUsedIfItIsInParams) {
@@ -552,19 +564,17 @@ TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, VaultSecretIdIsUsedIfItIsInParam
     ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyFileTest,
-             DeathIfKmipWithtouKeyIdInParams,
-             "the system was not configured using KMIP") {
+TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, ErrorIfKmipWithtouKeyIdInParams) {
     encryptionGlobalParams = encryptionParamsKmip();
-    _engine = _createWiredTigerKVEngine();
+
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS("the system was not configured using KMIP");
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyFileTest,
-             DeathIfKmipRotationInParams,
-             "the system was not configured using KMIP") {
+TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, ErrorIfKmipRotationInParams) {
     encryptionGlobalParams = encryptionParamsKmip("1");
     encryptionGlobalParams.kmipRotateMasterKey = true;
-    _engine = _createWiredTigerKVEngine();
+
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS("the system was not configured using KMIP");
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, KmipKeyIdIsUsedIfItIsInParams) {
@@ -597,15 +607,14 @@ TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, EncryptionKeyFileIsUsedIfItIsIn
     ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(path));
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest,
-             DeathIfKmipInParams,
-             "Trying to decrypt the data-at-rest with the key from a KMIP server "
-             "but the system was configured with a key from a Vault server.") {
+TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, ErrorIfKmipInParams) {
     Key key = *_vaultServer.readKey(VaultSecretId("charlie/delta", 3));
     KmipKeyId kmipKeyId = _kmipServer.saveKey(key);
     encryptionGlobalParams = encryptionParamsKmip(kmipKeyId);
 
-    _engine = _createWiredTigerKVEngine();
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS(
+        "Trying to decrypt the data-at-rest with the key from a KMIP server "
+        "but the system was configured with a key from a Vault server.");
 }
 
 /// @brief Verify that the engine uses specific Vault secret
@@ -643,25 +652,25 @@ TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest,
 
 #undef ASSERT_KEY_ID
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest,
-             DeathIfDifferentSecretVersionInParams,
-             "Vault secret identifier is not equal to that the system is already configured with") {
+TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, ErrorIfDifferentSecretVersionInParams) {
     encryptionGlobalParams = encryptionParamsVault("charlie/delta", 1);
-    _engine = _createWiredTigerKVEngine();
+
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS(
+        "Vault secret identifier is not equal to that the system is already configured with");
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest,
-             DeathIfDifferentSecretPathInParams,
-             "Vault secret identifier is not equal to that the system is already configured with") {
+TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, ErrorIfDifferentSecretPathInParams) {
     encryptionGlobalParams = encryptionParamsVault("foo/bar", 3);
-    _engine = _createWiredTigerKVEngine();
+
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS(
+        "Vault secret identifier is not equal to that the system is already configured with");
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest,
-             DeathIfDifferentSecretPathWithoutVersionInParams,
-             "Vault secret path is not equal to that the system is already configured with") {
+TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, ErrorIfDifferentSecretPathWithoutVersionInParams) {
     encryptionGlobalParams = encryptionParamsVault("foo/bar");
-    _engine = _createWiredTigerKVEngine();
+
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS(
+        "Vault secret path is not equal to that the system is already configured with");
 }
 
 /// @brief Verify that master key rotation completes successfully and
@@ -703,13 +712,13 @@ TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest,
     ASSERT_ROTATION_NEW_KEY_ID(VaultSecretId("charlie/delta", 1));
 }
 
-DEATH_TEST_REGEX_F(WiredTigerKVEngineEncryptionKeyVaultTest,
-                   RotationDeathIfProvidedSecretIdEqualToConfigured,
-                   "rotation.*but the provided.*key identifier is equal to.*configured") {
+TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, RotationErrorIfProvidedSecretIdEqualToConfigured) {
     encryptionGlobalParams = encryptionParamsVault("charlie/delta", 3);
     encryptionGlobalParams.vaultRotateMasterKey = true;
 
-    _engine = _createWiredTigerKVEngine();
+    ASSERT_CREATE_ENGINE_THROWS_REASON_REGEX(
+        "master encryption key rotation is in effect but the provided .* key identifier "
+        "is equal to that the system is already configured with");
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest,
@@ -754,15 +763,14 @@ TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, EncryptionKeyFileIsUsedIfItIsInP
     ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(path));
 }
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest,
-             DeathIfVaultInParams,
-             "Trying to decrypt the data-at-rest with the key from a Vault server "
-             "but the system was configured with a key from a KMIP server.") {
+TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, ErrorIfVaultInParams) {
     Key key = *_kmipServer.readKey(KmipKeyId("3"));
     VaultSecretId id = _vaultServer.saveKey("hotel/juliett", key);
     encryptionGlobalParams = encryptionParamsVault(id);
 
-    _engine = _createWiredTigerKVEngine();
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS(
+        "Trying to decrypt the data-at-rest with the key from a Vault server "
+        "but the system was configured with a key from a KMIP server.");
 }
 
 /// @brief Verify that the engine uses specific KMIP key
@@ -786,11 +794,11 @@ TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, ConfiguredKeyIdIsUsedIfSameKeyId
 
 #undef ASSERT_KEY_ID
 
-DEATH_TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest,
-             DeathIfDifferentKeyIdInParams,
-             "KMIP keyIdentifier is not equal to that the system is already configured with") {
+TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, ErrorIfDifferentKeyIdInParams) {
     encryptionGlobalParams = encryptionParamsKmip("2");
-    _engine = _createWiredTigerKVEngine();
+
+    ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS(
+        "KMIP keyIdentifier is not equal to that the system is already configured with");
 }
 
 /// @brief Verify that master key rotation completes successfully and
@@ -823,14 +831,18 @@ TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, RotationUsesKeyIdIfItIsInParams)
 
 #undef ASSERT_ROTATION_NEW_KEY_ID
 
-DEATH_TEST_REGEX_F(WiredTigerKVEngineEncryptionKeyKmipTest,
-                   RotationDeathIfProvidedKeyIdEqualToConfigured,
-                   "rotation.*but the provided.*key identifier is equal to.*configured") {
+TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, RotationErrorIfProvidedKeyIdEqualToConfigured) {
     encryptionGlobalParams = encryptionParamsKmip("3");
     encryptionGlobalParams.kmipRotateMasterKey = true;
 
-    _engine = _createWiredTigerKVEngine();
+    ASSERT_CREATE_ENGINE_THROWS_REASON_REGEX(
+        "master encryption key rotation is in effect but the provided .* key identifier "
+        "is equal to that the system is already configured with");
 }
+
+#undef ASSERT_CREATE_ENGINE_THROWS_WHAT
+#undef ASSERT_CREATE_ENGINE_THROWS_REASON_CONTAINS
+#undef ASSERT_CREATE_ENGINE_THROWS_REASON_REGEX
 
 }  // namespace
 }  // namespace mongo
