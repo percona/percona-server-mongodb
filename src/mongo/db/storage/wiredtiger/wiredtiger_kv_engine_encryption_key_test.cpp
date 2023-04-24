@@ -121,6 +121,8 @@ std::unique_ptr<WiredTigerKVEngine> createWiredTigerKVEngine(
                                                        "log=(file_max=1m,prealloc=false)",
                                                        1,
                                                        1,
+                                                       true,
+                                                       false,
                                                        false,
                                                        false,
                                                        keyProviderFactory);
