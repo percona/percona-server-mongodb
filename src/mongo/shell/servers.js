@@ -725,55 +725,32 @@ MongoRunner.mongodOptions = function(opts = {}) {
         opts.keyFile = jsTestOptions().keyFile;
     }
 
-    if (opts.hasOwnProperty("enableEncryption")) {
-        // opts.enableEncryption, if set, must be an empty string
-        if (opts.enableEncryption !== "") {
-            throw new Error("The enableEncryption option must be an empty string if it is " +
-                            "specified");
+    /// Merges values of the specified options from `opts` and `jsTestOptions()`
+    /// objects into the former, verifying the option values along the way.
+    function mergeOptions(optNames, optVerifier, expected) {
+        for (let optName of optNames) {
+            let optValue = opts.hasOwnProperty(optName) ? opts[optName] : jsTestOptions()[optName];
+            if (optValue == undefined) {
+                continue;
+            }
+            if (!optVerifier(optValue)) {
+                throw new Error("The " + optName + " option must be " + expected +
+                                " if it is specified");
+            }
+            opts[optName] = optValue;
         }
-    } else if (jsTestOptions().enableEncryption !== undefined) {
-        if (jsTestOptions().enableEncryption !== "") {
-            throw new Error("The enableEncryption option must be an empty string if it is " +
-                            "specified");
-        }
-        opts.enableEncryption = "";
     }
-
-    if (opts.hasOwnProperty("encryptionCipherMode")) {
-        if (typeof opts.encryptionCipherMode !== "string") {
-            // opts.encryptionCipherMode, if set, must be a string
-            throw new Error("The encryptionCipherMode option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().encryptionCipherMode !== undefined) {
-        if (typeof jsTestOptions().encryptionCipherMode !== "string") {
-            throw new Error("The encryptionCipherMode option must be a string if it is specified");
-        }
-        opts.encryptionCipherMode = jsTestOptions().encryptionCipherMode;
-    }
-
-    if (opts.hasOwnProperty("encryptionKeyFile")) {
-        // opts.encryptionKeyFile, if set, must be a string
-        if (typeof opts.encryptionKeyFile !== "string") {
-            throw new Error("The encryptionKeyFile option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().encryptionKeyFile !== undefined) {
-        if (typeof (jsTestOptions().encryptionKeyFile) !== "string") {
-            throw new Error("The encryptionKeyFile option must be a string if it is specified");
-        }
-        opts.encryptionKeyFile = jsTestOptions().encryptionKeyFile;
-    }
-
-    if (opts.hasOwnProperty("auditDestination")) {
-        // opts.auditDestination, if set, must be a string
-        if (typeof opts.auditDestination !== "string") {
-            throw new Error("The auditDestination option must be a string if it is specified");
-        }
-    } else if (jsTestOptions().auditDestination !== undefined) {
-        if (typeof (jsTestOptions().auditDestination) !== "string") {
-            throw new Error("The auditDestination option must be a string if it is specified");
-        }
-        opts.auditDestination = jsTestOptions().auditDestination;
-    }
+    const switchOptNames = ['enableEncryption', 'vaultDisableTLSForTesting', 'vaultRotateMasterKey',
+                            'kmipRotateMasterKey'];
+    const stringOptNames = [
+        'encryptionCipherMode', 'encryptionKeyFile', 'vaultServerName', 'vaultServerCAFile',
+        'vaultTokenFile', 'vaultSecret', 'kmipServerName', 'kmipServerCAFile',
+        'kmipClientCertificateFile', 'kmipClientCertificatePassword', 'kmipKeyIdentifier',
+        'auditDestination'];
+    const numberOptNames = ['vaultPort', 'vaultSecretVersion', 'kmipPort'];
+    mergeOptions(switchOptNames, opt => opt == ''             , "an empty string");
+    mergeOptions(stringOptNames, opt => typeof opt == 'string', "a string");
+    mergeOptions(numberOptNames, opt => typeof opt == 'number', "a number");
 
     if (opts.hasOwnProperty("auditPath")) {
         // We need to reformat the auditPath to include the proper port
