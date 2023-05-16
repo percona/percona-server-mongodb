@@ -111,23 +111,6 @@ EncryptionGlobalParams encryptionParamsKmip(const KmipKeyId& id) {
     return encryptionParamsKmip(id.toString());
 }
 
-std::unique_ptr<WiredTigerKVEngine> createWiredTigerKVEngine(
-    const std::string& dbpath,
-    ClockSource* cs,
-    const MasterKeyProviderFactory& keyProviderFactory) {
-    auto engine = std::make_unique<WiredTigerKVEngine>("wiredTiger",
-                                                       dbpath,
-                                                       cs,
-                                                       "log=(file_max=1m,prealloc=false)",
-                                                       1,
-                                                       1,
-                                                       false,
-                                                       false,
-                                                       keyProviderFactory);
-    engine->notifyStartupComplete();
-    return engine;
-}
-
 class FakeVaultServer {
 public:
     std::pair<std::string, std::uint64_t> readRawKey(const VaultSecretId& id) const noexcept {
@@ -322,6 +305,8 @@ std::string toJsonText(const KeyId& id) {
 
 class WiredTigerKVEngineEncryptionKeyTest : public ServiceContextTest {
 public:
+    WiredTigerKVEngineEncryptionKeyTest() : _svcCtx(getServiceContext()) {}
+
     void setUp() override {
         _tempDir = std::make_unique<unittest::TempDir>("wt_kv_key");
 
@@ -368,9 +353,21 @@ protected:
     }
 
     std::unique_ptr<WiredTigerKVEngine> _createWiredTigerKVEngine() {
-        return createWiredTigerKVEngine(_tempDir->path(),
-                                        _clockSource.get(),
-                                        FakeMasterKeyProviderFactory(_vaultServer, _kmipServer));
+        auto client = _svcCtx->makeClient("opCtx");
+        auto opCtx = client->makeOperationContext();
+        auto engine = std::make_unique<WiredTigerKVEngine>(
+            opCtx.get(),
+            "wiredTiger",
+            _tempDir->path(),
+            _clockSource.get(),
+            "log=(file_max=1m,prealloc=false)",
+            1,
+            1,
+            false,
+            false,
+            FakeMasterKeyProviderFactory(_vaultServer, _kmipServer));
+        engine->notifyStartupComplete();
+        return engine;
     }
 
     std::string _createKeyFile(const std::string& path, const Key& key) {
@@ -390,6 +387,7 @@ protected:
         return fullpath;
     }
 
+    ServiceContext* _svcCtx;
     std::unique_ptr<unittest::TempDir> _tempDir;
     std::unique_ptr<Key> _key;
     std::unique_ptr<KeyFilePath> _keyFilePath;
