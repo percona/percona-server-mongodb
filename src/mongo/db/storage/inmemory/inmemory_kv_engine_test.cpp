@@ -51,7 +51,10 @@ public:
     InMemoryKVHarnessHelper(ServiceContext* svcCtx) : _dbpath("inmem-kv-harness") {
         if (!hasGlobalServiceContext())
             setGlobalServiceContext(ServiceContext::make());
-        _engine.reset(new WiredTigerKVEngine(kInMemoryEngineName,
+        auto client = svcCtx->makeClient("opCtx");
+        auto opCtx = client->makeOperationContext();
+        _engine.reset(new WiredTigerKVEngine(opCtx.get(),
+                                             kInMemoryEngineName,
                                              _dbpath.path(),
                                              _cs.get(),
                                              "in_memory=true,"
