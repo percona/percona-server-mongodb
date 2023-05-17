@@ -169,7 +169,7 @@ wtEnv.CppUnitTest(
         '$BUILD_DIR/mongo/db/encryption/key',
         '$BUILD_DIR/mongo/db/service_context_test_fixture',
         '$BUILD_DIR/mongo/util/clock_source_mock',
-        'storage_wiredtiger_core',
+        'storage_wiredtiger',
     ],
 )
 
