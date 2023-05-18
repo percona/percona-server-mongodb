@@ -29,6 +29,7 @@ wtEnv.InjectThirdParty(libraries=['valgrind'])
 wtEnv.Library(
     target='storage_wiredtiger_core',
     source=[
+        'encryption_extension.c',
         'encryption_keydb.cpp',
         'oplog_stones_server_status_section.cpp',
         'wiredtiger_backup_cursor_hooks.cpp',
