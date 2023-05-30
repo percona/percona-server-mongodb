@@ -8,6 +8,9 @@
     'use strict';
 	load('jstests/backup/_backup_helpers.js');
 
+    run("chmod", "600", TestData.keyFileGood);
+    run("chmod", "600", TestData.keyFileWrong);
+
     // Start the replica set and fill it with data.
     var name = 'wrongkey_replset';
     var rs = new ReplSetTest({
