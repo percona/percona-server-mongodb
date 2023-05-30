@@ -8,6 +8,9 @@
     'use strict';
 	load('jstests/backup/_backup_helpers.js');
 
+    run("chmod", "600", TestData.keyFileGood);
+    run("chmod", "600", TestData.keyFileWrong);
+
     // Run the original instance and fill it with data.
     var dbPath = MongoRunner.dataPath + 'original';
     var conn = MongoRunner.runMongod({
