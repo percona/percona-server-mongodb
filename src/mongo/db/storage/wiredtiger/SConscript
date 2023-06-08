@@ -102,6 +102,7 @@ wtEnv.Library(
         '$BUILD_DIR/mongo/db/storage/storage_repair_observer',
         '$BUILD_DIR/mongo/util/log_and_backoff',
         '$BUILD_DIR/mongo/util/options_parser/options_parser',
+        '$BUILD_DIR/mongo/util/progress_meter',
         'oplog_truncate_marker_parameters',
     ],
     SYSLIBDEPS=[
