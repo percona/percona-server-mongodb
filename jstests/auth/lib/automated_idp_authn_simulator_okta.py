@@ -36,7 +36,7 @@ def get_input_box_with_label(driver, label_to_match, timeout):
     )
 
 
-def authenticate_okta(activation_endpoint, username, test_credentials):
+def authenticate_okta(activation_endpoint, userCode, username, test_credentials):
     # Install GeckoDriver if needed.
     geckodriver_autoinstaller.install()
 
@@ -47,10 +47,16 @@ def authenticate_okta(activation_endpoint, username, test_credentials):
     driver.get(activation_endpoint)
 
     try:
-        # User code will be pre-populated, so wait for next button to load and click.
+        # Wait for activation code input box and next button to load and click.
+        activationCode_input_box = WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.XPATH, "//input[@name='userCode']"))
+        )
         next_button = WebDriverWait(driver, 30).until(
             EC.element_to_be_clickable((By.XPATH, "//input[@class='button button-primary'][@value='Next']"))
         )
+        
+        # Enter user activation code.
+        activationCode_input_box.send_keys(userCode)
         next_button.click()
 
         # Wait for the username prompt and next button to load.
@@ -93,7 +99,8 @@ def authenticate_okta(activation_endpoint, username, test_credentials):
 def main():
     parser = argparse.ArgumentParser(description='Okta Automated Authentication Simulator')
 
-    parser.add_argument('-e', '--activationEndpoint', type=str, help="Endpoint to start activation at with code filled in")
+    parser.add_argument('-e', '--activationEndpoint', type=str, help="Endpoint to start activation at")
+    parser.add_argument('-c', '--userCode', type=str, help="Code to be added in the endpoint to authenticate")
     parser.add_argument('-u', '--username', type=str, help="Username to authenticate as")
     parser.add_argument('-s', '--setupFile', type=str, help="File containing information generated during test setup, relative to home directory")
 
@@ -103,7 +110,7 @@ def main():
         setup_information = json.load(setup_file)
         assert args.username in setup_information
 
-        authenticate_okta(args.activationEndpoint, args.username, setup_information)
+        authenticate_okta(args.activationEndpoint, args.userCode, args.username, setup_information)
 
 if __name__ == '__main__':
     main()
