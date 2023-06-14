@@ -37,6 +37,7 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/operation_context.h"
 #include "mongo/db/storage/encryption_hooks.h"
 #include "mongo/logv2/log.h"
+#include "mongo/logv2/log_options.h"
 #include "mongo/util/fail_point.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
@@ -255,10 +256,11 @@ BackupCursorExtendState WiredTigerBackupCursorHooks::extendBackupCursor(Operatio
     // wait for extendTo
     auto* replCoord = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
     if (auto status = replCoord->awaitTimestampCommitted(opCtx, extendTo); !status.isOK()) {
-        LOGV2_FATAL(29096,
-                    "Wait for target timestamp has failed",
-                    "reason"_attr = status,
-                    "timestamp"_attr = extendTo);
+        LOGV2_ERROR_OPTIONS(29096,
+                            {logv2::UserAssertAfterLog(status.code())},
+                            "Wait for target timestamp has failed",
+                            "reason"_attr = status,
+                            "timestamp"_attr = extendTo);
     }
 
     // return value
@@ -268,7 +270,10 @@ BackupCursorExtendState WiredTigerBackupCursorHooks::extendBackupCursor(Operatio
         auto* engine = opCtx->getServiceContext()->getStorageEngine();
         auto res = engine->extendBackupCursor(opCtx);
         if (!res.isOK()) {
-            LOGV2_FATAL(29095, "Failed to extend backup cursor", "reason"_attr = res.getStatus());
+            LOGV2_ERROR_OPTIONS(29095,
+                                {logv2::UserAssertAfterLog(res.getStatus().code())},
+                                "Failed to extend backup cursor",
+                                "reason"_attr = res.getStatus());
         }
         result.filenames = std::move(res.getValue());
     }
@@ -277,7 +282,10 @@ BackupCursorExtendState WiredTigerBackupCursorHooks::extendBackupCursor(Operatio
     if (encHooks->enabled()) {
         auto res = encHooks->extendBackupCursor(opCtx);
         if (!res.isOK()) {
-            LOGV2_FATAL(29095, "Failed to extend backup cursor", "reason"_attr = res.getStatus());
+            LOGV2_ERROR_OPTIONS(29095,
+                                {logv2::UserAssertAfterLog(res.getStatus().code())},
+                                "Failed to extend backup cursor",
+                                "reason"_attr = res.getStatus());
         }
         result.filenames.insert(result.filenames.end(),
                                 make_move_iterator(res.getValue().begin()),
