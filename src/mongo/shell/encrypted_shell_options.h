@@ -39,6 +39,7 @@ struct EncryptedShellGlobalParams {
     std::string awsSessionToken;
     std::string keyVaultNamespace;
     std::string awsKmsURL;
+    std::string awsStsURL;
 };
 
 extern EncryptedShellGlobalParams encryptedShellGlobalParams;

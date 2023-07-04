@@ -35,3 +35,8 @@ configs:
         arg_vartype: String
         cpp_varname: encryptedShellGlobalParams.awsKmsURL
         requires: [ "awsAccessKeyId", "awsSecretAccessKey", "keyVaultNamespace" ]
+    "stsURL":
+        description: "Optional parameter to override the STS endpoint URL"
+        arg_vartype: String
+        cpp_varname: encryptedShellGlobalParams.awsStsURL
+        requires: [ ]

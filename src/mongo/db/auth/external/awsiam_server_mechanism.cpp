@@ -52,6 +52,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/sasl_aws_protocol_common.h"
 #include "mongo/client/sasl_aws_protocol_common_gen.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
+#include "mongo/db/matcher/schema/encrypt_schema_gen.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/mutex.h"
 #include "mongo/platform/random.h"
@@ -61,6 +62,9 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/str.h"
 
 namespace mongo {
+
+EncryptedShellGlobalParams encryptedShellGlobalParams;
+
 namespace awsIam {
 namespace {
 // Secure Random for AWS SASL Nonce generation
@@ -137,7 +141,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(StringDat
     http->setHeaders(headers);
     auto reply =
         http->request(HttpClient::HttpMethod::kPOST,
-                      "https://" + kAwsDefaultStsHost,
+                      "https://" + encryptedShellGlobalParams.awsStsURL.value_or(kAwsDefaultStsHost),
                       {kSTSGetCallerIdentityBody.rawData(), kSTSGetCallerIdentityBody.size()});
     LOGV2_DEBUG(29114, 3, "STS GetCallerIdentity HTTP status", "code"_attr = reply.code);
     if (reply.code != 200) {
