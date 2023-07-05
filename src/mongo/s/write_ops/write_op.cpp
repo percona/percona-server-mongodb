@@ -111,6 +111,8 @@ write_ops::WriteError combineOpErrors(const std::vector<ChildWriteOp const*>& er
 
 }  // namespace
 
+WriteOp::WriteOp(BatchItemRef itemRef, bool inTxn) : _itemRef(std::move(itemRef)), _inTxn(inTxn) {}
+
 const BatchItemRef& WriteOp::getWriteItem() const {
     return _itemRef;
 }

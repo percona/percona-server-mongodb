@@ -51,8 +51,9 @@ class Value;
 /// A heap-allocated reference-counted std::vector
 class RCVector : public RefCountable {
 public:
-    RCVector() {}
-    RCVector(std::vector<Value> v) : vec(std::move(v)) {}
+    ~RCVector();
+    RCVector();
+    RCVector(std::vector<Value> v);
     std::vector<Value> vec;
 };
 

@@ -42,6 +42,7 @@
 #include "mongo/bson/bson_depth.h"
 #include "mongo/bson/simple_bsonobj_comparator.h"
 #include "mongo/db/exec/document_value/document.h"
+#include "mongo/db/exec/document_value/value_internal.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/query/datetime/date_time_support.h"
 #include "mongo/platform/decimal128.h"
@@ -59,6 +60,10 @@ using std::string;
 using std::stringstream;
 using std::vector;
 using namespace std::string_literals;
+
+RCVector::~RCVector() = default;
+RCVector::RCVector() = default;
+RCVector::RCVector(std::vector<Value> v) : vec(std::move(v)) {}
 
 void ValueStorage::verifyRefCountingIfShould() const {
     switch (type) {

@@ -89,7 +89,7 @@ enum WriteOpState {
  */
 class WriteOp {
 public:
-    WriteOp(BatchItemRef itemRef, bool inTxn) : _itemRef(std::move(itemRef)), _inTxn(inTxn) {}
+    WriteOp(BatchItemRef itemRef, bool inTxn);
 
     /**
      * Returns the write item for this operation
