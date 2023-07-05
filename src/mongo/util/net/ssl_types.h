@@ -61,6 +61,12 @@ public:
         auto equalityLens() const {
             return std::tie(oid, type, value);
         }
+        friend bool operator==(const SSLX509Name::Entry& lhs, const SSLX509Name::Entry& rhs) {
+            return lhs.equalityLens() == rhs.equalityLens();
+        }
+        friend bool operator<(const SSLX509Name::Entry& lhs, const SSLX509Name::Entry& rhs) {
+            return lhs.equalityLens() < rhs.equalityLens();
+        }
     };
 
     SSLX509Name() = default;
@@ -110,12 +116,6 @@ private:
 };
 
 std::ostream& operator<<(std::ostream&, const SSLX509Name&);
-inline bool operator==(const SSLX509Name::Entry& lhs, const SSLX509Name::Entry& rhs) {
-    return lhs.equalityLens() == rhs.equalityLens();
-}
-inline bool operator<(const SSLX509Name::Entry& lhs, const SSLX509Name::Entry& rhs) {
-    return lhs.equalityLens() < rhs.equalityLens();
-}
 
 class SSLConfiguration {
 public:
