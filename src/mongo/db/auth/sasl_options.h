@@ -54,6 +54,7 @@ struct SASLGlobalParams {
     std::string hostName;
     std::string serviceName;
     std::string authdPath;
+    std::string awsStsHost;
     AtomicWord<int> scramSHA1IterationCount;
     AtomicWord<int> scramSHA256IterationCount;
     AtomicWord<int> authFailedDelay;
