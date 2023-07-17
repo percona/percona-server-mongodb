@@ -52,6 +52,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/sasl_aws_protocol_common.h"
 #include "mongo/client/sasl_aws_protocol_common_gen.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
+#include "mongo/db/auth/sasl_options.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/mutex.h"
 #include "mongo/platform/random.h"
@@ -72,6 +73,11 @@ StringData toString(const DataBuilder& builder) {
     StringData str;
     cdr.readInto<StringData>(&str);
     return str;
+}
+
+StringData awsStsHost() {
+    return saslGlobalParams.awsStsHost.empty() ? kAwsDefaultStsHost
+                                               : StringData(saslGlobalParams.awsStsHost);
 }
 }  // namespace
 
@@ -110,7 +116,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_firstStep(StringData
     }
     AwsServerFirst first;
     first.setServerNonce(_serverNonce);
-    first.setStsHost(kAwsDefaultStsHost);
+    first.setStsHost(awsStsHost());
     return std::make_tuple(false, convertToByteString(first));
 }
 
@@ -136,7 +142,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(StringDat
     http->setHeaders(headers);
     auto reply =
         http->request(HttpClient::HttpMethod::kPOST,
-                      "https://" + kAwsDefaultStsHost,
+                      "https://" + awsStsHost(),
                       {kSTSGetCallerIdentityBody.rawData(), kSTSGetCallerIdentityBody.size()});
     LOGV2_DEBUG(29114, 3, "STS GetCallerIdentity HTTP status", "code"_attr = reply.code);
     if (reply.code != 200) {
