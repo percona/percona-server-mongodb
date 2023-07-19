@@ -339,7 +339,7 @@ aws_sdk_build(){
             CMAKE_CMD="cmake"
             if [ -f /etc/redhat-release ]; then
                 RHEL=$(rpm --eval %rhel)
-                if [ x"$RHEL" = x6 ]; then
+                if [ x"$RHEL" = x7 ]; then
                     CMAKE_CMD="cmake3"
                 fi
             fi
@@ -765,6 +765,10 @@ build_source_deb(){
     mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
     cd ${BUILDDIR}
     pip install --upgrade pip
+
+    # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+    pip install pyyaml==5.4.1 --no-build-isolation
+
     pip install -r etc/pip/dev-requirements.txt
     pip install -r etc/pip/evgtest-requirements.txt
 
@@ -817,6 +821,10 @@ build_deb(){
     #
     cd ${PRODUCT}-${VERSION}
     pip install --upgrade pip
+
+    # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+    pip install pyyaml==5.4.1 --no-build-isolation
+
     pip install -r etc/pip/dev-requirements.txt
     pip install -r etc/pip/evgtest-requirements.txt
     #
