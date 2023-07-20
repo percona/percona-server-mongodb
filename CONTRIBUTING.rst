@@ -225,11 +225,11 @@ Debian/Ubuntu
 This command builds the core of the database. Other available targets for the
 ``scons`` command are: 
 
-- ``mongod`` 
-- ``mongos`` 
-- ``mongo`` 
-- ``core`` (includes ``mongod``, ``mongos``, ``mongo``) 
-- ``all``
+- ``install-mongod`` 
+- ``install-mongos`` 
+- ``install-mongo`` 
+- ``install-core`` (includes ``mongod``, ``mongos``, ``mongo``) 
+- ``install-all``
 
 The built binaries are in the ``percona-server-mongodb`` directory.
 
@@ -330,11 +330,11 @@ Red Hat Enterprise Linux and derivatives
 This command builds the core of the database. Other available targets for the
 ``scons`` command are: 
 
-- ``mongod`` 
-- ``mongos`` 
-- ``mongo`` 
-- ``core`` (includes ``mongod``, ``mongos``, ``mongo``) 
-- ``all``
+- ``install-mongod`` 
+- ``install-mongos`` 
+- ``install-mongo`` 
+- ``install-core`` (includes ``mongod``, ``mongos``, ``mongo``) 
+- ``install-all``
 
 The built binaries are in the ``percona-server-mongodb`` directory.
 
