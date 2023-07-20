@@ -69,6 +69,7 @@ enhancement implementation with you, do the following:
    -  v4.2
    -  v4.4
    -  v5.0
+   -  v6.0
    -  master - this branch is the source for the next version, should it
       appear. You should not commit your changes to master branch.
 
@@ -99,7 +100,7 @@ Building Percona Server for MongoDB
 -----------------------------------
 
 Instead of building Percona Server for MongoDB from source, you can
-`download <https://www.percona.com/downloads/percona-server-mongodb-4.4/>`_
+`download <https://www.percona.com/downloads>`_
 and use binary tarballs. Follow the `installation
 instructions <https://www.percona.com/doc/percona-server-for-mongodb/4.4/install/tarball.html>`_ in our documentation.
 
@@ -160,7 +161,7 @@ Debian/Ubuntu
 .. code:: sh
 
    git clone https://github.com/percona/percona-server-mongodb.git
-   git clone https://github.com/aws/aws-sdk-cpp.git
+   git clone --recurse-submodules https://github.com/aws/aws-sdk-cpp.git
 
 2. Install the dependencies for your operating system. The following
    command installs the dependencies for Ubuntu 20.04:
@@ -175,7 +176,7 @@ Debian/Ubuntu
 .. code:: sh
 
    cd percona-server-mongodb && git checkout v4.4
-   pip3 install --user -r etc/pip/dev-requirements.txt
+   python3 -m pip install --user -r etc/pip/dev-requirements.txt
 
 4. Define Percona Server for MongoDB version (4.4.3 for the time of
    writing this document)
@@ -239,13 +240,18 @@ Debian/Ubuntu
       buildscripts/scons.py -j$(nproc --all) --jlink=2 --install-mode=legacy --disable-warnings-as-errors --ssl --opt=on --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib" mongod
 
 This command builds only the database. Other available targets for the
-``scons`` command are: - ``mongod`` - ``mongos`` - ``mongo`` - ``core``
-(includes ``mongod``, ``mongos``, ``mongo``) - ``all``
+``scons`` command are:
+
+- ``mongod`` 
+- ``mongos`` 
+- ``mongo`` 
+- ``core`` (includes ``mongod``, ``mongos``, ``mongo``) 
+- ``all``
 
 The built binaries are in the ``percona-server-mongodb`` directory.
 
-Red Hat Enterprise Linux/CentOS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Red Hat Enterprise Linux and derivatives
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Clone this repository and the AWS Software Development Kit for C++
    repository
@@ -253,10 +259,10 @@ Red Hat Enterprise Linux/CentOS
 .. code:: sh
 
    git clone https://github.com/percona/percona-server-mongodb.git
-   git clone https://github.com/aws/aws-sdk-cpp.git
+   git clone --recurse-submodules https://github.com/aws/aws-sdk-cpp.git
 
 2. Install the dependencies for your operating system. The following
-   command installs the dependencies for Centos 7:
+   command installs the dependencies for CentOS 7:
 
 .. code:: sh
 
@@ -369,8 +375,13 @@ Red Hat Enterprise Linux/CentOS
       buildscripts/scons.py -j$(nproc --all) --jlink=2 --install-mode=legacy --disable-warnings-as-errors --ssl --opt=on --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib64" mongod
 
 This command builds only the database. Other available targets for the
-``scons`` command are: - ``mongod`` - ``mongos`` - ``mongo`` - ``core``
-(includes ``mongod``, ``mongos``, ``mongo``) - ``all``
+``scons`` command are: 
+
+- ``mongod`` 
+- ``mongos`` 
+- ``mongo`` 
+- ``core`` (includes ``mongod``, ``mongos``, ``mongo``) 
+- ``all``
 
 The built binaries are in the ``percona-server-mongodb`` directory.
 
