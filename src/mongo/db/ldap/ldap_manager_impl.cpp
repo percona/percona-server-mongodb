@@ -585,12 +585,19 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
                 ludp->lud_attrs,
                 0, // attrsonly (0 => attrs and values)
                 nullptr, nullptr, &tv, 0, &answer);
-        if (res == LDAP_SUCCESS)
+        // Treat nullptr answer as an error. It is undocumented in which cases LDAP_SUCCESS can
+        // be along with nullptr answer.
+        if (res == LDAP_SUCCESS && answer != nullptr)
             break;
         if (retrycnt > 0) {
-            ldap_msgfree(answer);
-            LOGV2_ERROR(29072, "LDAP search failed with error",
-                    "errstr"_attr = ldap_err2string(res));
+            if (res != LDAP_SUCCESS) {
+                ldap_msgfree(answer);
+                LOGV2_ERROR(
+                    29072, "LDAP search failed with error", "errstr"_attr = ldap_err2string(res));
+            } else {
+                // res is LDAP_SUCCESS, answer is nullptr
+                LOGV2_ERROR(29116, "LDAP search 'succeeded' but answer is nullptr");
+            }
             return_search_connection(ldap);
             ldap = borrow_search_connection();
             if (!ldap) {
@@ -605,6 +612,8 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
         return Status(ErrorCodes::LDAPLibraryError,
                       "LDAP search failed with error: {}"_format(
                           ldap_err2string(res)));
+    } else if (answer == nullptr) {
+        return Status(ErrorCodes::LDAPLibraryError, "LDAP search failed to return non-null answer");
     }
 
     auto entry = ldap_first_entry(ldap, answer);
