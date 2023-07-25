@@ -944,6 +944,10 @@ build_tarball(){
         pip3.6 install --user -r etc/pip/evgtest-requirements.txt
     else
         pip install --upgrade pip
+
+        # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+        pip install pyyaml==5.4.1 --no-build-isolation
+
         pip install --user -r etc/pip/dev-requirements.txt
         pip install --user -r etc/pip/evgtest-requirements.txt
     fi
@@ -967,10 +971,14 @@ build_tarball(){
             if [ x"${DEBIAN}" = xjammy ]; then
                 CMAKE_CXX_FLAGS="-Wno-maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
             fi
+            CMAKE_CMD="cmake"
+            if [ x"$RHEL" = x7 ]; then
+                CMAKE_CMD="cmake3"
+            fi
             if [ -z "${CC}" -a -z "${CXX}" ]; then
-                cmake .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+                ${CMAKE_CMD} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
             else
-                cmake CC=${CC} CXX=${CXX} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
             fi
             make -j${NCPU} || exit $?
             make install
