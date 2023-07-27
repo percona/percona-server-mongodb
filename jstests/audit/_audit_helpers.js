@@ -157,10 +157,12 @@ var loadAuditEventsIntoCollection = function(m, filename, dbname, collname, prim
         .filter(line => line.length > 0)
         .forEach(ev => auditCollection.insert(parseJsonCanonical(ev)));
 
-    // there should be no duplicate audit log lines
+    // allow duplicate audit log lines with "unique: false"
+    // because during some runs of audit_<something>_sharding.js tests
+    // we observed "logout" records with identical timestamps
     assert.commandWorked(auditCollection.createIndex(
         { atype: 1, ts: 1, local: 1, remote: 1, users: 1, param: 1, result: 1 },
-        { unique: true }
+        { unique: false }
     ));
 
     return auditCollection;
