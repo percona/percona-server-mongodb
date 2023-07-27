@@ -179,7 +179,7 @@ Debian/Ubuntu
 
       .. code:: sh   
 
-         cd aws-sdk-cpp && git checkout 1.9.379
+      cd aws-sdk-cpp && git checkout 1.9.379 && git submodule update --init --recursive
 
    -  It is recommended to keep build files outside the SDK directory.
       Create a build directory and navigate to it
@@ -210,14 +210,6 @@ Debian/Ubuntu
 
    -  Build Percona Server for MongoDB from ``buildscripts/scons.py``.
       
-      - With features included in Percona Supported Builds:
-      
-      .. code:: sh   
-
-         buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --enable-fipsmode CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos install-mongo
-
-      - Without features included in Percona Supported Builds:
-
       .. code:: sh   
 
          buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos install-mongo
@@ -286,7 +278,7 @@ Red Hat Enterprise Linux and derivatives
 
       .. code:: sh   
 
-         cd aws-sdk-cpp && git checkout 1.9.379
+      cd aws-sdk-cpp && git checkout 1.9.379 && git submodule update --init --recursive
 
    -  It is recommended to keep build files outside of the SDK
       directory. Create a build directory and navigate to it
@@ -315,13 +307,7 @@ Red Hat Enterprise Linux and derivatives
 
       cd percona-server-mongodb
 
-   - With features included in Percona Supported Builds:
-      
-   .. code:: sh  
-
-      buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --enable-fipsmode CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos install-mongo
-
-   - Without features included in Percona Supported Builds:
+   - Build Percona Server for MongoDB from ``buildscripts/scons.py``.
 
    .. code:: sh   
 

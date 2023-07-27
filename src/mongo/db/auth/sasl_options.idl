@@ -60,6 +60,12 @@ server_parameters:
     set_at: startup
     on_update: "SASLGlobalParams::onSetAuthdPath"
     cpp_varname: "saslGlobalParams.authdPath"
+  awsStsHost:
+    description: ->
+      Overrides the default host for AWS Security Token Service (STS). In effect
+      only if the `MONGODB-AWS` authentication mechanism is enabled.
+    set_at: startup
+    cpp_varname: "saslGlobalParams.awsStsHost"
   scramIterationCount:
     description: "The number of times passwords are iteratively hashed for SCRAM-SHA-1"
     set_at: [startup, runtime]

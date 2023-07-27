@@ -186,11 +186,8 @@ get_sources(){
             cd aws-sdk-cpp
                 git reset --hard
                 git clean -xdf
-                git checkout 1.8.187
-                if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
-                    sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
-                    sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
-                fi
+                git checkout 1.9.379
+                git submodule update --init --recursive
                 mkdir build
     cd ../../
     tar --owner=0 --group=0 --exclude=.* -czf ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
@@ -296,11 +293,8 @@ aws_sdk_build(){
         cd aws-sdk-cpp
             git reset --hard
             git clean -xdf
-            git checkout 1.8.187
-            if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
-                sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
-                sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
-            fi
+            git checkout 1.9.379
+            git submodule update --init --recursive
             mkdir build
             cd build
             CMAKE_CMD="cmake"
@@ -902,11 +896,8 @@ build_tarball(){
             cd aws-sdk-cpp
             git reset --hard
             git clean -xdf
-            git checkout 1.8.187
-            if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
-                sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
-                sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
-            fi
+            git checkout 1.9.379
+            git submodule update --init --recursive
             mkdir build
             cd build
             set_compiler
