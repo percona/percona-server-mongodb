@@ -44,7 +44,12 @@ BuildRoot:      /var/tmp/%{name}-%{version}-%{release}
 
 BuildRequires: gcc, make, cmake, gcc-c++, openssl-devel, cyrus-sasl-devel
 BuildRequires: snappy-devel, zlib-devel, bzip2-devel, libpcap-devel, openldap-devel, xz-devel
+%if 0%{?rhel} == 7
 BuildRequires: /usr/bin/scons
+%endif
+%if 0%{?rhel} >= 8
+BuildRequires: /usr/bin/scons-3
+%endif
 
 # %if 0%{?rhel} >= 6
 # BuildRequires: policycoreutils-python

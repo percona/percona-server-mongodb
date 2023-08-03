@@ -244,7 +244,12 @@ switch_to_vault_repo() {
 }
 
 install_golang() {
-    wget https://golang.org/dl/go1.19.11.linux-amd64.tar.gz -O /tmp/golang1.19.tar.gz
+    if [ x"$ARCH" = "xx86_64" ]; then
+      GO_ARCH="amd64"
+    elif [ x"$ARCH" = "xaarch64" ]; then
+      GO_ARCH="arm64"
+    fi
+    wget https://golang.org/dl/go1.19.11.linux-${GO_ARCH}.tar.gz -O /tmp/golang1.19.tar.gz
     tar --transform=s,go,go1.19, -zxf /tmp/golang1.19.tar.gz
     rm -rf /usr/local/go1.19 /usr/local/go1.11  /usr/local/go1.8 /usr/local/go1.9 /usr/local/go1.9.2 /usr/local/go
     mv go1.19 /usr/local/
@@ -377,13 +382,15 @@ install_deps() {
       fi
       yum -y update
       yum -y install wget
-      add_percona_yum_repo
-      wget http://jenkins.percona.com/yum-repo/percona-dev.repo
-      mv -f percona-dev.repo /etc/yum.repos.d/
-      yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
-      percona-release enable tools testing
-      yum clean all
-      yum install -y patchelf
+      if [ x"$ARCH" = "xx86_64" ]; then
+        if [ "$RHEL" -lt 9 ]; then
+          add_percona_yum_repo
+        fi
+        yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+        percona-release enable tools testing
+        yum clean all
+        yum install -y patchelf
+      fi
       RHEL=$(rpm --eval %rhel)
       if [ x"$RHEL" = x6 ]; then
         yum -y install epel-release
@@ -408,11 +415,13 @@ install_deps() {
         pip3.6 install --user typing pyyaml regex Cheetah3
         pip2.7 install --user typing pyyaml regex Cheetah Cheetah3
       else
+        yum-config-manager --enable ol${RHEL}_codeready_builder
         yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
         yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
-        yum -y install python2-scons python2-pip python36-devel which
+        yum -y install python3-scons python2-pip python36-devel which
         yum -y install redhat-rpm-config python2-devel e2fsprogs-devel expat-devel lz4-devel
         yum -y install openldap-devel krb5-devel xz-devel
+        ln -sf /usr/bin/scons-3 /usr/bin/scons
       fi
       if [ "x${RHEL}" == "x8" ]; then
         /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
