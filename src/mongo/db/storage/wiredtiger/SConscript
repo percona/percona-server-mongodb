@@ -122,8 +122,8 @@ wtEnv.Library(
         'aws-c-cal',
         'aws-c-sdkutils',
         's2n',
-        'aws-c-common',
         'aws-checksums',
+        'aws-c-common',
         'curl',
     ],
 )
