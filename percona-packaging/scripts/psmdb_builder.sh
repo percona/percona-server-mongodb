@@ -176,6 +176,12 @@ get_sources(){
 	    -replace golang.org/x/text@v0.3.7=golang.org/x/text@v0.3.8
     go mod tidy
     go mod vendor
+
+    # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
+    if [ x"$ARCH" = "xaarch64" ]; then
+        sed -i '125 {/\(GetByOsAndArch("ubuntu1804", archName)\)/ s/\bubuntu1804\b/rhel82/; t; q1}' release/platform/platform.go || exit 1
+    fi
+
     cd ${WORKDIR}
     source percona-server-mongodb-44.properties
     #
@@ -238,11 +244,11 @@ switch_to_vault_repo() {
 }
 
 install_golang() {
-    wget https://golang.org/dl/go1.15.7.linux-amd64.tar.gz -O /tmp/golang1.15.tar.gz
-    tar --transform=s,go,go1.15, -zxf /tmp/golang1.15.tar.gz
-    rm -rf /usr/local/go1.15 /usr/local/go1.11  /usr/local/go1.8 /usr/local/go1.9 /usr/local/go1.9.2 /usr/local/go
-    mv go1.15 /usr/local/
-    ln -s /usr/local/go1.15 /usr/local/go
+    wget https://golang.org/dl/go1.19.11.linux-amd64.tar.gz -O /tmp/golang1.19.tar.gz
+    tar --transform=s,go,go1.19, -zxf /tmp/golang1.19.tar.gz
+    rm -rf /usr/local/go1.19 /usr/local/go1.11  /usr/local/go1.8 /usr/local/go1.9 /usr/local/go1.9.2 /usr/local/go
+    mv go1.19 /usr/local/
+    ln -s /usr/local/go1.19 /usr/local/go
 }
 
 install_gcc_8_centos(){
@@ -334,7 +340,7 @@ aws_sdk_build(){
             CMAKE_CMD="cmake"
             if [ -f /etc/redhat-release ]; then
                 RHEL=$(rpm --eval %rhel)
-                if [ x"$RHEL" = x6 ]; then
+                if [ x"$RHEL" = x7 ]; then
                     CMAKE_CMD="cmake3"
                 fi
             fi
@@ -433,7 +439,7 @@ install_deps() {
       DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https software-properties-common
       export DEBIAN=$(lsb_release -sc)
       export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
-      wget https://repo.percona.com/apt/pool/testing/p/percona-release/percona-release_1.0-27.generic_all.deb && dpkg -i percona-release_1.0-27.generic_all.deb
+      wget https://repo.percona.com/apt/pool/main/p/percona-release/percona-release_1.0-27.generic_all.deb && dpkg -i percona-release_1.0-27.generic_all.deb
       if [ x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" ]; then
         add-apt-repository -y ppa:deadsnakes/ppa
       elif [ x"${DEBIAN}" = "xstretch" -o x"${DEBIAN}" = "xbuster" ]; then
@@ -728,6 +734,10 @@ build_source_deb(){
     mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
     cd ${BUILDDIR}
     pip install --upgrade pip
+
+    # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+    pip install pyyaml==5.4.1 --no-build-isolation
+
     pip install -r etc/pip/dev-requirements.txt
     pip install -r etc/pip/evgtest-requirements.txt
 
@@ -780,6 +790,10 @@ build_deb(){
     #
     cd ${PRODUCT}-${VERSION}
     pip install --upgrade pip
+
+    # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+    pip install pyyaml==5.4.1 --no-build-isolation
+
     pip install -r etc/pip/dev-requirements.txt
     pip install -r etc/pip/evgtest-requirements.txt
     #
@@ -891,6 +905,10 @@ build_tarball(){
         pip3.6 install --user -r etc/pip/evgtest-requirements.txt
     else
         pip install --upgrade pip
+
+        # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+        pip install pyyaml==5.4.1 --no-build-isolation
+
         pip install --user -r etc/pip/dev-requirements.txt
         pip install --user -r etc/pip/evgtest-requirements.txt
     fi
@@ -914,10 +932,14 @@ build_tarball(){
             if [ x"${DEBIAN}" = xjammy ]; then
                 CMAKE_CXX_FLAGS="-Wno-maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
             fi
+            CMAKE_CMD="cmake"
+            if [ x"$RHEL" = x7 ]; then
+                CMAKE_CMD="cmake3"
+            fi
             if [ -z "${CC}" -a -z "${CXX}" ]; then
-                cmake .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+                ${CMAKE_CMD} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
             else
-                cmake CC=${CC} CXX=${CXX} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
             fi
             make -j${NCPU} || exit $?
             make install

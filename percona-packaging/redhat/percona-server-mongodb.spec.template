@@ -135,7 +135,7 @@ export GOBINPATH="/usr/local/go/bin"
 #aws-sdk-cpp
 pushd $RPM_BUILD_DIR/%{src_dir}/aws-sdk-cpp
     pushd build
-%if 0%{?rhel} >= 7
+%if 0%{?rhel} >= 8
         cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}"
         cmake --build . --target install
 %else
