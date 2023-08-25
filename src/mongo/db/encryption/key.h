@@ -31,11 +31,12 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <type_traits>
+
+#include "mongo/base/secure_allocator.h"
 
 namespace mongo {
 class SecureRandom;
@@ -45,10 +46,10 @@ class Key {
 public:
     ~Key();
 
-    Key(const Key&) = default;
-    Key& operator=(const Key&) = default;
-    Key(Key&&) = default;
-    Key& operator=(Key&&) = default;
+    Key(const Key&);
+    Key& operator=(const Key&);
+    Key(Key&&);
+    Key& operator=(Key&&);
 
     Key();
     explicit Key(SecureRandom& srng);
@@ -69,26 +70,17 @@ public:
         : Key(reinterpret_cast<const std::uint8_t*>(keyData.data()), keyData.size()) {}
 
 
-    friend bool operator==(const Key& lhs, const Key& rhs) noexcept {
-        return lhs._data == rhs._data;
-    }
-
-    const std::uint8_t* data() const noexcept {
-        return _data.data();
-    }
-    constexpr std::size_t size() const noexcept {
-        return _data.size();
-    }
+    bool operator==(const Key& other) const noexcept;
+    const std::uint8_t* data() const noexcept;
+    std::size_t size() const noexcept;
     std::string base64() const;
 
     static constexpr std::size_t kLength = 32;
 
 private:
-    std::uint8_t* data() noexcept {
-        return _data.data();
-    }
+    std::uint8_t* data() noexcept;
 
-    std::array<std::uint8_t, kLength> _data;
+    SecureArray<std::uint8_t, kLength> _data;
 };
 }  // namespace encryption
 }  // namespace mongo

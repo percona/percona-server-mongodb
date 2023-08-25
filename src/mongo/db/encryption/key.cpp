@@ -38,12 +38,14 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/string_data.h"
 #include "mongo/platform/random.h"
 #include "mongo/util/base64.h"
-#include "mongo/util/secure_zero_memory.h"
 
 namespace mongo::encryption {
-Key::~Key() {
-    secureZeroMemory(data(), size());
-}
+Key::~Key() = default;
+
+Key::Key(const Key&) = default;
+Key& Key::operator=(const Key&) = default;
+Key::Key(Key&&) = default;
+Key& Key::operator=(Key&&) = default;
 
 Key::Key(SecureRandom& srng) {
     srng.fill(data(), size());
@@ -68,6 +70,22 @@ Key::Key(const std::uint8_t* keyData, std::size_t keyDataSize) {
             << " in either raw or base64-encoded form";
         throw std::runtime_error(msg.str());
     }
+}
+
+bool Key::operator==(const Key& other) const noexcept {
+    return *_data == *other._data;
+}
+
+const std::uint8_t* Key::data() const noexcept {
+    return _data->data();
+}
+
+std::uint8_t* Key::data() noexcept {
+    return _data->data();
+}
+
+std::size_t Key::size() const noexcept {
+    return _data->size();
 }
 
 std::string Key::base64() const {

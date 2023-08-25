@@ -13,10 +13,10 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/base/secure_allocator',
         '$BUILD_DIR/mongo/db/encryption/encryption_kmip',
         '$BUILD_DIR/mongo/db/encryption/encryption_options',
         '$BUILD_DIR/mongo/db/encryption/encryption_vault',
-        '$BUILD_DIR/mongo/util/secure_zero_memory',
         'read_file_to_secure_string'
     ],
 )
