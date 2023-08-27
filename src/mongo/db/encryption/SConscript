@@ -16,7 +16,8 @@ env.Library(
         '$BUILD_DIR/mongo/db/encryption/encryption_kmip',
         '$BUILD_DIR/mongo/db/encryption/encryption_options',
         '$BUILD_DIR/mongo/db/encryption/encryption_vault',
-        '$BUILD_DIR/mongo/util/secure_zero_memory'
+        '$BUILD_DIR/mongo/util/secure_zero_memory',
+        'read_file_to_secure_string'
     ],
 )
 
@@ -43,24 +44,28 @@ env.Library(
 env.Library(
     target='encryption_vault',
     source=[
-    	'encryption_vault.cpp',
+        'encryption_vault.cpp',
     ],
     SYSLIBDEPS=[
         'winhttp' if env.TargetOSIs('windows') else 'curl',
     ],
     LIBDEPS_PRIVATE=[
-        '$BUILD_DIR/mongo/db/encryption/secret_string'
+        '$BUILD_DIR/mongo/base',
+        'encryption_options',
+        'read_file_to_secure_string',
     ],
 )
 
 env.Library(
-    target='secret_string',
+    target='read_file_to_secure_string',
     source=[
-        'secret_string.cpp'
+        'read_file_to_secure_string.cpp'
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base/secure_allocator',
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/server_options_core',
-        '$BUILD_DIR/mongo/util/secure_zero_memory'
     ],
 )
 
@@ -69,9 +74,9 @@ env.InjectThirdParty(libraries=['kmippp'])
 env.Library(
     target='encryption_kmip',
     source=[
-    	'encryption_kmip.cpp'
+        'encryption_kmip.cpp',
     ],
-    LIBDEPS=[
+    LIBDEPS_PRIVATE=[
         '$BUILD_DIR/third_party/shim_kmippp',
     ],
 )

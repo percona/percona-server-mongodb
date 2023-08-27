@@ -38,7 +38,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include <curl/curl.h>
 
 #include "mongo/db/encryption/encryption_options.h"
-#include "mongo/db/encryption/secret_string.h"
+#include "mongo/db/encryption/read_file_to_secure_string.h"
 #include "mongo/db/json.h"
 #include "mongo/logv2/log.h"
 
@@ -171,12 +171,15 @@ std::pair<std::string, std::uint64_t> vaultReadKey(const std::string& secretPath
     CURLcode curl_res = CURLE_OK;
     str::stream response;
 
-    const std::string& vaultToken = !encryptionGlobalParams.vaultToken.empty()
+    SecureString xVaultTokenHeader("X-Vault-Token: ");
+    xVaultTokenHeader->append(
+        !encryptionGlobalParams.vaultToken.empty()
         ? encryptionGlobalParams.vaultToken
-        : SecretString::readFromFile(encryptionGlobalParams.vaultTokenFile, "Vault token");
+        : static_cast<std::string_view>(*readFileToSecureString(encryptionGlobalParams.vaultTokenFile,
+                                                                "Vault token")));
 
     curl_slist *headers = nullptr;
-    headers = curl_slist_append(headers, std::string("X-Vault-Token: ").append(vaultToken).c_str());
+    headers = curl_slist_append(headers, xVaultTokenHeader->c_str());
     Curl_slist_guard curl_slist_guard(headers);
 
     auto url_query = [](std::uint64_t version) {
@@ -260,12 +263,15 @@ std::uint64_t vaultWriteKey(const std::string& secretPath, std::string const& ke
     CURLcode curl_res = CURLE_OK;
     str::stream response;
 
-    const std::string& vaultToken = !encryptionGlobalParams.vaultToken.empty()
+    SecureString xVaultTokenHeader("X-Vault-Token: ");
+    xVaultTokenHeader->append(
+        !encryptionGlobalParams.vaultToken.empty()
         ? encryptionGlobalParams.vaultToken
-        : SecretString::readFromFile(encryptionGlobalParams.vaultTokenFile, "Vault token");
+        : static_cast<std::string_view>(*readFileToSecureString(encryptionGlobalParams.vaultTokenFile,
+                                                                "Vault token")));
 
     curl_slist *headers = nullptr;
-    headers = curl_slist_append(headers, std::string("X-Vault-Token: ").append(vaultToken).c_str());
+    headers = curl_slist_append(headers, xVaultTokenHeader->c_str());
     Curl_slist_guard curl_slist_guard(headers);
 
     std::string urlstr = std::string(str::stream()

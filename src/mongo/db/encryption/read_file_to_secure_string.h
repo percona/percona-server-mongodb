@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -32,29 +32,11 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include <string>
-#include <utility>
+
+#include "mongo/base/secure_allocator.h"
 
 /// The code in this namespace is not intended to be called from outside
 /// the `mongo::encryption` namespace
 namespace mongo::encryption::detail {
-class SecretString {
-public:
-    ~SecretString();
-    SecretString(const SecretString&) = default;
-    SecretString(SecretString&&) = default;
-    SecretString& operator=(const SecretString&) = default;
-    SecretString& operator=(SecretString&&) = default;
-
-    explicit SecretString(const std::string& data) : _data(data) {}
-    explicit SecretString(std::string&& data) : _data(std::move(data)) {}
-
-    operator const std::string&() const noexcept {
-        return _data;
-    }
-
-    static SecretString readFromFile(const std::string& path, const std::string& description = "");
-
-private:
-    std::string _data;
-};
-}  // namespace mongo::encryption::detail
+SecureString readFileToSecureString(const std::string& path, const std::string& description = "");
+}
