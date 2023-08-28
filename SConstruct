@@ -2649,7 +2649,7 @@ def doConfigure(myenv):
 
         # Suppress warnings about not consistently using override everywhere in a class. It seems
         # very pedantic, and we have a fair number of instances.
-        AddToCCFLAGSIfSupported(myenv, "-Wno-inconsistent-missing-override")
+        AddToCXXFLAGSIfSupported(myenv, "-Wno-inconsistent-missing-override")
 
         # Don't issue warnings about potentially evaluated expressions
         AddToCCFLAGSIfSupported(myenv, "-Wno-potentially-evaluated-expression")
@@ -2681,11 +2681,11 @@ def doConfigure(myenv):
 
         # This warning was added in clang-5 and flags many of our lambdas. Since it isn't actively
         # harmful to capture unused variables we are suppressing for now with a plan to fix later.
-        AddToCCFLAGSIfSupported(myenv, "-Wno-unused-lambda-capture")
+        AddToCXXFLAGSIfSupported(myenv, "-Wno-unused-lambda-capture")
 
         # This warning was added in clang-5 and incorrectly flags our implementation of
         # exceptionToStatus(). See https://bugs.llvm.org/show_bug.cgi?id=34804
-        AddToCCFLAGSIfSupported(myenv, "-Wno-exceptions")
+        AddToCXXFLAGSIfSupported(myenv, "-Wno-exceptions")
 
         # Enable sized deallocation support.
         AddToCXXFLAGSIfSupported(myenv, '-fsized-deallocation')
