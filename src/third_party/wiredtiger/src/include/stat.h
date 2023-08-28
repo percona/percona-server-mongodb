@@ -436,6 +436,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
     int64_t cache_bytes_max;
+    int64_t cache_eviction_maximum_milliseconds;
     int64_t cache_eviction_maximum_page_size;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_app_dirty;
@@ -468,6 +469,7 @@ struct __wt_connection_stats {
     int64_t cache_overhead;
     int64_t cache_hs_insert_full_update;
     int64_t cache_hs_insert_reverse_modify;
+    int64_t cache_reentry_hs_eviction_milliseconds;
     int64_t cache_bytes_internal;
     int64_t cache_bytes_leaf;
     int64_t cache_bytes_dirty;
@@ -658,7 +660,9 @@ struct __wt_connection_stats {
     int64_t rec_page_delete_fast;
     int64_t rec_overflow_key_internal;
     int64_t rec_overflow_key_leaf;
-    int64_t rec_maximum_seconds;
+    int64_t rec_maximum_milliseconds;
+    int64_t rec_maximum_image_build_milliseconds;
+    int64_t rec_maximum_hs_wrapup_milliseconds;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_pages_with_prepare;
@@ -739,6 +743,7 @@ struct __wt_connection_stats {
     int64_t txn_prepared_updates_committed;
     int64_t txn_prepared_updates_key_repeated;
     int64_t txn_prepared_updates_rolledback;
+    int64_t txn_rollback_oldest_pinned;
     int64_t txn_prepare;
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
@@ -795,7 +800,6 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint;
     int64_t txn_checkpoint_obsolete_applied;
     int64_t txn_checkpoint_skipped;
-    int64_t txn_fail_cache;
     int64_t txn_checkpoint_fsync_post;
     int64_t txn_checkpoint_fsync_post_duration;
     int64_t txn_pinned_range;
