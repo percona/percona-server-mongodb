@@ -57,21 +57,6 @@ env.Library(
     ],
 )
 
-
-kmipEnv = env.Clone()
-kmipEnv.InjectThirdParty(libraries=['kmippp'])
-kmipEnv.Library(
-    target='encryption_kmip',
-    source=[
-        'encryption_kmip.cpp',
-    ],
-    LIBDEPS_PRIVATE=[
-        '$BUILD_DIR/mongo/base',
-        '$BUILD_DIR/third_party/shim_kmippp',
-        'encryption_options',
-    ],
-)
-
 kmipClientEnv = env.Clone()
 kmipClientEnv.InjectThirdParty(libraries=['libkmip', 'kmippp'])
 kmipClientEnv.Library(
@@ -103,9 +88,9 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',
-        'encryption_kmip',
         'encryption_options',
         'encryption_vault',
+        'kmip_client',
         'read_file_to_secure_string',
     ],
 )

@@ -40,7 +40,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <kmippp/kmippp.h>
 
 #include "mongo/db/encryption/key.h"
-#include "mongo/util/assert_util_core.h"
+#include "mongo/util/invariant.h"
 
 namespace mongo::encryption::detail {
 KmipExchange::KmipExchange() : _state(State::NotStarted), _span(_buffer) {

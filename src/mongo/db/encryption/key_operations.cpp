@@ -29,17 +29,58 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kNetwork
+
 #include "mongo/db/encryption/key_operations.h"
 
-#include "mongo/db/encryption/encryption_kmip.h"
+#include <chrono>
+#include <functional>
+#include <string>
+#include <system_error>
+#include <vector>
+
+#include <boost/algorithm/string/split.hpp>
+
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/encryption_vault.h"
 #include "mongo/db/encryption/error_builder.h"
 #include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/kmip_client.h"
 #include "mongo/db/encryption/read_file_to_secure_string.h"
+#include "mongo/logv2/log.h"
 #include "mongo/util/invariant.h"
 
 namespace mongo::encryption {
+namespace {
+template <typename MemFn>
+auto retryKmipOperation(MemFn&& operation) {
+    static constexpr std::chrono::milliseconds kDefaultConnectTimeout(5000);
+
+    std::vector<std::string> serverNames;
+    boost::algorithm::split(
+        serverNames, encryptionGlobalParams.kmipServerName, [](char c) { return c == ','; });
+    std::string portStr = std::to_string(encryptionGlobalParams.kmipPort);
+
+    for (const auto& serverName : serverNames) {
+        KmipClient client(serverName,
+                          portStr,
+                          encryptionGlobalParams.kmipServerCAFile,
+                          encryptionGlobalParams.kmipClientCertificateFile,
+                          encryptionGlobalParams.kmipClientCertificatePassword,
+                          kDefaultConnectTimeout);
+        try {
+            return std::invoke(operation, client);
+        } catch (const std::runtime_error& e) {
+            LOGV2_WARNING(29117, "KMIP session failed",
+                          "serverHost"_attr = serverName + ":" + portStr,
+                          "reason"_attr = e.what());
+            continue;
+        }
+    }
+    throw std::runtime_error("Can't connect to any of KMIP servers specified in the configuration");
+}
+}
+
 std::optional<KeyKeyIdPair> ReadKeyFile::operator()() const try {
     auto s = detail::readFileToSecureString(_path.toString(), "encryption key");
     return KeyKeyIdPair{Key(*s), _path.clone()};
@@ -74,8 +115,9 @@ std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
 }
 
 std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
-    if (auto rawKeyData = detail::kmipReadKey(_id.toString()); !rawKeyData.empty()) {
-        return KeyKeyIdPair{Key(rawKeyData), _id.clone()};
+    auto op = [&id = _id.toString()](KmipClient& client) { return client.getSymmetricKey(id); };
+    if (std::optional<Key> key = retryKmipOperation(op); key) {
+        return KeyKeyIdPair{std::move(*key), _id.clone()};
     }
     return std::nullopt;
 } catch (const std::runtime_error& e) {
@@ -85,10 +127,8 @@ std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
 }
 
 std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
-    std::vector<std::uint8_t> rawKeyData(
-        reinterpret_cast<const std::uint8_t*>(k.data()),
-        reinterpret_cast<const std::uint8_t*>(k.data() + k.size()));
-    return std::make_unique<KmipKeyId>(detail::kmipWriteKey(rawKeyData));
+    auto op = [&k](KmipClient& client) { return client.registerSymmetricKey(k); };
+    return std::make_unique<KmipKeyId>(retryKmipOperation(op));
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the KMIP server failed: " << e.what();
