@@ -85,8 +85,9 @@ std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
 }
 
 std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
-    std::vector<std::uint8_t> rawKeyData(k.size(), 0);
-    std::copy(k.data(), k.data() + k.size(), rawKeyData.begin());
+    std::vector<std::uint8_t> rawKeyData(
+        reinterpret_cast<const std::uint8_t*>(k.data()),
+        reinterpret_cast<const std::uint8_t*>(k.data() + k.size()));
     return std::make_unique<KmipKeyId>(detail::kmipWriteKey(rawKeyData));
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;

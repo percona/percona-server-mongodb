@@ -32,7 +32,6 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include <cstddef>
-#include <cstdint>
 #include <string>
 #include <type_traits>
 
@@ -53,7 +52,7 @@ public:
 
     Key();
     explicit Key(SecureRandom& srng);
-    Key(const std::uint8_t* keyData, std::size_t keyDataSize);
+    Key(const std::byte* keyData, std::size_t keyDataSize);
 
     // @note. The `enable_if_t` instantiation verifies that the container type:
     // 1. has integral value type;
@@ -67,20 +66,20 @@ public:
             std::is_void_v<std::void_t<decltype(std::declval<ContiguousContainer>().data()),
                                        decltype(std::declval<ContiguousContainer>().size())>>>>
     explicit Key(const ContiguousContainer& keyData)
-        : Key(reinterpret_cast<const std::uint8_t*>(keyData.data()), keyData.size()) {}
+        : Key(reinterpret_cast<const std::byte*>(keyData.data()), keyData.size()) {}
 
 
     bool operator==(const Key& other) const noexcept;
-    const std::uint8_t* data() const noexcept;
+    const std::byte* data() const noexcept;
     std::size_t size() const noexcept;
     std::string base64() const;
 
     static constexpr std::size_t kLength = 32;
 
 private:
-    std::uint8_t* data() noexcept;
+    std::byte* data() noexcept;
 
-    SecureArray<std::uint8_t, kLength> _data;
+    SecureArray<std::byte, kLength> _data;
 };
 }  // namespace encryption
 }  // namespace mongo

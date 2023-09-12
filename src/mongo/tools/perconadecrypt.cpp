@@ -131,7 +131,7 @@ int decryptCBC(const encryption::Key& masterKey,
             return printErrorMsg("Cannot read from encrypted file");
         fsize -= _iv_len;
         if (1 !=
-            EVP_DecryptInit_ex(ctx, _cipher, nullptr, masterKey.data(), (const unsigned char*)iv))
+            EVP_DecryptInit_ex(ctx, _cipher, nullptr, (const unsigned char*)masterKey.data(), (const unsigned char*)iv))
             return handleCryptoErrors();
     }
 
@@ -185,7 +185,7 @@ int decryptGCM(const encryption::Key& masterKey,
             return printErrorMsg("Cannot read from encrypted file");
         fsize -= _iv_len;
         if (1 !=
-            EVP_DecryptInit_ex(ctx, _cipher, nullptr, masterKey.data(), (const unsigned char*)iv))
+            EVP_DecryptInit_ex(ctx, _cipher, nullptr, (const unsigned char*)masterKey.data(), (const unsigned char*)iv))
             return handleCryptoErrors();
     }
 
