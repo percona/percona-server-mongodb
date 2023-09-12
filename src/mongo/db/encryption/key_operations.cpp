@@ -54,30 +54,39 @@ namespace mongo::encryption {
 namespace {
 template <typename MemFn>
 auto retryKmipOperation(MemFn&& operation) {
-    static constexpr std::chrono::milliseconds kDefaultConnectTimeout(5000);
-
     std::vector<std::string> serverNames;
     boost::algorithm::split(
         serverNames, encryptionGlobalParams.kmipServerName, [](char c) { return c == ','; });
     std::string portStr = std::to_string(encryptionGlobalParams.kmipPort);
 
-    for (const auto& serverName : serverNames) {
-        KmipClient client(serverName,
-                          portStr,
-                          encryptionGlobalParams.kmipServerCAFile,
-                          encryptionGlobalParams.kmipClientCertificateFile,
-                          encryptionGlobalParams.kmipClientCertificatePassword,
-                          kDefaultConnectTimeout);
-        try {
-            return std::invoke(operation, client);
-        } catch (const std::runtime_error& e) {
-            LOGV2_WARNING(29117, "KMIP session failed",
-                          "serverHost"_attr = serverName + ":" + portStr,
-                          "reason"_attr = e.what());
+    for (unsigned remainingAttemptCount = encryptionGlobalParams.kmipConnectRetries + 1; ;) {
+        for (const auto& serverName : serverNames) {
+            KmipClient client(serverName,
+                              portStr,
+                              encryptionGlobalParams.kmipServerCAFile,
+                              encryptionGlobalParams.kmipClientCertificateFile,
+                              encryptionGlobalParams.kmipClientCertificatePassword,
+                              std::chrono::milliseconds(encryptionGlobalParams.kmipConnectTimeoutMS));
+            try {
+                return std::invoke(operation, client);
+            } catch (const std::runtime_error& e) {
+                LOGV2_WARNING(29117, "KMIP session failed",
+                              "serverHost"_attr = serverName + ":" + portStr,
+                              "reason"_attr = e.what());
+                continue;
+            }
+        }
+        if (--remainingAttemptCount > 0) {
+            LOGV2_WARNING(29118,
+                          "KMIP sessions failed for all the server hosts. Trying each host again.",
+                          "remainingAttempCount"_attr = remainingAttemptCount);
             continue;
         }
+        break;
     }
-    throw std::runtime_error("Can't connect to any of KMIP servers specified in the configuration");
+
+    throw std::runtime_error("KMIP sessions failed for all the server hosts. "
+                             "No more remaining attempts.");
 }
 }
 
