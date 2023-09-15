@@ -1796,6 +1796,7 @@ int kmip_decode_int32_be(KMIP *, void *);
 int kmip_decode_int64_be(KMIP *, void *);
 int kmip_decode_integer(KMIP *, enum tag, int32 *);
 int kmip_decode_long(KMIP *, enum tag, int64 *);
+int kmip_decode_length(KMIP* ctx, uint32*);
 int kmip_decode_enum(KMIP *, enum tag, void *);
 int kmip_decode_bool(KMIP *, enum tag, bool32 *);
 int kmip_decode_text_string(KMIP *, enum tag, TextString *);
