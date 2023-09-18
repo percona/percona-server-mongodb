@@ -29,6 +29,8 @@ namespace detail {
 class ssl_category : public boost::system::error_category
 {
 public:
+  using boost::system::error_category::message;
+
   const char* name() const BOOST_ASIO_ERROR_CATEGORY_NOEXCEPT
   {
     return "asio.ssl";
@@ -67,6 +69,8 @@ namespace detail {
 class stream_category : public boost::system::error_category
 {
 public:
+  using boost::system::error_category::message;
+
   const char* name() const BOOST_ASIO_ERROR_CATEGORY_NOEXCEPT
   {
     return "asio.ssl.stream";
