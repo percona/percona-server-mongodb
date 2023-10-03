@@ -29,7 +29,7 @@
 
 #pragma once
 
-#include <set>
+#include <unordered_set>
 #include <vector>
 
 #include "mongo/bson/bsonobj.h"
@@ -37,11 +37,11 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/s/balancer/cluster_statistics.h"
 #include "mongo/s/catalog/type_chunk.h"
+#include "mongo/s/chunk_manager.h"
 #include "mongo/s/request_types/move_chunk_request.h"
 #include "mongo/s/shard_id.h"
 
 namespace mongo {
-
 
 struct ZoneRange {
     ZoneRange(const BSONObj& a_min, const BSONObj& a_max, const std::string& _zone);
@@ -78,7 +78,59 @@ struct MigrateInfo {
 };
 
 typedef std::vector<ClusterStatistics::ShardStatistics> ShardStatisticsVector;
-typedef std::map<ShardId, std::vector<ChunkType>> ShardToChunksMap;
+typedef std::map<ShardId, StringMap<size_t>> ShardToZoneSizeMap;
+
+/**
+ * Keeps track of zones for a collection.
+ */
+class ZoneInfo {
+public:
+    static const std::string kNoZoneName;
+
+    ZoneInfo();
+    ZoneInfo(ZoneInfo&&) = default;
+
+    /**
+     * Appends the specified range to the set of ranges tracked for this collection and checks if
+     * it overlaps with existing ranges.
+     */
+    Status addRangeToZone(const ZoneRange& range);
+
+    /**
+     * Returns all zones added so far.
+     */
+    const std::set<std::string>& allZones() const {
+        return _allZones;
+    }
+
+    /**
+     * Using the set of zones added so far, returns what zone corresponds to the specified chunk.
+     * Returns an empty string if the chunk doesn't fall into any zone.
+     */
+    std::string getZoneForChunk(const ChunkRange& chunkRange) const;
+
+    /**
+     * Returns all zone ranges defined.
+     */
+    const BSONObjIndexedMap<ZoneRange>& zoneRanges() const {
+        return _zoneRanges;
+    }
+
+    const ZoneRange& getZoneRange(const std::string& zoneName) const {
+        for (const auto& [_, zoneRange] : _zoneRanges) {
+            if (zoneRange.zone == zoneName)
+                return zoneRange;
+        }
+        MONGO_UNREACHABLE;
+    }
+
+private:
+    // Map of zone max key to the zone description
+    BSONObjIndexedMap<ZoneRange> _zoneRanges;
+
+    // Set of all zones defined for this collection
+    std::set<std::string> _allZones;
+};
 
 /**
  * This class constitutes a cache of the chunk distribution across the entire cluster along with the
@@ -90,7 +142,7 @@ class DistributionStatus {
     DistributionStatus& operator=(const DistributionStatus&) = delete;
 
 public:
-    DistributionStatus(NamespaceString nss, ShardToChunksMap shardToChunksMap);
+    DistributionStatus(NamespaceString nss, ZoneInfo zoneInfo, const ChunkManager* chunkMngr);
     DistributionStatus(DistributionStatus&&) = default;
 
     /**
@@ -99,17 +151,6 @@ public:
     const NamespaceString& nss() const {
         return _nss;
     }
-
-    /**
-     * Appends the specified range to the set of ranges tracked for this collection and checks if
-     * it overlaps with existing ranges.
-     */
-    Status addRangeToZone(const ZoneRange& range);
-
-    /**
-     * Returns total number of chunks across all shards.
-     */
-    size_t totalChunks() const;
 
     /**
      * Returns the total number of chunks across all shards, which fall into the specified zone's
@@ -128,29 +169,31 @@ public:
     size_t numberOfChunksInShardWithTag(const ShardId& shardId, const std::string& tag) const;
 
     /**
-     * Returns all chunks for the specified shard.
-     */
-    const std::vector<ChunkType>& getChunks(const ShardId& shardId) const;
-
-    /**
-     * Returns all tag ranges defined for the collection.
-     */
-    const BSONObjIndexedMap<ZoneRange>& tagRanges() const {
-        return _zoneRanges;
-    }
-
-    /**
      * Returns all tags defined for the collection.
      */
     const std::set<std::string>& tags() const {
-        return _allTags;
+        return _zoneInfo.allZones();
     }
 
     /**
      * Using the set of tags defined for the collection, returns what tag corresponds to the
      * specified chunk. If the chunk doesn't fall into any tag returns the empty string.
      */
-    std::string getTagForChunk(const ChunkType& chunk) const;
+    std::string getTagForRange(const ChunkRange& range) const;
+
+    const ChunkManager* getChunkManager() const {
+        return _chunkMngr;
+    }
+
+    const std::vector<ZoneRange>& getNormalizedZones() const {
+        return _normalizedZones;
+    }
+
+    const ZoneInfo& getZoneInfo() const {
+        return _zoneInfo;
+    }
+
+    const StringMap<size_t>& getChunksPerTagMap(const ShardId& shardId) const;
 
     /**
      * Returns a BSON/string representation of this distribution status.
@@ -162,14 +205,16 @@ private:
     // Namespace for which this distribution applies
     NamespaceString _nss;
 
-    // Map of what chunks are owned by each shard
-    ShardToChunksMap _shardChunks;
+    // Map that tracks how many chunks every shard is owning in each zone
+    // shardId -> zoneName -> numChunks
+    ShardToZoneSizeMap _shardToZoneSizeMap;
 
-    // Map of zone max key to the zone description
-    BSONObjIndexedMap<ZoneRange> _zoneRanges;
+    // Info for zones.
+    ZoneInfo _zoneInfo;
 
-    // Set of all zones defined for this collection
-    std::set<std::string> _allTags;
+    std::vector<ZoneRange> _normalizedZones;
+
+    const ChunkManager* _chunkMngr;
 };
 
 class BalancerPolicy {
@@ -193,13 +238,13 @@ public:
      * any of the shards have chunks, which are sufficiently higher than this number, suggests
      * moving chunks to shards, which are under this number.
      *
-     * The usedShards parameter is in/out and it contains the set of shards, which have already been
-     * used for migrations. Used so we don't return multiple conflicting migrations for the same
-     * shard.
+     * The availableShards parameter is in/out and it contains the set of shards, which are still
+     * available to participate on a migration. Used so we don't return multiple conflicting
+     * migrations for the same shard.
      */
     static std::vector<MigrateInfo> balance(const ShardStatisticsVector& shardStats,
                                             const DistributionStatus& distribution,
-                                            std::set<ShardId>* usedShards,
+                                            stdx::unordered_set<ShardId>* availableShards,
                                             bool forceJumbo);
 
     /**
@@ -215,10 +260,11 @@ private:
      * Return the shard with the specified tag, which has the least number of chunks. If the tag is
      * empty, considers all shards.
      */
-    static ShardId _getLeastLoadedReceiverShard(const ShardStatisticsVector& shardStats,
-                                                const DistributionStatus& distribution,
-                                                const std::string& tag,
-                                                const std::set<ShardId>& excludedShards);
+    static ShardId _getLeastLoadedReceiverShard(
+        const ShardStatisticsVector& shardStats,
+        const DistributionStatus& distribution,
+        const std::string& tag,
+        const stdx::unordered_set<ShardId>& availableShards);
 
     /**
      * Return the shard which has the least number of chunks with the specified tag. If the tag is
@@ -227,7 +273,7 @@ private:
     static ShardId _getMostOverloadedShard(const ShardStatisticsVector& shardStats,
                                            const DistributionStatus& distribution,
                                            const std::string& chunkTag,
-                                           const std::set<ShardId>& excludedShards);
+                                           const stdx::unordered_set<ShardId>& availableShards);
 
     /**
      * Selects one chunk for the specified zone (if appropriate) to be moved in order to bring the
@@ -246,7 +292,7 @@ private:
                                    const std::string& tag,
                                    size_t idealNumberOfChunksPerShardForTag,
                                    std::vector<MigrateInfo>* migrations,
-                                   std::set<ShardId>* usedShards,
+                                   stdx::unordered_set<ShardId>* availableShards,
                                    MoveChunkRequest::ForceJumbo forceJumbo);
 };
 

@@ -78,7 +78,6 @@
 #include "mongo/db/dbmessage.h"
 #include "mongo/db/encryption/error.h"
 #include "mongo/db/exec/working_set_common.h"
-#include "mongo/db/free_mon/free_mon_mongod.h"
 #include "mongo/db/ftdc/ftdc_mongod.h"
 #include "mongo/db/ftdc/util.h"
 #include "mongo/db/global_settings.h"
@@ -652,8 +651,6 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
 
         startMongoDFTDC();
 
-        startFreeMonitoring(serviceContext);
-
         auto replCoord = repl::ReplicationCoordinator::get(startupOpCtx.get());
         invariant(replCoord);
 
@@ -1063,8 +1060,6 @@ void setUpObservers(ServiceContext* serviceContext) {
     }
     opObserverRegistry->addObserver(std::make_unique<AuthOpObserver>());
 
-    setupFreeMonitoringOpObserver(opObserverRegistry.get());
-
     serviceContext->setOpObserver(std::move(opObserverRegistry));
 }
 
@@ -1305,9 +1300,6 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         }
     }
 #endif
-
-    LOGV2_OPTIONS(4784925, {LogComponent::kControl}, "Shutting down free monitoring");
-    stopFreeMonitoring();
 
     LOGV2(4784927, "Shutting down the HealthLog");
     HealthLog::get(serviceContext).shutdown();

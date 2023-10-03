@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2023-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,47 +27,49 @@
  *    it in the license file.
  */
 
-#pragma once
+#include <memory>
 
-#include <boost/optional.hpp>
+#include <boost/optional/optional.hpp>
 
+#include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
-#include "mongo/db/free_mon/free_mon_storage_gen.h"
+#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/commands/server_status.h"
 #include "mongo/db/operation_context.h"
 
 namespace mongo {
+namespace {
 
-/**
- * Storage tier for Free Monitoring. Provides access to storage engine.
- */
-class FreeMonStorage {
+class FCVServerStatusMetrics : public ServerStatusSection {
 public:
-    /**
-     * The _id value in admin.system.version.
-     */
-    static constexpr auto kFreeMonDocIdKey = "free_monitoring"_sd;
+    FCVServerStatusMetrics() : ServerStatusSection("featureCompatibilityVersion") {}
 
-    /**
-     * Reads document from disk if it exists.
-     */
-    static boost::optional<FreeMonStorageState> read(OperationContext* opCtx);
+    ~FCVServerStatusMetrics() override = default;
 
-    /**
-     * Replaces document on disk with contents of document. Creates document if it does not exist.
-     */
-    static void replace(OperationContext* opCtx, const FreeMonStorageState& doc);
+    bool includeByDefault() const override {
+        return true;
+    }
 
-    /**
-     * Deletes document on disk if it exists.
-     */
-    static void deleteState(OperationContext* opCtx);
+    BSONObj generateSection(OperationContext* opCtx,
+                            const BSONElement& configElement) const override {
+        BSONObjBuilder bob;
+        if (serverGlobalParams.featureCompatibility.isVersionInitialized()) {
+            bob.append("major",
+                       serverGlobalParams.featureCompatibility.majorVersion(
+                           serverGlobalParams.featureCompatibility.getVersion()));
+            bob.append("minor",
+                       serverGlobalParams.featureCompatibility.minorVersion(
+                           serverGlobalParams.featureCompatibility.getVersion()));
 
-    /**
-     * Reads the singelton document from local.clustermanager.
-     *
-     * Returns nothing if there are more then one document or it does not exist.
-     */
-    static boost::optional<BSONObj> readClusterManagerState(OperationContext* opCtx);
-};
+            int currentlyTransitioning = serverGlobalParams.featureCompatibility.transitionState(
+                serverGlobalParams.featureCompatibility.getVersion());
+            bob.append("transitioning", currentlyTransitioning);
+        }
 
+        return bob.obj();
+    }
+
+} FCVServerStatusMetrics;
+
+}  // namespace
 }  // namespace mongo

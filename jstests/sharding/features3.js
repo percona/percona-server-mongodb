@@ -147,9 +147,5 @@ assert(x.code == 13, "fsync on non-admin succeeded, but should have failed: " + 
 x = dbForTest._adminCommand("fsync");
 assert(x.ok == 1, "fsync failed: " + tojson(x));
 
-// test fsync+lock on admin db
-x = dbForTest._adminCommand({"fsync": 1, lock: true});
-assert(!x.ok, "lock should fail: " + tojson(x));
-
 s.stop();
 })();

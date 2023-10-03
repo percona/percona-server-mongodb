@@ -31,10 +31,17 @@
 
 #include "mongo/client/read_preference.h"
 #include "mongo/client/remote_command_targeter.h"
+#include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/commands.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/db/service_context.h"
 #include "mongo/s/client/shard.h"
 #include "mongo/s/client/shard_registry.h"
+#include "mongo/s/cluster_commands_helpers.h"
 #include "mongo/s/grid.h"
+#include "mongo/util/assert_util.h"
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 
 namespace mongo {
 namespace {
@@ -67,56 +74,46 @@ public:
         out->push_back(Privilege(ResourcePattern::forClusterResource(), actions));
     }
 
+    void unlockLockedShards(OperationContext* opCtx, const std::string& dbname) {
+
+        auto request = OpMsgRequest::fromDBAndBody(dbname, BSON("fsyncUnlock" << 1));
+        auto response = CommandHelpers::runCommandDirectly(opCtx, request);
+    }
+
     bool errmsgRun(OperationContext* opCtx,
                    const std::string& dbname,
                    const BSONObj& cmdObj,
                    std::string& errmsg,
                    BSONObjBuilder& result) override {
+        BSONObj fsyncCmdObj = cmdObj;
         if (cmdObj["lock"].trueValue()) {
-            errmsg = "can't do lock through mongos";
-            return false;
+            auto forBackupField = BSON("forBackup" << true);
+            fsyncCmdObj = fsyncCmdObj.addField(forBackupField.firstElement());
         }
+        auto shardResults = scatterGatherUnversionedTargetConfigServerAndShards(
+            opCtx,
+            dbname,
+            applyReadWriteConcern(
+                opCtx, this, CommandHelpers::filterCommandRequestForPassthrough(fsyncCmdObj)),
+            ReadPreferenceSetting(ReadPreference::PrimaryOnly),
+            Shard::RetryPolicy::kIdempotent);
 
-        BSONObjBuilder sub;
-
-        bool ok = true;
-
-        auto const shardRegistry = Grid::get(opCtx)->shardRegistry();
-        std::vector<ShardId> shardIds;
-        shardRegistry->getAllShardIdsNoReload(&shardIds);
-
-        for (const ShardId& shardId : shardIds) {
-            auto shardStatus = shardRegistry->getShard(opCtx, shardId);
-            if (!shardStatus.isOK()) {
-                continue;
-            }
-            const auto s = shardStatus.getValue();
-
-            auto response = uassertStatusOK(s->runCommandWithFixedRetryAttempts(
-                opCtx,
-                ReadPreferenceSetting{ReadPreference::PrimaryOnly},
-                "admin",
-                BSON("fsync" << 1),
-                Shard::RetryPolicy::kIdempotent));
-            uassertStatusOK(response.commandStatus);
-            BSONObj x = std::move(response.response);
-
-            sub.append(s->getId().toString(), x);
-
-            if (!x["ok"].trueValue()) {
-                ok = false;
-                errmsg = x["errmsg"].String();
-            }
-        }
+        BSONObjBuilder rawResult;
+        const auto response = appendRawResponses(opCtx, &errmsg, &rawResult, shardResults);
 
         // This field has had dummy value since MMAP went away. It is undocumented.
         // Maintaining it so as not to cause unnecessary user pain across upgrades.
         result.append("numFiles", 1);
-        result.append("all", sub.obj());
+        result.append("all", rawResult.obj());
+        if (!response.responseOK) {
+            if (cmdObj["lock"].trueValue()) {
+                unlockLockedShards(opCtx, dbname);
+            }
+            return false;
+        }
 
-        return ok;
+        return true;
     }
-
 } clusterFsyncCmd;
 
 }  // namespace

@@ -1,4 +1,4 @@
-# Copyright (C) 2018-present MongoDB, Inc.
+# Copyright (C) 2023-present MongoDB, Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the Server Side Public License, version 1,
@@ -25,33 +25,16 @@
 # exception statement from all source files in the program, then also delete
 # it in the license file.
 #
+
 global:
     cpp_namespace: "mongo"
-
 
 imports:
     - "mongo/idl/basic_types.idl"
 
-
-enums:
-    SetFreeMonAction:
-        description: "Action types"
-        type: string
-        values:
-            enable: "enable"
-            disable: "disable"
-
-
 commands:
-    setFreeMonitoring:
-        description: "setFreeMonitoring Command"
+    fsyncUnlock:
+        description: "The command for calling fsync unlock on all shards of a cluster."
+        cpp_name: ClusterFsyncUnlock
+        strict: false
         namespace: ignored
-        fields:
-          action:
-            description: "Action to take"
-            type: SetFreeMonAction
-
-    getFreeMonitoringStatus:
-        description: "getFreeMonitoringStatus Command"
-        namespace: ignored
-
