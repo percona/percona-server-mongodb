@@ -8,16 +8,10 @@ env.Library(
     source=[
         'key.cpp',
         'key_id.cpp',
-        'key_operations.cpp',
-        'master_key_provider.cpp'
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/base/secure_allocator',
-        '$BUILD_DIR/mongo/db/encryption/encryption_kmip',
-        '$BUILD_DIR/mongo/db/encryption/encryption_options',
-        '$BUILD_DIR/mongo/db/encryption/encryption_vault',
-        'read_file_to_secure_string'
     ],
 )
 
@@ -27,8 +21,7 @@ env.CppUnitTest(
         'key_id_test.cpp',
     ],
     LIBDEPS=[
-        # '$BUILD_DIR/mongo/db/auth/authmocks',
-        '$BUILD_DIR/mongo/db/encryption/key',
+        'key',
     ],
 )
 
@@ -37,7 +30,15 @@ env.Library(
     source=[
         'encryption_options.cpp',
     ],
+)
+
+env.Library(
+    target='read_file_to_secure_string',
+    source=[
+        'read_file_to_secure_string.cpp'
+    ],
     LIBDEPS=[
+        '$BUILD_DIR/mongo/base/secure_allocator',
     ],
 )
 
@@ -56,27 +57,35 @@ env.Library(
     ],
 )
 
-env.Library(
-    target='read_file_to_secure_string',
-    source=[
-        'read_file_to_secure_string.cpp'
-    ],
-    LIBDEPS=[
-        '$BUILD_DIR/mongo/base/secure_allocator',
-    ],
-    LIBDEPS_PRIVATE=[
-        '$BUILD_DIR/mongo/db/server_options_core',
-    ],
-)
 
-env.InjectThirdParty(libraries=['kmippp'])
-
-env.Library(
+kmipEnv = env.Clone()
+kmipEnv.InjectThirdParty(libraries=['kmippp'])
+kmipEnv.Library(
     target='encryption_kmip',
     source=[
         'encryption_kmip.cpp',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/third_party/shim_kmippp',
+        'encryption_options',
+    ],
+)
+
+env.Library(
+    target='key_management',
+    source=[
+        'key_operations.cpp',
+        'master_key_provider.cpp',
+    ],
+    LIBDEPS=[
+        'key',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/base',
+        'encryption_kmip',
+        'encryption_options',
+        'encryption_vault',
+        'read_file_to_secure_string',
     ],
 )
