@@ -518,6 +518,16 @@ Status storeMongodOptions(const moe::Environment& params) {
             params["security.kmip.clientCertificatePassword"].as<std::string>();
     }
 
+    if (params.count("security.kmip.connectRetries")) {
+        encryptionGlobalParams.kmipConnectRetries =
+            static_cast<unsigned>(params["security.kmip.connectRetries"].as<int>());
+    }
+
+    if (params.count("security.kmip.connectTimeoutMS")) {
+        encryptionGlobalParams.kmipConnectTimeoutMS =
+            params["security.kmip.connectTimeoutMS"].as<int>();
+    }
+
     if (params.count("security.kmip.keyIdentifier")) {
         encryptionGlobalParams.kmipKeyIdentifier = params["security.kmip.keyIdentifier"].as<std::string>();
     }

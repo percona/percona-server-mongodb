@@ -56,6 +56,8 @@ struct EncryptionGlobalParams {
     std::string kmipServerCAFile;
     std::string kmipClientCertificateFile;
     std::string kmipClientCertificatePassword;
+    unsigned kmipConnectRetries{0};
+    int kmipConnectTimeoutMS{5000};
     std::string kmipKeyIdentifier;
     bool kmipRotateMasterKey{false};
 

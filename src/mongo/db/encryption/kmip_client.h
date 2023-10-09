@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -31,33 +31,36 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <cstdint>
+#include <chrono>
+#include <memory>
+#include <optional>
 #include <string>
-#include <vector>
 
-/// The code in this namespace is not intended to be called from outside
-/// the `mongo::encryption` namespace
-namespace mongo::encryption::detail {
+namespace mongo::encryption {
+class Key;
 
-/// @brief Reads a key from the KMIP server specified in the configuration
-///
-/// @param keyId Identifier of the key to read
-///
-/// @returns Key data if the reading succeeds or an empty vector if no key data
-///     is associated with the key identifier
-///
-/// @throws std::runtime_error if the server can't connect to any of the KMIP
-///     servers listed in the configuration
-std::vector<std::uint8_t> kmipReadKey(const std::string& keyId);
+class KmipClient {
+public:
+    ~KmipClient();
 
-/// @brief Writes the key to the KMIP server specified in the configuration.
-///
-/// @param keyData The key data
-///
-/// @returns Key identifier if the writing succeeds or an empty string otherwise.
-///
-/// @throws std::runtime_error if the server can't connect to any of the KMIP
-///     servers listed in the configuration
-std::string kmipWriteKey(const std::vector<std::uint8_t>& keyData);
+    KmipClient(const KmipClient&) = delete;
+    KmipClient& operator=(const KmipClient&) = delete;
 
-}  // namespace mongo::encryption::detail
+    KmipClient(KmipClient&&);
+    KmipClient& operator=(KmipClient&&);
+
+    KmipClient(const std::string& host,
+               const std::string& port,
+               const std::string& serverCaFile,
+               const std::string& clientCertificateFile,
+               const std::string& clientCertificatePassword,
+               std::chrono::milliseconds timeout);
+
+    std::string registerSymmetricKey(const Key& key);
+    std::optional<Key> getSymmetricKey(const std::string& keyId);
+
+private:
+    class Impl;
+    std::unique_ptr<Impl> _impl;
+};
+}  // namespace mongo::encryption

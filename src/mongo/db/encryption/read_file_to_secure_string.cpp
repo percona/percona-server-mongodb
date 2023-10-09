@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -29,7 +29,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/db/encryption/secret_string.h"
+#include "mongo/db/encryption/read_file_to_secure_string.h"
 
 #include <sys/stat.h>
 
@@ -38,16 +38,11 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <stdexcept>
 
 #include "mongo/db/server_options.h"
-#include "mongo/util/secure_zero_memory.h"
 
 namespace mongo::encryption::detail {
-SecretString::~SecretString() {
-    secureZeroMemory(_data.data(), _data.size());
-}
-
 // @todo: rewrite using C++17's filesystem library
 // for the MongoDB versions with C++17 enabled
-SecretString SecretString::readFromFile(const std::string& path, const std::string& description) {
+SecureString readFileToSecureString(const std::string& path, const std::string& description) {
     struct stat stats;
     if (stat(path.c_str(), &stats) == -1) {
         std::ostringstream msg;
@@ -72,8 +67,8 @@ SecretString SecretString::readFromFile(const std::string& path, const std::stri
             << "file: " + path;
         throw std::runtime_error(msg.str());
     }
-    std::string data;
-    f >> data;
-    return SecretString(std::move(data));
+    SecureString data;
+    f >> *data;
+    return data;
 }
-}  // namespace mongo::encryption::detail
+}
