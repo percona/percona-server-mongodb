@@ -72,6 +72,10 @@ public:
         return version::modulesList();
     }
 
+    std::vector<StringData> psmdbProFeatures() const final {
+        return version::psmdbProFeatureList();
+    }
+
     StringData allocator() const noexcept final {
         return version::kAllocator;
     }
