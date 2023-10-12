@@ -293,6 +293,12 @@ add_option(
 )
 
 add_option(
+    'full-featured',
+    help='Enable all optional features',
+    nargs=0,
+)
+
+add_option(
     'ocsp-stapling',
     choices=['on', 'off'],
     default='on',
@@ -2718,11 +2724,14 @@ def link_guard_libdeps_tag_expand(source, target, env, for_signature):
 
 env['LIBDEPS_TAG_EXPANSIONS'].append(link_guard_libdeps_tag_expand)
 
+env['PSMDB_PRO_FEATURES'] = []
+
 if has_option('audit'):
     env.Append( CPPDEFINES=[ 'PERCONA_AUDIT_ENABLED' ] )
 
-if has_option('enable-fipsmode'):
+if has_option('enable-fipsmode') or has_option('full-featured'):
     env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
+    env['PSMDB_PRO_FEATURES'].append('FIPSMode')
 
 env.Tool('forceincludes')
 
