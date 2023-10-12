@@ -52,6 +52,12 @@ inline std::vector<StringData> modulesList() {
     };
 }
 
+inline std::vector<StringData> psmdbProFeatureList() {
+    return {
+@buildinfo_psmdb_pro_features@
+    };
+}
+
 inline std::vector<VersionInfoInterface::BuildInfoField> buildEnvironment() {
     return {
 @buildinfo_environment_data@

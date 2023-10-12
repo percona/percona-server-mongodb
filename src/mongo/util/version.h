@@ -114,6 +114,11 @@ public:
     virtual std::vector<StringData> modules() const = 0;
 
     /**
+     * Returns a list of the enabled features.
+     */
+    virtual std::vector<StringData> psmdbProFeatures() const = 0;
+
+    /**
      * Returns a string describing the configured memory allocator.
      */
     virtual StringData allocator() const noexcept = 0;
