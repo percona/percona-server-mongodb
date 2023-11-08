@@ -743,6 +743,33 @@ build_source_deb(){
     set_compiler
     fix_rules
 
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        sed -i "s:percona-server-mongodb:percona-server-mongodb-pro:g" debian/changelog
+        sed -i "s:Source\: percona-server-mongodb:Source\: percona-server-mongodb-pro:g" debian/control
+        sed -i "s:Package\: percona-server-mongodb:Package\: percona-server-mongodb-pro:g" debian/control
+        sed -i "s:Package\: percona-server-mongodb-mongos:Package\: percona-server-mongodb-mongos-pro:g" debian/control
+        sed -i "s:Package\: percona-server-mongodb-server-pro:Package\: percona-server-mongodb-server-pro:g" debian/control
+        sed -i "s:, percona-server-mongodb-mongos :, percona-server-mongodb-mongos-pro :g" debian/control
+        sed -i "s:, percona-server-mongodb-server :, percona-server-mongodb-server-pro :g" debian/control
+        sed -i "s:Depends\: percona-server-mongodb :Depends\: percona-server-mongodb-pro :g" debian/control
+        sed -i "s:mongodb-enterprise$:mongodb-enterprise, percona-server-mongodb:g" debian/control
+        sed -i "s:mongodb-enterprise-mongos$:mongodb-enterprise-mongos, percona-server-mongodb-mongos:g" debian/control
+        sed -i "s:mongodb-enterprise-server$:mongodb-enterprise-server, percona-server-mongodb-server:g" debian/control
+        sed -i "s:percona-server-mongodb\:$:percona-server-mongodb-pro\::g" debian/rules
+        sed -i "s:percona-server-mongodb :percona-server-mongodb-pro :g" debian/rules
+        sed -i "s:percona-server-mongodb-mongos/:percona-server-mongodb-mongos-pro/:g" debian/rules
+        sed -i "s:percona-server-mongodb-server/:percona-server-mongodb-server-pro/:g" debian/rules
+        cp debian/percona-server-mongodb-mongos.dirs debian/percona-server-mongodb-mongos-pro.dirs
+        cp debian/percona-server-mongodb-mongos.manpages debian/percona-server-mongodb-mongos-pro.manpages
+        cp debian/percona-server-mongodb-server.conffiles debian/percona-server-mongodb-server-pro.conffiles
+        cp debian/percona-server-mongodb-server.dirs debian/percona-server-mongodb-server-pro.dirs
+        cp debian/percona-server-mongodb-server.manpages debian/percona-server-mongodb-server-pro.manpages
+        cp debian/percona-server-mongodb-server.postinst debian/percona-server-mongodb-server-pro.postinst
+        cp debian/percona-server-mongodb-server.postrm debian/percona-server-mongodb-server-pro.postrm
+        cp debian/percona-server-mongodb-server.templates debian/percona-server-mongodb-server-pro.templates
+        cp debian/percona-server-mongodb-server.mongod.init debian/percona-server-mongodb-server-pro.mongod.init
+    fi
+
     dch -D unstable --force-distribution -v "${VERSION}-${RELEASE}" "Update to new Percona Server for MongoDB version ${VERSION}"
     dpkg-buildpackage -S
     cd ../
