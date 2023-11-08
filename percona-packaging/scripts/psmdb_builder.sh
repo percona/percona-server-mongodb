@@ -730,7 +730,11 @@ build_source_deb(){
     mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.default
     mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.service
     #
-    mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        mv ${TARFILE} ${PRODUCT}-pro_${VERSION}.orig.tar.gz
+    else
+        mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
+    fi
     cd ${BUILDDIR}
     pip install --upgrade pip
 
