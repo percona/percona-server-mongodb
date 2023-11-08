@@ -818,7 +818,11 @@ build_deb(){
     #
     dpkg-source -x ${DSC}
     #
-    cd ${PRODUCT}-${VERSION}
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        cd ${PRODUCT}-pro-${VERSION}
+    else
+        cd ${PRODUCT}-${VERSION}
+    fi
     pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
