@@ -545,11 +545,27 @@ build_srpm(){
     sed -i 's:@@LOGDIR@@:mongo:g' rpmbuild/SOURCES/*.default
     sed -i 's:@@LOGDIR@@:mongo:g' rpmbuild/SOURCES/percona-server-mongodb-helper.sh
     #
-    sed -e "s:@@SOURCE_TARBALL@@:$(basename ${TARFILE}):g" \
-    -e "s:@@VERSION@@:${VERSION}:g" \
-    -e "s:@@RELEASE@@:${RELEASE}:g" \
-    -e "s:@@SRC_DIR@@:$SRC_DIR:g" \
-    ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        sed -e "s:@@SOURCE_TARBALL@@:$(basename ${TARFILE}):g" \
+        -e "s:@@VERSION@@:${VERSION}:g" \
+        -e "s:@@RELEASE@@:${RELEASE}:g" \
+        -e "s:@@SRC_DIR@@:$SRC_DIR:g" \
+        -e "s: server$: -n percona-server-mongodb-server-pro:g" \
+        -e "s: mongos$: -n percona-server-mongodb-mongos-pro:g" \
+        -e "s: shell$: -n percona-server-mongodb-shell:g" \
+        -e "s: tools$: -n percona-server-mongodb-tools:g" \
+        -e "s:Name\:           percona-server-mongodb:Name\:           percona-server-mongodb-pro:g" \
+        -e "s:mongodb-org$:mongodb-org percona-server-mongodb:g" \
+        -e "s:mongodb-org-server$:mongodb-org-server percona-server-mongodb-server:g" \
+        -e "s:mongodb-org-mongos$:mongodb-org-mongos percona-server-mongodb-mongos:g" \
+       ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
+    else
+        sed -e "s:@@SOURCE_TARBALL@@:$(basename ${TARFILE}):g" \
+        -e "s:@@VERSION@@:${VERSION}:g" \
+        -e "s:@@RELEASE@@:${RELEASE}:g" \
+        -e "s:@@SRC_DIR@@:$SRC_DIR:g" \
+       ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
+    fi
     mv -fv ${TARFILE} ${WORKDIR}/rpmbuild/SOURCES
     if [ x"$RHEL" = x7 ]; then
       if [ -f /opt/rh/devtoolset-9/enable ]; then
