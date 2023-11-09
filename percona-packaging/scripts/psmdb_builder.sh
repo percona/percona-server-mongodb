@@ -782,11 +782,16 @@ build_source_deb(){
     cp *.debian.tar.* $WORKDIR/source_deb
     cp *_source.changes $WORKDIR/source_deb
     cp *.dsc $WORKDIR/source_deb
-    cp *.orig.tar.gz $WORKDIR/source_deb
     cp *.debian.tar.* $CURDIR/source_deb
     cp *_source.changes $CURDIR/source_deb
     cp *.dsc $CURDIR/source_deb
-    cp *.orig.tar.gz $CURDIR/source_deb
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        cp *-pro*.orig.tar.gz $WORKDIR/source_deb
+        cp *-pro*.orig.tar.gz $CURDIR/source_deb
+    else
+        cp *.orig.tar.gz $WORKDIR/source_deb
+        cp *.orig.tar.gz $CURDIR/source_deb
+    fi
 }
 
 build_deb(){
@@ -832,8 +837,17 @@ build_deb(){
     pip install -r etc/pip/evgtest-requirements.txt
     #
     cp -av percona-packaging/debian/rules debian/
+
     set_compiler
     fix_rules
+
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        sed -i "s:percona-server-mongodb\:$:percona-server-mongodb-pro\::g" debian/rules
+        sed -i "s:percona-server-mongodb :percona-server-mongodb-pro :g" debian/rules
+        sed -i "s:percona-server-mongodb-mongos/:percona-server-mongodb-mongos-pro/:g" debian/rules
+        sed -i "s:percona-server-mongodb-server/:percona-server-mongodb-server-pro/:g" debian/rules
+    fi
+
     if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" ]; then
         sed -i 's:dh-systemd,::' debian/control
     fi
