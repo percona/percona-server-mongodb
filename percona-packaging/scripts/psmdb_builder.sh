@@ -727,8 +727,13 @@ build_source_deb(){
         sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
     fi
     #
-    mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.default
-    mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.service
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server-pro.mongod.default
+        mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server-pro.mongod.service
+    else
+        mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.default
+        mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.service
+    fi
     #
     if [[ "x${FIPSMODE}" == "x1" ]]; then
         mv ${TARFILE} ${PRODUCT}-pro_${VERSION}.orig.tar.gz
