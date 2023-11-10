@@ -755,15 +755,12 @@ build_source_deb(){
     if [[ "x${FIPSMODE}" == "x1" ]]; then
         sed -i "s:percona-server-mongodb:percona-server-mongodb-pro:g" debian/changelog
         sed -i "s:Source\: percona-server-mongodb:Source\: percona-server-mongodb-pro:g" debian/control
-        sed -i "s:Package\: percona-server-mongodb$:Package\: percona-server-mongodb-pro:g" debian/control
-        sed -i "s:Package\: percona-server-mongodb-mongos:Package\: percona-server-mongodb-mongos-pro:g" debian/control
-        sed -i "s:Package\: percona-server-mongodb-server:Package\: percona-server-mongodb-server-pro:g" debian/control
+        sed -i "s:Package\: percona-server-mongodb$:Package\: percona-server-mongodb-pro\nConflicts\: percona-server-mongodb\nReplaces\: percona-server-mongodb:g" debian/control
+        sed -i "s:Package\: percona-server-mongodb-mongos:Package\: percona-server-mongodb-mongos-pro\nConflicts\: percona-server-mongodb-mongos\nReplaces\: percona-server-mongodb-mongos:g" debian/control
+        sed -i "s:Package\: percona-server-mongodb-server:Package\: percona-server-mongodb-server-pro\nConflicts\: percona-server-mongodb-server\nReplaces\: percona-server-mongodb-server:g" debian/control
         sed -i "s:, percona-server-mongodb-mongos :, percona-server-mongodb-mongos-pro :g" debian/control
         sed -i "s:, percona-server-mongodb-server :, percona-server-mongodb-server-pro :g" debian/control
         sed -i "s:Depends\: percona-server-mongodb :Depends\: percona-server-mongodb-pro :g" debian/control
-        sed -i "s:mongodb-enterprise$:mongodb-enterprise, percona-server-mongodb:g" debian/control
-        sed -i "s:mongodb-enterprise-mongos$:mongodb-enterprise-mongos, percona-server-mongodb-mongos:g" debian/control
-        sed -i "s:mongodb-enterprise-server$:mongodb-enterprise-server, percona-server-mongodb-server:g" debian/control
         sed -i "s:percona-server-mongodb\:$:percona-server-mongodb-pro\::g" debian/rules
         sed -i "s:percona-server-mongodb :percona-server-mongodb-pro :g" debian/rules
         sed -i "s:percona-server-mongodb-mongos/:percona-server-mongodb-mongos-pro/:g" debian/rules
