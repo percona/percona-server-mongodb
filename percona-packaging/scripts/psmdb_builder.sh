@@ -555,9 +555,9 @@ build_srpm(){
         -e "s: shell$: -n percona-server-mongodb-shell:g" \
         -e "s: tools$: -n percona-server-mongodb-tools:g" \
         -e "s:Name\:           percona-server-mongodb:Name\:           percona-server-mongodb-pro:g" \
-        -e "s:mongodb-org$:mongodb-org percona-server-mongodb:g" \
-        -e "s:mongodb-org-server$:mongodb-org-server percona-server-mongodb-server:g" \
-        -e "s:mongodb-org-mongos$:mongodb-org-mongos percona-server-mongodb-mongos:g" \
+        -e "s:mongodb-org$:mongodb-org\nObsoletes: percona-server-mongodb:g" \
+        -e "s:mongodb-org-server$:mongodb-org-server\nObsoletes: percona-server-mongodb-server:g" \
+        -e "s:mongodb-org-mongos$:mongodb-org-mongos\nObsoletes: percona-server-mongodb-mongos:g" \
        ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     else
         sed -e "s:@@SOURCE_TARBALL@@:$(basename ${TARFILE}):g" \
