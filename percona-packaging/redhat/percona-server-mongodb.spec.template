@@ -62,7 +62,7 @@ Requires: %{name}-tools = %{version}-%{release}
 Requires: percona-mongodb-mongosh
 Requires: numactl, openldap, cyrus-sasl-gssapi
 
-Conflicts: Percona-Server-MongoDB < 4.4.0
+Conflicts: Percona-Server-MongoDB < 6.0.0
 Conflicts: Percona-Server-MongoDB-32 Percona-Server-MongoDB-34 Percona-Server-MongoDB-36 mongodb-org
 
 %description
@@ -87,7 +87,9 @@ This metapackage will install the mongo shell, import/export tools, other client
 %package mongos
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB sharded cluster query router
-Conflicts: Percona-Server-MongoDB-mongos Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
+Conflicts: Percona-Server-MongoDB-mongos < 6.0.0
+Conflicts: Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
+
 %description mongos
 This package contains mongos - the Percona Server for MongoDB sharded cluster query router
 
@@ -96,7 +98,9 @@ Group:          Applications/Databases
 Summary:        Percona Server for MongoDB database server
 Requires: policycoreutils
 Requires: percona-mongodb-mongosh
-Conflicts: Percona-Server-MongoDB-server Percona-Server-MongoDB-32-server Percona-Server-MongoDB-34-server Percona-Server-MongoDB-36-server mongodb-org-server
+Conflicts: Percona-Server-MongoDB-server < 6.0.0
+Conflicts: Percona-Server-MongoDB-32-server Percona-Server-MongoDB-34-server Percona-Server-MongoDB-36-server mongodb-org-server
+
 %description server
 This package contains the Percona Server for MongoDB server software, default configuration files and init.d scripts
 
@@ -104,14 +108,18 @@ This package contains the Percona Server for MongoDB server software, default co
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB shell client
 Requires:  cyrus-sasl-plain
-Conflicts: Percona-Server-MongoDB-shell Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
+Conflicts: Percona-Server-MongoDB-shell < 6.0.0
+Conflicts: Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
+
 %description shell
 This package contains the Percona Server for MongoDB shell
 
 %package tools
 Group:          Applications/Databases
 Summary:        The tools package for Percona Server for MongoDB
-Conflicts: Percona-Server-MongoDB-tools Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
+Conflicts: Percona-Server-MongoDB-tools < 6.0.0
+Conflicts: Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
+
 %description tools
 This package contains various tools from MongoDB project, recompiled for Percona Server for MongoDB
 
