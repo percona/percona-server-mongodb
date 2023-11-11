@@ -555,6 +555,9 @@ build_srpm(){
         -e "s: shell$: -n percona-server-mongodb-shell:g" \
         -e "s: tools$: -n percona-server-mongodb-tools:g" \
         -e "s:Name\:           percona-server-mongodb:Name\:           percona-server-mongodb-pro:g" \
+        -e "s:%{name}-mongos:percona-server-mongodb-mongos-pro:g" \
+        -e "s:%{name}-server:percona-server-mongodb-server-pro:g" \
+        -e "s:%{name}-tools:percona-server-mongodb-tools:g" \
         -e "s:Conflicts\: Percona-Server-MongoDB :Conflicts\: Percona-Server-MongoDB-pro :g" \
         -e "s:Conflicts\: Percona-Server-MongoDB-mongos :Conflicts\: Percona-Server-MongoDB-mongos-pro :g" \
         -e "s:Conflicts\: Percona-Server-MongoDB-server :Conflicts\: Percona-Server-MongoDB-server-pro :g" \
