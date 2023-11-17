@@ -561,9 +561,9 @@ build_srpm(){
         -e "s:Conflicts\: Percona-Server-MongoDB :Conflicts\: Percona-Server-MongoDB-pro :g" \
         -e "s:Conflicts\: Percona-Server-MongoDB-mongos :Conflicts\: Percona-Server-MongoDB-mongos-pro :g" \
         -e "s:Conflicts\: Percona-Server-MongoDB-server :Conflicts\: Percona-Server-MongoDB-server-pro :g" \
-        -e "s:mongodb-org$:mongodb-org\nObsoletes\: percona-server-mongodb:g" \
-        -e "s:mongodb-org-server$:mongodb-org-server\nObsoletes\: percona-server-mongodb-server:g" \
-        -e "s:mongodb-org-mongos$:mongodb-org-mongos\nObsoletes\: percona-server-mongodb-mongos:g" \
+        -e "s:mongodb-org$:mongodb-org percona-server-mongodb:g" \
+        -e "s:mongodb-org-server$:mongodb-org-server percona-server-mongodb-server:g" \
+        -e "s:mongodb-org-mongos$:mongodb-org-mongos percona-server-mongodb-mongos:g" \
        ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     else
         sed -e "s:@@SOURCE_TARBALL@@:$(basename ${TARFILE}):g" \
