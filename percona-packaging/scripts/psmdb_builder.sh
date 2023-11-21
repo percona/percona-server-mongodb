@@ -761,6 +761,7 @@ build_source_deb(){
     if [[ "x${FIPSMODE}" == "x1" ]]; then
         sed -i "s:percona-server-mongodb:percona-server-mongodb-pro:g" debian/changelog
         sed -i "s:Source\: percona-server-mongodb:Source\: percona-server-mongodb-pro:g" debian/control
+        sed -i "s: mongodb-enterprise, percona-server-mongodb-pro: mongodb-enterprise, percona-server-mongodb:g" debian/control
         sed -i "s:Package\: percona-server-mongodb$:Package\: percona-server-mongodb-pro\nConflicts\: percona-server-mongodb\nReplaces\: percona-server-mongodb:g" debian/control
         sed -i "s:Package\: percona-server-mongodb-mongos:Package\: percona-server-mongodb-mongos-pro\nConflicts\: percona-server-mongodb-mongos\nReplaces\: percona-server-mongodb-mongos:g" debian/control
         sed -i "s:Package\: percona-server-mongodb-server:Package\: percona-server-mongodb-server-pro\nConflicts\: percona-server-mongodb-server\nReplaces\: percona-server-mongodb-server:g" debian/control
