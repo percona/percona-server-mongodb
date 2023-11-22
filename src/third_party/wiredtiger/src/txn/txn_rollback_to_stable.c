@@ -156,6 +156,17 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
                 F_CLR(stable_upd, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
             if (tombstone != NULL)
                 F_CLR(tombstone, WT_UPDATE_HS | WT_UPDATE_TO_DELETE_FROM_HS);
+        } else if (WT_IS_HS(session->dhandle) && stable_upd->type != WT_UPDATE_TOMBSTONE) {
+            /*
+             * History store will have a combination of both tombstone and update/modify types in
+             * the update list to represent the time window of an update. When we are aborting the
+             * tombstone, make sure to remove all of the remaining updates also. In most of the
+             * scenarios, there will be only one update present except when the data store is a
+             * prepared commit where it is possible to have more than one update. The existing
+             * on-disk versions are removed while processing the on-disk entries.
+             */
+            for (; stable_upd != NULL; stable_upd = stable_upd->next)
+                stable_upd->txnid = WT_TXN_ABORTED;
         }
         if (stable_update_found != NULL)
             *stable_update_found = true;
@@ -1296,25 +1307,65 @@ __wt_rts_page_skip(
 }
 
 /*
+ * __rollback_progress_msg --
+ *     Log a verbose message about the progress of the current rollback to stable.
+ */
+static void
+__rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
+  uint64_t rollback_count, uint64_t *rollback_msg_count, bool walk)
+{
+    struct timespec cur_time;
+    uint64_t time_diff;
+
+    __wt_epoch(session, &cur_time);
+
+    /* Time since the rollback started. */
+    time_diff = WT_TIMEDIFF_SEC(cur_time, rollback_start);
+
+    if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
+        if (walk)
+            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+              "Rollback to stable has been performing on %s for %" PRIu64
+              " seconds. For more detailed logging, enable WT_VERB_RTS ",
+              session->dhandle->name, time_diff);
+        else
+            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
+              "Rollback to stable has been running for %" PRIu64
+              " seconds and has inspected %" PRIu64
+              " files. For more detailed logging, enable WT_VERB_RTS",
+              time_diff, rollback_count);
+        *rollback_msg_count = time_diff / WT_PROGRESS_MSG_PERIOD;
+    }
+}
+
+/*
  * __rollback_to_stable_btree_walk --
  *     Called for each open handle - choose to either skip or wipe the commits
  */
 static int
 __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
+    struct timespec rollback_timer;
     WT_DECL_RET;
     WT_REF *ref;
+    uint64_t rollback_msg_count;
+
+    /* Initialize the verbose tracking timer. */
+    __wt_epoch(session, &rollback_timer);
+    rollback_msg_count = 0;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(session, &ref, __wt_rts_page_skip, &rollback_timestamp,
               WT_READ_NO_EVICT | WT_READ_WONT_NEED | WT_READ_VISIBLE_ALL)) == 0 &&
-      ref != NULL)
+      ref != NULL) {
+        __rollback_progress_msg(session, rollback_timer, 0, &rollback_msg_count, true);
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             WT_WITH_PAGE_INDEX(
               session, ret = __rollback_abort_fast_truncate(session, ref, rollback_timestamp));
         else
             WT_RET(__rollback_abort_updates(session, ref, rollback_timestamp));
+    }
 
     return (ret);
 }
@@ -1516,16 +1567,18 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
 
     /*
-     * The rollback operation should be performed on the history store file when the checkpoint
-     * durable start/stop timestamp is greater than the rollback timestamp. But skip if there is no
-     * stable timestamp.
+     * The rollback operation should be skipped if there is no stable timestamp. Otherwise, it
+     * should be performed if one of the following criteria is satisfied:
+     * - The history store has dirty content.
+     * - The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
      *
      * Note that the corresponding code in __rollback_to_stable_btree_apply also checks whether
      * there _are_ timestamped updates by checking max_durable_ts; that check is redundant here for
      * several reasons, the most immediate being that max_durable_ts cannot be none (zero) because
      * it's greater than rollback_timestamp, which is itself greater than zero.
      */
-    if (max_durable_ts > rollback_timestamp && rollback_timestamp != WT_TS_NONE) {
+    if ((S2BT(session)->modified || max_durable_ts > rollback_timestamp) &&
+      rollback_timestamp != WT_TS_NONE) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "tree rolled back with durable timestamp: %s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
@@ -1549,31 +1602,6 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
 err:
     __wt_free(session, config);
     return (ret);
-}
-
-/*
- * __rollback_progress_msg --
- *     Log a verbose message about the progress of the current rollback to stable.
- */
-static void
-__rollback_progress_msg(WT_SESSION_IMPL *session, struct timespec rollback_start,
-  uint64_t rollback_count, uint64_t *rollback_msg_count)
-{
-    struct timespec cur_time;
-    uint64_t time_diff;
-
-    __wt_epoch(session, &cur_time);
-
-    /* Time since the rollback started. */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, rollback_start);
-
-    if ((time_diff / WT_PROGRESS_MSG_PERIOD) > *rollback_msg_count) {
-        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-          "Rollback to stable has been running for %" PRIu64 " seconds and has inspected %" PRIu64
-          " files. For more detailed logging, enable WT_VERB_RTS",
-          time_diff, rollback_count);
-        ++(*rollback_msg_count);
-    }
 }
 
 /*
@@ -1626,7 +1654,7 @@ __rollback_to_stable_btree_apply(
         }
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "newest_txn", &value);
-        if (value.len != 0)
+        if (ret == 0)
             rollback_txnid = (uint64_t)value.val;
         WT_RET_NOTFOUND_OK(ret);
         ret = __wt_config_subgets(session, &cval, "addr", &value);
@@ -1654,13 +1682,11 @@ __rollback_to_stable_btree_apply(
     }
 
     /*
-     * The rollback to stable will skip the tables during recovery and shutdown in the following
-     * conditions.
-     * 1. Empty table.
-     * 2. Table has timestamped updates without a stable timestamp.
+     * During recovery, a table is skipped by RTS if one of the conditions is met:
+     * 1. The table is empty or newly-created.
+     * 2. The table has timestamped updates without a stable timestamp.
      */
-    if ((F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
-          F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT)) &&
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
       (addr_size == 0 || (rollback_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
         __wt_verbose_multi(session, WT_VERB_RECOVERY_RTS(session),
           "skip rollback to stable on file %s because %s", uri,
@@ -1788,7 +1814,8 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         /* Log a progress message. */
-        __rollback_progress_msg(session, rollback_timer, rollback_count, &rollback_msg_count);
+        __rollback_progress_msg(
+          session, rollback_timer, rollback_count, &rollback_msg_count, false);
         ++rollback_count;
 
         WT_ERR(cursor->get_key(cursor, &uri));
@@ -1812,7 +1839,16 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+    /*
+     * Performing eviction in parallel to a checkpoint can lead to a situation where the history
+     * store has more updates than its corresponding data store. Performing history store cleanup at
+     * the end can enable the removal of any such unstable updates that are written to the history
+     * store.
+     *
+     * Do not perform the final pass on the history store in an in-memory configuration as it
+     * doesn't exist.
+     */
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp));
 
 err:

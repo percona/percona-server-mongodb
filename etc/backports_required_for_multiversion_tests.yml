@@ -212,9 +212,7 @@ last-continuous:
   - test_file: jstests/sharding/resharding_temp_ns_routing_info_unsharded.js
     ticket: SERVER-68628
   - test_file: jstests/sharding/move_chunk_concurrent_cloning.js
-    ticket: SERVER-68648
-  - test_file: jstests/sharding/move_chunk_concurrent_cloning.js
-    ticket: SERVER-68648
+    ticket: SERVER-81201
   - test_file: jstests/sharding/move_chunk_interrupt_postimage.js
     ticket: SERVER-68728
   - test_file: src/mongo/db/modules/enterprise/jstests/fcbis/fcbis_election_during_storage_change.js
@@ -231,6 +229,8 @@ last-continuous:
     ticket: SERVER-71477
   - test_file: jstests/sharding/drop_collection.js
     ticket: SERVER-71689
+  - test_file: jstests/sharding/index_and_collection_option_propagation.js
+    ticket: SERVER-71819
   - test_file: jstests/core/clustered_collection_collation.js
     ticket: SERVER-72224
   - test_file: jstests/core/clustered/clustered_collection_collation.js
@@ -293,6 +293,18 @@ last-continuous:
     ticket: SERVER-78149
   - test_file: jstests/noPassthrough/read_preference_metrics.js
     ticket: SERVER-66018
+  - test_file: jstests/sharding/timeseries_insert_targeting_normalize_metadata.js
+    ticket: SERVER-80203
+  - test_file: jstests/sharding/block_chunk_migrations_without_hashed_shard_key_index.js
+    ticket: SERVER-80947
+  - test_file: jstests/sharding/delete_range_deletion_tasks_on_dropped_hashed_shard_key_index.js
+    ticket: SERVER-80947
+  - test_file: jstests/sharding/move_chunk_basic.js
+    ticket: SERVER-81201
+  - test_file: jstests/sharding/flushRoutingTableCacheUpdates_enforced_on_collections.js
+    ticket: SERVER-81985
+  - test_file: jstests/sharding/query/merge_nondefault_read_concern.js
+    ticket: SERVER-69244
   suites: null
 last-lts:
   all:
@@ -555,9 +567,7 @@ last-lts:
   - test_file: jstests/sharding/resharding_temp_ns_routing_info_unsharded.js
     ticket: SERVER-68628
   - test_file: jstests/sharding/move_chunk_concurrent_cloning.js
-    ticket: SERVER-68648
-  - test_file: jstests/sharding/move_chunk_concurrent_cloning.js
-    ticket: SERVER-68648
+    ticket: SERVER-81201
   - test_file: jstests/sharding/move_chunk_interrupt_postimage.js
     ticket: SERVER-68728
   - test_file: src/mongo/db/modules/enterprise/jstests/fcbis/fcbis_election_during_storage_change.js
@@ -574,6 +584,8 @@ last-lts:
     ticket: SERVER-71477
   - test_file: jstests/sharding/drop_collection.js
     ticket: SERVER-71689
+  - test_file: jstests/sharding/index_and_collection_option_propagation.js
+    ticket: SERVER-71819
   - test_file: jstests/core/clustered/clustered_collection_collation.js
     ticket: SERVER-72224
   - test_file: jstests/core/project_with_collation.js
@@ -632,4 +644,16 @@ last-lts:
     ticket: SERVER-81013
   - test_file: jstests/noPassthrough/read_preference_metrics.js
     ticket: SERVER-66018
+  - test_file: jstests/sharding/timeseries_insert_targeting_normalize_metadata.js
+    ticket: SERVER-80203
+  - test_file: jstests/sharding/block_chunk_migrations_without_hashed_shard_key_index.js
+    ticket: SERVER-80947
+  - test_file: jstests/sharding/delete_range_deletion_tasks_on_dropped_hashed_shard_key_index.js
+    ticket: SERVER-80947
+  - test_file: jstests/sharding/move_chunk_basic.js
+    ticket: SERVER-81201
+  - test_file: jstests/sharding/flushRoutingTableCacheUpdates_enforced_on_collections.js
+    ticket: SERVER-81985
+  - test_file: jstests/sharding/query/merge_nondefault_read_concern.js
+    ticket: SERVER-69244
   suites: null

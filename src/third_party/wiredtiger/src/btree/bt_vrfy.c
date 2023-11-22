@@ -29,11 +29,14 @@ typedef struct {
     bool dump_blocks;
     bool dump_layout;
     bool dump_pages;
+    bool read_corrupt;
 
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
+
+    int verify_err;
 } WT_VSTUFF;
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
@@ -77,6 +80,10 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "read_corrupt", &cval));
+    vs->read_corrupt = cval.val != 0;
+    vs->verify_err = 0;
 
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
@@ -258,6 +265,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
+
+            /*
+             * If the read_corrupt mode was turned on, we may have continued traversing and
+             * verifying the pages of the tree despite encountering an error. Set the error.
+             */
+            if (vs->verify_err != 0)
+                ret = vs->verify_err;
 
             /*
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
@@ -529,7 +543,18 @@ celltype_err:
 
             /* Verify the subtree. */
             ++vs->depth;
-            WT_RET(__wt_page_in(session, child_ref, 0));
+            ret = __wt_page_in(session, child_ref, 0);
+
+            /*
+             * If configured, continue traversing through the pages of the tree even after
+             * encountering errors reading in the page.
+             */
+            if (vs->read_corrupt && ret != 0) {
+                if (vs->verify_err == 0)
+                    vs->verify_err = ret;
+                continue;
+            } else
+                WT_RET(ret);
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
@@ -559,7 +584,18 @@ celltype_err:
 
             /* Verify the subtree. */
             ++vs->depth;
-            WT_RET(__wt_page_in(session, child_ref, 0));
+            ret = __wt_page_in(session, child_ref, 0);
+
+            /*
+             * If configured, continue traversing through the pages of the tree even after
+             * encountering errors reading in the page.
+             */
+            if (vs->read_corrupt && ret != 0) {
+                if (vs->verify_err == 0)
+                    vs->verify_err = ret;
+                continue;
+            } else
+                WT_RET(ret);
             ret = __verify_tree(session, child_ref, unpack, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
@@ -588,22 +624,31 @@ __verify_row_int_key_order(
 
     btree = S2BT(session);
 
-    /* The maximum key is set, we updated it from a leaf page first. */
-    WT_ASSERT(session, vs->max_addr->size != 0);
+    /*
+     * The maximum key is usually set from the leaf page first. If the first leaf page is corrupted,
+     * it is possible that the key is not set. In that case skip this check.
+     */
+    if (!vs->verify_err)
+        WT_ASSERT(session, vs->max_addr->size != 0);
 
     /* Get the parent page's internal key. */
     __wt_ref_key(parent, ref, &item.data, &item.size);
 
-    /* Compare the key against the largest key we've seen so far. */
-    WT_RET(__wt_compare(session, btree->collator, &item, vs->max_key, &cmp));
-    if (cmp <= 0)
-        WT_RET_MSG(session, WT_ERROR,
-          "the internal key in entry %" PRIu32
-          " on the page at %s sorts before the last key appearing on page %s, earlier in the tree: "
-          "%s, %s",
-          entry, __verify_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
-          __wt_buf_set_printable(session, item.data, item.size, false, vs->tmp2),
-          __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, false, vs->tmp3));
+    /* There is an edge case where the maximum key is not set due the first leaf being corrupted. */
+    if (vs->max_addr->size != 0) {
+        /* Compare the key against the largest key we've seen so far. */
+        WT_RET(__wt_compare(session, btree->collator, &item, vs->max_key, &cmp));
+        if (cmp <= 0)
+            WT_RET_MSG(session, WT_ERROR,
+              "the internal key in entry %" PRIu32
+              " on the page at %s sorts before the last key appearing on page %s, earlier in the "
+              "tree: "
+              "%s, %s",
+              entry, __verify_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
+              __wt_buf_set_printable(session, item.data, item.size, false, vs->tmp2),
+              __wt_buf_set_printable(
+                session, vs->max_key->data, vs->max_key->size, false, vs->tmp3));
+    }
 
     /* Update the largest key we've seen to the key just checked. */
     WT_RET(__wt_buf_set(session, vs->max_key, item.data, item.size));

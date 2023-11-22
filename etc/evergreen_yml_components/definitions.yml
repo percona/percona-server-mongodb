@@ -1281,6 +1281,11 @@ functions:
       binary: bash
       args:
       - "src/evergreen/scons_compile.sh"
+  - command: expansions.update
+    params:
+      updates:
+      - key: install_dir
+        value: ${install_dir}
 
   "ninja compile":
   - *f_expansions_write
@@ -1456,6 +1461,16 @@ functions:
       binary: bash
       args:
       - "./src/evergreen/lint_fuzzer_sanity_all.sh"
+
+  "sync repo with copybara":
+  - *f_expansions_write
+  - command: subprocess.exec
+    type: test
+    params:
+      binary: bash
+      args:
+      - "src/evergreen/run_python_script.sh"
+      - "buildscripts/sync_repo_with_copybara.py"
 
   # Used by generator
   "run jstestfuzz":
@@ -4319,6 +4334,18 @@ tasks:
   - func: "setup jstestfuzz"
   - func: "lint fuzzer sanity all"
 
+
+- name: sync_repo_with_copybara
+  tags: []
+  commands:
+  - command: manifest.load
+  - func: "git get project and add git tag"
+  - *f_expansions_write
+  - *kill_processes
+  - *cleanup_environment
+  - *set_up_venv
+  - func: "sync repo with copybara"
+
 ## integration test suites ##
 
 - <<: *task_template
@@ -6417,7 +6444,11 @@ tasks:
     vars:
       <<: *powercycle_remote_credentials
   - func: "set up EC2 instance"
+    vars:
+      <<: *powercycle_remote_credentials
   - func: "run powercycle test"
+    vars:
+      <<: *powercycle_remote_credentials
     timeout_secs: 1800 # 30 minute timeout for no output
 
 - name: powercycle
@@ -6431,7 +6462,11 @@ tasks:
     vars:
       <<: *powercycle_remote_credentials
   - func: "set up EC2 instance"
+    vars:
+      <<: *powercycle_remote_credentials
   - func: "run powercycle test"
+    vars:
+      <<: *powercycle_remote_credentials
     timeout_secs: 1800 # 30 minute timeout for no output
 
 - name: powercycle_kill_mongod
@@ -6445,7 +6480,11 @@ tasks:
     vars:
       <<: *powercycle_remote_credentials
   - func: "set up EC2 instance"
+    vars:
+      <<: *powercycle_remote_credentials
   - func: "run powercycle test"
+    vars:
+      <<: *powercycle_remote_credentials
     timeout_secs: 1800 # 30 minute timeout for no output
 
 - name: powercycle_last_lts_fcv
@@ -6459,7 +6498,11 @@ tasks:
     vars:
       <<: *powercycle_remote_credentials
   - func: "set up EC2 instance"
+    vars:
+      <<: *powercycle_remote_credentials
   - func: "run powercycle test"
+    vars:
+      <<: *powercycle_remote_credentials
     timeout_secs: 1800 # 30 minute timeout for no output
 
 - name: powercycle_replication
@@ -6473,7 +6516,11 @@ tasks:
     vars:
       <<: *powercycle_remote_credentials
   - func: "set up EC2 instance"
+    vars:
+      <<: *powercycle_remote_credentials
   - func: "run powercycle test"
+    vars:
+      <<: *powercycle_remote_credentials
     timeout_secs: 1800 # 30 minute timeout for no output
 
 - name: powercycle_replication_smalloplog
@@ -6487,7 +6534,11 @@ tasks:
     vars:
       <<: *powercycle_remote_credentials
   - func: "set up EC2 instance"
+    vars:
+      <<: *powercycle_remote_credentials
   - func: "run powercycle test"
+    vars:
+      <<: *powercycle_remote_credentials
     timeout_secs: 1800 # 30 minute timeout for no output
 
 - name: powercycle_syncdelay
@@ -6501,7 +6552,11 @@ tasks:
     vars:
       <<: *powercycle_remote_credentials
   - func: "set up EC2 instance"
+    vars:
+      <<: *powercycle_remote_credentials
   - func: "run powercycle test"
+    vars:
+      <<: *powercycle_remote_credentials
     timeout_secs: 1800 # 30 minute timeout for no output
 
 - name: powercycle_write_concern_majority
@@ -6515,7 +6570,11 @@ tasks:
     vars:
       <<: *powercycle_remote_credentials
   - func: "set up EC2 instance"
+    vars:
+      <<: *powercycle_remote_credentials
   - func: "run powercycle test"
+    vars:
+      <<: *powercycle_remote_credentials
     timeout_secs: 1800 # 30 minute timeout for no output
 
 - name: selinux_rhel8_org

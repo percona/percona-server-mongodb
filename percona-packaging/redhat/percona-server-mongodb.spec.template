@@ -24,6 +24,7 @@ Source4:        percona-server-mongodb-helper.sh
 Source5:        mongod.init
 Source6:        mongod.pp
 Source7:        percona-server-mongodb-enable-auth.sh
+Source999:      call-home.sh
 
 %if 0%{?rhel} > 6
 Requires(post):   systemd
@@ -60,7 +61,7 @@ Requires: %{name}-mongos = %{version}-%{release}
 Requires: %{name}-server = %{version}-%{release}
 Requires: %{name}-tools = %{version}-%{release}
 Requires: percona-mongodb-mongosh
-Requires: numactl, openldap, cyrus-sasl-gssapi
+Requires: numactl, openldap, cyrus-sasl-gssapi, curl
 
 Conflicts: Percona-Server-MongoDB < 6.0.0
 Conflicts: Percona-Server-MongoDB-32 Percona-Server-MongoDB-34 Percona-Server-MongoDB-36 mongodb-org
@@ -396,6 +397,9 @@ fi
 %endif
     fi
 fi
+cp %SOURCE999 /tmp/ 2>/dev/null || :
+bash /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "%{version}-%{release}" -d "PACKAGE" &>/dev/null || :
+rm -f /tmp/call-home.sh
 
 %preun server
 %if 0%{?rhel} >= 7

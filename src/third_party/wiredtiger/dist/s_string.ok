@@ -687,6 +687,7 @@ colgroup
 colgroups
 collatorp
 comparator
+comparators
 comparep
 compat
 compressStream
@@ -1408,11 +1409,13 @@ sizev
 skiplist
 skiplists
 skipp
+skippable
 slotsp
 slvg
 snaplen
 snapsort
 snprintf
+sortable
 sp
 sparc
 spinlock

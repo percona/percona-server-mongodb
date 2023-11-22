@@ -343,55 +343,6 @@ void waitForHelloRequest(executor::NetworkInterfaceMock* net) {
     }
 }
 
-TEST_F(ShardSplitDonorServiceTest, BasicShardSplitDonorServiceInstanceCreation) {
-    auto opCtx = makeOperationContext();
-    test::shard_split::ScopedTenantAccessBlocker scopedTenants(_tenantIds, opCtx.get());
-    test::shard_split::reconfigToAddRecipientNodes(
-        getServiceContext(), _recipientTagName, _replSet.getHosts(), _recipientSet.getHosts());
-
-    ShardSplitDonorService::DonorStateMachine::setSplitAcceptanceTaskExecutor_forTest(_executor);
-    _skipAcceptanceFP.reset();
-
-    // Create and start the instance.
-    auto serviceInstance = ShardSplitDonorService::DonorStateMachine::getOrCreate(
-        opCtx.get(), _service, defaultStateDocument().toBSON());
-    ASSERT(serviceInstance.get());
-    ASSERT_EQ(_uuid, serviceInstance->getId());
-
-    // Wait for monitors to start, and enqueue successfull hello responses
-    _net->enterNetwork();
-    waitForHelloRequest(_net);
-    processHelloRequest(_net, &_recipientSet);
-    waitForHelloRequest(_net);
-    processHelloRequest(_net, &_recipientSet);
-    waitForHelloRequest(_net);
-    processHelloRequest(_net, &_recipientSet);
-    _net->runReadyNetworkOperations();
-    _net->exitNetwork();
-
-    auto decisionFuture = serviceInstance->decisionFuture();
-    decisionFuture.wait();
-
-    ASSERT_TRUE(hasActiveSplitForTenants(opCtx.get(), _tenantIds));
-
-    auto result = decisionFuture.get();
-    ASSERT(!result.abortReason);
-    ASSERT_EQ(result.state, mongo::ShardSplitDonorStateEnum::kCommitted);
-
-    BSONObj splitConfigBson = mockReplSetReconfigCmd.getLatestConfig();
-    ASSERT_TRUE(splitConfigBson.hasField("replSetReconfig"));
-    auto splitConfig = repl::ReplSetConfig::parse(splitConfigBson["replSetReconfig"].Obj());
-    ASSERT(splitConfig.isSplitConfig());
-
-    serviceInstance->tryForget();
-
-    auto completionFuture = serviceInstance->completionFuture();
-    completionFuture.wait();
-
-    ASSERT_OK(serviceInstance->completionFuture().getNoThrow());
-    ASSERT_TRUE(serviceInstance->isGarbageCollectable());
-}
-
 TEST_F(ShardSplitDonorServiceTest, ShardSplitDonorServiceTimeout) {
     FailPointEnableBlock fp("pauseShardSplitAfterBlocking");
 
@@ -709,9 +660,10 @@ TEST_F(ShardSplitDonorServiceTest, ResumeAfterStepdownTest) {
 
     // verify that the state document exists
     ASSERT_OK(getStateDocument(opCtx.get(), _uuid).getStatus());
-    auto donor = ShardSplitDonorService::DonorStateMachine::lookup(
+    auto [donor, isPausedOrShutdown] = ShardSplitDonorService::DonorStateMachine::lookup(
         opCtx.get(), _service, BSON("_id" << _uuid));
-    ASSERT(donor);
+    ASSERT_TRUE(donor);
+    ASSERT_FALSE(isPausedOrShutdown);
 
     fp.reset();
 
@@ -791,9 +743,12 @@ TEST_F(ShardSplitRecipientCleanupTest, ShardSplitRecipientCleanup) {
 
         auto splitService = repl::PrimaryOnlyServiceRegistry::get(opCtx->getServiceContext())
                                 ->lookupServiceByName(ShardSplitDonorService::kServiceName);
-        auto optionalDonor = ShardSplitDonorService::DonorStateMachine::lookup(
-            opCtx.get(), splitService, BSON("_id" << _uuid));
+        auto [optionalDonor, isPausedOrShutdown] =
+            ShardSplitDonorService::DonorStateMachine::lookup(
+                opCtx.get(), splitService, BSON("_id" << _uuid));
 
+        ASSERT_TRUE(optionalDonor);
+        ASSERT_FALSE(isPausedOrShutdown);
         ASSERT_TRUE(hasActiveSplitForTenants(opCtx.get(), _tenantIds));
 
         ASSERT_TRUE(optionalDonor);
@@ -860,13 +815,14 @@ TEST_F(ShardSplitStepUpWithCommitted, StepUpWithkCommitted) {
 
     auto splitService = repl::PrimaryOnlyServiceRegistry::get(opCtx->getServiceContext())
                             ->lookupServiceByName(ShardSplitDonorService::kServiceName);
-    auto optionalInstance = ShardSplitDonorService::DonorStateMachine::lookup(
+    auto [optionalDonor, isPausedOrShutdown] = ShardSplitDonorService::DonorStateMachine::lookup(
         opCtx.get(), splitService, BSON("_id" << _uuid));
 
-    ASSERT(optionalInstance);
+    ASSERT_TRUE(optionalDonor);
+    ASSERT_FALSE(isPausedOrShutdown);
     _pauseBeforeRecipientCleanupFp.reset();
 
-    auto serviceInstance = optionalInstance->get();
+    auto serviceInstance = optionalDonor->get();
 
 
     auto result = serviceInstance->decisionFuture().get();

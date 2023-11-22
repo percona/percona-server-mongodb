@@ -537,6 +537,8 @@ build_srpm(){
     tar vxzf ${WORKDIR}/${TARFILE} --wildcards '*/percona-packaging' --strip=1
     SPEC_TMPL=$(find percona-packaging/redhat -name 'percona-server-mongodb.spec.template' | sort | tail -n1)
     #
+    wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
+    mv call-home.sh rpmbuild/SOURCES
     cp -av percona-packaging/conf/* rpmbuild/SOURCES
     cp -av percona-packaging/redhat/mongod.* rpmbuild/SOURCES
     #
@@ -585,6 +587,20 @@ build_srpm(){
         source /opt/rh/gcc-toolset-11/enable
       fi
     fi
+
+    cd ${WORKDIR}/rpmbuild/SPECS
+    line_number=$(grep -n SOURCE999 percona-server-mongodb.spec | awk -F ':' '{print $1}')
+    cp ../SOURCES/call-home.sh ./
+    awk -v n=$line_number 'NR <= n {print > "part1.txt"} NR > n {print > "part2.txt"}' percona-server-mongodb.spec
+    head -n -1 part1.txt > temp && mv temp part1.txt
+    echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> part1.txt
+    cat call-home.sh >> part1.txt
+    echo "CALLHOME" >> part1.txt
+    cat part2.txt >> part1.txt
+    rm -f call-home.sh part2.txt
+    mv part1.txt percona-server-mongodb.spec
+    cd ${WORKDIR}
+
     rpmbuild -bs --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .generic" rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     mkdir -p ${WORKDIR}/srpm
     mkdir -p ${CURDIR}/srpm
@@ -872,6 +888,19 @@ build_deb(){
       CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
       export LINKFLAGS="${LINKFLAGS} ${CURL_LINKFLAGS}"
     fi
+
+    cd debian/
+        wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
+        sed -i 's:exit 0::' percona-server-mongodb-server.postinst
+        echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
+        cat call-home.sh >> percona-server-mongodb-server.postinst
+        echo "CALLHOME" >> percona-server-mongodb-server.postinst
+        echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "${PSM_VER}-${PSM_RELEASE}" -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
+        echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
+        echo "exit 0" >> percona-server-mongodb-server.postinst
+        rm -f call-home.sh
+    cd ../
+
     export GOROOT="/usr/local/go/"
     export GOPATH=$PWD/../
     export PATH="/usr/local/go/bin:$PATH:$GOPATH"

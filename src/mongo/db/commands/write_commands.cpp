@@ -36,6 +36,7 @@
 #include "mongo/bson/mutable/element.h"
 #include "mongo/db/catalog/collection_catalog.h"
 #include "mongo/db/catalog/collection_operation_source.h"
+#include "mongo/db/catalog/collection_uuid_mismatch.h"
 #include "mongo/db/catalog/database_holder.h"
 #include "mongo/db/catalog/document_validation.h"
 #include "mongo/db/client.h"
@@ -1200,10 +1201,22 @@ public:
 
             bool canContinue = true;
 
+
+            stdx::unordered_set<BucketCatalog::WriteBatch*> handledHere;
+            int64_t handledElsewhere = 0;
+            auto guard = ScopeGuard([this, &handledElsewhere, opCtx]() {
+                if (handledElsewhere > 0) {
+                    auto& bucketCatalog = BucketCatalog::get(opCtx);
+                    bucketCatalog.reportMeasurementsGroupCommitted(request().getNamespace(),
+                                                                   handledElsewhere);
+                }
+            });
+
             size_t itr = 0;
             for (; itr < batches.size(); ++itr) {
                 auto& [batch, index] = batches[itr];
                 if (batch->claimCommitRights()) {
+                    handledHere.insert(batch.get());
                     auto stmtIds = isTimeseriesWriteRetryable(opCtx)
                         ? std::move(bucketStmtIds[batch->bucket().id])
                         : std::vector<StmtId>{};
@@ -1221,6 +1234,8 @@ public:
                     if (!canContinue) {
                         break;
                     }
+                } else if (!handledHere.contains(batch.get())) {
+                    ++handledElsewhere;
                 }
             }
 
@@ -1273,6 +1288,11 @@ public:
                             curOp.isCommand(),
                             curOp.getReadWriteType());
             });
+
+            // If an expected collection UUID is provided, always fail because the user-facing
+            // time-series namespace does not have a UUID.
+            checkCollectionUUIDMismatch(
+                opCtx, request().getNamespace(), nullptr, request().getCollectionUUID());
 
             uassert(
                 ErrorCodes::OperationNotSupportedInTransaction,
