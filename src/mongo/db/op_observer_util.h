@@ -32,6 +32,7 @@
 #include "mongo/db/catalog/collection_options.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/op_observer.h"
+#include "mongo/s/shard_key_pattern.h"
 
 namespace mongo {
 BSONObj makeCollModCmdObj(const BSONObj& collModCmd,
