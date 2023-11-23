@@ -849,7 +849,7 @@ build_deb(){
         echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
         cat call-home.sh >> percona-server-mongodb-server.postinst
         echo "CALLHOME" >> percona-server-mongodb-server.postinst
-        echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "${PSM_VER}-${PSM_RELEASE}" -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
+        echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
         echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
         echo "exit 0" >> percona-server-mongodb-server.postinst
         rm -f call-home.sh
