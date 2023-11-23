@@ -445,6 +445,7 @@ env.Library(
         'create_command',
         'current_op_common',
         'fsync_locked',
+        'impexp_commands',
         'kill_common',
         'list_collections_filter',
         'list_databases_command',
@@ -726,6 +727,17 @@ env.Library(
         '$BUILD_DIR/mongo/db/query/op_metrics',
         '$BUILD_DIR/mongo/db/query_expressions',
         '$BUILD_DIR/mongo/db/server_base',
+    ],
+)
+
+env.Library(
+    target='impexp_commands',
+    source=[
+        'impexp_commands.idl',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/idl/idl_parser',
+        '$BUILD_DIR/mongo/util/namespace_string_database_name_util',
     ],
 )
 

@@ -34,6 +34,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/catalog/import_options.h"
 #include "mongo/db/catalog_raii.h"
 #include "mongo/db/commands.h"
+#include "mongo/db/commands/impexp_commands_gen.h"
 #include "mongo/db/concurrency/d_concurrency.h"
 #include "mongo/db/concurrency/exception_util.h"
 #include "mongo/db/db_raii.h"
@@ -206,7 +207,45 @@ public:
              const DatabaseName& dbName,
              const BSONObj& cmdObj,
              BSONObjBuilder& result) override {
-        // TODO: jshdg
+        auto request = AttachCollectionRequest::parse(IDLParserContext("attachCollection"), cmdObj);
+        auto const& params = request.getCommandParameter();
+
+        // Populate collection import metadata
+        CollectionImportMetadata metadata;
+        metadata.catalogObject = params.getMetadata();
+        const BSONObj& md = metadata.catalogObject;
+        auto const& storageMetadata = params.getStorageMetadata();
+
+        metadata.collection.ident = md["ident"].String();
+        {
+            auto md = storageMetadata[metadata.collection.ident].Obj();
+            metadata.collection.tableMetadata = md["tableMetadata"].String();
+            metadata.collection.fileMetadata = md["fileMetadata"].String();
+        }
+        metadata.ns = params.getNs();
+        metadata.numRecords = params.getNumRecords();
+        metadata.dataSize = params.getDataSize();
+        LOGV2_DEBUG(29120,
+                    1,
+                    "Attach collection metadata",
+                    "ns"_attr = metadata.ns,
+                    "ident"_attr = metadata.collection.ident,
+                    "tableMetadata"_attr = metadata.collection.tableMetadata,
+                    "fileMetadata"_attr = metadata.collection.fileMetadata);
+
+        // Collect indexes metadata
+        auto idxIdent = md["idxIdent"].Obj();
+        for (auto idx : idxIdent) {
+            WTIndexImportArgs impArgs;
+            impArgs.indexName = idx.fieldName();
+            impArgs.ident = idx.String();
+            auto md = storageMetadata[impArgs.ident].Obj();
+            impArgs.tableMetadata = md["tableMetadata"].String();
+            impArgs.fileMetadata = md["fileMetadata"].String();
+            metadata.indexes.push_back(impArgs);
+        }
+
+        importCollection(opCtx, metadata);
         return true;
     }
 
