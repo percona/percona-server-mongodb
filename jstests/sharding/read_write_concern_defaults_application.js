@@ -250,6 +250,7 @@ let testCases = {
         useLogs: true,
     },
     applyOps: {skip: "internal command"},
+    attachCollection: {skip: "does not accept read or write concern"},
     auditGetOptions: {skip: "does not accept read or write concern"},
     authenticate: {skip: "does not accept read or write concern"},
     autoSplitVector: {skip: "internal command"},
