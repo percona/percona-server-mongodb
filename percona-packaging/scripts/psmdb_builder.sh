@@ -794,10 +794,12 @@ build_source_deb(){
         cp debian/percona-server-mongodb-server.conffiles debian/percona-server-mongodb-server-pro.conffiles
         cp debian/percona-server-mongodb-server.dirs debian/percona-server-mongodb-server-pro.dirs
         cp debian/percona-server-mongodb-server.manpages debian/percona-server-mongodb-server-pro.manpages
+        cp debian/percona-server-mongodb-server.mongod.init debian/percona-server-mongodb-server-pro.mongod.init
+        cp debian/percona-server-mongodb-server.mongod.upstart.bak debian/percona-server-mongodb-server-pro.mongod.upstart.bak
         cp debian/percona-server-mongodb-server.postinst debian/percona-server-mongodb-server-pro.postinst
         cp debian/percona-server-mongodb-server.postrm debian/percona-server-mongodb-server-pro.postrm
+        cp debian/percona-server-mongodb-server.preinst debian/percona-server-mongodb-server-pro.preinst
         cp debian/percona-server-mongodb-server.templates debian/percona-server-mongodb-server-pro.templates
-        cp debian/percona-server-mongodb-server.mongod.init debian/percona-server-mongodb-server-pro.mongod.init
     fi
 
     dch -D unstable --force-distribution -v "${VERSION}-${RELEASE}" "Update to new Percona Server for MongoDB version ${VERSION}"
