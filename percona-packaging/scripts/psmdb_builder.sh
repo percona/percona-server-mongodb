@@ -780,6 +780,7 @@ build_source_deb(){
         sed -i "s:Package\: percona-server-mongodb$:Package\: percona-server-mongodb-pro:g" debian/control
         sed -i "s:Package\: percona-server-mongodb-mongos:Package\: percona-server-mongodb-mongos-pro:g" debian/control
         sed -i "s:Package\: percona-server-mongodb-server:Package\: percona-server-mongodb-server-pro:g" debian/control
+        sed -i "s:Package\: percona-server-mongodb-dbg:Package\: percona-server-mongodb-pro-dbg:g" debian/control
         sed -i "s:Conflicts\: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg:Conflicts\: percona-server-mongodb, percona-server-mongodb-mongos, percona-server-mongodb-server, percona-server-mongodb-dbg:g" debian/control
         sed -i "s:Replaces\: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg:Replaces\: percona-server-mongodb, percona-server-mongodb-mongos, percona-server-mongodb-server, percona-server-mongodb-dbg:g" debian/control
         sed -i "s:, percona-server-mongodb-mongos (= :, percona-server-mongodb-mongos-pro (= :g" debian/control
