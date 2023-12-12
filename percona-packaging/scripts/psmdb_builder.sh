@@ -780,8 +780,9 @@ build_source_deb(){
         sed -i "s:Package\: percona-server-mongodb$:Package\: percona-server-mongodb-pro:g" debian/control
         sed -i "s:Package\: percona-server-mongodb-mongos:Package\: percona-server-mongodb-mongos-pro:g" debian/control
         sed -i "s:Package\: percona-server-mongodb-server:Package\: percona-server-mongodb-server-pro:g" debian/control
-        sed -i "s:Conflicts\: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro:Conflicts\: percona-server-mongodb, percona-server-mongodb-mongos, percona-server-mongodb-server:g" debian/control
-        sed -i "s:Replaces\: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro:Replaces\: percona-server-mongodb, percona-server-mongodb-mongos, percona-server-mongodb-server:g" debian/control
+        sed -i "s:Package\: percona-server-mongodb-dbg:Package\: percona-server-mongodb-pro-dbg:g" debian/control
+        sed -i "s:Conflicts\: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg:Conflicts\: percona-server-mongodb, percona-server-mongodb-mongos, percona-server-mongodb-server, percona-server-mongodb-dbg:g" debian/control
+        sed -i "s:Replaces\: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg:Replaces\: percona-server-mongodb, percona-server-mongodb-mongos, percona-server-mongodb-server, percona-server-mongodb-dbg:g" debian/control
         sed -i "s:, percona-server-mongodb-mongos (= :, percona-server-mongodb-mongos-pro (= :g" debian/control
         sed -i "s:, percona-server-mongodb-server (= :, percona-server-mongodb-server-pro (= :g" debian/control
         sed -i "s:Depends\: percona-server-mongodb :Depends\: percona-server-mongodb-pro :g" debian/control
@@ -789,6 +790,7 @@ build_source_deb(){
         sed -i "s:percona-server-mongodb :percona-server-mongodb-pro :g" debian/rules
         sed -i "s:percona-server-mongodb-mongos/:percona-server-mongodb-mongos-pro/:g" debian/rules
         sed -i "s:percona-server-mongodb-server/:percona-server-mongodb-server-pro/:g" debian/rules
+        sed -i "s:percona-server-mongodb-dbg:percona-server-mongodb-pro-dbg:g" debian/rules
         cp debian/percona-server-mongodb-mongos.dirs debian/percona-server-mongodb-mongos-pro.dirs
         cp debian/percona-server-mongodb-mongos.manpages debian/percona-server-mongodb-mongos-pro.manpages
         cp debian/percona-server-mongodb-server.conffiles debian/percona-server-mongodb-server-pro.conffiles
@@ -874,6 +876,7 @@ build_deb(){
         sed -i "s:percona-server-mongodb :percona-server-mongodb-pro :g" debian/rules
         sed -i "s:percona-server-mongodb-mongos/:percona-server-mongodb-mongos-pro/:g" debian/rules
         sed -i "s:percona-server-mongodb-server/:percona-server-mongodb-server-pro/:g" debian/rules
+        sed -i "s:percona-server-mongodb-dbg:percona-server-mongodb-pro-dbg:g" debian/rules
     fi
 
     if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" ]; then
@@ -893,13 +896,23 @@ build_deb(){
 
     cd debian/
         wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
-        sed -i 's:exit 0::' percona-server-mongodb-server.postinst
-        echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
-        cat call-home.sh >> percona-server-mongodb-server.postinst
-        echo "CALLHOME" >> percona-server-mongodb-server.postinst
-        echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
-        echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
-        echo "exit 0" >> percona-server-mongodb-server.postinst
+        if [[ "x${FIPSMODE}" == "x1" ]]; then
+            sed -i 's:exit 0::' percona-server-mongodb-server-pro.postinst
+            echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> percona-server-mongodb-server-pro.postinst
+            cat call-home.sh >> percona-server-mongodb-server-pro.postinst
+            echo "CALLHOME" >> percona-server-mongodb-server-pro.postinst
+            echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server-pro.postinst
+            echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server-pro.postinst
+            echo "exit 0" >> percona-server-mongodb-server-pro.postinst
+        else
+            sed -i 's:exit 0::' percona-server-mongodb-server.postinst
+            echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
+            cat call-home.sh >> percona-server-mongodb-server.postinst
+            echo "CALLHOME" >> percona-server-mongodb-server.postinst
+            echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
+            echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
+            echo "exit 0" >> percona-server-mongodb-server.postinst
+        fi
         rm -f call-home.sh
     cd ../
 
