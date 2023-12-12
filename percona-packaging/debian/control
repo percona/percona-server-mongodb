@@ -11,6 +11,8 @@ Provides: mongodb-org, mongodb-enterprise
 Architecture: any
 Breaks: percona-server-mongodb (< 4.4.0), percona-server-mongodb-32, percona-server-mongodb-34, percona-server-mongodb-36, mongo-10gen, mongo-10gen-enterprise, mongo-10gen-enterprise-server, mongo-10gen-server, mongo-10gen-unstable, mongo-10gen-unstable-enterprise, mongo-10gen-unstable-enterprise-mongos, mongo-10gen-unstable-enterprise-server, mongo-10gen-unstable-enterprise-shell, mongo-10gen-unstable-enterprise-tools, mongo-10gen-unstable-mongos, mongo-10gen-unstable-server, mongo-10gen-unstable-shell, mongo-10gen-unstable-tools, mongo18-10gen, mongo18-10gen-server, mongo20-10gen, mongo20-10gen-server, mongodb, mongodb-server, mongodb-dev, mongodb-clients, mongodb-10gen, mongodb-10gen-enterprise, mongodb-10gen-unstable, mongodb-10gen-unstable-enterprise, mongodb-10gen-unstable-enterprise-mongos, mongodb-10gen-unstable-enterprise-server, mongodb-10gen-unstable-enterprise-shell, mongodb-10gen-unstable-enterprise-tools, mongodb-10gen-unstable-mongos, mongodb-10gen-unstable-server, mongodb-10gen-unstable-shell, mongodb-10gen-unstable-tools, mongodb-nightly, mongodb-enterprise-unstable, mongodb-enterprise-unstable-mongos, mongodb-enterprise-unstable-server, mongodb-enterprise-unstable-shell, mongodb-enterprise-unstable-tools, mongodb-stable, mongodb18-10gen, mongodb20-10gen, mongodb-database-tools
 Depends: ${shlibs:Depends}, ${misc:Depends}, percona-server-mongodb-mongos (= ${source:Version}), percona-mongodb-mongosh, percona-server-mongodb-server (= ${source:Version}), percona-server-mongodb-tools (= ${source:Version}), libsasl2-modules-gssapi-mit
+Conflicts: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg
+Replaces: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg
 Description: This metapackage will install the mongo shell, import/export tools, other client utilities, server software, default configuration, and init.d scripts.
  This package contains high-performance MongoDB replacement from Percona - Percona Server for MongoDB.
  Percona Server for MongoDB is built for scalability, performance and high availability, scaling from single server deployments to large, complex multi-site architectures.
@@ -37,6 +39,8 @@ Provides: mongodb-org-mongos, mongodb-enterprise-mongos
 Architecture: any
 Breaks: percona-server-mongodb-mongos (< 4.4.0), percona-server-mongodb-32-mongos, percona-server-mongodb-34-mongos, percona-server-mongodb-36-mongos, mongo-10gen, mongo-10gen-enterprise, mongo-10gen-enterprise-server, mongo-10gen-server, mongo-10gen-unstable, mongo-10gen-unstable-enterprise, mongo-10gen-unstable-enterprise-mongos, mongo-10gen-unstable-enterprise-server, mongo-10gen-unstable-enterprise-shell, mongo-10gen-unstable-enterprise-tools, mongo-10gen-unstable-mongos, mongo-10gen-unstable-server, mongo-10gen-unstable-shell, mongo-10gen-unstable-tools, mongo18-10gen, mongo18-10gen-server, mongo20-10gen, mongo20-10gen-server, mongodb, mongodb-server, mongodb-dev, mongodb-clients, mongodb-10gen, mongodb-10gen-enterprise, mongodb-10gen-unstable, mongodb-10gen-unstable-enterprise, mongodb-10gen-unstable-enterprise-mongos, mongodb-10gen-unstable-enterprise-server, mongodb-10gen-unstable-enterprise-shell, mongodb-10gen-unstable-enterprise-tools, mongodb-10gen-unstable-mongos, mongodb-10gen-unstable-server, mongodb-10gen-unstable-shell, mongodb-10gen-unstable-tools, mongodb-nightly, mongodb-enterprise-unstable, mongodb-enterprise-unstable-mongos, mongodb-enterprise-unstable-server, mongodb-enterprise-unstable-shell, mongodb-enterprise-unstable-tools, mongodb-stable, mongodb18-10gen, mongodb20-10gen, mongodb-database-tools
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Conflicts: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg
+Replaces: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg
 Description: This package contains mongos - the Percona Server for MongoDB sharded cluster query router
  Percona Server for MongoDB is a drop-in high-performance replacement for MongoDB from Percona
 
@@ -45,6 +49,8 @@ Provides: mongodb-org-server, mongodb-enterprise-server
 Architecture: any
 Breaks: percona-server-mongodb-server (< 4.4.0), percona-server-mongodb-32-server, percona-server-mongodb-34-server, percona-server-mongodb-36-server, mongo-10gen, mongo-10gen-enterprise, mongo-10gen-enterprise-server, mongo-10gen-server, mongo-10gen-unstable, mongo-10gen-unstable-enterprise, mongo-10gen-unstable-enterprise-mongos, mongo-10gen-unstable-enterprise-server, mongo-10gen-unstable-enterprise-shell, mongo-10gen-unstable-enterprise-tools, mongo-10gen-unstable-mongos, mongo-10gen-unstable-server, mongo-10gen-unstable-shell, mongo-10gen-unstable-tools, mongo18-10gen, mongo18-10gen-server, mongo20-10gen, mongo20-10gen-server, mongodb, mongodb-server, mongodb-dev, mongodb-clients, mongodb-10gen, mongodb-10gen-enterprise, mongodb-10gen-unstable, mongodb-10gen-unstable-enterprise, mongodb-10gen-unstable-enterprise-mongos, mongodb-10gen-unstable-enterprise-server, mongodb-10gen-unstable-enterprise-shell, mongodb-10gen-unstable-enterprise-tools, mongodb-10gen-unstable-mongos, mongodb-10gen-unstable-server, mongodb-10gen-unstable-shell, mongodb-10gen-unstable-tools, mongodb-nightly, mongodb-enterprise-unstable, mongodb-enterprise-unstable-mongos, mongodb-enterprise-unstable-server, mongodb-enterprise-unstable-shell, mongodb-enterprise-unstable-tools, mongodb-stable, mongodb18-10gen, mongodb20-10gen, mongodb-database-tools
 Depends: ${shlibs:Depends}, ${misc:Depends}, percona-mongodb-mongosh, curl
+Conflicts: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg
+Replaces: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg
 Description: This package contains the Percona Server for MongoDB server software, default configuration files and init.d scripts
  Percona Server for MongoDB is a drop-in high-performance replacement for MongoDB from Percona
 
@@ -70,6 +76,8 @@ Architecture: any
 Breaks: percona-server-mongodb-dbg(< 4.4.0), percona-server-mongodb-32-dbg, percona-server-mongodb-34-dbg, percona-server-mongodb-36-dbg
 Section: debug
 Depends: percona-server-mongodb (= ${binary:Version}), ${misc:Depends}
+Conflicts: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg
+Replaces: percona-server-mongodb-pro, percona-server-mongodb-mongos-pro, percona-server-mongodb-server-pro, percona-server-mongodb-pro-dbg
 Description: Debugging package for Percona Server for MongoDB
  Percona Server for MongoDB is a drop-in high-performance replacement for MongoDB from Percona
 

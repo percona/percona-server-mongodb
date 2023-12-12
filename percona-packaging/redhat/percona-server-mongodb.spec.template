@@ -8,6 +8,9 @@
 %global _find_debuginfo_dwz_opts %{nil}
 %endif
 
+# By default a build will be done in normal mode
+%{?enable_fipsmode: %global enable_fipsmode 1}
+
 #
 Name:           percona-server-mongodb
 Version:        @@VERSION@@
@@ -64,7 +67,7 @@ Requires: %{name}-tools = %{version}-%{release}
 Requires: percona-mongodb-mongosh
 Requires: numactl, openldap, cyrus-sasl-gssapi, curl
 
-Conflicts: Percona-Server-MongoDB < 4.4.0
+Conflicts: Percona-Server-MongoDB < 7.0.0
 Conflicts: Percona-Server-MongoDB-32 Percona-Server-MongoDB-34 Percona-Server-MongoDB-36 mongodb-org
 
 %description
@@ -89,33 +92,33 @@ This metapackage will install the mongo shell, import/export tools, other client
 %package mongos
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB sharded cluster query router
+Conflicts: Percona-Server-MongoDB-mongos Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
 %description mongos
 This package contains mongos - the Percona Server for MongoDB sharded cluster query router
-Conflicts: Percona-Server-MongoDB-mongos Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
 
 %package server
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB database server
 Requires: policycoreutils
 Requires: percona-mongodb-mongosh
+Conflicts: Percona-Server-MongoDB-server Percona-Server-MongoDB-32-server Percona-Server-MongoDB-34-server Percona-Server-MongoDB-36-server mongodb-org-server
 %description server
 This package contains the Percona Server for MongoDB server software, default configuration files and init.d scripts
-Conflicts: Percona-Server-MongoDB-server Percona-Server-MongoDB-32-server Percona-Server-MongoDB-34-server Percona-Server-MongoDB-36-server mongodb-org-server
 
 %package shell
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB shell client
 Requires:  cyrus-sasl-plain
+Conflicts: Percona-Server-MongoDB-shell Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
 %description shell
 This package contains the Percona Server for MongoDB shell
-Conflicts: Percona-Server-MongoDB-shell Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
 
 %package tools
 Group:          Applications/Databases
 Summary:        The tools package for Percona Server for MongoDB
+Conflicts: Percona-Server-MongoDB-tools Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
 %description tools
 This package contains various tools from MongoDB project, recompiled for Percona Server for MongoDB
-Conflicts: Percona-Server-MongoDB-tools Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
 
 %prep
 
@@ -160,9 +163,13 @@ mv ${INSTALLDIR_AWS}/include/* ${INSTALLDIR}/include/
 mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
 
 # Build PSfMDB with SCons
+echo ${enable_fipsmode}
 pushd $RPM_BUILD_DIR/%{src_dir}
 buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on  \
 %{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" \
+%if 0%{?enable_fipsmode}
+--enable-fipsmode \
+%endif$
 --wiredtiger --inmemory --hotbackup LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_TARGETS} || exit $?
 rm -fr resmoke.ini
 popd
@@ -388,7 +395,7 @@ fi
     fi
 fi
 cp %SOURCE999 /tmp/ 2>/dev/null || :
-bash /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "@@VERSION@@-@@RELEASE@@" -d "PACKAGE" &>/dev/null || :
+bash /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "%{version}-%{release}" -d "PACKAGE" &>/dev/null || :
 rm -f /tmp/call-home.sh
 
 %preun server
