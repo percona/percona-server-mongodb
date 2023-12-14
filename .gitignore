@@ -1,6 +1,7 @@
 /.ccls_cache
 /build
-/src/mongo/db/modules
+/src/mongo/db/modules/*
+!/src/mongo/db/modules/enterprise/
 /.jsdbshell
 /.dbshell
 /*.ninja

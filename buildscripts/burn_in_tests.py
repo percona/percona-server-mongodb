@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command line utility for determining what jstests have been added or modified."""
+"""Command line utility for determining what jstests have been added or modified test."""
 import copy
 import datetime
 import logging
@@ -57,7 +57,7 @@ AVG_TEST_TIME_MULTIPLIER = 3
 CONFIG_FILE = ".evergreen.yml"
 DEFAULT_PROJECT = "mongodb-mongo-master"
 ENTERPRISE_MODULE_PATH = "src/mongo/db/modules/enterprise"
-DEFAULT_REPO_LOCATIONS = [".", f"./{ENTERPRISE_MODULE_PATH}"]
+DEFAULT_REPO_LOCATIONS = ["."]
 REPEAT_SUITES = 2
 EVERGREEN_FILE = "etc/evergreen.yml"
 MIN_AVG_TEST_OVERFLOW_SEC = float(60)
@@ -220,7 +220,7 @@ def _create_revision_map(repos: List[Repo], origin_rev: Optional[str], evg_api: 
         return generate_revision_map(repos, {"mongo": origin_rev})
 
     if evg_api and task_id:
-        return generate_revision_map_from_manifest(repos, task_id, evg_api)
+        return generate_revision_map_from_manifest(repos)
 
     return {}
 
