@@ -95,6 +95,7 @@
 #include "mongo/db/server_recovery.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/snapshot_window_options_gen.h"
+#include "mongo/db/storage/durable_catalog.h"
 #include "mongo/db/storage/journal_listener.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/storage_file_util.h"
@@ -3006,6 +3007,10 @@ Status WiredTigerKVEngine::dropIdent(RecoveryUnit* ru,
         return Status::OK();
     }
 
+    if (DurableCatalog::isCollectionIdent(ident)) {
+        _sizeStorer->remove(uri);
+    }
+
     if (onDrop) {
         onDrop();
     }
@@ -3159,7 +3164,30 @@ bool WiredTigerKVEngine::supportsDirectoryPerDB() const {
     return true;
 }
 
-void WiredTigerKVEngine::checkpoint() {
+void WiredTigerKVEngine::_checkpoint(WT_SESSION* session, bool useTimestamp) {
+    _currentCheckpointIteration.fetchAndAdd(1);
+    if (useTimestamp) {
+        invariantWTOK(session->checkpoint(session, "use_timestamp=true"), session);
+    } else {
+        invariantWTOK(session->checkpoint(session, "use_timestamp=false"), session);
+    }
+    auto checkpointedIteration = _finishedCheckpointIteration.fetchAndAdd(1);
+    LOGV2_FOR_RECOVERY(8097402,
+                       2,
+                       "Finished checkpoint, updated iteration counter",
+                       "checkpointIteration"_attr = checkpointedIteration);
+}
+
+void WiredTigerKVEngine::_checkpoint(WT_SESSION* session) {
+    // Ephemeral WiredTiger instances cannot do a checkpoint to disk as there is no disk backing
+    // the data.
+    if (_ephemeral) {
+        return;
+    }
+    // TODO: SERVER-64507: Investigate whether we can smartly rely on one checkpointer if two or
+    // more threads checkpoint at the same time.
+    stdx::lock_guard lk(_checkpointMutex);
+
     const Timestamp stableTimestamp = getStableTimestamp();
     const Timestamp initialDataTimestamp = getInitialDataTimestamp();
 
@@ -3191,9 +3219,7 @@ void WiredTigerKVEngine::checkpoint() {
         // Third, stableTimestamp >= initialDataTimestamp: Take stable checkpoint. Steady state
         // case.
         if (initialDataTimestamp.asULL() <= 1) {
-            UniqueWiredTigerSession session = _sessionCache->getSession();
-            WT_SESSION* s = session->getSession();
-            invariantWTOK(s->checkpoint(s, "use_timestamp=false"), s);
+            _checkpoint(session, /*useTimestamp=*/false);
             LOGV2_FOR_RECOVERY(5576602,
                                2,
                                "Completed unstable checkpoint.",
@@ -3214,9 +3240,7 @@ void WiredTigerKVEngine::checkpoint() {
                                "stableTimestamp"_attr = stableTimestamp,
                                "oplogNeededForRollback"_attr = toString(oplogNeededForRollback));
 
-            UniqueWiredTigerSession session = _sessionCache->getSession();
-            WT_SESSION* s = session->getSession();
-            invariantWTOK(s->checkpoint(s, "use_timestamp=true"), s);
+            _checkpoint(session, /*useTimestamp=*/true);
 
             if (oplogNeededForRollback.isOK()) {
                 // Now that the checkpoint is durable, publish the oplog needed to recover from it.
@@ -3236,6 +3260,18 @@ void WiredTigerKVEngine::checkpoint() {
     } catch (const AssertionException& exc) {
         invariant(ErrorCodes::isShutdownError(exc.code()), exc.what());
     }
+}
+
+void WiredTigerKVEngine::checkpoint() {
+    UniqueWiredTigerSession session = _sessionCache->getSession();
+    WT_SESSION* s = session->getSession();
+    return _checkpoint(s);
+}
+
+void WiredTigerKVEngine::forceCheckpoint(bool useStableTimestamp) {
+    UniqueWiredTigerSession session = _sessionCache->getSession();
+    WT_SESSION* s = session->getSession();
+    return _checkpoint(s, useStableTimestamp);
 }
 
 bool WiredTigerKVEngine::hasIdent(OperationContext* opCtx, StringData ident) const {

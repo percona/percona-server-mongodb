@@ -97,7 +97,9 @@ StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
       _dropPendingIdentReaper(_engine.get()),
       _minOfCheckpointAndOldestTimestampListener(
           TimestampMonitor::TimestampType::kMinOfCheckpointAndOldest,
-          [this](Timestamp timestamp) { _onMinOfCheckpointAndOldestTimestampChanged(timestamp); }),
+          [this](OperationContext* opCtx, Timestamp timestamp) {
+              _onMinOfCheckpointAndOldestTimestampChanged(opCtx, timestamp);
+          }),
       _supportsCappedCollections(_engine->supportsCappedCollections()) {
     uassert(28601,
             "Storage engine does not support --directoryperdb",
@@ -208,7 +210,7 @@ void StorageEngineImpl::loadCatalog(OperationContext* opCtx, LastShutdownState l
         // 'local.orphan.xxxxx' for it. However, in a nonrepair context, the orphaned idents
         // will be dropped in reconcileCatalogAndIdents().
         for (const auto& ident : identsKnownToStorageEngine) {
-            if (_catalog->isCollectionIdent(ident)) {
+            if (DurableCatalog::isCollectionIdent(ident)) {
                 bool isOrphan = !std::any_of(
                     catalogEntries.begin(),
                     catalogEntries.end(),
@@ -544,7 +546,7 @@ StatusWith<StorageEngine::ReconcileResult> StorageEngineImpl::reconcileCatalogAn
 
         // In repair context, any orphaned collection idents from the engine should already be
         // recovered in the catalog in loadCatalog().
-        invariant(!(_catalog->isCollectionIdent(it) && _options.forRepair));
+        invariant(!(DurableCatalog::isCollectionIdent(it) && _options.forRepair));
 
         // Leave drop-pending idents alone.
         // These idents have to be retained as long as the corresponding drops are not part of a
@@ -731,9 +733,7 @@ std::string StorageEngineImpl::getFilesystemPathForDb(const std::string& dbName)
 }
 
 void StorageEngineImpl::cleanShutdown() {
-    if (_timestampMonitor) {
-        _timestampMonitor->removeListener(&_minOfCheckpointAndOldestTimestampListener);
-    }
+    _timestampMonitor.reset();
 
     CollectionCatalog::write(getGlobalServiceContext(), [](CollectionCatalog& catalog) {
         catalog.onCloseCatalog();
@@ -742,8 +742,6 @@ void StorageEngineImpl::cleanShutdown() {
 
     _catalog.reset();
     _catalogRecordStore.reset();
-
-    _timestampMonitor.reset();
 
     _engine->cleanShutdown();
     // intentionally not deleting _engine
@@ -1116,47 +1114,45 @@ void StorageEngineImpl::_dumpCatalog(OperationContext* opCtx) {
     opCtx->recoveryUnit()->abandonSnapshot();
 }
 
-void StorageEngineImpl::addDropPendingIdent(const Timestamp& dropTimestamp,
-                                            std::shared_ptr<Ident> ident,
-                                            DropIdentCallback&& onDrop) {
-    _dropPendingIdentReaper.addDropPendingIdent(dropTimestamp, ident, std::move(onDrop));
+void StorageEngineImpl::addDropPendingIdent(
+    const stdx::variant<Timestamp, StorageEngine::CheckpointIteration>& dropTime,
+    std::shared_ptr<Ident> ident,
+    DropIdentCallback&& onDrop) {
+    _dropPendingIdentReaper.addDropPendingIdent(dropTime, ident, std::move(onDrop));
 }
 
 void StorageEngineImpl::checkpoint() {
     _engine->checkpoint();
 }
 
-void StorageEngineImpl::_onMinOfCheckpointAndOldestTimestampChanged(const Timestamp& timestamp) {
-    // No drop-pending idents present if getEarliestDropTimestamp() returns boost::none.
-    if (auto earliestDropTimestamp = _dropPendingIdentReaper.getEarliestDropTimestamp()) {
-        if (timestamp >= *earliestDropTimestamp) {
-            LOGV2(22260,
-                  "Removing drop-pending idents with drop timestamps before timestamp",
-                  "timestamp"_attr = timestamp);
-            auto opCtx = cc().getOperationContext();
-            invariant(opCtx);
+StorageEngine::CheckpointIteration StorageEngineImpl::getCheckpointIteration() const {
+    return _engine->getCheckpointIteration();
+}
 
-            _dropPendingIdentReaper.dropIdentsOlderThan(opCtx, timestamp);
-        }
+bool StorageEngineImpl::hasDataBeenCheckpointed(
+    StorageEngine::CheckpointIteration checkpointIteration) const {
+    return _engine->hasDataBeenCheckpointed(checkpointIteration);
+}
+
+void StorageEngineImpl::_onMinOfCheckpointAndOldestTimestampChanged(OperationContext* opCtx,
+                                                                    const Timestamp& timestamp) {
+    if (_dropPendingIdentReaper.hasExpiredIdents(timestamp)) {
+        LOGV2(22260,
+              "Removing drop-pending idents with drop timestamps before timestamp",
+              "timestamp"_attr = timestamp);
+
+        _dropPendingIdentReaper.dropIdentsOlderThan(opCtx, timestamp);
+    } else {
+        LOGV2_DEBUG(
+            8097401, 1, "No drop-pending idents have expired", "timestamp"_attr = timestamp);
     }
 }
 
 StorageEngineImpl::TimestampMonitor::TimestampMonitor(KVEngine* engine, PeriodicRunner* runner)
-    : _engine(engine), _running(false), _periodicRunner(runner) {
-    _currentTimestamps.checkpoint = _engine->getCheckpointTimestamp();
-    _currentTimestamps.oldest = _engine->getOldestTimestamp();
-    _currentTimestamps.stable = _engine->getStableTimestamp();
-    _currentTimestamps.minOfCheckpointAndOldest =
-        (_currentTimestamps.checkpoint.isNull() ||
-         (_currentTimestamps.checkpoint > _currentTimestamps.oldest))
-        ? _currentTimestamps.oldest
-        : _currentTimestamps.checkpoint;
-}
+    : _engine(engine), _running(false), _periodicRunner(runner) {}
 
 StorageEngineImpl::TimestampMonitor::~TimestampMonitor() {
     LOGV2(22261, "Timestamp monitor shutting down");
-    stdx::lock_guard<Latch> lock(_monitorMutex);
-    invariant(_listeners.empty());
 }
 
 void StorageEngineImpl::TimestampMonitor::startup() {
@@ -1173,10 +1169,10 @@ void StorageEngineImpl::TimestampMonitor::startup() {
                 }
             }
 
-            Timestamp checkpoint = _currentTimestamps.checkpoint;
-            Timestamp oldest = _currentTimestamps.oldest;
-            Timestamp stable = _currentTimestamps.stable;
-            Timestamp minOfCheckpointAndOldest = _currentTimestamps.minOfCheckpointAndOldest;
+            Timestamp checkpoint;
+            Timestamp oldest;
+            Timestamp stable;
+            Timestamp minOfCheckpointAndOldest;
 
             try {
                 auto opCtx = client->getOperationContext();
@@ -1205,33 +1201,23 @@ void StorageEngineImpl::TimestampMonitor::startup() {
                 {
                     stdx::lock_guard<Latch> lock(_monitorMutex);
                     for (const auto& listener : _listeners) {
-                        // Notify the listener if the timestamp changed.
-                        if (listener->getType() == TimestampType::kCheckpoint &&
-                            _currentTimestamps.checkpoint != checkpoint) {
-                            listener->notify(checkpoint);
-                        } else if (listener->getType() == TimestampType::kOldest &&
-                                   _currentTimestamps.oldest != oldest) {
-                            listener->notify(oldest);
-                        } else if (listener->getType() == TimestampType::kStable &&
-                                   _currentTimestamps.stable != stable) {
-                            listener->notify(stable);
+                        if (listener->getType() == TimestampType::kCheckpoint) {
+                            listener->notify(opCtx, checkpoint);
+                        } else if (listener->getType() == TimestampType::kOldest) {
+                            listener->notify(opCtx, oldest);
+                        } else if (listener->getType() == TimestampType::kStable) {
+                            listener->notify(opCtx, stable);
                         } else if (listener->getType() ==
-                                       TimestampType::kMinOfCheckpointAndOldest &&
-                                   _currentTimestamps.minOfCheckpointAndOldest !=
-                                       minOfCheckpointAndOldest) {
-                            listener->notify(minOfCheckpointAndOldest);
+                                   TimestampType::kMinOfCheckpointAndOldest) {
+                            listener->notify(opCtx, minOfCheckpointAndOldest);
                         } else if (stable == Timestamp::min()) {
                             // Special case notification of all listeners when writes do not have
-                            // timestamps. This handles standalone mode.
-                            listener->notify(Timestamp::min());
+                            // timestamps. This handles standalone mode and storage engines that
+                            // don't support timestamps.
+                            listener->notify(opCtx, Timestamp::min());
                         }
                     }
                 }
-
-                _currentTimestamps.checkpoint = checkpoint;
-                _currentTimestamps.oldest = oldest;
-                _currentTimestamps.stable = stable;
-                _currentTimestamps.minOfCheckpointAndOldest = minOfCheckpointAndOldest;
             } catch (const ExceptionForCat<ErrorCategory::Interruption>& ex) {
                 if (!ErrorCodes::isCancellationError(ex))
                     throw;

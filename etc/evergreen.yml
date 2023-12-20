@@ -1853,7 +1853,7 @@ functions:
         binary: bash
         args:
         - "src/evergreen/run_python_script.sh"
-        - "buildscripts/sync_repo_with_copybara.py"
+        - "buildscripts/sync_repo_with_copybara.py --expansion-file ../expansions.yml"
 
 # Pre task steps
 pre:
@@ -6103,6 +6103,8 @@ tasks:
   - *kill_processes
   - *cleanup_environment
   - *set_up_venv
+  - func: "configure evergreen api credentials"
+  - *f_expansions_write
   - func: "sync repo with copybara"
 
 - <<: *task_template
@@ -11439,9 +11441,10 @@ buildvariants:
   modules:
   - enterprise
   display_name: "* Copybara Sync Between Repos"
-  cron: "0 4 * * *" # From the ${project_nightly_cron} parameter.
+  activate: true
   run_on:
   - ubuntu2204-small
   stepback: false
   tasks:
   - name: sync_repo_with_copybara
+    priority: 50
