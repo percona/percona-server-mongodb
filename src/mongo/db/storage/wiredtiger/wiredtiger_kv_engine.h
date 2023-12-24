@@ -44,7 +44,6 @@
 #include "mongo/db/storage/durable_catalog.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/storage_engine.h"
-#include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_oplog_manager.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
@@ -56,6 +55,7 @@
 
 namespace mongo {
 class ClockSource;
+class EncryptionKeyDB;
 class JournalListener;
 class WiredTigerRecordStore;
 class WiredTigerSessionCache;
