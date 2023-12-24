@@ -96,7 +96,7 @@ std::optional<KeyKeyIdPair> ReadKeyFile::operator()() const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the encryption key file failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::read, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kRead, StringData(msg.str())).error();
 }
 
 std::pair<std::string, std::uint64_t> ReadVaultSecret::_read(const VaultSecretId& id) const {
@@ -111,7 +111,7 @@ std::optional<KeyKeyIdPair> ReadVaultSecret::operator()() const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the Vault server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::read, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kRead, StringData(msg.str())).error();
 }
 
 std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
@@ -120,7 +120,7 @@ std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the Vault server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::save, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kSave, StringData(msg.str())).error();
 }
 
 std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
@@ -132,7 +132,7 @@ std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the KMIP server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::read, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kRead, StringData(msg.str())).error();
 }
 
 std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
@@ -141,7 +141,7 @@ std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the KMIP server failed: " << e.what();
-    throw KeyErrorBuilder(KeyOperationType::save, StringData(msg.str())).error();
+    throw KeyErrorBuilder(KeyOperationType::kSave, StringData(msg.str())).error();
 }
 
 std::unique_ptr<KeyOperationFactory> KeyOperationFactory::create(
@@ -309,17 +309,17 @@ std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createRead(const KeyId* confi
     auto derived = static_cast<const Derived*>(this);
 
     if (configured) {
-        auto d = detail::ConfiguredKeyIdDispatcher(derived->_configured, KeyOperationType::read);
+        auto d = detail::ConfiguredKeyIdDispatcher(derived->_configured, KeyOperationType::kRead);
         configured->accept(d);
     }
 
     if (derived->_rotateMasterKey) {
         if (!derived->_configured) {
-            throw KeyErrorBuilder(KeyOperationType::read, Messages<Derived>::kNotConfigured)
+            throw KeyErrorBuilder(KeyOperationType::kRead, Messages<Derived>::kNotConfigured)
                 .error();
         }
         if (derived->_provided && *derived->_provided == *derived->_configured) {
-            KeyErrorBuilder b(KeyOperationType::read, kRotationEqualKeyIdsMsg);
+            KeyErrorBuilder b(KeyOperationType::kRead, kRotationEqualKeyIdsMsg);
             b.append("configured", *derived->_configured);
             b.append("provided", *derived->_provided);
             throw b.error();
@@ -329,7 +329,7 @@ std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createRead(const KeyId* confi
 
     if (derived->_configured) {
         if (derived->_provided && *derived->_provided != *derived->_configured) {
-            KeyErrorBuilder b(KeyOperationType::read, Messages<Derived>::kNotEqualKeyIds);
+            KeyErrorBuilder b(KeyOperationType::kRead, Messages<Derived>::kNotEqualKeyIds);
             b.append("configured", *derived->_configured);
             b.append("provided", *derived->_provided);
             throw b.error();
@@ -337,7 +337,7 @@ std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createRead(const KeyId* confi
         if constexpr (std::is_same_v<Derived, VaultSecretOperationFactory>) {
             if (!derived->_providedSecretPath.empty() &&
                 derived->_providedSecretPath != derived->_configured->path()) {
-                KeyErrorBuilder b(KeyOperationType::read, kNotEqualSecretPathsMsg);
+                KeyErrorBuilder b(KeyOperationType::kRead, kNotEqualSecretPathsMsg);
                 b.append("configuredSecretPath", derived->_configured->path());
                 b.append("providedSecretPath", derived->_providedSecretPath);
                 throw b.error();
@@ -360,7 +360,7 @@ std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createRead(const KeyId* confi
         }
     }
 
-    throw KeyErrorBuilder(KeyOperationType::read, Messages<Derived>::kNotConfigured).error();
+    throw KeyErrorBuilder(KeyOperationType::kRead, Messages<Derived>::kNotConfigured).error();
 }
 }  // namespace detail
 
@@ -386,7 +386,7 @@ std::unique_ptr<SaveKey> VaultSecretOperationFactory::createSave(const KeyId* co
     }
 
     if (configured) {
-        auto d = detail::ConfiguredKeyIdDispatcher(_configured, KeyOperationType::save);
+        auto d = detail::ConfiguredKeyIdDispatcher(_configured, KeyOperationType::kSave);
         configured->accept(d);
         if (_configured) {
             return _doCreateSave(_configured->path());
@@ -394,7 +394,7 @@ std::unique_ptr<SaveKey> VaultSecretOperationFactory::createSave(const KeyId* co
     }
 
     KeyErrorBuilder b(
-        KeyOperationType::save,
+        KeyOperationType::kSave,
         "No Vault secret path is provided. Please specify either the `--vaultSecret` "
         "command line option or the `security.vault.secret` configuration file parameter.");
     throw b.error();

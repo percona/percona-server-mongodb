@@ -61,7 +61,7 @@ KeyKeyIdPair MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateK
     auto keyKeyId = read();
     if (!keyKeyId) {
         KeyErrorBuilder b(
-            KeyOperationType::read,
+            KeyOperationType::kRead,
             "Cannot start. Master encryption key is absent on the key management facility. "
             "Check configuration options.");
         b.append("keyManagementFacilityType", read.facilityType());
