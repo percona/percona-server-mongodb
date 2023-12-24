@@ -81,18 +81,6 @@ public:
     std::optional<Key> getSymmetricKey(const std::string& keyId);
 
 private:
-    enum class State : std::uint8_t {
-        NotStarted = 0,
-        ResolvingHostname,
-        EstablishingTcpConnection,
-        EstablishingTlsConnection,
-        TransmittingRequest,
-        ReceivingResponse,
-        ShuttingDown,
-        Finished
-    };
-    static const char* to_string(State state) noexcept;
-
     static net::mutable_buffer buffer(detail::KmipExchange::Span s) noexcept;
     static void loadSystemCaCertificates(net::ssl::context& sslCtx);
     net::ssl::context createSslContext();
