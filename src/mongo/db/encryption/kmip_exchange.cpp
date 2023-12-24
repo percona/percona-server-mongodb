@@ -281,6 +281,9 @@ std::optional<Key> KmipExchangeGetSymmetricKey::decodeKey() {
         respBatchItem->result_reason == KMIP_REASON_ITEM_NOT_FOUND) {
         return {};
     }
+    if (respBatchItem->result_status != KMIP_STATUS_SUCCESS) {
+        throw kmippp::operation_error(respBatchItem->result_status, kmip_get_last_result());
+    }
 
     auto* respPayload = reinterpret_cast<GetResponsePayload*>(respBatchItem->response_payload);
     if (respPayload->object_type != KMIP_OBJTYPE_SYMMETRIC_KEY) {
