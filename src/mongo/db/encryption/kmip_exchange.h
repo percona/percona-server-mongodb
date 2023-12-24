@@ -49,11 +49,11 @@ namespace detail {
 class KmipExchange {
 public:
     enum class State : std::uint8_t {
-        NotStarted = 0,
-        TransmittingRequest,
-        ReceivingResponseLength,
-        ReceivingResponseValue,
-        ResponseReceived
+        kNotStarted = 0,
+        kTransmittingRequest,
+        kReceivingResponseLength,
+        kReceivingResponseValue,
+        kResponseReceived
     };
 
     class Span {

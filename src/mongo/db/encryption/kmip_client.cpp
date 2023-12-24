@@ -285,7 +285,7 @@ void KmipClient::Impl::handleConnect() {
 }
 
 void KmipClient::Impl::handleTlsHandshake() {
-    _exch->state(detail::KmipExchange::State::TransmittingRequest);
+    _exch->state(detail::KmipExchange::State::kTransmittingRequest);
     net::async_write(*_socket,
                      buffer(_exch->span()),
                      [this](const sys::error_code& ec, std::size_t transmittedByteCount) {
@@ -294,7 +294,7 @@ void KmipClient::Impl::handleTlsHandshake() {
 }
 
 void KmipClient::Impl::handleRequestWrite([[maybe_unused]] std::size_t transmittedByteCount) {
-    _exch->state(detail::KmipExchange::State::ReceivingResponseLength);
+    _exch->state(detail::KmipExchange::State::kReceivingResponseLength);
     net::async_read(*_socket,
                     buffer(_exch->span()),
                     [this](const sys::error_code& ec, std::size_t receivedByteCount) {
@@ -303,7 +303,7 @@ void KmipClient::Impl::handleRequestWrite([[maybe_unused]] std::size_t transmitt
 }
 
 void KmipClient::Impl::handleResponseLengthRead([[maybe_unused]] std::size_t receivedByteCount) {
-    _exch->state(detail::KmipExchange::State::ReceivingResponseValue);
+    _exch->state(detail::KmipExchange::State::kReceivingResponseValue);
     net::async_read(*_socket,
                     buffer(_exch->span()),
                     [this](const sys::error_code& ec, std::size_t receivedByteCount) {
@@ -312,7 +312,7 @@ void KmipClient::Impl::handleResponseLengthRead([[maybe_unused]] std::size_t rec
 }
 
 void KmipClient::Impl::handleResponseValueRead([[maybe_unused]] std::size_t receivedByteCount) {
-    _exch->state(detail::KmipExchange::State::ResponseReceived);
+    _exch->state(detail::KmipExchange::State::kResponseReceived);
 
     _socket->async_shutdown([this](const sys::error_code& ec) {
         this->handleTlsShutdown(ec);

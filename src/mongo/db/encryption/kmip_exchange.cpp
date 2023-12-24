@@ -43,7 +43,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/assert_util_core.h"
 
 namespace mongo::encryption::detail {
-KmipExchange::KmipExchange() : _state(State::NotStarted), _span(_buffer) {
+KmipExchange::KmipExchange() : _state(State::kNotStarted), _span(_buffer) {
     auto deleter = [](KMIP* ctx) {
         kmip_set_buffer(ctx, nullptr, 0);  // buffer is managed by a `SecureVector`
         kmip_destroy(ctx);
@@ -56,34 +56,34 @@ KmipExchange::KmipExchange() : _state(State::NotStarted), _span(_buffer) {
 
 void KmipExchange::state(State state) {
     switch (state) {
-        case State::NotStarted: {
+        case State::kNotStarted: {
             _state = state;
             _buffer->clear();
             return;
         }
-        case State::TransmittingRequest: {
+        case State::kTransmittingRequest: {
             _state = state;
             _buffer->clear();
             encodeRequest();
             _span = Span(_ctx->buffer, _ctx->index - _ctx->buffer);
             return;
         }
-        case State::ReceivingResponseLength: {
+        case State::kReceivingResponseLength: {
             _state = state;
             _buffer->resize(_kKmipTagTypeLengthSize, std::byte(0u));
             _span = Span(_buffer);
             return;
         }
-        case State::ReceivingResponseValue: {
-            invariant(_state == State::ReceivingResponseLength);
+        case State::kReceivingResponseValue: {
+            invariant(_state == State::kReceivingResponseLength);
             _state = state;
             std::size_t valueLength = decodeValueLength();
             _buffer->resize(_kKmipTagTypeLengthSize + valueLength, std::byte(0u));
             _span = Span(_buffer->data() + _kKmipTagTypeLengthSize, valueLength);
             return;
         }
-        case State::ResponseReceived: {
-            invariant(_state == State::ReceivingResponseValue);
+        case State::kResponseReceived: {
+            invariant(_state == State::kReceivingResponseValue);
             _state = state;
             _span = Span(_buffer);
             return;
@@ -111,7 +111,7 @@ void KmipExchange::encodeRequestMessage(const RequestMessage& reqMsg) {
 
 
 std::size_t KmipExchange::decodeValueLength() const {
-    invariant(_state == State::ReceivingResponseValue || _state == State::ResponseReceived);
+    invariant(_state == State::kReceivingResponseValue || _state == State::kResponseReceived);
     kmip_set_buffer(_ctx.get(), _buffer->data(), _buffer->size());
     _ctx->index += _kKmipTagTypeSize;
     std::uint32_t valueLength = 0;
@@ -126,7 +126,7 @@ std::size_t KmipExchange::decodeValueLength() const {
 
 
 std::shared_ptr<ResponseBatchItem> KmipExchange::decodeResponseBatchItem() {
-    invariant(_state == State::ResponseReceived);
+    invariant(_state == State::kResponseReceived);
 
     auto deleter = [ctx = _ctx](ResponseMessage* respMsg) {
         kmip_free_response_message(ctx.get(), respMsg);
@@ -148,7 +148,7 @@ std::shared_ptr<ResponseBatchItem> KmipExchange::decodeResponseBatchItem() {
 
 
 void KmipExchangeRegisterSymmetricKey::encodeRequest() {
-    invariant(_state == State::TransmittingRequest);
+    invariant(_state == State::kTransmittingRequest);
 
     auto protoVersion = ProtocolVersion();
     kmip_init_protocol_version(&protoVersion, _ctx->version);
@@ -219,7 +219,7 @@ void KmipExchangeRegisterSymmetricKey::encodeRequest() {
 
 
 std::string KmipExchangeRegisterSymmetricKey::decodeKeyId() {
-    invariant(_state == State::ResponseReceived);
+    invariant(_state == State::kResponseReceived);
 
     auto respBatchItem = decodeResponseBatchItem();
     if (respBatchItem->operation != KMIP_OP_REGISTER) {
@@ -238,7 +238,7 @@ std::string KmipExchangeRegisterSymmetricKey::decodeKeyId() {
 }
 
 void KmipExchangeGetSymmetricKey::encodeRequest() {
-    invariant(_state == State::TransmittingRequest);
+    invariant(_state == State::kTransmittingRequest);
 
     auto protoVersion = ProtocolVersion();
     kmip_init_protocol_version(&protoVersion, _ctx->version);
@@ -271,7 +271,7 @@ void KmipExchangeGetSymmetricKey::encodeRequest() {
 }
 
 std::optional<Key> KmipExchangeGetSymmetricKey::decodeKey() {
-    invariant(_state == State::ResponseReceived);
+    invariant(_state == State::kResponseReceived);
 
     auto respBatchItem = decodeResponseBatchItem();
     if (respBatchItem->operation != KMIP_OP_GET) {
