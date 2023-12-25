@@ -60,6 +60,8 @@ struct EncryptionGlobalParams {
     int kmipConnectTimeoutMS{5000};
     std::string kmipKeyIdentifier;
     bool kmipRotateMasterKey{false};
+    bool kmipActivateKeys{true};
+    int kmipKeyStatePollingSeconds{900};
 
     bool shouldRotateMasterKey() const noexcept {
         return vaultRotateMasterKey || kmipRotateMasterKey;

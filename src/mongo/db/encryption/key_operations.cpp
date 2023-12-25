@@ -174,10 +174,11 @@ std::unique_ptr<KeyOperationFactory> KeyOperationFactory::create(
         return std::make_unique<VaultSecretOperationFactory>(
             params.vaultRotateMasterKey, params.vaultSecret, params.vaultSecretVersion);
     } else if (!params.kmipServerName.empty()) {
-        return std::make_unique<KmipKeyOperationFactory>(params.kmipRotateMasterKey,
-                                                         params.kmipKeyIdentifier,
-                                                         /* activateKey = */ false,
-                                                         Seconds(-1));
+        return std::make_unique<KmipKeyOperationFactory>(
+            params.kmipRotateMasterKey,
+            params.kmipKeyIdentifier,
+            params.kmipActivateKeys,
+            Seconds(params.kmipKeyStatePollingSeconds));
     }
     invariant(false && "Should not reach this point");
     return nullptr;
