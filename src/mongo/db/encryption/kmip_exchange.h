@@ -40,7 +40,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <kmip.h>
 
 #include "mongo/base/secure_allocator.h"
-
+#include "mongo/db/encryption/key_state.h"
 
 namespace mongo::encryption {
 class Key;
@@ -87,6 +87,9 @@ public:
     KmipExchange();
 
     void state(State state);
+    State state() const noexcept {
+        return _state;
+    }
 
     Span span() noexcept {
         return _span;
@@ -137,6 +140,19 @@ private:
     const Key& _key;
 };
 
+class KmipExchangeActivate : public KmipExchange {
+public:
+    KmipExchangeActivate(const std::string& keyId) : _keyId(keyId) {}
+
+    void encodeRequest() override;
+
+    /// @brief Does nothing if the activation has succeeded or throws
+    /// `std::runtime_error` otherwise.
+    void verifyResponse();
+
+private:
+    const std::string& _keyId;
+};
 
 class KmipExchangeGetSymmetricKey : public KmipExchange {
 public:
@@ -148,5 +164,17 @@ public:
 private:
     const std::string& _keyId;
 };
+
+class KmipExchangeGetKeyState : public KmipExchange {
+public:
+    KmipExchangeGetKeyState(const std::string& keyId) : _keyId(keyId) {}
+
+    void encodeRequest() override;
+    std::optional<KeyState> decodeKeyState();
+
+private:
+    const std::string& _keyId;
+};
+
 }  // namespace detail
 }  // namespace mongo::encryption

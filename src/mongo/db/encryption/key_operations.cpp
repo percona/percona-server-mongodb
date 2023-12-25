@@ -90,7 +90,10 @@ auto retryKmipOperation(MemFn&& operation) {
 }
 }
 
-std::optional<KeyEntry> ReadKeyFile::operator()() const try {
+BadKeyState::BadKeyState(KeyState keyState)
+    : _keyState((invariant(keyState != KeyState::kActive), keyState)) {}
+
+std::variant<KeyEntry, NotFound, BadKeyState> ReadKeyFile::operator()() const try {
     auto s = detail::readFileToSecureString(_path.toString(), "encryption key");
     return KeyEntry{Key(*s), _path.clone()};
 } catch (const std::runtime_error& e) {
@@ -103,11 +106,11 @@ std::pair<std::string, std::uint64_t> ReadVaultSecret::_read(const VaultSecretId
     return detail::vaultReadKey(id.path(), id.version());
 }
 
-std::optional<KeyEntry> ReadVaultSecret::operator()() const try {
+std::variant<KeyEntry, NotFound, BadKeyState> ReadVaultSecret::operator()() const try {
     if (auto [encodedKey, version] = _read(_id); !encodedKey.empty()) {
         return KeyEntry{Key(encodedKey), std::make_unique<VaultSecretId>(_id.path(), version)};
     }
-    return std::nullopt;
+    return NotFound();
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the Vault server failed: " << e.what();
@@ -123,12 +126,18 @@ std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
     throw KeyErrorBuilder(KeyOperationType::kSave, StringData(msg.str())).error();
 }
 
-std::optional<KeyEntry> ReadKmipKey::operator()() const try {
-    auto op = [&id = _id.toString()](KmipClient& client) { return client.getSymmetricKey(id); };
-    if (std::optional<Key> key = retryKmipOperation(op); key) {
-        return KeyEntry{std::move(*key), _id.clone()};
+std::variant<KeyEntry, NotFound, BadKeyState> ReadKmipKey::operator()() const try {
+    auto op = [this](KmipClient& client) {
+        return client.getSymmetricKey(_id.toString(), _verifyState);
+    };
+    auto [key, keyState] = retryKmipOperation(op);
+    if (key) {
+        return KeyEntry{*key, _id.clone()};
     }
-    return std::nullopt;
+    if (keyState) {
+        return BadKeyState(*keyState);
+    }
+    return NotFound();
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the KMIP server failed: " << e.what();
@@ -136,12 +145,25 @@ std::optional<KeyEntry> ReadKmipKey::operator()() const try {
 }
 
 std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
-    auto op = [&k](KmipClient& client) { return client.registerSymmetricKey(k); };
+    auto op = [this, &k](KmipClient& client) {
+        return client.registerSymmetricKey(k, _activate);
+    };
     return std::make_unique<KmipKeyId>(retryKmipOperation(op));
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the KMIP server failed: " << e.what();
     throw KeyErrorBuilder(KeyOperationType::kSave, StringData(msg.str())).error();
+}
+
+std::optional<KeyState> GetKmipKeyState::operator()() const try {
+    auto op = [&id = _id.toString()](KmipClient& client) {
+        return client.getKeyState(id);
+    };
+    return retryKmipOperation(op);
+} catch (const std::runtime_error& e) {
+    std::ostringstream msg;
+    msg << "retrieving the state of the master key on the KMIP server failed: " << e.what();
+    throw KeyErrorBuilder(KeyOperationType::kGetState, StringData(msg.str())).error();
 }
 
 std::unique_ptr<KeyOperationFactory> KeyOperationFactory::create(
@@ -153,7 +175,9 @@ std::unique_ptr<KeyOperationFactory> KeyOperationFactory::create(
             params.vaultRotateMasterKey, params.vaultSecret, params.vaultSecretVersion);
     } else if (!params.kmipServerName.empty()) {
         return std::make_unique<KmipKeyOperationFactory>(params.kmipRotateMasterKey,
-                                                         params.kmipKeyIdentifier);
+                                                         params.kmipKeyIdentifier,
+                                                         /* activateKey = */ false,
+                                                         Seconds(-1));
     }
     invariant(false && "Should not reach this point");
     return nullptr;
@@ -178,8 +202,12 @@ VaultSecretOperationFactory::VaultSecretOperationFactory(
 }
 
 KmipKeyOperationFactory::KmipKeyOperationFactory(bool rotateMasterKey,
-                                                 const std::string& providedKeyId)
+                                                 const std::string& providedKeyId,
+                                                 bool activateKeys,
+                                                 Seconds keyStatePollingPeriod)
     : _rotateMasterKey(rotateMasterKey),
+      _activateKeys(activateKeys),
+      _keyStatePollingPeriod(keyStatePollingPeriod),
       _configured(nullptr) {
     if (!providedKeyId.empty()) {
         _provided = KmipKeyId(providedKeyId);
@@ -299,7 +327,7 @@ template <typename Derived>
 std::unique_ptr<ReadKey> CreateReadImpl<Derived>::_createProvidedRead() const {
     auto derived = static_cast<const Derived*>(this);
     if (derived->_provided) {
-        return derived->_doCreateRead(*derived->_provided);
+        return derived->_doCreateProvidedRead(*derived->_provided);
     }
     return nullptr;
 }
@@ -398,5 +426,42 @@ std::unique_ptr<SaveKey> VaultSecretOperationFactory::createSave(const KeyId* co
         "No Vault secret path is provided. Please specify either the `--vaultSecret` "
         "command line option or the `security.vault.secret` configuration file parameter.");
     throw b.error();
+}
+
+namespace {
+class KmipKeyIdRefiner : public KeyIdConstVisitor {
+public:
+    static const KmipKeyId& downcast(const KeyId& id) {
+        KmipKeyIdRefiner r;
+        id.accept(r);
+        return r.kmipKeyId();
+    }
+
+private:
+    KmipKeyIdRefiner() = default;
+    const KmipKeyId& kmipKeyId() const noexcept {
+        return *_target;
+    }
+    void visit(const KeyFilePath& p) override {
+        (void)p;
+        invariant(false && "got `KeyFilePath` where `KmipKeyid` was expected");
+    }
+    void visit(const VaultSecretId& id) override {
+        (void)id;
+        invariant(false && "got `VaultSecretId` where `KmipKeyid` was expected");
+    }
+    void visit(const KmipKeyId& id) override {
+        _target = &id;
+    }
+
+    const KmipKeyId* _target{nullptr};
+};
+}  // namespace
+
+std::unique_ptr<GetKeyState> KmipKeyOperationFactory::createGetState(const KeyId& id) const {
+    if (_activateKeys && !_rotateMasterKey && _keyStatePollingPeriod > Seconds(0)) {
+        return _doCreateGetState(KmipKeyIdRefiner::downcast(id), _keyStatePollingPeriod);
+    }
+    return nullptr;
 }
 }  // namespace mongo::encryption

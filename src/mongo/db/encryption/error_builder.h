@@ -88,7 +88,7 @@ private:
     BSONObjBuilder _builder;
 };
 
-enum class KeyOperationType : std::uint8_t { kRead, kSave };
+enum class KeyOperationType : std::uint8_t { kRead, kSave, kGetState };
 
 class KeyErrorBuilder : public ErrorBuilder {
 public:
@@ -102,6 +102,8 @@ private:
                 return "reading";
             case KeyOperationType::kSave:
                 return "saving";
+            case KeyOperationType::kGetState:
+                return "state retrieval";
         }
         throw std::invalid_argument(
             std::to_string(std::underlying_type_t<KeyOperationType>(opType)));

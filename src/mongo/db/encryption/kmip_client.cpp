@@ -44,6 +44,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/encryption/kmip_exchange.h"
+#include "mongo/db/encryption/kmip_session.h"
 
 
 namespace mongo::encryption {
@@ -77,27 +78,33 @@ public:
     Impl(Impl&&) = default;
     Impl& operator=(Impl&&) = default;
 
-    std::string registerSymmetricKey(const Key& key);
-    std::optional<Key> getSymmetricKey(const std::string& keyId);
+    std::string registerSymmetricKey(const Key& key, bool activate);
+    std::pair<std::optional<Key>, std::optional<KeyState>> getSymmetricKey(const std::string& keyId,
+                                                                           bool verifyState);
+    std::optional<KeyState> getKeyState(const std::string& keyId);
 
 private:
     static net::mutable_buffer buffer(detail::KmipExchange::Span s) noexcept;
     static void loadSystemCaCertificates(net::ssl::context& sslCtx);
     net::ssl::context createSslContext();
 
-    void exchange(std::shared_ptr<detail::KmipExchange> exch);
+    void conductSession(std::shared_ptr<detail::KmipSession> session);
 
-    // aborts all outstanding operations
-    void cancel();
+    // aborts all outstanding operations and closes the connection
+    void shutdown();
     template <typename MemFn, typename... Args>
     void handle(MemFn memFn, const sys::error_code& ec, Args&&... args);
     void handleTimeout();
     void handleResolve(net::ip::tcp::resolver::results_type endpoints);
     void handleConnect();
+    void launchNewExchange(bool extendTimeout);
     void handleTlsHandshake();
-    void handleRequestWrite([[maybe_unused]] std::size_t transmittedByteCount);
-    void handleResponseLengthRead([[maybe_unused]] std::size_t receivedByteCount);
-    void handleResponseValueRead([[maybe_unused]] std::size_t receivedByteCount);
+    void handleRequestWrite(std::shared_ptr<detail::KmipExchange> exch,
+                            [[maybe_unused]] std::size_t transmittedByteCount);
+    void handleResponseLengthRead(std::shared_ptr<detail::KmipExchange> exch,
+                                  [[maybe_unused]] std::size_t receivedByteCount);
+    void handleResponseValueRead(std::shared_ptr<detail::KmipExchange> exch,
+                                 [[maybe_unused]] std::size_t receivedByteCount);
     void handleTlsShutdown(const sys::error_code& ec);
 
     std::string _host;
@@ -113,7 +120,7 @@ private:
     net::ssl::context _sslCtx;
     std::unique_ptr<net::ssl::stream<net::ip::tcp::socket>> _socket;
 
-    std::shared_ptr<detail::KmipExchange> _exch;
+    std::shared_ptr<detail::KmipSession> _session;
 };
 
 
@@ -195,21 +202,27 @@ net::mutable_buffer KmipClient::Impl::buffer(detail::KmipExchange::Span s) noexc
     return net::mutable_buffer(s.data(), s.size());
 }
 
-std::string KmipClient::Impl::registerSymmetricKey(const Key& key) {
-    auto exch = std::make_shared<detail::KmipExchangeRegisterSymmetricKey>(key);
-    exchange(exch);
-    return exch->decodeKeyId();
+std::string KmipClient::Impl::registerSymmetricKey(const Key& key, bool activate) {
+    auto session = std::make_shared<detail::KmipSessionRegisterSymmetricKey>(key, activate);
+    conductSession(session);
+    return session->keyId();
 }
 
-std::optional<Key> KmipClient::Impl::getSymmetricKey(const std::string& keyId) {
-    auto exch = std::make_shared<detail::KmipExchangeGetSymmetricKey>(keyId);
-    exchange(exch);
-    return exch->decodeKey();
+std::pair<std::optional<Key>, std::optional<KeyState>> KmipClient::Impl::getSymmetricKey(
+    const std::string& keyId, bool verifyState) {
+    auto session = std::make_shared<detail::KmipSessionGetSymmetricKey>(keyId, verifyState);
+    conductSession(session);
+    return {session->key(), session->keyState()};
 }
 
+std::optional<KeyState> KmipClient::Impl::getKeyState(const std::string& keyId) {
+    auto session = std::make_shared<detail::KmipSessionGetKeyState>(keyId);
+    conductSession(session);
+    return session->keyState();
+}
 
-void KmipClient::Impl::exchange(std::shared_ptr<detail::KmipExchange> exch) {
-    _exch = exch;
+void KmipClient::Impl::conductSession(std::shared_ptr<detail::KmipSession> session) {
+    _session = session;
 
     // The `ssl::stream` is not reusable, a fresh object is required for each
     // new connection. Since the copy assignment operator of the `ssl::stream`
@@ -228,11 +241,11 @@ void KmipClient::Impl::exchange(std::shared_ptr<detail::KmipExchange> exch) {
         });
     _ioCtx.run();
 
-    _exch.reset();
+    _session.reset();
 }
 
 
-void KmipClient::Impl::cancel() {
+void KmipClient::Impl::shutdown() {
     _resolver.cancel();
     _timer.cancel();
     if (_socket->lowest_layer().is_open()) {
@@ -252,7 +265,7 @@ void KmipClient::Impl::handle(MemFn memFn, const sys::error_code& ec, Args&&... 
         }
         std::invoke(memFn, *this, std::forward<Args>(args)...);
     } catch (...) {
-        cancel();
+        shutdown();
         throw;
     }
 }
@@ -284,46 +297,58 @@ void KmipClient::Impl::handleConnect() {
         [this](const sys::error_code& ec) { handle(&Impl::handleTlsHandshake, ec); });
 }
 
-void KmipClient::Impl::handleTlsHandshake() {
-    _exch->state(detail::KmipExchange::State::kTransmittingRequest);
+void KmipClient::Impl::launchNewExchange(bool extendTimeout) {
+    auto exch = _session->nextExchange();
+    if (!exch) {
+        _socket->async_shutdown([this](const sys::error_code& ec) { this->handleTlsShutdown(ec); });
+        return;
+    }
+    if (extendTimeout) {
+        _timer.expires_after(_timeout);
+    }
+    exch->state(detail::KmipExchange::State::kTransmittingRequest);
     net::async_write(*_socket,
-                     buffer(_exch->span()),
-                     [this](const sys::error_code& ec, std::size_t transmittedByteCount) {
-                         handle(&Impl::handleRequestWrite, ec, transmittedByteCount);
+                     buffer(exch->span()),
+                     [this, exch](const sys::error_code& ec, std::size_t transmittedByteCount) {
+                         handle(&Impl::handleRequestWrite, ec, exch, transmittedByteCount);
                      });
 }
 
-void KmipClient::Impl::handleRequestWrite([[maybe_unused]] std::size_t transmittedByteCount) {
-    _exch->state(detail::KmipExchange::State::kReceivingResponseLength);
+void KmipClient::Impl::handleTlsHandshake() {
+    launchNewExchange(/* extendTimeout = */ false);
+}
+
+void KmipClient::Impl::handleRequestWrite(std::shared_ptr<detail::KmipExchange> exch,
+                                          [[maybe_unused]] std::size_t transmittedByteCount) {
+    exch->state(detail::KmipExchange::State::kReceivingResponseLength);
     net::async_read(*_socket,
-                    buffer(_exch->span()),
-                    [this](const sys::error_code& ec, std::size_t receivedByteCount) {
-                        handle(&Impl::handleResponseLengthRead, ec, receivedByteCount);
+                    buffer(exch->span()),
+                    [this, exch](const sys::error_code& ec, std::size_t receivedByteCount) {
+                        handle(&Impl::handleResponseLengthRead, ec, exch, receivedByteCount);
                     });
 }
 
-void KmipClient::Impl::handleResponseLengthRead([[maybe_unused]] std::size_t receivedByteCount) {
-    _exch->state(detail::KmipExchange::State::kReceivingResponseValue);
+void KmipClient::Impl::handleResponseLengthRead(std::shared_ptr<detail::KmipExchange> exch,
+                                                [[maybe_unused]] std::size_t receivedByteCount) {
+    exch->state(detail::KmipExchange::State::kReceivingResponseValue);
     net::async_read(*_socket,
-                    buffer(_exch->span()),
-                    [this](const sys::error_code& ec, std::size_t receivedByteCount) {
-                        handle(&Impl::handleResponseValueRead, ec, receivedByteCount);
+                    buffer(exch->span()),
+                    [this, exch](const sys::error_code& ec, std::size_t receivedByteCount) {
+                        handle(&Impl::handleResponseValueRead, ec, exch, receivedByteCount);
                     });
 }
 
-void KmipClient::Impl::handleResponseValueRead([[maybe_unused]] std::size_t receivedByteCount) {
-    _exch->state(detail::KmipExchange::State::kResponseReceived);
-
-    _socket->async_shutdown([this](const sys::error_code& ec) {
-        this->handleTlsShutdown(ec);
-    });
+void KmipClient::Impl::handleResponseValueRead(std::shared_ptr<detail::KmipExchange> exch,
+                                               [[maybe_unused]] std::size_t receivedByteCount) {
+    exch->state(detail::KmipExchange::State::kResponseReceived);
+    launchNewExchange(/* extendTimeout = */ true);
 }
 
 void KmipClient::Impl::handleTlsShutdown(const sys::error_code& ec) {
     if (ec == net::error::operation_aborted) {
         return;
     }
-    cancel();
+    shutdown();
     if (ec.category() == net::ssl::error::get_stream_category() &&
         ec.value() == net::ssl::error::stream_truncated) {
         // The server hasn't handled the TLS shutdown properly. Namely, instead
@@ -357,11 +382,16 @@ KmipClient::KmipClient(const std::string& host,
     : _impl(std::make_unique<Impl>(
           host, port, serverCaFile, clientCertificateFile, clientCertificatePassword, timeout)) {}
 
-std::string KmipClient::registerSymmetricKey(const Key& key) {
-    return _impl->registerSymmetricKey(key);
+std::string KmipClient::registerSymmetricKey(const Key& key, bool activate) {
+    return _impl->registerSymmetricKey(key, activate);
 }
 
-std::optional<Key> KmipClient::getSymmetricKey(const std::string& keyId) {
-    return _impl->getSymmetricKey(keyId);
+std::pair<std::optional<Key>, std::optional<KeyState>> KmipClient::getSymmetricKey(
+    const std::string& keyId, bool verifyState) {
+    return _impl->getSymmetricKey(keyId, verifyState);
+}
+
+std::optional<KeyState> KmipClient::getKeyState(const std::string& keyId) {
+    return _impl->getKeyState(keyId);
 }
 }  // namespace mongo::encryption

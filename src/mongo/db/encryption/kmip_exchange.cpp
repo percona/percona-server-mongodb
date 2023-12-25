@@ -35,6 +35,8 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <chrono>
 #include <cstdint>
 #include <sstream>
+#include <string_view>
+#include <type_traits>
 
 #include <kmip_bio.h>
 #include <kmippp/kmippp.h>
@@ -237,6 +239,57 @@ std::string KmipExchangeRegisterSymmetricKey::decodeKeyId() {
         : throw kmippp::operation_error(KMIP_MALFORMED_RESPONSE, kmip_get_last_result());
 }
 
+void KmipExchangeActivate::encodeRequest() {
+    invariant(_state == State::kTransmittingRequest);
+
+    auto protoVersion = ProtocolVersion();
+    kmip_init_protocol_version(&protoVersion, _ctx->version);
+
+    auto reqHeader = RequestHeader();
+    kmip_init_request_header(&reqHeader);
+    reqHeader.protocol_version = &protoVersion;
+    reqHeader.maximum_response_size = _ctx->max_message_size;
+    reqHeader.time_stamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    reqHeader.batch_count = 1;
+
+    auto uid = TextString();
+    uid.value = const_cast<char*>(_keyId.data());
+    uid.size = _keyId.size();
+
+    auto reqPayload = ActivateRequestPayload();
+    reqPayload.unique_identifier = &uid;
+
+    auto reqBatchItem = RequestBatchItem();
+    kmip_init_request_batch_item(&reqBatchItem);
+    reqBatchItem.operation = KMIP_OP_ACTIVATE;
+    reqBatchItem.request_payload = &reqPayload;
+
+    auto reqMsg = RequestMessage();
+    reqMsg.request_header = &reqHeader;
+    reqMsg.batch_items = &reqBatchItem;
+    reqMsg.batch_count = 1;
+
+    encodeRequestMessage(reqMsg);
+}
+
+void KmipExchangeActivate::verifyResponse() {
+    invariant(_state == State::kResponseReceived);
+
+    auto respBatchItem = decodeResponseBatchItem();
+    if (respBatchItem->operation != KMIP_OP_ACTIVATE) {
+        throw kmippp::operation_error(KMIP_MALFORMED_RESPONSE, kmip_get_last_result());
+    }
+    if (respBatchItem->result_status != KMIP_STATUS_SUCCESS) {
+        throw kmippp::operation_error(respBatchItem->result_status, kmip_get_last_result());
+    }
+
+    auto* respPayload = reinterpret_cast<ActivateResponsePayload*>(respBatchItem->response_payload);
+    auto uid = respPayload->unique_identifier;
+    if (std::string_view(uid->value, uid->size) != _keyId) {
+        throw kmippp::operation_error(KMIP_MALFORMED_RESPONSE, kmip_get_last_result());
+    }
+}
+
 void KmipExchangeGetSymmetricKey::encodeRequest() {
     invariant(_state == State::kTransmittingRequest);
 
@@ -298,6 +351,86 @@ std::optional<Key> KmipExchangeGetSymmetricKey::decodeKey() {
     auto* keyValue = reinterpret_cast<KeyValue*>(keyBlock->key_value);
     auto* material = reinterpret_cast<ByteString*>(keyValue->key_material);
     return Key(reinterpret_cast<std::byte*>(material->value), material->size);
+}
+
+void KmipExchangeGetKeyState::encodeRequest() {
+    invariant(_state == State::kTransmittingRequest);
+
+    auto protoVersion = ProtocolVersion();
+    kmip_init_protocol_version(&protoVersion, _ctx->version);
+
+    auto reqHeader = RequestHeader();
+    kmip_init_request_header(&reqHeader);
+    reqHeader.protocol_version = &protoVersion;
+    reqHeader.maximum_response_size = _ctx->max_message_size;
+    reqHeader.time_stamp = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    reqHeader.batch_count = 1;
+
+    auto uid = TextString();
+    uid.value = const_cast<char*>(_keyId.data());
+    uid.size = _keyId.size();
+
+    static constexpr const char* kState = "State";
+    auto attrName = TextString();
+    attrName.value = const_cast<char*>(kState);
+    attrName.size = std::strlen(kState);
+
+    auto getAttrReqPayload = GetAttributeRequestPayload();
+    getAttrReqPayload.unique_identifier = &uid;
+    getAttrReqPayload.attribute_name = &attrName;
+
+    auto reqBatchItem = RequestBatchItem();
+    kmip_init_request_batch_item(&reqBatchItem);
+    reqBatchItem.operation = KMIP_OP_GET_ATTRIBUTES;
+    reqBatchItem.request_payload = &getAttrReqPayload;
+
+    auto reqMsg = RequestMessage();
+    reqMsg.request_header = &reqHeader;
+    reqMsg.batch_items = &reqBatchItem;
+    reqMsg.batch_count = 1;
+
+    encodeRequestMessage(reqMsg);
+}
+
+std::optional<KeyState> KmipExchangeGetKeyState::decodeKeyState() {
+    invariant(_state == State::kResponseReceived);
+
+    auto respBatchItem = decodeResponseBatchItem();
+    if (respBatchItem->operation != KMIP_OP_GET_ATTRIBUTES) {
+        throw kmippp::operation_error(KMIP_MALFORMED_RESPONSE, kmip_get_last_result());
+    }
+    if (respBatchItem->result_status == KMIP_STATUS_OPERATION_FAILED &&
+        respBatchItem->result_reason == KMIP_REASON_ITEM_NOT_FOUND) {
+        return std::nullopt;
+    }
+    if (respBatchItem->result_status != KMIP_STATUS_SUCCESS) {
+        throw kmippp::operation_error(respBatchItem->result_status, kmip_get_last_result());
+    }
+
+    auto* respPayload =
+        reinterpret_cast<GetAttributeResponsePayload*>(respBatchItem->response_payload);
+    TextString* id = respPayload->unique_identifier;
+    if (std::string_view(id->value, id->size) != _keyId ||
+        respPayload->attribute->type != KMIP_ATTR_STATE) {
+        throw kmippp::operation_error(KMIP_MALFORMED_RESPONSE, kmip_get_last_result());
+    }
+    enum state s = *reinterpret_cast<enum state*>(respPayload->attribute->value);
+    switch (s) {
+        case KMIP_STATE_PRE_ACTIVE:
+            return KeyState::kPreActive;
+        case KMIP_STATE_ACTIVE:
+            return KeyState::kActive;
+        case KMIP_STATE_DEACTIVATED:
+            return KeyState::kDeactivated;
+        case KMIP_STATE_COMPROMISED:
+            return KeyState::kCompromised;
+        case KMIP_STATE_DESTROYED:
+            return KeyState::kDestroyed;
+        case KMIP_STATE_DESTROYED_COMPROMISED:
+            return KeyState::kDestroyedCompromised;
+    }
+    // hanlde extension values
+    return KeyState(static_cast<std::underlying_type_t<enum state>>(s));
 }
 
 }  // namespace mongo::encryption::detail

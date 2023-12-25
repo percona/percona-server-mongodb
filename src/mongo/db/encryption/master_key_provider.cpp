@@ -59,29 +59,34 @@ std::unique_ptr<MasterKeyProvider> MasterKeyProvider::create(const EncryptionGlo
 }
 
 KeyEntry MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateKeyIds) const {
-    auto keyEntry = read();
-    if (!keyEntry) {
-        KeyErrorBuilder b(
-            KeyOperationType::kRead,
-            "Cannot start. Master encryption key is absent on the key management facility. "
-            "Check configuration options.");
-        b.append("keyManagementFacilityType", read.facilityType());
-        b.append("keyIdentifier", read.keyId());
-        throw b.error();
-    }
-    if (updateKeyIds) {
-        _wtKeyIds.decryption = keyEntry->keyId->clone();
-        if (!_wtKeyIds.configured &&
-            _wtKeyIds.decryption->needsSerializationToStorageEngineEncryptionOptions()) {
-            _wtKeyIds.futureConfigured = _wtKeyIds.decryption->clone();
+    std::variant<KeyEntry, NotFound, BadKeyState> readResult = read();
+    if (readResult.index() == 0) {
+        KeyEntry keyEntry = std::move(std::get<0>(readResult));
+        if (updateKeyIds) {
+            _wtKeyIds.decryption = keyEntry.keyId->clone();
+            if (!_wtKeyIds.configured &&
+                _wtKeyIds.decryption->needsSerializationToStorageEngineEncryptionOptions()) {
+                _wtKeyIds.futureConfigured = _wtKeyIds.decryption->clone();
+            }
         }
+        LOGV2_OPTIONS(29115,
+                      logv2::LogOptions(_logComponent),
+                      "Master encryption key has been read from the key management facility.",
+                      "keyManagementFacilityType"_attr = read.facilityType(),
+                      "keyIdentifier"_attr = *keyEntry.keyId);
+        return keyEntry;
     }
-    LOGV2_OPTIONS(29115,
-                  logv2::LogOptions(_logComponent),
-                  "Master encryption key has been read from the key management facility.",
-                  "keyManagementFacilityType"_attr = read.facilityType(),
-                  "keyIdentifier"_attr = *keyEntry->keyId);
-    return KeyEntry(std::move(*keyEntry));
+    const char* reason = readResult.index() == 1
+        ? "Cannot start. Master encryption key is absent on the "
+          "key management facility. Check configuration options."
+        : "Master encryption key is not in the active state on the key management facility.";
+    KeyErrorBuilder b(KeyOperationType::kRead, reason);
+    b.append("keyManagementFacilityType", read.facilityType());
+    b.append("keyIdentifier", read.keyId());
+    if (readResult.index() == 2) {
+        b.append("keyState", toString(std::get<2>(readResult)));
+    }
+    throw b.error();
 }
 
 std::unique_ptr<KeyId> MasterKeyProvider::_saveMasterKey(const SaveKey& save,

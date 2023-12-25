@@ -56,6 +56,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util_core.h"
 #include "mongo/util/clock_source_mock.h"
+#include "mongo/util/duration.h"
 
 namespace mongo {
 namespace encryption {
@@ -218,13 +219,13 @@ private:
 class FakeReadKmipKey : public ReadKmipKey {
 public:
     FakeReadKmipKey(FakeKmipServer& server, const KmipKeyId& id)
-        : ReadKmipKey(id), _server(server) {}
+        : ReadKmipKey(id, false), _server(server) {}
 
-    std::optional<KeyEntry> operator()() const override {
-        if (auto key = _server.readKey(kmipKeyId()); key) {
-            return KeyEntry{*key, kmipKeyId().clone()};
+    std::variant<KeyEntry, NotFound, BadKeyState> operator()() const override {
+        if (auto key = _server.readKey(_id); key) {
+            return KeyEntry{*key, _id.clone()};
         }
-        return std::nullopt;
+        return NotFound();
     }
 
 private:
@@ -233,7 +234,7 @@ private:
 
 class FakeSaveKmipKey : public SaveKmipKey {
 public:
-    FakeSaveKmipKey(FakeKmipServer& server) : _server(server) {}
+    FakeSaveKmipKey(FakeKmipServer& server) : SaveKmipKey(false), _server(server) {}
 
     std::unique_ptr<KeyId> operator()(const Key& key) const override {
         return std::make_unique<KmipKeyId>(_server.saveKey(key));
@@ -248,13 +249,16 @@ public:
     FakeKmipKeyOperationFactory(FakeKmipServer& server,
                                 bool rotateMasterKey,
                                 const std::string& providedKeyId)
-        : KmipKeyOperationFactory(rotateMasterKey, providedKeyId), _server(server) {}
+        : KmipKeyOperationFactory(rotateMasterKey, providedKeyId, false, Seconds(-1)),
+          _server(server) {}
 
 private:
-    std::unique_ptr<ReadKey> _doCreateRead(const KmipKeyId& id) const override {
+    std::unique_ptr<ReadKey> _doCreateRead(const KmipKeyId& id, bool verifyState) const override {
+        (void)verifyState;
         return std::make_unique<FakeReadKmipKey>(_server, id);
     }
-    std::unique_ptr<SaveKey> _doCreateSave() const override {
+    std::unique_ptr<SaveKey> _doCreateSave(bool activate) const override {
+        (void)activate;
         return std::make_unique<FakeSaveKmipKey>(_server);
     }
 
