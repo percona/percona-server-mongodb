@@ -321,9 +321,7 @@ public:
         return _canonicalName;
     }
 
-    EncryptionKeyDB* getEncryptionKeyDB() {
-        return _encryptionKeyDB.get();
-    }
+    EncryptionKeyDB* getEncryptionKeyDB() noexcept;
 
     /*
      * The oplog manager is always accessible, but this method will start the background thread to
@@ -434,6 +432,7 @@ public:
 
 private:
     class WiredTigerSessionSweeper;
+    class DataAtRestEncryption;
 
     struct IdentToDrop {
         std::string uri;
@@ -511,7 +510,7 @@ private:
     StorageEngine::OldestActiveTransactionTimestampCallback
         _oldestActiveTransactionTimestampCallback;
 
-    std::unique_ptr<EncryptionKeyDB> _encryptionKeyDB;
+    std::unique_ptr<DataAtRestEncryption> _restEncr;
     WT_CONNECTION* _conn;
     WiredTigerFileVersion _fileVersion;
     WiredTigerEventHandler _eventHandler;

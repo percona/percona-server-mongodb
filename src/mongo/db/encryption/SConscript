@@ -91,6 +91,7 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/util/periodic_runner',
         'encryption_options',
         'encryption_vault',
         'kmip_client',
