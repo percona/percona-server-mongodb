@@ -290,18 +290,51 @@ void ChunkMap::_updateShardVersionFromDiscardedChunk(const ChunkInfo& chunk) {
     }
 }
 
-void ChunkMap::_updateShardVersionFromUpdateChunk(const ChunkInfo& chunk) {
-    auto [shardVersionIt, created] =
-        _shardVersions.try_emplace(chunk.getShardIdAt(boost::none), _collectionVersion.epoch());
+void ChunkMap::_updateShardVersionFromUpdateChunk(const ChunkInfo& chunk,
+                                                  const ShardVersionMap& oldShardVersions) {
+    const auto& newVersion = chunk.getLastmod();
+    const auto newValidAfter = [&] {
+        auto thisChunkValidAfter = chunk.getHistory().empty()
+            ? Timestamp{0, 0}
+            : chunk.getHistory().front().getValidAfter();
 
-    if (created || shardVersionIt->second.shardVersion < chunk.getLastmod()) {
-        const auto& newVersion = chunk.getLastmod();
-        // Update shard version with the most recent one from new chunk
-        shardVersionIt->second.shardVersion = newVersion;
-        if (_collectionVersion < newVersion) {
-            _collectionVersion = ChunkVersion{
-                newVersion.majorVersion(), newVersion.minorVersion(), newVersion.epoch()};
+        auto oldShardVersionIt = oldShardVersions.find(chunk.getShardId());
+        auto oldShardValidAfter = oldShardVersionIt == oldShardVersions.end()
+            ? Timestamp{0, 0}
+            : oldShardVersionIt->second.validAfter;
+
+        return std::max(thisChunkValidAfter, oldShardValidAfter);
+    }();
+
+    // Version for this chunk shard got updated
+    bool versionUpdated{false};
+
+    auto [shardVersionIt, created] =
+        _shardVersions.try_emplace(chunk.getShardId(), newVersion, newValidAfter);
+
+    if (created) {
+        // We just created a new entry in the _shardVersions map with latest version and latest
+        // valid after.
+        versionUpdated = true;
+    } else {
+        // _shardVersions map already contained an entry for this chunk shard
+
+        // Update version for this shard
+        if (shardVersionIt->second.shardVersion.isOlderThan(newVersion)) {
+            shardVersionIt->second.shardVersion = newVersion;
+            versionUpdated = true;
         }
+
+        // Update validAfter for this shard
+        if (newValidAfter > shardVersionIt->second.validAfter) {
+            shardVersionIt->second.validAfter = newValidAfter;
+        }
+    }
+
+    // Update version for the entire collection
+    if (versionUpdated && _collectionVersion.isOlderThan(newVersion)) {
+        _collectionVersion =
+            ChunkVersion{newVersion.majorVersion(), newVersion.minorVersion(), newVersion.epoch()};
     }
 }
 
@@ -346,7 +379,7 @@ ChunkMap ChunkMap::_makeUpdated(ChunkVector&& updateChunks) const {
     };
 
     const auto processUpdateChunk = [&](std::shared_ptr<ChunkInfo>&& nextChunkPtr) {
-        newMap._updateShardVersionFromUpdateChunk(*nextChunkPtr);
+        newMap._updateShardVersionFromUpdateChunk(*nextChunkPtr, _shardVersions);
         uassert(ErrorCodes::ConflictingOperationInProgress,
                 str::stream() << "Changed chunk " << nextChunkPtr->toString()
                               << " has epoch different from that of the collection "
@@ -950,13 +983,14 @@ bool RoutingTableHistory::compatibleWith(const RoutingTableHistory& other,
     return other.getVersion(shardName) == getVersion(shardName);
 }
 
-ChunkVersion RoutingTableHistory::_getVersion(const ShardId& shardName,
-                                              bool throwOnStaleShard) const {
+ShardVersionTargetingInfo RoutingTableHistory::_getVersion(const ShardId& shardName,
+                                                           bool throwOnStaleShard) const {
     auto it = _shardVersions.find(shardName);
     if (it == _shardVersions.end()) {
         // Shards without explicitly tracked shard versions (meaning they have no chunks) always
         // have a version of (0, 0, epoch)
-        return ChunkVersion(0, 0, _chunkMap.getVersion().epoch());
+        const auto collVersion = _chunkMap.getVersion();
+        return ShardVersionTargetingInfo(ChunkVersion(0, 0, collVersion.epoch()), Timestamp(0, 0));
     }
 
     if (throwOnStaleShard && gEnableFinerGrainedCatalogCacheRefresh) {
@@ -965,15 +999,9 @@ ChunkVersion RoutingTableHistory::_getVersion(const ShardId& shardName,
                 !it->second.isStale.load());
     }
 
-    return it->second.shardVersion;
-}
-
-ChunkVersion RoutingTableHistory::getVersion(const ShardId& shardName) const {
-    return _getVersion(shardName, true);
-}
-
-ChunkVersion RoutingTableHistory::getVersionForLogging(const ShardId& shardName) const {
-    return _getVersion(shardName, false);
+    const auto& shardVersionTargetingInfo = it->second;
+    return ShardVersionTargetingInfo(shardVersionTargetingInfo.shardVersion,
+                                     shardVersionTargetingInfo.validAfter);
 }
 
 std::string RoutingTableHistory::toString() const {
@@ -984,7 +1012,8 @@ std::string RoutingTableHistory::toString() const {
 
     sb << "Shard versions:\n";
     for (const auto& entry : _shardVersions) {
-        sb << "\t" << entry.first << ": " << entry.second.shardVersion.toString() << '\n';
+        sb << "\t" << entry.first << ": " << entry.second.shardVersion.toString() << " @ "
+           << entry.second.validAfter.toString() << '\n';
     }
 
     return sb.str();

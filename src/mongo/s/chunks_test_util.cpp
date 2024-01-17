@@ -41,6 +41,21 @@ namespace {
 
 PseudoRandom _random{SecureRandom().nextInt64()};
 
+std::vector<ChunkHistory> genChunkHistory(const ShardId& currentShard,
+                                          const Timestamp& onCurrentShardSince,
+                                          size_t numShards,
+                                          size_t maxLenght) {
+    std::vector<ChunkHistory> history;
+    const auto historyLength = _random.nextInt64(maxLenght);
+    auto lastTime = onCurrentShardSince;
+    for (int64_t i = 0; i < historyLength; i++) {
+        auto shard = i == 0 ? currentShard : getShardId(_random.nextInt64(numShards));
+        history.emplace_back(onCurrentShardSince, shard);
+        lastTime = Timestamp(lastTime.asULL() - 1 - _random.nextInt64(10000));
+    }
+    return history;
+}
+
 }  // namespace
 
 void assertEqualChunkInfo(const ChunkInfo& x, const ChunkInfo& y) {
@@ -117,10 +132,34 @@ std::vector<ChunkType> genChunkVector(const NamespaceString& nss,
         auto maxKey = splitPoints.at(i + 1);
         const auto shard = getShardId(_random.nextInt64(numShards));
         const auto version = versions.at(i);
-        chunks.emplace_back(nss, ChunkRange{minKey, maxKey}, version, shard);
+        ChunkType chunk{nss, ChunkRange{minKey, maxKey}, version, shard};
+        chunk.setHistory(
+            genChunkHistory(shard, Timestamp{Date_t::now()}, numShards, 10 /* maxLenght */));
+        chunks.emplace_back(std::move(chunk));
         minKey = std::move(maxKey);
     }
     return chunks;
+}
+
+std::map<ShardId, Timestamp> calculateShardsMaxValidAfter(
+    const std::vector<ChunkType>& chunkVector) {
+
+    std::map<ShardId, Timestamp> vaMap;
+    for (const auto& chunk : chunkVector) {
+        if (chunk.getHistory().empty())
+            continue;
+
+        const auto& chunkMaxValidAfter = chunk.getHistory().front().getValidAfter();
+        auto mapIt = vaMap.find(chunk.getShard());
+        if (mapIt == vaMap.end()) {
+            vaMap.emplace(chunk.getShard(), chunkMaxValidAfter);
+            continue;
+        }
+        if (chunkMaxValidAfter > mapIt->second) {
+            mapIt->second = chunkMaxValidAfter;
+        }
+    }
+    return vaMap;
 }
 
 ChunkVersion calculateCollVersion(const std::map<ShardId, ChunkVersion>& shardVersions) {
@@ -230,6 +269,11 @@ void performRandomChunkOperations(std::vector<ChunkType>* chunksPtr, size_t numO
         auto newShard = getShardId(_random.nextInt64(chunks.size()));
         chunkToMigrate.setShard(newShard);
         chunkToMigrate.setVersion(collVersion);
+        chunkToMigrate.setHistory([&] {
+            auto history = chunkToMigrate.getHistory();
+            history.emplace(history.begin(), Timestamp{Date_t::now()}, newShard);
+            return history;
+        }());
     };
 
     auto splitChunk = [&] {
@@ -248,11 +292,13 @@ void performRandomChunkOperations(std::vector<ChunkType>* chunksPtr, size_t numO
         collVersion.incMinor();
         const ChunkRange leftRange{chunkToSplit.getMin(), splitKey};
         ChunkType leftChunk{chunkToSplit.getNS(), leftRange, collVersion, chunkToSplit.getShard()};
+        leftChunk.setHistory(chunkToSplit.getHistory());
 
         collVersion.incMinor();
         const ChunkRange rightRange{splitKey, chunkToSplit.getMax()};
         ChunkType rightChunk{
             chunkToSplit.getNS(), rightRange, collVersion, chunkToSplit.getShard()};
+        rightChunk.setHistory(chunkToSplit.getHistory());
 
         auto it = chunks.erase(chunkToSplitIt);
         it = chunks.insert(it, std::move(rightChunk));
@@ -276,6 +322,7 @@ void performRandomChunkOperations(std::vector<ChunkType>* chunksPtr, size_t numO
         collVersion.incMinor();
         const ChunkRange mergedRange{firstChunk.getMin(), std::prev(lastChunkIt)->getMax()};
         ChunkType mergedChunk{firstChunk.getNS(), mergedRange, collVersion, firstChunk.getShard()};
+        mergedChunk.setHistory({ChunkHistory{Timestamp{Date_t::now()}, firstChunk.getShard()}});
 
         auto it = chunks.erase(firstChunkIt, lastChunkIt);
         it = chunks.insert(it, mergedChunk);

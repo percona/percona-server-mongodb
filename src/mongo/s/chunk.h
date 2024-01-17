@@ -61,6 +61,10 @@ public:
         return _maxKeyString;
     }
 
+    const ShardId& getShardId() const {
+        return _shardId;
+    }
+
     const ShardId& getShardIdAt(const boost::optional<Timestamp>& ts) const;
 
     /**
@@ -94,6 +98,8 @@ public:
      * Returns a string represenation of the chunk for logging.
      */
     std::string toString() const;
+
+    BSONObj toBSON() const;
 
     // Returns true if this chunk contains the given shard key, and false otherwise
     //
@@ -177,9 +183,8 @@ public:
     /**
      * Returns a string represenation of the chunk for logging.
      */
-    std::string toString() const {
-        return _chunkInfo.toString();
-    }
+    std::string toString() const;
+    BSONObj toBSON() const;
 
     // Returns true if this chunk contains the given shard key, and false otherwise
     //

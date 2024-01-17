@@ -540,7 +540,7 @@ Status OpenWriteTransactionParam::setFromString(const std::string& str) {
     if (!status.isOK()) {
         return status;
     }
-    if (num <= 0) {
+    if (num <= 0 && !getTestCommandsEnabled()) {
         return {ErrorCodes::BadValue, str::stream() << name() << " has to be > 0"};
     }
     return _data->resize(num);
@@ -561,7 +561,7 @@ Status OpenReadTransactionParam::setFromString(const std::string& str) {
     if (!status.isOK()) {
         return status;
     }
-    if (num <= 0) {
+    if (num <= 0 && !getTestCommandsEnabled()) {
         return {ErrorCodes::BadValue, str::stream() << name() << " has to be > 0"};
     }
     return _data->resize(num);
@@ -3618,32 +3618,14 @@ std::uint64_t WiredTigerKVEngine::_getCheckpointTimestamp() const {
     return tmp;
 }
 
-StatusWith<BSONObj> WiredTigerKVEngine::getSanitizedStorageOptionsForSecondaryReplication(
+BSONObj WiredTigerKVEngine::getSanitizedStorageOptionsForSecondaryReplication(
     const BSONObj& options) const {
 
     // Skip inMemory storage engine, encryption at rest only applies to storage backed engine.
-    if (_ephemeral || options.isEmpty()) {
+    if (_ephemeral) {
         return options;
     }
 
-    auto firstElem = options.firstElement();
-    if (firstElem.fieldName() != kWiredTigerEngineName) {
-        return Status(ErrorCodes::InvalidOptions,
-                      str::stream() << "Expected \"" << kWiredTigerEngineName
-                                    << "\" field, but got: " << firstElem.fieldName());
-    }
-
-    BSONObj wtObj = firstElem.Obj();
-    if (auto configStringElem = wtObj.getField(WiredTigerUtil::kConfigStringField)) {
-        auto configString = configStringElem.String();
-        WiredTigerUtil::removeEncryptionFromConfigString(&configString);
-        // Return a new BSONObj with the configString field sanitized.
-        return options.addField(
-            BSON(kWiredTigerEngineName << wtObj.addField(
-                     BSON(WiredTigerUtil::kConfigStringField << configString).firstElement()))
-                .firstElement());
-    }
-
-    return options;
+    return WiredTigerUtil::getSanitizedStorageOptionsForSecondaryReplication(options);
 }
 }  // namespace mongo
