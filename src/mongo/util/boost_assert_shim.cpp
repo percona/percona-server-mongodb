@@ -31,6 +31,8 @@
 
 #if defined(BOOST_ENABLE_ASSERT_DEBUG_HANDLER) && !defined(NDEBUG)
 
+#include <exception>
+
 #include <boost/assert.hpp>
 
 namespace mongo {
