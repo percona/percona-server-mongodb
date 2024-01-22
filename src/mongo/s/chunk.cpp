@@ -41,6 +41,7 @@ namespace mongo {
 
 ChunkInfo::ChunkInfo(const ChunkType& from)
     : _range(from.getMin(), from.getMax()),
+      _maxKeyString(ShardKeyPattern::toKeyString(from.getMax())),
       _shardId(from.getShard()),
       _lastmod(from.getVersion()),
       _history(from.getHistory()),
@@ -96,8 +97,24 @@ bool ChunkInfo::containsKey(const BSONObj& shardKey) const {
 }
 
 std::string ChunkInfo::toString() const {
-    return str::stream() << ChunkType::shard() << ": " << _shardId << ", " << ChunkType::lastmod()
-                         << ": " << _lastmod.toString() << ", " << _range.toString();
+    return toBSON().toString();
+}
+
+BSONObj ChunkInfo::toBSON() const {
+    BSONObjBuilder bob;
+    _range.append(&bob);
+    bob.append("maxKeyString", _maxKeyString);
+    bob.append("shardId", _shardId);
+    _lastmod.appendWithField(&bob, "lastmod");
+    bob.append("jumbo", _jumbo);
+    bob.append("bytesWritten", (long long)_writesTracker->getBytesWritten());
+
+    BSONArrayBuilder historyArr{bob.subarrayStart("history")};
+    for (const auto& historyEntry : _history) {
+        historyArr.append(historyEntry.toBSON());
+    }
+    historyArr.doneFast();
+    return bob.obj();
 }
 
 void ChunkInfo::markAsJumbo() {
@@ -111,5 +128,17 @@ void Chunk::throwIfMoved() const {
 
     _chunkInfo.throwIfMovedSince(*_atClusterTime);
 }
+
+std::string Chunk::toString() const {
+    return toBSON().toString();
+}
+
+BSONObj Chunk::toBSON() const {
+    BSONObjBuilder bob;
+    bob.append("chunkInfo", _chunkInfo.toBSON());
+    bob.append("atClusterTime", _atClusterTime ? _atClusterTime->toBSON() : BSONObj());
+    return bob.obj();
+}
+
 
 }  // namespace mongo

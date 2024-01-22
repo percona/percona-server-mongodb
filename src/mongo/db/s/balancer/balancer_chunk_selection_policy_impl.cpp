@@ -44,11 +44,11 @@
 #include "mongo/s/catalog/type_collection.h"
 #include "mongo/s/catalog/type_tags.h"
 #include "mongo/s/catalog_cache.h"
+#include "mongo/s/chunk_manager.h"
 #include "mongo/s/grid.h"
 #include "mongo/stdx/memory.h"
 #include "mongo/util/log.h"
 #include "mongo/util/str.h"
-
 namespace mongo {
 
 using MigrateInfoVector = BalancerChunkSelectionPolicy::MigrateInfoVector;
@@ -59,57 +59,44 @@ using std::vector;
 
 namespace {
 
+StatusWith<ZoneInfo> createCollectionZoneInfo(OperationContext* opCtx,
+                                              const NamespaceString& nss,
+                                              const KeyPattern& keyPattern) {
+    ZoneInfo zoneInfo;
+    const auto swCollectionTags =
+        Grid::get(opCtx)->catalogClient()->getTagsForCollection(opCtx, nss);
+    if (!swCollectionTags.isOK()) {
+        return swCollectionTags.getStatus().withContext(
+            str::stream() << "Unable to load tags for collection " << nss);
+    }
+    const auto& collectionTags = swCollectionTags.getValue();
+
+    for (const auto& tag : collectionTags) {
+        auto status =
+            zoneInfo.addRangeToZone(ZoneRange{keyPattern.extendRangeBound(tag.getMinKey(), false),
+                                              keyPattern.extendRangeBound(tag.getMaxKey(), false),
+                                              tag.getTag()});
+        if (!status.isOK()) {
+            return status;
+        }
+    }
+    return {std::move(zoneInfo)};
+}
+
 /**
  * Does a linear pass over the information cached in the specified chunk manager and extracts chunk
  * distribution and chunk placement information which is needed by the balancer policy.
  */
 StatusWith<DistributionStatus> createCollectionDistributionStatus(
     OperationContext* opCtx, const ShardStatisticsVector& allShards, ChunkManager* chunkMgr) {
-    ShardToChunksMap shardToChunksMap;
 
-    // Makes sure there is an entry in shardToChunksMap for every shard, so empty shards will also
-    // be accounted for
-    for (const auto& stat : allShards) {
-        shardToChunksMap[stat.shardId];
+    auto swZoneInfo = createCollectionZoneInfo(
+        opCtx, chunkMgr->getns(), chunkMgr->getShardKeyPattern().getKeyPattern());
+    if (!swZoneInfo.isOK()) {
+        return swZoneInfo.getStatus();
     }
 
-    for (const auto& chunkEntry : chunkMgr->chunks()) {
-        ChunkType chunk;
-        chunk.setNS(chunkMgr->getns());
-        chunk.setMin(chunkEntry.getMin());
-        chunk.setMax(chunkEntry.getMax());
-        chunk.setJumbo(chunkEntry.isJumbo());
-        chunk.setShard(chunkEntry.getShardId());
-        chunk.setVersion(chunkEntry.getLastmod());
-
-        shardToChunksMap[chunkEntry.getShardId()].push_back(chunk);
-    }
-
-    const auto swCollectionTags =
-        Grid::get(opCtx)->catalogClient()->getTagsForCollection(opCtx, chunkMgr->getns());
-    if (!swCollectionTags.isOK()) {
-        return swCollectionTags.getStatus().withContext(
-            str::stream() << "Unable to load tags for collection " << chunkMgr->getns().ns());
-    }
-    const auto& collectionTags = swCollectionTags.getValue();
-
-    DistributionStatus distribution(chunkMgr->getns(), std::move(shardToChunksMap));
-
-    // Cache the collection tags
-    const auto& keyPattern = chunkMgr->getShardKeyPattern().getKeyPattern();
-
-    for (const auto& tag : collectionTags) {
-        auto status = distribution.addRangeToZone(
-            ZoneRange(keyPattern.extendRangeBound(tag.getMinKey(), false),
-                      keyPattern.extendRangeBound(tag.getMaxKey(), false),
-                      tag.getTag()));
-
-        if (!status.isOK()) {
-            return status;
-        }
-    }
-
-    return {std::move(distribution)};
+    return {DistributionStatus{chunkMgr->getns(), std::move(swZoneInfo.getValue()), chunkMgr}};
 }
 
 /**
@@ -180,12 +167,12 @@ private:
  * range boundaries.
  */
 void getSplitCandidatesToEnforceTagRanges(const ChunkManager* cm,
-                                          const DistributionStatus& distribution,
+                                          const ZoneInfo& zoneInfo,
                                           SplitCandidatesBuffer* splitCandidates) {
     const auto& globalMax = cm->getShardKeyPattern().getKeyPattern().globalMax();
 
     // For each tag range, find chunks that need to be split.
-    for (const auto& tagRangeEntry : distribution.tagRanges()) {
+    for (const auto& tagRangeEntry : zoneInfo.zoneRanges()) {
         const auto& tagRange = tagRangeEntry.second;
 
         const auto chunkAtZoneMin = cm->findIntersectingChunkWithSimpleCollation(tagRange.min);
@@ -357,8 +344,15 @@ StatusWith<MigrateInfoVector> BalancerChunkSelectionPolicyImpl::selectChunksToMo
         return MigrateInfoVector{};
     }
 
+    stdx::unordered_set<ShardId> availableShards;
+    std::transform(shardStats.begin(),
+                   shardStats.end(),
+                   std::inserter(availableShards, availableShards.end()),
+                   [](const ClusterStatistics::ShardStatistics& shardStatistics) -> ShardId {
+                       return shardStatistics.shardId;
+                   });
+
     MigrateInfoVector candidateChunks;
-    std::set<ShardId> usedShards;
 
     std::shuffle(collections.begin(), collections.end(), _random);
 
@@ -375,7 +369,7 @@ StatusWith<MigrateInfoVector> BalancerChunkSelectionPolicyImpl::selectChunksToMo
         }
 
         auto candidatesStatus =
-            _getMigrateCandidatesForCollection(opCtx, nss, shardStats, &usedShards);
+            _getMigrateCandidatesForCollection(opCtx, nss, shardStats, &availableShards);
         if (candidatesStatus == ErrorCodes::NamespaceNotFound) {
             // Namespace got dropped before we managed to get to it, so just skip it
             continue;
@@ -388,6 +382,10 @@ StatusWith<MigrateInfoVector> BalancerChunkSelectionPolicyImpl::selectChunksToMo
         candidateChunks.insert(candidateChunks.end(),
                                std::make_move_iterator(candidatesStatus.getValue().begin()),
                                std::make_move_iterator(candidatesStatus.getValue().end()));
+
+        if (availableShards.size() < 2) {
+            return candidateChunks;
+        }
     }
 
     return candidateChunks;
@@ -461,7 +459,7 @@ Status BalancerChunkSelectionPolicyImpl::checkMoveAllowed(OperationContext* opCt
     }
 
     return BalancerPolicy::isShardSuitableReceiver(*newShardIterator,
-                                                   distribution.getTagForChunk(chunk));
+                                                   distribution.getTagForRange(chunk.getRange()));
 }
 
 StatusWith<SplitInfoVector> BalancerChunkSelectionPolicyImpl::_getSplitCandidatesForCollection(
@@ -474,21 +472,21 @@ StatusWith<SplitInfoVector> BalancerChunkSelectionPolicyImpl::_getSplitCandidate
 
     const auto cm = routingInfoStatus.getValue().cm().get();
 
-    const auto collInfoStatus = createCollectionDistributionStatus(opCtx, shardStats, cm);
-    if (!collInfoStatus.isOK()) {
-        return collInfoStatus.getStatus();
+    const auto swCollZoneInfo =
+        createCollectionZoneInfo(opCtx, nss, cm->getShardKeyPattern().getKeyPattern());
+    if (!swCollZoneInfo.isOK()) {
+        return swCollZoneInfo.getStatus();
     }
-
-    const DistributionStatus& distribution = collInfoStatus.getValue();
+    const auto& collZoneInfo = swCollZoneInfo.getValue();
 
     // Accumulate split points for the same chunk together
     SplitCandidatesBuffer splitCandidates(nss, cm->getVersion());
 
     if (nss == NamespaceString::kLogicalSessionsNamespace) {
-        if (!distribution.tags().empty()) {
+        if (const auto& zones = collZoneInfo.allZones(); !zones.empty()) {
             str::stream builder;
             builder << "Ignoring zones for the sessions collection: ";
-            for (const auto& tag : distribution.tags()) {
+            for (const auto& tag : zones) {
                 builder << tag << ", ";
             }
             const std::string msg = builder;
@@ -497,7 +495,7 @@ StatusWith<SplitInfoVector> BalancerChunkSelectionPolicyImpl::_getSplitCandidate
 
         getSplitCandidatesForSessionsCollection(opCtx, cm, &splitCandidates);
     } else {
-        getSplitCandidatesToEnforceTagRanges(cm, distribution, &splitCandidates);
+        getSplitCandidatesToEnforceTagRanges(cm, collZoneInfo, &splitCandidates);
     }
 
     return splitCandidates.done();
@@ -507,7 +505,7 @@ StatusWith<MigrateInfoVector> BalancerChunkSelectionPolicyImpl::_getMigrateCandi
     OperationContext* opCtx,
     const NamespaceString& nss,
     const ShardStatisticsVector& shardStats,
-    std::set<ShardId>* usedShards) {
+    stdx::unordered_set<ShardId>* availableShards) {
     auto routingInfoStatus =
         Grid::get(opCtx)->catalogCache()->getShardedCollectionRoutingInfoWithRefresh(opCtx, nss);
     if (!routingInfoStatus.isOK()) {
@@ -525,7 +523,7 @@ StatusWith<MigrateInfoVector> BalancerChunkSelectionPolicyImpl::_getMigrateCandi
 
     const DistributionStatus& distribution = collInfoStatus.getValue();
 
-    for (const auto& tagRangeEntry : distribution.tagRanges()) {
+    for (const auto& tagRangeEntry : distribution.getZoneInfo().zoneRanges()) {
         const auto& tagRange = tagRangeEntry.second;
 
         const auto chunkAtZoneMin = cm->findIntersectingChunkWithSimpleCollation(tagRange.min);
@@ -560,7 +558,7 @@ StatusWith<MigrateInfoVector> BalancerChunkSelectionPolicyImpl::_getMigrateCandi
         }
     }
 
-    return BalancerPolicy::balance(shardStats, distribution, usedShards);
+    return BalancerPolicy::balance(shardStats, distribution, availableShards);
 }
 
 }  // namespace mongo

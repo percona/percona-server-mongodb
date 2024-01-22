@@ -57,6 +57,10 @@ public:
         return _range.getMax();
     }
 
+    const std::string& getMaxKeyString() const {
+        return _maxKeyString;
+    }
+
     const ShardId& getShardIdAt(const boost::optional<Timestamp>& ts) const;
 
     /**
@@ -91,6 +95,8 @@ public:
      */
     std::string toString() const;
 
+    BSONObj toBSON() const;
+
     // Returns true if this chunk contains the given shard key, and false otherwise
     //
     // Note: this function takes an extracted *key*, not an original document (the point may be
@@ -104,6 +110,7 @@ public:
 
 private:
     const ChunkRange _range;
+    const std::string _maxKeyString;
 
     const ShardId _shardId;
 
@@ -172,9 +179,8 @@ public:
     /**
      * Returns a string represenation of the chunk for logging.
      */
-    std::string toString() const {
-        return _chunkInfo.toString();
-    }
+    std::string toString() const;
+    BSONObj toBSON() const;
 
     // Returns true if this chunk contains the given shard key, and false otherwise
     //

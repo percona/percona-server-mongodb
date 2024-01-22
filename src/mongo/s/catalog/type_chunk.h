@@ -101,6 +101,11 @@ public:
     boost::optional<ChunkRange> overlapWith(ChunkRange const& other) const;
 
     /**
+     * Returns true if there is any overlap between the two ranges.
+     */
+    bool overlaps(const ChunkRange& other) const;
+
+    /**
      * Returns a range that includes *this and other. If the ranges do not overlap, it includes
      * all the space between, as well.
      */
@@ -113,6 +118,9 @@ private:
 
 class ChunkHistory : public ChunkHistoryBase {
 public:
+    using ChunkHistoryBase::serialize;
+    using ChunkHistoryBase::toBSON;
+
     ChunkHistory() : ChunkHistoryBase() {}
     ChunkHistory(mongo::Timestamp ts, mongo::ShardId shard) : ChunkHistoryBase() {
         setValidAfter(std::move(ts));
