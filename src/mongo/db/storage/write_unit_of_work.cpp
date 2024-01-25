@@ -47,7 +47,7 @@ WriteUnitOfWork::WriteUnitOfWork(OperationContext* opCtx)
     : _opCtx(opCtx), _toplevel(opCtx->_ruState == RecoveryUnitState::kNotInUnitOfWork) {
     uassert(ErrorCodes::IllegalOperation,
             "Cannot execute a write operation in read-only mode",
-            !storageGlobalParams.readOnly || opCtx->getClient()->isFromSystemConnection());
+            !storageGlobalParams.readOnly);
     _opCtx->lockState()->beginWriteUnitOfWork();
     if (_toplevel) {
         _opCtx->recoveryUnit()->beginUnitOfWork(_opCtx);
@@ -59,7 +59,7 @@ WriteUnitOfWork::WriteUnitOfWork(OperationContext* opCtx)
 }
 
 WriteUnitOfWork::~WriteUnitOfWork() {
-    dassert(!storageGlobalParams.readOnly || _opCtx->getClient()->isFromSystemConnection());
+    dassert(!storageGlobalParams.readOnly);
     if (!_released && !_committed) {
         invariant(_opCtx->_ruState != RecoveryUnitState::kNotInUnitOfWork);
         if (_toplevel) {
