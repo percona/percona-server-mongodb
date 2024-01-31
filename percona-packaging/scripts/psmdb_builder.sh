@@ -383,7 +383,6 @@ install_deps() {
       percona-release enable tools testing
       yum clean all
       yum install -y patchelf
-      install_gcc_8_centos
       RHEL=$(rpm --eval %rhel)
       if [ x"$RHEL" = x6 ]; then
         yum -y update
@@ -418,6 +417,7 @@ install_deps() {
         yum -y install redhat-rpm-config python2-devel e2fsprogs-devel expat-devel lz4-devel
         yum -y install openldap-devel krb5-devel
       fi
+      install_gcc_8_centos
       if [ "x${RHEL}" == "x8" ]; then
         /usr/bin/pip3.6 install --user typing pyyaml regex Cheetah3
         /usr/bin/pip2.7 install --user typing Cheetah
