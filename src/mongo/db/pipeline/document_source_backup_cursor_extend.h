@@ -62,7 +62,12 @@ public:
             return true;
         }
 
-        void assertSupportsMultiDocumentTransaction() const {
+        ReadConcernSupportResult supportsReadConcern(repl::ReadConcernLevel level,
+                                                     bool isImplicitDefault) const final {
+            return onlyReadConcernLocalSupported(kStageName, level, isImplicitDefault);
+        }
+
+        void assertSupportsMultiDocumentTransaction() const final {
             transactionNotSupported(kStageName);
         }
     };
