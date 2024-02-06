@@ -47,6 +47,7 @@ env.SConscript(
         'sorter',
         'stats',
         'storage',
+        'telemetry',
         'timeseries',
         'transaction',
         'update',
