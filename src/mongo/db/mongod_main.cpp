@@ -187,6 +187,7 @@
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/system_index.h"
+#include "mongo/db/telemetry/telemetry_thread.h"
 #include "mongo/db/transaction/session_catalog_mongod_transaction_interface_impl.h"
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/db/ttl.h"
@@ -1085,6 +1086,9 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     // parameters are guaranteed to have been initialized from disk at this point.
     audit::logStartupOptions(Client::getCurrent(), serverGlobalParams.parsedOpts);
 
+    // Initialize Percona telemetry
+    initPerconaTelemetry(serviceContext);
+
     serviceContext->notifyStartupComplete();
 
 #ifndef _WIN32
@@ -1505,6 +1509,9 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
                                                    &shutdownTimeElapsedBuilder,
                                                    &shutdownInfoBuilder);
         });
+
+    // stop Percona telemetry
+    shutdownPerconaTelemetry(serviceContext);
 
     // If we don't have shutdownArgs, we're shutting down from a signal, or other clean shutdown
     // path.
