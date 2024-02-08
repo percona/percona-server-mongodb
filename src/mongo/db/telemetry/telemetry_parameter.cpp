@@ -37,6 +37,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
+#include "mongo/db/telemetry/telemetry_thread.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/str.h"
 
@@ -56,6 +57,7 @@ namespace {
 
 Status _set(AtomicWord<bool>* data, bool value) {
     data->store(value);
+    updatePerconaTelemetry(value);
     return Status::OK();
 }
 
