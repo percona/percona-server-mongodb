@@ -1284,7 +1284,9 @@ build_tarball(){
         replace_binaries bin
 
         # Add hmac files that are required for fips mode
-        add_hmac_files
+        if [[ "x${FIPSMODE}" == "x0" ]]; then
+            add_hmac_files
+        fi
 
         # Make final check in order to determine any error after linkage
         for DIR in ${DIRLIST}; do
@@ -1294,7 +1296,7 @@ build_tarball(){
 
     if [[ "x${FIPSMODE}" == "x1" ]]; then
         if [[ x"${OS}" == "xrpm" ]]; then
-            GLIBC_VER=".rhel"${RHEL}
+            GLIBC_VER=".ol"${RHEL}
         else
             GLIBC_VER="."${DEBIAN}
         fi
