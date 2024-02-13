@@ -332,9 +332,9 @@ install_deps() {
       yum -y install perl
       install_mongodbtoolchain
       if [ x"$ARCH" = "xx86_64" ]; then
-        if [ "$RHEL" -lt 9 ]; then
-          add_percona_yum_repo
-        fi
+      #  if [ "$RHEL" -lt 9 ]; then
+      #    add_percona_yum_repo
+      #  fi
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
         yum clean all
@@ -1086,7 +1086,7 @@ build_tarball(){
         mkdir -p lib/private
     fi
     if [[ "x${FIPSMODE}" == "x1" ]]; then
-        LIBLIST="librtmp.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so liblzma.so libidn.so"
+        LIBLIST=""
     else
         LIBLIST="libsasl2.so.3 libcrypto.so libssl.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so liblzma.so libidn.so"
     fi
@@ -1231,8 +1231,18 @@ build_tarball(){
         done
     }
 
+    PSMDIR_ORIGINAL=${PSMDIR}
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        if [[ x"${OS}" == "xrpm" ]]; then
+            GLIBC_VER=".ol"${RHEL}
+        else
+            GLIBC_VER="."${DEBIAN}
+        fi
+        PSMDIR=$(echo ${PSMDIR} | sed "s/-mongodb-/-mongodb-pro-/g")
+    fi
+
     cd ${PSMDIR_ABS}
-    mv ${PSMDIR} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
+    mv ${PSMDIR_ORIGINAL} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
 
     if [[ ${DEBUG} = 0 ]]; then
         cp -r ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal
