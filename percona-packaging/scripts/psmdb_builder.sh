@@ -348,9 +348,9 @@ install_deps() {
       yum -y update
       yum -y install wget
       if [ x"$ARCH" = "xx86_64" ]; then
-        if [ "$RHEL" -lt 9 ]; then
-          add_percona_yum_repo
-        fi
+      #  if [ "$RHEL" -lt 9 ]; then
+      #    add_percona_yum_repo
+      #  fi
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
         yum clean all
@@ -1133,7 +1133,7 @@ build_tarball(){
         mkdir -p lib/private
     fi
     if [[ "x${FIPSMODE}" == "x1" ]]; then
-        LIBLIST="librtmp.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so liblzma.so libidn.so"
+        LIBLIST=""
     else
         LIBLIST="libsasl2.so.3 libcrypto.so libssl.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so liblzma.so libidn.so"
     fi
@@ -1284,7 +1284,9 @@ build_tarball(){
         replace_binaries bin
 
         # Add hmac files that are required for fips mode
-        add_hmac_files
+        if [[ "x${FIPSMODE}" == "x0" ]]; then
+            add_hmac_files
+        fi
 
         # Make final check in order to determine any error after linkage
         for DIR in ${DIRLIST}; do
@@ -1292,8 +1294,18 @@ build_tarball(){
         done
     }
 
+    PSMDIR_ORIGINAL=${PSMDIR}
+    if [[ "x${FIPSMODE}" == "x1" ]]; then
+        if [[ x"${OS}" == "xrpm" ]]; then
+            GLIBC_VER=".ol"${RHEL}
+        else
+            GLIBC_VER="."${DEBIAN}
+        fi
+        PSMDIR=$(echo ${PSMDIR} | sed "s/-mongodb-/-mongodb-pro-/g")
+    fi
+
     cd ${PSMDIR_ABS}
-    mv ${PSMDIR} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
+    mv ${PSMDIR_ORIGINAL} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
 
     if [[ ${DEBUG} = 0 ]]; then
         cp -r ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal
