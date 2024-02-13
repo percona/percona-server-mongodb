@@ -1294,17 +1294,18 @@ build_tarball(){
         done
     }
 
+    PSMDIR_ORIGINAL=${PSMDIR}
     if [[ "x${FIPSMODE}" == "x1" ]]; then
         if [[ x"${OS}" == "xrpm" ]]; then
             GLIBC_VER=".ol"${RHEL}
         else
             GLIBC_VER="."${DEBIAN}
         fi
-        ARCH="pro-"${ARCH}
+        PSMDIR=$(echo ${PSMDIR} | sed "s/-mongodb-/-mongodb-pro-/g")
     fi
 
     cd ${PSMDIR_ABS}
-    mv ${PSMDIR} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
+    mv ${PSMDIR_ORIGINAL} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
 
     if [[ ${DEBUG} = 0 ]]; then
         cp -r ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal
