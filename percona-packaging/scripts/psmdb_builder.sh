@@ -348,9 +348,9 @@ install_deps() {
       yum -y update
       yum -y install wget
       if [ x"$ARCH" = "xx86_64" ]; then
-        if [ "$RHEL" -lt 9 ]; then
-          add_percona_yum_repo
-        fi
+      #  if [ "$RHEL" -lt 9 ]; then
+      #    add_percona_yum_repo
+      #  fi
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
         yum clean all
