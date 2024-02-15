@@ -440,14 +440,17 @@ install_deps() {
 }
 
 install_mongodbtoolchain(){
-    curl -o toolchain_installer.sh https://jenkins.percona.com/downloads/mongodbtoolchain/installer.sh
+    #curl -o toolchain_installer.sh https://jenkins.percona.com/downloads/mongodbtoolchain/installer.sh
+    curl -O https://downloads.percona.com/downloads/TESTING/issue-CUSTO83/toolchain_installer.tar.gz
+    tar -zxvf toolchain_installer.tar.gz
     if [ ! -z "${RHEL}" ]; then
         OS_CODE_NAME=${RHEL}
     else
         OS_CODE_NAME=${DEBIAN}
     fi
     export USER=$(whoami)
-    bash -x ./toolchain_installer.sh -k --download-url https://jenkins.percona.com/downloads/mongodbtoolchain/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
+    #bash -x ./toolchain_installer.sh -k --download-url https://jenkins.percona.com/downloads/mongodbtoolchain/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
+    bash -x ./installer.sh -k --download-url https://downloads.percona.com/downloads/TESTING/issue-CUSTO83/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
     export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
 }
 
