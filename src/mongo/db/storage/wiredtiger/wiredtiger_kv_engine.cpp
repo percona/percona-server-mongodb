@@ -1671,6 +1671,8 @@ static void copy_file_size(OperationContext* opCtx,
         fsize -= cnt;
         progressMeter.hit(cnt);
     }
+
+    dst.close();
 }
 
 Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
@@ -2290,10 +2292,19 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
     std::set<fs::path> existDirs{destPath};
 
     // Do copy files
+    int fcCtr = 0;
     for (auto&& file : filesList) {
         fs::path srcFile{std::get<0>(file)};
         fs::path destFile{std::get<1>(file)};
         auto fsize{std::get<2>(file)};
+
+        log() << "Beginning copy of {}/{} files in backup snapshot: {}, {} bytes"_format(
+            ++fcCtr, filesList.size(), srcFile.string(), fsize);
+        if (!fs::exists(srcFile)) {
+            log() << "Source file does not exist: {}"_format(srcFile.string());
+        } else {
+            log() << "Source file size is: {} bytes"_format(fs::file_size(srcFile));
+        }
 
         try {
             // Try creating destination directories if needed.
@@ -2307,11 +2318,26 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
             // more fine-grained copy
             copy_file_size(opCtx, srcFile, destFile, fsize, progressMeter);
         } catch (const fs::filesystem_error& ex) {
-            return Status(ErrorCodes::InvalidPath, ex.what());
+            return Status(ErrorCodes::InvalidPath,
+                          "filesystem_error while copying '{}' to '{}': ({}/{}): {}"_format(
+                              srcFile.string(),
+                              destFile.string(),
+                              ex.code().value(),
+                              ex.code().message(),
+                              ex.what()));
+        } catch (const std::system_error& ex) {
+            return Status(
+                ErrorCodes::InternalError,
+                "system_error while copying '{}' to '{}': ({}/{}): {}"_format(srcFile.string(),
+                                                                              destFile.string(),
+                                                                              ex.code().value(),
+                                                                              ex.code().message(),
+                                                                              ex.what()));
         } catch (const std::exception& ex) {
-            return Status(ErrorCodes::InternalError, ex.what());
+            return Status(ErrorCodes::InternalError,
+                          "exception while copying '{}' to '{}': {}"_format(
+                              srcFile.string(), destFile.string(), ex.what()));
         }
-
     }
 
     return Status::OK();
