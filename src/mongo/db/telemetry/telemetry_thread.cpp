@@ -31,21 +31,44 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/telemetry/telemetry_thread.h"
 
+#include <array>
+#include <boost/filesystem.hpp>  // IWYU pragma: keep
+#include <cstddef>
+#include <fmt/format.h>  // IWYU pragma: keep
+#include <fstream>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
+#include "mongo/base/data_range.h"
+#include "mongo/base/data_type_validated.h"
+#include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
+#include "mongo/bson/bsonmisc.h"
+#include "mongo/bson/bsonobj.h"
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/client.h"
+#include "mongo/db/namespace_string.h"
+#include "mongo/db/repl/optime.h"
+#include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/storage/storage_options.h"
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/mutex.h"
 #include "mongo/stdx/condition_variable.h"
+#include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/idle_thread_block.h"
+#include "mongo/util/duration.h"
+#include "mongo/util/time_support.h"
+#include "mongo/util/uuid.h"
+#include "mongo/util/version.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
@@ -54,6 +77,22 @@ namespace mongo {
 namespace {
 
 constexpr StringData kParamName = "perconaTelemetry"_sd;
+constexpr StringData kTelemetryPath = "/usr/local/percona/telemetry/psmdb"_sd;
+constexpr StringData kTelemetryFileName = "psmdb_telemetry.data"_sd;
+constexpr StringData kTelemetryNamespace = "local.percona.telemetry"_sd;
+
+constexpr StringData kId = "_id"_sd;
+constexpr StringData kScheduledAt = "scheduledAt"_sd;
+
+constexpr StringData kFalse = "false"_sd;
+constexpr StringData kTrue = "true"_sd;
+
+// names of the fields in the metric file
+constexpr StringData kDbInstanceId = "dbInstanceId"_sd;
+constexpr StringData kPillarVersion = "pillar_version"_sd;
+constexpr StringData kStorageEngine = "storageEngine"_sd;
+constexpr StringData kReplicationEnabled = "replicationEnabled"_sd;
+
 
 // We need this flag to filter out updates from server parameter which can arrive before global
 // service context is set. In other words we need to avoid asserts from getGlobalServiceContext()
@@ -61,6 +100,175 @@ bool updatesEnabled = false;
 
 // mutex to serialize external API calls and access to updatesEnabled
 Mutex mutex = MONGO_MAKE_LATCH("TelemetryThread::mutex");
+
+// auxiliary function
+auto sdPath(StringData sd) {
+    return boost::filesystem::path{sd.rawData(), sd.rawData() + sd.size()};
+}
+
+// auxiliary function
+constexpr StringData boolName(bool v) {
+    return v ? kTrue : kFalse;
+}
+
+// TODO: merge this struct with TelemetryThread?
+// telemetry parameters struct
+struct TelemetryParameters {
+    explicit TelemetryParameters(ServiceContext* serviceContext)
+        : nextScrape(Date_t::now() + Seconds(perconaTelemetryGracePeriod)) {
+        // TODO: refactor all this out of constructor into dedicated functions returning Status
+        // load/create instance id
+        auto fileName =
+            boost::filesystem::path(storageGlobalParams.dbpath) / sdPath(kTelemetryFileName);
+        if (boost::filesystem::exists(fileName)) {
+            // read instance uuid
+            auto fileSize = boost::filesystem::file_size(fileName);
+            std::vector<char> buffer(fileSize);
+            std::ifstream dataFile(fileName, std::ios_base::in | std::ios_base::binary);
+            dataFile.read(buffer.data(), buffer.size());
+
+            ConstDataRange cdr(buffer.data(), buffer.size());
+            auto swObj = cdr.readNoThrow<Validated<BSONObj>>();
+            // if (!swObj.isOK()) {
+            //     return swObj.getStatus();
+            // }
+
+            uuid = UUID::parse(swObj.getValue());
+        } else {
+            // create file with new UUID
+            uuid = UUID::gen();
+            auto obj = uuid.toBSON();
+            std::ofstream dataFile(fileName, std::ios_base::out | std::ios_base::binary);
+            dataFile.write(obj.objdata(), obj.objsize());
+        }
+        LOGV2_DEBUG(29123, 1, "Initialized telemetry instance UUID: {uuid}", "uuid"_attr = uuid);
+        // load/create db id
+        // see StorageInterfaceImpl::initializeRollbackID
+        // see ReplicationConsistencyMarkersImpl::setInitialSyncIdIfNotSet
+        auto opCtxObj = cc().makeOperationContext();
+        auto* opCtx = opCtxObj.get();
+        auto* storageInterface = repl::StorageInterface::get(serviceContext);
+        const NamespaceString nss{kTelemetryNamespace};
+        auto status = storageInterface->createCollection(opCtx, nss, CollectionOptions());
+        if (!status.isOK() && status.code() != ErrorCodes::NamespaceExists) {
+            LOGV2_FATAL(29124, "Failed to create collection", logAttrs(nss));
+            fassertFailedWithStatus(29125, status);
+        }
+        auto prev = storageInterface->findSingleton(opCtx, nss);
+        if (prev.getStatus() == ErrorCodes::CollectionIsEmpty) {
+            dbid = UUID::gen();
+            auto doc = BSON(kId << dbid << kScheduledAt << nextScrape);
+            Timestamp noTimestamp;  // This write is not replicated
+            // TODO: fassert can kill server?
+            fassert(29127,
+                    storageInterface->insertDocument(opCtx,
+                                                     nss,
+                                                     repl::TimestampedBSONObj{doc, noTimestamp},
+                                                     repl::OpTime::kUninitializedTerm));
+        } else if (prev.isOK()) {
+            // copy scheduled time from BSONObj to nextScrape
+            auto obj = prev.getValue();
+            // TODO: handle error (missign field)
+            dbid = UUID::fromCDR(obj[kId].uuid());
+            nextScrape = obj[kScheduledAt].Date();
+        } else {
+            fassertFailedWithStatus(29126, prev.getStatus());
+        }
+        // initialize prefix
+        prefix = BSON(kDbInstanceId << uuid.toString() << kPillarVersion
+                                    << VersionInfoInterface::instance().makeVersionString(
+                                           "Percona Server for MongoDB"));
+    }
+
+    // advance nextScrape and store it into kTelemetryNamespace
+    void advance(ServiceContext* serviceContext) {
+        nextScrape = Date_t::now() + Seconds(perconaTelemetryScrapeInterval);
+        auto opCtxObj = cc().makeOperationContext();
+        auto* opCtx = opCtxObj.get();
+        auto* storageInterface = repl::StorageInterface::get(serviceContext);
+        const NamespaceString nss{kTelemetryNamespace};
+        auto doc = BSON(kId << dbid << kScheduledAt << nextScrape);
+        Timestamp noTimestamp;  // This write is not replicated
+        // TODO: fassert can kill server?
+        fassert(
+            29128,
+            storageInterface->putSingleton(opCtx, nss, repl::TimestampedBSONObj{doc, noTimestamp}));
+    }
+
+    // write metrics file
+    void writeMetrics(ServiceContext* serviceContext) {
+        const auto ts = Date_t::now().toMillisSinceEpoch() / 1000;
+        const auto instancePath = sdPath(kTelemetryPath) / uuid.toString();
+        // TODO: only create instance dir?
+        boost::filesystem::create_directories(instancePath);
+
+        // clear outdated files
+        for (auto const& dirEntry : boost::filesystem::directory_iterator{instancePath}) {
+            if (boost::filesystem::is_regular_file(dirEntry.status())) {
+                auto s = dirEntry.path().filename().string();
+                try {
+                    std::size_t pos = 0;
+                    if (std::stoll(s, &pos) < ts - perconaTelemetryHistoryKeepInterval &&
+                        s.substr(pos) == ".json") {
+                        boost::filesystem::remove(dirEntry.path());
+                    }
+                } catch (std::invalid_argument const&) {
+                    // possible exception from std::stoll
+                    // means file name does not match pattern
+                } catch (std::out_of_range const&) {
+                    // possible exception from std::stoll
+                    // means file name does not match pattern
+                } catch (const boost::filesystem::filesystem_error& e) {
+                    LOGV2_DEBUG(29130,
+                                1,
+                                "Error removing file {file}: {errmsg}",
+                                "file"_attr = dirEntry.path().string(),
+                                "errmsg"_attr = e.what());
+                }
+            }
+        }
+
+        // dump new metrics file
+        const auto tmpName = instancePath / fmt::format("{}.tmp", ts);
+        LOGV2_DEBUG(29129, 1, "writing metrics file {path}", "path"_attr = tmpName.string());
+        BSONObjBuilder builder(prefix);
+
+        builder.append(kStorageEngine, storageGlobalParams.engine);
+        builder.append(
+            kReplicationEnabled,
+            boolName(repl::ReplicationCoordinator::get(serviceContext)->getReplicationMode() ==
+                     repl::ReplicationCoordinator::modeReplSet));
+        // TODO: append more metrics
+        auto obj = builder.done();  // obj becomes invalid when builder goes out of scope
+        std::ofstream ofs(tmpName);
+        ofs << obj.jsonString(ExtendedCanonicalV2_0_0, 1 /* pretty */) << "\n";
+        ofs.close();
+        // tweak permissions if Telemetry Agent does not run as root
+        // boost::filesystem::permissions(
+        //    tmpName,
+        //    boost::filesystem::owner_read | boost::filesystem::owner_write |
+        //        boost::filesystem::group_read | boost::filesystem::group_write |
+        //        boost::filesystem::others_read | boost::filesystem::others_write);
+        boost::filesystem::rename(tmpName, instancePath / fmt::format("{}.json", ts));
+    }
+
+    // instance id stored in kTelemetryFileName
+    UUID uuid = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
+
+    // nextScarpe is set to "now + grace" in the constructor
+    // but it is overwritten if we read scheduled time from kTelemetryNamespace
+    Date_t nextScrape;
+
+private:
+    // database id stored as kTelemetryNamespace._id
+    UUID dbid = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
+    // constant prefix for each metrics file
+    BSONObj prefix;
+};
+
+// initialized and accessed from telemetry thread only
+// thus no need for synchronization
+std::unique_ptr<TelemetryParameters> params;
 
 class TelemetryThread;
 
@@ -96,15 +304,24 @@ public:
         const ThreadClient tc(name(), getGlobalServiceContext());
         LOGV2_DEBUG(29121, 1, "starting {name} thread", "name"_attr = name());
 
+        if (!params) {
+            params = std::make_unique<TelemetryParameters>(tc->getServiceContext());
+        }
+
         while (!_shuttingDown.load()) {
+            if (Date_t::now() >= params->nextScrape) {
+                auto* serviceCtx = tc->getServiceContext();
+                // create metrics file
+                params->writeMetrics(serviceCtx);
+                // update nextScrape
+                params->advance(serviceCtx);
+            }
+
             {
                 stdx::unique_lock<Latch> lock(_mutex);
                 MONGO_IDLE_THREAD_BLOCK;
-                // TODO: implement long sleep between metric files
-                _condvar.wait_for(lock, stdx::chrono::seconds(kDebugBuild ? 10 : 100));
+                _condvar.wait_until(lock, params->nextScrape.toSystemTimePoint());
             }
-
-            // TODO: create metrics file
         }
         LOGV2_DEBUG(29122, 1, "stopping {name} thread", "name"_attr = name());
     }
