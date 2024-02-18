@@ -111,11 +111,76 @@ constexpr StringData boolName(bool v) {
     return v ? kTrue : kFalse;
 }
 
-// TODO: merge this struct with TelemetryThread?
-// telemetry parameters struct
-struct TelemetryParameters {
-    explicit TelemetryParameters(ServiceContext* serviceContext)
-        : nextScrape(Date_t::now() + Seconds(perconaTelemetryGracePeriod)) {
+class TelemetryThread;
+
+const auto getTelemetryThread =
+    ServiceContext::declareDecoration<std::unique_ptr<TelemetryThread>>();
+
+class TelemetryThread final : public BackgroundJob {
+public:
+    explicit TelemetryThread()
+        : BackgroundJob(false /* selfDelete */),
+          _nextScrape(Date_t::now() + Seconds(perconaTelemetryGracePeriod)) {}
+
+    static TelemetryThread* get(ServiceContext* serviceCtx) {
+        return getTelemetryThread(serviceCtx).get();
+    }
+
+    static void set(ServiceContext* serviceCtx,
+                    std::unique_ptr<TelemetryThread> newTelemetryThread) {
+        auto& telemetryThread = getTelemetryThread(serviceCtx);
+        if (telemetryThread) {
+            invariant(
+                !telemetryThread->running(),
+                "Tried to reset the TelemetryThread without shutting down the previous instance.");
+        }
+
+        invariant(newTelemetryThread);
+        telemetryThread = std::move(newTelemetryThread);
+    }
+
+    std::string name() const final {
+        return "PerconaTelemetry";
+    }
+
+    void run() final {
+        const ThreadClient tc(name(), getGlobalServiceContext());
+        LOGV2_DEBUG(29121, 1, "starting {name} thread", "name"_attr = name());
+
+        // TODO: handle errors
+        _initParameters(tc->getServiceContext());
+
+        while (!_shuttingDown.load()) {
+            if (Date_t::now() >= _nextScrape) {
+                auto* serviceCtx = tc->getServiceContext();
+                // create metrics file
+                _writeMetrics(serviceCtx);
+                // update nextScrape
+                _advance(serviceCtx);
+            }
+
+            {
+                stdx::unique_lock<Latch> lock(_mutex);
+                MONGO_IDLE_THREAD_BLOCK;
+                _condvar.wait_until(lock, _nextScrape.toSystemTimePoint());
+            }
+        }
+        LOGV2_DEBUG(29122, 1, "stopping {name} thread", "name"_attr = name());
+    }
+
+    void shutdown() {
+        _shuttingDown.store(true);
+        {
+            stdx::unique_lock<Latch> lock(_mutex);
+            // Wake up the telemetry thread early, we do not want the shutdown
+            // to wait for us too long.
+            _condvar.notify_one();
+        }
+        wait();
+    }
+
+private:
+    void _initParameters(ServiceContext* serviceContext) {
         // TODO: refactor all this out of constructor into dedicated functions returning Status
         // load/create instance id
         auto fileName =
@@ -133,15 +198,15 @@ struct TelemetryParameters {
             //     return swObj.getStatus();
             // }
 
-            uuid = UUID::parse(swObj.getValue());
+            _uuid = UUID::parse(swObj.getValue());
         } else {
             // create file with new UUID
-            uuid = UUID::gen();
-            auto obj = uuid.toBSON();
+            _uuid = UUID::gen();
+            auto obj = _uuid.toBSON();
             std::ofstream dataFile(fileName, std::ios_base::out | std::ios_base::binary);
             dataFile.write(obj.objdata(), obj.objsize());
         }
-        LOGV2_DEBUG(29123, 1, "Initialized telemetry instance UUID: {uuid}", "uuid"_attr = uuid);
+        LOGV2_DEBUG(29123, 1, "Initialized telemetry instance UUID: {uuid}", "uuid"_attr = _uuid);
         // load/create db id
         // see StorageInterfaceImpl::initializeRollbackID
         // see ReplicationConsistencyMarkersImpl::setInitialSyncIdIfNotSet
@@ -156,8 +221,8 @@ struct TelemetryParameters {
         }
         auto prev = storageInterface->findSingleton(opCtx, nss);
         if (prev.getStatus() == ErrorCodes::CollectionIsEmpty) {
-            dbid = UUID::gen();
-            auto doc = BSON(kId << dbid << kScheduledAt << nextScrape);
+            _dbid = UUID::gen();
+            auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
             Timestamp noTimestamp;  // This write is not replicated
             // TODO: fassert can kill server?
             fassert(29127,
@@ -169,25 +234,25 @@ struct TelemetryParameters {
             // copy scheduled time from BSONObj to nextScrape
             auto obj = prev.getValue();
             // TODO: handle error (missign field)
-            dbid = UUID::fromCDR(obj[kId].uuid());
-            nextScrape = obj[kScheduledAt].Date();
+            _dbid = UUID::fromCDR(obj[kId].uuid());
+            _nextScrape = obj[kScheduledAt].Date();
         } else {
             fassertFailedWithStatus(29126, prev.getStatus());
         }
         // initialize prefix
-        prefix = BSON(kDbInstanceId << uuid.toString() << kPillarVersion
-                                    << VersionInfoInterface::instance().makeVersionString(
-                                           "Percona Server for MongoDB"));
+        _prefix = BSON(kDbInstanceId << _uuid.toString() << kPillarVersion
+                                     << VersionInfoInterface::instance().makeVersionString(
+                                            "Percona Server for MongoDB"));
     }
 
     // advance nextScrape and store it into kTelemetryNamespace
-    void advance(ServiceContext* serviceContext) {
-        nextScrape = Date_t::now() + Seconds(perconaTelemetryScrapeInterval);
+    void _advance(ServiceContext* serviceContext) {
+        _nextScrape = Date_t::now() + Seconds(perconaTelemetryScrapeInterval);
         auto opCtxObj = cc().makeOperationContext();
         auto* opCtx = opCtxObj.get();
         auto* storageInterface = repl::StorageInterface::get(serviceContext);
         const NamespaceString nss{kTelemetryNamespace};
-        auto doc = BSON(kId << dbid << kScheduledAt << nextScrape);
+        auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
         Timestamp noTimestamp;  // This write is not replicated
         // TODO: fassert can kill server?
         fassert(
@@ -196,9 +261,9 @@ struct TelemetryParameters {
     }
 
     // write metrics file
-    void writeMetrics(ServiceContext* serviceContext) {
+    void _writeMetrics(ServiceContext* serviceContext) {
         const auto ts = Date_t::now().toMillisSinceEpoch() / 1000;
-        const auto instancePath = sdPath(kTelemetryPath) / uuid.toString();
+        const auto instancePath = sdPath(kTelemetryPath) / _uuid.toString();
         // TODO: only create instance dir?
         boost::filesystem::create_directories(instancePath);
 
@@ -231,7 +296,7 @@ struct TelemetryParameters {
         // dump new metrics file
         const auto tmpName = instancePath / fmt::format("{}.tmp", ts);
         LOGV2_DEBUG(29129, 1, "writing metrics file {path}", "path"_attr = tmpName.string());
-        BSONObjBuilder builder(prefix);
+        BSONObjBuilder builder(_prefix);
 
         builder.append(kStorageEngine, storageGlobalParams.engine);
         builder.append(
@@ -252,98 +317,24 @@ struct TelemetryParameters {
         boost::filesystem::rename(tmpName, instancePath / fmt::format("{}.json", ts));
     }
 
-    // instance id stored in kTelemetryFileName
-    UUID uuid = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
-
-    // nextScarpe is set to "now + grace" in the constructor
-    // but it is overwritten if we read scheduled time from kTelemetryNamespace
-    Date_t nextScrape;
-
-private:
-    // database id stored as kTelemetryNamespace._id
-    UUID dbid = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
-    // constant prefix for each metrics file
-    BSONObj prefix;
-};
-
-// initialized and accessed from telemetry thread only
-// thus no need for synchronization
-std::unique_ptr<TelemetryParameters> params;
-
-class TelemetryThread;
-
-const auto getTelemetryThread =
-    ServiceContext::declareDecoration<std::unique_ptr<TelemetryThread>>();
-
-class TelemetryThread final : public BackgroundJob {
-public:
-    explicit TelemetryThread() : BackgroundJob(false /* selfDelete */) {}
-
-    static TelemetryThread* get(ServiceContext* serviceCtx) {
-        return getTelemetryThread(serviceCtx).get();
-    }
-
-    static void set(ServiceContext* serviceCtx,
-                    std::unique_ptr<TelemetryThread> newTelemetryThread) {
-        auto& telemetryThread = getTelemetryThread(serviceCtx);
-        if (telemetryThread) {
-            invariant(
-                !telemetryThread->running(),
-                "Tried to reset the TelemetryThread without shutting down the previous instance.");
-        }
-
-        invariant(newTelemetryThread);
-        telemetryThread = std::move(newTelemetryThread);
-    }
-
-    std::string name() const final {
-        return "PerconaTelemetry";
-    }
-
-    void run() final {
-        const ThreadClient tc(name(), getGlobalServiceContext());
-        LOGV2_DEBUG(29121, 1, "starting {name} thread", "name"_attr = name());
-
-        if (!params) {
-            params = std::make_unique<TelemetryParameters>(tc->getServiceContext());
-        }
-
-        while (!_shuttingDown.load()) {
-            if (Date_t::now() >= params->nextScrape) {
-                auto* serviceCtx = tc->getServiceContext();
-                // create metrics file
-                params->writeMetrics(serviceCtx);
-                // update nextScrape
-                params->advance(serviceCtx);
-            }
-
-            {
-                stdx::unique_lock<Latch> lock(_mutex);
-                MONGO_IDLE_THREAD_BLOCK;
-                _condvar.wait_until(lock, params->nextScrape.toSystemTimePoint());
-            }
-        }
-        LOGV2_DEBUG(29122, 1, "stopping {name} thread", "name"_attr = name());
-    }
-
-    void shutdown() {
-        _shuttingDown.store(true);
-        {
-            stdx::unique_lock<Latch> lock(_mutex);
-            // Wake up the telemetry thread early, we do not want the shutdown
-            // to wait for us too long.
-            _condvar.notify_one();
-        }
-        wait();
-    }
-
-private:
     AtomicWord<bool> _shuttingDown{false};
 
     Mutex _mutex = MONGO_MAKE_LATCH("TelemetryThread::_mutex");  // protects _condvar
     // The telemetry thread idles on this condition variable for a particular time duration
     // between creating metrics files. It can be triggered early to expediate shutdown.
     stdx::condition_variable _condvar;
+
+    // instance id stored in kTelemetryFileName
+    UUID _uuid = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
+
+    // nextScarpe is set to "now + grace" in the constructor
+    // but it is overwritten if we read scheduled time from kTelemetryNamespace
+    Date_t _nextScrape;
+
+    // database id stored as kTelemetryNamespace._id
+    UUID _dbid = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
+    // constant prefix for each metrics file
+    BSONObj _prefix;
 };
 
 // start telemetry thread if it is not running
