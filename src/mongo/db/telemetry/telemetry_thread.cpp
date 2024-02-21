@@ -92,6 +92,7 @@ constexpr StringData kDbInstanceId = "dbInstanceId"_sd;
 constexpr StringData kPillarVersion = "pillar_version"_sd;
 constexpr StringData kStorageEngine = "storageEngine"_sd;
 constexpr StringData kReplicationEnabled = "replicationEnabled"_sd;
+constexpr StringData kReplicaSetId = "replicaSetId"_sd;
 
 
 // We need this flag to filter out updates from server parameter which can arrive before global
@@ -299,10 +300,13 @@ private:
         BSONObjBuilder builder(_prefix);
 
         builder.append(kStorageEngine, storageGlobalParams.engine);
-        builder.append(
-            kReplicationEnabled,
-            boolName(repl::ReplicationCoordinator::get(serviceContext)->getReplicationMode() ==
-                     repl::ReplicationCoordinator::modeReplSet));
+        {
+            auto* rs = repl::ReplicationCoordinator::get(serviceContext);
+            builder.append(
+                kReplicationEnabled,
+                boolName(rs->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet));
+            builder.append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
+        }
         // TODO: append more metrics
         auto obj = builder.done();  // obj becomes invalid when builder goes out of scope
         std::ofstream ofs(tmpName);
