@@ -49,10 +49,12 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/client.h"
+#include "mongo/db/cluster_role.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/storage_interface.h"
+#include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/storage_options.h"
@@ -86,6 +88,9 @@ constexpr StringData kScheduledAt = "scheduledAt"_sd;
 
 constexpr StringData kFalse = "false"_sd;
 constexpr StringData kTrue = "true"_sd;
+constexpr StringData kShardSvr = "shardsvr"_sd;
+constexpr StringData kConfigSvr = "configsvr"_sd;
+constexpr StringData kNoneSvr = "none"_sd;
 
 // names of the fields in the metric file
 constexpr StringData kDbInstanceId = "dbInstanceId"_sd;
@@ -94,6 +99,7 @@ constexpr StringData kStorageEngine = "storageEngine"_sd;
 constexpr StringData kReplicationEnabled = "replicationEnabled"_sd;
 constexpr StringData kReplicaSetId = "replicaSetId"_sd;
 constexpr StringData kReplMemberState = "replMemberState"_sd;
+constexpr StringData kClusterRole = "clusterRole"_sd;
 
 
 // We need this flag to filter out updates from server parameter which can arrive before global
@@ -111,6 +117,15 @@ auto sdPath(StringData sd) {
 // auxiliary function
 constexpr StringData boolName(bool v) {
     return v ? kTrue : kFalse;
+}
+
+// auxiliary function
+StringData clusterRoleName(mongo::ClusterRole v) {
+    if (v.has(ClusterRole::ConfigServer))
+        return kConfigSvr;
+    if (v.has(ClusterRole::ShardServer))
+        return kShardSvr;
+    return kNoneSvr;
 }
 
 class TelemetryThread;
@@ -309,6 +324,7 @@ private:
             builder.append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
             builder.append(kReplMemberState, rs->getMemberState().toString());
         }
+        builder.append(kClusterRole, clusterRoleName(serverGlobalParams.clusterRole));
         // TODO: append more metrics
         auto obj = builder.done();  // obj becomes invalid when builder goes out of scope
         std::ofstream ofs(tmpName);
