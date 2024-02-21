@@ -93,6 +93,7 @@ constexpr StringData kPillarVersion = "pillar_version"_sd;
 constexpr StringData kStorageEngine = "storageEngine"_sd;
 constexpr StringData kReplicationEnabled = "replicationEnabled"_sd;
 constexpr StringData kReplicaSetId = "replicaSetId"_sd;
+constexpr StringData kReplMemberState = "replMemberState"_sd;
 
 
 // We need this flag to filter out updates from server parameter which can arrive before global
@@ -306,6 +307,7 @@ private:
                 kReplicationEnabled,
                 boolName(rs->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet));
             builder.append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
+            builder.append(kReplMemberState, rs->getMemberState().toString());
         }
         // TODO: append more metrics
         auto obj = builder.done();  // obj becomes invalid when builder goes out of scope
