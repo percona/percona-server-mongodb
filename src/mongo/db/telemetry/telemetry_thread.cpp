@@ -48,6 +48,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/bson/oid.h"
 #include "mongo/db/client.h"
 #include "mongo/db/cluster_role.h"
 #include "mongo/db/namespace_string.h"
@@ -55,6 +56,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/storage_interface.h"
+#include "mongo/db/s/config/sharding_catalog_manager.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
@@ -63,6 +65,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/mutex.h"
+#include "mongo/s/cluster_identity_loader.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
@@ -100,6 +103,7 @@ constexpr StringData kStorageEngine = "storageEngine"_sd;
 constexpr StringData kReplicationEnabled = "replicationEnabled"_sd;
 constexpr StringData kReplicaSetId = "replicaSetId"_sd;
 constexpr StringData kReplMemberState = "replMemberState"_sd;
+constexpr StringData kClusterId = "clusterId"_sd;
 constexpr StringData kClusterRole = "clusterRole"_sd;
 
 
@@ -258,10 +262,27 @@ private:
         } else {
             fassertFailedWithStatus(29126, prev.getStatus());
         }
+
+        // load cluster id
+        OID clusterId;
+        // if (!serverGlobalParams.clusterRole.has(ClusterRole::None)) {
+        if (serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)) {
+            auto* cil = ClusterIdentityLoader::get(opCtx);
+            auto status =
+                cil->loadClusterId(opCtx,
+                                   ShardingCatalogManager::get(opCtx)->localCatalogClient(),
+                                   repl::ReadConcernLevel::kLocalReadConcern);
+
+            if (status.isOK()) {
+                clusterId = cil->getClusterId();
+            }
+        }
+
         // initialize prefix
         _prefix = BSON(kDbInstanceId << _uuid.toString() << kPillarVersion
                                      << VersionInfoInterface::instance().makeVersionString(
-                                            "Percona Server for MongoDB"));
+                                            "Percona Server for MongoDB")
+                                     << kClusterId << clusterId.toString());
     }
 
     // advance nextScrape and store it into kTelemetryNamespace
