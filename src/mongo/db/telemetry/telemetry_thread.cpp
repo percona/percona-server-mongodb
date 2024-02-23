@@ -56,7 +56,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/storage_interface.h"
-#include "mongo/db/s/config/sharding_catalog_manager.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
@@ -65,7 +64,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/mutex.h"
-#include "mongo/s/cluster_identity_loader.h"
+#include "mongo/s/catalog/type_config_version.h"
+#include "mongo/s/grid.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
@@ -265,16 +265,14 @@ private:
 
         // load cluster id
         OID clusterId;
-        // if (!serverGlobalParams.clusterRole.has(ClusterRole::None)) {
-        if (serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)) {
-            auto* cil = ClusterIdentityLoader::get(opCtx);
-            auto status =
-                cil->loadClusterId(opCtx,
-                                   ShardingCatalogManager::get(opCtx)->localCatalogClient(),
-                                   repl::ReadConcernLevel::kLocalReadConcern);
-
-            if (status.isOK()) {
-                clusterId = cil->getClusterId();
+        if (auto* grid = Grid::get(serviceContext)) {
+            if (grid->isShardingInitialized()) {
+                auto* catalogClient = grid->catalogClient();
+                auto cfgVersion = catalogClient->getConfigVersion(
+                    opCtx, repl::ReadConcernLevel::kMajorityReadConcern);
+                if (cfgVersion.isOK()) {
+                    clusterId = cfgVersion.getValue().getClusterId();
+                }
             }
         }
 
@@ -338,6 +336,15 @@ private:
         const auto tmpName = instancePath / fmt::format("{}.tmp", ts);
         LOGV2_DEBUG(29129, 1, "writing metrics file {path}", "path"_attr = tmpName.string());
         BSONObjBuilder builder(_prefix);
+
+        // TODO: the next part is for debugging sharding/clusterId (remove after debug)
+        if constexpr (false) {
+            StringData v{"no grid"};
+            if (auto* grid = Grid::get(serviceContext)) {
+                v = boolName(grid->isShardingInitialized());
+            }
+            builder.append("isShardingInitialized", v);
+        }
 
         builder.append(kStorageEngine, storageGlobalParams.engine);
         {
