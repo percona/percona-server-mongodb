@@ -48,6 +48,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/bson/bsontypes.h"
 #include "mongo/bson/oid.h"
 #include "mongo/db/client.h"
 #include "mongo/db/cluster_role.h"
@@ -244,7 +245,7 @@ private:
         }
         auto prev = storageInterface->findSingleton(opCtx, nss);
         if (prev.getStatus() == ErrorCodes::CollectionIsEmpty) {
-            _dbid = UUID::gen();
+            _dbid.init();
             auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
             Timestamp noTimestamp;  // This write is not replicated
             // TODO: fassert can kill server?
@@ -256,8 +257,11 @@ private:
         } else if (prev.isOK()) {
             // copy scheduled time from BSONObj to nextScrape
             auto obj = prev.getValue();
-            // TODO: handle error (missign field)
-            _dbid = UUID::fromCDR(obj[kId].uuid());
+            auto id = obj[kId];
+            if (id.type() != BSONType::jstOID) {
+                // TODO: report error, stop telemetry thread
+            }
+            _dbid = id.OID();
             _nextScrape = obj[kScheduledAt].Date();
         } else {
             fassertFailedWithStatus(29126, prev.getStatus());
@@ -385,7 +389,7 @@ private:
     Date_t _nextScrape;
 
     // database id stored as kTelemetryNamespace._id
-    UUID _dbid = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
+    OID _dbid;
     // constant prefix for each metrics file
     BSONObj _prefix;
 };
