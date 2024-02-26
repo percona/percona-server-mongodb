@@ -281,6 +281,7 @@ private:
         }
 
         // initialize prefix
+        // TODO: _uuid or _dbid ?
         _prefix = BSON(kDbInstanceId << _uuid.toString() << kPillarVersion
                                      << VersionInfoInterface::instance().makeVersionString(
                                             "Percona Server for MongoDB")
@@ -306,12 +307,12 @@ private:
     // write metrics file
     void _writeMetrics(ServiceContext* serviceContext) {
         const auto ts = Date_t::now().toMillisSinceEpoch() / 1000;
-        const auto instancePath = sdPath(kTelemetryPath) / _uuid.toString();
-        // TODO: only create instance dir?
-        boost::filesystem::create_directories(instancePath);
+        const auto telePath = sdPath(kTelemetryPath);
+        // We do not create any directories
+        // TODO: but we need to check if telemetry dir exists
 
         // clear outdated files
-        for (auto const& dirEntry : boost::filesystem::directory_iterator{instancePath}) {
+        for (auto const& dirEntry : boost::filesystem::directory_iterator{telePath}) {
             if (boost::filesystem::is_regular_file(dirEntry.status())) {
                 auto s = dirEntry.path().filename().string();
                 try {
@@ -337,7 +338,7 @@ private:
         }
 
         // dump new metrics file
-        const auto tmpName = instancePath / fmt::format("{}.tmp", ts);
+        const auto tmpName = telePath / fmt::format("{}.tmp", ts);
         LOGV2_DEBUG(29129, 1, "writing metrics file {path}", "path"_attr = tmpName.string());
         BSONObjBuilder builder(_prefix);
 
@@ -371,7 +372,7 @@ private:
         //    boost::filesystem::owner_read | boost::filesystem::owner_write |
         //        boost::filesystem::group_read | boost::filesystem::group_write |
         //        boost::filesystem::others_read | boost::filesystem::others_write);
-        boost::filesystem::rename(tmpName, instancePath / fmt::format("{}.json", ts));
+        boost::filesystem::rename(tmpName, telePath / fmt::format("{}.json", ts));
     }
 
     AtomicWord<bool> _shuttingDown{false};
