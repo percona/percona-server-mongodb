@@ -98,14 +98,14 @@ constexpr StringData kConfigSvr = "configsvr"_sd;
 constexpr StringData kNoneSvr = "none"_sd;
 
 // names of the fields in the metric file
-constexpr StringData kDbInstanceId = "dbInstanceId"_sd;
+constexpr StringData kDbInstanceId = "db_instance_id"_sd;
 constexpr StringData kPillarVersion = "pillar_version"_sd;
-constexpr StringData kStorageEngine = "storageEngine"_sd;
-constexpr StringData kReplicationEnabled = "replicationEnabled"_sd;
-constexpr StringData kReplicaSetId = "replicaSetId"_sd;
-constexpr StringData kReplMemberState = "replMemberState"_sd;
-constexpr StringData kClusterId = "clusterId"_sd;
-constexpr StringData kClusterRole = "clusterRole"_sd;
+constexpr StringData kStorageEngine = "storage_engine"_sd;
+constexpr StringData kReplicationEnabled = "replication_enabled"_sd;
+constexpr StringData kReplicaSetId = "db_replication_id"_sd;
+constexpr StringData kReplMemberState = "replication_state"_sd;
+constexpr StringData kClusterId = "db_cluster_id"_sd;
+constexpr StringData kClusterRole = "cluster_role"_sd;
 
 
 // We need this flag to filter out updates from server parameter which can arrive before global
