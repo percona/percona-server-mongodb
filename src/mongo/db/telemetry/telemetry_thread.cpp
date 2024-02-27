@@ -99,6 +99,7 @@ constexpr StringData kNoneSvr = "none"_sd;
 
 // names of the fields in the metric file
 constexpr StringData kDbInstanceId = "db_instance_id"_sd;
+constexpr StringData kDbInternalId = "db_internal_id"_sd;
 constexpr StringData kPillarVersion = "pillar_version"_sd;
 constexpr StringData kStorageEngine = "storage_engine"_sd;
 constexpr StringData kReplicationEnabled = "replication_enabled"_sd;
@@ -291,11 +292,18 @@ private:
         }
 
         // initialize prefix
-        // TODO: _uuid or _dbid ?
-        _prefix = BSON(kDbInstanceId << _uuid.toString() << kPillarVersion
-                                     << VersionInfoInterface::instance().makeVersionString(
-                                            "Percona Server for MongoDB")
-                                     << kClusterId << clusterId.toString());
+        {
+            BSONObjBuilder bson;
+            bson.append(kDbInstanceId, _uuid.toString());
+            bson.append(kDbInternalId, _dbid.toString());
+            bson.append(
+                kPillarVersion,
+                VersionInfoInterface::instance().makeVersionString("Percona Server for MongoDB"));
+            if (clusterId.isSet()) {
+                bson.append(kClusterId, clusterId.toString());
+            }
+            _prefix = bson.obj();
+        }
     }
 
     // advance nextScrape and store it into kTelemetryNamespace
