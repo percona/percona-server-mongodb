@@ -204,7 +204,7 @@ public:
 
 private:
     void _initParameters(ServiceContext* serviceContext) {
-        // TODO: refactor all this out of constructor into dedicated functions returning Status
+        // TODO: refactor all this into dedicated functions returning Status
         // load/create instance id
         auto fileName =
             boost::filesystem::path(storageGlobalParams.dbpath) / sdPath(kTelemetryFileName);
@@ -230,6 +230,16 @@ private:
             dataFile.write(obj.objdata(), obj.objsize());
         }
         LOGV2_DEBUG(29123, 1, "Initialized telemetry instance UUID: {uuid}", "uuid"_attr = _uuid);
+
+        // init unique metric file suffix
+        // must go after _uuid initialization
+        if (_metricFileSuffix.empty()) {
+            _metricFileSuffix = _uuid.toString();
+            // TODO: for mongos we should use somethign like this:
+            //     _metricFileSuffix = UUID::gen().toString();
+            // but that will be in the specialized version of _initParameters for mongos
+        }
+
         // load/create db id
         // see StorageInterfaceImpl::initializeRollbackID
         // see ReplicationConsistencyMarkersImpl::setInitialSyncIdIfNotSet
@@ -338,7 +348,7 @@ private:
         }
 
         // dump new metrics file
-        const auto tmpName = telePath / fmt::format("{}.tmp", ts);
+        const auto tmpName = telePath / fmt::format("{}-{}.tmp", ts, _metricFileSuffix);
         LOGV2_DEBUG(29129, 1, "writing metrics file {path}", "path"_attr = tmpName.string());
         BSONObjBuilder builder(_prefix);
 
@@ -372,8 +382,13 @@ private:
         //    boost::filesystem::owner_read | boost::filesystem::owner_write |
         //        boost::filesystem::group_read | boost::filesystem::group_write |
         //        boost::filesystem::others_read | boost::filesystem::others_write);
-        boost::filesystem::rename(tmpName, telePath / fmt::format("{}.json", ts));
+        boost::filesystem::rename(tmpName,
+                                  telePath / fmt::format("{}-{}.json", ts, _metricFileSuffix));
     }
+
+    // Used as suffix in metric file names.
+    // Accessed only from the telemetry thread so synchronization is not necessary
+    static std::string _metricFileSuffix;
 
     AtomicWord<bool> _shuttingDown{false};
 
@@ -394,6 +409,8 @@ private:
     // constant prefix for each metrics file
     BSONObj _prefix;
 };
+
+std::string TelemetryThread::_metricFileSuffix;
 
 // start telemetry thread if it is not running
 void startTelemetryThread_inlock(ServiceContext* serviceContext) {
