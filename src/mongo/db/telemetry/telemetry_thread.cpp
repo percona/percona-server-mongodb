@@ -101,6 +101,7 @@ constexpr StringData kNoneSvr = "none"_sd;
 constexpr StringData kDbInstanceId = "db_instance_id"_sd;
 constexpr StringData kDbInternalId = "db_internal_id"_sd;
 constexpr StringData kPillarVersion = "pillar_version"_sd;
+constexpr StringData kProFeatures = "pro_features"_sd;
 constexpr StringData kStorageEngine = "storage_engine"_sd;
 constexpr StringData kReplicaSetId = "db_replication_id"_sd;
 constexpr StringData kReplMemberState = "replication_state"_sd;
@@ -296,9 +297,9 @@ private:
             BSONObjBuilder bson;
             bson.append(kDbInstanceId, _uuid.toString());
             bson.append(kDbInternalId, _dbid.toString());
-            bson.append(
-                kPillarVersion,
-                VersionInfoInterface::instance().makeVersionString("Percona Server for MongoDB"));
+            const auto& vii = VersionInfoInterface::instance();
+            bson.append(kPillarVersion, vii.version());
+            bson.append(kProFeatures, vii.psmdbProFeatures());
             if (clusterId.isSet()) {
                 bson.append(kClusterId, clusterId.toString());
                 bson.append(kClusterRole, clusterRoleName(serverGlobalParams.clusterRole));
