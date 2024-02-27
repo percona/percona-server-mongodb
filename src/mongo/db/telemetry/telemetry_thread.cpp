@@ -322,13 +322,14 @@ private:
         // TODO: but we need to check if telemetry dir exists
 
         // clear outdated files
+        auto suffix = fmt::format("-{}.json", _metricFileSuffix);
         for (auto const& dirEntry : boost::filesystem::directory_iterator{telePath}) {
             if (boost::filesystem::is_regular_file(dirEntry.status())) {
                 auto s = dirEntry.path().filename().string();
                 try {
                     std::size_t pos = 0;
                     if (std::stoll(s, &pos) < ts - perconaTelemetryHistoryKeepInterval &&
-                        s.substr(pos) == ".json") {
+                        s.substr(pos) == suffix) {
                         boost::filesystem::remove(dirEntry.path());
                     }
                 } catch (std::invalid_argument const&) {
