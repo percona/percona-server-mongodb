@@ -102,7 +102,6 @@ constexpr StringData kDbInstanceId = "db_instance_id"_sd;
 constexpr StringData kDbInternalId = "db_internal_id"_sd;
 constexpr StringData kPillarVersion = "pillar_version"_sd;
 constexpr StringData kStorageEngine = "storage_engine"_sd;
-constexpr StringData kReplicationEnabled = "replication_enabled"_sd;
 constexpr StringData kReplicaSetId = "db_replication_id"_sd;
 constexpr StringData kReplMemberState = "replication_state"_sd;
 constexpr StringData kClusterId = "db_cluster_id"_sd;
@@ -374,11 +373,8 @@ private:
 
         builder.append(kUptime, std::to_string(time(nullptr) - serverGlobalParams.started));
         builder.append(kStorageEngine, storageGlobalParams.engine);
-        {
-            auto* rs = repl::ReplicationCoordinator::get(serviceContext);
-            builder.append(
-                kReplicationEnabled,
-                boolName(rs->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet));
+        if (auto* rs = repl::ReplicationCoordinator::get(serviceContext);
+            rs->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet) {
             builder.append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
             builder.append(kReplMemberState, rs->getMemberState().toString());
         }
