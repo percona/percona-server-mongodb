@@ -107,6 +107,7 @@ constexpr StringData kReplicaSetId = "db_replication_id"_sd;
 constexpr StringData kReplMemberState = "replication_state"_sd;
 constexpr StringData kClusterId = "db_cluster_id"_sd;
 constexpr StringData kClusterRole = "cluster_role"_sd;
+constexpr StringData kUptime = "uptime"_sd;
 
 
 // We need this flag to filter out updates from server parameter which can arrive before global
@@ -301,6 +302,7 @@ private:
                 VersionInfoInterface::instance().makeVersionString("Percona Server for MongoDB"));
             if (clusterId.isSet()) {
                 bson.append(kClusterId, clusterId.toString());
+                bson.append(kClusterRole, clusterRoleName(serverGlobalParams.clusterRole));
             }
             _prefix = bson.obj();
         }
@@ -370,6 +372,7 @@ private:
             builder.append("isShardingInitialized", v);
         }
 
+        builder.append(kUptime, std::to_string(time(nullptr) - serverGlobalParams.started));
         builder.append(kStorageEngine, storageGlobalParams.engine);
         {
             auto* rs = repl::ReplicationCoordinator::get(serviceContext);
@@ -379,7 +382,6 @@ private:
             builder.append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
             builder.append(kReplMemberState, rs->getMemberState().toString());
         }
-        builder.append(kClusterRole, clusterRoleName(serverGlobalParams.clusterRole));
         // TODO: append more metrics
         auto obj = builder.done();  // obj becomes invalid when builder goes out of scope
         std::ofstream ofs(tmpName);
