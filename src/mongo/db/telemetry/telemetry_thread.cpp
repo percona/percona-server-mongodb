@@ -173,16 +173,37 @@ public:
         const ThreadClient tc(name(), getGlobalServiceContext());
         LOGV2_DEBUG(29121, 1, "starting {name} thread", "name"_attr = name());
 
-        // TODO: handle errors
-        _initParameters(tc->getServiceContext());
+        if (auto status = _initParameters(tc->getServiceContext()); !status.isOK()) {
+            LOGV2_ERROR(29133,
+                        "Telemetry thread failed to initialize. Telemetry will be stopped",
+                        "status"_attr = status);
+            _shuttingDown.store(true);
+        }
 
         while (!_shuttingDown.load()) {
             if (Date_t::now() >= _nextScrape) {
+                // cleanup telemetry dir
+                if (auto status = _cleanupTelemetryDir(); !status.isOK()) {
+                    LOGV2_WARNING(29132,
+                                  "Telemetry thread failed to cleanup telemetry directory ",
+                                  "status"_attr = status);
+                }
                 auto* serviceCtx = tc->getServiceContext();
                 // create metrics file
-                _writeMetrics(serviceCtx);
+                if (auto status = _writeMetrics(serviceCtx); !status.isOK()) {
+                    LOGV2_WARNING(29131,
+                                  "Telemetry thread failed to write metric file",
+                                  "status"_attr = status);
+                }
                 // update nextScrape
-                _advance(serviceCtx);
+                if (auto status = _advance(serviceCtx); !status.isOK()) {
+                    LOGV2_ERROR(29128,
+                                "Telemetry thread failed to schedule the next telemetry scrape and "
+                                "will be stopped",
+                                "status"_attr = status);
+                    _shuttingDown.store(true);
+                    continue;
+                }
             }
 
             {
@@ -206,7 +227,7 @@ public:
     }
 
 private:
-    void _initParameters(ServiceContext* serviceContext) {
+    Status _initParameters(ServiceContext* serviceContext) {
         // TODO: refactor all this into dedicated functions returning Status
         // load/create instance id
         auto fileName =
@@ -308,10 +329,12 @@ private:
             }
             _prefix = bson.obj();
         }
+
+        return Status::OK();
     }
 
     // advance nextScrape and store it into kTelemetryNamespace
-    void _advance(ServiceContext* serviceContext) {
+    Status _advance(ServiceContext* serviceContext) {
         _nextScrape = Date_t::now() + Seconds(perconaTelemetryScrapeInterval);
         auto opCtxObj = cc().makeOperationContext();
         auto* opCtx = opCtxObj.get();
@@ -320,18 +343,21 @@ private:
         const NamespaceString nss{kTelemetryNamespace};
         auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
         Timestamp noTimestamp;  // This write is not replicated
-        // TODO: fassert can kill server?
-        fassert(
-            29128,
-            storageInterface->putSingleton(opCtx, nss, repl::TimestampedBSONObj{doc, noTimestamp}));
+        return storageInterface->putSingleton(
+            opCtx, nss, repl::TimestampedBSONObj{doc, noTimestamp});
     }
 
-    // write metrics file
-    void _writeMetrics(ServiceContext* serviceContext) {
+    // cleanup telemetry directory
+    Status _cleanupTelemetryDir() {
         const auto ts = Date_t::now().toMillisSinceEpoch() / 1000;
         const auto telePath = sdPath(kTelemetryPath);
         // We do not create any directories
-        // TODO: but we need to check if telemetry dir exists
+        if (auto status = boost::filesystem::status(telePath);
+            !boost::filesystem::exists(status) || !boost::filesystem::is_directory(status)) {
+            return {ErrorCodes::NonExistentPath,
+                    fmt::format("telemetry directory doesn't exist or isn't a directory: {}",
+                                kTelemetryPath)};
+        }
 
         // clear outdated files
         auto suffix = fmt::format("-{}.json", _metricFileSuffix);
@@ -359,20 +385,19 @@ private:
                 }
             }
         }
+        return Status::OK();
+    }
+
+    // write metrics file
+    Status _writeMetrics(ServiceContext* serviceContext) {
+        const auto ts = Date_t::now().toMillisSinceEpoch() / 1000;
+        const auto telePath = sdPath(kTelemetryPath);
 
         // dump new metrics file
         const auto tmpName = telePath / fmt::format("{}-{}.tmp", ts, _metricFileSuffix);
         LOGV2_DEBUG(29129, 1, "writing metrics file {path}", "path"_attr = tmpName.string());
         BSONObjBuilder builder(_prefix);
 
-        // TODO: the next part is for debugging sharding/clusterId (remove after debug)
-        if constexpr (false) {
-            StringData v{"no grid"};
-            if (auto* grid = Grid::get(serviceContext)) {
-                v = boolName(grid->isShardingInitialized());
-            }
-            builder.append("isShardingInitialized", v);
-        }
 
         builder.append(kUptime, std::to_string(time(nullptr) - serverGlobalParams.started));
         builder.append(kStorageEngine, storageGlobalParams.engine);
@@ -381,7 +406,6 @@ private:
             builder.append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
             builder.append(kReplMemberState, rs->getMemberState().toString());
         }
-        // TODO: append more metrics
         auto obj = builder.done();  // obj becomes invalid when builder goes out of scope
         std::ofstream ofs(tmpName);
         ofs << obj.jsonString(ExtendedCanonicalV2_0_0, 1 /* pretty */) << "\n";
@@ -394,6 +418,7 @@ private:
         //        boost::filesystem::others_read | boost::filesystem::others_write);
         boost::filesystem::rename(tmpName,
                                   telePath / fmt::format("{}-{}.json", ts, _metricFileSuffix));
+        return Status::OK();
     }
 
     // Used as suffix in metric file names.
