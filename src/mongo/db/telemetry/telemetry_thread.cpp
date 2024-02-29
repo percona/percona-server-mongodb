@@ -31,7 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/telemetry/telemetry_thread.h"
 
-#include <array>
 #include <boost/filesystem.hpp>  // IWYU pragma: keep
 #include <cstddef>
 #include <fmt/format.h>  // IWYU pragma: keep
@@ -48,7 +47,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/bson/bsontypes.h"
 #include "mongo/bson/oid.h"
 #include "mongo/db/client.h"
 #include "mongo/db/cluster_role.h"
@@ -74,7 +72,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/concurrency/idle_thread_block.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/time_support.h"
-#include "mongo/util/uuid.h"
 #include "mongo/util/version.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
@@ -229,11 +226,17 @@ public:
 private:
     Status _initParameters(ServiceContext* serviceContext) {
         // TODO: refactor all this into dedicated functions returning Status
+
+        // on first start both instance Id and internal Id are initialized to the same value
+        // after some events like backup/restore, dbpath change or cleanup those two Ids may become
+        // not equal --> this is intended behavior
+        auto initialId = OID::gen();
+
         // load/create instance id
         auto fileName =
             boost::filesystem::path(storageGlobalParams.dbpath) / sdPath(kTelemetryFileName);
         if (boost::filesystem::exists(fileName)) {
-            // read instance uuid
+            // read instance id
             auto fileSize = boost::filesystem::file_size(fileName);
             std::vector<char> buffer(fileSize);
             std::ifstream dataFile(fileName, std::ios_base::in | std::ios_base::binary);
@@ -241,26 +244,38 @@ private:
 
             ConstDataRange cdr(buffer.data(), buffer.size());
             auto swObj = cdr.readNoThrow<Validated<BSONObj>>();
+            // TODO:
             // if (!swObj.isOK()) {
             //     return swObj.getStatus();
             // }
 
-            _uuid = UUID::parse(swObj.getValue());
-        } else {
-            // create file with new UUID
-            _uuid = UUID::gen();
-            auto obj = _uuid.toBSON();
-            std::ofstream dataFile(fileName, std::ios_base::out | std::ios_base::binary);
+            try {
+                _instid = static_cast<BSONObj>(swObj.getValue())[kDbInstanceId].OID();
+            } catch (const AssertionException& e) {
+                // TODO:
+                e.toStatus();
+            }
+        }
+        if (!_instid.isSet()) {
+            // create file with new OID
+            // probably overwriting existing file which we have failed to parse
+            _instid = initialId;
+            auto obj = BSON(kDbInstanceId << _instid);
+            std::ofstream dataFile(
+                fileName, std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
             dataFile.write(obj.objdata(), obj.objsize());
         }
-        LOGV2_DEBUG(29123, 1, "Initialized telemetry instance UUID: {uuid}", "uuid"_attr = _uuid);
+        LOGV2_DEBUG(29123,
+                    1,
+                    "Initialized telemetry instance id: {db_instance_id}",
+                    "db_instance_id"_attr = _instid.toString());
 
         // init unique metric file suffix
-        // must go after _uuid initialization
+        // must go after instance id initialization
         if (_metricFileSuffix.empty()) {
-            _metricFileSuffix = _uuid.toString();
+            _metricFileSuffix = _instid.toString();
             // TODO: for mongos we should use somethign like this:
-            //     _metricFileSuffix = UUID::gen().toString();
+            //     _metricFileSuffix = initialId.toString();
             // but that will be in the specialized version of _initParameters for mongos
         }
 
@@ -274,12 +289,13 @@ private:
         const NamespaceString nss{kTelemetryNamespace};
         auto status = storageInterface->createCollection(opCtx, nss, CollectionOptions());
         if (!status.isOK() && status.code() != ErrorCodes::NamespaceExists) {
+            // TODO: fatal can kill whole server
             LOGV2_FATAL(29124, "Failed to create collection", logAttrs(nss));
             fassertFailedWithStatus(29125, status);
         }
         auto prev = storageInterface->findSingleton(opCtx, nss);
         if (prev.getStatus() == ErrorCodes::CollectionIsEmpty) {
-            _dbid.init();
+            _dbid = initialId;
             auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
             Timestamp noTimestamp;  // This write is not replicated
             // TODO: fassert can kill server?
@@ -291,12 +307,13 @@ private:
         } else if (prev.isOK()) {
             // copy scheduled time from BSONObj to nextScrape
             auto obj = prev.getValue();
-            auto id = obj[kId];
-            if (id.type() != BSONType::jstOID) {
+            try {
+                _dbid = obj[kId].OID();
+                _nextScrape = obj[kScheduledAt].Date();
+            } catch (AssertionException& e) {
                 // TODO: report error, stop telemetry thread
+                e.toStatus();
             }
-            _dbid = id.OID();
-            _nextScrape = obj[kScheduledAt].Date();
         } else {
             fassertFailedWithStatus(29126, prev.getStatus());
         }
@@ -317,7 +334,7 @@ private:
         // initialize prefix
         {
             BSONObjBuilder bson;
-            bson.append(kDbInstanceId, _uuid.toString());
+            bson.append(kDbInstanceId, _instid.toString());
             bson.append(kDbInternalId, _dbid.toString());
             const auto& vii = VersionInfoInterface::instance();
             bson.append(kPillarVersion, vii.version());
@@ -433,7 +450,7 @@ private:
     stdx::condition_variable _condvar;
 
     // instance id stored in kTelemetryFileName
-    UUID _uuid = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
+    OID _instid;
 
     // nextScarpe is set to "now + grace" in the constructor
     // but it is overwritten if we read scheduled time from kTelemetryNamespace
