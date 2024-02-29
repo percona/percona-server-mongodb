@@ -378,13 +378,17 @@ private:
 
         // clear outdated files
         auto suffix = fmt::format("-{}.json", _metricFileSuffix);
+        const std::string jsonExt(".json");
+        constexpr int perconaTelemetryHistoryOrphan = 60 * 60 * 24 * 7;
         for (auto const& dirEntry : boost::filesystem::directory_iterator{telePath}) {
             if (boost::filesystem::is_regular_file(dirEntry.status())) {
                 auto s = dirEntry.path().filename().string();
                 try {
                     std::size_t pos = 0;
-                    if (std::stoll(s, &pos) < ts - perconaTelemetryHistoryKeepInterval &&
-                        s.substr(pos) == suffix) {
+                    const auto filets = std::stoll(s, &pos);
+                    if ((filets < ts - perconaTelemetryHistoryKeepInterval &&
+                         s.substr(pos) == suffix) ||
+                        (filets < ts - perconaTelemetryHistoryOrphan && s.ends_with(jsonExt))) {
                         boost::filesystem::remove(dirEntry.path());
                     }
                 } catch (std::invalid_argument const&) {
