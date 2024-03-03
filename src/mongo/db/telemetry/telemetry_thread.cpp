@@ -36,6 +36,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <fmt/format.h>  // IWYU pragma: keep
 #include <fstream>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -52,7 +53,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/cluster_role.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/server_options.h"
@@ -224,9 +224,7 @@ public:
     }
 
 private:
-    Status _initParameters(ServiceContext* serviceContext) {
-        // TODO: refactor all this into dedicated functions returning Status
-
+    Status _initParameters(ServiceContext* serviceContext) try {
         // on first start both instance Id and internal Id are initialized to the same value
         // after some events like backup/restore, dbpath change or cleanup those two Ids may become
         // not equal --> this is intended behavior
@@ -244,16 +242,22 @@ private:
 
             ConstDataRange cdr(buffer.data(), buffer.size());
             auto swObj = cdr.readNoThrow<Validated<BSONObj>>();
-            // TODO:
-            // if (!swObj.isOK()) {
-            //     return swObj.getStatus();
-            // }
-
-            try {
-                _instid = static_cast<BSONObj>(swObj.getValue())[kDbInstanceId].OID();
-            } catch (const AssertionException& e) {
-                // TODO:
-                e.toStatus();
+            if (!swObj.isOK()) {
+                LOGV2_DEBUG(29134,
+                            1,
+                            "Failed to load BSON from file. Will try to recreate the file",
+                            "file"_attr = fileName.string(),
+                            "status"_attr = swObj.getStatus());
+            } else {
+                try {
+                    _instid = static_cast<BSONObj>(swObj.getValue())[kDbInstanceId].OID();
+                } catch (const AssertionException& e) {
+                    LOGV2_DEBUG(29135,
+                                1,
+                                "BSON loaded from file does not contain instance id field. Will "
+                                "try to recreate the file with new instance id",
+                                "status"_attr = e.toStatus());
+                }
             }
         }
         if (!_instid.isSet()) {
@@ -289,33 +293,37 @@ private:
         const NamespaceString nss{kTelemetryNamespace};
         auto status = storageInterface->createCollection(opCtx, nss, CollectionOptions());
         if (!status.isOK() && status.code() != ErrorCodes::NamespaceExists) {
-            // TODO: fatal can kill whole server
-            LOGV2_FATAL(29124, "Failed to create collection", logAttrs(nss));
-            fassertFailedWithStatus(29125, status);
+            LOGV2_DEBUG(29124, 1, "Failed to create collection", logAttrs(nss));
+            return status;
         }
         auto prev = storageInterface->findSingleton(opCtx, nss);
-        if (prev.getStatus() == ErrorCodes::CollectionIsEmpty) {
-            _dbid = initialId;
-            auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
-            Timestamp noTimestamp;  // This write is not replicated
-            // TODO: fassert can kill server?
-            fassert(29127,
-                    storageInterface->insertDocument(opCtx,
-                                                     nss,
-                                                     repl::TimestampedBSONObj{doc, noTimestamp},
-                                                     repl::OpTime::kUninitializedTerm));
-        } else if (prev.isOK()) {
+        if (prev.isOK()) {
             // copy scheduled time from BSONObj to nextScrape
             auto obj = prev.getValue();
             try {
-                _dbid = obj[kId].OID();
                 _nextScrape = obj[kScheduledAt].Date();
+                _dbid = obj[kId].OID();
             } catch (AssertionException& e) {
-                // TODO: report error, stop telemetry thread
-                e.toStatus();
+                LOGV2_DEBUG(29125,
+                            1,
+                            "Failed to read internal db id or next telemetry scrape scheduled "
+                            "time. Will try to recreate the document",
+                            "status"_attr = e.toStatus());
             }
-        } else {
-            fassertFailedWithStatus(29126, prev.getStatus());
+        } else if (prev.getStatus() != ErrorCodes::CollectionIsEmpty) {
+            return prev.getStatus();
+        }
+
+        if (!_dbid.isSet()) {
+            _dbid = initialId;
+            auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
+            Timestamp noTimestamp;  // This write is not replicated
+            if (auto status = storageInterface->putSingleton(
+                    opCtx, nss, repl::TimestampedBSONObj{doc, noTimestamp});
+                !status.isOK()) {
+                LOGV2_DEBUG(29127, 1, "Failed to insert document into collection", logAttrs(nss));
+                return status;
+            }
         }
 
         // load cluster id
@@ -348,10 +356,12 @@ private:
         }
 
         return Status::OK();
+    } catch (...) {
+        return exceptionToStatus();
     }
 
     // advance nextScrape and store it into kTelemetryNamespace
-    Status _advance(ServiceContext* serviceContext) {
+    Status _advance(ServiceContext* serviceContext) try {
         _nextScrape = Date_t::now() + Seconds(perconaTelemetryScrapeInterval);
         auto opCtxObj = cc().makeOperationContext();
         auto* opCtx = opCtxObj.get();
@@ -362,10 +372,12 @@ private:
         Timestamp noTimestamp;  // This write is not replicated
         return storageInterface->putSingleton(
             opCtx, nss, repl::TimestampedBSONObj{doc, noTimestamp});
+    } catch (...) {
+        return exceptionToStatus();
     }
 
     // cleanup telemetry directory
-    Status _cleanupTelemetryDir() {
+    Status _cleanupTelemetryDir() try {
         const auto ts = Date_t::now().toMillisSinceEpoch() / 1000;
         const auto telePath = sdPath(kTelemetryPath);
         // We do not create any directories
@@ -407,10 +419,12 @@ private:
             }
         }
         return Status::OK();
+    } catch (...) {
+        return exceptionToStatus();
     }
 
     // write metrics file
-    Status _writeMetrics(ServiceContext* serviceContext) {
+    Status _writeMetrics(ServiceContext* serviceContext) try {
         const auto ts = Date_t::now().toMillisSinceEpoch() / 1000;
         const auto telePath = sdPath(kTelemetryPath);
 
@@ -440,6 +454,8 @@ private:
         boost::filesystem::rename(tmpName,
                                   telePath / fmt::format("{}-{}.json", ts, _metricFileSuffix));
         return Status::OK();
+    } catch (...) {
+        return exceptionToStatus();
     }
 
     // Used as suffix in metric file names.
