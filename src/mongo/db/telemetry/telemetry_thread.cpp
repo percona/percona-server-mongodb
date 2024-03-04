@@ -90,9 +90,6 @@ constexpr StringData kScheduledAt = "scheduledAt"_sd;
 
 constexpr StringData kFalse = "false"_sd;
 constexpr StringData kTrue = "true"_sd;
-constexpr StringData kShardSvr = "shardsvr"_sd;
-constexpr StringData kConfigSvr = "configsvr"_sd;
-constexpr StringData kNoneSvr = "none"_sd;
 
 // names of the fields in the metric file
 constexpr StringData kDbInstanceId = "db_instance_id"_sd;
@@ -103,7 +100,8 @@ constexpr StringData kStorageEngine = "storage_engine"_sd;
 constexpr StringData kReplicaSetId = "db_replication_id"_sd;
 constexpr StringData kReplMemberState = "replication_state"_sd;
 constexpr StringData kClusterId = "db_cluster_id"_sd;
-constexpr StringData kClusterRole = "cluster_role"_sd;
+constexpr StringData kShardSvr = "shard_svr"_sd;
+constexpr StringData kConfigSvr = "config_svr"_sd;
 constexpr StringData kUptime = "uptime"_sd;
 constexpr StringData kSource = "source"_sd;
 
@@ -123,15 +121,6 @@ boost::filesystem::path sdPath(StringData sd) {
 // auxiliary function
 constexpr StringData boolName(bool v) {
     return v ? kTrue : kFalse;
-}
-
-// auxiliary function
-StringData clusterRoleName(mongo::ClusterRole v) {
-    if (v.has(ClusterRole::ConfigServer))
-        return kConfigSvr;
-    if (v.has(ClusterRole::ShardServer))
-        return kShardSvr;
-    return kNoneSvr;
 }
 
 class TelemetryThread;
@@ -350,7 +339,11 @@ private:
             bson.append(kSource, "mongod"_sd);
             if (clusterId.isSet()) {
                 bson.append(kClusterId, clusterId.toString());
-                bson.append(kClusterRole, clusterRoleName(serverGlobalParams.clusterRole));
+                bson.append(kShardSvr,
+                            boolName(serverGlobalParams.clusterRole.has(ClusterRole::ShardServer)));
+                bson.append(
+                    kConfigSvr,
+                    boolName(serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)));
             }
             _prefix = bson.obj();
         }
