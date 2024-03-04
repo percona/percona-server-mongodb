@@ -116,8 +116,8 @@ bool updatesEnabled = false;
 Mutex mutex = MONGO_MAKE_LATCH("TelemetryThread::mutex");
 
 // auxiliary function
-auto sdPath(StringData sd) {
-    return boost::filesystem::path{sd.rawData(), sd.rawData() + sd.size()};
+boost::filesystem::path sdPath(StringData sd) {
+    return {sd.rawData(), sd.rawData() + sd.size()};  // NOLINT(*-pointer-arithmetic)
 }
 
 // auxiliary function
@@ -403,10 +403,10 @@ private:
                         (filets < ts - perconaTelemetryHistoryOrphan && s.ends_with(jsonExt))) {
                         boost::filesystem::remove(dirEntry.path());
                     }
-                } catch (std::invalid_argument const&) {
+                } catch (std::invalid_argument const&) {  // NOLINT(*-empty-catch)
                     // possible exception from std::stoll
                     // means file name does not match pattern
-                } catch (std::out_of_range const&) {
+                } catch (std::out_of_range const&) {  // NOLINT(*-empty-catch)
                     // possible exception from std::stoll
                     // means file name does not match pattern
                 } catch (const boost::filesystem::filesystem_error& e) {
