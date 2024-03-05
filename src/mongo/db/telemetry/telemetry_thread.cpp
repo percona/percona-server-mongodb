@@ -279,6 +279,9 @@ private:
         auto* opCtx = opCtxObj.get();
         repl::UnreplicatedWritesBlock uwb(opCtx);
         auto* storageInterface = repl::StorageInterface::get(serviceContext);
+        if (storageInterface == nullptr) {
+            return {ErrorCodes::InternalError, "Failed to access storage interface"};
+        }
         const NamespaceString nss{kTelemetryNamespace};
         auto status = storageInterface->createCollection(opCtx, nss, CollectionOptions());
         if (!status.isOK() && status.code() != ErrorCodes::NamespaceExists) {
