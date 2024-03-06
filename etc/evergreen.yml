@@ -5339,6 +5339,7 @@ tasks:
   - command: expansions.write
     params:
       file: src/expansions.yml
+      redacted: true
   - func: "sync repo with copybara"
 
 ## integration test suites ##
@@ -7254,6 +7255,16 @@ tasks:
       suite: ssl_special
       resmoke_args: --storageEngine=wiredTiger
       fallback_num_sub_suites: 1
+
+- name: ssl_linear_gen
+  tags: ["encrypt", "ssl"]
+  commands:
+  - func: "generate resmoke tasks"
+    vars:
+      suite: ssl_linear
+      resmoke_args: --storageEngine=wiredTiger
+      fallback_num_sub_suites: 1
+      resmoke_jobs_max: 1
 
 - <<: *task_template
   name: jsCore_decimal
