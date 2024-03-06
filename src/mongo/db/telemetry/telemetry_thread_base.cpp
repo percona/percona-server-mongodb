@@ -39,28 +39,16 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <vector>
 
-#include "mongo/base/data_range.h"
-#include "mongo/base/data_type_validated.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
-#include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/client.h"
-#include "mongo/db/cluster_role.h"
-#include "mongo/db/namespace_string.h"
-#include "mongo/db/operation_context.h"
-#include "mongo/db/repl/replication_coordinator.h"
-#include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/storage/storage_options.h"
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
 #include "mongo/logv2/log.h"
-#include "mongo/s/catalog/type_config_version.h"
-#include "mongo/s/grid.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/background.h"
@@ -77,28 +65,9 @@ namespace {
 
 constexpr StringData kParamName = "perconaTelemetry"_sd;
 constexpr StringData kTelemetryPath = "/usr/local/percona/telemetry/psmdb"_sd;
-constexpr StringData kTelemetryFileName = "psmdb_telemetry.data"_sd;
-constexpr StringData kTelemetryNamespace = "local.percona.telemetry"_sd;
-
-constexpr StringData kId = "_id"_sd;
-constexpr StringData kScheduledAt = "scheduledAt"_sd;
 
 constexpr StringData kFalse = "false"_sd;
 constexpr StringData kTrue = "true"_sd;
-
-// names of the fields in the metric file
-constexpr StringData kDbInstanceId = "db_instance_id"_sd;
-constexpr StringData kDbInternalId = "db_internal_id"_sd;
-constexpr StringData kPillarVersion = "pillar_version"_sd;
-constexpr StringData kProFeatures = "pro_features"_sd;
-constexpr StringData kStorageEngine = "storage_engine"_sd;
-constexpr StringData kReplicaSetId = "db_replication_id"_sd;
-constexpr StringData kReplMemberState = "replication_state"_sd;
-constexpr StringData kClusterId = "db_cluster_id"_sd;
-constexpr StringData kShardSvr = "shard_svr"_sd;
-constexpr StringData kConfigSvr = "config_svr"_sd;
-constexpr StringData kUptime = "uptime"_sd;
-constexpr StringData kSource = "source"_sd;
 
 
 // We need this flag to filter out updates from server parameter which can arrive before global
@@ -107,16 +76,6 @@ bool updatesEnabled = false;
 
 // mutex to serialize external API calls and access to updatesEnabled
 Mutex mutex = MONGO_MAKE_LATCH("TelemetryThread::mutex");
-
-// auxiliary function
-boost::filesystem::path sdPath(StringData sd) {
-    return {sd.rawData(), sd.rawData() + sd.size()};  // NOLINT(*-pointer-arithmetic)
-}
-
-// auxiliary function
-constexpr StringData boolName(bool v) {
-    return v ? kTrue : kFalse;
-}
 
 const auto getTelemetryThread =
     ServiceContext::declareDecoration<std::unique_ptr<TelemetryThreadBase>>();
@@ -144,8 +103,8 @@ void stopTelemetryThread_inlock(ServiceContext* serviceContext) {
 
 TelemetryThreadBase::TelemetryThreadBase()
     : BackgroundJob(false /* selfDelete */),
-      _mutex(MONGO_MAKE_LATCH("TelemetryThread::_mutex")),
-      _nextScrape(Date_t::now() + Seconds(perconaTelemetryGracePeriod)) {}
+      _nextScrape(Date_t::now() + Seconds(perconaTelemetryGracePeriod)),
+      _mutex(MONGO_MAKE_LATCH("TelemetryThread::_mutex")) {}
 
 TelemetryThreadBase* TelemetryThreadBase::get(ServiceContext* serviceCtx) {
     return getTelemetryThread(serviceCtx).get();
@@ -220,50 +179,33 @@ void TelemetryThreadBase::shutdown() {
     wait();
 }
 
+// auxiliary function
+boost::filesystem::path TelemetryThreadBase::sdPath(StringData sd) {
+    return {sd.rawData(), sd.rawData() + sd.size()};  // NOLINT(*-pointer-arithmetic)
+}
+
+// auxiliary function
+StringData TelemetryThreadBase::boolName(bool v) {
+    return v ? kTrue : kFalse;
+}
+
 Status TelemetryThreadBase::_initParameters(ServiceContext* serviceContext) try {
+    BSONObjBuilder pfx;
+    pfx.append(kSource, _sourceName());
+    {
+        const auto& vii = VersionInfoInterface::instance();
+        pfx.append(kPillarVersion, vii.version());
+        pfx.append(kProFeatures, vii.psmdbProFeatures());
+    }
+
     // on first start both instance Id and internal Id are initialized to the same value
     // after some events like backup/restore, dbpath change or cleanup those two Ids may become
     // not equal --> this is intended behavior
     auto initialId = OID::gen();
 
     // load/create instance id
-    auto fileName =
-        boost::filesystem::path(storageGlobalParams.dbpath) / sdPath(kTelemetryFileName);
-    if (boost::filesystem::exists(fileName)) {
-        // read instance id
-        auto fileSize = boost::filesystem::file_size(fileName);
-        std::vector<char> buffer(fileSize);
-        std::ifstream dataFile(fileName, std::ios_base::in | std::ios_base::binary);
-        dataFile.read(buffer.data(), buffer.size());
-
-        ConstDataRange cdr(buffer.data(), buffer.size());
-        auto swObj = cdr.readNoThrow<Validated<BSONObj>>();
-        if (!swObj.isOK()) {
-            LOGV2_DEBUG(29134,
-                        1,
-                        "Failed to load BSON from file. Will try to recreate the file",
-                        "file"_attr = fileName.string(),
-                        "status"_attr = swObj.getStatus());
-        } else {
-            try {
-                _instid = static_cast<BSONObj>(swObj.getValue())[kDbInstanceId].OID();
-            } catch (const AssertionException& e) {
-                LOGV2_DEBUG(29135,
-                            1,
-                            "BSON loaded from file does not contain instance id field. Will "
-                            "try to recreate the file with new instance id",
-                            "status"_attr = e.toStatus());
-            }
-        }
-    }
-    if (!_instid.isSet()) {
-        // create file with new OID
-        // probably overwriting existing file which we have failed to parse
-        _instid = initialId;
-        auto obj = BSON(kDbInstanceId << _instid);
-        std::ofstream dataFile(fileName,
-                               std::ios_base::out | std::ios_base::binary | std::ios_base::trunc);
-        dataFile.write(obj.objdata(), obj.objsize());
+    if (auto status = _initInstanceId(initialId, &pfx); !status.isOK()) {
+        return status;
     }
     LOGV2_DEBUG(29123,
                 1,
@@ -274,88 +216,23 @@ Status TelemetryThreadBase::_initParameters(ServiceContext* serviceContext) try 
     // must go after instance id initialization
     if (_metricFileSuffix.empty()) {
         _metricFileSuffix = _instid.toString();
-        // TODO: for mongos we should use somethign like this:
-        //     _metricFileSuffix = initialId.toString();
-        // but that will be in the specialized version of _initParameters for mongos
     }
 
-    // load/create db id
-    // see StorageInterfaceImpl::initializeRollbackID
-    // see ReplicationConsistencyMarkersImpl::setInitialSyncIdIfNotSet
+    // operation context is necessary for following operations
     auto opCtxObj = cc().makeOperationContext();
     auto* opCtx = opCtxObj.get();
-    repl::UnreplicatedWritesBlock uwb(opCtx);
-    auto* storageInterface = repl::StorageInterface::get(serviceContext);
-    if (storageInterface == nullptr) {
-        return {ErrorCodes::InternalError, "Failed to access storage interface"};
-    }
-    const NamespaceString nss{kTelemetryNamespace};
-    auto status = storageInterface->createCollection(opCtx, nss, CollectionOptions());
-    if (!status.isOK() && status.code() != ErrorCodes::NamespaceExists) {
-        LOGV2_DEBUG(29124, 1, "Failed to create collection", logAttrs(nss));
-        return status;
-    }
-    auto prev = storageInterface->findSingleton(opCtx, nss);
-    if (prev.isOK()) {
-        // copy scheduled time from BSONObj to nextScrape
-        auto obj = prev.getValue();
-        try {
-            _nextScrape = obj[kScheduledAt].Date();
-            _dbid = obj[kId].OID();
-        } catch (AssertionException& e) {
-            LOGV2_DEBUG(29125,
-                        1,
-                        "Failed to read internal db id or next telemetry scrape scheduled "
-                        "time. Will try to recreate the document",
-                        "status"_attr = e.toStatus());
-        }
-    } else if (prev.getStatus() != ErrorCodes::CollectionIsEmpty) {
-        return prev.getStatus();
-    }
 
-    if (!_dbid.isSet()) {
-        _dbid = initialId;
-        auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
-        Timestamp noTimestamp;  // This write is not replicated
-        if (auto status = storageInterface->putSingleton(
-                opCtx, nss, repl::TimestampedBSONObj{doc, noTimestamp});
-            !status.isOK()) {
-            LOGV2_DEBUG(29127, 1, "Failed to insert document into collection", logAttrs(nss));
-            return status;
-        }
+    // load/create db id
+    if (auto status = _initDbId(serviceContext, opCtx, initialId, &pfx); !status.isOK()) {
+        return status;
     }
 
     // load cluster id
-    OID clusterId;
-    if (auto* grid = Grid::get(serviceContext)) {
-        if (grid->isShardingInitialized()) {
-            auto* catalogClient = grid->catalogClient();
-            auto cfgVersion = catalogClient->getConfigVersion(
-                opCtx, repl::ReadConcernLevel::kMajorityReadConcern);
-            if (cfgVersion.isOK()) {
-                clusterId = cfgVersion.getValue().getClusterId();
-            }
-        }
+    if (auto status = _initClusterId(serviceContext, opCtx, &pfx); !status.isOK()) {
+        return status;
     }
 
-    // initialize prefix
-    {
-        BSONObjBuilder bson;
-        bson.append(kDbInstanceId, _instid.toString());
-        bson.append(kDbInternalId, _dbid.toString());
-        const auto& vii = VersionInfoInterface::instance();
-        bson.append(kPillarVersion, vii.version());
-        bson.append(kProFeatures, vii.psmdbProFeatures());
-        bson.append(kSource, "mongod"_sd);
-        if (clusterId.isSet()) {
-            bson.append(kClusterId, clusterId.toString());
-            bson.append(kShardSvr,
-                        boolName(serverGlobalParams.clusterRole.has(ClusterRole::ShardServer)));
-            bson.append(kConfigSvr,
-                        boolName(serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)));
-        }
-        _prefix = bson.obj();
-    }
+    _prefix = pfx.obj();
 
     return Status::OK();
 } catch (...) {
@@ -365,14 +242,7 @@ Status TelemetryThreadBase::_initParameters(ServiceContext* serviceContext) try 
     // advance nextScrape and store it into kTelemetryNamespace
 Status TelemetryThreadBase::_advance(ServiceContext* serviceContext) try {
     _nextScrape = Date_t::now() + Seconds(perconaTelemetryScrapeInterval);
-    auto opCtxObj = cc().makeOperationContext();
-    auto* opCtx = opCtxObj.get();
-    repl::UnreplicatedWritesBlock uwb(opCtx);
-    auto* storageInterface = repl::StorageInterface::get(serviceContext);
-    const NamespaceString nss{kTelemetryNamespace};
-    auto doc = BSON(kId << _dbid << kScheduledAt << _nextScrape);
-    Timestamp noTimestamp;  // This write is not replicated
-    return storageInterface->putSingleton(opCtx, nss, repl::TimestampedBSONObj{doc, noTimestamp});
+    return _advancePersist(serviceContext);
 } catch (...) {
     return exceptionToStatus();
 }
@@ -434,13 +304,10 @@ Status TelemetryThreadBase::_writeMetrics(ServiceContext* serviceContext) try {
     LOGV2_DEBUG(29129, 1, "writing metrics file {path}", "path"_attr = tmpName.string());
     BSONObjBuilder builder(_prefix);
 
-
     builder.append(kUptime, std::to_string(time(nullptr) - serverGlobalParams.started));
-    builder.append(kStorageEngine, storageGlobalParams.engine);
-    if (auto* rs = repl::ReplicationCoordinator::get(serviceContext);
-        rs->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet) {
-        builder.append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
-        builder.append(kReplMemberState, rs->getMemberState().toString());
+
+    if (auto status = _appendMetrics(serviceContext, &builder); !status.isOK()) {
+        return status;
     }
     auto obj = builder.done();  // obj becomes invalid when builder goes out of scope
     std::ofstream ofs(tmpName);

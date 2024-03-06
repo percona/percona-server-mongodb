@@ -31,7 +31,18 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include <memory>
 
+#include "mongo/base/status.h"
+#include "mongo/base/status_with.h"
+#include "mongo/base/string_data.h"
+#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/bson/oid.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/db/repl/read_concern_level.h"
+#include "mongo/db/service_context.h"
 #include "mongo/db/telemetry/telemetry_thread_base.h"
+#include "mongo/s/catalog/sharding_catalog_client.h"
+#include "mongo/s/catalog/type_config_version.h"
+#include "mongo/s/grid.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
@@ -39,11 +50,59 @@ namespace mongo {
 
 namespace {
 
+constexpr StringData kSourceName = "mongos"_sd;
+
+
 class TelemetryThreadS final : public TelemetryThreadBase {
 public:
-    // explicit TelemetryThread()
     static std::unique_ptr<TelemetryThreadBase> create() {
         return std::make_unique<TelemetryThreadS>();
+    }
+
+private:
+    StringData _sourceName() override {
+        return kSourceName;
+    }
+
+    Status _initInstanceId(const OID& initialId, BSONObjBuilder* pfx) override {
+        _instid = initialId;
+        pfx->append(kDbInstanceId, _instid.toString());
+        return Status::OK();
+    }
+
+    Status _initDbId(ServiceContext* serviceContext,
+                     OperationContext* opCtx,
+                     const OID& initialId,
+                     BSONObjBuilder* pfx) override {
+        // mongos has no internal db Id
+        return Status::OK();
+    }
+
+    Status _initClusterId(ServiceContext* serviceContext,
+                          OperationContext* opCtx,
+                          BSONObjBuilder* pfx) override {
+        OID clusterId;
+        if (auto* grid = Grid::get(serviceContext)) {
+            if (grid->isShardingInitialized()) {
+                auto* catalogClient = grid->catalogClient();
+                auto cfgVersion = catalogClient->getConfigVersion(
+                    opCtx, repl::ReadConcernLevel::kMajorityReadConcern);
+                if (cfgVersion.isOK()) {
+                    clusterId = cfgVersion.getValue().getClusterId();
+                    pfx->append(kClusterId, clusterId.toString());
+                }
+            }
+        }
+        return Status::OK();
+    }
+
+    Status _advancePersist(ServiceContext* serviceContext) override {
+        // mongos cannot persist this
+        return Status::OK();
+    }
+
+    Status _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) override {
+        return Status::OK();
     }
 };
 
