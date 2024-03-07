@@ -83,7 +83,7 @@ const auto getTelemetryThread =
 // start telemetry thread if it is not running
 void startTelemetryThread_inlock(ServiceContext* serviceContext) {
     auto* telemetryThread = TelemetryThreadBase::get(serviceContext);
-    if (telemetryThread == nullptr) {
+    if (telemetryThread == nullptr || !telemetryThread->running()) {
         auto telemetryThread = TelemetryThreadBase::create();
         telemetryThread->go();
         TelemetryThreadBase::set(serviceContext, std::move(telemetryThread));
