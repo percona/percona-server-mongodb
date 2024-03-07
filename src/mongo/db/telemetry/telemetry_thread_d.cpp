@@ -30,6 +30,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include <boost/filesystem.hpp>  // IWYU pragma: keep
+#include <boost/optional/optional.hpp>
 #include <fmt/format.h>          // IWYU pragma: keep
 #include <fstream>
 #include <memory>
@@ -85,6 +86,10 @@ constexpr StringData kEncryptionVault = "encryption_vault"_sd;
 constexpr StringData kVaultKeyFile = "keyfile"_sd;
 constexpr StringData kVaultVault = "vault"_sd;
 constexpr StringData kVaultKmip = "kmip"_sd;
+
+constexpr StringData kPBMAgents = "admin.pbmAgents"_sd;
+constexpr StringData kPBMVersionField = "v"_sd;
+constexpr StringData kPBMActive = "pbm_active"_sd;
 
 
 StringData vaultType() {
@@ -253,6 +258,42 @@ private:
         // data at rest encryption
         if (encryptionGlobalParams.enableEncryption) {
             builder->append(kEncryptionVault, vaultType());
+        }
+
+        // operation context is necessary for following operations
+        auto opCtxObj = cc().makeOperationContext();
+        auto* opCtx = opCtxObj.get();
+
+        // PBM activity
+        // check if 'admin.pbmAgents' namespace exists and try to extract PBM version
+        {
+            auto* storageInterface = repl::StorageInterface::get(serviceContext);
+            if (storageInterface == nullptr) {
+                return {ErrorCodes::InternalError, "Failed to access storage interface"};
+            }
+            const NamespaceString nss{kPBMAgents};
+            const auto res =
+                storageInterface->findDocuments(opCtx,
+                                                nss,
+                                                boost::none,
+                                                repl::StorageInterface::ScanDirection::kForward,
+                                                {},
+                                                BoundInclusion::kIncludeStartKeyOnly,
+                                                1U);
+            if (res.isOK()) {
+                // collection exists, try to get version from the document
+                const auto& docs = res.getValue();
+                if (!docs.empty()) {
+                    const BSONObj& obj = docs.front();
+                    try {
+                        builder->append(kPBMActive, obj[kPBMVersionField].checkAndGetStringData());
+                    } catch (AssertionException&) {  // NOLINT(*-empty-catch)
+                        // ignoring exception as there is no PBM in this case
+                    }
+                }
+            } else if (res.getStatus() != ErrorCodes::NamespaceNotFound) {
+                return res.getStatus();
+            }
         }
         return Status::OK();
     }
