@@ -65,6 +65,7 @@
 #include "mongo/db/session/logical_session_cache_impl.h"
 #include "mongo/db/session/session_killer.h"
 #include "mongo/db/startup_warnings_common.h"
+#include "mongo/db/telemetry/telemetry_thread.h"
 #include "mongo/db/vector_clock_metadata_hook.h"
 #include "mongo/db/wire_version.h"
 #include "mongo/executor/task_executor_pool.h"
@@ -287,6 +288,9 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
             invariant(!shutdownArgs.isUserInitiated);
             quiesceTime = Milliseconds(mongosShutdownTimeoutMillisForSignaledShutdown.load());
         }
+
+        // stop Percona telemetry
+        shutdownPerconaTelemetry(serviceContext);
 
         if (auto mongosTopCoord = MongosTopologyCoordinator::get(opCtx)) {
             mongosTopCoord->enterQuiesceModeAndWait(opCtx, quiesceTime);
@@ -867,6 +871,9 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
     // Startup options are written to the audit log at the end of startup so that cluster server
     // parameters are guaranteed to have been initialized from disk at this point.
     audit::logStartupOptions(tc.get(), serverGlobalParams.parsedOpts);
+
+    // Initialize Percona telemetry
+    initPerconaTelemetry(serviceContext);
 
     serviceContext->notifyStartupComplete();
 

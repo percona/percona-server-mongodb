@@ -5,7 +5,7 @@ Import("env")
 env = env.Clone()
 
 env.Library(
-    target='telemetry',
+    target='telemetry_base',
     source=[
         'telemetry_parameter.cpp',
         'telemetry_parameter.idl',
@@ -24,3 +24,28 @@ env.Library(
     ],
 )
 
+env.Library(
+    target='telemetry_d',
+    source=[
+        'telemetry_thread_d.cpp',
+    ],
+    LIBDEPS=[
+        'telemetry_base',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/util/background_job',
+    ],
+)
+
+env.Library(
+    target='telemetry_s',
+    source=[
+        'telemetry_thread_s.cpp'
+    ],
+    LIBDEPS=[
+        'telemetry_base',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/util/background_job',
+    ],
+)
