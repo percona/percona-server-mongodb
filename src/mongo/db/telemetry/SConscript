@@ -9,10 +9,7 @@ env.Library(
     source=[
         'telemetry_parameter.cpp',
         'telemetry_parameter.idl',
-        'telemetry_thread.cpp',
-    ],
-    LIBDEPS=[
-        #'$BUILD_DIR/mongo/base',
+        'telemetry_thread_base.cpp',
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/bson/bson_validate',
