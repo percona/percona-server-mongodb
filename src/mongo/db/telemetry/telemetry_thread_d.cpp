@@ -50,6 +50,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/catalog/collection_options.h"
 #include "mongo/db/client.h"
 #include "mongo/db/cluster_role.h"
+#include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/member_state.h"
@@ -80,6 +81,24 @@ constexpr StringData kTelemetryNamespace = "local.percona.telemetry"_sd;
 constexpr StringData kId = "_id"_sd;
 constexpr StringData kScheduledAt = "scheduledAt"_sd;
 
+constexpr StringData kEncryptionVault = "encryption_vault"_sd;
+constexpr StringData kVaultKeyFile = "keyfile"_sd;
+constexpr StringData kVaultVault = "vault"_sd;
+constexpr StringData kVaultKmip = "kmip"_sd;
+
+
+StringData vaultType() {
+    if (!encryptionGlobalParams.encryptionKeyFile.empty()) {
+        return kVaultKeyFile;
+    }
+    if (!encryptionGlobalParams.vaultServerName.empty()) {
+        return kVaultVault;
+    }
+    if (!encryptionGlobalParams.kmipServerName.empty()) {
+        return kVaultKmip;
+    }
+    MONGO_UNREACHABLE;
+}
 
 class TelemetryThreadD final : public TelemetryThreadBase {
 public:
@@ -230,6 +249,10 @@ private:
             rs->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet) {
             builder->append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
             builder->append(kReplMemberState, rs->getMemberState().toString());
+        }
+        // data at rest encryption
+        if (encryptionGlobalParams.enableEncryption) {
+            builder->append(kEncryptionVault, vaultType());
         }
         return Status::OK();
     }
