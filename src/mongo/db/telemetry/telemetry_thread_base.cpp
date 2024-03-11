@@ -229,11 +229,6 @@ Status TelemetryThreadBase::_initParameters(ServiceContext* serviceContext) try 
         return status;
     }
 
-    // load cluster id
-    if (auto status = _initClusterId(serviceContext, opCtx, &pfx); !status.isOK()) {
-        return status;
-    }
-
     _prefix = pfx.obj();
 
     return Status::OK();
@@ -308,9 +303,8 @@ Status TelemetryThreadBase::_writeMetrics(ServiceContext* serviceContext) try {
 
     builder.append(kUptime, std::to_string(time(nullptr) - serverGlobalParams.started));
 
-    if (auto status = _appendMetrics(serviceContext, &builder); !status.isOK()) {
-        return status;
-    }
+    _appendMetrics(serviceContext, &builder);
+
     auto obj = builder.done();  // obj becomes invalid when builder goes out of scope
     std::ofstream ofs(tmpName);
     ofs << obj.jsonString(ExtendedCanonicalV2_0_0, 1 /* pretty */) << "\n";

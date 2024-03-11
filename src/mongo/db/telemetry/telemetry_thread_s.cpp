@@ -40,6 +40,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/telemetry/telemetry_thread_base.h"
+#include "mongo/logv2/log.h"
 #include "mongo/s/catalog/sharding_catalog_client.h"
 #include "mongo/s/catalog/type_config_version.h"
 #include "mongo/s/grid.h"
@@ -78,9 +79,14 @@ private:
         return Status::OK();
     }
 
-    Status _initClusterId(ServiceContext* serviceContext,
-                          OperationContext* opCtx,
-                          BSONObjBuilder* pfx) override {
+    Status _advancePersist(ServiceContext* serviceContext) override {
+        // mongos cannot persist this
+        return Status::OK();
+    }
+
+    Status _appendShardingMetrics(ServiceContext* serviceContext,
+                                  OperationContext* opCtx,
+                                  BSONObjBuilder* builder) try {
         OID clusterId;
         if (auto* grid = Grid::get(serviceContext)) {
             if (grid->isShardingInitialized()) {
@@ -89,20 +95,23 @@ private:
                     opCtx, repl::ReadConcernLevel::kMajorityReadConcern);
                 if (cfgVersion.isOK()) {
                     clusterId = cfgVersion.getValue().getClusterId();
-                    pfx->append(kClusterId, clusterId.toString());
+                    builder->append(kClusterId, clusterId.toString());
                 }
             }
         }
         return Status::OK();
+    } catch (...) {
+        return exceptionToStatus();
     }
 
-    Status _advancePersist(ServiceContext* serviceContext) override {
-        // mongos cannot persist this
-        return Status::OK();
-    }
+    void _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) override {
+        // operation context is necessary for following operations
+        auto opCtxObj = cc().makeOperationContext();
+        auto* opCtx = opCtxObj.get();
 
-    Status _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) override {
-        return Status::OK();
+        if (auto status = _appendShardingMetrics(serviceContext, opCtx, builder); !status.isOK()) {
+            LOGV2_DEBUG(29136, 1, "Failed to collect sharding metrics", "status"_attr = status);
+        }
     }
 };
 

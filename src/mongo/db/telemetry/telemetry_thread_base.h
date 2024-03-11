@@ -80,15 +80,12 @@ protected:
                              OperationContext* opCtx,
                              const OID& initalId,
                              BSONObjBuilder* pfx) = 0;
-    virtual Status _initClusterId(ServiceContext* serviceContext,
-                                  OperationContext* opCtx,
-                                  BSONObjBuilder* pfx) = 0;
 
     // methods called from _advance
     virtual Status _advancePersist(ServiceContext* serviceContext) = 0;
 
     // methods called from _writeMetrics
-    virtual Status _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) = 0;
+    virtual void _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) = 0;
 
     // names of the fields in the metric file
     static constexpr StringData kDbInstanceId = "db_instance_id"_sd;

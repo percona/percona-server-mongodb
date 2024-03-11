@@ -209,30 +209,6 @@ private:
         return Status::OK();
     }
 
-    Status _initClusterId(ServiceContext* serviceContext,
-                          OperationContext* opCtx,
-                          BSONObjBuilder* pfx) override {
-        OID clusterId;
-        if (auto* grid = Grid::get(serviceContext)) {
-            if (grid->isShardingInitialized()) {
-                auto* catalogClient = grid->catalogClient();
-                auto cfgVersion = catalogClient->getConfigVersion(
-                    opCtx, repl::ReadConcernLevel::kMajorityReadConcern);
-                if (cfgVersion.isOK()) {
-                    clusterId = cfgVersion.getValue().getClusterId();
-                    pfx->append(kClusterId, clusterId.toString());
-                    pfx->append(
-                        kShardSvr,
-                        boolName(serverGlobalParams.clusterRole.has(ClusterRole::ShardServer)));
-                    pfx->append(
-                        kConfigSvr,
-                        boolName(serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)));
-                }
-            }
-        }
-        return Status::OK();
-    }
-
     Status _advancePersist(ServiceContext* serviceContext) override {
         auto opCtxObj = cc().makeOperationContext();
         auto* opCtx = opCtxObj.get();
@@ -248,7 +224,69 @@ private:
             opCtx, nss, repl::TimestampedBSONObj{doc, noTimestamp});
     }
 
-    Status _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) override {
+    Status _appendShardingMetrics(ServiceContext* serviceContext,
+                                  OperationContext* opCtx,
+                                  BSONObjBuilder* builder) try {
+        OID clusterId;
+        if (auto* grid = Grid::get(serviceContext)) {
+            if (grid->isShardingInitialized()) {
+                auto* catalogClient = grid->catalogClient();
+                auto cfgVersion = catalogClient->getConfigVersion(
+                    opCtx, repl::ReadConcernLevel::kMajorityReadConcern);
+                if (cfgVersion.isOK()) {
+                    clusterId = cfgVersion.getValue().getClusterId();
+                    builder->append(kClusterId, clusterId.toString());
+                    builder->append(
+                        kShardSvr,
+                        boolName(serverGlobalParams.clusterRole.has(ClusterRole::ShardServer)));
+                    builder->append(
+                        kConfigSvr,
+                        boolName(serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)));
+                }
+            }
+        }
+        return Status::OK();
+    } catch (...) {
+        return exceptionToStatus();
+    }
+
+    Status _appendBackupMetrics(ServiceContext* serviceContext,
+                                OperationContext* opCtx,
+                                BSONObjBuilder* builder) try {
+        // check if 'admin.pbmAgents' namespace exists and try to extract PBM version
+        auto* storageInterface = repl::StorageInterface::get(serviceContext);
+        if (storageInterface == nullptr) {
+            return {ErrorCodes::InternalError, "Failed to access storage interface"};
+        }
+        const NamespaceString nss{kPBMAgents};
+        const auto res =
+            storageInterface->findDocuments(opCtx,
+                                            nss,
+                                            boost::none,
+                                            repl::StorageInterface::ScanDirection::kForward,
+                                            {},
+                                            BoundInclusion::kIncludeStartKeyOnly,
+                                            1U);
+        if (res.isOK()) {
+            // collection exists, try to get version from the document
+            const auto& docs = res.getValue();
+            if (!docs.empty()) {
+                const BSONObj& obj = docs.front();
+                try {
+                    builder->append(kPBMActive, obj[kPBMVersionField].checkAndGetStringData());
+                } catch (AssertionException&) {  // NOLINT(*-empty-catch)
+                    // ignoring exception as there is no PBM in this case
+                }
+            }
+        } else if (res.getStatus() != ErrorCodes::NamespaceNotFound) {
+            return res.getStatus();
+        }
+        return Status::OK();
+    } catch (...) {
+        return exceptionToStatus();
+    }
+
+    void _appendMetrics(ServiceContext* serviceContext, BSONObjBuilder* builder) override {
         builder->append(kStorageEngine, storageGlobalParams.engine);
         if (auto* rs = repl::ReplicationCoordinator::get(serviceContext);
             rs->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet) {
@@ -264,38 +302,16 @@ private:
         auto opCtxObj = cc().makeOperationContext();
         auto* opCtx = opCtxObj.get();
 
-        // PBM activity
-        // check if 'admin.pbmAgents' namespace exists and try to extract PBM version
-        {
-            auto* storageInterface = repl::StorageInterface::get(serviceContext);
-            if (storageInterface == nullptr) {
-                return {ErrorCodes::InternalError, "Failed to access storage interface"};
-            }
-            const NamespaceString nss{kPBMAgents};
-            const auto res =
-                storageInterface->findDocuments(opCtx,
-                                                nss,
-                                                boost::none,
-                                                repl::StorageInterface::ScanDirection::kForward,
-                                                {},
-                                                BoundInclusion::kIncludeStartKeyOnly,
-                                                1U);
-            if (res.isOK()) {
-                // collection exists, try to get version from the document
-                const auto& docs = res.getValue();
-                if (!docs.empty()) {
-                    const BSONObj& obj = docs.front();
-                    try {
-                        builder->append(kPBMActive, obj[kPBMVersionField].checkAndGetStringData());
-                    } catch (AssertionException&) {  // NOLINT(*-empty-catch)
-                        // ignoring exception as there is no PBM in this case
-                    }
-                }
-            } else if (res.getStatus() != ErrorCodes::NamespaceNotFound) {
-                return res.getStatus();
-            }
+        // sharding metrics
+        if (auto status = _appendShardingMetrics(serviceContext, opCtx, builder); !status.isOK()) {
+            LOGV2_DEBUG(29137, 1, "Failed to collect sharding metrics", "status"_attr = status);
         }
-        return Status::OK();
+
+        // PBM activity
+        if (auto status = _appendBackupMetrics(serviceContext, opCtx, builder); !status.isOK()) {
+            LOGV2_DEBUG(
+                29138, 1, "Failed to collect backup-related metrics", "status"_attr = status);
+        }
     }
 };
 
