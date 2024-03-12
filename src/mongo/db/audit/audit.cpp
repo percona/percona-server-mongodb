@@ -1230,27 +1230,39 @@ namespace audit {
         if (!_auditLog) {
             return;
         }
+        if (!nss.isPrivilegeCollection()) {
+            return;
+        }
 
-        const BSONObj params = BSON("ns" << nssToString(nss) << "doc" << doc);
-        _auditEvent(client, "insertOperation", params);
+        const BSONObj params =
+            BSON("ns" << nssToString(nss) << "document" << doc << "operation" << "insert");
+        _auditEvent(client, "directAuthMutation", params);
     }
 
     void logUpdateOperation(Client* client, const NamespaceString& nss, const BSONObj& doc) {
         if (!_auditLog) {
             return;
         }
+        if (!nss.isPrivilegeCollection()) {
+            return;
+        }
 
-        const BSONObj params = BSON("ns" << nssToString(nss) << "doc" << doc);
-        _auditEvent(client, "updateOperation", params);
+        const BSONObj params =
+            BSON("ns" << nssToString(nss) << "document" << doc << "operation" << "update");
+        _auditEvent(client, "directAuthMutation", params);
     }
 
     void logRemoveOperation(Client* client, const NamespaceString& nss, const BSONObj& doc) {
         if (!_auditLog) {
             return;
         }
+        if (!nss.isPrivilegeCollection()) {
+            return;
+        }
 
-        const BSONObj params = BSON("ns" << nssToString(nss) << "doc" << doc);
-        _auditEvent(client, "removeOperation", params);
+        const BSONObj params =
+            BSON("ns" << nssToString(nss) << "document" << doc << "operation" << "remove");
+        _auditEvent(client, "directAuthMutation", params);
     }
 
     void writeImpersonatedUsersToMetadata(OperationContext* txn,
