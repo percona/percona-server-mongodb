@@ -66,6 +66,16 @@ auditTest(
             'param.command': 'delete',
             result: 0, // <-- Authorization successful
         }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
+
+        // Audit event for remove operation
+        assert.eq(0, auditColl.count({
+            atype: "removeOperation",
+            ts: withinInterval(beforeCmd, beforeLoad),
+            users: { $elemMatch: { user:'admin', db:'admin'} },
+            'param.ns': testDBName + '.' + 'foo',
+            'param.doc._id': 2,
+            result: 0, // <-- We do not expect this remove operation to be logged
+        }), "FAILED, remove operation has been found in the audit log: " + tojson(auditColl.find().toArray()));
     },
     { auth:"" }
 );
