@@ -64,6 +64,16 @@ auditTest(
             'param.command': 'update',
             result: 0, // <-- Authorization successful
         }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
+
+        // Audit event for update operation
+        assert.eq(0, auditColl.count({
+            atype: "updateOperation",
+            ts: withinInterval(beforeCmd, beforeLoad),
+            users: { $elemMatch: { user:'admin', db:'admin'} },
+            'param.ns': testDBName + '.' + 'foo',
+            'param.doc.bar': 3,
+            result: 0, // <-- We do not expect this update operations to be logged
+        }), "FAILED, update operation has been found in the audit log: " + tojson(auditColl.find().toArray()));
     },
     { auth:"" }
 );

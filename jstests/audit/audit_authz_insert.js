@@ -63,6 +63,16 @@ auditTest(
             'param.command': 'insert',
             result: 0, // <-- Authorization successful
         }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
+
+        // Audit event for simple insert
+        assert.eq(0, auditColl.count({
+            atype: "insertOperation",
+            ts: withinInterval(beforeCmd, beforeLoad),
+            users: { $elemMatch: { user:'admin', db:'admin'} },
+            'param.ns': testDBName + '.' + 'foo',
+            'param.doc._id': 1,
+            result: 0, // <-- We do not expect this insert operations to be logged
+        }), "FAILED, insert operation has been found in the audit log: " + tojson(auditColl.find().toArray()));
     },
     { auth:"" }
 );
