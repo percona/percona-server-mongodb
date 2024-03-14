@@ -87,15 +87,6 @@ check_workdir(){
     return
 }
 
-add_percona_yum_repo(){
-    if [ ! -f /etc/yum.repos.d/percona-dev.repo ]
-    then
-      wget http://jenkins.percona.com/yum-repo/percona-dev.repo
-      mv -f percona-dev.repo /etc/yum.repos.d/
-    fi
-    return
-}
-
 get_sources(){
     cd "${WORKDIR}"
     if [ "${SOURCE}" = 0 ]
@@ -383,9 +374,6 @@ install_deps() {
       yum -y update
       yum -y install wget
       if [ x"$ARCH" = "xx86_64" ]; then
-        if [ "$RHEL" -lt 9 ]; then
-          add_percona_yum_repo
-        fi
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
         yum clean all
