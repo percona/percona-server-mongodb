@@ -87,15 +87,6 @@ check_workdir(){
     return
 }
 
-add_percona_yum_repo(){
-    if [ ! -f /etc/yum.repos.d/percona-dev.repo ]
-    then
-      wget http://jenkins.percona.com/yum-repo/percona-dev.repo
-      mv -f percona-dev.repo /etc/yum.repos.d/
-    fi
-    return
-}
-
 get_sources(){
     cd "${WORKDIR}"
     if [ "${SOURCE}" = 0 ]
@@ -378,9 +369,6 @@ install_deps() {
       yum -y update
       yum -y install wget
       if [ x"$ARCH" = "xx86_64" ]; then
-        if [ "$RHEL" -lt 9 ]; then
-          add_percona_yum_repo
-        fi
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
         yum clean all
@@ -751,7 +739,7 @@ build_source_deb(){
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" ]; then
         sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
     fi
     #
@@ -827,7 +815,7 @@ build_deb(){
     cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" ]; then
         sed -i 's:dh-systemd,::' debian/control
         sed -i 's:etc/:/etc/:g' debian/percona-server-mongodb-server.conffiles
     fi
