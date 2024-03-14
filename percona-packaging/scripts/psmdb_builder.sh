@@ -813,7 +813,7 @@ build_deb(){
     cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" ]; then
         sed -i 's:dh-systemd,::' debian/control
         sed -i 's:etc/:/etc/:g' debian/percona-server-mongodb-server.conffiles
     fi
