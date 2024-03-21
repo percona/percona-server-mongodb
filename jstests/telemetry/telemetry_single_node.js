@@ -11,8 +11,12 @@ var telmTestSingle = function() {
     });
 
     //test perconaTelemetryGracePeriod
-    sleep(3000);
+    sleep(1000);
     var telmFileList = listFiles(telmPath);
+    assert.eq(0,telmFileList.length,telmFileList);
+
+    sleep(2000);
+    telmFileList = listFiles(telmPath);
     assert.eq(1,telmFileList.length,telmFileList);
 
     //test telemetry data
@@ -20,16 +24,15 @@ var telmTestSingle = function() {
     jsTest.log("Get single-node telemetry");
     jsTest.log(jsonTelmData);
 
+    assert.eq('mongod',jsonTelmData['source'],jsonTelmData['source']);
     assert(jsonTelmData['pro_features'],"pro_features doesn't exist");
+    assert(jsonTelmData['pillar_version'],"pillar_version doesn't exist");
     if ( jsonTelmData['pro_features'].length > 0 ) {
-        assert.eq('mongod-pro',jsonTelmData['source'],jsonTelmData['source']);
-    } else {
-        assert.eq('mongod',jsonTelmData['source'],jsonTelmData['source']);
+        assert.includes(jsonTelmData['pillar_version'],'-pro');
     }
     assert.eq('wiredTiger',jsonTelmData['storage_engine'],jsonTelmData['storage_engine']);
     assert(jsonTelmData['db_instance_id'],"db_instance_id doesn't exist");
     assert(jsonTelmData['db_internal_id'],"db_internal_id doesn't exist");
-    assert(jsonTelmData['pillar_version'],"pillar_version doesn't exist");
     assert(jsonTelmData['uptime'],"uptime doesn't exist");
 
     //test perconaTelemetryScrapeInterval
