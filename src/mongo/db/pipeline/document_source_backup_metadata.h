@@ -31,12 +31,15 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
-#include <boost/smart_ptr/intrusive_ptr.hpp>
 #include <memory>
 #include <set>
 #include <string>
+
+#include <boost/filesystem.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+#include <boost/smart_ptr/intrusive_ptr.hpp>
+#include <wiredtiger.h>
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
@@ -93,7 +96,7 @@ public:
         BSONElement spec, const boost::intrusive_ptr<ExpressionContext>& pCtx);
 
     DocumentSourceBackupMetadata(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                                 std::string wtPath);
+                                 boost::filesystem::path wtPath);
 
     DocumentSourceBackupMetadata(const DocumentSourceBackupMetadata&) = delete;
     DocumentSourceBackupMetadata& operator=(const DocumentSourceBackupMetadata&) = delete;
@@ -131,7 +134,26 @@ protected:
     GetNextResult doGetNext() override;
 
 private:
-    std::string _wtPath;
+    // Ensure connection close even if exception is thrown from constructor
+    // sessions and cursors are closed by connection close
+    struct WTConnectionGuard {
+        WT_CONNECTION* _conn = nullptr;
+        WTConnectionGuard() = default;
+        WTConnectionGuard(const WTConnectionGuard&) = delete;
+        WTConnectionGuard& operator=(const WTConnectionGuard&) = delete;
+        WTConnectionGuard(WTConnectionGuard&&) = delete;
+        WTConnectionGuard& operator=(WTConnectionGuard&&) = delete;
+        ~WTConnectionGuard();
+    };
+
+    // create path from ident
+    std::string identPath(const StringData ident) const;
+
+    const boost::filesystem::path _wtPath;
+    WTConnectionGuard _wtConnGuard;
+    WT_SESSION* _session = nullptr;
+    WT_CURSOR* _mdbCatalogCursor = nullptr;
+    WT_CURSOR* _sizeStorerCursor = nullptr;
 };
 
 }  // namespace mongo

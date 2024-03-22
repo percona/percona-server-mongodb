@@ -32,22 +32,29 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/pipeline/document_source_backup_metadata.h"
 
-#include <boost/smart_ptr/intrusive_ptr.hpp>
 #include <memory>
 #include <string>
 #include <utility>
 
+#include <boost/smart_ptr/intrusive_ptr.hpp>
+#include <fmt/format.h>
+#include <wiredtiger.h>
+
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
+#include "mongo/bson/bsonobj.h"
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
+#include "mongo/db/storage/bson_collection_catalog_entry.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
+#include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/intrusive_counter.h"
-#include "mongo/util/str.h"
 
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
@@ -63,6 +70,46 @@ REGISTER_DOCUMENT_SOURCE(backupMetadata,
                          DocumentSourceBackupMetadata::LiteParsed::parse,
                          DocumentSourceBackupMetadata::createFromBson,
                          AllowedWithApiStrict::kAlways);
+
+std::string _getWTMetadata(WT_SESSION* session, const std::string& uri) {
+    return uassertStatusOK(WiredTigerUtil::getMetadata(session, uri));
+}
+
+std::string getTableWTMetadata(WT_SESSION* session, StringData ident) {
+    return _getWTMetadata(session, "table:{}"_format(ident));
+}
+
+std::string getFileWTMetadata(WT_SESSION* session, StringData ident) {
+    return _getWTMetadata(session, "file:{}.wt"_format(ident));
+}
+
+struct SizeInfo {
+    long long numRecords;
+    long long dataSize;
+};
+
+SizeInfo getSizeInfo(const NamespaceString& ns,
+                     const StringData ident,
+                     WT_CURSOR* sizeStorerCursor) {
+    const auto sizeStorerUri = "table:{}"_format(ident);
+    WT_ITEM sizeStorerKey = {sizeStorerUri.c_str(), sizeStorerUri.size()};
+    sizeStorerCursor->set_key(sizeStorerCursor, &sizeStorerKey);
+    auto ret = sizeStorerCursor->search(sizeStorerCursor);
+    if (ret != 0) {
+        LOGV2_WARNING(29140,
+                      "No sizeStorer info for collection",
+                      "ns"_attr = ns,
+                      "uri"_attr = sizeStorerUri,
+                      "reason"_attr = wiredtiger_strerror(ret));
+        return {0, 0};
+    }
+
+    WT_ITEM item;
+    uassertWTOK(sizeStorerCursor->get_value(sizeStorerCursor, &item), sizeStorerCursor->session);
+    BSONObj obj{static_cast<const char*>(item.data)};
+    return {obj["numRecords"].safeNumberLong(), obj["dataSize"].safeNumberLong()};
+}
+
 }  // namespace
 
 using boost::intrusive_ptr;
@@ -79,11 +126,59 @@ const char* DocumentSourceBackupMetadata::getSourceName() const {
 }
 
 Value DocumentSourceBackupMetadata::serialize(const SerializationOptions& opts) const {
-    return Value{Document{{getSourceName(), Document{{kBackupPath, _wtPath}}}}};
+    return Value{Document{{getSourceName(), Document{{kBackupPath, _wtPath.string()}}}}};
+}
+
+std::string DocumentSourceBackupMetadata::identPath(const StringData ident) const {
+    return (_wtPath / (ident.toString() + ".wt")).string();
 }
 
 DocumentSource::GetNextResult DocumentSourceBackupMetadata::doGetNext() {
+    int ret = _mdbCatalogCursor->next(_mdbCatalogCursor);
+    if (ret == WT_NOTFOUND) {
         return GetNextResult::makeEOF();
+    }
+    uassertWTOK(ret, _session);
+
+    WT_ITEM catalogValue;
+    uassertWTOK(_mdbCatalogCursor->get_value(_mdbCatalogCursor, &catalogValue), _session);
+    BSONObj rawCatalogEntry(static_cast<const char*>(catalogValue.data));
+    NamespaceString ns(NamespaceString::parseFromStringExpectTenantIdInMultitenancyMode(
+        rawCatalogEntry.getStringField("ns"_sd)));
+
+    const auto collIdent = rawCatalogEntry["ident"_sd].checkAndGetStringData();
+
+    auto sizeInfo = getSizeInfo(ns, collIdent, _sizeStorerCursor);
+
+    BSONObjBuilder indexFilesBob;
+    BSONObjBuilder storageMetadataBob;
+
+    {
+        BSONObjBuilder collbob{storageMetadataBob.subobjStart(collIdent)};
+        collbob.append("tableMetadata"_sd, getTableWTMetadata(_session, collIdent));
+        collbob.append("fileMetadata"_sd, getFileWTMetadata(_session, collIdent));
+    }
+
+    if (auto elem = rawCatalogEntry["idxIdent"_sd]; elem.type() == Object) {
+        const auto idxIdent = elem.Obj();
+        BSONCollectionCatalogEntry::MetaData catalogEntry;
+        catalogEntry.parse(rawCatalogEntry["md"_sd].Obj());
+        for (const auto& index : catalogEntry.indexes) {
+            const auto ident = idxIdent[index.nameStringData()].checkAndGetStringData();
+            indexFilesBob.append(ident, identPath(ident));
+            BSONObjBuilder idxbob{storageMetadataBob.subobjStart(ident)};
+            idxbob.append("tableMetadata"_sd, getTableWTMetadata(_session, ident));
+            idxbob.append("fileMetadata"_sd, getFileWTMetadata(_session, ident));
+        }
+    }
+
+    return Document{{"ns"_sd, ns.toString()},
+                    {"metadata"_sd, rawCatalogEntry},
+                    {"numRecords"_sd, sizeInfo.numRecords},
+                    {"dataSize"_sd, sizeInfo.dataSize},
+                    {"collectionFile"_sd, identPath(collIdent)},
+                    {"indexFiles"_sd, indexFilesBob.done()},
+                    {"storageMetadata"_sd, storageMetadataBob.done()}};
 }
 
 intrusive_ptr<DocumentSource> DocumentSourceBackupMetadata::createFromBson(
@@ -91,43 +186,70 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupMetadata::createFromBson(
     // This cursor is non-tailable so we don't touch pExpCtx->tailableMode here
 
     uassert(ErrorCodes::FailedToParse,
-            str::stream() << kStageName << " parameters must be specified in an object, but found: "
-                          << typeName(spec.type()),
+            fmt::format("{} parameters must be specified in an object, but found: {}",
+                        kStageName,
+                        typeName(spec.type())),
             spec.type() == Object);
 
-    std::string wtPath;
+    boost::filesystem::path wtPath;
 
     for (auto&& elem : spec.embeddedObject()) {
         const auto fieldName = elem.fieldNameStringData();
 
         if (fieldName == kBackupPath) {
             uassert(ErrorCodes::TypeMismatch,
-                    str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
-                                  << " stage must be a string value, but found: "
-                                  << typeName(elem.type()),
+                    fmt::format(
+                        "The '{}' parameter of the {} stage must be a string value, but found: {}",
+                        fieldName,
+                        kStageName,
+                        typeName(elem.type())),
                     elem.type() == BSONType::String);
             wtPath = elem.String();
         } else {
-            uasserted(ErrorCodes::FailedToParse,
-                      str::stream() << "Unrecognized option '" << fieldName << "' in " << kStageName
-                                    << " stage");
+            uasserted(
+                ErrorCodes::FailedToParse,
+                fmt::format("Unrecognized option '{}' in the {} stage", fieldName, kStageName));
         }
     }
 
-    // TODO: open wiredTiger instance in read-only mode
-    // uassert(ErrorCodes::InvalidOptions,
-    //        str::stream() << "'" << kIncrementalBackup << "' and '" << kDisableIncrementalBackup
-    //                      << "' parameters are mutually exclusive. Cannot enable both",
-    //        !(options.incrementalBackup && options.disableIncrementalBackup));
+    uassert(ErrorCodes::InvalidOptions,
+            fmt::format("For {} stage the '{}' parameter cannot be empty", kStageName, kBackupPath),
+            !wtPath.empty());
 
     return make_intrusive<DocumentSourceBackupMetadata>(pExpCtx, std::move(wtPath));
 }
 
 DocumentSourceBackupMetadata::DocumentSourceBackupMetadata(
-    const intrusive_ptr<ExpressionContext>& expCtx, std::string wtPath)
-    : DocumentSource(kStageName, expCtx), _wtPath(std::move(wtPath)) {}
+    const intrusive_ptr<ExpressionContext>& expCtx, boost::filesystem::path wtPath)
+    : DocumentSource(kStageName, expCtx), _wtPath(std::move(wtPath)) {
+    // open wiredTiger instance in read-only mode
+    const auto* wtConfig =
+        "config_base=false,log=(enabled=true,path=journal,compressor=snappy),readonly=true";
+    WT_CONNECTION* conn = nullptr;
+    uassertWTOK(wiredtiger_open(_wtPath.c_str(), nullptr, wtConfig, &conn), nullptr);
+    // store created connection in the guard
+    // any exceptions after this point will trigger guard's destructor which will
+    // destroy connection object explicitly and all sessions/cursors implicitly
+    _wtConnGuard._conn = conn;
 
-DocumentSourceBackupMetadata::~DocumentSourceBackupMetadata() {
-    // TODO: close wiredTiger instance
+    // open session and cursors
+    uassertWTOK(conn->open_session(conn, nullptr, nullptr, &_session), nullptr);
+    uassertWTOK(
+        _session->open_cursor(_session, "table:_mdb_catalog", nullptr, nullptr, &_mdbCatalogCursor),
+        _session);
+    uassertWTOK(
+        _session->open_cursor(_session, "table:sizeStorer", nullptr, nullptr, &_sizeStorerCursor),
+        _session);
 }
+
+DocumentSourceBackupMetadata::WTConnectionGuard::~WTConnectionGuard() {
+    if (_conn) {
+        _conn->close(_conn, nullptr);
+    }
+}
+
+// destructor of _wtConnGuard closes wiredTiger connection
+// on connection close all open sessions and cursors are desstroyed by wiredTiger
+// so no need to destroy them here
+DocumentSourceBackupMetadata::~DocumentSourceBackupMetadata() = default;
 }  // namespace mongo
