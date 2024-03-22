@@ -150,6 +150,8 @@ private:
     std::string identPath(const StringData ident) const;
 
     const boost::filesystem::path _wtPath;
+    bool _dirPerDB = false;
+    bool _dirForIndexes = false;
     WTConnectionGuard _wtConnGuard;
     WT_SESSION* _session = nullptr;
     WT_CURSOR* _mdbCatalogCursor = nullptr;

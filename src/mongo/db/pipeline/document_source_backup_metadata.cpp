@@ -51,6 +51,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/storage/bson_collection_catalog_entry.h"
+#include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
@@ -178,7 +179,9 @@ DocumentSource::GetNextResult DocumentSourceBackupMetadata::doGetNext() {
                     {"dataSize"_sd, sizeInfo.dataSize},
                     {"collectionFile"_sd, identPath(collIdent)},
                     {"indexFiles"_sd, indexFilesBob.done()},
-                    {"storageMetadata"_sd, storageMetadataBob.done()}};
+                    {"storageMetadata"_sd, storageMetadataBob.done()},
+                    {"directoryPerDB"_sd, _dirPerDB},
+                    {"directoryForIndexes"_sd, _dirForIndexes}};
 }
 
 intrusive_ptr<DocumentSource> DocumentSourceBackupMetadata::createFromBson(
@@ -222,6 +225,18 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupMetadata::createFromBson(
 DocumentSourceBackupMetadata::DocumentSourceBackupMetadata(
     const intrusive_ptr<ExpressionContext>& expCtx, boost::filesystem::path wtPath)
     : DocumentSource(kStageName, expCtx), _wtPath(std::move(wtPath)) {
+    // read storage metadata
+    // in case of any failures we can safely throw exception
+    StorageEngineMetadata metadata{_wtPath.string()};
+    uassertStatusOK(metadata.read());
+    const BSONObj& options = metadata.getStorageEngineOptions();
+    if (auto elem = options.getField("directoryPerDB"_sd); elem.isBoolean()) {
+        _dirPerDB = elem.boolean();
+    }
+    if (auto elem = options.getField("directoryForIndexes"_sd); elem.isBoolean()) {
+        _dirForIndexes = elem.boolean();
+    }
+
     // open wiredTiger instance in read-only mode
     const auto* wtConfig =
         "config_base=false,log=(enabled=true,path=journal,compressor=snappy),readonly=true";
