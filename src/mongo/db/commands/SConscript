@@ -345,6 +345,7 @@ env.Library(
     target='standalone',
     source=[
         'analyze_cmd.cpp',
+        'attach_collection.cpp',
         'count_cmd.cpp',
         'create_command.cpp',
         'create_indexes_cmd.cpp',
@@ -427,6 +428,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/stats/server_read_concern_write_concern_metrics',
         '$BUILD_DIR/mongo/db/storage/storage_engine_common',
         '$BUILD_DIR/mongo/db/storage/two_phase_index_build_knobs_idl',
+        '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger_import',
         '$BUILD_DIR/mongo/db/timeseries/catalog_helper',
         '$BUILD_DIR/mongo/db/timeseries/timeseries_collmod',
         '$BUILD_DIR/mongo/db/timeseries/timeseries_conversion_util',
@@ -444,6 +446,7 @@ env.Library(
         'create_command',
         'current_op_common',
         'fsync_locked',
+        'impexp_commands',
         'kill_common',
         'list_collections_filter',
         'list_databases_command',
@@ -725,6 +728,17 @@ env.Library(
         '$BUILD_DIR/mongo/db/query/query_stats/query_stats',
         '$BUILD_DIR/mongo/db/query_expressions',
         '$BUILD_DIR/mongo/db/server_base',
+    ],
+)
+
+env.Library(
+    target='impexp_commands',
+    source=[
+        'impexp_commands.idl',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/idl/idl_parser',
+        '$BUILD_DIR/mongo/util/namespace_string_database_name_util',
     ],
 )
 

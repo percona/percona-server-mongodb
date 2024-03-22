@@ -388,6 +388,7 @@ let testCases = {
     whatsmyuri: {skip: "does not return user data"},
 
     // Percona commands
+    attachCollection: {skip: "does not return user data"},
     auditGetOptions: {skip: "does not return user data"},
     createBackup: {skip: "does not return user data"},
 };

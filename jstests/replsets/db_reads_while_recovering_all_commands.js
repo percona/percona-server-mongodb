@@ -159,6 +159,7 @@ const allCommands = {
     },
     appendOplogNote: {skip: isPrimaryOnly},
     applyOps: {skip: isPrimaryOnly},
+    attachCollection: {skip: isNotAUserDataRead},
     auditGetOptions: {skip: isNotAUserDataRead},
     authenticate: {skip: isNotAUserDataRead},
     autoSplitVector: {skip: isPrimaryOnly},

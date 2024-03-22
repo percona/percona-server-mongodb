@@ -755,6 +755,7 @@ let viewsCommandTests = {
     whatsmysni: {skip: isUnrelated},
 
     // Percona commands
+    attachCollection: {skip: isUnrelated},
     auditGetOptions: {skip: isUnrelated},
     createBackup: {skip: isUnrelated},
 };
