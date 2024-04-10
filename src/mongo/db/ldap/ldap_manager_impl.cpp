@@ -33,10 +33,14 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/ldap/ldap_manager_impl.h"
 
+#include <algorithm>
+#include <map>
 #include <regex>
+#include <utility>
+#include <vector>
 
-#include <poll.h>
 #include <lber.h>
+#include <poll.h>
 
 #include <fmt/format.h>
 #include <sasl/sasl.h>
@@ -67,8 +71,8 @@ int rebindproc(LDAP* ld, const char* /* url */, ber_tag_t /* request */, ber_int
 
 int cb_urllist_proc( LDAP *ld, LDAPURLDesc **urllist, LDAPURLDesc **url, void *params);
 
-}
-}
+}  // namespace
+}  // namespace mongo
 
 extern "C" {
 
@@ -99,7 +103,7 @@ static int interaction(unsigned flags, sasl_interact_t *interact, void *defaults
     }
 
     if (dflt && !*dflt)
-        dflt = NULL;
+        dflt = nullptr;
 
     if (flags != LDAP_SASL_INTERACTIVE &&
         (dflt || interact->id == SASL_CB_USER)) {
@@ -122,7 +126,7 @@ use_default:
 static int interactProc(LDAP *ld, unsigned flags, void *defaults, void *in) {
     sasl_interact_t *interact = (sasl_interact_t*)in;
 
-    if (ld == NULL)
+    if (ld == nullptr)
         return LDAP_PARAM_ERROR;
 
     while (interact->id != SASL_CB_LIST_END) {
@@ -140,8 +144,18 @@ static int interactProc(LDAP *ld, unsigned flags, void *defaults, void *in) {
 namespace mongo {
 
 struct LDAPConnInfo {
-    LDAP* conn;
-    bool borrowed;
+    LDAP* conn = nullptr;
+    bool borrowed = false;
+    bool failed = false;
+
+    void close() {
+        invariant(!borrowed);
+        if (conn) {
+            ldap_unbind_ext(conn, nullptr, nullptr);
+            conn = nullptr;
+            failed = false;
+        }
+    }
 };
 
 
@@ -149,7 +163,7 @@ using namespace fmt::literals;
 
 static LDAP* create_connection(void* connect_cb_arg = nullptr,
                                logv2::LogSeverity logSeverity = logv2::LogSeverity::Debug(1)) {
-    LDAP* ldap;
+    LDAP* ldap = nullptr;
     auto uri = ldapGlobalParams.ldapURIList();
 
     auto res = ldap_initialize(&ldap, uri.c_str());
@@ -203,8 +217,7 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr,
 
 class LDAPManagerImpl::ConnectionPoller : public BackgroundJob {
 public:
-    ConnectionPoller(LDAPManagerImpl* manager)
-        : _manager(manager) {}
+    explicit ConnectionPoller(LDAPManagerImpl* manager) : _manager(manager) {}
 
     virtual std::string name() const override {
         return "LDAPConnectionPoller";
@@ -223,16 +236,32 @@ public:
                 _condvar.wait(lock, [this] { return !_poll_fds.empty() || _shuttingDown.load(); });
 
                 fds.reserve(_poll_fds.size());
-                for(auto fd: _poll_fds) {
-                  if(fd.first < 0) continue;
-                  pollfd pfd;
-                  pfd.events = POLLPRI | POLLRDHUP;
-                  pfd.revents = 0;
-                  pfd.fd = fd.first;
-                  fds.push_back(pfd);
+                std::vector<int> to_erase;
+                for (auto& fd : _poll_fds) {
+                    if (fd.first < 0)
+                        continue;
+                    if (fd.second.failed) {
+                        if (!fd.second.borrowed) {
+                            fd.second.close();
+                            to_erase.push_back(fd.first);
+                        }
+                        continue;
+                    }
+                    pollfd pfd;
+                    pfd.events = POLLPRI | POLLRDHUP;
+                    pfd.revents = 0;
+                    pfd.fd = fd.first;
+                    fds.push_back(pfd);
+                }
+                for (auto id : to_erase) {
+                    _poll_fds.erase(id);
+                }
+                if (!to_erase.empty()) {
+                    _condvar_pool.notify_all();
                 }
             }
             // if there are no descriptors that means server is shutting down
+            // or we just closed some failed connections
             if (fds.empty())
                 continue;
 
@@ -253,10 +282,10 @@ public:
                 //restart all LDAP connections... but why?
                 {
                     stdx::unique_lock<Latch> lock{_mutex};
-                    if(!_poll_fds.empty()) {
-                        _poll_fds.clear();
-                        //_manager->needReinit();
+                    for (auto& fd : _poll_fds) {
+                        fd.second.failed = true;
                     }
+                    //_manager->needReinit();
                 }
             } else if (poll_ret > 0) {
                 static struct {
@@ -284,10 +313,9 @@ public:
                     if (fd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
                         // need to restart LDAP connection
                         stdx::unique_lock<Latch> lock{_mutex};
-                        if(_poll_fds[fd.fd].conn) {
-                          ldap_unbind_ext(_poll_fds[fd.fd].conn, nullptr, nullptr);
-                        }
-                        _poll_fds.erase(fd.fd);
+                        // cannot close (unbind) connection here because it might be in use
+                        // (borrowed). So just mark it as failed for later recycling
+                        _poll_fds[fd.fd].failed = true;
                         //_manager->needReinit();
                     }
                 }
@@ -302,9 +330,10 @@ public:
             stdx::unique_lock<Latch> lock{_mutex};
             auto it = _poll_fds.find(fd);
             if(it == _poll_fds.end()) {
-                _poll_fds.insert({fd, {ldap, true}});
+                it = _poll_fds.insert({fd, {ldap, true, false}}).first;
                 changed = true;
             }
+            invariant(!it->second.failed);
         }
         if (changed) {
             _condvar.notify_one();
@@ -319,7 +348,7 @@ public:
     // requires holding _mutex
     LDAPConnInfo* find_free_slot() {
         for (auto& fd : _poll_fds) {
-            if (!fd.second.borrowed) {
+            if (!fd.second.borrowed && !fd.second.failed) {
                 return &fd.second;
             }
         }
@@ -327,49 +356,44 @@ public:
     }
 
     LDAP* borrow_or_create() {
+        // create scope block to ensure that _mutex is released before call to create_connection
         {
             stdx::unique_lock<Latch> lock{_mutex};
-            auto slot = find_free_slot();
-            if (slot != nullptr) {
-                slot->borrowed = true;
-                return slot->conn;
-            }
-
-            if(static_cast<unsigned>(ldapGlobalParams.ldapConnectionPoolSizePerHost.load())
-                    < _poll_fds.size()) {
-                // pool is full, wait until we have a free slot
-                _condvar_pool.wait(lock, [this]{ return find_free_slot() || _shuttingDown.load();});
-
-                auto slot = find_free_slot();
-                if (slot != nullptr) {
+            while (true) {
+                if (_shuttingDown.load()) {
+                    // return nullptr if shutdown is in progress
+                    return nullptr;
+                }
+                if (auto* slot = find_free_slot()) {
+                    invariant(slot->conn != nullptr);
                     slot->borrowed = true;
                     return slot->conn;
                 }
-
-                // shutting down
-                return nullptr;
+                if (_poll_fds.size() <=
+                    static_cast<unsigned>(ldapGlobalParams.ldapConnectionPoolSizePerHost.load())) {
+                    // no available connection, pool has space => create new connection
+                    break;
+                }
+                // wait for some connection returned from borrowed state
+                // or killed after failure
+                _condvar_pool.wait(lock);
             }
         }
-        // no available connection, pool has space => create one
-        // _poll_fds will be registered in the callback
+        // LDAP connect callback will add entry to the _poll_fds
         return create_connection(this);
     }
 
     void return_ldap_connection(LDAP* ldap) {
-        bool found = false;
-        {
-            stdx::unique_lock<Latch> lock{_mutex};
-            auto it = std::find_if(_poll_fds.begin(), _poll_fds.end(), [&](auto const& e) {
-                return e.second.conn == ldap;
-            });
-            if (it != _poll_fds.end()) {
-                it->second.borrowed = false;
-                found = true;
-            }
-        }
-        if (found) {
-            _condvar_pool.notify_one();
-        }
+        stdx::unique_lock<Latch> lock{_mutex};
+        auto it = std::find_if(_poll_fds.begin(), _poll_fds.end(), [&](auto const& e) {
+            return e.second.conn == ldap;
+        });
+        // returning connection which was not borrowed is an error
+        invariant(it != _poll_fds.end());
+        invariant(it->second.borrowed);
+        it->second.borrowed = false;
+        // poller should be always notified here
+        _condvar_pool.notify_one();
     }
 
 private:
@@ -518,7 +542,7 @@ void LDAPManagerImpl::start_threads() {
 
 LDAP* LDAPManagerImpl::borrow_search_connection() {
 
-    auto ldap = _connPoller->borrow_or_create();
+    auto* ldap = _connPoller->borrow_or_create();
 
     if(!ldap) {
       return ldap;
