@@ -238,7 +238,7 @@ DocumentSourceBackupMetadata::DocumentSourceBackupMetadata(
     }
 
     // open wiredTiger instance in read-only mode
-    const auto* wtConfig = "config_base=false,log=(enabled=true,path=journal,compressor=snappy)";
+    const auto* wtConfig = "config_base=false";
     WT_CONNECTION* conn = nullptr;
     uassertWTOK(wiredtiger_open(_wtPath.c_str(), nullptr, wtConfig, &conn), nullptr);
     // store created connection in the guard
