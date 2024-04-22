@@ -537,7 +537,6 @@ void InitialSyncerFCB::waitForCloner_forTest() {
 void InitialSyncerFCB::_setUp_inlock(OperationContext* opCtx,
                                      std::uint32_t initialSyncMaxAttempts) {
     // 'opCtx' is passed through from startup().
-    _replicationProcess->getConsistencyMarkers()->setInitialSyncFlag(opCtx);
     _replicationProcess->getConsistencyMarkers()->clearInitialSyncId(opCtx);
 
     auto* serviceCtx = opCtx->getServiceContext();
@@ -583,11 +582,7 @@ void InitialSyncerFCB::_tearDown_inlock(OperationContext* opCtx,
 
     _replicationProcess->getConsistencyMarkers()->setInitialSyncIdIfNotSet(opCtx);
 
-    // We set the initial data timestamp before clearing the initial sync flag. See comments in
-    // clearInitialSyncFlag.
     _storage->setInitialDataTimestamp(opCtx->getServiceContext(), initialDataTimestamp);
-
-    _replicationProcess->getConsistencyMarkers()->clearInitialSyncFlag(opCtx);
 
     auto currentLastAppliedOpTime = _opts.getMyLastOptime();
     if (currentLastAppliedOpTime.isNull()) {
