@@ -46,16 +46,8 @@ structs:
         type: safeInt64
       dataSize:
         type: safeInt64
-      collectionFile:
-        type: string
-      indexFiles:
-        type: object
       storageMetadata:
         type: object
-      directoryPerDB:
-        type: bool
-      directoryForIndexes:
-        type: bool
 
 commands:
 

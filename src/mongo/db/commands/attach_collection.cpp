@@ -160,10 +160,6 @@ void importCollection(OperationContext* opCtx, CollectionImportMetadata& metadat
  *          },
  *          numRecords: Long("1"),
  *          dataSize: Long("46"),
- *          collectionFile: '/data/path/collection-7--6037007956219898235.wt',
- *          indexFiles: {
- *              _id_: '/data/path/index-8--6037007956219898235.wt'
- *          },
  *          storageMetadata: {
  *              'collection-7--6037007956219898235': {
  *                  tableMetadata: ' ... ',
@@ -174,8 +170,6 @@ void importCollection(OperationContext* opCtx, CollectionImportMetadata& metadat
  *                  fileMetadata: ' ... '
  *              }
  *          },
- *          directoryPerDB: false,
- *          directoryForIndexes: false
  *       }
  *   }
  */
