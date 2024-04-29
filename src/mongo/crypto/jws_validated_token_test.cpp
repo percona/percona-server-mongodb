@@ -30,27 +30,24 @@
 #include "mongo/crypto/jws_validated_token.h"
 
 #include <iostream>
+#include <openssl/opensslv.h>
 #include <string>
 #include <vector>
 
 #include <openssl/opensslv.h>
 
-#include "mongo/bson/bsonobj.h"
-#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
 #include "mongo/config.h"
-#include "mongo/crypto/jwk_manager.h"
-#include "mongo/crypto/jwks_fetcher_mock.h"
+#include "mongo/crypto/jwk_manager_test_framework.h"
 #include "mongo/crypto/jws_validator.h"
-#include "mongo/unittest/assert.h"
 #include "mongo/unittest/bson_test_util.h"
 #include "mongo/unittest/unittest.h"
-#include "mongo/util/assert_util.h"
+#include "mongo/idl/server_parameter_test_util.h"
 #include "mongo/util/base64.h"
 
 #if MONGO_CONFIG_SSL_PROVIDER == MONGO_CONFIG_SSL_PROVIDER_OPENSSL
 
-namespace mongo::crypto {
+namespace mongo::crypto::test {
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L || \
     (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070000fL)
 
@@ -132,13 +129,13 @@ BSONObj getTestJWKSet() {
     return set.obj();
 }
 
-TEST(JWKManager, validateTokenFromKeys) {
-    auto validToken = validTokenHeader + "."_sd + validTokenBody + "."_sd + validTokenSignature;
-    BSONObj keys = getTestJWKSet();
+TEST_F(JWKManagerTest, validateTokenFromKeys) {
+    RAIIServerParameterControllerForTest quiesceController("JWKSMinimumQuiescePeriodSecs", 0);
 
-    JWKManager manager(std::make_unique<MockJWKSFetcher>(keys));
-    ASSERT_OK(manager.loadKeys());
-    JWSValidatedToken validatedToken(&manager, validToken);
+    auto validToken = validTokenHeader + "."_sd + validTokenBody + "."_sd + validTokenSignature;
+
+    jwksFetcher()->setKeys(getTestJWKSet());
+    JWSValidatedToken validatedToken(jwkManager(), validToken);
 
     auto headerString = base64url::decode(validTokenHeader);
     BSONObj headerBSON = fromjson(headerString);
@@ -155,36 +152,71 @@ TEST(JWKManager, validateTokenFromKeys) {
     ASSERT_BSONOBJ_EQ(validatedToken.getBody().toBSON(), body.toBSON());
 }
 
-TEST(JWKManager, failsWithExpiredToken) {
+TEST_F(JWKManagerTest, failsWithExpiredToken) {
+    RAIIServerParameterControllerForTest quiesceController("JWKSMinimumQuiescePeriodSecs", 0);
+
     auto expiredToken =
         expiredTokenHeader + "."_sd + expiredTokenBody + "."_sd + expiredTokenSignature;
     BSONObj keys = getTestJWKSet();
 
-    JWKManager manager(std::make_unique<MockJWKSFetcher>(keys));
-    ASSERT_OK(manager.loadKeys());
-    ASSERT_THROWS(JWSValidatedToken(&manager, expiredToken), DBException);
+    jwksFetcher()->setKeys(getTestJWKSet());
+    ASSERT_OK(jwkManager()->loadKeys());
+    ASSERT_THROWS(JWSValidatedToken(jwkManager(), expiredToken), DBException);
 }
 
-TEST(JWKManager, failsWithModifiedToken) {
+TEST_F(JWKManagerTest, failsWithModifiedToken) {
+    RAIIServerParameterControllerForTest quiesceController("JWKSMinimumQuiescePeriodSecs", 0);
+
     auto modifiedToken =
         validTokenHeader + "."_sd + validTokenBody + "."_sd + validTokenSignature + "a"_sd;
-    BSONObj keys = getTestJWKSet();
 
-    JWKManager manager(std::make_unique<MockJWKSFetcher>(keys));
-    ASSERT_OK(manager.loadKeys());
-    ASSERT_THROWS(JWSValidatedToken(&manager, modifiedToken), DBException);
+    jwksFetcher()->setKeys(getTestJWKSet());
+    ASSERT_OK(jwkManager()->loadKeys());
+    ASSERT_THROWS(JWSValidatedToken(jwkManager(), modifiedToken), DBException);
 }
 
-TEST(JWKManager, failsWithModifiedHeaderForADifferentKey) {
+TEST_F(JWKManagerTest, failsWithModifiedHeaderForADifferentKey) {
+    RAIIServerParameterControllerForTest quiesceController("JWKSMinimumQuiescePeriodSecs", 0);
+
     auto modifiedToken =
         modifiedTokenHeader + "."_sd + validTokenBody + "."_sd + validTokenSignature;
+
+    jwksFetcher()->setKeys(getTestJWKSet());
+    ASSERT_OK(jwkManager()->loadKeys());
+    ASSERT_THROWS(JWSValidatedToken(jwkManager(), modifiedToken), DBException);
+}
+
+// Serialization Header: { "typ": 'JWT', "alg": 'RS256', "kid": 'custom-key-2' }
+// Serialization Body: { "iss": "JWSCompactParserTest", "sub": "jwsParserTest1", "exp": 2147483647,
+//                      "aud": ["jwt@kernel.mongodb.com"],
+//                       "mongodb/tenantId": "636d957b2646ddfaf9b5e13f", "mongodb/expectPrefix":
+//                       true
+//                     }
+constexpr auto kTenancyTokenHeader =
+    "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImN1c3RvbS1rZXktMiJ9";
+constexpr auto kTenancyTokenBody =
+    "eyJpc3MiOiJKV1NDb21wYWN0UGFyc2VyVGVzdCIsInN1YiI6Imp3c1BhcnNlclRlc3QxIiwiZXhwIjoyMTQ3NDgzNjQ3LC"
+    "JhdWQiOlsiand0QGtlcm5lbC5tb25nb2RiLmNvbSJdLCJtb25nb2RiL3RlbmFudElkIjoiNjM2ZDk1N2IyNjQ2ZGRmYWY5"
+    "YjVlMTNmIiwibW9uZ29kYi9leHBlY3RQcmVmaXgiOnRydWV9";
+constexpr auto kTenancyTokenSignature =
+    "JlYD8ufBrzXCn6qStS8t6D6O3GFwoNjhAWiz7QbvuvSJiiHLWAJ3eVDop7NHV6Y276hkCu-1_"
+    "c0uyNQhuTpd902GFOxqtO6xNa5QQ04fEwBWMdRmmnggdrFntB2l1wrb7TDTStAqt5jKRyXARpqYaVfxf9wU_"
+    "QWs997SIqRTjyEopFdbc_-nyZ-ddy3RDZY17H6Gl1I3UaaeoJX1-5-sKkWbmBrDHp2S9SHnfr-mBZxSU7PPTE2zNVm6I-"
+    "CY8OAzS465iOjbD4-9NbHiNo4wWOPrLDOHtepxKkYFiAnbFISWZ85Vvxe8QbrxpuqxrPxEQEZGmIqXSjU4IXY2GDBo6Q";
+TEST_F(JWKManagerTest, testTenancyExpectPrefix) {
+    auto tenancyToken =
+        kTenancyTokenHeader + "."_sd + kTenancyTokenBody + "."_sd + kTenancyTokenSignature;
     BSONObj keys = getTestJWKSet();
 
-    JWKManager manager(std::make_unique<MockJWKSFetcher>(keys));
-    ASSERT_OK(manager.loadKeys());
-    ASSERT_THROWS(JWSValidatedToken(&manager, modifiedToken), DBException);
+    auto bodyString = base64url::decode(kTenancyTokenBody);
+    BSONObj bodyBSON = fromjson(bodyString);
+    JWT body = JWT::parse(IDLParserContext("JWT"), bodyBSON);
+
+    ASSERT_TRUE(body.getTenantId() != boost::none);
+    ASSERT_TRUE(*body.getExpectPrefix());
 }
+
 #endif
-}  // namespace mongo::crypto
+}  // namespace mongo::crypto::test
 
 #endif
