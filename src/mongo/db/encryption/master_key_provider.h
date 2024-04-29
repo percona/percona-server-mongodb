@@ -41,8 +41,8 @@ namespace mongo {
 class EncryptionGlobalParams;
 namespace encryption {
 class Key;
+class KeyEntry;
 class KeyId;
-class KeyKeyIdPair;
 class KeyOperationFactory;
 class ReadKey;
 class SaveKey;
@@ -93,7 +93,7 @@ public:
     ///
     /// @throws `encryption::Error` if can't unambiguously read the key from or
     /// save the key to the key management facility
-    std::pair<Key, std::unique_ptr<KeyId>> obtainMasterKey(bool saveKey = true) const;
+    KeyEntry obtainMasterKey(bool saveKey = true) const;
 
     /// @brief Saves the master key to a key manageent facitlity.
     ///
@@ -104,7 +104,7 @@ public:
     void saveMasterKey(const Key& key) const;
 
 private:
-    KeyKeyIdPair _readMasterKey(const ReadKey& read, bool updateKeyIds = true) const;
+    KeyEntry _readMasterKey(const ReadKey& read, bool updateKeyIds = true) const;
     std::unique_ptr<KeyId> _saveMasterKey(const SaveKey& save, const Key& key) const;
 
     std::unique_ptr<const KeyOperationFactory> _factory;

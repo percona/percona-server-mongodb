@@ -43,6 +43,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/error.h"
 #include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/key_entry.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/key_operations.h"
 #include "mongo/db/encryption/master_key_provider.h"
@@ -219,9 +220,9 @@ public:
     FakeReadKmipKey(FakeKmipServer& server, const KmipKeyId& id)
         : ReadKmipKey(id), _server(server) {}
 
-    std::optional<KeyKeyIdPair> operator()() const override {
+    std::optional<KeyEntry> operator()() const override {
         if (auto key = _server.readKey(kmipKeyId()); key) {
-            return KeyKeyIdPair{*key, kmipKeyId().clone()};
+            return KeyEntry{*key, kmipKeyId().clone()};
         }
         return std::nullopt;
     }

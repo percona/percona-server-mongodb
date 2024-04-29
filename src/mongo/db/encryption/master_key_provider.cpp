@@ -35,6 +35,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/error_builder.h"
 #include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/key_entry.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/key_operations.h"
 #include "mongo/logv2/log.h"
@@ -57,9 +58,9 @@ std::unique_ptr<MasterKeyProvider> MasterKeyProvider::create(const EncryptionGlo
         KeyOperationFactory::create(params), WtKeyIds::instance(), logComponent);
 }
 
-KeyKeyIdPair MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateKeyIds) const {
-    auto keyKeyId = read();
-    if (!keyKeyId) {
+KeyEntry MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateKeyIds) const {
+    auto keyEntry = read();
+    if (!keyEntry) {
         KeyErrorBuilder b(
             KeyOperationType::kRead,
             "Cannot start. Master encryption key is absent on the key management facility. "
@@ -69,7 +70,7 @@ KeyKeyIdPair MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateK
         throw b.error();
     }
     if (updateKeyIds) {
-        _wtKeyIds.decryption = keyKeyId->keyId->clone();
+        _wtKeyIds.decryption = keyEntry->keyId->clone();
         if (!_wtKeyIds.configured &&
             _wtKeyIds.decryption->needsSerializationToStorageEngineEncryptionOptions()) {
             _wtKeyIds.futureConfigured = _wtKeyIds.decryption->clone();
@@ -79,8 +80,8 @@ KeyKeyIdPair MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateK
                   logv2::LogOptions(_logComponent),
                   "Master encryption key has been read from the key management facility.",
                   "keyManagementFacilityType"_attr = read.facilityType(),
-                  "keyIdentifier"_attr = *keyKeyId->keyId);
-    return KeyKeyIdPair(std::move(*keyKeyId));
+                  "keyIdentifier"_attr = *keyEntry->keyId);
+    return KeyEntry(std::move(*keyEntry));
 }
 
 std::unique_ptr<KeyId> MasterKeyProvider::_saveMasterKey(const SaveKey& save,
@@ -102,13 +103,13 @@ Key MasterKeyProvider::readMasterKey() const {
     return _readMasterKey(*_factory->createRead(_wtKeyIds.configured.get())).key;
 }
 
-std::pair<Key, std::unique_ptr<KeyId>> MasterKeyProvider::obtainMasterKey(bool saveKey) const {
+KeyEntry MasterKeyProvider::obtainMasterKey(bool saveKey) const {
     if (auto read = _factory->createProvidedRead(); read) {
-        auto keyKeyId = _readMasterKey(*read, false);
-        if (keyKeyId.keyId->needsSerializationToStorageEngineEncryptionOptions()) {
-            _wtKeyIds.futureConfigured = keyKeyId.keyId->clone();
+        auto keyEntry = _readMasterKey(*read, false);
+        if (keyEntry.keyId->needsSerializationToStorageEngineEncryptionOptions()) {
+            _wtKeyIds.futureConfigured = keyEntry.keyId->clone();
         }
-        return {keyKeyId.key, std::move(keyKeyId.keyId)};
+        return keyEntry;
     }
 
     Key key;

@@ -85,6 +85,7 @@
 #include "mongo/db/encryption/error.h"
 #include "mongo/db/encryption/error_builder.h"
 #include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/key_entry.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/master_key_provider.h"
 #include "mongo/db/global_settings.h"
@@ -626,7 +627,7 @@ std::unique_ptr<EncryptionKeyDB> createKeyDb(const boost::filesystem::path& dbPa
 
     try {
         auto keyDb = EncryptionKeyDB::create(keyDbDir.string(),
-                                             keyDbDirIsFresh ? keyProvider.obtainMasterKey().first
+                                             keyDbDirIsFresh ? keyProvider.obtainMasterKey().key
                                                              : keyProvider.readMasterKey());
         keyDbDirGuard.dismiss();
         return keyDb;

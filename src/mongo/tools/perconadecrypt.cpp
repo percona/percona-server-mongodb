@@ -221,8 +221,8 @@ encryption::Key readMasterKey() {
     auto factory = KeyOperationFactory::create(encryptionGlobalParams);
     std::unique_ptr<ReadKey> read = factory->createProvidedRead();
     std::cout << "Loading encryption key from the " << read->facilityType() << std::endl;
-    std::optional<KeyKeyIdPair> keyKeyId = (*read)();
-    return keyKeyId ? keyKeyId->key
+    std::optional<KeyEntry> keyEntry = (*read)();
+    return keyEntry ? keyEntry->key
                     : throw std::runtime_error("No encryption key found for specified params");
 }
 }  // namespace

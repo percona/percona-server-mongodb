@@ -38,17 +38,13 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <string_view>
 
 #include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/key_entry.h"
 #include "mongo/db/encryption/key_id.h"
 
 namespace mongo {
 class EncryptionGlobalParams;
 
 namespace encryption {
-
-struct KeyKeyIdPair {
-    Key key;
-    std::unique_ptr<KeyId> keyId;
-};
 
 /// @brief The operation of reading an encryption key from a key management
 /// facility.
@@ -79,7 +75,7 @@ public:
     /// was the latest at the time of reading.
     ///
     /// @throws `std::runtime_error` on failure
-    virtual std::optional<KeyKeyIdPair> operator()() const = 0;
+    virtual std::optional<KeyEntry> operator()() const = 0;
 
     const char* facilityType() const noexcept {
         return keyId().facilityType();
@@ -123,7 +119,7 @@ public:
     explicit ReadKeyFile(const KeyFilePath& path) : _path(path) {}
     explicit ReadKeyFile(KeyFilePath&& path) : _path(std::move(path)) {}
 
-    std::optional<KeyKeyIdPair> operator()() const override;
+    std::optional<KeyEntry> operator()() const override;
 
     const KeyId& keyId() const noexcept override {
         return _path;
@@ -142,7 +138,7 @@ public:
     explicit ReadVaultSecret(const VaultSecretId& id) : _id(id) {}
     explicit ReadVaultSecret(VaultSecretId&& id) : _id(std::move(id)) {}
 
-    std::optional<KeyKeyIdPair> operator()() const override;
+    std::optional<KeyEntry> operator()() const override;
 
     const KeyId& keyId() const noexcept override {
         return _id;
@@ -179,7 +175,7 @@ public:
     explicit ReadKmipKey(const KmipKeyId& id) : _id(id) {}
     explicit ReadKmipKey(KmipKeyId&& id) : _id(std::move(id)) {}
 
-    std::optional<KeyKeyIdPair> operator()() const override;
+    std::optional<KeyEntry> operator()() const override;
 
     const KeyId& keyId() const noexcept override {
         return _id;

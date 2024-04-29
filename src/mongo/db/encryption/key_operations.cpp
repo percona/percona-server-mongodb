@@ -90,9 +90,9 @@ auto retryKmipOperation(MemFn&& operation) {
 }
 }
 
-std::optional<KeyKeyIdPair> ReadKeyFile::operator()() const try {
+std::optional<KeyEntry> ReadKeyFile::operator()() const try {
     auto s = detail::readFileToSecureString(_path.toString(), "encryption key");
-    return KeyKeyIdPair{Key(*s), _path.clone()};
+    return KeyEntry{Key(*s), _path.clone()};
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "reading the master key from the encryption key file failed: " << e.what();
@@ -103,9 +103,9 @@ std::pair<std::string, std::uint64_t> ReadVaultSecret::_read(const VaultSecretId
     return detail::vaultReadKey(id.path(), id.version());
 }
 
-std::optional<KeyKeyIdPair> ReadVaultSecret::operator()() const try {
+std::optional<KeyEntry> ReadVaultSecret::operator()() const try {
     if (auto [encodedKey, version] = _read(_id); !encodedKey.empty()) {
-        return KeyKeyIdPair{Key(encodedKey), std::make_unique<VaultSecretId>(_id.path(), version)};
+        return KeyEntry{Key(encodedKey), std::make_unique<VaultSecretId>(_id.path(), version)};
     }
     return std::nullopt;
 } catch (const std::runtime_error& e) {
@@ -123,10 +123,10 @@ std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
     throw KeyErrorBuilder(KeyOperationType::kSave, StringData(msg.str())).error();
 }
 
-std::optional<KeyKeyIdPair> ReadKmipKey::operator()() const try {
+std::optional<KeyEntry> ReadKmipKey::operator()() const try {
     auto op = [&id = _id.toString()](KmipClient& client) { return client.getSymmetricKey(id); };
     if (std::optional<Key> key = retryKmipOperation(op); key) {
-        return KeyKeyIdPair{std::move(*key), _id.clone()};
+        return KeyEntry{std::move(*key), _id.clone()};
     }
     return std::nullopt;
 } catch (const std::runtime_error& e) {
