@@ -32,9 +32,15 @@
 #include "mongo/bson/json.h"
 #include "mongo/db/auth/oauth_discovery_factory.h"
 #include "mongo/db/commands/test_commands_enabled.h"
+#include "mongo/crypto/jwt_parameters_gen.h"
+#include "mongo/util/clock_source.h"
+#include "mongo/util/duration.h"
 #include "mongo/util/net/http_client.h"
 
 namespace mongo::crypto {
+
+JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath)
+    : _issuer(issuer), _caFilePath(caFilePath), _clock(clock), _lastSuccessfulFetch(_clock->now()) {}
 
 JWKSet JWKSFetcherImpl::fetch() {
     try {
@@ -53,6 +59,7 @@ JWKSet JWKSFetcherImpl::fetch() {
 
         auto jwksUri = metadata.getJwksUri();
         auto getJWKs = makeHTTPClient()->get(jwksUri);
+        _lastSuccessfulFetch = _clock->now();
 
         ConstDataRange cdr = getJWKs.getCursor();
         StringData str;
@@ -63,6 +70,11 @@ JWKSet JWKSFetcherImpl::fetch() {
         ex.addContext(str::stream() << "Failed loading keys from " << _issuer);
         throw;
     }
+}
+
+bool JWKSFetcherImpl::quiesce() const {
+    return _clock->now() <
+        (_lastSuccessfulFetch.get() + Seconds(gJWKSMinimumQuiescePeriodSecs.load()));
 }
 
 }  // namespace mongo::crypto

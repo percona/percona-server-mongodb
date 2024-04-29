@@ -29,16 +29,22 @@
 
 #pragma once
 
-#include "mongo/crypto/jwks_fetcher.h"
+#include "mongo/base/string_data.h"
+#include "mongo/crypto/jwks_fetcher_impl.h"
 
 namespace mongo::crypto {
 
-/** Mock JWKS fetcher.
- *  Returns JWKSes which are pre-set at construction.
+/**
+ * Mock JWKS fetcher.
+ * Returns JWKSes which are pre-set at construction.
+ * Replies on JWKSFetcherImpl for other implementation details like quiesce mode.
  */
-class MockJWKSFetcher : public JWKSFetcher {
+class MockJWKSFetcher : public JWKSFetcherImpl {
 public:
-    MockJWKSFetcher(BSONObj keys) : _keys(std::move(keys)) {}
+    static constexpr StringData kMockIssuer = "https://localhost/issuer/mock"_sd;
+
+    MockJWKSFetcher(ClockSource* clock, BSONObj keys)
+        : JWKSFetcherImpl(clock, kMockIssuer), _keys(std::move(keys)) {}
 
     JWKSet fetch() {
         if (_shouldFail) {
@@ -50,6 +56,10 @@ public:
 
     void setShouldFail(bool shouldFail) {
         _shouldFail = shouldFail;
+    }
+
+    void setKeys(BSONObj keys) {
+        _keys = keys;
     }
 
 private:
