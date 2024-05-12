@@ -32,7 +32,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -50,10 +49,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/initial_sync_shared_data.h"
 #include "mongo/db/repl/initial_syncer_interface.h"
 #include "mongo/db/repl/multiapplier.h"
-#include "mongo/db/repl/oplog_applier.h"
-#include "mongo/db/repl/oplog_buffer.h"
-#include "mongo/db/repl/oplog_entry.h"
-#include "mongo/db/repl/oplog_fetcher.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/rollback_checker.h"
 #include "mongo/executor/scoped_task_executor.h"
@@ -61,26 +56,14 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/mutex.h"
 #include "mongo/stdx/condition_variable.h"
-#include "mongo/stdx/mutex.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/duration.h"
-#include "mongo/util/fail_point.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/time_support.h"
 
 namespace mongo {
 namespace repl {
-
-// TODO: Remove forward declares once we remove rs_initialsync.cpp and other dependents.
-// Failpoint which fails initial sync and leaves an oplog entry in the buffer.
-extern FailPoint failInitSyncWithBufferedEntriesLeftFCB;
-
-// Failpoint which causes the initial sync function to hang before copying databases.
-extern FailPoint initialSyncHangBeforeCopyingDatabasesFCB;
-
-// Failpoint which stops the applier.
-extern FailPoint rsSyncApplyStopFCB;
 
 struct InitialSyncState;
 class ReplicationProcess;
@@ -120,28 +103,6 @@ public:
         std::string toString() const;
         BSONObj toBSON() const;
         void append(BSONObjBuilder* builder) const;
-    };
-
-    class OplogFetcherRestartDecisionInitialSyncer
-        : public OplogFetcher::OplogFetcherRestartDecision {
-
-    public:
-        OplogFetcherRestartDecisionInitialSyncer(InitialSyncSharedData* sharedData,
-                                                 std::size_t maxFetcherRestarts)
-            : _sharedData(sharedData), _defaultDecision(maxFetcherRestarts){};
-
-        bool shouldContinue(OplogFetcher* fetcher, Status status) final;
-
-        void fetchSuccessful(OplogFetcher* fetcher) final;
-
-    private:
-        InitialSyncSharedData* _sharedData;
-
-        // We delegate to the default strategy when it's a non-network error.
-        OplogFetcher::OplogFetcherRestartDecisionDefault _defaultDecision;
-
-        // The operation, if any, currently being retried because of a network error.
-        InitialSyncSharedData::RetryableOperation _retryingOperation;
     };
 
     struct Stats {
@@ -202,24 +163,6 @@ public:
 
     /**
      *
-     * Overrides how the initial syncer creates the OplogFetcher.
-     *
-     * For testing only.
-     */
-    void setCreateOplogFetcherFn_forTest(std::unique_ptr<OplogFetcherFactory> createOplogFetcherFn);
-
-    /**
-     *
-     * Get a raw pointer to the OplogFetcher. Block up to 10s until the underlying OplogFetcher has
-     * started. It is the caller's responsibility to not reuse this pointer beyond the lifetime of
-     * the underlying OplogFetcher.
-     *
-     * For testing only.
-     */
-    OplogFetcher* getOplogFetcher_forTest() const;
-
-    /**
-     *
      * Provides a separate executor for the cloners, so network operations based on
      * TaskExecutor::scheduleRemoteCommand() can use the NetworkInterfaceMock while the cloners
      * are stopped on a failpoint.
@@ -261,11 +204,6 @@ public:
     void setAllowedOutageDuration_forTest(Milliseconds allowedOutageDuration);
 
 private:
-    enum LastOplogEntryFetcherRetryStrategy {
-        kFetcherHandlesRetries,
-        kInitialSyncerHandlesRetries
-    };
-
     /**
      * Returns true if we are still processing initial sync tasks (_state is either Running or
      * Shutdown).
@@ -287,7 +225,7 @@ private:
     /**
      * Initial sync flowchart:
      *
-     *     start()
+     *     startup()
      *         |
      *         |
      *         V
@@ -318,15 +256,15 @@ private:
      *         |
      *         |
      *         V
-     *   _lastOplogEntryFetcherCallbackForDefaultBeginFetchingOpTime()
+     *   _lastOplogEntryFetcherCallbackForDefaultBeginFetchingOpTime() [removed]
      *         |
      *         |
      *         V
-     *   _getBeginFetchingOpTimeCallback()
+     *   _getBeginFetchingOpTimeCallback() [removed]
      *         |
      *         |
      *         V
-     *    _lastOplogEntryFetcherCallbackForBeginApplyingTimestamp()
+     *    _lastOplogEntryFetcherCallbackForBeginApplyingTimestamp() [removed]
      *         |
      *         |
      *         V
@@ -337,29 +275,29 @@ private:
      *         |                              |
      *         |                              |
      *         V                              V
-     *    _oplogFetcherCallback()         _allDatabaseClonerCallback
+     *    _oplogFetcherCallback[removed]  _allDatabaseClonerCallback [removed]
      *         |                              |
      *         |                              |
      *         |                              V
-     *         |                          _lastOplogEntryFetcherCallbackForStopTimestamp()
+     *         |                          _lastOplogEntryFetcherCallbackForStopTimestamp() [removed]
      *         |                              |       |
      *         |                              |       |
      *         |            (no ops to apply) |       | (have ops to apply)
      *         |                              |       |
      *         |                              |       V
-     *         |                              |   _getNextApplierBatchCallback()
+     *         |                              |   _getNextApplierBatchCallback() [removed]
      *         |                              |       |                       ^
      *         |                              |       |                       |
      *         |                              |       |             (end ts not reached)
      *         |                              |       |                       |
      *         |                              |       V                       |
-     *         |                              |   _multiApplierCallback()-----+
+     *         |                              |   _multiApplierCallback()-----+ [removed]
      *         |                              |       |
      *         |                              |       |
      *         |                        (reached end timestamp)
      *         |                              |       |
      *         |                              V       V
-     *         |                _rollbackCheckerCheckForRollbackCallback()
+     *         |                _rollbackCheckerCheckForRollbackCallback() [removed]
      *         |                              |
      *         |                              |
      *         +------------------------------+
@@ -416,44 +354,6 @@ private:
                                        std::shared_ptr<OnCompletionGuard> onCompletionGuard);
 
     /**
-     * Callback for first '_lastOplogEntryFetcher' callback. A successful response lets us
-     * determine the default starting point for tailing the oplog using the OplogFetcher if there
-     * are no active transactions on the sync source. This will be used as the default for the
-     * beginFetchingTimestamp.
-     */
-    void _lastOplogEntryFetcherCallbackForDefaultBeginFetchingOpTime(
-        const StatusWith<Fetcher::QueryResponse>& result,
-        std::shared_ptr<OnCompletionGuard> onCompletionGuard);
-
-    /**
-     * Schedules a remote command to issue a find command on sync source's transaction table, which
-     * will get us the optime of the oldest active transaction on that node. It will be used as the
-     * beginFetchingTimestamp.
-     */
-    Status _scheduleGetBeginFetchingOpTime_inlock(
-        std::shared_ptr<OnCompletionGuard> onCompletionGuard,
-        const OpTime& defaultBeginFetchingOpTime);
-
-    /**
-     * Callback that gets the optime of the oldest active transaction in the sync source's
-     * transaction table. It will be used as the beginFetchingTimestamp.
-     */
-    void _getBeginFetchingOpTimeCallback(const StatusWith<Fetcher::QueryResponse>& result,
-                                         std::shared_ptr<OnCompletionGuard> onCompletionGuard,
-                                         const OpTime& defaultBeginFetchingOpTime);
-
-    /**
-     * Callback for second '_lastOplogEntryFetcher' callback. A successful response lets us
-     * determine the starting point for applying oplog entries during the oplog application phase
-     * as well as setting a reference point for the state of the sync source's oplog when data
-     * cloning completes.
-     */
-    void _lastOplogEntryFetcherCallbackForBeginApplyingTimestamp(
-        const StatusWith<Fetcher::QueryResponse>& result,
-        std::shared_ptr<OnCompletionGuard> onCompletionGuard,
-        OpTime& beginFetchingOpTime);
-
-    /**
      * Callback for the '_fCVFetcher'. A successful response lets us check if the remote node
      * is in a currently acceptable fCV and if it has a 'targetVersion' set.
      */
@@ -461,50 +361,6 @@ private:
                              std::shared_ptr<OnCompletionGuard> onCompletionGuard,
                              const OpTime& lastOpTime,
                              OpTime& beginFetchingOpTime);
-
-    /**
-     * Callback for oplog fetcher.
-     */
-    void _oplogFetcherCallback(const Status& status,
-                               std::shared_ptr<OnCompletionGuard> onCompletionGuard);
-
-    /**
-     * Callback for DatabasesCloner.
-     */
-    void _allDatabaseClonerCallback(const Status& status,
-                                    std::shared_ptr<OnCompletionGuard> onCompletionGuard);
-
-    /**
-     * Callback for second '_lastOplogEntryFetcher' callback. This is scheduled to obtain the stop
-     * timestamp after DatabasesCloner has completed and enables us to determine if the oplog on
-     * the sync source has advanced since we started cloning the databases.
-     */
-    void _lastOplogEntryFetcherCallbackForStopTimestamp(
-        const StatusWith<Fetcher::QueryResponse>& result,
-        std::shared_ptr<OnCompletionGuard> onCompletionGuard);
-
-    /**
-     * Callback to obtain next batch of operations to apply.
-     */
-    void _getNextApplierBatchCallback(
-        const executor::TaskExecutor::CallbackArgs& callbackArgs,
-        std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
-
-    /**
-     * Callback for MultiApplier completion.
-     */
-    void _multiApplierCallback(const Status& status,
-                               OpTimeAndWallTime lastApplied,
-                               std::uint32_t numApplied,
-                               std::shared_ptr<OnCompletionGuard> onCompletionGuard);
-
-    /**
-     * Callback for rollback checker's last replSetGetRBID command after cloning data and applying
-     * operations.
-     */
-    void _rollbackCheckerCheckForRollbackCallback(
-        const RollbackChecker::Result& result,
-        std::shared_ptr<OnCompletionGuard> onCompletionGuard);
 
     /**
      * Reports result of current initial sync attempt. May schedule another initial sync attempt
@@ -521,51 +377,8 @@ private:
     // Returns error if a sync source cannot be found.
     StatusWith<HostAndPort> _chooseSyncSource_inlock();
 
-    /**
-     * Pushes documents from oplog fetcher to blocking queue for
-     * applier to consume.
-     *
-     * Returns a status even though it always returns OK, to conform the interface OplogFetcher
-     * expects for the EnqueueDocumentsFn.
-     */
-    Status _enqueueDocuments(OplogFetcher::Documents::const_iterator begin,
-                             OplogFetcher::Documents::const_iterator end,
-                             const OplogFetcher::DocumentsInfo& info);
-
     void _appendInitialSyncProgressMinimal_inlock(BSONObjBuilder* bob) const;
     BSONObj _getInitialSyncProgress_inlock() const;
-
-    StatusWith<std::vector<OplogEntry>> _getNextApplierBatch_inlock();
-
-    /**
-     * Schedules a fetcher to get the last oplog entry from the sync source.
-     *
-     * If 'retryStrategy' is 'kFetcherHandlesRetries', the fetcher will retry up to the server
-     * parameter 'numInitialSyncOplogFindAttempts' times. Otherwise any failures must be handled by
-     * the caller.
-     */
-    Status _scheduleLastOplogEntryFetcher_inlock(Fetcher::CallbackFn callback,
-                                                 LastOplogEntryFetcherRetryStrategy retryStrategy);
-
-    /**
-     * Checks the current oplog application progress (begin and end timestamps).
-     * If necessary, schedules a _getNextApplierBatchCallback() task.
-     * If the stop and end timestamps are inconsistent or if there is an issue scheduling the task,
-     * we set the error status in 'onCompletionGuard' and shut down the OplogFetcher.
-     * Passes 'lock' through to completion guard.
-     */
-    void _checkApplierProgressAndScheduleGetNextApplierBatch_inlock(
-        const stdx::lock_guard<Latch>& lock, std::shared_ptr<OnCompletionGuard> onCompletionGuard);
-
-    /**
-     * Schedules a rollback checker to get the rollback ID after data cloning or applying. This
-     * helps us check if a rollback occurred on the sync source.
-     * If we fail to schedule the rollback checker, we set the error status in 'onCompletionGuard'
-     * and shut down the OplogFetcher.
-     * Passes 'lock' through to completion guard.
-     */
-    void _scheduleRollbackCheckerCheckForRollback_inlock(
-        const stdx::lock_guard<Latch>& lock, std::shared_ptr<OnCompletionGuard> onCompletionGuard);
 
     /**
      * Check if a status is one which means there's a retriable error and we should retry the
@@ -669,31 +482,20 @@ private:
     // RollbackChecker to get rollback ID before and after each initial sync attempt.
     std::unique_ptr<RollbackChecker> _rollbackChecker;  // (M)
 
-    // Handle returned from RollbackChecker::reset().
-    RollbackChecker::CallbackHandle _getBaseRollbackIdHandle;  // (M)
-
     // Handle returned from RollbackChecker::checkForRollback().
     RollbackChecker::CallbackHandle _getLastRollbackIdHandle;  // (M)
-
-    // Handle to currently scheduled _getNextApplierBatchCallback() task.
-    executor::TaskExecutor::CallbackHandle _getNextApplierBatchHandle;  // (M)
 
     // The operation, if any, currently being retried because of a network error.
     InitialSyncSharedData::RetryableOperation _retryingOperation;  // (M)
 
     std::unique_ptr<InitialSyncState> _initialSyncState;   // (M)
-    std::unique_ptr<OplogFetcher> _oplogFetcher;           // (S)
     std::unique_ptr<Fetcher> _beginFetchingOpTimeFetcher;  // (S)
-    std::unique_ptr<Fetcher> _lastOplogEntryFetcher;       // (S)
     std::unique_ptr<Fetcher> _fCVFetcher;                  // (S)
     std::unique_ptr<MultiApplier> _applier;                // (M)
     HostAndPort _syncSource;                               // (M)
     std::unique_ptr<DBClientConnection> _client;           // (M)
     OpTime _lastFetched;                                   // (MX)
     OpTimeAndWallTime _lastApplied;                        // (MX)
-
-    std::unique_ptr<OplogBuffer> _oplogBuffer;    // (M)
-    std::unique_ptr<OplogApplier> _oplogApplier;  // (M)
 
     // Used to signal changes in _state.
     mutable stdx::condition_variable _stateCondition;
@@ -703,9 +505,6 @@ private:
 
     // Used to create the DBClientConnection for the cloners
     CreateClientFn _createClientFn;
-
-    // Used to create the OplogFetcher for the InitialSyncerFCB.
-    std::unique_ptr<OplogFetcherFactory> _createOplogFetcherFn;
 
     // Contains stats on the current initial sync request (includes all attempts).
     // To access these stats in a user-readable format, use getInitialSyncProgress().
