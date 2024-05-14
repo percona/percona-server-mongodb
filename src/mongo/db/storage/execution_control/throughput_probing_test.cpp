@@ -29,6 +29,7 @@
 
 #include "mongo/db/storage/execution_control/throughput_probing.h"
 #include "mongo/db/storage/execution_control/throughput_probing_gen.h"
+#include "mongo/unittest/mock_periodic_runner.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/tick_source_mock.h"
 
@@ -61,49 +62,6 @@ TEST(ThroughputProbingParameterTest, MaxConcurrency) {
 
 namespace {
 
-class MockPeriodicJob : public PeriodicRunner::ControllableJob {
-public:
-    explicit MockPeriodicJob(PeriodicRunner::PeriodicJob job) : _job(std::move(job)) {}
-
-    void start() override {}
-    void pause() override {}
-    void resume() override {}
-    void stop() override {}
-
-    Milliseconds getPeriod() override {
-        return _job.interval;
-    }
-
-    void setPeriod(Milliseconds period) override {
-        _job.interval = period;
-    }
-
-    void run(Client* client) {
-        _job.job(client);
-    }
-
-private:
-    PeriodicRunner::PeriodicJob _job;
-};
-
-class MockPeriodicRunner : public PeriodicRunner {
-public:
-    JobAnchor makeJob(PeriodicJob job) override {
-        invariant(!_job);
-        auto mockJob = std::make_shared<MockPeriodicJob>(std::move(job));
-        _job = mockJob;
-        return JobAnchor{std::move(mockJob)};
-    }
-
-    void run(Client* client) {
-        invariant(_job);
-        _job->run(client);
-    }
-
-private:
-    std::shared_ptr<MockPeriodicJob> _job;
-};
-
 namespace {
 TickSourceMock<Microseconds>* initTickSource(ServiceContext* svcCtx) {
     auto mockTickSource = std::make_unique<TickSourceMock<Microseconds>>();
@@ -117,7 +75,7 @@ class ThroughputProbingTest : public unittest::Test {
 protected:
     explicit ThroughputProbingTest(int32_t size = 64)
         : _runner([svcCtx = _svcCtx.get()] {
-              auto runner = std::make_unique<MockPeriodicRunner>();
+              auto runner = std::make_unique<unittest::MockPeriodicRunner>();
               auto runnerPtr = runner.get();
               svcCtx->setPeriodicRunner(std::move(runner));
               return runnerPtr;
@@ -146,7 +104,7 @@ protected:
     ServiceContext::UniqueServiceContext _svcCtx = ServiceContext::make();
     ServiceContext::UniqueClient _client = _svcCtx->makeClient("ThroughputProbingTest");
 
-    MockPeriodicRunner* _runner;
+    unittest::MockPeriodicRunner* _runner;
     MockTicketHolder _readTicketHolder;
     MockTicketHolder _writeTicketHolder;
     TickSourceMock<Microseconds>* _tickSource;

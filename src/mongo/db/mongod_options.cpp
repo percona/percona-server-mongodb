@@ -567,6 +567,15 @@ Status storeMongodOptions(const moe::Environment& params) {
             params["security.kmip.rotateMasterKey"].as<bool>();
     }
 
+    if (params.count("security.kmip.activateKeys")) {
+        encryptionGlobalParams.kmipActivateKeys = params["security.kmip.activateKeys"].as<bool>();
+    }
+
+    if (params.count("security.kmip.keyStatePollingSeconds")) {
+        encryptionGlobalParams.kmipKeyStatePollingSeconds =
+            params["security.kmip.keyStatePollingSeconds"].as<int>();
+    }
+
     if (params.count("security.ldap.authz.queryTemplate")) {
         ldapGlobalParams.ldapQueryTemplate = params["security.ldap.authz.queryTemplate"].as<std::string>();
     }

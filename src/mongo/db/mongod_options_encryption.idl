@@ -201,3 +201,31 @@ configs:
         arg_vartype: Switch
         requires: 'security.kmip.serverName'
 
+    'security.kmip.activateKeys':
+        description: >-
+            Activates all new KMIP keys upon registering them on a KMIP server.
+            When the option is `true` and `mongod` starts with a predefined
+            (in its metadata or configuration file) key identifier, the key
+            must be activated first or the `mongod` node will fail to start.
+            To ensure you have an active key, rotate the KMIP master key
+            by using `security.kmip.rotateMasterKey`. During rotation, the old
+            master key does not need to be active.
+            See `security.kmip.keyStatePollingSeconds` for key state polling.
+            Default: `true`
+        short_name: kmipActivateKeys
+        arg_vartype: Switch
+        requires: 'security.kmip.serverName'
+
+    'security.kmip.keyStatePollingSeconds':
+        description: >-
+            Time interval in seconds with which `mongod` polls the KMIP
+            server in order to verify that the master encryption key is
+            in the active state. If `mongod` detects the key has transitioned
+            into a non-active state, it shuts down.
+            Polling works only if `security.kmip.activateKeys` is `true`. To
+            disable polling separately while keeping key activation enabled,
+            set the option to any non-positive value.
+            Default: 900
+        short_name: kmipKeyStatePollingSeconds
+        arg_vartype: Int
+        requires: 'security.kmip.serverName'

@@ -39,10 +39,12 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 class EncryptionGlobalParams;
+class PeriodicJobAnchor;
+class PeriodicRunner;
 namespace encryption {
 class Key;
+class KeyEntry;
 class KeyId;
-class KeyKeyIdPair;
 class KeyOperationFactory;
 class ReadKey;
 class SaveKey;
@@ -70,11 +72,11 @@ public:
     /// Intended to be called for retrieving the master key for an _existing_
     /// encyption key database.
     ///
-    /// @returns the master encryption key
+    /// @returns the master encryption key and its identifier
     ///
     /// @throws `encryption::Error` if can't unambiguously read the key from
     /// the key management facility
-    Key readMasterKey() const;
+    KeyEntry readMasterKey() const;
 
     /// @brief Reads an existing master key from a key management factility or
     /// generates and saves a new one.
@@ -93,7 +95,7 @@ public:
     ///
     /// @throws `encryption::Error` if can't unambiguously read the key from or
     /// save the key to the key management facility
-    std::pair<Key, std::unique_ptr<KeyId>> obtainMasterKey(bool saveKey = true) const;
+    KeyEntry obtainMasterKey(bool saveKey = true) const;
 
     /// @brief Saves the master key to a key manageent facitlity.
     ///
@@ -103,8 +105,26 @@ public:
     /// the key management facility
     void saveMasterKey(const Key& key) const;
 
+    /// @brief If applicable, registers a periodic job for verifying that
+    /// an encrypiton key is active.
+    ///
+    /// The function determines whether the key management facility specified
+    /// in the configuration supports key states and, if so, registers a job
+    /// for periodically verifying that a key is in the `Active` state.
+    /// If the job detects the opposite, it logs an error and initiates
+    /// process shutdown. Shutdown is not initiated if the job can't retrieve
+    /// the key state from the key management factility, e.g. because the key
+    /// server is unavailable. An error is log in that case, though.
+    ///
+    /// @param pr the periodic runner the job should be registered in
+    /// @param keyId the identifier of the key whose state needs verification
+    ///
+    /// @return The anchor for the registered job or an invalid anchor if
+    ///     no job was registered
+    PeriodicJobAnchor registerKeyStateVerificationJob(PeriodicRunner& pr, const KeyId& keyId) const;
+
 private:
-    KeyKeyIdPair _readMasterKey(const ReadKey& read, bool updateKeyIds = true) const;
+    KeyEntry _readMasterKey(const ReadKey& read, bool updateKeyIds = true) const;
     std::unique_ptr<KeyId> _saveMasterKey(const SaveKey& save, const Key& key) const;
 
     std::unique_ptr<const KeyOperationFactory> _factory;

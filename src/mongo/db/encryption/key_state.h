@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -32,42 +32,35 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <string>
+#include <type_traits>
 
-namespace mongo {
-
-struct EncryptionGlobalParams {
-    bool enableEncryption{false};
-    std::string encryptionCipherMode{"AES256-CBC"};
-    std::string encryptionKeyFile;
-    std::string vaultServerName;
-    int vaultPort;
-    std::string vaultTokenFile;
-    std::string vaultToken;
-    std::string vaultSecret;
-    std::optional<std::uint64_t> vaultSecretVersion;
-    bool vaultRotateMasterKey{false};
-    std::string vaultServerCAFile;
-    bool vaultDisableTLS{false};
-    long vaultTimeout{15L};
-    std::string kmipServerName;
-    int kmipPort{5696};
-    std::string kmipServerCAFile;
-    std::string kmipClientCertificateFile;
-    std::string kmipClientCertificatePassword;
-    unsigned kmipConnectRetries{0};
-    int kmipConnectTimeoutMS{5000};
-    std::string kmipKeyIdentifier;
-    bool kmipRotateMasterKey{false};
-    bool kmipActivateKeys{true};
-    int kmipKeyStatePollingSeconds{900};
-
-    bool shouldRotateMasterKey() const noexcept {
-        return vaultRotateMasterKey || kmipRotateMasterKey;
-    }
+namespace mongo::encryption {
+enum class KeyState : uint32_t {
+    kPreActive = 1,
+    kActive,
+    kDeactivated,
+    kCompromised,
+    kDestroyed,
+    kDestroyedCompromised
 };
 
-extern EncryptionGlobalParams encryptionGlobalParams;
-
-}  // namespace mongo
+inline std::string toString(KeyState s) {
+    switch (s) {
+        case KeyState::kPreActive:
+            return "Pre-Active";
+        case KeyState::kActive:
+            return "Active";
+        case KeyState::kDeactivated:
+            return "Deactivated";
+        case KeyState::kCompromised:
+            return "Compromised";
+        case KeyState::kDestroyed:
+            return "Destroyed";
+        case KeyState::kDestroyedCompromised:
+            return "Destroyed Compromised";
+    }
+    // hanlde extension values
+    return std::to_string(static_cast<std::underlying_type_t<KeyState>>(s));
+}
+}  // namespace mongo::encryption

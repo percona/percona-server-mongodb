@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -31,43 +31,14 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <cstdint>
-#include <optional>
-#include <string>
+#include <memory>
 
-namespace mongo {
+#include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/key_id.h"
 
-struct EncryptionGlobalParams {
-    bool enableEncryption{false};
-    std::string encryptionCipherMode{"AES256-CBC"};
-    std::string encryptionKeyFile;
-    std::string vaultServerName;
-    int vaultPort;
-    std::string vaultTokenFile;
-    std::string vaultToken;
-    std::string vaultSecret;
-    std::optional<std::uint64_t> vaultSecretVersion;
-    bool vaultRotateMasterKey{false};
-    std::string vaultServerCAFile;
-    bool vaultDisableTLS{false};
-    long vaultTimeout{15L};
-    std::string kmipServerName;
-    int kmipPort{5696};
-    std::string kmipServerCAFile;
-    std::string kmipClientCertificateFile;
-    std::string kmipClientCertificatePassword;
-    unsigned kmipConnectRetries{0};
-    int kmipConnectTimeoutMS{5000};
-    std::string kmipKeyIdentifier;
-    bool kmipRotateMasterKey{false};
-    bool kmipActivateKeys{true};
-    int kmipKeyStatePollingSeconds{900};
-
-    bool shouldRotateMasterKey() const noexcept {
-        return vaultRotateMasterKey || kmipRotateMasterKey;
-    }
+namespace mongo::encryption {
+struct KeyEntry {
+    Key key;
+    std::unique_ptr<KeyId> keyId;
 };
-
-extern EncryptionGlobalParams encryptionGlobalParams;
-
-}  // namespace mongo
+}  // namespace mongo::encryption
