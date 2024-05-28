@@ -153,32 +153,6 @@ public:
 
     void cancelCurrentAttempt() final;
 
-    /**
-     *
-     * Overrides how the initial syncer creates the client.
-     *
-     * For testing only
-     */
-    void setCreateClientFn_forTest(const CreateClientFn& createClientFn);
-
-    /**
-     *
-     * Provides a separate executor for the cloners, so network operations based on
-     * TaskExecutor::scheduleRemoteCommand() can use the NetworkInterfaceMock while the cloners
-     * are stopped on a failpoint.
-     *
-     * For testing only
-     */
-    void setClonerExecutor_forTest(std::shared_ptr<executor::TaskExecutor> clonerExec);
-
-    /**
-     *
-     * Wait for the cloner thread to finish.
-     *
-     * For testing only
-     */
-    void waitForCloner_forTest();
-
     // State transitions:
     // PreStart --> Running --> ShuttingDown --> Complete
     // It is possible to skip intermediate states. For example, calling shutdown() when the data
@@ -436,6 +410,19 @@ private:
      */
     template <typename Component>
     void _shutdownComponent_inlock(Component& component);
+
+    /**
+     * Temporary location to declare all FCB-related private methods
+     */
+    Status _moveFiles(const std::vector<std::string>& files,
+                      const std::string& sourceDir,
+                      const std::string& destDir);
+
+    StatusWith<std::vector<std::string>> _getBackupFiles();
+
+    Status _switchStorageLocation(const std::string& newLocation);
+
+    void _fcbisDraft();
 
     // Counts how many documents have been refetched from the source in the current batch.
     AtomicWord<unsigned> _fetchCount;
