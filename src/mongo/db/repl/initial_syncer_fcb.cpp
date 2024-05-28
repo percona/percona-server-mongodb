@@ -37,6 +37,10 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "initial_syncer_fcb.h"
 
+#include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
+#include <fmt/format.h>
+
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
@@ -46,9 +50,12 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/fetcher.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands/server_status_metric.h"
+#include "mongo/db/database_name.h"
+#include "mongo/db/dbdirectclient.h"
 #include "mongo/db/feature_compatibility_version_parser.h"
 #include "mongo/db/index_builds_coordinator.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/repl/all_database_cloner.h"
 #include "mongo/db/repl/collection_cloner.h"
 #include "mongo/db/repl/database_cloner.h"
@@ -69,6 +76,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/transaction_oplog_application.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/serverless/serverless_operation_lock_registry.h"
+#include "mongo/db/storage/storage_engine.h"
+#include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
@@ -447,20 +456,6 @@ BSONObj InitialSyncerFCB::_getInitialSyncProgress_inlock() const {
     return bob.obj();
 }
 
-void InitialSyncerFCB::setCreateClientFn_forTest(const CreateClientFn& createClientFn) {
-    LockGuard lk(_mutex);
-    _createClientFn = createClientFn;
-}
-
-void InitialSyncerFCB::setClonerExecutor_forTest(
-    std::shared_ptr<executor::TaskExecutor> clonerExec) {
-    _clonerExec = std::move(clonerExec);
-}
-
-void InitialSyncerFCB::waitForCloner_forTest() {
-    _initialSyncState->allDatabaseClonerFuture.wait();
-}
-
 void InitialSyncerFCB::_setUp_inlock(OperationContext* opCtx,
                                      std::uint32_t initialSyncMaxAttempts) {
     // 'opCtx' is passed through from startup().
@@ -695,6 +690,18 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
     }
 
     _syncSource = syncSource.getValue();
+
+    LOGV2_DEBUG(128404, 2, "Reading the list of local files via $backupCUrsor");
+    auto bfiles = _getBackupFiles();
+    if (!bfiles.isOK()) {
+        LOGV2_DEBUG(
+            128405, 2, "Failed to get the list of local files", "status"_attr = bfiles.getStatus());
+    }
+    LOGV2_DEBUG(
+        128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
+    // TODO: this is temporary cancelation of initial syn for debugging reasons
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(
+        lock, {ErrorCodes::NotImplemented, "cancel FCBIS for debugging reason"});
 
 } catch (const DBException&) {
     // Report exception as an initial syncer failure.
@@ -1182,6 +1189,140 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                                     << _lastFetched.toString()};
     }
     return syncSource;
+}
+
+namespace {
+
+using namespace fmt::literals;
+
+void moveFile(const std::string& src, const std::string& dst) {
+    LOGV2_DEBUG(128401, 1, "Moving file", "from"_attr = src, "to"_attr = dst);
+
+    uassert(128402,
+            "Destination file '{}' already exists"_format(dst),
+            !boost::filesystem::exists(dst));
+
+    // Boost filesystem functions clear "ec" on success.
+    boost::system::error_code ec;
+    boost::filesystem::rename(src, dst, ec);
+    if (ec) {
+        uasserted(128403,
+                  "Error copying file from '{}' to '{}': {}"_format(src, dst, ec.message()));
+    }
+}
+
+BSONObj makeBackupCursorCmd() {
+    BSONArrayBuilder pipelineBuilder;
+    pipelineBuilder << BSON("$backupCursor" << BSONObj());
+    return BSON("aggregate" << 1 << "pipeline" << pipelineBuilder.arr() << "cursor" << BSONObj());
+}
+
+AggregateCommandRequest makeBackupCursorRequest() {
+    return {NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin),
+            {BSON("$backupCursor" << BSONObj())}};
+}
+
+}  // namespace
+
+// function to move list of files from one directory to another
+Status InitialSyncerFCB::_moveFiles(const std::vector<std::string>& files,
+                                    const std::string& sourceDir,
+                                    const std::string& destDir) {
+    for (const auto& file : files) {
+        auto sourcePath = sourceDir + "/" + file;
+        auto destPath = destDir + "/" + file;
+        moveFile(sourcePath, destPath);
+    }
+    return Status::OK();
+}
+
+// Open a local backup cursor and obtain a list of files from that.
+StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
+    std::vector<std::string> files;
+    try {
+        // Open a local backup cursor and obtain a list of files from that.
+        // TODO: ensure _attemptExec usage is correct
+        //_client->getServerHostAndPort();
+
+        // Try to use DBDirectClient
+        auto opCtx = makeOpCtx();
+        DBDirectClient client(opCtx.get());
+        auto cursor = uassertStatusOK(DBClientCursor::fromAggregationRequest(
+            &client, makeBackupCursorRequest(), true /* secondaryOk */, false /* useExhaust */));
+        if (cursor->more()) {
+            auto metadata = cursor->next();
+            // TODO: remove all logd() calls
+            logd("isoldbg: $backupCursor metadata: {}", metadata.toString());
+            files.reserve(cursor->objsLeftInBatch());
+        }
+        while (cursor->more()) {
+            auto rec = cursor->next();
+            logd("isoldbg: {}", rec.toString());
+            files.emplace_back(rec["filename"_sd].String());
+        }
+
+        // BSONObj result;
+        // if (client.runCommand(DatabaseName::kAdmin, makeBackupCursorCmd(), result)) {
+        //     logd("isoldbg: $backupCursor result: {}", result.toString());
+        // } else {
+        //     logd("isoldbg: runCommand failed: {}", result.toString());
+        //     return Status{ErrorCodes::InternalError, "Local $backupCursor failed"};
+        // }
+
+        // Use fetcher to run aggregation on sync source
+        // Fetcher fetcher(_attemptExec.get(),
+        //                host,
+        //                aggRequest.getNamespace().db().toString(),
+        //                aggregation_request_helper::serializeToCommandObj(aggRequest),
+        //                fetcherCallback,
+        //                readPrefMetadata,
+        //                requestTimeout, /* command network timeout */
+        //                requestTimeout /* getMore network timeout */);
+
+        // Status scheduleStatus = fetcher.schedule();
+        // if (!scheduleStatus.isOK()) {
+        //     return scheduleStatus;
+        // }
+
+        // Status joinStatus = fetcher.join(opCtx);
+        // if (!joinStatus.isOK()) {
+        //     return joinStatus;
+        // }
+    } catch (const DBException& e) {
+        return e.toStatus();
+    }
+    return files;
+}
+
+// Switch storage location
+Status InitialSyncerFCB::_switchStorageLocation(const std::string& newLocation) {
+    auto opCtx = makeOpCtx();
+    auto lastShutdownState =
+        reinitializeStorageEngine(opCtx.get(), StorageEngineInitFlags{}, [&newLocation] {
+            storageGlobalParams.dbpath = newLocation;
+        });
+    if (StorageEngine::LastShutdownState::kClean != lastShutdownState) {
+        return {ErrorCodes::InternalError,
+                str::stream() << "Failed to switch storage location to " << newLocation};
+    }
+    return Status::OK();
+}
+
+void InitialSyncerFCB::_fcbisDraft() {
+    // Switch storage to be pointing to the set of downloaded files
+    _switchStorageLocation(storageGlobalParams.dbpath + ".initialsync");
+    // do some cleanup
+    // TODO:
+    // Switch storage to a dummy location
+    _switchStorageLocation(storageGlobalParams.dbpath + ".dummy");
+    // Delete the list of files obtained from the local backup cursor
+    // TODO:
+    // Move the files from the download location to the normal dbpath
+    //_moveFiles(files, storageGlobalParams.dbpath + ".initialsync", storageGlobalParams.dbpath);
+    // Switch storage back to the normal dbpath
+    _switchStorageLocation(storageGlobalParams.dbpath);
+    // Reconstruct prepared transactions and other ephemera
+    // TODO:
 }
 
 std::string InitialSyncerFCB::Stats::toString() const {
