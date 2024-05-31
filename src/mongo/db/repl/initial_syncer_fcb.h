@@ -315,6 +315,12 @@ private:
                                    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**
+     * Callback to execute backup cursor on the sync source
+     */
+    void _fetchBackupCursorCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                                    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+
+    /**
      * This function does the following:
      *      1.) Truncate oplog.
      *      2.) Drop user databases (replicated dbs).
@@ -466,6 +472,9 @@ private:
     // Handle to currently scheduled _chooseSyncSourceCallback() task.
     executor::TaskExecutor::CallbackHandle _chooseSyncSourceHandle;  // (M)
 
+    // Handle to currently scheduled _fetchBackupCursorCallback() task.
+    executor::TaskExecutor::CallbackHandle _fetchBackupCursorHandle;  // (M)
+
     // RollbackChecker to get rollback ID before and after each initial sync attempt.
     std::unique_ptr<RollbackChecker> _rollbackChecker;  // (M)
 
@@ -478,6 +487,7 @@ private:
     std::unique_ptr<InitialSyncState> _initialSyncState;   // (M)
     std::unique_ptr<Fetcher> _beginFetchingOpTimeFetcher;  // (S)
     std::unique_ptr<Fetcher> _fCVFetcher;                  // (S)
+    std::unique_ptr<Fetcher> _backupCursorFetcher;         // (S)
     std::unique_ptr<MultiApplier> _applier;                // (M)
     HostAndPort _syncSource;                               // (M)
     std::unique_ptr<DBClientConnection> _client;           // (M)
