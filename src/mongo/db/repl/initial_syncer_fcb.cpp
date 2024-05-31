@@ -46,8 +46,12 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
+#include "mongo/bson/bsonobj.h"
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/timestamp.h"
+#include "mongo/client/dbclient_cursor.h"
 #include "mongo/client/fetcher.h"
+#include "mongo/client/remote_command_retry_scheduler.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands/server_status_metric.h"
 #include "mongo/db/database_name.h"
@@ -76,8 +80,11 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/transaction_oplog_application.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/serverless/serverless_operation_lock_registry.h"
+#include "mongo/db/service_context.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_engine_init.h"
+#include "mongo/db/storage/storage_options.h"
+#include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
@@ -300,6 +307,7 @@ void InitialSyncerFCB::cancelCurrentAttempt() {
 void InitialSyncerFCB::_cancelRemainingWork_inlock() {
     _cancelHandle_inlock(_startInitialSyncAttemptHandle);
     _cancelHandle_inlock(_chooseSyncSourceHandle);
+    _cancelHandle_inlock(_fetchBackupCursorHandle);
     _cancelHandle_inlock(_getLastRollbackIdHandle);
 
     if (_sharedData) {
@@ -313,6 +321,7 @@ void InitialSyncerFCB::_cancelRemainingWork_inlock() {
         _client->shutdownAndDisallowReconnect();
     }
     _shutdownComponent_inlock(_applier);
+    _shutdownComponent_inlock(_backupCursorFetcher);
     _shutdownComponent_inlock(_fCVFetcher);
     _shutdownComponent_inlock(_beginFetchingOpTimeFetcher);
     (*_attemptExec)->shutdown();
@@ -699,10 +708,18 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
     }
     LOGV2_DEBUG(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
-    // TODO: this is temporary cancelation of initial syn for debugging reasons
-    onCompletionGuard->setResultAndCancelRemainingWork_inlock(
-        lock, {ErrorCodes::NotImplemented, "cancel FCBIS for debugging reason"});
 
+    // schedule $backupCursor on the sync source
+    status = _scheduleWorkAndSaveHandle_inlock(
+        [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+            _fetchBackupCursorCallback(args, onCompletionGuard);
+        },
+        &_fetchBackupCursorHandle,
+        str::stream() << "_fetchBackupCursorCallback-" << chooseSyncSourceAttempt);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
 } catch (const DBException&) {
     // Report exception as an initial syncer failure.
     stdx::unique_lock<Latch> lock(_mutex);
@@ -1194,6 +1211,7 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
 namespace {
 
 using namespace fmt::literals;
+constexpr int kBackupCursorFileFetcherRetryAttempts = 10;
 
 void moveFile(const std::string& src, const std::string& dst) {
     LOGV2_DEBUG(128401, 1, "Moving file", "from"_attr = src, "to"_attr = dst);
@@ -1242,7 +1260,6 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
     try {
         // Open a local backup cursor and obtain a list of files from that.
         // TODO: ensure _attemptExec usage is correct
-        //_client->getServerHostAndPort();
 
         // Try to use DBDirectClient
         auto opCtx = makeOpCtx();
@@ -1306,6 +1323,101 @@ Status InitialSyncerFCB::_switchStorageLocation(const std::string& newLocation) 
                 str::stream() << "Failed to switch storage location to " << newLocation};
     }
     return Status::OK();
+}
+
+void InitialSyncerFCB::_fetchBackupCursorCallback(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    // NOLINTNEXTLINE(*-unnecessary-value-param)
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    stdx::lock_guard<Latch> lock(_mutex);
+    auto status = _checkForShutdownAndConvertStatus_inlock(
+        callbackArgs, "error executing backup cusrsor on the sync source");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    const auto aggregateCommandRequestObj = [] {
+        AggregateCommandRequest aggRequest(
+            NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin),
+            {BSON("$backupCursor" << BSONObj())});
+        // We must set a writeConcern on internal commands.
+        aggRequest.setWriteConcern(WriteConcernOptions());
+        return aggRequest.toBSON(BSONObj());
+    }();
+
+    LOGV2_DEBUG(128407, 1, "Opening backup cursor on sync source");
+
+    auto fetchStatus = std::make_shared<boost::optional<Status>>();
+    const auto fetcherCallback = [fetchStatus](const Fetcher::QueryResponseStatus& dataStatus,
+                                               Fetcher::NextAction* nextAction,
+                                               BSONObjBuilder* getMoreBob) noexcept {
+        try {
+            uassertStatusOK(dataStatus);
+
+            const auto& data = dataStatus.getValue();
+            for (const BSONObj& doc : data.documents) {
+                if (doc["metadata"]) {
+                    // First batch must contain the metadata.
+                    const auto& metadata = doc["metadata"].Obj();
+                    auto checkpointTimestamp = metadata["checkpointTimestamp"].timestamp();
+
+                    LOGV2_INFO(128409,
+                               "Opened backup cursor on sync source",
+                               "backupCursorId"_attr = data.cursorId,
+                               "backupCursorCheckpointTimestamp"_attr = checkpointTimestamp);
+                    // TODO:
+                } else {
+                    LOGV2_DEBUG(128410,
+                                1,
+                                "Backup cursor entry",
+                                "filename"_attr = doc["filename"].String(),
+                                "backupCursorId"_attr = data.cursorId);
+                    // TODO:
+                }
+            }
+
+            *fetchStatus = Status::OK();
+            if (!getMoreBob || data.documents.empty()) {
+                // Exit fetcher but keep the backupCursor alive to prevent WT on sync source
+                // from modifying file bytes. backupCursor can be closed after all files are
+                // copied
+                *nextAction = Fetcher::NextAction::kExitAndKeepCursorAlive;
+                return;
+            }
+
+            getMoreBob->append("getMore", data.cursorId);
+            getMoreBob->append("collection", data.nss.coll());
+        } catch (DBException& ex) {
+            LOGV2_ERROR(
+                128408, "Error fetching backup cursor entries", "error"_attr = ex.toString());
+            *fetchStatus = ex.toStatus();
+        }
+    };
+
+    _backupCursorFetcher = std::make_unique<Fetcher>(
+        *_attemptExec,
+        _syncSource,
+        DatabaseName::kAdmin,
+        aggregateCommandRequestObj,
+        fetcherCallback,
+        // ReadPreferenceSetting::secondaryPreferredMetadata(),
+        ReadPreferenceSetting(ReadPreference::PrimaryPreferred).toContainingBSON(),
+        executor::RemoteCommandRequest::kNoTimeout,
+        executor::RemoteCommandRequest::kNoTimeout,
+        RemoteCommandRetryScheduler::makeRetryPolicy<ErrorCategory::RetriableError>(
+            kBackupCursorFileFetcherRetryAttempts, executor::RemoteCommandRequest::kNoTimeout));
+
+    Status scheduleStatus = _backupCursorFetcher->schedule();
+    if (!scheduleStatus.isOK()) {
+        _backupCursorFetcher.reset();
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, scheduleStatus);
+        return;
+    }
+} catch (const DBException&) {
+    // Report exception as an initial syncer failure.
+    stdx::unique_lock<Latch> lock(_mutex);
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
 
 void InitialSyncerFCB::_fcbisDraft() {
