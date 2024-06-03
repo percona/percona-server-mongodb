@@ -2,12 +2,13 @@
 "use strict";
 load('jstests/telemetry/_telemetry_helpers.js');
 
-var telmTestSingle = function() {
+var telmTestSingle = function(storage) {
     mkdir(telmPath);
     cleanupTelmDir();
 
     var singleTest = MongoRunner.runMongod({
-        setParameter: setParameterOpts
+        setParameter: setParameterOpts,
+        storageEngine: storage
     });
 
     //test perconaTelemetryGracePeriod
@@ -30,7 +31,7 @@ var telmTestSingle = function() {
     if ( jsonTelmData['pro_features'].length > 0 ) {
         assert.includes(jsonTelmData['pillar_version'],'-pro');
     }
-    assert.eq('wiredTiger',jsonTelmData['storage_engine'],jsonTelmData['storage_engine']);
+    assert.eq(storage,jsonTelmData['storage_engine'],jsonTelmData['storage_engine']);
     assert(jsonTelmData['db_instance_id'],"db_instance_id doesn't exist");
     assert(jsonTelmData['db_internal_id'],"db_internal_id doesn't exist");
     assert(jsonTelmData['uptime'],"uptime doesn't exist");
@@ -61,5 +62,6 @@ var telmTestSingle = function() {
     MongoRunner.stopMongod(singleTest);
 };
 
-telmTestSingle();
+telmTestSingle("wiredTiger");
+telmTestSingle("inMemory");
 }());

@@ -1,15 +1,20 @@
-const telmPath = "/usr/local/percona/telemetry/psmdb";
+const telmPath = "/tmp/psmdb";
 const setParameterOpts = {
+    perconaTelemetryPath: telmPath,
     perconaTelemetryGracePeriod: 2,
     perconaTelemetryScrapeInterval: 5,
     perconaTelemetryHistoryKeepInterval: 9
 };
 
-var cleanupTelmDir = function() {
-    var files = listFiles(telmPath);
+var cleanupDir = function(dir) {
+    var files = listFiles(dir);
     files.forEach((file) => {
         removeFile(file.name)
     });
+};
+
+var cleanupTelmDir = function() {
+    cleanupDir(telmPath);
 };
 
 var getTelmRawData = function() {

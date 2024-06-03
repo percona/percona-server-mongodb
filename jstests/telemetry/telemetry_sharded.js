@@ -39,5 +39,36 @@ var telmTestSharding = function() {
     st.stop();
 };
 
+var telmTestShardingDefaultPaths = function() {
+    var mongodTelmPath = "/usr/local/percona/telemetry/psmdb";
+    var mongosTelmPath = "/usr/local/percona/telemetry/psmdbs";
+    mkdir(mongodTelmPath);
+    mkdir(mongosTelmPath);
+    cleanupDir(mongodTelmPath);
+    cleanupDir(mongosTelmPath);
+    var setParameterOpt = {
+        perconaTelemetryGracePeriod: 2,
+        perconaTelemetryScrapeInterval: 5,
+        perconaTelemetryHistoryKeepInterval: 9
+    };
+
+    var st = new ShardingTest({
+        shards: 1,
+        config: 1,
+        mongos: 1,
+        rs: { nodes: 1, setParameter: setParameterOpt },
+        mongosOptions: { setParameter: setParameterOpt },
+        configOptions: { setParameter: setParameterOpt }
+    });
+
+    sleep(3000);
+    var mongodTelmFileList = listFiles(mongodTelmPath);
+    assert.eq(2,mongodTelmFileList.length,mongodTelmFileList);
+    var mongosTelmFileList = listFiles(mongosTelmPath);
+    assert.eq(1,mongosTelmFileList.length,mongosTelmFileList);
+    st.stop();
+};
+
 telmTestSharding();
+telmTestShardingDefaultPaths();
 }());
