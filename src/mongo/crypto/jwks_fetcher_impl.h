@@ -49,7 +49,7 @@ public:
     JWKSet fetch() override;
     bool quiesce() const override;
 
-private:
+protected:
     std::string _issuer;
     std::string _caFilePath;
     ClockSource* _clock;
