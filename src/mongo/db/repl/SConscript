@@ -1251,6 +1251,7 @@ env.Library(
 env.Library(
     target='initial_syncer',
     source=[
+        'fcb_file_cloner.cpp',
         'initial_syncer.cpp',
         'initial_syncer_common_stats.cpp',
         'initial_syncer_factory.cpp',
@@ -1281,7 +1282,9 @@ env.Library(
         '$BUILD_DIR/mongo/db/session/session_catalog_mongod',
         '$BUILD_DIR/mongo/db/storage/storage_engine_common',
         '$BUILD_DIR/mongo/executor/scoped_task_executor',
+        '$BUILD_DIR/mongo/util/progress_meter',
         'repl_server_parameters',
+        'replication_auth',
     ],
 )
 

@@ -59,12 +59,14 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/repl/all_database_cloner.h"
+#include "mongo/db/repl/fcb_file_cloner.h"
 #include "mongo/db/repl/initial_sync_state.h"
 #include "mongo/db/repl/initial_syncer_common_stats.h"
 #include "mongo/db/repl/initial_syncer_factory.h"
 #include "mongo/db/repl/initial_syncer_interface.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/repl_server_parameters_gen.h"
+#include "mongo/db/repl/replication_auth.h"
 #include "mongo/db/repl/replication_consistency_markers.h"
 #include "mongo/db/repl/replication_process.h"
 #include "mongo/db/repl/storage_interface.h"
@@ -134,6 +136,12 @@ using QueryResponseStatus = StatusWith<Fetcher::QueryResponse>;
 using UniqueLock = stdx::unique_lock<Latch>;
 using LockGuard = stdx::lock_guard<Latch>;
 
+constexpr StringData kMetadataFieldName = "metadata"_sd;
+constexpr StringData kBackupIdFieldName = "backupId"_sd;
+constexpr StringData kDBPathFieldName = "dbpath"_sd;
+constexpr StringData kFileNameFieldName = "filename"_sd;
+constexpr StringData kFileSizeFieldName = "fileSize"_sd;
+
 // Used to reset the oldest timestamp during initial sync to a non-null timestamp.
 const Timestamp kTimestampOne(0, 1);
 
@@ -141,6 +149,25 @@ ServiceContext::UniqueOperationContext makeOpCtx() {
     return cc().makeOperationContext();
 }
 
+/**
+ * Computes a boost::filesystem::path generic-style relative path (always uses slashes)
+ * from a base path and a relative path.
+ */
+std::string getPathRelativeTo(const std::string& path, const std::string& basePath) {
+    if (basePath.empty() || path.find(basePath) != 0) {
+        uasserted(6113319,
+                  str::stream() << "The file " << path << " is not a subdirectory of " << basePath);
+    }
+
+    auto result = path.substr(basePath.size());
+    // Skip separators at the beginning of the relative part.
+    if (!result.empty() && (result[0] == '/' || result[0] == '\\')) {
+        result.erase(result.begin());
+    }
+
+    std::replace(result.begin(), result.end(), '\\', '/');
+    return result;
+}
 }  // namespace
 
 const ServiceContext::ConstructorActionRegisterer initialSyncerRegistererFCB(
@@ -179,6 +206,7 @@ InitialSyncerFCB::InitialSyncerFCB(
       _writerPool(writerPool),
       _storage(storage),
       _replicationProcess(replicationProcess),
+      _backupId(UUID::fromCDR(std::array<unsigned char, 16>{})),
       _onCompletion(onCompletion),
       _createClientFn(
           [] { return std::make_unique<DBClientConnection>(true /* autoReconnect */); }) {
@@ -293,7 +321,9 @@ void InitialSyncerFCB::cancelCurrentAttempt() {
 void InitialSyncerFCB::_cancelRemainingWork_inlock() {
     _cancelHandle_inlock(_startInitialSyncAttemptHandle);
     _cancelHandle_inlock(_chooseSyncSourceHandle);
+    _cancelHandle_inlock(_getBaseRollbackIdHandle);
     _cancelHandle_inlock(_fetchBackupCursorHandle);
+    _cancelHandle_inlock(_transferFileHandle);
     _cancelHandle_inlock(_getLastRollbackIdHandle);
 
     if (_sharedData) {
@@ -682,9 +712,7 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
         return;
     }
 
-    _syncSource = syncSource.getValue();
-
-    LOGV2_DEBUG(128404, 2, "Reading the list of local files via $backupCUrsor");
+    LOGV2_DEBUG(128404, 2, "Reading the list of local files via $backupCursor");
     auto bfiles = _getBackupFiles();
     if (!bfiles.isOK()) {
         LOGV2_DEBUG(
@@ -693,23 +721,26 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
     LOGV2_DEBUG(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
 
-    // schedule $backupCursor on the sync source
-    status = _scheduleWorkAndSaveHandle_inlock(
-        [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
-            _fetchBackupCursorCallback(args, onCompletionGuard);
-        },
-        &_fetchBackupCursorHandle,
-        str::stream() << "_fetchBackupCursorCallback-" << chooseSyncSourceAttempt);
+    _syncSource = syncSource.getValue();
+
+    // Schedule rollback ID checker.
+    _rollbackChecker = std::make_unique<RollbackChecker>(*_attemptExec, _syncSource);
+    auto scheduleResult = _rollbackChecker->reset([=](const RollbackChecker::Result& result) {
+        return _rollbackCheckerResetCallback(result, onCompletionGuard);
+    });
+    status = scheduleResult.getStatus();
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
+    _getBaseRollbackIdHandle = scheduleResult.getValue();
 } catch (const DBException&) {
     // Report exception as an initial syncer failure.
     stdx::unique_lock<Latch> lock(_mutex);
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
 
+// TODO: we probably don't need this in FCBIS
 Status InitialSyncerFCB::_truncateOplogAndDropReplicatedDatabases() {
     // truncate oplog; drop user databases.
     LOGV2_DEBUG(4540700,
@@ -760,6 +791,36 @@ Status InitialSyncerFCB::_truncateOplogAndDropReplicatedDatabases() {
     // 2b.) Drop user databases.
     LOGV2_DEBUG(21175, 2, "Dropping user databases");
     return _storage->dropReplicatedDatabases(opCtx.get());
+}
+
+void InitialSyncerFCB::_rollbackCheckerResetCallback(
+    const RollbackChecker::Result& result, std::shared_ptr<OnCompletionGuard> onCompletionGuard) {
+    stdx::lock_guard<Latch> lock(_mutex);
+    auto status = _checkForShutdownAndConvertStatus_inlock(result.getStatus(),
+                                                           "error while getting base rollback ID");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    // we will need shared data to clone files from sync source
+    _sharedData =
+        std::make_unique<InitialSyncSharedData>(_rollbackChecker->getBaseRBID(),
+                                                _allowedOutageDuration,
+                                                getGlobalServiceContext()->getFastClockSource());
+    _client = _createClientFn();
+
+    // schedule $backupCursor on the sync source
+    status = _scheduleWorkAndSaveHandle_inlock(
+        [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+            _fetchBackupCursorCallback(args, onCompletionGuard);
+        },
+        &_fetchBackupCursorHandle,
+        "_fetchBackupCursorCallback");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
 }
 
 void InitialSyncerFCB::_fcvFetcherCallback(const StatusWith<Fetcher::QueryResponse>& result,
@@ -1253,7 +1314,6 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
     std::vector<std::string> files;
     try {
         // Open a local backup cursor and obtain a list of files from that.
-        // TODO: ensure _attemptExec usage is correct
 
         // Try to use DBDirectClient
         auto opCtx = makeOpCtx();
@@ -1269,7 +1329,7 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
         while (cursor->more()) {
             auto rec = cursor->next();
             logd("isoldbg: {}", rec.toString());
-            files.emplace_back(rec["filename"_sd].String());
+            files.emplace_back(rec[kFileNameFieldName].String());
         }
 
         // BSONObj result;
@@ -1319,6 +1379,8 @@ Status InitialSyncerFCB::_switchStorageLocation(const std::string& newLocation) 
     return Status::OK();
 }
 
+// TenantMigrationRecipientService::Instance::_openBackupCursor
+// ShardMergeRecipientService::Instance::_openBackupCursor
 void InitialSyncerFCB::_fetchBackupCursorCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
@@ -1343,31 +1405,38 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
     LOGV2_DEBUG(128407, 1, "Opening backup cursor on sync source");
 
     auto fetchStatus = std::make_shared<boost::optional<Status>>();
-    const auto fetcherCallback = [fetchStatus](const Fetcher::QueryResponseStatus& dataStatus,
-                                               Fetcher::NextAction* nextAction,
-                                               BSONObjBuilder* getMoreBob) noexcept {
+    const auto fetcherCallback = [this, fetchStatus](const Fetcher::QueryResponseStatus& dataStatus,
+                                                     Fetcher::NextAction* nextAction,
+                                                     BSONObjBuilder* getMoreBob) noexcept {
         try {
             uassertStatusOK(dataStatus);
 
             const auto& data = dataStatus.getValue();
             for (const BSONObj& doc : data.documents) {
-                if (doc["metadata"]) {
+                if (doc[kMetadataFieldName]) {
                     // First batch must contain the metadata.
-                    const auto& metadata = doc["metadata"].Obj();
+                    const auto& metadata = doc[kMetadataFieldName].Obj();
                     auto checkpointTimestamp = metadata["checkpointTimestamp"].timestamp();
+                    _backupId = UUID(uassertStatusOK(UUID::parse(metadata[kBackupIdFieldName])));
+                    _remoteDBPath = metadata[kDBPathFieldName].String();
 
                     LOGV2_INFO(128409,
                                "Opened backup cursor on sync source",
                                "backupCursorId"_attr = data.cursorId,
+                               "remoteDBPath"_attr = _remoteDBPath,
                                "backupCursorCheckpointTimestamp"_attr = checkpointTimestamp);
-                    // TODO:
+                    // empty _remoteFiles on new sync attempt start
+                    _remoteFiles.clear();
                 } else {
+                    auto fileName = doc[kFileNameFieldName].String();
+                    auto fileSize = doc[kFileSizeFieldName].numberLong();
                     LOGV2_DEBUG(128410,
                                 1,
                                 "Backup cursor entry",
-                                "filename"_attr = doc["filename"].String(),
+                                "filename"_attr = fileName,
+                                "fileSize"_attr = fileSize,
                                 "backupCursorId"_attr = data.cursorId);
-                    // TODO:
+                    _remoteFiles.emplace_back(fileName, fileSize);
                 }
             }
 
@@ -1407,6 +1476,112 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
         _backupCursorFetcher.reset();
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, scheduleStatus);
         return;
+    }
+
+    _backupCursorFetcher->onCompletion()
+        .thenRunOn(**_attemptExec)
+        .then([this, fetchStatus, onCompletionGuard, &lock] {
+            logd("Backup cursor fetcher completion callback");
+            if (!*fetchStatus) {
+                // the callback was never invoked
+                uasserted(128411, "Internal error running cursor callback in command");
+            }
+            uassertStatusOK(fetchStatus->get());
+
+            uassert(128414,
+                    "Internal error: no file names collected from sync source",
+                    !_remoteFiles.empty());
+
+            // schedule file transfer callback
+            auto status = _scheduleWorkAndSaveHandle_inlock(
+                [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+                    _transferFileCallback(args, 0lu, onCompletionGuard);
+                },
+                &_transferFileHandle,
+                str::stream() << "_transferFileCallback-" << 0);
+            if (!status.isOK()) {
+                onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+                return;
+            }
+        })
+        .wait();
+
+} catch (const DBException&) {
+    // Report exception as an initial syncer failure.
+    stdx::unique_lock<Latch> lock(_mutex);
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
+}
+
+// tenant_migration_shard_merge_util.cpp : cloneFile
+void InitialSyncerFCB::_transferFileCallback(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    std::size_t fileIdx,
+    // NOLINTNEXTLINE(*-unnecessary-value-param)
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    stdx::lock_guard<Latch> lock(_mutex);
+    auto status = _checkForShutdownAndConvertStatus_inlock(
+        callbackArgs, "error transferring file from sync source");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    // create connection to the sync source
+    DBClientConnection syncSourceConn{true /* autoReconnect */};
+    status = syncSourceConn.connect(_syncSource, "File copy-based initial sync", boost::none);
+    if (status.isOK()) {
+        status = replAuthenticate(&syncSourceConn)
+                     .withContext(str::stream() << "Failed to authenticate to " << _syncSource);
+    }
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    // execute remote request
+    std::string remoteFileName = _remoteFiles[fileIdx].name;
+    size_t remoteFileSize = _remoteFiles[fileIdx].size;
+    auto currentBackupFileCloner =
+        std::make_unique<FCBFileCloner>(_backupId,
+                                        remoteFileName,
+                                        remoteFileSize,
+                                        getPathRelativeTo(remoteFileName, _remoteDBPath),
+                                        _sharedData.get(),
+                                        _syncSource,
+                                        &syncSourceConn,
+                                        _storage,
+                                        _writerPool);
+    auto cloneStatus = currentBackupFileCloner->run();
+    if (!cloneStatus.isOK()) {
+        LOGV2_WARNING(128412,
+                      "Failed to clone file",
+                      "fileName"_attr = remoteFileName,
+                      "error"_attr = cloneStatus);
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, cloneStatus);
+    } else {
+        LOGV2_DEBUG(128413, 1, "Cloned file", "fileName"_attr = remoteFileName);
+        auto nextFileIdx = fileIdx + 1;
+        if (nextFileIdx < _remoteFiles.size()) {
+            // schedule next file cloning
+            auto status = _scheduleWorkAndSaveHandle_inlock(
+                [this, nextFileIdx, onCompletionGuard](
+                    const executor::TaskExecutor::CallbackArgs& args) {
+                    _transferFileCallback(args, nextFileIdx, onCompletionGuard);
+                },
+                &_transferFileHandle,
+                str::stream() << "_transferFileCallback-" << nextFileIdx);
+            if (!status.isOK()) {
+                onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+                return;
+            }
+        } else {
+            // TODO: all files are cloned - close backup cursor and schedule next step
+            // TODO: this is temporary cancelation of initial sync for debugging reasons
+            onCompletionGuard->setResultAndCancelRemainingWork_inlock(
+                lock,
+                {ErrorCodes::NotImplemented,
+                 "All files cloned; cancel FCBIS for debugging reason"});
+        }
     }
 } catch (const DBException&) {
     // Report exception as an initial syncer failure.
