@@ -32,6 +32,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -65,6 +66,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/duration.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/time_support.h"
+#include "mongo/util/uuid.h"
 
 namespace mongo {
 namespace repl {
@@ -182,6 +184,14 @@ public:
     void setAllowedOutageDuration_forTest(Milliseconds allowedOutageDuration);
 
 private:
+    /**
+     * Attributes of remote file received from $backupCursor
+     */
+    struct BackupFile {
+        std::string name;
+        size_t size;
+    };
+
     /**
      * Returns true if we are still processing initial sync tasks (_state is either Running or
      * Shutdown).
@@ -325,6 +335,13 @@ private:
                                     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**
+     * Callback to transfer file from the sync source
+     */
+    void _transferFileCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                               std::size_t fileIdx,
+                               std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+
+    /**
      * This function does the following:
      *      1.) Truncate oplog.
      *      2.) Drop user databases (replicated dbs).
@@ -423,6 +440,7 @@ private:
 
     /**
      * Temporary location to declare all FCB-related private methods
+     * TODO: reorganize
      */
     Status _moveFiles(const std::vector<std::string>& files,
                       const std::string& sourceDir,
@@ -462,6 +480,9 @@ private:
     ThreadPool* _workerPool;                                           // (R)
     StorageInterface* _storage;                                        // (R)
     ReplicationProcess* _replicationProcess;                           // (S)
+    std::vector<BackupFile> _remoteFiles;                              // TODO:
+    UUID _backupId;                                                    // TODO:
+    std::string _remoteDBPath;                                         // TODO:
 
     // This is invoked with the final status of the initial sync. If startup() fails, this callback
     // is never invoked. The caller gets the last applied optime when the initial sync completes
@@ -479,8 +500,14 @@ private:
     // Handle to currently scheduled _fetchBackupCursorCallback() task.
     executor::TaskExecutor::CallbackHandle _fetchBackupCursorHandle;  // (M)
 
+    // Handle to currently scheduled _transferFileCallback() task.
+    executor::TaskExecutor::CallbackHandle _transferFileHandle;  // (M)
+
     // RollbackChecker to get rollback ID before and after each initial sync attempt.
     std::unique_ptr<RollbackChecker> _rollbackChecker;  // (M)
+
+    // Handle returned from RollbackChecker::reset().
+    RollbackChecker::CallbackHandle _getBaseRollbackIdHandle;  // (M)
 
     // Handle returned from RollbackChecker::checkForRollback().
     RollbackChecker::CallbackHandle _getLastRollbackIdHandle;  // (M)
