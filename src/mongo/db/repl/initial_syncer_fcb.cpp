@@ -38,6 +38,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <utility>
 #include <vector>
 
+#include "boost/filesystem/file_status.hpp"
+#include "boost/filesystem/operations.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/optional.hpp>
 #include <fmt/format.h>
@@ -52,11 +54,13 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/fetcher.h"
 #include "mongo/client/remote_command_retry_scheduler.h"
 #include "mongo/db/client.h"
+#include "mongo/db/concurrency/d_concurrency.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/feature_compatibility_version_parser.h"
 #include "mongo/db/index_builds_coordinator.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/repl/all_database_cloner.h"
 #include "mongo/db/repl/fcb_file_cloner.h"
@@ -207,6 +211,7 @@ InitialSyncerFCB::InitialSyncerFCB(
       _storage(storage),
       _replicationProcess(replicationProcess),
       _backupId(UUID::fromCDR(std::array<unsigned char, 16>{})),
+      _cfgDBPath(storageGlobalParams.dbpath),
       _onCompletion(onCompletion),
       _createClientFn(
           [] { return std::make_unique<DBClientConnection>(true /* autoReconnect */); }) {
@@ -324,6 +329,7 @@ void InitialSyncerFCB::_cancelRemainingWork_inlock() {
     _cancelHandle_inlock(_getBaseRollbackIdHandle);
     _cancelHandle_inlock(_fetchBackupCursorHandle);
     _cancelHandle_inlock(_transferFileHandle);
+    _cancelHandle_inlock(_currentHandle);
     _cancelHandle_inlock(_getLastRollbackIdHandle);
 
     if (_sharedData) {
@@ -711,15 +717,6 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
-
-    LOGV2_DEBUG(128404, 2, "Reading the list of local files via $backupCursor");
-    auto bfiles = _getBackupFiles();
-    if (!bfiles.isOK()) {
-        LOGV2_DEBUG(
-            128405, 2, "Failed to get the list of local files", "status"_attr = bfiles.getStatus());
-    }
-    LOGV2_DEBUG(
-        128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
 
     _syncSource = syncSource.getValue();
 
@@ -1268,22 +1265,6 @@ namespace {
 
 constexpr int kBackupCursorFileFetcherRetryAttempts = 10;
 
-void moveFile(const std::string& src, const std::string& dst) {
-    LOGV2_DEBUG(128401, 1, "Moving file", "from"_attr = src, "to"_attr = dst);
-
-    uassert(128402,
-            "Destination file '{}' already exists"_format(dst),
-            !boost::filesystem::exists(dst));
-
-    // Boost filesystem functions clear "ec" on success.
-    boost::system::error_code ec;
-    boost::filesystem::rename(src, dst, ec);
-    if (ec) {
-        uasserted(128403,
-                  "Error copying file from '{}' to '{}': {}"_format(src, dst, ec.message()));
-    }
-}
-
 BSONObj makeBackupCursorCmd() {
     BSONArrayBuilder pipelineBuilder;
     pipelineBuilder << BSON("$backupCursor" << BSONObj());
@@ -1297,16 +1278,56 @@ AggregateCommandRequest makeBackupCursorRequest() {
 
 }  // namespace
 
-// function to move list of files from one directory to another
-Status InitialSyncerFCB::_moveFiles(const std::vector<std::string>& files,
-                                    const std::string& sourceDir,
-                                    const std::string& destDir) {
-    for (const auto& file : files) {
-        auto sourcePath = sourceDir + "/" + file;
-        auto destPath = destDir + "/" + file;
-        moveFile(sourcePath, destPath);
+// clean local files in the dbpath
+Status InitialSyncerFCB::_deleteLocalFiles() {
+    // list of files is in the _localFiles vector of std::string
+    for (const auto& path : _localFiles) {
+        boost::system::error_code ec;
+        boost::filesystem::remove(path, ec);
+        if (ec) {
+            return {ErrorCodes::InternalError,
+                    "Error deleting file '{}': {}"_format(path, ec.message())};
+        }
     }
     return Status::OK();
+}
+
+// function to move files from one directory to another
+// excluding .dummy subdirectory
+Status InitialSyncerFCB::_moveFiles(const boost::filesystem::path& sourceDir,
+                                    const boost::filesystem::path& destDir) {
+    namespace fs = boost::filesystem;
+
+    const fs::path excluded{".dummy"};
+    try {
+        std::vector<fs::path> files;
+        // populate files list and create directory structure under destDir
+        for (auto it = fs::recursive_directory_iterator(sourceDir);
+             it != fs::recursive_directory_iterator();
+             ++it) {
+            if (fs::is_regular_file(it->status())) {
+                // TODO: filter some files
+                // push into the list
+                files.push_back(it->path());
+            } else if (fs::is_directory(it->status())) {
+                auto relPath = fs::relative(it->path(), sourceDir);
+                if (excluded == relPath) {
+                    it.disable_recursion_pending();
+                } else {
+                    fs::create_directories(destDir / relPath);
+                }
+            }
+        }
+        // move files from the list
+        for (const auto& sourcePath : files) {
+            auto destPath = destDir / fs::relative(sourcePath, sourceDir);
+            fs::rename(sourcePath, destPath);
+        }
+
+        return Status::OK();
+    } catch (const fs::filesystem_error& e) {
+        return Status(ErrorCodes::UnknownError, e.what());
+    }
 }
 
 // Open a local backup cursor and obtain a list of files from that.
@@ -1328,37 +1349,8 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
         }
         while (cursor->more()) {
             auto rec = cursor->next();
-            logd("isoldbg: {}", rec.toString());
             files.emplace_back(rec[kFileNameFieldName].String());
         }
-
-        // BSONObj result;
-        // if (client.runCommand(DatabaseName::kAdmin, makeBackupCursorCmd(), result)) {
-        //     logd("isoldbg: $backupCursor result: {}", result.toString());
-        // } else {
-        //     logd("isoldbg: runCommand failed: {}", result.toString());
-        //     return Status{ErrorCodes::InternalError, "Local $backupCursor failed"};
-        // }
-
-        // Use fetcher to run aggregation on sync source
-        // Fetcher fetcher(_attemptExec.get(),
-        //                host,
-        //                aggRequest.getNamespace().db().toString(),
-        //                aggregation_request_helper::serializeToCommandObj(aggRequest),
-        //                fetcherCallback,
-        //                readPrefMetadata,
-        //                requestTimeout, /* command network timeout */
-        //                requestTimeout /* getMore network timeout */);
-
-        // Status scheduleStatus = fetcher.schedule();
-        // if (!scheduleStatus.isOK()) {
-        //     return scheduleStatus;
-        // }
-
-        // Status joinStatus = fetcher.join(opCtx);
-        // if (!joinStatus.isOK()) {
-        //     return joinStatus;
-        // }
     } catch (const DBException& e) {
         return e.toStatus();
     }
@@ -1366,16 +1358,24 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
 }
 
 // Switch storage location
-Status InitialSyncerFCB::_switchStorageLocation(const std::string& newLocation) {
-    auto opCtx = makeOpCtx();
+Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
+                                                const std::string& newLocation) {
+    boost::system::error_code ec;
+    boost::filesystem::create_directories(newLocation, ec);
+    if (ec) {
+        return {ErrorCodes::InternalError,
+                str::stream() << "Failed to create directory " << newLocation
+                              << " Error: " << ec.message()};
+    }
     auto lastShutdownState =
-        reinitializeStorageEngine(opCtx.get(), StorageEngineInitFlags{}, [&newLocation] {
+        reinitializeStorageEngine(opCtx, StorageEngineInitFlags{}, [&newLocation] {
             storageGlobalParams.dbpath = newLocation;
         });
     if (StorageEngine::LastShutdownState::kClean != lastShutdownState) {
         return {ErrorCodes::InternalError,
                 str::stream() << "Failed to switch storage location to " << newLocation};
     }
+    LOGV2_DEBUG(128415, 1, "Switched storage location", "newLocation"_attr = newLocation);
     return Status::OK();
 }
 
@@ -1575,12 +1575,18 @@ void InitialSyncerFCB::_transferFileCallback(
                 return;
             }
         } else {
-            // TODO: all files are cloned - close backup cursor and schedule next step
-            // TODO: this is temporary cancelation of initial sync for debugging reasons
-            onCompletionGuard->setResultAndCancelRemainingWork_inlock(
-                lock,
-                {ErrorCodes::NotImplemented,
-                 "All files cloned; cancel FCBIS for debugging reason"});
+            // TODO: all files are cloned - close backup cursor
+            // schedule next task
+            auto status = _scheduleWorkAndSaveHandle_inlock(
+                [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+                    _switchToDownloadedCallback(args, onCompletionGuard);
+                },
+                &_currentHandle,
+                "_switchToDownloadedCallback");
+            if (!status.isOK()) {
+                onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+                return;
+            }
         }
     }
 } catch (const DBException&) {
@@ -1589,22 +1595,181 @@ void InitialSyncerFCB::_transferFileCallback(
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
 
-void InitialSyncerFCB::_fcbisDraft() {
+void InitialSyncerFCB::_switchToDownloadedCallback(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    // NOLINTNEXTLINE(*-unnecessary-value-param)
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    stdx::lock_guard<Latch> lock(_mutex);
+    auto status = _checkForShutdownAndConvertStatus_inlock(callbackArgs,
+                                                           "_switchToDownloadedCallback cancelled");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    // Save list of files existing in dbpath. We will delete them later
+    LOGV2_DEBUG(128404, 2, "Reading the list of local files via $backupCursor");
+    auto bfiles = _getBackupFiles();
+    if (!bfiles.isOK()) {
+        LOGV2_DEBUG(
+            128405, 2, "Failed to get the list of local files", "status"_attr = bfiles.getStatus());
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, bfiles.getStatus());
+        return;
+    }
+    LOGV2_DEBUG(
+        128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
+    _localFiles = bfiles.getValue();
+
+    auto opCtx = makeOpCtx();
+    Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // Switch storage to be pointing to the set of downloaded files
-    _switchStorageLocation(storageGlobalParams.dbpath + ".initialsync");
+    status = _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
     // do some cleanup
     // TODO:
+
+    // schedule next task
+    status = _scheduleWorkAndSaveHandle_inlock(
+        [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+            _switchToDummyCallback(args, onCompletionGuard);
+        },
+        &_currentHandle,
+        "_switchToDummyCallback");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+} catch (const DBException&) {
+    // Report exception as an initial syncer failure.
+    stdx::unique_lock<Latch> lock(_mutex);
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
+}
+
+void InitialSyncerFCB::_switchToDummyCallback(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    // NOLINTNEXTLINE(*-unnecessary-value-param)
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    stdx::lock_guard<Latch> lock(_mutex);
+    auto status =
+        _checkForShutdownAndConvertStatus_inlock(callbackArgs, "_switchToDummyCallback cancelled");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    auto opCtx = makeOpCtx();
+    Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // Switch storage to a dummy location
-    _switchStorageLocation(storageGlobalParams.dbpath + ".dummy");
+    status = _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync/.dummy");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
     // Delete the list of files obtained from the local backup cursor
-    // TODO:
+    status = _deleteLocalFiles();
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
     // Move the files from the download location to the normal dbpath
-    //_moveFiles(files, storageGlobalParams.dbpath + ".initialsync", storageGlobalParams.dbpath);
+    boost::filesystem::path cfgDBPath(_cfgDBPath);
+    status = _moveFiles(cfgDBPath / ".initialsync", cfgDBPath);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    // schedule next task
+    status = _scheduleWorkAndSaveHandle_inlock(
+        [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+            _switchToDBPathCallback(args, onCompletionGuard);
+        },
+        &_currentHandle,
+        "_switchToDBPathCallback");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+} catch (const DBException&) {
+    // Report exception as an initial syncer failure.
+    stdx::unique_lock<Latch> lock(_mutex);
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
+}
+
+void InitialSyncerFCB::_switchToDBPathCallback(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    // NOLINTNEXTLINE(*-unnecessary-value-param)
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    stdx::lock_guard<Latch> lock(_mutex);
+    auto status =
+        _checkForShutdownAndConvertStatus_inlock(callbackArgs, "_switchToDBPathCallback cancelled");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    // TODO: should it be the same lock from the previious stage?
+    auto opCtx = makeOpCtx();
+    Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // Switch storage back to the normal dbpath
-    _switchStorageLocation(storageGlobalParams.dbpath);
+    status = _switchStorageLocation(opCtx.get(), _cfgDBPath);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+    // TODO: release global lock here (before reconstructing prepared transactions etc)
+
     // Reconstruct prepared transactions and other ephemera
     // TODO:
+
+    // TODO: set value of _lastApplied or provide another instance of OpTimeAndWallTime
+    // Successfully complete initial sync
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, _lastApplied);
+} catch (const DBException&) {
+    // Report exception as an initial syncer failure.
+    stdx::unique_lock<Latch> lock(_mutex);
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
+
+// template
+// void InitialSyncerFCB::_(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+//                         // NOLINTNEXTLINE(*-unnecessary-value-param)
+//                         std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+//    stdx::lock_guard<Latch> lock(_mutex);
+//    auto status = _checkForShutdownAndConvertStatus_inlock(callbackArgs, "error message");
+//    if (!status.isOK()) {
+//        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+//        return;
+//    }
+//
+//    // schedule next task
+//    status = _scheduleWorkAndSaveHandle_inlock(
+//        [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+//            _nextTaskCallback(args, onCompletionGuard);
+//        },
+//        &_currentHandle,
+//        "task name");
+//    if (!status.isOK()) {
+//        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+//        return;
+//    }
+//} catch (const DBException&) {
+//    // Report exception as an initial syncer failure.
+//    stdx::unique_lock<Latch> lock(_mutex);
+//    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
+//}
+
+// debugging template
+//            onCompletionGuard->setResultAndCancelRemainingWork_inlock(
+//                lock,
+//                {ErrorCodes::NotImplemented,
+//                 "All files cloned; cancel FCBIS for debugging reason"});
+
 
 std::string InitialSyncerFCB::Stats::toString() const {
     return toBSON().toString();

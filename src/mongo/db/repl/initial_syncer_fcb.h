@@ -339,6 +339,24 @@ private:
                                std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**
+     * Switch to downloaded files and do some cleanup of the 'local' db
+     */
+    void _switchToDownloadedCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                                     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+
+    /**
+     * Switch to dummy location, remove local files from dbpath, move downloaded files to the dbpath
+     */
+    void _switchToDummyCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                                std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+
+    /**
+     * Switch back to dbpath, finalize and complete inital sync
+     */
+    void _switchToDBPathCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                                 std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+
+    /**
      * This function does the following:
      *      1.) Truncate oplog.
      *      2.) Drop user databases (replicated dbs).
@@ -439,15 +457,14 @@ private:
      * Temporary location to declare all FCB-related private methods
      * TODO: reorganize
      */
-    Status _moveFiles(const std::vector<std::string>& files,
-                      const std::string& sourceDir,
-                      const std::string& destDir);
+    Status _deleteLocalFiles();
+
+    Status _moveFiles(const boost::filesystem::path& sourceDir,
+                      const boost::filesystem::path& destDir);
 
     StatusWith<std::vector<std::string>> _getBackupFiles();
 
-    Status _switchStorageLocation(const std::string& newLocation);
-
-    void _fcbisDraft();
+    Status _switchStorageLocation(OperationContext* opCtx, const std::string& newLocation);
 
     // Counts how many documents have been refetched from the source in the current batch.
     AtomicWord<unsigned> _fetchCount;
@@ -477,9 +494,11 @@ private:
     ThreadPool* _writerPool;                                           // (R)
     StorageInterface* _storage;                                        // (R)
     ReplicationProcess* _replicationProcess;                           // (S)
+    std::vector<std::string> _localFiles;                              // TODO:
     std::vector<BackupFile> _remoteFiles;                              // TODO:
     UUID _backupId;                                                    // TODO:
     std::string _remoteDBPath;                                         // TODO:
+    const std::string _cfgDBPath;                                      // TODO:
 
     // This is invoked with the final status of the initial sync. If startup() fails, this callback
     // is never invoked. The caller gets the last applied optime when the initial sync completes
@@ -499,6 +518,10 @@ private:
 
     // Handle to currently scheduled _transferFileCallback() task.
     executor::TaskExecutor::CallbackHandle _transferFileHandle;  // (M)
+
+    // Handle to currently scheduled  task (one of several tasks in the file move/dbpath change
+    // sequence).
+    executor::TaskExecutor::CallbackHandle _currentHandle;  // (M)
 
     // RollbackChecker to get rollback ID before and after each initial sync attempt.
     std::unique_ptr<RollbackChecker> _rollbackChecker;  // (M)
