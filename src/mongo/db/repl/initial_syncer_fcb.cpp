@@ -31,6 +31,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "initial_syncer_fcb.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -38,8 +40,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <utility>
 #include <vector>
 
-#include "boost/filesystem/file_status.hpp"
-#include "boost/filesystem/operations.hpp"
 #include <boost/filesystem.hpp>
 #include <boost/optional.hpp>
 #include <fmt/format.h>
@@ -53,6 +53,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/dbclient_cursor.h"
 #include "mongo/client/fetcher.h"
 #include "mongo/client/remote_command_retry_scheduler.h"
+#include "mongo/db/catalog/catalog_control.h"
 #include "mongo/db/client.h"
 #include "mongo/db/concurrency/d_concurrency.h"
 #include "mongo/db/database_name.h"
@@ -72,6 +73,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/repl_server_parameters_gen.h"
 #include "mongo/db/repl/replication_auth.h"
 #include "mongo/db/repl/replication_consistency_markers.h"
+#include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/replication_process.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/sync_source_selector.h"
@@ -80,6 +82,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/server_options.h"
 #include "mongo/db/serverless/serverless_operation_lock_registry.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/startup_recovery.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_options.h"
@@ -1367,6 +1370,9 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
                 str::stream() << "Failed to create directory " << newLocation
                               << " Error: " << ec.message()};
     }
+
+    auto previousCatalogState = catalog::closeCatalog(opCtx);
+
     auto lastShutdownState =
         reinitializeStorageEngine(opCtx, StorageEngineInitFlags{}, [&newLocation] {
             storageGlobalParams.dbpath = newLocation;
@@ -1375,6 +1381,17 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
         return {ErrorCodes::InternalError,
                 str::stream() << "Failed to switch storage location to " << newLocation};
     }
+
+
+    try {
+        startup_recovery::repairAndRecoverDatabases(opCtx, lastShutdownState);
+    } catch (const ExceptionFor<ErrorCodes::MustDowngrade>& error) {
+        // versions incompatibility (we actually should check this when we select sync source)
+        return error.toStatus();
+    }
+
+    catalog::openCatalogAfterStorageChange(opCtx);
+
     LOGV2_DEBUG(128415, 1, "Switched storage location", "newLocation"_attr = newLocation);
     return Status::OK();
 }
@@ -1419,6 +1436,9 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
                     auto checkpointTimestamp = metadata["checkpointTimestamp"].timestamp();
                     _backupId = UUID(uassertStatusOK(UUID::parse(metadata[kBackupIdFieldName])));
                     _remoteDBPath = metadata[kDBPathFieldName].String();
+                    auto status = OpTime::parseFromOplogEntry(metadata["oplogEnd"].Obj());
+                    invariant(status.isOK());
+                    _oplogEnd = status.getValue();
 
                     LOGV2_INFO(128409,
                                "Opened backup cursor on sync source",
@@ -1622,14 +1642,28 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
 
     auto opCtx = makeOpCtx();
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
+    // retrieve the current on-disk replica set configuration
+    auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
+    invariant(rs);
+    BSONObj savedRSConfig = rs->getConfigBSON();
+
     // Switch storage to be pointing to the set of downloaded files
     status = _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync");
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
+
     // do some cleanup
-    // TODO:
+    auto* consistencyMarkers = _replicationProcess->getConsistencyMarkers();
+    // TODO: when extend backup cursor is implemented use the last opTime retrieved from the sync
+    // source
+    consistencyMarkers->setOplogTruncateAfterPoint(opCtx.get(), _oplogEnd.getTimestamp());
+    // clear and reset the initalSyncId
+    consistencyMarkers->clearInitialSyncId(opCtx.get());
+    consistencyMarkers->setInitialSyncIdIfNotSet(opCtx.get());
+    // TODO: replace the lastVote document with a default one
+    // TODO: replace the config with savedRSConfig
 
     // schedule next task
     status = _scheduleWorkAndSaveHandle_inlock(
@@ -1728,6 +1762,9 @@ void InitialSyncerFCB::_switchToDBPathCallback(
     // TODO:
 
     // TODO: set value of _lastApplied or provide another instance of OpTimeAndWallTime
+    // TODO: fix this temporary solution
+    _lastApplied.opTime = _oplogEnd;
+    _lastApplied.wallTime = Date_t::fromMillisSinceEpoch(_oplogEnd.getSecs() * 1000);
     // Successfully complete initial sync
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, _lastApplied);
 } catch (const DBException&) {

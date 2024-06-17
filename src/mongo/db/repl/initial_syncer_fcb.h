@@ -38,6 +38,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <string>
 #include <vector>
 
+#include <boost/filesystem.hpp>
+
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
@@ -498,6 +500,7 @@ private:
     std::vector<BackupFile> _remoteFiles;                              // TODO:
     UUID _backupId;                                                    // TODO:
     std::string _remoteDBPath;                                         // TODO:
+    OpTime _oplogEnd;                                                  // TODO:
     const std::string _cfgDBPath;                                      // TODO:
 
     // This is invoked with the final status of the initial sync. If startup() fails, this callback
