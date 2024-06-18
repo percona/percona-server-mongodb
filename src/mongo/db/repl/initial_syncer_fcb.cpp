@@ -64,6 +64,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/repl/all_database_cloner.h"
+#include "mongo/db/repl/drop_pending_collection_reaper.h"
 #include "mongo/db/repl/fcb_file_cloner.h"
 #include "mongo/db/repl/initial_sync_state.h"
 #include "mongo/db/repl/initial_syncer_common_stats.h"
@@ -74,6 +75,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/replication_auth.h"
 #include "mongo/db/repl/replication_consistency_markers.h"
 #include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/repl/replication_coordinator_external_state_impl.h"
 #include "mongo/db/repl/replication_process.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/sync_source_selector.h"
@@ -1346,8 +1348,6 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
             &client, makeBackupCursorRequest(), true /* secondaryOk */, false /* useExhaust */));
         if (cursor->more()) {
             auto metadata = cursor->next();
-            // TODO: remove all logd() calls
-            logd("isoldbg: $backupCursor metadata: {}", metadata.toString());
             files.reserve(cursor->objsLeftInBatch());
         }
         while (cursor->more()) {
@@ -1501,7 +1501,6 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
     _backupCursorFetcher->onCompletion()
         .thenRunOn(**_attemptExec)
         .then([this, fetchStatus, onCompletionGuard, &lock] {
-            logd("Backup cursor fetcher completion callback");
             if (!*fetchStatus) {
                 // the callback was never invoked
                 uasserted(128411, "Internal error running cursor callback in command");
@@ -1662,8 +1661,30 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     // clear and reset the initalSyncId
     consistencyMarkers->clearInitialSyncId(opCtx.get());
     consistencyMarkers->setInitialSyncIdIfNotSet(opCtx.get());
-    // TODO: replace the lastVote document with a default one
-    // TODO: replace the config with savedRSConfig
+
+    ReplicationCoordinatorExternalStateImpl externalState(
+        opCtx->getServiceContext(),
+        DropPendingCollectionReaper::get(opCtx.get()),
+        StorageInterface::get(opCtx.get()),
+        ReplicationProcess::get(opCtx.get()));
+    // replace the lastVote document with a default one
+    status = StorageInterface::get(opCtx.get())
+                 ->dropCollection(opCtx.get(), NamespaceString::kLastVoteNamespace);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+    status = externalState.createLocalLastVoteCollection(opCtx.get());
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+    // replace the config with savedRSConfig
+    status = externalState.replaceLocalConfigDocument(opCtx.get(), savedRSConfig);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
 
     // schedule next task
     status = _scheduleWorkAndSaveHandle_inlock(
