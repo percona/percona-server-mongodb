@@ -1777,10 +1777,6 @@ void InitialSyncerFCB::_switchToDBPathCallback(
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
-    // TODO: release global lock here (before reconstructing prepared transactions etc)
-
-    // Reconstruct prepared transactions and other ephemera
-    // TODO:
 
     // TODO: set value of _lastApplied or provide another instance of OpTimeAndWallTime
     // TODO: fix this temporary solution
