@@ -92,6 +92,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/executor/task_executor.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/compiler.h"  // IWYU pragma: keep
+#include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/destructor_guard.h"
@@ -596,6 +597,7 @@ void InitialSyncerFCB::_startInitialSyncAttemptCallback(
     _opts.resetOptimes();
     _lastApplied = {OpTime(), Date_t()};
     _lastFetched = {};
+    _backupCursorInfo.reset();
 
     LOGV2_DEBUG(
         21167, 2, "Resetting the oldest timestamp before starting this initial sync attempt");
@@ -1396,6 +1398,34 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
     return Status::OK();
 }
 
+Status InitialSyncerFCB::_killBackupCursor_inlock() {
+    const auto* info = _backupCursorInfo.get();
+    invariant(info);
+    executor::RemoteCommandRequest killCursorsRequest(
+        _syncSource,
+        info->nss.db().toString(),
+        BSON("killCursors" << info->nss.coll().toString() << "cursors"
+                           << BSON_ARRAY(info->cursorId)),
+        nullptr);
+
+    auto scheduleResult = _exec->scheduleRemoteCommand(
+        killCursorsRequest, [](const executor::TaskExecutor::RemoteCommandCallbackArgs& args) {
+            if (!args.response.isOK()) {
+                LOGV2_WARNING(128416,
+                              "killCursors command task failed",
+                              "error"_attr = redact(args.response.status));
+                return;
+            }
+            auto status = getStatusFromCommandResult(args.response.data);
+            if (status.isOK()) {
+                LOGV2_INFO(128417, "Killed backup cursor");
+            } else {
+                LOGV2_WARNING(128418, "killCursors command failed", "error"_attr = redact(status));
+            }
+        });
+    return scheduleResult.getStatus();
+}
+
 // TenantMigrationRecipientService::Instance::_openBackupCursor
 // ShardMergeRecipientService::Instance::_openBackupCursor
 void InitialSyncerFCB::_fetchBackupCursorCallback(
@@ -1439,6 +1469,8 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
                     auto status = OpTime::parseFromOplogEntry(metadata["oplogEnd"].Obj());
                     invariant(status.isOK());
                     _oplogEnd = status.getValue();
+                    _backupCursorInfo = std::make_unique<BackupCursorInfo>(
+                        data.cursorId, data.nss, checkpointTimestamp);
 
                     LOGV2_INFO(128409,
                                "Opened backup cursor on sync source",
@@ -1594,9 +1626,14 @@ void InitialSyncerFCB::_transferFileCallback(
                 return;
             }
         } else {
-            // TODO: all files are cloned - close backup cursor
+            // all files are cloned - close backup cursor
+            auto status = _killBackupCursor_inlock();
+            if (!status.isOK()) {
+                onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+                return;
+            }
             // schedule next task
-            auto status = _scheduleWorkAndSaveHandle_inlock(
+            status = _scheduleWorkAndSaveHandle_inlock(
                 [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
                     _switchToDownloadedCallback(args, onCompletionGuard);
                 },

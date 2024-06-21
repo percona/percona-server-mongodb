@@ -55,6 +55,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/multiapplier.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/rollback_checker.h"
+#include "mongo/db/repl/tenant_migration_shared_data.h"
 #include "mongo/executor/scoped_task_executor.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/platform/atomic_word.h"
@@ -468,6 +469,8 @@ private:
 
     Status _switchStorageLocation(OperationContext* opCtx, const std::string& newLocation);
 
+    Status _killBackupCursor_inlock();
+
     // Counts how many documents have been refetched from the source in the current batch.
     AtomicWord<unsigned> _fetchCount;
 
@@ -502,6 +505,7 @@ private:
     std::string _remoteDBPath;                                         // TODO:
     OpTime _oplogEnd;                                                  // TODO:
     const std::string _cfgDBPath;                                      // TODO:
+    std::unique_ptr<BackupCursorInfo> _backupCursorInfo;               // TODO:
 
     // This is invoked with the final status of the initial sync. If startup() fails, this callback
     // is never invoked. The caller gets the last applied optime when the initial sync completes
