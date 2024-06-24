@@ -1359,6 +1359,9 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
             auto rec = cursor->next();
             files.emplace_back(rec[kFileNameFieldName].String());
         }
+
+        // Close cursor
+        cursor->kill();
     } catch (const DBException& e) {
         return e.toStatus();
     }
