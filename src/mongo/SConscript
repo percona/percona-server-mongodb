@@ -77,6 +77,7 @@ config_header_substs = (
     ('@mongo_config_wiredtiger_enabled@', 'MONGO_CONFIG_WIREDTIGER_ENABLED'),
     ('@mongo_config_grpc@', 'MONGO_CONFIG_GRPC'),
     ('@percona_fipsmode_enabled@', 'PERCONA_FIPSMODE_ENABLED'),
+    ('@percona_fcbis_enabled@', 'PERCONA_FCBIS_ENABLED'),
 )
 
 

@@ -2519,7 +2519,7 @@ env.Library(
         'query/stats/stats',
         'repl/drop_pending_collection_reaper',
         'repl/initial_syncer',
-        'repl/initial_syncer_fcb',
+        'repl/initial_syncer_fcb' if has_option('enable-fcbis') or has_option('full-featured') else [],
         'repl/repl_coordinator_impl',
         'repl/replication_recovery',
         'repl/serveronly_repl',

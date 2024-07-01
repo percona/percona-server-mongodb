@@ -112,3 +112,6 @@
 
 // FIPSMode enabled
 @percona_fipsmode_enabled@
+
+// FCBIS enabled
+@percona_fcbis_enabled@
