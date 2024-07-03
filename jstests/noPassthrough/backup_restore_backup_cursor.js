@@ -14,7 +14,7 @@
  * @tags: [requires_persistence, requires_replication]
  */
 
-load("jstests/noPassthrough/libs/backup_restore.js");
+import {BackupRestoreTest} from "jstests/noPassthrough/libs/backup_restore.js";
 
 (function() {
 "use strict";
