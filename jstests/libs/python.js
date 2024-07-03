@@ -14,6 +14,7 @@ export function getPython3Binary() {
     }
 
     const paths = [
+        "/opt/venv/bin/python3",
         "/opt/mongodbtoolchain/v4/bin/python3",
         "/usr/bin/python3",
         "/cygdrive/c/python/python310/python.exe",
