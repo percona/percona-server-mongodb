@@ -6,10 +6,10 @@ export function getPython3Binary() {
     clearRawMongoProgramOutput();
     assert.eq(runNonMongoProgram("python", "--version"), 0);
     const pythonVersion = rawMongoProgramOutput();  // Will look like "Python 3.10.4\n"
-    const usingPython310 = /Python 3\.10/.exec(pythonVersion);
-    if (usingPython310) {
-        print(
-            "Found python 3.10 by default. Likely this is because we are using a virtual enviorment.");
+    const match = pythonVersion.match(/Python 3\.(\d+)\./);
+    if (match && match[1] >= 10) {
+        print("Found python 3." + match[1] +
+              " by default. Likely this is because we are using a virtual enviorment.");
         return "python";
     }
 
