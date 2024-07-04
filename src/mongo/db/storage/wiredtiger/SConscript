@@ -263,6 +263,7 @@ wtEnv.Library(
     target='storage_wiredtiger_import',
     source=[
         'wiredtiger_import.cpp',
+        'wiredtiger_import_collection.cpp',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/repl/oplog',
@@ -273,6 +274,7 @@ wtEnv.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/catalog/catalog_helpers',
+        '$BUILD_DIR/mongo/db/concurrency/exception_util',
     ],
 )
 

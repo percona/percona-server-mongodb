@@ -247,6 +247,13 @@ std::vector<CollectionImportMetadata> wiredTigerRollbackToStableAndGetMetadata(
     return metadatas;
 }
 
+std::unique_ptr<RecoveryUnit::Change> makeCountsChange(RecordStore* recordStore,
+                                                       long long numRecords,
+                                                       long long dataSize) {
+    return std::make_unique<CountsChange>(
+        checked_cast<WiredTigerRecordStore*>(recordStore), numRecords, dataSize);
+}
+
 std::unique_ptr<RecoveryUnit::Change> makeCountsChange(
     RecordStore* recordStore, const CollectionImportMetadata& collectionMetadata) {
     return std::make_unique<CountsChange>(checked_cast<WiredTigerRecordStore*>(recordStore),

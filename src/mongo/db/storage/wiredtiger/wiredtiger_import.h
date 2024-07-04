@@ -73,6 +73,9 @@ std::vector<CollectionImportMetadata> wiredTigerRollbackToStableAndGetMetadata(
  * When preparing to import a collection within a WUOW, use RecoveryUnit::registerChange to
  * update number/size of records when the import commits.
  */
+std::unique_ptr<RecoveryUnit::Change> makeCountsChange(RecordStore* recordStore,
+                                                       long long numRecords,
+                                                       long long dataSize);
 std::unique_ptr<RecoveryUnit::Change> makeCountsChange(
     RecordStore* recordStore, const CollectionImportMetadata& collectionMetadata);
 }  // namespace mongo
