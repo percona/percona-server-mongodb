@@ -345,6 +345,10 @@ install_deps() {
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
       RHEL=$(rpm --eval %rhel)
+      if [ "$RHEL" -eq 7 ]; then
+       sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+       sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+      fi
       yum -y update
       yum -y install wget
       if [ x"$ARCH" = "xx86_64" ]; then
@@ -1122,7 +1126,7 @@ build_tarball(){
     cd mongo-tools
     . ./set_tools_revision.sh
     sed -i '15d' buildscript/build.go
-    sed -i '200,209d' buildscript/build.go
+    sed -i '195,204d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
