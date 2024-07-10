@@ -1076,7 +1076,7 @@ build_tarball(){
     cd mongo-tools
     . ./set_tools_revision.sh
     sed -i '15d' buildscript/build.go
-    sed -i '200,209d' buildscript/build.go
+    sed -i '195,204d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
