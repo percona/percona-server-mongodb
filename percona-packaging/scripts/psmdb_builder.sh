@@ -327,6 +327,10 @@ install_deps() {
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
       RHEL=$(rpm --eval %rhel)
+      if [ "$RHEL" -eq 7 ]; then
+       sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+       sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+      fi
       yum -y update
       yum -y install wget sudo
       yum -y install perl
