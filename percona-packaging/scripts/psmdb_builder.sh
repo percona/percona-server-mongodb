@@ -370,6 +370,8 @@ install_deps() {
 
         yum -y install centos-release-scl
         yum-config-manager --enable centos-sclo-rh-testing
+        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+        sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
         yum -y install rh-python38-python rh-python38-python-devel rh-python38-python-pip
         yum -y install devtoolset-9
         yum -y install devtoolset-11-elfutils devtoolset-11-dwz
