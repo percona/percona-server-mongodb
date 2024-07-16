@@ -444,7 +444,7 @@ install_deps() {
       fi
       percona-release enable tools testing
       apt-get update
-      if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xjammy"]; then
+      if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xjammy" ]; then
         INSTALL_LIST="python3 python3-dev python3-pip"
       elif [ x"${DEBIAN}" = "xnoble" ]; then
         INSTALL_LIST="python3.11 python3.11-dev"
