@@ -1,0 +1,14 @@
+#!/bin/sh
+# preinst script for mongos
+#
+# see: dh_installdeb(1)
+
+# create a mongodb group and user
+
+if ! getent passwd mongod >/dev/null 2>&1; then
+  adduser --system --group mongod
+fi
+
+#DEBHELPER#
+
+exit 0
