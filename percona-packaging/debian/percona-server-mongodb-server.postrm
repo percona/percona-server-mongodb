@@ -24,7 +24,7 @@ case "$1" in
   ;;
 
 esac
-if ["$1" = "remove" ]; then
+if [ "$1" = "remove" ]; then
   if [ -d /usr/local/percona/telemetry/psmdb ]; then
     rm -rf /usr/local/percona/telemetry/psmdb
   fi

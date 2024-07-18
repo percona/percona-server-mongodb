@@ -416,8 +416,8 @@ install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/p
 cp %SOURCE999 /tmp/ 2>/dev/null || :
 bash /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "@@VERSION@@-@@RELEASE@@" -d "PACKAGE" &>/dev/null || :
 %if 0%{?rhel} > 7
-chgrp percona-telemetry /usr/local/percona/telemetry_uuid
-chmod 664 /usr/local/percona/telemetry_uuid
+chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :
+chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :
 %endif
 rm -f /tmp/call-home.sh
 
