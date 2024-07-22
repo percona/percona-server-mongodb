@@ -1,0 +1,18 @@
+#!/bin/bash
+# postinst script for Percona Server for MongoDB sharded cluster query router
+#
+# see: dh_installdeb(1)
+
+
+set -e
+
+if [ -f /usr/share/debconf/confmodule ]; then
+  . /usr/share/debconf/confmodule
+fi
+
+if [ -d /usr/local/percona/telemetry ]; then
+    install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdbs
+fi
+
+exit 0
+
