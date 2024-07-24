@@ -1145,15 +1145,15 @@ build_tarball(){
 
     # Patch needed libraries
     cd "${PSMDIR_ABS}/${PSMDIR}"
-    if [ ! -d lib/private ]; then
-        mkdir -p lib/private
-    fi
+#    if [ ! -d lib/private ]; then
+#        mkdir -p lib/private
+#    fi
 #    if [[ "x${FIPSMODE}" == "x1" ]]; then
         LIBLIST=""
 #    else
 #        LIBLIST="libsasl2.so.3 libcrypto.so libssl.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so liblzma.so libidn.so"
 #    fi
-    DIRLIST="bin lib/private"
+    DIRLIST="bin"
 
     LIBPATH=""
 
@@ -1298,11 +1298,6 @@ build_tarball(){
         # Create and replace by sparse file to reduce size
         create_sparse bin
         replace_binaries bin
-
-        # Add hmac files that are required for fips mode
-        if [[ "x${FIPSMODE}" == "x0" ]]; then
-            add_hmac_files
-        fi
 
         # Make final check in order to determine any error after linkage
         for DIR in ${DIRLIST}; do
