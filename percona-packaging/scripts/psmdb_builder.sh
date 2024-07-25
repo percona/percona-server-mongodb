@@ -363,6 +363,11 @@ install_deps() {
     fi
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
+      RHEL=$(rpm --eval %rhel)
+      if [ "$RHEL" -eq 7 ]; then
+       sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+       sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+      fi
       if [ x"$RHEL" = x8 ]; then
           switch_to_vault_repo
       fi
@@ -395,6 +400,8 @@ install_deps() {
         yum -y install openldap-devel krb5-devel xz-devel
 
         yum -y install centos-release-scl
+        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+        sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
         yum-config-manager --enable centos-sclo-rh-testing
         yum -y install rh-python38-python rh-python38-python-devel rh-python38-python-pip
         source /opt/rh/rh-python38/enable
@@ -1031,7 +1038,7 @@ build_tarball(){
     cd mongo-tools
     . ./set_tools_revision.sh
     sed -i '15d' buildscript/build.go
-    sed -i '200,209d' buildscript/build.go
+    sed -i '195,204d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
