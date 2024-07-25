@@ -491,6 +491,7 @@ install_deps() {
       else
         update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1
         ln -sf /usr/bin/python3.7 /usr/bin/python3
+        wget https://bootstrap.pypa.io/pip/3.7/get-pip.py -O get-pip.py
       fi
       python get-pip.py
       easy_install pip
