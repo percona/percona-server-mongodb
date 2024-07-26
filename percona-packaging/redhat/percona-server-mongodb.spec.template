@@ -1,5 +1,7 @@
 #
 %define         mongo_home /var/lib/mongo
+%define         psmdb_telemetry /usr/local/percona/telemetry/psmdb
+%define         psmdbs_telemetry /usr/local/percona/telemetry/psmdbs
 #
 Name:           percona-server-mongodb
 Version:        @@VERSION@@
@@ -84,6 +86,9 @@ This metapackage will install the mongo shell, import/export tools, other client
 %package mongos
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB sharded cluster query router
+%if 0%{?rhel} > 7
+Requires: percona-telemetry-agent
+%endif
 %description mongos
 This package contains mongos - the Percona Server for MongoDB sharded cluster query router
 Conflicts: Percona-Server-MongoDB-mongos Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
@@ -92,6 +97,9 @@ Conflicts: Percona-Server-MongoDB-mongos Percona-Server-MongoDB-32-mongos Percon
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB database server
 Requires: policycoreutils
+%if 0%{?rhel} > 7
+Requires: percona-telemetry-agent
+%endif
 Requires: %{name}-shell = %{version}-%{release}
 %description server
 This package contains the Percona Server for MongoDB server software, default configuration files and init.d scripts
@@ -295,6 +303,13 @@ if [ $1 -gt 1 ]; then
     fi
 fi
 #
+%pre mongos
+if [ $1 == 1 ]; then
+  if ! getent passwd mongod > /dev/null 2>&1; then
+    /usr/sbin/groupadd -r mongod
+    /usr/sbin/useradd -M -r -g mongod -s /bin/false -c mongod mongod > /dev/null 2>&1
+  fi
+fi
 
 %post server
 #
@@ -377,9 +392,21 @@ fi
 %endif
     fi
 fi
+%if 0%{?rhel} > 7
+install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdb
+%endif
 cp %SOURCE999 /tmp/ 2>/dev/null || :
 bash /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v "@@VERSION@@-@@RELEASE@@" -d "PACKAGE" &>/dev/null || :
+%if 0%{?rhel} > 7
+chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :
+chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :
+%endif
 rm -f /tmp/call-home.sh
+
+%post mongos
+%if 0%{?rhel} > 7
+install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdbs
+%endif
 
 %preun server
 %if 0%{?rhel} >= 7
@@ -394,6 +421,14 @@ fi
 %if 0%{?rhel} >= 7
 %systemd_postun mongod.service
 %endif
+if [ -d %{psmdb_telemetry} ]; then
+  rm -rf %{psmdbs_telemetry}
+fi
+
+%postun mongos
+if [ -d %{psmdbs_telemetry} ]; then
+  rm -rf %{psmdbs_telemetry}
+fi
 
 #
 %changelog
