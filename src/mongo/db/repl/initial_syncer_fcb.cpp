@@ -316,13 +316,13 @@ Status InitialSyncerFCB::shutdown() {
 void InitialSyncerFCB::cancelCurrentAttempt() {
     stdx::lock_guard lk(_mutex);
     if (_isActive_inlock()) {
-        LOGV2_DEBUG(4427201,
+        LOGV2_DEBUG(128419,
                     1,
                     "Cancelling the current initial sync attempt.",
                     "currentAttempt"_attr = _stats.failedInitialSyncAttempts + 1);
         _cancelRemainingWork_inlock();
     } else {
-        LOGV2_DEBUG(4427202,
+        LOGV2_DEBUG(128420,
                     1,
                     "There is no initial sync attempt to cancel because the initial syncer is not "
                     "currently active.");
@@ -484,7 +484,7 @@ BSONObj InitialSyncerFCB::_getInitialSyncProgress_inlock() const {
         }
         return bob.obj();
     } catch (const DBException& e) {
-        LOGV2(21161,
+        LOGV2(128421,
               "Error creating initial sync progress object: {error}",
               "Error creating initial sync progress object",
               "error"_attr = e.toString());
@@ -543,7 +543,7 @@ void InitialSyncerFCB::_tearDown_inlock(OperationContext* opCtx,
         invariant(currentLastAppliedOpTime == lastAppliedOpTime);
     }
 
-    LOGV2(21163,
+    LOGV2(128422,
           "initial sync done; took "
           "{duration}.",
           "Initial sync done",
@@ -569,7 +569,7 @@ void InitialSyncerFCB::_startInitialSyncAttemptCallback(
         return;
     }
 
-    LOGV2(21164,
+    LOGV2(128423,
           "Starting initial sync (attempt {initialSyncAttempt} of {initialSyncMaxAttempts})",
           "Starting initial sync attempt",
           "initialSyncAttempt"_attr = (initialSyncAttempt + 1),
@@ -589,18 +589,19 @@ void InitialSyncerFCB::_startInitialSyncAttemptCallback(
     // has to run outside lock.
     stdx::lock_guard<Latch> lock(_mutex);
 
-    LOGV2_DEBUG(
-        21165, 2, "Resetting sync source so a new one can be chosen for this initial sync attempt");
+    LOGV2_DEBUG(128424,
+                2,
+                "Resetting sync source so a new one can be chosen for this initial sync attempt");
     _syncSource = HostAndPort();
 
-    LOGV2_DEBUG(21166, 2, "Resetting all optimes before starting this initial sync attempt");
+    LOGV2_DEBUG(128425, 2, "Resetting all optimes before starting this initial sync attempt");
     _opts.resetOptimes();
     _lastApplied = {OpTime(), Date_t()};
     _lastFetched = {};
     _backupCursorInfo.reset();
 
     LOGV2_DEBUG(
-        21167, 2, "Resetting the oldest timestamp before starting this initial sync attempt");
+        128426, 2, "Resetting the oldest timestamp before starting this initial sync attempt");
     auto* storageEngine = getGlobalServiceContext()->getStorageEngine();
     if (storageEngine) {
         // Set the oldestTimestamp to one because WiredTiger does not allow us to set it to zero
@@ -610,7 +611,7 @@ void InitialSyncerFCB::_startInitialSyncAttemptCallback(
         storageEngine->setOldestTimestamp(kTimestampOne, true /*force*/);
     }
 
-    LOGV2_DEBUG(21168,
+    LOGV2_DEBUG(128427,
                 2,
                 "Resetting feature compatibility version to last-lts. If the sync source is in "
                 "latest feature compatibility version, we will find out when we clone the "
@@ -642,7 +643,7 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
     std::uint32_t chooseSyncSourceMaxAttempts,
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
     if (MONGO_unlikely(initialSyncHangBeforeChoosingSyncSourceFCB.shouldFail())) {
-        LOGV2(5284800, "initialSyncHangBeforeChoosingSyncSourceFCB fail point enabled");
+        LOGV2(128428, "initialSyncHangBeforeChoosingSyncSourceFCB fail point enabled");
         initialSyncHangBeforeChoosingSyncSourceFCB.pauseWhileSet();
     }
 
@@ -675,7 +676,7 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
         }
 
         auto when = (*_attemptExec)->now() + _opts.syncSourceRetryWait;
-        LOGV2_DEBUG(21169,
+        LOGV2_DEBUG(128429,
                     1,
                     "Error getting sync source: '{error}', trying again in "
                     "{syncSourceRetryWait} at {retryTime}. Attempt {chooseSyncSourceAttempt} of "
@@ -705,7 +706,7 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
 
     if (MONGO_unlikely(initialSyncHangBeforeCreatingOplogFCB.shouldFail())) {
         // This log output is used in js tests so please leave it.
-        LOGV2(21170,
+        LOGV2(128430,
               "initial sync - initialSyncHangBeforeCreatingOplogFCB fail point "
               "enabled. Blocking until fail point is disabled.");
         lock.unlock();
@@ -747,7 +748,7 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
 // TODO: we probably don't need this in FCBIS
 Status InitialSyncerFCB::_truncateOplogAndDropReplicatedDatabases() {
     // truncate oplog; drop user databases.
-    LOGV2_DEBUG(4540700,
+    LOGV2_DEBUG(128431,
                 1,
                 "About to truncate the oplog, if it exists, ns:{namespace}, and drop all "
                 "user databases (so that we can clone them).",
@@ -764,20 +765,20 @@ Status InitialSyncerFCB::_truncateOplogAndDropReplicatedDatabases() {
     UnreplicatedWritesBlock unreplicatedWritesBlock(opCtx.get());
 
     // 1.) Truncate the oplog.
-    LOGV2_DEBUG(4540701,
+    LOGV2_DEBUG(128432,
                 2,
                 "Truncating the existing oplog: {namespace}",
                 "Truncating the existing oplog",
                 logAttrs(NamespaceString::kRsOplogNamespace));
     Timer timer;
     auto status = _storage->truncateCollection(opCtx.get(), NamespaceString::kRsOplogNamespace);
-    LOGV2(21173,
+    LOGV2(128433,
           "Initial syncer oplog truncation finished in: {durationMillis}ms",
           "Initial syncer oplog truncation finished",
           "durationMillis"_attr = timer.millis());
     if (!status.isOK()) {
         // 1a.) Create the oplog.
-        LOGV2_DEBUG(4540702,
+        LOGV2_DEBUG(128434,
                     2,
                     "Creating the oplog: {namespace}",
                     "Creating the oplog",
@@ -793,7 +794,7 @@ Status InitialSyncerFCB::_truncateOplogAndDropReplicatedDatabases() {
         ->abortAllIndexBuildsForInitialSync(opCtx.get(), "Aborting index builds for initial sync");
 
     // 2b.) Drop user databases.
-    LOGV2_DEBUG(21175, 2, "Dropping user databases");
+    LOGV2_DEBUG(128435, 2, "Dropping user databases");
     return _storage->dropReplicatedDatabases(opCtx.get());
 }
 
@@ -887,7 +888,7 @@ void InitialSyncerFCB::_fcvFetcherCallback(const StatusWith<Fetcher::QueryRespon
 
     if (MONGO_unlikely(initialSyncHangBeforeSplittingControlFlowFCB.shouldFail())) {
         lock.unlock();
-        LOGV2(5032000,
+        LOGV2(128436,
               "initial sync - initialSyncHangBeforeSplittingControlFlowFCB fail point "
               "enabled. Blocking until fail point is disabled.");
         while (MONGO_unlikely(initialSyncHangBeforeSplittingControlFlowFCB.shouldFail()) &&
@@ -920,7 +921,7 @@ void InitialSyncerFCB::_fcvFetcherCallback(const StatusWith<Fetcher::QueryRespon
                             << _initialSyncState->beginFetchingTimestamp.toBSON());
 
     invariant(!result.getValue().documents.empty());
-    LOGV2_DEBUG(4431600,
+    LOGV2_DEBUG(128437,
                 2,
                 "Setting begin applying timestamp to {beginApplyingTimestamp}, ns: "
                 "{namespace} and the begin fetching timestamp to {beginFetchingTimestamp}",
@@ -942,7 +943,7 @@ void InitialSyncerFCB::_fcvFetcherCallback(const StatusWith<Fetcher::QueryRespon
         // This could have been done with a scheduleWorkAt but this is used only by JS tests where
         // we run with multiple threads so it's fine to spin on this thread.
         // This log output is used in js tests so please leave it.
-        LOGV2(21179,
+        LOGV2(128438,
               "initial sync - initialSyncHangBeforeCopyingDatabasesFCB fail point "
               "enabled. Blocking until fail point is disabled.");
         while (MONGO_unlikely(initialSyncHangBeforeCopyingDatabasesFCB.shouldFail()) &&
@@ -975,7 +976,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         auto scheduleResult = _exec->scheduleWork(
             [=](const mongo::executor::TaskExecutor::CallbackArgs&) { _finishCallback(result); });
         if (!scheduleResult.isOK()) {
-            LOGV2_WARNING(21197,
+            LOGV2_WARNING(128439,
                           "Unable to schedule initial syncer completion task due to "
                           "{error}. Running callback on current thread.",
                           "Unable to schedule initial syncer completion task. Running callback on "
@@ -985,7 +986,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         }
     });
 
-    LOGV2(21191, "Initial sync attempt finishing up");
+    LOGV2(128440, "Initial sync attempt finishing up");
 
     stdx::lock_guard<Latch> lock(_mutex);
 
@@ -1002,7 +1003,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
     }
 
     if (MONGO_unlikely(failAndHangInitialSyncFCB.shouldFail())) {
-        LOGV2(21193, "failAndHangInitialSyncFCB fail point enabled");
+        LOGV2(128441, "failAndHangInitialSyncFCB fail point enabled");
         failAndHangInitialSyncFCB.pauseWhileSet();
         result = Status(ErrorCodes::InternalError, "failAndHangInitialSyncFCB fail point enabled");
     }
@@ -1033,7 +1034,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         return;
     }
 
-    LOGV2_ERROR(21200,
+    LOGV2_ERROR(128442,
                 "Initial sync attempt failed -- attempts left: "
                 "{attemptsLeft} cause: "
                 "{error}",
@@ -1044,7 +1045,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
 
     // Check if need to do more retries.
     if (!hasRetries) {
-        LOGV2_FATAL_CONTINUE(21202,
+        LOGV2_FATAL_CONTINUE(128443,
                              "The maximum number of retries have been exhausted for initial sync");
 
         initial_sync_common_stats::initialSyncFailures.increment();
@@ -1097,7 +1098,7 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
 
     if (MONGO_unlikely(initialSyncHangBeforeFinishFCB.shouldFail())) {
         // This log output is used in js tests so please leave it.
-        LOGV2(21194,
+        LOGV2(128444,
               "initial sync - initialSyncHangBeforeFinishFCB fail point "
               "enabled. Blocking until fail point is disabled.");
         while (MONGO_unlikely(initialSyncHangBeforeFinishFCB.shouldFail()) && !_isShuttingDown()) {
@@ -1113,7 +1114,7 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
     try {
         onCompletion(lastApplied);
     } catch (...) {
-        LOGV2_WARNING(21198,
+        LOGV2_WARNING(128445,
                       "initial syncer finish callback threw exception: {error}",
                       "Initial syncer finish callback threw exception",
                       "error"_attr = redact(exceptionToStatus()));
@@ -1144,7 +1145,7 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
     }
 
     if (MONGO_unlikely(initialSyncHangAfterFinishFCB.shouldFail())) {
-        LOGV2(5825800,
+        LOGV2(128446,
               "initial sync finished - initialSyncHangAfterFinishFCB fail point "
               "enabled. Blocking until fail point is disabled.");
         while (MONGO_unlikely(initialSyncHangAfterFinishFCB.shouldFail()) && !_isShuttingDown()) {
