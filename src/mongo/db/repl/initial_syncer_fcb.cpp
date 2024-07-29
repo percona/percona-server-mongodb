@@ -1541,14 +1541,18 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
                 // the callback was never invoked
                 uasserted(128411, "Internal error running cursor callback in command");
             }
-            uassertStatusOK(fetchStatus->get());
+            auto status = fetchStatus->get();
+            if (!status.isOK()) {
+                onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+                return;
+            }
 
             uassert(128414,
                     "Internal error: no file names collected from sync source",
                     !_remoteFiles.empty());
 
             // schedule file transfer callback
-            auto status = _scheduleWorkAndSaveHandle_inlock(
+            status = _scheduleWorkAndSaveHandle_inlock(
                 [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
                     _transferFileCallback(args, 0lu, onCompletionGuard);
                 },
