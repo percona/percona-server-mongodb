@@ -959,9 +959,9 @@ build_tarball(){
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
     if [ "x${RHEL}" == "x8" ]; then
-        pip3.6 install --upgrade pip
-        pip3.6 install --user -r etc/pip/dev-requirements.txt
-        pip3.6 install --user -r etc/pip/evgtest-requirements.txt
+        pip3.8 install --upgrade pip
+        pip3.8 install --user -r etc/pip/dev-requirements.txt
+        pip3.8 install --user -r etc/pip/evgtest-requirements.txt
     else
         pip install --upgrade pip
 
