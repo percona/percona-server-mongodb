@@ -270,7 +270,7 @@ install_gcc_8_deb(){
     if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
         apt-get -y install gcc-8 g++-8
     fi
-    if [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy ]; then
+    if [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xnoble ]; then
         apt-get -y install gcc-10 g++-10
     fi
     if [ x"${DEBIAN}" = xstretch ]; then
@@ -286,7 +286,7 @@ set_compiler(){
         if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
             export CC=/usr/bin/gcc-8
             export CXX=/usr/bin/g++-8
-        elif [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy ]; then
+        elif [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xnoble ]; then
             export CC=/usr/bin/gcc-10
             export CXX=/usr/bin/g++-10
         else
@@ -308,7 +308,7 @@ fix_rules(){
     if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
         sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-8|' debian/rules
         sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-8|' debian/rules
-    elif [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy ]; then
+    elif [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xnoble ]; then
         sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-10|' debian/rules
         sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-10|' debian/rules
     else
@@ -337,7 +337,7 @@ aws_sdk_build(){
             fi
             set_compiler
             CMAKE_CXX_FLAGS=""
-            if [ x"${DEBIAN}" = xjammy ]; then
+            if [ x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xnoble ]; then
                 CMAKE_CXX_FLAGS="-Wno-maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
             fi
             if [ -z "${CC}" -a -z "${CXX}" ]; then
@@ -446,7 +446,7 @@ install_deps() {
       export DEBIAN=$(lsb_release -sc)
       export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
       wget https://repo.percona.com/apt/pool/main/p/percona-release/percona-release_1.0-27.generic_all.deb && dpkg -i percona-release_1.0-27.generic_all.deb
-      if [ x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" ]; then
+      if [ x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" -o x"${DEBIAN}" = "xnoble" ]; then
         add-apt-repository -y ppa:deadsnakes/ppa
       elif [ x"${DEBIAN}" = "xstretch" -o x"${DEBIAN}" = "xbuster" ]; then
         wget https://people.debian.org/~paravoid/python-all/unofficial-python-all.asc
@@ -457,6 +457,8 @@ install_deps() {
       apt-get update
       if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xjammy" ]; then
         INSTALL_LIST="python3 python3-dev python3-pip"
+      elif [ x"${DEBIAN}" = "xnoble" ]; then
+        INSTALL_LIST="python3.10 python3.10-dev"
       elif [ x"${DEBIAN}" = "xxenial" ]; then
         INSTALL_LIST="build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libreadline-dev libffi-dev libsqlite3-dev"
       else
@@ -464,7 +466,7 @@ install_deps() {
       fi
       INSTALL_LIST="${INSTALL_LIST} git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
       INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf libexpat1-dev"
-      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" -a x"${DEBIAN}" != "xxenial" -a x"${DEBIAN}" != "xjammy" ]; then
+      if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" -a x"${DEBIAN}" != "xxenial" -a x"${DEBIAN}" != "xjammy" -a x"${DEBIAN}" != "xnoble" ]; then
         INSTALL_LIST="${INSTALL_LIST} python3.7-distutils"
       fi
       until apt-get -y install dirmngr; do
@@ -483,6 +485,9 @@ install_deps() {
         update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1
       elif [ x"${DEBIAN}" = "xjammy" ]; then
         update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+      elif [ x"${DEBIAN}" = "xnoble" ]; then
+        update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+        ln -sf /usr/bin/python3.10 /usr/bin/python3
       elif [ x"${DEBIAN}" = "xxenial" ]; then
         install_python3_7_12
         update-alternatives --install /usr/bin/python python /usr/local/bin/python3.7 1
@@ -747,7 +752,7 @@ build_source_deb(){
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
     fi
     #
@@ -761,8 +766,8 @@ build_source_deb(){
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
 
-    pip install -r etc/pip/dev-requirements.txt
-    pip install -r etc/pip/evgtest-requirements.txt
+    pip install -r etc/pip/dev-requirements.txt --ignore-installed
+    pip install -r etc/pip/evgtest-requirements.txt --ignore-installed
 
     set_compiler
     fix_rules
@@ -817,13 +822,14 @@ build_deb(){
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
 
-    pip install -r etc/pip/dev-requirements.txt
-    pip install -r etc/pip/evgtest-requirements.txt
+    set_compiler
+
+    pip install -r etc/pip/dev-requirements.txt --ignore-installed
+    pip install -r etc/pip/evgtest-requirements.txt --ignore-installed
     #
     cp -av percona-packaging/debian/rules debian/
-    set_compiler
     fix_rules
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' debian/control
         sed -i 's:etc/:/etc/:g' debian/percona-server-mongodb-server.conffiles
     fi
@@ -982,7 +988,7 @@ build_tarball(){
             mkdir build
             cd build
             set_compiler
-            if [ x"${DEBIAN}" = xjammy ]; then
+            if [ x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xnoble ]; then
                 CMAKE_CXX_FLAGS="-Wno-maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
             fi
             CMAKE_CMD="cmake"
@@ -1054,11 +1060,12 @@ build_tarball(){
 
     # Patch needed libraries
     cd "${PSMDIR_ABS}/${PSMDIR}"
-    if [ ! -d lib/private ]; then
-        mkdir -p lib/private
-    fi
-    LIBLIST="libsasl2.so.3 libcrypto.so libssl.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so libssl3.so liblzma.so libidn.so"
-    DIRLIST="bin lib/private"
+#    if [ ! -d lib/private ]; then
+#        mkdir -p lib/private
+#    fi
+#    LIBLIST="libsasl2.so.3 libcrypto.so libssl.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so libssl3.so liblzma.so libidn.so"
+    LIBLIST=""
+    DIRLIST="bin"
 
     LIBPATH=""
 
@@ -1198,6 +1205,12 @@ build_tarball(){
             check_libs ${DIR}
         done
     }
+
+    if [[ x"${OS}" == "xrpm" ]]; then
+        GLIBC_VER=".ol"${RHEL}
+    else
+        GLIBC_VER="."${DEBIAN}
+    fi
 
     cd ${PSMDIR_ABS}
     mv ${PSMDIR} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
