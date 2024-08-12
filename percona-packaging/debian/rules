@@ -60,8 +60,8 @@ compile-mongo-tools:
         export PATH="/usr/local/go/bin:$(PATH):$(GOPATH)"; \
         export GOBINPATH="/usr/local/go/bin"
 	cd $(PSMSRC)/../src/github.com/mongodb/mongo-tools; \
-        sed -i '15d' buildscript/build.go; \
-        sed -i '195,204d' buildscript/build.go; \
+        sed -i '13d' buildscript/build.go; \
+        sed -i '197,206d' buildscript/build.go; \
         sed -i "s:versionStr,:\"$(PSMDB_TOOLS_REVISION)\",:" buildscript/build.go; \
         sed -i "s:gitCommit):\"$(PSMDB_TOOLS_COMMIT_HASH)\"):" buildscript/build.go; \
         ./make build;
