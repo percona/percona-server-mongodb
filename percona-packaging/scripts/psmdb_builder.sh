@@ -879,6 +879,8 @@ build_deb(){
             cat call-home.sh >> percona-server-mongodb-server-pro.postinst
             echo "CALLHOME" >> percona-server-mongodb-server-pro.postinst
             echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server-pro.postinst
+	    echo "chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server-pro.postinst
+            echo "chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server-pro.postinst
             echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server-pro.postinst
             echo "exit 0" >> percona-server-mongodb-server-pro.postinst
         else
@@ -887,6 +889,8 @@ build_deb(){
             cat call-home.sh >> percona-server-mongodb-server.postinst
             echo "CALLHOME" >> percona-server-mongodb-server.postinst
             echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
+	    echo "chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server.postinst
+            echo "chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server.postinst
             echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
             echo "exit 0" >> percona-server-mongodb-server.postinst
         fi

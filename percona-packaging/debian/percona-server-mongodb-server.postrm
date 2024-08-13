@@ -25,6 +25,12 @@ case "$1" in
 
 esac
 
+if [ "$1" = "remove" ]; then
+  if [ -d /usr/local/percona/telemetry/psmdb ]; then
+    rm -rf /usr/local/percona/telemetry/psmdb
+  fi
+fi
+
 if [ "$1" = "purge" ]; then
   db_input high percona-server-mongodb-server/postrm_remove_databases || true
   db_go || true
@@ -34,6 +40,9 @@ if [ "$1" = "purge" ]; then
     rm -rf /var/log/mongodb
     rm -f /var/run/mongod.pid
     userdel mongod || true
+  fi
+  if [ -d /usr/local/percona/telemetry/psmdb ]; then
+    rm -rf /usr/local/percona/telemetry/psmdb
   fi
 fi
 
