@@ -1511,6 +1511,12 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
             LOGV2_ERROR(
                 128408, "Error fetching backup cursor entries", "error"_attr = ex.toString());
             *fetchStatus = ex.toStatus();
+            // In case of following error:
+            // "Location50886: The existing backup cursor must be closed before $backupCursor can
+            // succeed." replace error code with InvalidSyncSource to ensure fallback to logical
+            if (fetchStatus->get().code() == 50886) {
+                *fetchStatus = Status{ErrorCodes::InvalidSyncSource, ex.reason()};
+            }
         }
     };
 
