@@ -248,7 +248,7 @@ bool InitialSyncerFCB::_isActive_inlock() const {
 }
 
 std::string InitialSyncerFCB::getInitialSyncMethod() const {
-    return "logical";
+    return "fileCopyBased";
 }
 
 Status InitialSyncerFCB::startup(OperationContext* opCtx,
