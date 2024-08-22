@@ -11,7 +11,7 @@ export TOOLS_TAGS=ssl sasl
 export PORTABLE=1
 export USE_SSE=1
 export PATH := /usr/local/go/bin:$(PATH)
-export FIPSMODE=0
+export FULL_FEATURED=0
 export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
 $(info GLIBC_TUNABLES is $(GLIBC_TUNABLES))
 CC = gcc-5
@@ -27,9 +27,9 @@ override_dh_auto_clean:
 	dh_auto_clean
 	rm -fr $(PSMSRC)/bin
 	#rm -fr $(INSTALLDIR)
-ifeq ($(FIPSMODE),1)
+ifeq ($(FULL_FEATURED),1)
 		buildscripts/scons.py CC=$(CC) CXX=$(CXX) -C $(PSMSRC) -c --disable-warnings-as-errors --audit --release --ssl --opt -j$(NJOBS) --use-sasl-client CPPPATH=$(INSTALLDIR)/include \
-		--enable-fipsmode \
+		--full-featured \
 		LIBPATH=$(INSTALLDIR)/lib LINKFLAGS=$(OPT_LINKFLAGS) --wiredtiger --inmemory --hotbackup $(PSM_TARGETS) || exit $?
 else
 		buildscripts/scons.py CC=$(CC) CXX=$(CXX) -C $(PSMSRC) -c --disable-warnings-as-errors --audit --release --ssl --opt -j$(NJOBS) --use-sasl-client CPPPATH=$(INSTALLDIR)/include \
@@ -40,9 +40,9 @@ endif
 
 # Finally PSMDB
 percona-server-mongodb:
-ifeq ($(FIPSMODE),1)
+ifeq ($(FULL_FEATURED),1)
 		buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on -j$(NJOBS) \
-		--enable-fipsmode \
+		--full-featured \
 		--use-sasl-client --wiredtiger --inmemory --hotbackup \
 		CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib LINKFLAGS=${OPT_LINKFLAGS} ${PSM_TARGETS} || exit $?
 else

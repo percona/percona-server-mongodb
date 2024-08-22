@@ -11,7 +11,7 @@
 %endif
 
 # By default a build will be done in normal mode
-%{?enable_fipsmode: %global enable_fipsmode 1}
+%{?full_featured: %global full_featured 1}
 
 #
 Name:           percona-server-mongodb
@@ -172,14 +172,14 @@ mv ${INSTALLDIR_AWS}/include/* ${INSTALLDIR}/include/
 mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
 
 # Build PSfMDB with SCons
-echo ${enable_fipsmode}
+echo ${full_featured}
 pushd $RPM_BUILD_DIR/%{src_dir}
 poetry env use /opt/mongodbtoolchain/v4/bin/python3
 poetry install --no-root --sync
 buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on  \
 %{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" \
-%if 0%{?enable_fipsmode}
---enable-fipsmode \
+%if 0%{?full_featured}
+--full-featured \
 %endif$
 --wiredtiger --inmemory --hotbackup LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_TARGETS} || exit $?
 rm -fr resmoke.ini
