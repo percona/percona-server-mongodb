@@ -23,7 +23,7 @@ Usage: $0 [OPTIONS]
         --mongo_tools_tag   MONGO_TOOLS_TAG(mandatory)
         --special_targets   Special targets for tests
         --jenkins_mode      If it is set it means that this script is used on jenkins infrastructure
-        --enable_fipsmode   build gated PSMDB
+        --full_featured     enable all pro features
         --debug             build debug tarball
         --help) usage ;;
 Example $0 --builddir=/tmp/PSMDB --get_sources=1 --build_src_rpm=1 --build_rpm=1
@@ -62,7 +62,7 @@ parse_arguments() {
             --jenkins_mode=*) JENKINS_MODE="$val" ;;
             --debug=*) DEBUG="$val" ;;
             --special_targets=*) SPECIAL_TAR="$val" ;;
-            --enable_fipsmode=*) FIPSMODE="$val" ;;
+            --full_featured=*) FULL_FEATURED="$val" ;;
             --help) usage ;;
             *)
               if test -n "$pick_args"
@@ -276,8 +276,8 @@ fix_rules(){
     sed -i 's|CC = gcc-5|CC = /opt/mongodbtoolchain/v4/bin/gcc|' debian/rules
     sed -i 's|CXX = g++-5|CXX = /opt/mongodbtoolchain/v4/bin/g++|' debian/rules
     sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules
-    if [ x"${FIPSMODE}" == x1 ]; then
-        sed -i 's:FIPSMODE=0:FIPSMODE=1:' debian/rules
+    if [ x"${FULL_FEATURED}" == x1 ]; then
+        sed -i 's:FULL_FEATURED=0:FULL_FEATURED=1:' debian/rules
     fi
     return
 }
@@ -527,7 +527,7 @@ build_srpm(){
     sed -i 's:@@LOGDIR@@:mongo:g' rpmbuild/SOURCES/*.default
     sed -i 's:@@LOGDIR@@:mongo:g' rpmbuild/SOURCES/percona-server-mongodb-helper.sh
     #
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         sed -e "s:@@SOURCE_TARBALL@@:$(basename ${TARFILE}):g" \
         -e "s:@@VERSION@@:${VERSION}:g" \
         -e "s:@@RELEASE@@:${RELEASE}:g" \
@@ -665,8 +665,8 @@ build_rpm(){
 
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
-        rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --define "enable_fipsmode 1" --rebuild rpmbuild/SRPMS/$SRC_RPM
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
+        rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --define "full_featured 1" --rebuild rpmbuild/SRPMS/$SRC_RPM
     else
         rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --rebuild rpmbuild/SRPMS/$SRC_RPM
     fi
@@ -715,7 +715,7 @@ build_source_deb(){
         sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
     fi
     #
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server-pro.mongod.default
         mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server-pro.mongod.service
     else
@@ -723,7 +723,7 @@ build_source_deb(){
         mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.service
     fi
     #
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         mv ${TARFILE} ${PRODUCT}-pro_${VERSION}.orig.tar.gz
     else
         mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
@@ -742,7 +742,7 @@ build_source_deb(){
     set_compiler
     fix_rules
 
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         sed -i "s:percona-server-mongodb:percona-server-mongodb-pro:g" debian/changelog
         sed -i "s:Source\: percona-server-mongodb:Source\: percona-server-mongodb-pro:g" debian/control
         sed -i "s:Package\: percona-server-mongodb$:Package\: percona-server-mongodb-pro:g" debian/control
@@ -783,7 +783,7 @@ build_source_deb(){
     cp *.debian.tar.* $CURDIR/source_deb
     cp *_source.changes $CURDIR/source_deb
     cp *.dsc $CURDIR/source_deb
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         cp *-pro*.orig.tar.gz $WORKDIR/source_deb
         cp *-pro*.orig.tar.gz $CURDIR/source_deb
     else
@@ -821,7 +821,7 @@ build_deb(){
     #
     dpkg-source -x ${DSC}
     #
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         cd ${PRODUCT}-pro-${VERSION}
     else
         cd ${PRODUCT}-${VERSION}
@@ -840,7 +840,7 @@ build_deb(){
     set_compiler
     fix_rules
 
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         sed -i "s:percona-server-mongodb\:$:percona-server-mongodb-pro\::g" debian/rules
         sed -i "s:percona-server-mongodb :percona-server-mongodb-pro :g" debian/rules
         sed -i "s:percona-server-mongodb-mongos/:percona-server-mongodb-mongos-pro/:g" debian/rules
@@ -862,7 +862,7 @@ build_deb(){
 
     cd debian/
         wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
-        if [ x"${FIPSMODE}" == x1 ]; then
+        if [ x"${FULL_FEATURED}" == x1 ]; then
             sed -i 's:exit 0::' percona-server-mongodb-server-pro.postinst
             echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> percona-server-mongodb-server-pro.postinst
             cat call-home.sh >> percona-server-mongodb-server-pro.postinst
@@ -1043,14 +1043,14 @@ build_tarball(){
       CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
       export OPT_LINKFLAGS="${OPT_LINKFLAGS} ${CURL_LINKFLAGS}"
     fi
-    if [ x"${FIPSMODE}" == x1 ]; then
-        ENABLE_FIPS="--enable-fipsmode "
+    if [ x"${FULL_FEATURED}" == x1 ]; then
+        ENABLE_FULL_FEATURED="--full-featured "
     fi
     if [ ${DEBUG} = 0 ]; then
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client ${ENABLE_FIPS}--wiredtiger --audit --inmemory --hotbackup CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
+        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client ${ENABLE_FULL_FEATURED}--wiredtiger --audit --inmemory --hotbackup CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
     else
         buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --ssl --dbg=on -j${NCPU} --use-sasl-client \
-        CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${ENABLE_FIPS}--wiredtiger --inmemory --hotbackup ${PSM_REAL_TARGETS[@]} || exit $?
+        CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${ENABLE_FULL_FEATURED}--wiredtiger --inmemory --hotbackup ${PSM_REAL_TARGETS[@]} || exit $?
     fi
     #
     # scons install doesn't work - it installs the binaries not linked with fractal tree
@@ -1094,7 +1094,7 @@ build_tarball(){
 #    if [ ! -d lib/private ]; then
 #        mkdir -p lib/private
 #    fi
-#    if [[ "x${FIPSMODE}" == "x1" ]]; then
+#    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         LIBLIST=""
 #    else
 #        LIBLIST="libsasl2.so.3 libcrypto.so libssl.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so liblzma.so libidn.so"
@@ -1241,7 +1241,7 @@ build_tarball(){
     }
 
     PSMDIR_ORIGINAL=${PSMDIR}
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+    if [[ "x${FULL_FEATURED}" == "x1" ]]; then
         PSMDIR=$(echo ${PSMDIR} | sed "s/-mongodb-/-mongodb-pro-/g")
     fi
 
@@ -1307,7 +1307,7 @@ PSM_RELEASE="1"
 MONGO_TOOLS_TAG="master"
 PRODUCT=percona-server-mongodb
 DEBUG=0
-FIPSMODE=0
+FULL_FEATURED=0
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 VERSION=${PSM_VER}
 RELEASE=${PSM_RELEASE}
