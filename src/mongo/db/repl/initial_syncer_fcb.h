@@ -349,15 +349,18 @@ private:
 
     /**
      * Switch to dummy location, remove local files from dbpath, move downloaded files to the dbpath
+     * Switch back to dbpath
      */
-    void _switchToDummyCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
-                                std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+    void _switchToDummyToDBPathCallback(
+        const executor::TaskExecutor::CallbackArgs& callbackArgs,
+        std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**
-     * Switch back to dbpath, finalize and complete inital sync
+     * Finalize and complete inital sync
      */
-    void _switchToDBPathCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
-                                 std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+    void _finalizeAndCompleteCallback(
+        const executor::TaskExecutor::CallbackArgs& callbackArgs,
+        std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**
      * This function does the following:

@@ -1740,10 +1740,10 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     // schedule next task
     status = _scheduleWorkAndSaveHandle_inlock(
         [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
-            _switchToDummyCallback(args, onCompletionGuard);
+            _switchToDummyToDBPathCallback(args, onCompletionGuard);
         },
         &_currentHandle,
-        "_switchToDummyCallback");
+        "_switchToDummyToDBPathCallback");
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
@@ -1754,13 +1754,13 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
 
-void InitialSyncerFCB::_switchToDummyCallback(
+void InitialSyncerFCB::_switchToDummyToDBPathCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
     stdx::lock_guard<Latch> lock(_mutex);
-    auto status =
-        _checkForShutdownAndConvertStatus_inlock(callbackArgs, "_switchToDummyCallback cancelled");
+    auto status = _checkForShutdownAndConvertStatus_inlock(
+        callbackArgs, "_switchToDummyToDBPathCallback cancelled");
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
@@ -1790,13 +1790,20 @@ void InitialSyncerFCB::_switchToDummyCallback(
         return;
     }
 
+    // Switch storage back to the normal dbpath
+    status = _switchStorageLocation(opCtx.get(), _cfgDBPath);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
     // schedule next task
     status = _scheduleWorkAndSaveHandle_inlock(
         [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
-            _switchToDBPathCallback(args, onCompletionGuard);
+            _finalizeAndCompleteCallback(args, onCompletionGuard);
         },
         &_currentHandle,
-        "_switchToDBPathCallback");
+        "_finalizeAndCompleteCallback");
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
@@ -1807,23 +1814,13 @@ void InitialSyncerFCB::_switchToDummyCallback(
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
 
-void InitialSyncerFCB::_switchToDBPathCallback(
+void InitialSyncerFCB::_finalizeAndCompleteCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
     stdx::lock_guard<Latch> lock(_mutex);
-    auto status =
-        _checkForShutdownAndConvertStatus_inlock(callbackArgs, "_switchToDBPathCallback cancelled");
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
-        return;
-    }
-
-    // TODO: should it be the same lock from the previious stage?
-    auto opCtx = makeOpCtx();
-    Lock::GlobalLock lk(opCtx.get(), MODE_X);
-    // Switch storage back to the normal dbpath
-    status = _switchStorageLocation(opCtx.get(), _cfgDBPath);
+    auto status = _checkForShutdownAndConvertStatus_inlock(
+        callbackArgs, "_finalizeAndCompleteCallback cancelled");
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
