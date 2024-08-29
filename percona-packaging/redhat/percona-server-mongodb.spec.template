@@ -181,8 +181,8 @@ mkdir -p $GOPATH/src/github.com/mongodb
 cp -r $RPM_BUILD_DIR/%{src_dir}/mongo-tools ${GOPATH}/src/github.com/mongodb
 pushd ${GOPATH}/src/github.com/mongodb/mongo-tools
 . ./set_tools_revision.sh
-sed -i '15d' buildscript/build.go
-sed -i '195,204d' buildscript/build.go
+sed -i '13d' buildscript/build.go
+sed -i '197,206d' buildscript/build.go
 sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
 sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
 ./make build
