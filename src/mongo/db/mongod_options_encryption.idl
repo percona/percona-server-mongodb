@@ -213,7 +213,7 @@ configs:
             See `security.kmip.keyStatePollingSeconds` for key state polling.
             Default: `true`
         short_name: kmipActivateKeys
-        arg_vartype: Switch
+        arg_vartype: Bool
         requires: 'security.kmip.serverName'
 
     'security.kmip.keyStatePollingSeconds':
