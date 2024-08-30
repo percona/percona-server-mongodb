@@ -1,7 +1,7 @@
 /*======
 This file is part of Percona Server for MongoDB.
 
-Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
+Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the Server Side Public License, version 1,
@@ -31,46 +31,17 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <cstdint>
 #include <string>
-#include <utility>
+#include <string_view>
 
 /// The code in this namespace is not intended to be called from outside
 /// the `mongo::encryption` namespace
 namespace mongo::encryption::detail {
-/// @brief Reads an encryption key from the Vault server.
-///
-/// The address of the Vault server is specified via configuration file or
-/// command line options.
-///
-/// @param secretPath path to the encryption key on the Vault server
-/// @param secretVersion the version of the key;
-///                      default is zero meaning the most recent version
-///
-/// @returns If the key was successfully read from the Vault server,
-///          its data (in base64 encoding) and specific version (never `0`)
-///          are returned. Otherwise, the function returns the pair of an
-///          empty string and zero integer.
-///
-/// @throws std::runtime_error in case of issues
-std::pair<std::string, std::uint64_t> vaultReadKey(const std::string& secretPath,
-                                                   std::uint64_t secretVersion = 0);
+class VaultSecretMetadataLocator {
+public:
+    VaultSecretMetadataLocator(const std::string_view& secretPath);
 
-/// @brief Creates a copy of the key on the Vault server.
-///
-/// The address of the Vault server is specified via configuration file or
-/// command line options.
-///
-/// The function never overwrites an existing entry on a Vault server,
-/// it always creates a new one.
-/// @todo Consider renaming to better reflect the latter fact.
-///
-/// @param secretPath path to the encryption key on the Vault server
-/// @param key base64-encoded key data
-///
-/// @returns the version of created the key as a positive integer
-///
-/// @throws std::runtime_error in case of issues
-std::uint64_t vaultWriteKey(const std::string& secretPath, std::string const& key);
-
+    std::string engineConfigPath;
+    std::string metadataPath;
+};
 }  // namespace mongo::encryption::detail

@@ -49,6 +49,7 @@ struct EncryptionGlobalParams {
     std::optional<std::uint64_t> vaultSecretVersion;
     bool vaultRotateMasterKey{false};
     std::string vaultServerCAFile;
+    bool vaultCheckMaxVersions{true};
     bool vaultDisableTLS{false};
     long vaultTimeout{15L};
     std::string kmipServerName;

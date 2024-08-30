@@ -116,6 +116,7 @@ wtEnv.Library(
         's2n',
         'aws-checksums',
         'aws-c-common',
+        'curl'
     ],
 )
 

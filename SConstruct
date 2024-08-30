@@ -3092,7 +3092,7 @@ def doConfigure(myenv):
 
         # This warning was added in clang-5 and incorrectly flags our implementation of
         # exceptionToStatus(). See https://bugs.llvm.org/show_bug.cgi?id=34804
-        AddToCCFLAGSIfSupported(myenv, "-Wno-exceptions")
+        AddToCXXFLAGSIfSupported(myenv, "-Wno-exceptions")
 
         # Enable sized deallocation support.
         AddToCXXFLAGSIfSupported(myenv, '-fsized-deallocation')

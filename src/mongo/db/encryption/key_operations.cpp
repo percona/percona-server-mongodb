@@ -42,11 +42,11 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <boost/algorithm/string/split.hpp>
 
 #include "mongo/db/encryption/encryption_options.h"
-#include "mongo/db/encryption/encryption_vault.h"
 #include "mongo/db/encryption/error_builder.h"
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/encryption/kmip_client.h"
 #include "mongo/db/encryption/read_file_to_secure_string.h"
+#include "mongo/db/encryption/vault_client.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/invariant.h"
 
@@ -88,6 +88,17 @@ auto retryKmipOperation(MemFn&& operation) {
     throw std::runtime_error("KMIP sessions failed for all the server hosts. "
                              "No more remaining attempts.");
 }
+
+VaultClient createVaultClient() {
+    return VaultClient(encryptionGlobalParams.vaultServerName,
+                       encryptionGlobalParams.vaultPort,
+                       encryptionGlobalParams.vaultToken,
+                       encryptionGlobalParams.vaultTokenFile,
+                       encryptionGlobalParams.vaultServerCAFile,
+                       encryptionGlobalParams.vaultCheckMaxVersions,
+                       encryptionGlobalParams.vaultDisableTLS,
+                       encryptionGlobalParams.vaultTimeout);
+}
 }
 
 BadKeyState::BadKeyState(KeyState keyState)
@@ -103,7 +114,7 @@ std::variant<KeyEntry, NotFound, BadKeyState> ReadKeyFile::operator()() const tr
 }
 
 std::pair<std::string, std::uint64_t> ReadVaultSecret::_read(const VaultSecretId& id) const {
-    return detail::vaultReadKey(id.path(), id.version());
+    return createVaultClient().getKey(id.path(), id.version());
 }
 
 std::variant<KeyEntry, NotFound, BadKeyState> ReadVaultSecret::operator()() const try {
@@ -119,7 +130,7 @@ std::variant<KeyEntry, NotFound, BadKeyState> ReadVaultSecret::operator()() cons
 
 std::unique_ptr<KeyId> SaveVaultSecret::operator()(const Key& k) const try {
     return std::make_unique<VaultSecretId>(_secretPath,
-                                           detail::vaultWriteKey(_secretPath, k.base64()));
+                                           createVaultClient().putKey(_secretPath, k.base64()));
 } catch (const std::runtime_error& e) {
     std::ostringstream msg;
     msg << "saving the master key to the Vault server failed: " << e.what();

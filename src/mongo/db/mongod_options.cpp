@@ -511,6 +511,11 @@ Status storeMongodOptions(const moe::Environment& params) {
         encryptionGlobalParams.vaultServerCAFile = params["security.vault.serverCAFile"].as<std::string>();
     }
 
+    if (params.count("security.vault.checkMaxVersions")) {
+        encryptionGlobalParams.vaultCheckMaxVersions =
+            params["security.vault.checkMaxVersions"].as<bool>();
+    }
+
     if (params.count("security.vault.disableTLSForTesting")) {
         encryptionGlobalParams.vaultDisableTLS = params["security.vault.disableTLSForTesting"].as<bool>();
     }

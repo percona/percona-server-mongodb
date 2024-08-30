@@ -692,6 +692,10 @@ private:
     HttpReply request(CURL* handle, HttpMethod method, StringData url, ConstDataRange cdr) const {
         uassert(ErrorCodes::InternalError, "Curl initialization failed", handle);
 
+        if (!_caFilePath.empty()) {
+            curl_easy_setopt(handle, CURLOPT_CAINFO, _caFilePath.c_str());
+        }
+
         curl_easy_setopt(handle, CURLOPT_TIMEOUT, longSeconds(_timeout));
 
         curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, longSeconds(_connectTimeout));
