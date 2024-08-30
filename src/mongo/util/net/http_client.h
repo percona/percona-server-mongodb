@@ -73,6 +73,14 @@ public:
     virtual void allowInsecureHTTP(bool allow) = 0;
 
     /**
+     * For all future requests on this client, add the root certificate at
+     * `caFilePath` to the list of trusted certificate authorities.
+     */
+    void setCAFile(const std::string& caFilePath) {
+        _caFilePath = caFilePath;
+    }
+
+    /**
      * Assign a set of headers for this request.
      */
     virtual void setHeaders(const std::vector<std::string>& headers) = 0;
@@ -144,6 +152,7 @@ public:
 protected:
     Seconds _timeout = kTotalRequestTimeout;
     Seconds _connectTimeout = kConnectionTimeout;
+    std::string _caFilePath;
 
 private:
     DataBuilder requestSuccess(HttpMethod method, StringData url, ConstDataRange data) const {
