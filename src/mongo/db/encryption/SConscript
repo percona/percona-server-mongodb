@@ -46,17 +46,32 @@ env.Library(
 )
 
 env.Library(
-    target='encryption_vault',
+    target='vault_secret_metadata_locator',
     source=[
-        'encryption_vault.cpp',
+        'vault_secret_metadata_locator.cpp',
     ],
-    SYSLIBDEPS=[
-        'winhttp' if env.TargetOSIs('windows') else 'curl',
+)
+
+env.CppUnitTest(
+    target='vault_secret_metadata_locator_test',
+    source=[
+        'vault_secret_metadata_locator_test.cpp',
+    ],
+    LIBDEPS=[
+        'vault_secret_metadata_locator',
+    ],
+)
+
+env.Library(
+    target='vault_client',
+    source=[
+        'vault_client.cpp',
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',
-        'encryption_options',
+        '$BUILD_DIR/mongo/util/net/http_client',
         'read_file_to_secure_string',
+        'vault_secret_metadata_locator',
     ],
 )
 
@@ -93,8 +108,8 @@ env.Library(
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/util/periodic_runner',
         'encryption_options',
-        'encryption_vault',
         'kmip_client',
         'read_file_to_secure_string',
+        'vault_client',
     ],
 )
