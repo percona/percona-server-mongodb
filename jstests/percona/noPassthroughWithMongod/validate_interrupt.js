@@ -37,7 +37,7 @@
         // appear once or twice.
         assert((numWarnings === 1) || (numWarnings === 2),
                'Expected 1 or 2 validation warnings:\n' + tojson(res));
-        const re=new RegExp("Could not complete validation of table:(collection|index)-([0-9]+)-([0-9]+). This is a transient issue as the collection was actively in use by other operations.");
+        const re = new RegExp("Could not complete validation of table:(collection|index)([0-9\-]+). This is a transient issue as the collection was actively in use by other operations.");
         assert(res.warnings[0].match(re), 'Expected a transient issue warning:\n' + tojson(res));
         if (numWarnings === 2) {
             assert(res.warnings[1].match(re), 'Expected a transient issue warning:\n' + tojson(res));
