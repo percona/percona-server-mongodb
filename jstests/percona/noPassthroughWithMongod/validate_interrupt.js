@@ -37,9 +37,9 @@
         // appear once or twice.
         assert((numWarnings === 1) || (numWarnings === 2),
                'Expected 1 or 2 validation warnings:\n' + tojson(res));
-        assert(res.warnings[0].includes('EBUSY'), 'Expected an EBUSY warning:\n' + tojson(res));
+        assert(res.warnings[0].includes('This is a transient issue as the collection was actively in use by other operations'), 'Expected an EBUSY warning:\n' + tojson(res));
         if (numWarnings === 2) {
-            assert(res.warnings[1].includes('EBUSY'), 'Expected an EBUSY warning:\n' + tojson(res));
+            assert(res.warnings[1].includes('This is a transient issue as the collection was actively in use by other operations'), 'Expected an EBUSY warning:\n' + tojson(res));
         }
     }
 })();
