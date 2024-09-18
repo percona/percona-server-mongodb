@@ -1385,6 +1385,7 @@ Status InitialSyncerFCB::_switchStorageLocation(
         reinitializeStorageEngine(opCtx, StorageEngineInitFlags{}, [&newLocation] {
             storageGlobalParams.dbpath = newLocation;
         });
+    opCtx->getServiceContext()->getStorageEngine()->notifyStartupComplete();
     if (StorageEngine::LastShutdownState::kClean != lastShutdownState) {
         return {ErrorCodes::InternalError,
                 str::stream() << "Failed to switch storage location to " << newLocation};
