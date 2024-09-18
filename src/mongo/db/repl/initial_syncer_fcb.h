@@ -39,6 +39,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <vector>
 
 #include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
 
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
@@ -56,6 +57,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/rollback_checker.h"
 #include "mongo/db/repl/tenant_migration_shared_data.h"
+#include "mongo/db/startup_recovery.h"
 #include "mongo/executor/scoped_task_executor.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/platform/atomic_word.h"
@@ -470,7 +472,10 @@ private:
 
     StatusWith<std::vector<std::string>> _getBackupFiles();
 
-    Status _switchStorageLocation(OperationContext* opCtx, const std::string& newLocation);
+    Status _switchStorageLocation(
+        OperationContext* opCtx,
+        const std::string& newLocation,
+        boost::optional<startup_recovery::StartupRecoveryMode> = boost::none);
 
     Status _killBackupCursor_inlock();
 

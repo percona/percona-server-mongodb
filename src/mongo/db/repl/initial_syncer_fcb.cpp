@@ -1367,8 +1367,10 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
 }
 
 // Switch storage location
-Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
-                                                const std::string& newLocation) {
+Status InitialSyncerFCB::_switchStorageLocation(
+    OperationContext* opCtx,
+    const std::string& newLocation,
+    const boost::optional<startup_recovery::StartupRecoveryMode> recoveryMode) {
     boost::system::error_code ec;
     boost::filesystem::create_directories(newLocation, ec);
     if (ec) {
@@ -1389,11 +1391,15 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
     }
 
 
-    try {
-        startup_recovery::repairAndRecoverDatabases(opCtx, lastShutdownState);
-    } catch (const ExceptionFor<ErrorCodes::MustDowngrade>& error) {
-        // versions incompatibility (we actually should check this when we select sync source)
-        return error.toStatus();
+    if (recoveryMode) {
+        // We need to run startup recovery in the specified mode.
+        // This is necessary to ensure that the storage engine is in a consistent state.
+        try {
+            startup_recovery::runStartupRecoveryInMode(opCtx, lastShutdownState, *recoveryMode);
+        } catch (const ExceptionFor<ErrorCodes::MustDowngrade>& error) {
+            // versions incompatibility (we actually should check this when we select sync source)
+            return error.toStatus();
+        }
     }
 
     catalog::openCatalogAfterStorageChange(opCtx);
@@ -1698,7 +1704,9 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     BSONObj savedRSConfig = rs->getConfigBSON();
 
     // Switch storage to be pointing to the set of downloaded files
-    status = _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync");
+    status = _switchStorageLocation(opCtx.get(),
+                                    _cfgDBPath + "/.initialsync",
+                                    startup_recovery::StartupRecoveryMode::kReplicaSetMember);
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
@@ -1791,7 +1799,8 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
     }
 
     // Switch storage back to the normal dbpath
-    status = _switchStorageLocation(opCtx.get(), _cfgDBPath);
+    status = _switchStorageLocation(
+        opCtx.get(), _cfgDBPath, startup_recovery::StartupRecoveryMode::kReplicaSetMember);
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
