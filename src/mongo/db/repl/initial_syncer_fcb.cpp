@@ -60,6 +60,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/concurrency/d_concurrency.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/dbdirectclient.h"
+#include "mongo/db/dbhelpers.h"
 #include "mongo/db/feature_compatibility_version_parser.h"
 #include "mongo/db/index_builds_coordinator.h"
 #include "mongo/db/namespace_string.h"
@@ -85,6 +86,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/tenant_migration_access_blocker_util.h"
 #include "mongo/db/repl/transaction_oplog_application.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/server_recovery.h"
 #include "mongo/db/serverless/serverless_operation_lock_registry.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/startup_recovery.h"
@@ -1385,8 +1387,9 @@ Status InitialSyncerFCB::_switchStorageLocation(
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
     auto lastShutdownState =
-        reinitializeStorageEngine(opCtx, StorageEngineInitFlags{}, [&newLocation] {
+        reinitializeStorageEngine(opCtx, StorageEngineInitFlags{}, [&newLocation, opCtx] {
             storageGlobalParams.dbpath = newLocation;
+            repl::clearLocalOplogPtr(opCtx->getServiceContext());
         });
     opCtx->getServiceContext()->getStorageEngine()->notifyStorageStartupRecoveryComplete();
     if (StorageEngine::LastShutdownState::kClean != lastShutdownState) {
@@ -1716,6 +1719,8 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
 
     // do some cleanup
     auto* consistencyMarkers = _replicationProcess->getConsistencyMarkers();
+    consistencyMarkers->setMinValid(opCtx.get(),
+                                    OpTime{kTimestampOne, repl::OpTime::kUninitializedTerm});
     // TODO: when extend backup cursor is implemented use the last opTime retrieved from the sync
     // source
     consistencyMarkers->setOplogTruncateAfterPoint(opCtx.get(), _oplogEnd.getTimestamp());
@@ -1745,6 +1750,59 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
+    }
+
+    // schedule next task
+    status = _scheduleWorkAndSaveHandle_inlock(
+        [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+            _executeRecovery(args, onCompletionGuard);
+        },
+        &_currentHandle,
+        "_executeRecovery");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+} catch (const DBException&) {
+    // Report exception as an initial syncer failure.
+    stdx::unique_lock<Latch> lock(_mutex);
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
+}
+
+void InitialSyncerFCB::_executeRecovery(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    // NOLINTNEXTLINE(*-unnecessary-value-param)
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    stdx::lock_guard<Latch> lock(_mutex);
+    auto status =
+        _checkForShutdownAndConvertStatus_inlock(callbackArgs, "_executeRecovery cancelled");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    auto opCtx = makeOpCtx();
+    auto* serviceCtx = opCtx->getServiceContext();
+    inReplicationRecovery(serviceCtx).store(true);
+    ON_BLOCK_EXIT([serviceCtx] { inReplicationRecovery(serviceCtx).store(false); });
+
+    _replicationProcess->getReplicationRecovery()->recoverFromOplogAsStandalone(opCtx.get(), true);
+
+    // Aborts all active, two-phase index builds.
+    [[maybe_unused]] auto stoppedIndexBuilds =
+        IndexBuildsCoordinator::get(serviceCtx)->stopIndexBuildsForRollback(opCtx.get());
+
+    if (!stoppedIndexBuilds.empty()) {
+        LOGV2_WARNING(128498,
+                      "Aborted active index builds during initial sync recovery",
+                      "numIndexBuilds"_attr = stoppedIndexBuilds.size());
+    }
+
+    // Set stable timestamp
+    if (BSONObj lastEntry;
+        Helpers::getLast(opCtx.get(), NamespaceString::kRsOplogNamespace, lastEntry)) {
+        auto lastTime = repl::OpTimeAndWallTime::parse(lastEntry);
+        _storage->setStableTimestamp(serviceCtx, lastTime.opTime.getTimestamp());
     }
 
     // schedule next task
