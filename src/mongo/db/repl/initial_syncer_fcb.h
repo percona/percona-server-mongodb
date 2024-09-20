@@ -350,6 +350,14 @@ private:
                                      std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**
+     * Replay the oplog on the instance recoverd from backup
+     * Scheduled from _switchToDownloadedCallback
+     * Schedules _switchToDummyToDBPathCallback
+     */
+    void _executeRecovery(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                          std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+
+    /**
      * Switch to dummy location, remove local files from dbpath, move downloaded files to the dbpath
      * Switch back to dbpath
      */
