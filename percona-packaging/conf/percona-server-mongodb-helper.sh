@@ -12,7 +12,7 @@ KTHP=/sys/kernel/mm/transparent_hugepage
 [ -z "${CONF}" ] && CONF=/etc/mongod.conf
 #
 print_error(){
-  echo " * Error disabling Transparent Huge pages, exiting"
+  echo " * Error enabling Transparent Huge pages, exiting"
   exit 1
 }
 #
@@ -48,6 +48,7 @@ if [ -n "${defaults}" ] && [ -n "${config}" ]; then # engine is set in 2 places
     exit 1
   fi
 fi
-# disable THP
-fgrep '[always]' ${KTHP}/enabled  > /dev/null 2>&1 && (echo never > ${KTHP}/enabled 2> /dev/null || print_error) || true
-fgrep '[always]' ${KTHP}/defrag   > /dev/null 2>&1 && (echo never > ${KTHP}/defrag  2> /dev/null || print_error) || true
+# enable THP
+fgrep '[always]' ${KTHP}/enabled > /dev/null 2>&1 || (echo always > ${KTHP}/enabled 2> /dev/null || print_error) || true
+fgrep '[defer+madvise]' ${KTHP}/defrag > /dev/null 2>&1 || (echo defer+madvise > ${KTHP}/defrag  2> /dev/null || print_error) || true
+fgrep '0' ${KTHP}/khugepaged/max_ptes_none > /dev/null 2>&1 || (echo 0 > ${KTHP}/khugepaged/max_ptes_none  2> /dev/null || print_error) || true
