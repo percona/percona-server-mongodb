@@ -1679,7 +1679,7 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
-    stdx::lock_guard<Latch> lock(_mutex);
+    stdx::unique_lock<Latch> lock(_mutex);
     auto status = _checkForShutdownAndConvertStatus_inlock(callbackArgs,
                                                            "_switchToDownloadedCallback cancelled");
     if (!status.isOK()) {
@@ -1708,9 +1708,11 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     BSONObj savedRSConfig = rs->getConfigBSON();
 
     // Switch storage to be pointing to the set of downloaded files
+    lock.unlock();
     status = _switchStorageLocation(opCtx.get(),
                                     _cfgDBPath + "/.initialsync",
                                     startup_recovery::StartupRecoveryMode::kReplicaSetMember);
+    lock.lock();
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
@@ -1827,7 +1829,7 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
-    stdx::lock_guard<Latch> lock(_mutex);
+    stdx::unique_lock<Latch> lock(_mutex);
     auto status = _checkForShutdownAndConvertStatus_inlock(
         callbackArgs, "_switchToDummyToDBPathCallback cancelled");
     if (!status.isOK()) {
@@ -1838,7 +1840,9 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
     auto opCtx = makeOpCtx();
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // Switch storage to a dummy location
+    lock.unlock();
     status = _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync/.dummy");
+    lock.lock();
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
@@ -1860,8 +1864,10 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
     }
 
     // Switch storage back to the normal dbpath
+    lock.unlock();
     status = _switchStorageLocation(
         opCtx.get(), _cfgDBPath, startup_recovery::StartupRecoveryMode::kReplicaSetMember);
+    lock.lock();
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
