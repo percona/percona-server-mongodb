@@ -295,7 +295,7 @@ Status InitialSyncerFCB::startup(OperationContext* opCtx,
 }
 
 Status InitialSyncerFCB::shutdown() {
-    stdx::lock_guard<Latch> lock(_mutex);
+    stdx::unique_lock<Latch> lock(_mutex);
     switch (_state) {
         case State::kPreStart:
             // Transition directly from PreStart to Complete if not started yet.
@@ -311,6 +311,12 @@ Status InitialSyncerFCB::shutdown() {
     }
 
     _cancelRemainingWork_inlock();
+
+    // Ensure that storage change will not be blocked by shutdown's opCtx (first call to
+    // InitialSyncerFCB::shutdown comes from ReplicationCoordinatorImpl::enterTerminalShutdown
+    // at the moment when there is no opCtx in the shutdown thread yet).
+    // Wait for finish of tasks that change storage location is any is running.
+    _inStorageChangeCondition.wait(lock, [this] { return !_inStorageChange; });
 
     return Status::OK();
 }
@@ -1679,6 +1685,7 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    ChangeStorageGuard changeStorageGuard(this);
     stdx::unique_lock<Latch> lock(_mutex);
     auto status = _checkForShutdownAndConvertStatus_inlock(callbackArgs,
                                                            "_switchToDownloadedCallback cancelled");
@@ -1829,6 +1836,7 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    ChangeStorageGuard changeStorageGuard(this);
     stdx::unique_lock<Latch> lock(_mutex);
     auto status = _checkForShutdownAndConvertStatus_inlock(
         callbackArgs, "_switchToDummyToDBPathCallback cancelled");
