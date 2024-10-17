@@ -426,7 +426,7 @@ BSONObj InitialSyncerFCB::getInitialSyncProgress() const {
 }
 
 void InitialSyncerFCB::_appendInitialSyncProgressMinimal_inlock(BSONObjBuilder* bob) const {
-    bob->append("method", "logical");
+    bob->append("method", getInitialSyncMethod());
     _stats.append(bob);
     if (!_initialSyncState) {
         return;
