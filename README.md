@@ -24,7 +24,7 @@ Percona Server for MongoDB is a free, enhanced, fully compatible, open source, d
 
 ## Installation
 
-Use [Installing Percona Server for MongoDB](https://docs.percona.com/percona-server-for-mongodb/6.0/install/index.html) to navigate to the required installation instructions.
+Use [Installing Percona Server for MongoDB](https://docs.percona.com/percona-server-for-mongodb/latest/install/index.html) to navigate to the required installation instructions.
 
 ## Running
 

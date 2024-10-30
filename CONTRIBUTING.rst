@@ -55,17 +55,15 @@ enhancement implementation with you, do the following:
    There are several active versions of the project. Each version has
    its dedicated branch:
 
-   -  v3.6 (EOL)
-   -  v4.0
-   -  v4.2
-   -  v4.4
-   -  v5.0
+   -  v6.0
+   -  v7.0
+   -  v8.0
    -  master - this branch is the source for the next version, should it
       appear. You should not commit your changes to master branch.
 
 3. Create a branch for your changes based on the corresponding version
    branch. Please add the version to the end of the branch’s name
-   (e.g. ``<new-branch-v4.4>``)
+   (e.g. ``<new-branch-v8.0>``)
 
 4. Make your changes. Please follow these `code
    guidelines <https://github.com/mongodb/mongo/wiki/Server-Code-Style>`_
@@ -98,48 +96,36 @@ instructions <https://www.percona.com/doc/percona-server-for-mongodb/5.0/install
 
 To build Percona Server for MongoDB, you will need: 
 
-- A modern C++ compiler capable of compiling C++17 like GCC 8.2 or newer 
+- A modern C++ compiler capable of compiling C++20. You may use GCC 11.3 or newer 
 - Amazon AWS Software Development Kit for C++ library 
-- Python 3.6.x and Pip. 
+- Python 3.10.x and Pip modules. 
+- Poetry 1.5.1.
 - The set of dependencies for your operating system.
+- About 13 GB of disk space for the core binaries (`mongod`, `mongos`, and `mongo`) and about 600 GB for the `install-all` target.
+
+The following table lists dependencies for Ubuntu 22.04 and Red Hat Enterprise 9 and compatible derivatives:
 
 ================================ =========================
 Linux Distribution               Dependencies
 ================================ =========================
-Debian/Ubuntu                    python3 python3-dev
-                                 python3-pip scons gcc
-                                 g++ cmake curl
-                                 libssl-dev libldap2-dev
-                                 libkrb5-dev
-                                 libcurl4-openssl-dev
-                                 libsasl2-dev liblz4-dev
-                                 libpcap-dev libbz2-dev
-                                 libsnappy-dev zlib1g-dev
-                                 libzlcore-dev
-                                 libsasl2-dev liblzma-dev
-                                 libext2fs-dev
-                                 e2fslibs-dev bear
-CentOS / RedHat Enterprise Linux centos-release-scl
-                                 epel-release
-                                 python3 python3-devel
-                                 scons gcc gcc-c++ cmake3
-                                 openssl-devel
-                                 cyrus-sasl-devel
-                                 snappy-devel zlib-devel
-                                 bzip2-devel libcurl-devel
-                                 lz4-devel openldap-devel
-                                 krb5-devel xz-devel
+Debian/Ubuntu                    gcc g++ cmake curl 
+                                 libssl-dev libldap2-dev 
+                                 libkrb5-dev                 libcurl4-openssl-dev 
+                                 libsasl2-dev liblz4-dev 
+                                 libpcap-dev libbz2-dev 
+                                 libsnappy-dev zlib1g-dev 
+                                 libzlcore-dev liblzma-dev 
+                                 ibext2fs-dev e2fslibs-dev 
+                                 bear
+RedHat Enterprise Linux          gcc gcc-c++ cmake curl 
+                                 binutils-devel 
+                                 openssl-devel 
+                                 openldap-devel krb5-devel 
+                                 libcurl-devel 
+                                 cyrus-sasl-devel 
+                                 bzip2-devel zlib-devel 
+                                 lz4-devel xz-devel 
                                  e2fsprogs-devel
-                                 expat-devel
-                                 devtoolset-8-gcc
-                                 devtoolset-8-gcc-c++
-RedHat Enterprise Linux/CentOS 8 python36 python36-devel
-                                 gcc-c++ gcc cmake3 wget
-                                 openssl-devel zlib-devel
-                                 cyrus-sasl-devel xz-devel
-                                 bzip2-devel libcurl-devel
-                                 lz4-devel e2fsprogs-devel
-                                 krb5-devel openldap-devel
                                  expat-devel cmake
 ================================ =========================
 
@@ -149,223 +135,272 @@ Build steps
 Debian/Ubuntu
 ^^^^^^^^^^^^^
 
-1. Clone this repository and the AWS Software Development Kit for C++
-   repository
+Install Python and Python modules
+**********************************
+
+1. Make sure the `python3`, `python3-dev`, `python3-pip` Python packages are installed on your machine. Otherwise, install them using the package manager of your operating system.
+
+2. Create and activate the virtual environment for Poetry - a Python dependency management and packaging tool for Percona Server for MongoDB. It is a good practice to isolate Poetry from the rest of your system in a virtual environment to ensure that its dependencies are not accidentally upgraded nor uninstalled. Run the following commands and specify the path to your virtual environment in a `<venv_path>`:
 
 .. code:: sh
 
-   git clone https://github.com/percona/percona-server-mongodb.git
-   git clone https://github.com/aws/aws-sdk-cpp.git
+   $ python3 -m venv <venv_path> --prompt mongo
+   $ source <venv_path>/bin/activate 
 
-2. Install the dependencies for your operating system. The following
-   command installs the dependencies for Ubuntu 20.04:
 
-.. code:: sh
+3. Clone Percona Server for MongoDB repository
 
-   sudo apt install -y python3 python3-dev python3-pip scons gcc g++ cmake curl libssl-dev libldap2-dev libkrb5-dev libcurl4-openssl-dev libsasl2-dev liblz4-dev libpcap-dev libbz2-dev libsnappy-dev zlib1g-dev libzlcore-dev libsasl2-dev liblzma-dev libext2fs-dev e2fslibs-dev bear
+   .. code:: sh
 
-3. Switch to the Percona Server for MongoDB branch that you are building
-   and install Python3 modules
+      $ git clone https://github.com/percona/percona-server-mongodb.git
 
-.. code:: sh
+4. Switch to the Percona Server for MongoDB branch that you are building
+   and install Poetry
 
-   cd percona-server-mongodb && git checkout v5.0
-   pip3 install --user -r etc/pip/dev-requirements.txt
+   .. code:: sh
 
-4. Define Percona Server for MongoDB version (5.0.2 for the time of
+      $ cd percona-server-mongodb && git checkout v8.0
+      $ python3 -m pip install 'poetry==1.5.1'
+
+5. Install Python dependencies:
+
+   .. code:: sh
+
+      $ python3 -m poetry install --no-root --sync
+
+6. Define Percona Server for MongoDB version (8.0.1 for the time of
    writing this document)
 
+   .. code:: sh
+
+      $ echo '{"version": "8.0.1"}' > version.json
+
+Install operating system dependencies
+*************************************
+
+The following command installs the dependencies for Ubuntu 22.04:
+
 .. code:: sh
 
-   echo '{"version": "5.0.2"}' > version.json
+   $ sudo apt install -y gcc g++ cmake curl libssl-dev libldap2-dev libkrb5-dev libcurl4-openssl-dev libsasl2-dev liblz4-dev libpcap-dev libbz2-dev libsnappy-dev zlib1g-dev libzlcore-dev liblzma-dev ibext2fs-dev e2fslibs-dev bear
 
-5. Build the AWS Software Development Kit for C++ library
+Build AWS Software Development Kit for C++ library
+**************************************************
 
-   -  Create a directory to store the AWS library
+1. Clone the AWS Software Development Kit for C++ repository
+
+   .. code:: sh
+      
+      $ git clone --recurse-submodules https://github.com/aws/aws-sdk-cpp.git
+
+
+2. Create a directory to store the AWS library 
 
    .. code:: sh
 
-      mkdir -p /tmp/lib/aws
+      $ mkdir -p /tmp/lib/aws 
 
-   -  Declare an environment variable ``AWS_LIBS`` for this directory
-
-   .. code:: sh
-
-      export AWS_LIBS=/tmp/lib/aws
-
-   -  Percona Server for MongoDB is built with AWS SDK CPP 1.9.379
-      version. Switch to this version
+3. Declare an environment variable ``AWS_LIBS`` for this directory 
 
    .. code:: sh
 
-      cd aws-sdk-cpp && git checkout 1.9.379 && git submodule update --init --recursive
+      $ export AWS_LIBS=/tmp/lib/aws 
 
-   -  It is recommended to keep build files outside the SDK directory.
-      Create a build directory and navigate to it
-
-   .. code:: sh
-
-      mkdir build && cd build
-
-   -  Generate build files using ``cmake``
+4. Percona Server for MongoDB is built with AWS SDK CPP 1.9.379
+   version. Switch to this version 
 
    .. code:: sh
 
-      cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+      $ cd aws-sdk-cpp && git checkout 1.9.379 
 
-   -  Install the SDK
-
-   .. code:: sh
-
-      make install
-
-6. Build Percona Server for MongoDB
-
-   -  Change directory to ``percona-server-mongodb``
+5. It is recommended to keep build files outside the SDK directory.
+   Create a build directory and navigate to it 
 
    .. code:: sh
 
-      cd percona-server-mongodb
+      $ mkdir build && cd build 
 
-   -  Build Percona Server for MongoDB from ``buildscripts/scons.py``.
+6.  Generate build files using ``cmake`` 
 
+    .. code:: sh
+
+       $ cmake .. -DCMAKE_BUILD_TYPE=Release '-DBUILD_ONLY=s3;transfer' -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+
+7.  Install the SDK 
+
+    .. code:: sh
+       
+       $ make install
+
+Build Percona Server for MongoDB
+********************************
+
+1. Change directory to ``percona-server-mongodb`` 
+   
    .. code:: sh
+      
+      $ cd percona-server-mongodb 
 
-      buildscripts/scons.py -j$(nproc --all) --jlink=2 --disable-warnings-as-errors --ssl --opt=on --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib" install-mongod
+2. Build Percona Server for MongoDB from ``buildscripts/scons.py``
+     
+   * Basic build
 
-This command builds only the database. Other available targets for the
-``scons`` command are: - ``mongod`` - ``mongos`` - ``mongo`` - ``core``
-(includes ``mongod``, ``mongos``, ``mongo``) - ``all``
+     .. code:: sh
+
+        $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
+
+   * Pro build
+
+     .. code:: sh
+
+        $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --full-featured CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
+        ``` 
+
+   This command builds core components of the database. Other available targets for the
+   ``scons`` command are:  
+  
+   - `install-mongod`
+   - `install-mongos`
+   - `install-servers` (includes mongod and mongos)
+   - `install-core` (includes mongod and mongos)
+   - `install-devcore` (includes mongod, mongos, and jstestshell (formerly mongo shell))
+   - `install-all`
 
 The built binaries are in the ``percona-server-mongodb`` directory.
 
-Red Hat Enterprise Linux/CentOS
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Red Hat Enterprise Linux and derivatives
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1. Clone this repository and the AWS Software Development Kit for C++
-   repository
+Install Python and Python modules
+**********************************
 
-.. code:: sh
+1. Make sure the `python3`, `python3-dev`, `python3-pip` Python packages are installed on your machine. Otherwise, install them using the package manager of your operating system.
 
-   git clone https://github.com/percona/percona-server-mongodb.git
-   git clone https://github.com/aws/aws-sdk-cpp.git
-
-2. Install the dependencies for your operating system. The following
-   command installs the dependencies for Centos 7:
+2. Create and activate the virtual environment for Poetry - a Python dependency management and packaging tool for Percona Server for MongoDB. It is a good practice to isolate Poetry from the rest of your system in a virtual environment to ensure that its dependencies are not accidentally upgraded nor uninstalled. Run the following commands and specify the path to your virtual environment in a `<venv_path>`:
 
 .. code:: sh
 
-   sudo yum -y install centos-release-scl epel-release 
-   sudo yum -y install python3 python3-devel scons gcc gcc-c++ cmake3 openssl-devel cyrus-sasl-devel snappy-devel zlib-devel bzip2-devel libcurl-devel lz4-devel openldap-devel krb5-devel xz-devel e2fsprogs-devel expat-devel devtoolset-8-gcc devtoolset-8-gcc-c++
+   $ python3 -m venv <venv_path> --prompt mongo
+   $ source <venv_path>/bin/activate 
 
-3. Switch to the Percona Server for MongoDB branch that you are building
-   and install Python3 modules
 
-.. code:: sh
+3. Clone Percona Server for MongoDB repository
 
-   cd percona-server-mongodb && git checkout v5.0
-   python3 -m pip install --user -r etc/pip/dev-requirements.txt
+   .. code:: sh
 
-4. Define Percona Server for MongoDB version (5.0.2 for the time of
+      $ git clone https://github.com/percona/percona-server-mongodb.git
+
+4. Switch to the Percona Server for MongoDB branch that you are building
+   and install Poetry
+
+   .. code:: sh
+
+      $ cd percona-server-mongodb && git checkout v8.0
+      $ python3 -m pip install 'poetry==1.5.1'
+
+5. Install Python dependencies:
+
+   .. code:: sh
+
+      $ python3 -m poetry install --no-root --sync
+
+6. Define Percona Server for MongoDB version (8.0.1 for the time of
    writing this document)
 
+   .. code:: sh
+
+      $ echo '{"version": "8.0.1"}' > version.json
+
+Install operating system dependencies
+*************************************
+
+The following command installs the dependencies for Red Hat Enterprixe Linux 9 and compatible derivatives:
+
 .. code:: sh
 
-   echo '{"version": "5.0.2"}' > version.json
+   $ sudo yum -y install gcc gcc-c++ cmake curl binutils-devel openssl-devel openldap-devel krb5-devel libcurl-devel cyrus-sasl-devel bzip2-devel zlib-devel lz4-devel xz-devel e2fsprogs-devel
 
-5. Build a specific ``curl`` version
+Build AWS Software Development Kit for C++ library
+**************************************************
 
-   -  Fetch the package archive
+1. Clone the AWS Software Development Kit for C++ repository
+
+   .. code:: sh
+      
+      $ git clone --recurse-submodules https://github.com/aws/aws-sdk-cpp.git
+
+
+2. Create a directory to store the AWS library 
 
    .. code:: sh
 
-      wget https://curl.se/download/curl-7.66.0.tar.gz
+      $ mkdir -p /tmp/lib/aws 
 
-   -  Unzip the package
-
-   .. code:: sh
-
-      tar -xvzf curl-7.66.0.tar.gz && cd curl-7.66.0
-
-   -  Configure and build the package
+3. Declare an environment variable ``AWS_LIBS`` for this directory 
 
    .. code:: sh
 
-      ./configure
-      sudo make install
+      $ export AWS_LIBS=/tmp/lib/aws 
 
-6. Build the AWS Software Development Kit for C++ library
-
-   -  Create a directory to store the AWS library
+4. Percona Server for MongoDB is built with AWS SDK CPP 1.9.379
+   version. Switch to this version 
 
    .. code:: sh
 
-      mkdir -p /tmp/lib/aws
+      $ cd aws-sdk-cpp && git checkout 1.9.379 
 
-   -  Declare an environment variable ``AWS_LIBS`` for this directory
-
-   .. code:: sh
-
-      export AWS_LIBS=/tmp/lib/aws
-
-   -  Percona Server for MongoDB is built with AWS SDK CPP 1.9.379
-      version. Switch to this version
+5. It is recommended to keep build files outside the SDK directory.
+   Create a build directory and navigate to it 
 
    .. code:: sh
 
-      cd aws-sdk-cpp && git checkout 1.9.379 && git submodule update --init --recursive
+      $ mkdir build && cd build 
 
-   -  It is recommended to keep build files outside of the SDK
-      directory. Create a build directory and navigate to it
+6.  Generate build files using ``cmake`` 
 
+    .. code:: sh
+
+       $ cmake .. -DCMAKE_BUILD_TYPE=Release '-DBUILD_ONLY=s3;transfer' -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+
+7.  Install the SDK 
+
+    .. code:: sh
+       
+       $ make install
+
+Build Percona Server for MongoDB
+*******************************
+
+1. Change directory to ``percona-server-mongodb`` 
+   
    .. code:: sh
+      
+      $ cd percona-server-mongodb 
 
-      mkdir build && cd build
+2. Build Percona Server for MongoDB from ``buildscripts/scons.py``
+     
+   * Basic build
 
-   -  Generate build files using ``cmake``
+     .. code:: sh
 
-      On RedHat Enterprise Linux CentOS 7:
+        $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
 
-      .. code:: sh
+   * Pro build
 
-         cmake3 .. -DCMAKE_C_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/gcc  -DCMAKE_CXX_COMPILER=/opt/rh/devtoolset-8/root/usr/bin/g++ -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+     .. code:: sh
+     
+        $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --full-featured CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
+        ``` 
 
-      On RedHat Enterprise Linux CentOS 8:
-
-      .. code:: sh
-
-         cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
-
-   -  Install the SDK
-
-   .. code:: sh
-
-      make install
-
-7. Build Percona Server for MongoDB
-
-   -  Change directory to ``percona-server-mongodb``
-
-   .. code:: sh
-
-      cd percona-server-mongodb
-
-   -  Build Percona Server for MongoDB from ``buildscripts/scons.py``.
-      On RedHat Enterprise Linux / CentOS 7:
-
-   .. code:: sh
-
-      python3 buildscripts/scons.py CC=/opt/rh/devtoolset-8/root/usr/bin/gcc CXX=/opt/rh/devtoolset-8/root/usr/bin/g++ -j$(nproc --all) --jlink=2  --disable-warnings-as-errors --ssl --opt=on --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib" install-mongod
-
-   On RedHat Enterprise Linux / CentOS 8:
-
-   .. code:: sh
-
-      buildscripts/scons.py -j$(nproc --all) --jlink=2  --disable-warnings-as-errors --ssl --opt=on --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib64" install-mongod
-
-This command builds only the database. Other available targets for the
-``scons`` command are: - ``mongod`` - ``mongos`` - ``mongo`` - ``core``
-(includes ``mongod``, ``mongos``, ``mongo``) - ``all``
+   This command builds core components of the database. Other available targets for the
+   ``scons`` command are:  
+  
+   - `install-mongod`
+   - `install-mongos`
+   - `install-servers` (includes mongod and mongos)
+   - `install-core` (includes mongod and mongos)
+   - `install-devcore` (includes mongod, mongos, and jstestshell (formerly mongo shell))
+   - `install-all`
 
 The built binaries are in the ``percona-server-mongodb`` directory.
 
