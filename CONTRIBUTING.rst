@@ -133,34 +133,6 @@ To build Percona Server for MongoDB manually, you need the following:
 Build steps
 ~~~~~~~~~~~
 
-Install Python and Python modules
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-1. Make sure the ``python3``, ``python3-dev``, ``python3-pip`` Python
-   packages are installed on your machine. Otherwise, install them using
-   the package manager of your operating system.
-
-2. Clone Percona Server for MongoDB repository
-
-   .. code:: bash
-
-      $ git clone https://github.com/percona/percona-server-mongodb.git
-
-3. Switch to the Percona Server for MongoDB branch that you are building
-   and install Python3 modules
-
-   .. code:: bash
-
-      $ cd percona-server-mongodb && git checkout v7.0
-      $ python3 -m pip install --user -r etc/pip/dev-requirements.txt
-
-4. Define Percona Server for MongoDB version (7.0.4 for the time of
-   writing this document)
-
-   .. code:: bash
-
-      $ echo '{"version": "7.0.4"}' > version.json
-
 Install operating system dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -225,6 +197,34 @@ Build AWS Software Development Kit for C++ library
    .. code:: bash
 
       $ make install
+
+Install Python and Python modules
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+1. Make sure the ``python3``, ``python3-dev``, ``python3-pip`` Python
+   packages are installed on your machine. Otherwise, install them using
+   the package manager of your operating system.
+
+2. Clone Percona Server for MongoDB repository
+
+   .. code:: bash
+
+      $ git clone https://github.com/percona/percona-server-mongodb.git
+
+3. Switch to the Percona Server for MongoDB branch that you are building
+   and install Python3 modules
+
+   .. code:: bash
+
+      $ cd percona-server-mongodb && git checkout v7.0
+      $ python3 -m pip install --user -r etc/pip/dev-requirements.txt
+
+4. Define Percona Server for MongoDB version (7.0.4 for the time of
+   writing this document)
+
+   .. code:: bash
+
+      $ echo '{"version": "7.0.4"}' > version.json
 
 Build Percona Server for MongoDB
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
