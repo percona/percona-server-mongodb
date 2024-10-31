@@ -169,7 +169,10 @@ Build AWS Software Development Kit for C++ library
       $ mkdir -p /tmp/lib/aws
 
 3. Declare an environment variable ``AWS_LIBS`` for this directory
-   ``{.bash data-prompt="$"}     $ export AWS_LIBS=/tmp/lib/aws``
+   
+   .. code:: bash
+
+      $ export AWS_LIBS=/tmp/lib/aws
 
 4. Percona Server for MongoDB is built with AWS SDK CPP 1.9.379 version.
    Switch to this version
@@ -205,10 +208,10 @@ Install Python and Python modules
 
 2. Create and activate the virtual environment for Poetry - a Python dependency management and packaging tool for Percona Server for MongoDB. It is a good practice to isolate Poetry from the rest of your system in a virtual environment to ensure that its dependencies are not accidentally upgraded nor uninstalled. Run the following commands and specify the path to your virtual environment in a `<venv_path>`:
 
-.. code:: sh
+   .. code:: sh   
 
-   $ python3 -m venv <venv_path> --prompt mongo
-   $ source <venv_path>/bin/activate 
+      $ python3 -m venv <venv_path> --prompt mongo
+      $ source <venv_path>/bin/activate 
 
 
 3. Clone Percona Server for MongoDB repository
@@ -237,6 +240,9 @@ Install Python and Python modules
    .. code:: sh
 
       $ echo '{"version": "8.0.1"}' > version.json
+
+Build Percona Server for MongoDB
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. Change directory to ``percona-server-mongodb``
 
