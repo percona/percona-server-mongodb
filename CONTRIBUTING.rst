@@ -69,8 +69,8 @@ enhancement implementation with you, do the following:
    guidelines <https://github.com/mongodb/mongo/wiki/Server-Code-Style>`_
    to improve code readability.
 
-5. Test your changes locally. See the :ref:`Running tests
-   locally <tests>` section for more information
+5. Test your changes locally. See the `Running tests
+   locally <#running-tests-locally>`_ section for more information
 
 6. Commit the changes. Add the Jira issue number at the beginning of
    your message subject so that is reads as
