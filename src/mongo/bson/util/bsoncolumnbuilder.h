@@ -282,7 +282,12 @@ struct EncodingState {
 template <class Allocator = std::allocator<void>>
 class BSONColumnBuilder {
 public:
-    explicit BSONColumnBuilder(const Allocator& = {});
+    explicit BSONColumnBuilder(const Allocator&);
+
+    template <typename U = Allocator,
+              typename = std::enable_if_t<std::is_default_constructible_v<U>>>
+    BSONColumnBuilder() : BSONColumnBuilder(Allocator()) {}
+
     explicit BSONColumnBuilder(allocator_aware::BufBuilder<Allocator>, const Allocator& = {});
 
     /**
