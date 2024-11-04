@@ -233,7 +233,7 @@ Clone Percona Server for MongoDB repository
 Install Python and Python modules
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1. Make sure the `python3`, `python3-dev`, `python3-pip` Python packages are installed on your machine. Otherwise, install them using the package manager of your operating system.
+1. Make sure the ``python3``, ``python3-dev``, ``python3-pip``, ``python3-venv`` Python packages are installed on your machine. Otherwise, install them using the package manager of your operating system.
 
 2. Create and activate the virtual environment for Poetry - a Python dependency management and packaging tool for Percona Server for MongoDB. It is a good practice to isolate Poetry from the rest of your system in a virtual environment to ensure that its dependencies are not accidentally upgraded nor uninstalled. Run the following commands and specify the path to your virtual environment in a `<venv_path>`. The ``--prompt`` flag helps you visually distinguish your virtual environment from the base Python installation.
 
@@ -272,14 +272,14 @@ Run one of the following commands to build Percona Server for MongoDB from ``bui
 
   .. code:: bash
 
-     $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
+     (mongo) $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
         
 
 * Pro build
 
   .. code:: bash
 
-     $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --full-featured CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
+     (mongo) $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --full-featured CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
         
 
 This command builds core components of the database. Other available
