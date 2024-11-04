@@ -235,7 +235,7 @@ Install Python and Python modules
 
 1. Make sure the `python3`, `python3-dev`, `python3-pip` Python packages are installed on your machine. Otherwise, install them using the package manager of your operating system.
 
-2. Create and activate the virtual environment for Poetry - a Python dependency management and packaging tool for Percona Server for MongoDB. It is a good practice to isolate Poetry from the rest of your system in a virtual environment to ensure that its dependencies are not accidentally upgraded nor uninstalled. Run the following commands and specify the path to your virtual environment in a `<venv_path>`. The `--prompt` flag helps you visually distinguish your virtual environment from the base Python installation.
+2. Create and activate the virtual environment for Poetry - a Python dependency management and packaging tool for Percona Server for MongoDB. It is a good practice to isolate Poetry from the rest of your system in a virtual environment to ensure that its dependencies are not accidentally upgraded nor uninstalled. Run the following commands and specify the path to your virtual environment in a `<venv_path>`. The ``--prompt`` flag helps you visually distinguish your virtual environment from the base Python installation.
 
    .. code:: sh   
 
@@ -261,7 +261,7 @@ To build Percona Server for MongoDB, you must be in the ``percona-server-mongodb
 
 Percona Server for MongoDB is available in two builds: 
 
-- Pro builds. These builds include all functionalities plus features that are typically demanded by large enterprises. You can check what features are included in Pro builds in the :ref:`documentation <https://docs.percona.com/percona-server-for-mongodb/8.0/psmdb-pro.html#features>`_. 
+- Pro builds. These builds include all functionalities plus features that are typically demanded by large enterprises. You can check what features are included in Pro builds in the `documentation <https://docs.percona.com/percona-server-for-mongodb/8.0/psmdb-pro.html#features>`_. 
 - Basic builds include all functionalities except the features included in Pro builds.
   
 You can build either of the builds. Add the ``--full-featured`` flag for Pro builds or omit it for Basic builds. 
