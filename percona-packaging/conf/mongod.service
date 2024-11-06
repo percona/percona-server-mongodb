@@ -3,7 +3,6 @@ Description=High-performance, schema-free document-oriented database
 After=time-sync.target network.target
 
 [Service]
-Type=forking
 User=mongod
 Group=mongod
 PermissionsStartOnly=true
@@ -13,9 +12,9 @@ LimitAS=infinity
 LimitNOFILE=64000
 LimitNPROC=64000
 EnvironmentFile=-/etc/@@LOCATION@@/mongod
+Environment="MONGODB_CONFIG_OVERRIDE_NOFORK=1"
 ExecStartPre=/usr/bin/percona-server-mongodb-helper.sh
 ExecStart=/usr/bin/env bash -c "${NUMACTL} /usr/bin/mongod ${OPTIONS} > ${STDOUT} 2> ${STDERR}"
-PIDFile=/var/run/mongod.pid
 
 [Install]
 WantedBy=multi-user.target
