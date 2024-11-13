@@ -638,7 +638,7 @@ void _auditSystemUsers(Client* client,
     }
 }
 
-class AuditPercona : public AuditInterface {
+class AuditPerconaMongoSchema : public AuditInterface {
 public:
     void logClientMetadata(Client* client) const override {
         if (!_auditLog) {
@@ -1208,9 +1208,9 @@ public:
     void logConfigEvent(Client* client, const AuditConfigDocument& config) const override {}
 };
 
-ServiceContext::ConstructorActionRegisterer registerCreateAuditPercona{
+ServiceContext::ConstructorActionRegisterer registerCreateAuditPerconaMongoSchema{
     "CreatePerconaAudit", [](ServiceContext* service) {
-        AuditInterface::set(service, std::make_unique<AuditPercona>());
+        AuditInterface::set(service, std::make_unique<AuditPerconaMongoSchema>());
     }};
 }  // namespace
 
