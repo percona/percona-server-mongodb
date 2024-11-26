@@ -2,7 +2,9 @@
 #
 PATH="${PATH}:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin"
 #
+touch /var/run/mongod.pid
 touch /var/log/@@LOGDIR@@/mongod.{stdout,stderr}
+chown mongod:mongod /var/run/mongod.pid
 chown -R mongod:mongod /var/log/@@LOGDIR@@
 #
 KTHP=/sys/kernel/mm/transparent_hugepage
