@@ -14,6 +14,12 @@ print_error(){
   exit 1
 }
 #
+
+if grep -q "pidFilePath" /etc/mongod.conf; then
+  touch /var/run/mongod.pid
+  chown mongod:mongod /var/run/mongod.pid
+fi
+
 . /etc/@@LOCATION@@/mongod
 DAEMON_OPTS="${OPTIONS}"
 #

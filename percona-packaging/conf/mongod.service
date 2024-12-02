@@ -15,7 +15,7 @@ EnvironmentFile=-/etc/@@LOCATION@@/mongod
 Environment="GLIBC_TUNABLES=glibc.pthread.rseq=0"
 Environment="MONGODB_CONFIG_OVERRIDE_NOFORK=1"
 ExecStartPre=/usr/bin/percona-server-mongodb-helper.sh
-ExecStart=/usr/bin/env bash -c "${NUMACTL} /usr/bin/mongod ${OPTIONS} > ${STDOUT} 2> ${STDERR}"
+ExecStart=/usr/bin/env bash -c "${NUMACTL} /usr/bin/mongod ${OPTIONS}"
 
 [Install]
 WantedBy=multi-user.target

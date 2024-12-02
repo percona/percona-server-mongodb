@@ -405,6 +405,7 @@ if [ $1 -gt 1 ]; then
     fi
     if [ $SERVER_TO_START == 1 ]; then
 %if 0%{?rhel} >= 7
+    systemctl daemon-reload &>/dev/null || :
     /usr/sbin/service mongod restart
 %else
 if [ -x %{_sysconfdir}/init.d/mongod ] ; then
@@ -453,6 +454,7 @@ fi
 if [ -d %{psmdb_telemetry} ]; then
   rm -rf %{psmdbs_telemetry}
 fi
+rm -f /var/run/mongod.pid
 
 %postun mongos
 if [ -d %{psmdbs_telemetry} ]; then
