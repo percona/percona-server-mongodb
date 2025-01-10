@@ -57,6 +57,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/member_state.h"
 #include "mongo/db/repl/read_concern_level.h"
+#include "mongo/db/repl/repl_server_parameters_gen.h"
 #include "mongo/db/repl/repl_set_config.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/storage_interface.h"
@@ -89,6 +90,8 @@ constexpr StringData kVaultKmip = "kmip"_sd;
 constexpr StringData kPBMAgents = "admin.pbmAgents"_sd;
 constexpr StringData kPBMVersionField = "v"_sd;
 constexpr StringData kPBMActive = "pbm_active"_sd;
+
+constexpr StringData kInitialSyncMethod = "initial_sync_method"_sd;
 
 
 StringData keyStorageType() {
@@ -288,6 +291,8 @@ private:
             rs->getReplicationMode() == repl::ReplicationCoordinator::modeReplSet) {
             builder->append(kReplicaSetId, rs->getConfig().getReplicaSetId().toString());
             builder->append(kReplMemberState, rs->getMemberState().toString());
+            // is FCBIS enabled?
+            builder->append(kInitialSyncMethod, repl::initialSyncMethod);
         }
         // data at rest encryption
         if (encryptionGlobalParams.enableEncryption) {
