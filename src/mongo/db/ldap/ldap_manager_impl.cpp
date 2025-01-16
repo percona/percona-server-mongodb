@@ -675,50 +675,139 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
     return Status::OK();
 }
 
+namespace {
+
+std::string escapeForLDAPFilter(const std::string& str) {
+    std::string result;
+    result.reserve(str.size() * 2);
+    for (auto c : str) {
+        if (c == '\\') {
+            result += "\\5c";
+        } else if (c == '*') {
+            result += "\\2a";
+        } else if (c == '(') {
+            result += "\\28";
+        } else if (c == ')') {
+            result += "\\29";
+        } else if (c == '\0') {
+            result += "\\00";
+        } else {
+            result += c;
+        }
+    }
+    return result;
+};
+
+std::string escapeForLDAPURL(const std::string& str) {
+    std::string result;
+    result.reserve(str.size() * 2);
+    for (auto c : str) {
+        if (c == ' ') {
+            result += "%20";
+        } else if (c == '#') {
+            result += "%23";
+        } else if (c == '%') {
+            result += "%25";
+        } else if (c == '+') {
+            result += "%2b";
+        } else if (c == ',') {
+            result += "%2c";
+        } else if (c == ';') {
+            result += "%3b";
+        } else if (c == '<') {
+            result += "%3c";
+        } else if (c == '>') {
+            result += "%3e";
+        } else if (c == '?') {
+            result += "%3f";
+        } else if (c == '@') {
+            result += "%40";
+        } else if (c == '\\') {
+            result += "%5c";
+        } else if (c == '=') {
+            result += "%3d";
+        } else if (c == '/') {
+            result += "%2f";
+        } else {
+            result += c;
+        }
+    }
+    return result;
+}
+
+std::string escapeNoop(const std::string& str) {
+    return str;
+}
+
+std::string escapeCombined(const std::string& str) {
+    return escapeForLDAPURL(escapeForLDAPFilter(str));
+}
+
+// substitute {0}, {1}, ... in stempl with corresponding values from sm
+std::string substituteFromMatch(const std::string& stempl,
+                                const std::smatch& sm,
+                                std::string (*escFn)(const std::string&) = escapeNoop) {
+    static const std::regex rex{R"(\{(\d+)\})"};
+    std::string ss;
+    ss.reserve(stempl.length() * 2);
+    std::sregex_iterator it{stempl.begin(), stempl.end(), rex};
+    std::sregex_iterator end;
+    auto suffix_len = stempl.length();
+    for (; it != end; ++it) {
+        ss += it->prefix();
+        ss += escFn(sm[std::stol((*it)[1].str()) + 1].str());
+        suffix_len = it->suffix().length();
+    }
+    ss += stempl.substr(stempl.length() - suffix_len);
+    return ss;
+}
+
+}  // namespace
+
 Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
-    //TODO: keep BSONArray somewhere is ldapGlobalParams (but consider multithreaded access)
+    // TODO: keep BSONArray somewhere in ldapGlobalParams (but consider multithreaded access)
     std::string mapping = ldapGlobalParams.ldapUserToDNMapping.get();
 
-    //Parameter validator checks that mapping is valid array of objects
-    //see validateLDAPUserToDNMapping function
+    // Parameter validator checks that mapping is valid array of objects
+    // see validateLDAPUserToDNMapping function
     BSONArray bsonmapping{fromjson(mapping)};
-    for (const auto& elt: bsonmapping) {
+    for (const auto& elt : bsonmapping) {
         auto step = elt.Obj();
         std::smatch sm;
         std::regex rex{step["match"].str()};
         if (std::regex_match(user, sm, rex)) {
             // user matched current regex
             BSONElement eltempl = step["substitution"];
-            bool substitution = true;
-            if (!eltempl) {
-                // ldapQuery mode
-                eltempl = step["ldapQuery"];
-                substitution = false;
-            }
-            // format template
-            {
-                std::regex rex{R"(\{(\d+)\})"};
-                std::string ss;
-                const std::string stempl = eltempl.str();
-                ss.reserve(stempl.length() * 2);
-                std::sregex_iterator it{stempl.begin(), stempl.end(), rex};
-                std::sregex_iterator end;
-                auto suffix_len = stempl.length();
-                for (; it != end; ++it) {
-                    ss += it->prefix();
-                    ss += sm[std::stol((*it)[1].str()) + 1].str();
-                    suffix_len = it->suffix().length();
-                }
-                ss += stempl.substr(stempl.length() - suffix_len);
-                out = std::move(ss);
-            }
-            // in substitution mode we are done - just return 'out'
-            if (substitution)
+            if (eltempl) {
+                // substitution mode
+                // we do not escape substituted values here because result value will be used as
+                // {USER} and will be escaped there
+                out = substituteFromMatch(eltempl.str(), sm);
                 return Status::OK();
+            }
+            // ldapQuery mode
+            std::string escapedQuery;
+            eltempl = step["ldapQuery"];
+            std::istringstream iss{eltempl.str()};
+            std::string part;
+            int partnum = 0;
+            while (std::getline(iss, part, '?')) {
+                if (partnum > 0) {
+                    escapedQuery += '?';
+                }
+                if (partnum == 3) {
+                    // ldap search filter should be escaped in a special way
+                    escapedQuery += substituteFromMatch(part, sm, escapeCombined);
+                } else {
+                    escapedQuery += substituteFromMatch(part, sm, escapeForLDAPURL);
+                }
+                ++partnum;
+            }
+
             // in ldapQuery mode we need to execute query and make decision based on query result
             auto ldapurl = fmt::format("ldap://{Servers}/{Query}",
-                fmt::arg("Servers", "ldap.server"),
-                fmt::arg("Query", out));
+                                       fmt::arg("Servers", "ldap.server"),
+                                       fmt::arg("Query", escapedQuery));
             std::vector<std::string> qresult;
             auto status = execQuery(ldapurl, true, qresult);
             if (!status.isOK())
@@ -732,8 +821,7 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
         }
     }
     // we have no successful transformations, return error
-    return Status(ErrorCodes::UserNotFound,
-                  "Failed to map user '{}' to LDAP DN"_format(user));
+    return {ErrorCodes::UserNotFound, "Failed to map user '{}' to LDAP DN"_format(user)};
 }
 
 Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) {
@@ -747,12 +835,39 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
             return mapRes;
     }
 
+    // avoid escaping in the loop
+    const std::string mappedUserEscaped = escapeForLDAPURL(mappedUser);
+    const std::string providedUserEscaped = escapeForLDAPURL(providedUser);
+    const std::string mappedUserEscapedForFilter =
+        escapeForLDAPURL(escapeForLDAPFilter(mappedUser));
+    const std::string providedUserEscapedForFilter =
+        escapeForLDAPURL(escapeForLDAPFilter(providedUser));
+
+    // split query template into parts and replace placeholders in each part with escaped values
+    std::string escapedQuery;
+    std::istringstream iss{ldapGlobalParams.ldapQueryTemplate.get()};
+    std::string part;
+    int partnum = 0;
+    while (std::getline(iss, part, '?')) {
+        if (partnum > 0) {
+            escapedQuery += '?';
+        }
+        if (partnum == 3) {
+            // ldap search filter should be escaped in a special way
+            escapedQuery += fmt::format(part,
+                                        fmt::arg("USER", mappedUserEscapedForFilter),
+                                        fmt::arg("PROVIDED_USER", providedUserEscapedForFilter));
+        } else {
+            escapedQuery += fmt::format(part,
+                                        fmt::arg("USER", mappedUserEscaped),
+                                        fmt::arg("PROVIDED_USER", providedUserEscaped));
+        }
+        ++partnum;
+    }
+
     auto ldapurl = fmt::format("ldap://{Servers}/{Query}",
-            fmt::arg("Servers", "ldap.server"),
-            fmt::arg("Query", ldapGlobalParams.ldapQueryTemplate.get()));
-    ldapurl = fmt::format(ldapurl,
-            fmt::arg("USER", mappedUser),
-            fmt::arg("PROVIDED_USER", providedUser));
+                               fmt::arg("Servers", "ldap.server"),
+                               fmt::arg("Query", escapedQuery));
 
     std::vector<std::string> qresult;
     auto status = execQuery(ldapurl, false, qresult);
