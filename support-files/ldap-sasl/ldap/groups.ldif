@@ -46,3 +46,8 @@ member: cn=exttestrootherrw,dc=percona,dc=com
 member: cn=extbothro,dc=percona,dc=com
 member: cn=extbothrw,dc=percona,dc=com
 
+dn: cn=specchar\,\+\=\\,dc=percona,dc=com
+objectClass: groupOfNames
+cn: specchar\,\+\=\\
+member: cn=Surname\, Name,dc=percona,dc=com
+member: cn=Question? Mark! *{[(\<\>)]} #\"\+\\,dc=percona,dc=com
