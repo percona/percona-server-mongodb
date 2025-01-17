@@ -9,6 +9,8 @@ const shortusernames = [
     "extbothrw",
     "exttestrwotherro",
     "exttestrootherrw",
+    "Surname\\, Name",
+    "Question? Mark! *{[(\\<\\>)]} #\\\"\\+\\\\",
 ];
 
 const rolesmap = {
@@ -51,6 +53,12 @@ const rolesmap = {
         "cn=otherwriters,dc=percona,dc=com",
         "cn=testusers,dc=percona,dc=com",
         "cn=otherusers,dc=percona,dc=com",
+    ],
+    "cn=Surname\\, Name,dc=percona,dc=com": [
+        "cn=specchar\\2C\\2B\\3D\\5C,dc=percona,dc=com",
+    ],
+    "cn=Question? Mark! *{[(\\<\\>)]} #\\\"\\+\\\\,dc=percona,dc=com": [
+        "cn=specchar\\2C\\2B\\3D\\5C,dc=percona,dc=com",
     ],
 };
 
