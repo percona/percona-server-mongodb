@@ -43,6 +43,7 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/rpc/message.h"
 #include "mongo/transport/session_id.h"
+#include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/future.h"
@@ -181,6 +182,14 @@ public:
     }
 
     virtual const HostAndPort& remote() const = 0;
+
+    virtual bool hasLocal() const {
+        return false;
+    }
+
+    virtual const HostAndPort& local() const {
+        MONGO_UNIMPLEMENTED;
+    }
 
     virtual void appendToBSON(BSONObjBuilder& bb) const = 0;
 

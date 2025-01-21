@@ -72,6 +72,14 @@ public:
         return _remote;
     }
 
+    bool hasLocal() const override {
+        return true;
+    }
+
+    const HostAndPort& local() const override {
+        return _local;
+    }
+
     const SockAddr& remoteAddr() const {
         return _remoteAddr;
     }
