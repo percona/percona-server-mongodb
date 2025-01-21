@@ -90,7 +90,7 @@ namespace {
 using namespace fmt::literals;
 
 // JsonStringFormat used by audit logs
-const JsonStringFormat auditJsonFormat = LegacyStrict;
+const JsonStringFormat auditJsonFormat = ExtendedRelaxedV2_0_0;
 
 MONGO_COMPILER_NOINLINE void realexit(ExitCode rc) {
 #ifdef _COVERAGE
@@ -1208,9 +1208,74 @@ public:
     void logConfigEvent(Client* client, const AuditConfigDocument& config) const override {}
 };
 
-ServiceContext::ConstructorActionRegisterer registerCreateAuditPerconaMongoSchema{
+
+class AuditPerconaOcsfSchema : public AuditNoOp {
+public:
+    void logCreateDatabase(Client* client, const DatabaseName& dbname) const override {
+        BSONObjBuilder event;
+        event << "category_uid" << 3
+              << "class_uid" << 3004
+              << "activity_id" << 1
+              << "type_uid" << 300401
+              << "severity_id" << 1;
+        event.appendNumber("time", jsTime().toMillisSinceEpoch());
+
+        BSONObjBuilder metadata = event.subobjStart("metadata");
+        metadata << "product" << "Percona Server for MongoDB"
+                 // This is the version of OCSF schema, _not_ the version of
+                 // Percona Server for MongoDB.
+                 << "version" << "1.0.0";
+        if (client) {
+            metadata << "correlation_uid" << client->getUUID().toString();
+        }
+        metadata.doneFast();
+
+        if (AuthorizationSession::exists(client)) {
+            AuthorizationSession* session = AuthorizationSession::get(client);
+            if (auto uname = session->getAuthenticatedUserName(); uname) {
+                BSONObjBuilder actor = event.subobjStart("actor");
+                BSONObjBuilder user = actor.subobjStart("user");
+                user << "type_id" << 1 << "name" << uname->getUnambiguousName();
+
+                BSONArrayBuilder groups = user.subarrayStart("groups");
+                for (auto role = session->getAuthenticatedRoleNames(); role.more(); role.next()) {
+                    BSONObjBuilder g = groups.subobjStart();
+                    g << "name" << role->getUnambiguousName();
+                    g.doneFast();
+                }
+                groups.doneFast();
+
+                user.doneFast();
+                actor.doneFast();
+            }
+        }
+
+        if (auto session = client ? client->session() : nullptr; session && session->hasLocal()) {
+            const HostAndPort& remoteEndpoint = session->remote();
+            BSONObjBuilder srcEndpoint = event.subobjStart("src_endpoint");
+            srcEndpoint << "ip" << getIpByHost(remoteEndpoint.host())
+                        << "port" << remoteEndpoint.port();
+            srcEndpoint.doneFast();
+
+            const HostAndPort& localEndpoint = session->local();
+            BSONObjBuilder dstEndpoint = event.subobjStart("dst_endpoint");
+            dstEndpoint << "ip" << localEndpoint.host()
+                        << "port" << localEndpoint.port();
+            dstEndpoint.doneFast();
+        }
+
+        BSONObjBuilder entity = event.subobjStart("entity");
+        entity << "name" << toString(dbname) << "type" << "create_database";
+        entity.doneFast();
+
+        _auditLog->append(event.done(), /* affects_durable_state = */ true);
+    }
+};
+
+
+ServiceContext::ConstructorActionRegisterer registerCreateAuditPercona{
     "CreatePerconaAudit", [](ServiceContext* service) {
-        AuditInterface::set(service, std::make_unique<AuditPerconaMongoSchema>());
+        AuditInterface::set(service, std::make_unique<AuditPerconaOcsfSchema>());
     }};
 }  // namespace
 
