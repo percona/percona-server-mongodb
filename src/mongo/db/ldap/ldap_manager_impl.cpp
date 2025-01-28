@@ -388,8 +388,13 @@ public:
         auto it = std::find_if(_poll_fds.begin(), _poll_fds.end(), [&](auto const& e) {
             return e.second.conn == ldap;
         });
+        if (it == _poll_fds.end()) {
+            // for this connection there was no cb_add call
+            // unbind it here
+            ldap_unbind_ext(ldap, nullptr, nullptr);
+            return;
+        }
         // returning connection which was not borrowed is an error
-        invariant(it != _poll_fds.end());
         invariant(it->second.borrowed);
         it->second.borrowed = false;
         // poller should be always notified here
