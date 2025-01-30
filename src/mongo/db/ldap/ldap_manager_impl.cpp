@@ -594,8 +594,21 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
                           ldap_err2string(res)));
     }
 
+    // Special handling of 'DN' attribute
+    // Some users provide 'DN' or 'dn' in the attributes part of query just to read
+    // only distinguished names of the entries. There is no such attribute in the
+    // LDAP server. To read entry's DN we have to use ldap_get_dn(). That is
+    // exactly what we do when `entitiesonly` is true.
+    // Ensure that `attributes` is nullptr in this case.
+    auto attributes = ludp->lud_attrs;
+    if (attributes && attributes[0] != nullptr && attributes[1] == nullptr) {  // single attribute?
+        std::string attr{attributes[0]};
+        if (attr == "DN" || attr == "dn") {
+            attributes = nullptr;
+        }
+    }
     // if attributes are not specified assume query returns set of entities (groups)
-    entitiesonly = entitiesonly || !ludp->lud_attrs || !ludp->lud_attrs[0];
+    entitiesonly = entitiesonly || !attributes || !attributes[0];
 
     LOGV2_DEBUG(29051, 1, "Parsing LDAP URL: {ldapurl}; dn: {dn}; scope: {scope}; filter: {filter}",
             "ldapurl"_attr = ldapurl,
@@ -606,12 +619,16 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
     int retrycnt = 1;
     do {
         res = ldap_search_ext_s(ldap,
-                ludp->lud_dn,
-                ludp->lud_scope,
-                ludp->lud_filter,
-                ludp->lud_attrs,
-                0, // attrsonly (0 => attrs and values)
-                nullptr, nullptr, &tv, 0, &answer);
+                                ludp->lud_dn,
+                                ludp->lud_scope,
+                                ludp->lud_filter,
+                                attributes,
+                                0,  // attrsonly (0 => attrs and values)
+                                nullptr,
+                                nullptr,
+                                &tv,
+                                0,
+                                &answer);
         // Treat nullptr answer as an error. It is undocumented in which cases LDAP_SUCCESS can
         // be along with nullptr answer.
         if (res == LDAP_SUCCESS && answer != nullptr)
