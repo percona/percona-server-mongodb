@@ -871,7 +871,7 @@ public:
      * The fieldNameSize includes the null terminator.
      */
     struct TrustedInitTag {};
-    constexpr BSONElement(const char* d, int fieldNameSize, TrustedInitTag)
+    BSONElement(const char* d, int fieldNameSize, TrustedInitTag)
         : _data(d), _fieldNameSize(fieldNameSize) {
         dassert(fieldNameSize > 0);
     }
