@@ -789,6 +789,18 @@ void ReplicationCoordinatorImpl::_startInitialSync(
                                   "logical initial sync.",
                                   "initialSyncMethod"_attr = initialSyncMethod,
                                   "error"_attr = swInitialSyncer.getStatus().reason());
+                    if (initialSyncMethod == "fileCopyBased") {
+                        LOGV2_WARNING(
+                            128490,
+                            "Support for the file copy-based intial sync (FCBIS) is available in "
+                            "the Percona Supported Builds of MongoDB. You can compile Percona "
+                            "Server for MongoDB with FCBIS yourself by following the build from "
+                            "source guide "
+                            "(https://docs.percona.com/percona-server-for-mongodb/7.0/install/"
+                            "source.html). You can also subscribe to support to receive Percona "
+                            "Supported Builds, see (https://www.percona.com/services/support) for "
+                            "more information.");
+                    }
                     swInitialSyncer = createInitialSyncer(std::string("logical"));
                 }
                 initialSyncerCopy = uassertStatusOK(swInitialSyncer);
