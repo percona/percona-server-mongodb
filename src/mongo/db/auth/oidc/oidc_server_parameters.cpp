@@ -32,6 +32,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 
 #include <map>
+#include <ranges>
 #include <tuple>
 #include <vector>
 
@@ -65,45 +66,42 @@ bool operator<(const IssuerAudiencePair& lhs, const IssuerAudiencePair& rhs) noe
     return std::tie(lhs.issuer, lhs.audience) < std::tie(rhs.issuer, rhs.audience);
 }
 
-str::stream errorMsgHeader(const std::vector<std::size_t>& indexes) {
+template <typename R>
+requires std::ranges::range<R> && std::is_same_v<std::ranges::range_value_t<R>, std::size_t>
+str::stream errorMsgHeader(const R& indexes) {
     str::stream s;
     s << "Bad `" << kParameterName << "` server parameter: In ";
-    for (std::size_t i = 0; i < indexes.size(); ++i) {
-        s << (i == 0 ? "" : ", ") << "`" << kParameterName << "[" << indexes[i] << "]`";
+    for (std::size_t i = 0; auto index : indexes) {
+        s << (i++ == 0 ? "" : ", ") << "`" << kParameterName << "[" << index << "]`";
     }
     s << ": ";
     return s;
-}
-
-str::stream errorMsgHeader(std::size_t index) {
-    return errorMsgHeader(std::vector<std::size_t>(1, index));
 }
 
 void validate(const OidcIdentityProviderConfig& conf, std::size_t index) {
     static constexpr std::string_view kLegalChars(
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-");
     auto authNamePrefix = static_cast<std::string_view>(conf.getAuthNamePrefix());
-    auto illegalCharIdx = authNamePrefix.find_first_not_of(kLegalChars);
-    if (illegalCharIdx != std::string_view::npos) {
+    if (auto pos = authNamePrefix.find_first_not_of(kLegalChars); pos != std::string_view::npos) {
         uasserted(77700,
-                  errorMsgHeader(index)
+                  errorMsgHeader(std::views::single(index))
                       << "`" << OidcIdentityProviderConfig::kAuthNamePrefixFieldName
-                      << "` contains illegal char `" << authNamePrefix[illegalCharIdx]
-                      << "`. Only [a-z0-9_-] are allowed.");
+                      << "` contains illegal char `" << authNamePrefix[pos]
+                      << "`. Only [a-zA-Z0-9_-] are allowed.");
     }
     uassert(77701,
-            errorMsgHeader(index) << "`" << OidcIdentityProviderConfig::kClientIdFieldName
-                                  << "` must present if `"
-                                  << OidcIdentityProviderConfig::kSupportsHumanFlowsFieldName
-                                  << "` is `true`, which is the default.",
+            errorMsgHeader(std::views::single(index))
+                << "`" << OidcIdentityProviderConfig::kClientIdFieldName << "` must present if `"
+                << OidcIdentityProviderConfig::kSupportsHumanFlowsFieldName
+                << "` is `true`, which is the default.",
             conf.getSupportsHumanFlows() ? static_cast<bool>(conf.getClientId()) : true);
-    uassert(77702,
-            errorMsgHeader(index) << "`" << OidcIdentityProviderConfig::kAuthorizationClaimFieldName
-                                  << "` must present if `"
-                                  << OidcIdentityProviderConfig::kUseAuthorizationClaimFieldName
-                                  << "` is `true`, which is the default.",
-            conf.getUseAuthorizationClaim() ? static_cast<bool>(conf.getAuthorizationClaim())
-                                            : true);
+    uassert(
+        77702,
+        errorMsgHeader(std::views::single(index))
+            << "`" << OidcIdentityProviderConfig::kAuthorizationClaimFieldName
+            << "` must present if `" << OidcIdentityProviderConfig::kUseAuthorizationClaimFieldName
+            << "` is `true`, which is the default.",
+        conf.getUseAuthorizationClaim() ? static_cast<bool>(conf.getAuthorizationClaim()) : true);
 }
 
 void validate(const OidcIdentityProvidersServerParameter& param) {
@@ -135,7 +133,7 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
         uassert(77704,
                 errorMsgHeader(indexes)
                     << "`issuer` values are equal (`" << issAud.issuer
-                    << "`) and `audince` values are also eqaul (`" << issAud.audience
+                    << "`) and `audience` values are also eqaul (`" << issAud.audience
                     << "`). `audience` should be unique for each "
                     << "configuration that shares an `issuer`.",
                 indexes.size() < 2);
