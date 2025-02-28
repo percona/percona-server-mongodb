@@ -1910,6 +1910,13 @@ void InitialSyncerFCB::_finalizeAndCompleteCallback(
         return;
     }
 
+    {
+        auto opCtx = makeOpCtx();
+        // Attach JournalListener to the new instance of storage engine
+        auto* journalListener = _dataReplicatorExternalState->getReplicationJournalListener();
+        opCtx->getServiceContext()->getStorageEngine()->setJournalListener(journalListener);
+    }
+
     // TODO: set value of _lastApplied or provide another instance of OpTimeAndWallTime
     // TODO: fix this temporary solution
     _lastApplied.opTime = _oplogEnd;
