@@ -150,6 +150,9 @@ extern FailPoint initialSyncHangAfterFinish;
 // Failpoint which causes the initial sync function to hang after resetting the in-memory FCV.
 extern FailPoint initialSyncHangAfterResettingFCV;
 
+// Failpoint which causes the initial sync function to hang after cloning files.
+MONGO_FAIL_POINT_DEFINE(initialSyncHangAfterCloningFiles);
+
 namespace {
 using namespace executor;
 using CallbackArgs = executor::TaskExecutor::CallbackArgs;
@@ -1609,7 +1612,8 @@ void InitialSyncerFCB::_transferFileCallback(
     std::size_t fileIdx,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
-    stdx::lock_guard<Latch> lock(_mutex);
+    // stdx::lock_guard<Latch> lock(_mutex);
+    stdx::unique_lock<Latch> lock(_mutex);
     auto status = _checkForShutdownAndConvertStatus_inlock(
         callbackArgs, "error transferring file from sync source");
     if (!status.isOK()) {
@@ -1669,6 +1673,20 @@ void InitialSyncerFCB::_transferFileCallback(
             if (!status.isOK()) {
                 onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
                 return;
+            }
+            if (MONGO_unlikely(initialSyncHangAfterCloningFiles.shouldFail())) {
+                // This could have been done with a scheduleWorkAt but this is used only by JS tests
+                // where we run with multiple threads so it's fine to spin on this thread. This log
+                // output is used in js tests so please leave it.
+                LOGV2(128447,
+                      "initial sync - initialSyncHangAfterCloningFiles fail point "
+                      "enabled. Blocking until fail point is disabled.");
+                lock.unlock();
+                while (MONGO_unlikely(initialSyncHangAfterCloningFiles.shouldFail()) &&
+                       !_isShuttingDown()) {
+                    mongo::sleepsecs(1);
+                }
+                lock.lock();
             }
             // schedule next task
             status = _scheduleWorkAndSaveHandle_inlock(
