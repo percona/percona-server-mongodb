@@ -38,8 +38,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/status.h"
 #include "mongo/db/audit/audit_options_gen.h"
-#include "mongo/db/server_options.h"
 #include "mongo/db/json.h"
+#include "mongo/db/server_options.h"
 #include "mongo/util/options_parser/startup_option_init.h"
 #include "mongo/util/options_parser/startup_options.h"
 
@@ -47,96 +47,82 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-    AuditOptions auditOptions;
+AuditOptions auditOptions;
 
-    AuditOptions::AuditOptions():
-        format("JSON"),
-        filter("{}")
-    {
+AuditOptions::AuditOptions() : format("JSON"), filter("{}") {}
+
+BSONObj AuditOptions::toBSON() {
+    return BSON("format" << format << "path" << path << "destination" << destination << "filter"
+                         << filter);
+}
+
+Status storeAuditOptions(const optionenvironment::Environment& params) {
+    if (params.count("auditLog.destination")) {
+        auditOptions.destination = params["auditLog.destination"].as<std::string>();
     }
-
-    BSONObj AuditOptions::toBSON() {
-        return BSON("format" << format <<
-                    "path" << path <<
-                    "destination" << destination <<
-                    "filter" << filter);
-    }
-
-    Status storeAuditOptions(const optionenvironment::Environment& params) {
-        if (params.count("auditLog.destination")) {
-            auditOptions.destination =
-                params["auditLog.destination"].as<std::string>();
-        }
-        if (auditOptions.destination != "") {
-            if (auditOptions.destination != "file" &&
-                auditOptions.destination != "console" &&
-                auditOptions.destination != "syslog") {
-                return Status(ErrorCodes::BadValue,
-                              "Supported audit log destinations are 'file', 'console', 'syslog'");
-            }
-        }
-
-        if (params.count("auditLog.format")) {
-            auditOptions.format =
-                params["auditLog.format"].as<std::string>();
-        }
-        if (auditOptions.format != "JSON" && auditOptions.format != "BSON") {
+    if (auditOptions.destination != "") {
+        if (auditOptions.destination != "file" && auditOptions.destination != "console" &&
+            auditOptions.destination != "syslog") {
             return Status(ErrorCodes::BadValue,
-                          "Supported audit log formats are 'JSON' and 'BSON'");
-        }
-        if (auditOptions.format == "BSON" && auditOptions.destination != "file") {
-            return Status(ErrorCodes::BadValue,
-                          "BSON audit log format is only allowed when audit log destination is a 'file'");
-        }
-
-        if (params.count("auditLog.filter")) {
-            auditOptions.filter =
-                params["auditLog.filter"].as<std::string>();
-        }
-        try {
-            fromjson(auditOptions.filter);
-        }
-        catch (const std::exception &ex) {
-            return Status(ErrorCodes::BadValue,
-                          "Could not parse audit filter into valid json: "
-                          + auditOptions.filter);
-        }
-
-        if (params.count("auditLog.path")) {
-            auditOptions.path =
-                params["auditLog.path"].as<std::string>();
-        }
-
-        return Status::OK();
-    }
-
-    MONGO_MODULE_STARTUP_OPTIONS_REGISTER(AuditOptions)(InitializerContext* context) {
-        uassertStatusOK(addAuditOptions(&optionenvironment::startupOptions));
-    }
-
-    MONGO_STARTUP_OPTIONS_STORE(AuditOptions)(InitializerContext* context) {
-        uassertStatusOK(storeAuditOptions(optionenvironment::startupOptionsParsed));
-    }
-
-    // Can't use MONGO_STARTUP_OPTIONS_VALIDATE here as we need serverGlobalParams
-    // to be already initialized.
-    MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"), ("default"))
-    (InitializerContext*) {
-        if (!auditOptions.path.empty()) {
-            std::ofstream auditFile(auditOptions.path.c_str(), std::ios_base::app);
-            if (!auditFile) {
-                uassertStatusOK(
-                    Status(ErrorCodes::BadValue,
-                           "Could not open a file for writing at the given auditPath: " +
-                               auditOptions.path));
-            }
-        } else if (!serverGlobalParams.logWithSyslog && !serverGlobalParams.logpath.empty()) {
-            auditOptions.path = (boost::filesystem::path(serverGlobalParams.logpath).parent_path() /
-                                 "auditLog.json")
-                                    .native();
-        } else {
-            auditOptions.path =
-                (boost::filesystem::path(serverGlobalParams.cwd) / "auditLog.json").native();
+                          "Supported audit log destinations are 'file', 'console', 'syslog'");
         }
     }
-} // namespace mongo
+
+    if (params.count("auditLog.format")) {
+        auditOptions.format = params["auditLog.format"].as<std::string>();
+    }
+    if (auditOptions.format != "JSON" && auditOptions.format != "BSON") {
+        return Status(ErrorCodes::BadValue, "Supported audit log formats are 'JSON' and 'BSON'");
+    }
+    if (auditOptions.format == "BSON" && auditOptions.destination != "file") {
+        return Status(
+            ErrorCodes::BadValue,
+            "BSON audit log format is only allowed when audit log destination is a 'file'");
+    }
+
+    if (params.count("auditLog.filter")) {
+        auditOptions.filter = params["auditLog.filter"].as<std::string>();
+    }
+    try {
+        fromjson(auditOptions.filter);
+    } catch (const std::exception& ex) {
+        return Status(ErrorCodes::BadValue,
+                      "Could not parse audit filter into valid json: " + auditOptions.filter);
+    }
+
+    if (params.count("auditLog.path")) {
+        auditOptions.path = params["auditLog.path"].as<std::string>();
+    }
+
+    return Status::OK();
+}
+
+MONGO_MODULE_STARTUP_OPTIONS_REGISTER(AuditOptions)(InitializerContext* context) {
+    uassertStatusOK(addAuditOptions(&optionenvironment::startupOptions));
+}
+
+MONGO_STARTUP_OPTIONS_STORE(AuditOptions)(InitializerContext* context) {
+    uassertStatusOK(storeAuditOptions(optionenvironment::startupOptionsParsed));
+}
+
+// Can't use MONGO_STARTUP_OPTIONS_VALIDATE here as we need serverGlobalParams
+// to be already initialized.
+MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"), ("default"))
+(InitializerContext*) {
+    if (!auditOptions.path.empty()) {
+        std::ofstream auditFile(auditOptions.path.c_str(), std::ios_base::app);
+        if (!auditFile) {
+            uassertStatusOK(Status(ErrorCodes::BadValue,
+                                   "Could not open a file for writing at the given auditPath: " +
+                                       auditOptions.path));
+        }
+    } else if (!serverGlobalParams.logWithSyslog && !serverGlobalParams.logpath.empty()) {
+        auditOptions.path =
+            (boost::filesystem::path(serverGlobalParams.logpath).parent_path() / "auditLog.json")
+                .native();
+    } else {
+        auditOptions.path =
+            (boost::filesystem::path(serverGlobalParams.cwd) / "auditLog.json").native();
+    }
+}
+}  // namespace mongo
