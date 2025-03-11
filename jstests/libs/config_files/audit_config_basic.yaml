@@ -1,0 +1,2 @@
+auditLog:
+  destination: file
