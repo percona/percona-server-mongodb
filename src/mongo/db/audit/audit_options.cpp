@@ -116,13 +116,18 @@ MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"
                                    "Could not open a file for writing at the given auditPath: " +
                                        auditOptions.path));
         }
-    } else if (!serverGlobalParams.logWithSyslog && !serverGlobalParams.logpath.empty()) {
-        auditOptions.path =
-            (boost::filesystem::path(serverGlobalParams.logpath).parent_path() / "auditLog.json")
-                .native();
     } else {
-        auditOptions.path =
-            (boost::filesystem::path(serverGlobalParams.cwd) / "auditLog.json").native();
+        const std::string defaultFilePath =
+            (auditOptions.format == "BSON") ? "auditLog.bson" : "auditLog.json";
+
+        const bool useLogPathBase =
+            !serverGlobalParams.logWithSyslog && !serverGlobalParams.logpath.empty();
+
+        const auto base = useLogPathBase
+            ? boost::filesystem::path(serverGlobalParams.logpath).parent_path()
+            : boost::filesystem::path(serverGlobalParams.cwd);
+
+        auditOptions.path = (base / defaultFilePath).native();
     }
 }
 }  // namespace mongo
