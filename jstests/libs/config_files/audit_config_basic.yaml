@@ -1,0 +1,3 @@
+auditLog:
+  destination: file
+  filter: "{a: 1}"
