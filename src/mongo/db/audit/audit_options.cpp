@@ -33,6 +33,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include <boost/filesystem/path.hpp>
+#include <boost/filesystem/operations.hpp>
 
 #include <fstream>
 
@@ -122,7 +123,13 @@ namespace mongo {
     // to be already initialized.
     MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"), ("default"))
     (InitializerContext*) {
+        auto getAbsolutePath = [] (auto const & p) {
+            return boost::filesystem::absolute(p, serverGlobalParams.cwd).native();
+        };
+
         if (!auditOptions.path.empty()) {
+            auditOptions.path = getAbsolutePath(auditOptions.path);
+
             std::ofstream auditFile(auditOptions.path.c_str(), std::ios_base::app);
             if (!auditFile) {
                 uassertStatusOK(
@@ -139,9 +146,9 @@ namespace mongo {
     
             const auto base = useLogPathBase
                 ? boost::filesystem::path(serverGlobalParams.logpath).parent_path()
-                : boost::filesystem::path(serverGlobalParams.cwd);
+                : boost::filesystem::path();
     
-            auditOptions.path = (base / defaultFilePath).native();
+            auditOptions.path = getAbsolutePath(base / defaultFilePath);
         }
     }
 } // namespace mongo
