@@ -32,9 +32,11 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.h"
 
-#include "mongo/db/db_raii.h"
+#include "mongo/db/concurrency/lock_manager_defs.h"
+#include "mongo/db/concurrency/replication_state_transition_lock_guard.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/storage/encryption_hooks.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/logv2/log.h"
@@ -98,6 +100,8 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
             "$backupCursor can succeed.",
             _state != kHotBackup);
 
+    repl::ReplicationStateTransitionLockGuard replTransitionLock(opCtx, MODE_IX);
+
     // Replica sets must also return the opTime's of the earliest and latest oplog entry. The
     // range represented by the oplog start/end values must exist in the backup copy, but are
     // not expected to be exact.
@@ -107,15 +111,13 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
     // If the oplog exists, capture the last oplog entry before opening the backup cursor. This
     // value will be checked again after the cursor is established to guarantee it still exists
     // (and was not truncated before the backup cursor was established.
-    {
-        AutoGetCollectionForRead coll(opCtx, NamespaceString::kRsOplogNamespace);
-        if (coll.getCollection()) {
-            BSONObj lastEntry;
-            if (Helpers::getLast(opCtx, NamespaceString::kRsOplogNamespace, lastEntry)) {
-                auto oplogEntry = fassertNoTrace(50913, repl::OplogEntry::parse(lastEntry));
-                oplogEnd = oplogEntry.getOpTime();
-            }
-        }
+    auto replCoordinator = repl::ReplicationCoordinator::get(opCtx);
+    // Using UNSAFE version because we have RSTL acquired.
+    if (replCoordinator->getSettings().isReplSet() &&
+        replCoordinator->isInPrimaryOrSecondaryState_UNSAFE()) {
+        oplogEnd = replCoordinator->getMyLastAppliedOpTime();
+        // ensure there are no oplog holes before oplogEnd
+        repl::StorageInterface::get(opCtx)->waitForAllEarlierOplogWritesToBeVisible(opCtx);
     }
 
     auto* engine = opCtx->getServiceContext()->getStorageEngine();
