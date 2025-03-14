@@ -11,7 +11,7 @@ auditTestShard(
     function(st) {
         let rsname = "testreplset";
         var port = allocatePorts(10)[9];
-        var conn1 = MongoRunner.runMongod({dbpath: '/data/db/' + jsTestName() + '-extraShard-' + port, port: port,  shardsvr: "", replSet: rsname});
+        var conn1 = MongoRunner.runMongod({dbpath: getDBPath() + '/' + jsTestName() + '-extraShard-' + port, port: port,  shardsvr: "", replSet: rsname});
 
         var hostandport = conn1.host;
         assert.commandWorked(conn1.adminCommand({
