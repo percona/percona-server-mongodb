@@ -110,12 +110,12 @@ Linux Distribution               Dependencies
 ================================ =========================
 Debian/Ubuntu                    gcc g++ cmake curl 
                                  libssl-dev libldap2-dev 
-                                 libkrb5-dev                 libcurl4-openssl-dev 
+                                 libkrb5-dev libcurl4-openssl-dev
                                  libsasl2-dev liblz4-dev 
                                  libpcap-dev libbz2-dev 
                                  libsnappy-dev zlib1g-dev 
                                  libzlcore-dev liblzma-dev 
-                                 ibext2fs-dev e2fslibs-dev 
+                                 libext2fs-dev e2fslibs-dev
                                  bear
 RedHat Enterprise Linux          gcc gcc-c++ cmake curl 
                                  binutils-devel 
