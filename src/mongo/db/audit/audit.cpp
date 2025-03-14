@@ -278,7 +278,7 @@ private:
         // first, then repeatedly write to that position if we
         // have to retry.
         auto pos = _file->tellp();
-        auto data = _membuf.str();
+        auto data = std::move(_membuf).str();
         _membuf.str({});
 
         int writeRet;
