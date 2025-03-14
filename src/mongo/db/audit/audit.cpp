@@ -1137,8 +1137,7 @@ public:
         BSONObjBuilder params;
         params << "ns" << toString(nss);
         params << "document" << doc;
-        params << "operation"
-               << "remove";
+        params << "operation" << "remove";
         _auditEvent(client, "directAuthMutation", params.done());
     }
 
