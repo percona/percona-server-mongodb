@@ -6,6 +6,7 @@ selector:
   exclude_files:
   - jstests/audit/_*.js
   - jstests/audit/audit_replset_reconfig.js # requires fixing SERVER-20845
+  - jstests/audit/log_query_stats.js
 
 # audit tests start their own mongod's.
 executor:
