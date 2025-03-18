@@ -279,7 +279,13 @@ private:
         // have to retry.
         auto pos = _file->tellp();
         auto data = std::move(_membuf).str();
+#if !defined(MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE)
+        // Explicitly clear the buffer if the rvalue-qualified overload of str()
+        // (basic_stringbuf::str() &&) is not available.
+        // In that case, std::move(buf).str() calls the const lvalue-qualified overload,
+        // which returns a copy and leaves the buffer unchanged.
         _membuf.str({});
+#endif
 
         int writeRet;
         for (int retries = 10; retries > 0; --retries) {

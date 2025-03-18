@@ -4033,6 +4033,35 @@ def doConfigure(myenv):
 
     conf.Finish()
 
+    def CheckBasicStringBufStrRvalue(context):
+        test_body = """
+        #include <sstream>
+        #include <string>
+
+        int main() {
+            std::stringstream ss("a very long string that exceeds the small string optimization buffer length");
+            std::string s = std::move(ss).str();
+            return ss.str().empty() ? 0 : -1;
+        }
+        """
+
+        context.Message('Checking if basic_stringbuf::str()&& overload exists...')
+        ret = context.TryRun(textwrap.dedent(test_body), ".cpp")
+        context.Result(ret[0])
+        return ret[0]
+
+    conf = Configure(
+        env,
+        custom_tests={
+            'CheckBasicStringBufStrRvalue': CheckBasicStringBufStrRvalue,
+        },
+    )
+
+    if conf.CheckBasicStringBufStrRvalue():
+        conf.env.SetConfigHeaderDefine("MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE")
+
+    conf.Finish()
+
     # C11 memset_s - a secure memset
     def CheckMemset_s(context):
         test_body = """
