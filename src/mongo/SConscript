@@ -76,6 +76,7 @@ config_header_substs = (
     ('@mongo_config_use_raw_latches@', 'MONGO_CONFIG_USE_RAW_LATCHES'),
     ('@mongo_config_wiredtiger_enabled@', 'MONGO_CONFIG_WIREDTIGER_ENABLED'),
     ('@mongo_config_grpc@', 'MONGO_CONFIG_GRPC'),
+    ('@mongo_config_have_basic_stringbuf_str_rvalue@', 'MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE'),
     ('@percona_fipsmode_enabled@', 'PERCONA_FIPSMODE_ENABLED'),
 )
 
