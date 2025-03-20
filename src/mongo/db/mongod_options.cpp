@@ -676,6 +676,14 @@ Status storeMongodOptions(const moe::Environment& params) {
             params["security.kmip.keyStatePollingSeconds"].as<int>();
     }
 
+    if (params.count("security.kmip.useLegacyProtocol")) {
+        LOGV2_WARNING_OPTIONS(
+            29119,
+            {logv2::LogTag::kStartupWarnings},
+            "The security.kmip.useLegacyProtocol option was specified, but it has no effect. "
+            "KMIP protocol version 1.0 is always used.");
+    }
+
     if (params.count("security.ldap.authz.queryTemplate")) {
         ldapGlobalParams.ldapQueryTemplate = params["security.ldap.authz.queryTemplate"].as<std::string>();
     }
