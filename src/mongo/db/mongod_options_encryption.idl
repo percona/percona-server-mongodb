@@ -239,3 +239,10 @@ configs:
         short_name: kmipKeyStatePollingSeconds
         arg_vartype: Int
         requires: 'security.kmip.serverName'
+
+    'security.kmip.useLegacyProtocol':
+        description: >-
+            This option is supported for compatibility but has no effect.
+            KMIP protocol version 1.0 is always used.
+        short_name: kmipUseLegacyProtocol
+        arg_vartype: Bool
