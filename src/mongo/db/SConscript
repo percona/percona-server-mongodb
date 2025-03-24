@@ -856,6 +856,17 @@ if has_option('audit'):
             'commands'
         ],
     )
+
+    env.CppUnitTest(
+        target='audit_test',
+        source=[
+            'audit/audit_options_test.cpp',
+        ],
+        LIBDEPS=[
+            'audit',
+            'server_options_base',
+        ]
+    )
 else:
     env.Clone().InjectModule("enterprise").Library(
         target="audit",
