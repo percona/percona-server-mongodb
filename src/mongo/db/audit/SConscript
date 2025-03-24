@@ -2,6 +2,18 @@
 
 Import("env")
 
+env.CppUnitTest(
+    target='audit_test',
+    source=[
+        'audit_options_test.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/db/commands',
+        '$BUILD_DIR/mongo/db/server_options_base',
+        'audit',
+    ]
+)
+
 env = env.Clone()
 
 env.Library(
@@ -28,3 +40,5 @@ env.Library(
         'lint-allow-nonprivate-on-deps-dependents',
     ]
 )
+
+
