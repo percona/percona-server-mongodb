@@ -45,6 +45,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/encryption/kmip_exchange.h"
 #include "mongo/db/encryption/kmip_session.h"
+#include "mongo/util/str.h"
 
 
 namespace mongo::encryption {
@@ -142,6 +143,19 @@ KmipClient::Impl::Impl(const std::string& host,
       _sslCtx(createSslContext()) {}
 
 
+namespace {
+template <typename Fn, typename String>
+void expectOk(Fn fn, const char* description, const String& filepath) {
+    sys::error_code ec;
+    fn(ec);
+    if (ec) {
+        throw sys::system_error(
+            ec, str::stream() << "Failed to load " << description << " `" << filepath << "`");
+    }
+}
+}  // namespace
+
+
 net::ssl::context KmipClient::Impl::createSslContext() {
     net::ssl::context sslCtx(net::ssl::context::tls_client);
     sslCtx.set_options(net::ssl::context::default_workarounds | net::ssl::context::single_dh_use);
@@ -150,7 +164,9 @@ net::ssl::context KmipClient::Impl::createSslContext() {
 
     loadSystemCaCertificates(sslCtx);
     if (!_serverCaFile.empty()) {
-        sslCtx.load_verify_file(_serverCaFile);
+        expectOk([&](sys::error_code& ec) { sslCtx.load_verify_file(_serverCaFile, ec); },
+                 "server CA certificate file",
+                 _serverCaFile);
     }
 
     if (!_clientCertificatePassword.empty()) {
@@ -159,8 +175,16 @@ net::ssl::context KmipClient::Impl::createSslContext() {
                 return _clientCertificatePassword;
             });
     }
-    sslCtx.use_private_key_file(_clientCertificateFile, net::ssl::context::pem);
-    sslCtx.use_certificate_chain_file(_clientCertificateFile);
+    expectOk(
+        [&](sys::error_code& ec) {
+            sslCtx.use_private_key_file(_clientCertificateFile, net::ssl::context::pem, ec);
+        },
+        "client certificate file",
+        _clientCertificateFile);
+    expectOk(
+        [&](sys::error_code& ec) { sslCtx.use_certificate_chain_file(_clientCertificateFile, ec); },
+        "certificate chain file",
+        _clientCertificateFile);
 
     return sslCtx;
 }
@@ -186,13 +210,17 @@ void KmipClient::Impl::loadSystemCaCertificates(net::ssl::context& sslCtx) {
 
     for (const auto& f : certFiles) {
         if (bfs::is_regular_file(bfs::path(f))) {
-            sslCtx.load_verify_file(f);
+            expectOk([&](sys::error_code& ec) { sslCtx.load_verify_file(f, ec); },
+                     "system CA certificate file",
+                     f);
             break;
         }
     }
     for (const auto& d : certDirs) {
         if (bfs::is_directory(bfs::path(d))) {
-            sslCtx.add_verify_path(d);
+            expectOk([&](sys::error_code& ec) { sslCtx.add_verify_path(d, ec); },
+                     "system CA certificate files from the directory",
+                     d);
         }
     }
 }
