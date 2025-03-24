@@ -145,22 +145,18 @@ KmipClient::Impl::Impl(const std::string& host,
 
 namespace {
 template <typename Fn>
-concept AcceptsEcByRef = requires(Fn fn, sys::error_code& ec) { fn(ec); };
+concept AcceptsErrorCodeByRef = requires(Fn fn, sys::error_code& ec) { fn(ec); };
 
-template <typename Fn>
-requires AcceptsEcByRef<Fn>
-void expectOk(Fn fn, const std::string& msg) {
+template <typename Fn, typename String>
+requires AcceptsErrorCodeByRef<Fn> &&
+    (std::is_same_v<String, std::string> || std::is_same_v<String, const char*>)
+void expectOk(Fn fn, const char* description, const String& filepath) {
     sys::error_code ec;
     fn(ec);
     if (ec) {
-        throw sys::system_error(ec, msg);
+        throw sys::system_error(
+            ec, str::stream() << "Failed to load " << description << " `" << filepath << "`");
     }
-}
-
-template <typename String>
-requires std::is_same_v<String, std::string> || std::is_same_v<String, const char*>
-std::string msgFailedToLoad(const char* description, const String& filepath) {
-    return str::stream() << "Failed to load " << description << " `" << filepath << "`";
 }
 }  // namespace
 
@@ -174,7 +170,8 @@ net::ssl::context KmipClient::Impl::createSslContext() {
     loadSystemCaCertificates(sslCtx);
     if (!_serverCaFile.empty()) {
         expectOk([&](sys::error_code& ec) { sslCtx.load_verify_file(_serverCaFile, ec); },
-                 msgFailedToLoad("server CA certificate file", _serverCaFile));
+                 "server CA certificate file",
+                 _serverCaFile);
     }
 
     if (!_clientCertificatePassword.empty()) {
@@ -187,10 +184,12 @@ net::ssl::context KmipClient::Impl::createSslContext() {
         [&](sys::error_code& ec) {
             sslCtx.use_private_key_file(_clientCertificateFile, net::ssl::context::pem, ec);
         },
-        msgFailedToLoad("client certificate file", _clientCertificateFile));
+        "client certificate file",
+        _clientCertificateFile);
     expectOk(
         [&](sys::error_code& ec) { sslCtx.use_certificate_chain_file(_clientCertificateFile, ec); },
-        msgFailedToLoad("certificate chain file", _clientCertificateFile));
+        "certificate chain file",
+        _clientCertificateFile);
 
     return sslCtx;
 }
@@ -217,14 +216,16 @@ void KmipClient::Impl::loadSystemCaCertificates(net::ssl::context& sslCtx) {
     for (const auto& f : certFiles) {
         if (bfs::is_regular_file(bfs::path(f))) {
             expectOk([&](sys::error_code& ec) { sslCtx.load_verify_file(f, ec); },
-                     msgFailedToLoad("system CA certificate file", f));
+                     "system CA certificate file",
+                     f);
             break;
         }
     }
     for (const auto& d : certDirs) {
         if (bfs::is_directory(bfs::path(d))) {
             expectOk([&](sys::error_code& ec) { sslCtx.add_verify_path(d, ec); },
-                     msgFailedToLoad("system CA certificate files from the directory", d));
+                     "system CA certificate files from the directory",
+                     d);
         }
     }
 }
