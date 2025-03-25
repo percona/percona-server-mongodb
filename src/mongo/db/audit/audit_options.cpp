@@ -112,6 +112,11 @@ namespace mongo {
     }
 
     Status validateAuditOptions() {
+        if (!auditOptions.destination.empty() && auditOptions.destination != "file") {
+            // no validation needed if destination is not to a file
+            return Status::OK();
+        }
+
         auto getAbsolutePath = [](auto const& p) {
             return boost::filesystem::absolute(p, serverGlobalParams.cwd).native();
         };
