@@ -26,6 +26,14 @@ if [ "$1" = "remove" ]; then
   fi
 fi
 
+if [ "$1" = "purge" ]; then
+  rm -rf /var/log/mongos
+  userdel mongos || true
+  if [ -d /usr/local/percona/telemetry/psmdbs ]; then
+    rm -rf /usr/local/percona/telemetry/psmdbs
+  fi
+fi
+
 #DEBHELPER#
 
 exit 0

@@ -759,6 +759,8 @@ build_source_deb(){
     else
         mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.default
         mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.service
+        mv ${BUILDDIR}/debian/mongos.default ${BUILDDIR}/debian/percona-server-mongodb-server.mongos.default
+        mv ${BUILDDIR}/debian/mongos.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongos.service
     fi
     #
     if [[ "x${FIPSMODE}" == "x1" ]]; then

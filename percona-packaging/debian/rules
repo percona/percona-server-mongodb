@@ -77,8 +77,10 @@ override_dh_auto_install:
 	cp -av build/install/bin/perconadecrypt debian/percona-server-mongodb-server/usr/bin
 	cp -av build/install/bin/mongobridge debian/percona-server-mongodb-server/usr/bin/mongobridge
 	cp -av debian/percona-server-mongodb-helper.sh debian/percona-server-mongodb-server/usr/bin
+	cp -av debian/percona-server-mongos-helper.sh debian/percona-server-mongodb-mongos/usr/bin
 	cp -av debian/percona-server-mongodb-enable-auth.sh debian/percona-server-mongodb-server/usr/bin
 	cp -av debian/mongod.conf debian/percona-server-mongodb-server/etc/mongod.conf
+	cp -av debian/mongos.conf debian/percona-server-mongodb-mongos/etc/mongos.conf
 	cp -av $(PSMSRC)/bin/* debian/percona-server-mongodb-tools/usr/bin
 
 override_dh_strip:

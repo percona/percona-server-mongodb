@@ -94,6 +94,10 @@ This metapackage will install the mongo shell, import/export tools, other client
 %package mongos
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB sharded cluster query router
+Source8:        mongos.conf
+Source9:        mongos.service
+Source10:       mongos.default
+Source11:       percona-server-mongos-helper.sh
 %if  0%{?amzn} == 2023 || 0%{?rhel} > 7
 Requires: percona-telemetry-agent
 %endif
@@ -250,6 +254,17 @@ install -m 755 build/install/bin/mongos %{buildroot}/%{_bindir}/mongos
 install -m 755 build/install/bin/perconadecrypt %{buildroot}/%{_bindir}/
 install -m 755 build/install/bin/mongobridge %{buildroot}/%{_bindir}/mongobridge
 
+#
+install -m 644 %{SOURCE8} %{buildroot}/%{_sysconfdir}/mongos.conf
+install -m 644 %{SOURCE10} %{buildroot}/%{_sysconfdir}/sysconfig/mongos
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
+  install -m 755 -d %{buildroot}/%{_unitdir}
+  install -m 644 %{SOURCE9} %{buildroot}/%{_unitdir}/mongos.service
+%endif
+install -m 755 %{SOURCE11} %{buildroot}/%{_bindir}/
+install -m 750 -d %{buildroot}/var/log/mongos
+touch %{buildroot}/var/log/mongos/mongos.log
+
 install -m 755 $RPM_BUILD_DIR/%{src_dir}/bin/* %{buildroot}/%{_bindir}/
 
 install -m 644 $RPM_BUILD_DIR/%{src_dir}/manpages/* %{buildroot}/%{_mandir}/man1/
@@ -260,6 +275,13 @@ install -m 644 $RPM_BUILD_DIR/%{src_dir}/manpages/* %{buildroot}/%{_mandir}/man1
 %defattr(-,root,root,-)
 %{_bindir}/mongos
 %{_mandir}/man1/mongos.1.gz
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
+%{_unitdir}/mongos.service
+%endif
+%config(noreplace) %{_sysconfdir}/mongos.conf
+%config(noreplace) %{_sysconfdir}/sysconfig/mongos
+%attr(0750,mongos,mongos) %dir /var/log/mongos
+%attr(0640,mongos,mongos) %ghost /var/log/mongos/mongos.log
 
 %files server
 %defattr(-,root,root,-)
@@ -327,9 +349,9 @@ fi
 
 %pre mongos
 if [ $1 == 1 ]; then
-  if ! getent passwd mongod > /dev/null 2>&1; then
-    /usr/sbin/groupadd -r mongod
-    /usr/sbin/useradd -M -r -g mongod -s /bin/false -c mongod mongod > /dev/null 2>&1
+  if ! getent passwd mongos > /dev/null 2>&1; then
+    /usr/sbin/groupadd -r mongos
+    /usr/sbin/useradd -M -r -g mongos -s /bin/false -c mongos mongos > /dev/null 2>&1
   fi
 fi
 
@@ -447,7 +469,15 @@ if [ -d %{psmdb_telemetry} ]; then
   rm -rf %{psmdb_telemetry}
 fi
 
+%preun mongos
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
+%systemd_preun mongos.service
+%endif
+
 %postun mongos
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
+%systemd_postun mongos.service
+%endif
 if [ -d %{psmdbs_telemetry} ]; then
   rm -rf %{psmdbs_telemetry}
 fi
