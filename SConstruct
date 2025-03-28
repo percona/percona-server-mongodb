@@ -1635,7 +1635,7 @@ def printLocalInfo():
 
 printLocalInfo()
 
-boostLibs = ["filesystem", "program_options", "system", "iostreams", "thread", "log"]
+boostLibs = ["filesystem", "program_options", "system", "iostreams", "thread", "log", "json"]
 
 onlyServer = len(COMMAND_LINE_TARGETS) == 0 or (len(COMMAND_LINE_TARGETS) == 1 and str(
     COMMAND_LINE_TARGETS[0]) in ["mongod", "mongos", "test"])

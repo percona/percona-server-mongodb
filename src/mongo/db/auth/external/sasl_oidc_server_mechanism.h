@@ -31,6 +31,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -39,6 +40,8 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
+#include "mongo/db/auth/oidc_protocol_gen.h"
+#include "mongo/db/auth/role_name.h"
 #include "mongo/db/auth/sasl_mechanism_policies.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
 #include "mongo/db/auth/user.h"
@@ -51,18 +54,23 @@ public:
         : MakeServerMechanism<OidcPolicy>{std::move(authenticationDatabase)} {}
 
     boost::optional<unsigned int> currentStep() const final {
-        return 1u;
+        return _step;
     }
 
     boost::optional<unsigned int> totalSteps() const final {
-        return 1u;
+        return 2u;
     }
+
+    UserRequest getUserRequest() const final;
 
 private:
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                       StringData input) final {
-        return std::tuple{true, std::string{}};
-    }
+                                                       StringData input) final;
+    StatusWith<std::tuple<bool, std::string>> step1(const auth::OIDCMechanismClientStep1& request);
+    StatusWith<std::tuple<bool, std::string>> step2(const auth::OIDCMechanismClientStep2& request);
+
+    unsigned int _step{0};
+    std::set<RoleName> _roles;
 };
 
 class OidcServerFactory final : public MakeServerFactory<SaslOidcServerMechanism> {

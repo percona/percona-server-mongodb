@@ -4,6 +4,7 @@ Import("get_option")
 
 env = env.Clone()
 
+env.InjectThirdParty(libraries=['jwt-cpp'])
 env.Library(
     target='externalsaslauth',
     source=[
@@ -18,6 +19,8 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/client/sasl_aws_common' if get_option('ssl') == 'on' else [],
+        '$BUILD_DIR/mongo/db/auth/oidc/oidc_server_parameters',
+        '$BUILD_DIR/mongo/db/auth/oidc_protocol_messages',
         '$BUILD_DIR/mongo/db/ldap/ldapmanager',
         '$BUILD_DIR/mongo/db/ldap_options',
         '$BUILD_DIR/mongo/db/service_context',
