@@ -1062,6 +1062,13 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         return;
     }
 
+    // denylist only makes sense if we still have retries left.
+    if (result.getStatus() == ErrorCodes::InvalidSyncSource) {
+        // If the sync source is invalid, we should denylist it for a while.
+        const auto until = (*_attemptExec)->now() + _opts.syncSourceRetryWait * 2;
+        _opts.syncSourceSelector->denylistSyncSource(_syncSource, until);
+    }
+
     _attemptExec = std::make_unique<executor::ScopedTaskExecutor>(
         _exec, Status(ErrorCodes::CallbackCanceled, "Initial Sync Attempt Canceled"));
     _clonerAttemptExec = std::make_unique<executor::ScopedTaskExecutor>(
@@ -1469,7 +1476,7 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
         return aggRequest.toBSON(BSONObj());
     }();
 
-    LOGV2_DEBUG(128407, 1, "Opening backup cursor on sync source");
+    LOGV2_DEBUG(128407, 1, "Opening backup cursor on sync source", "syncSource"_attr = _syncSource);
 
     auto fetchStatus = std::make_shared<boost::optional<Status>>();
     const auto fetcherCallback = [this, fetchStatus](const Fetcher::QueryResponseStatus& dataStatus,
