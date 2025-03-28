@@ -71,4 +71,6 @@ namespace optionenvironment {
 
     Status storeAuditOptions(const optionenvironment::Environment& params);
 
+    Status validateAuditOptions();
+
 } // namespace mongo
