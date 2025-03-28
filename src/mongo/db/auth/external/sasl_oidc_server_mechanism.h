@@ -49,18 +49,22 @@ public:
         : MakeServerMechanism<OidcPolicy>(std::move(authenticationDatabase)) {}
 
     boost::optional<unsigned int> currentStep() const override {
-        return 1u;
+        return _step;
     }
 
     boost::optional<unsigned int> totalSteps() const override {
-        return 1u;
+        return 2u;
     }
+
+    UserRequest getUserRequest() const override;
 
 private:
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                       StringData input) final {
-        return std::tuple(true, std::string());
-    }
+                                                       StringData input) final;
+    StatusWith<std::tuple<bool, std::string>> step1(OperationContext* opCtx, StringData input);
+    StatusWith<std::tuple<bool, std::string>> step2(OperationContext* opCtx, StringData input);
+
+    unsigned int _step{0};
 };
 
 class OidcServerFactory : public MakeServerFactory<SaslOidcServerMechanism> {
