@@ -25,12 +25,17 @@ mongo_cc_library(
         "gssapi_server_mechanism.h",
         "sasl_oidc_server_mechanism.h",
     ],
+    cc_deps = [
+        "//src/third_party/jwt-cpp:jwt-cpp",
+    ],
     deps = [
         "//src/mongo/db/auth:saslauth",
+        "//src/mongo/db/auth/oidc:oidc_server_parameters",
         "//src/mongo/db/ldap:ldap_manager",
         "//src/mongo/db:ldap_options",
         "//src/mongo/db:service_context",
         "//src/mongo/util/net:http_client",
+        "//src/third_party/boost:boost_json",
     ] + select({
         "//bazel/config:ssl_enabled": [
             "//src/mongo/client:sasl_aws_common",
