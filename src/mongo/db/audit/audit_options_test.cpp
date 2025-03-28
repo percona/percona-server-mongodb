@@ -218,5 +218,59 @@ TEST_F(ValidateAuditOptionsTestFixture, DestinationFile_CustomPath_Fork) {
     ASSERT_TRUE(fs::exists(cwd / path));
 }
 
+// Test file is not created if destination is console
+TEST_F(ValidateAuditOptionsTestFixture, DestinationConsole_FileNotCreated) {
+
+    moe::Environment env;
+    set(env, "auditLog.destination", "console");
+
+    ASSERT_OK(storeAuditOptions(env));
+    ASSERT_OK(validateAuditOptions());
+    ASSERT_FALSE(fs::exists(kDefaultPathBson));
+    ASSERT_FALSE(fs::exists(kDefaultPathJson));
+}
+
+// Test file is not created if destination is console and path is provided
+TEST_F(ValidateAuditOptionsTestFixture, DestinationConsole_PathProvided_FileNotCreated) {
+    const auto path = "auditFileName.json";
+
+    moe::Environment env;
+    set(env, "auditLog.destination", "console");
+    set(env, "auditLog.path", path);
+
+    ASSERT_OK(storeAuditOptions(env));
+    ASSERT_OK(validateAuditOptions());
+    ASSERT_FALSE(fs::exists(path));
+    ASSERT_FALSE(fs::exists(kDefaultPathBson));
+    ASSERT_FALSE(fs::exists(kDefaultPathJson));
+}
+
+// Test file is not created if destination is syslog
+TEST_F(ValidateAuditOptionsTestFixture, DestinationSyslog_FileNotCreated) {
+
+    moe::Environment env;
+    set(env, "auditLog.destination", "syslog");
+
+    ASSERT_OK(storeAuditOptions(env));
+    ASSERT_OK(validateAuditOptions());
+    ASSERT_FALSE(fs::exists(kDefaultPathBson));
+    ASSERT_FALSE(fs::exists(kDefaultPathJson));
+}
+
+// Test file is not created if destination is syslog and path is provided
+TEST_F(ValidateAuditOptionsTestFixture, DestinationSyslog_PathProvided_FileNotCreated) {
+    const auto path = "auditFileName.json";
+
+    moe::Environment env;
+    set(env, "auditLog.destination", "syslog");
+    set(env, "auditLog.path", path);
+
+    ASSERT_OK(storeAuditOptions(env));
+    ASSERT_OK(validateAuditOptions());
+    ASSERT_FALSE(fs::exists(path));
+    ASSERT_FALSE(fs::exists(kDefaultPathBson));
+    ASSERT_FALSE(fs::exists(kDefaultPathJson));
+}
+
 }  // namespace
 }  // namespace mongo

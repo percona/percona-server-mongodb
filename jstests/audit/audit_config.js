@@ -92,9 +92,20 @@ removeFile(defaultNameJson)
 auditTest(
     'relativeAuditPathWhenForking',
     function(m, restartServer) {
-        assert.eq(fileExists(defaultNameJson), true);        
+        assert.eq(fileExists(defaultNameJson), true);
     },
     { config: configFileFork, logpath: logPath}
 )
 
 removeFile(defaultNameJson)
+
+// Destination: console
+// Expect no file created
+removeFile(defaultNameJson)
+auditTest(
+    'destinationConsoleNoAuditFileCreated',
+    function(m, restartServer) {
+        assert.eq(fileExists(defaultNameJson), false);
+    },
+    { config: configFileBasic, auditDestination: 'console' }
+)
