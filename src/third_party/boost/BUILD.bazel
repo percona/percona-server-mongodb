@@ -220,3 +220,18 @@ mongo_cc_library(
         "//src/mongo/util:boost_assert_shim",
     ],
 )
+
+mongo_cc_library(
+    name = "boost_json",
+    srcs = [
+        "libs/json/src/src.cpp",
+    ],
+    hdrs = BOOST_LIB_HEADERS,
+    copts = BOOST_COPTS,
+    local_defines = BOOST_DEFINES,
+    deps = [
+        ":boost_system",
+        "//src/mongo/util:boost_assert_shim",
+    ],
+)
+

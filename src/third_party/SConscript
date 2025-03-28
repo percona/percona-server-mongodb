@@ -60,6 +60,7 @@ thirdPartyEnvironmentModifications = {
             '#/src/third_party/librdkafka/dist/src-cpp',
         ],
     },
+    'jwt-cpp': {'CPPPATH': ['#/src/third_party/jwt-cpp/include']},
 }
 
 
@@ -446,6 +447,7 @@ if use_system_version_of_library("boost"):
             env['LIBDEPS_BOOST_IOSTREAMS_SYSLIBDEP'],
             env['LIBDEPS_BOOST_THREAD_SYSLIBDEP'],
             env['LIBDEPS_BOOST_LOG_SYSLIBDEP'],
+            env['LIBDEPS_BOOST_JSON'],
         ])
 else:
     boostDirectory = 'boost'
@@ -455,6 +457,7 @@ else:
     boostEnv = boostEnv.Clone(LIBDEPS_INTERFACE=[
         boostDirectory + '/boost_filesystem',
         boostDirectory + '/boost_iostreams',
+        boostDirectory + '/boost_json',
         boostDirectory + '/boost_log',
         boostDirectory + '/boost_program_options',
         boostDirectory + '/boost_system',
