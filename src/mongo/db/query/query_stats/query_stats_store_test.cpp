@@ -39,6 +39,7 @@
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/idl/server_parameter_test_util.h"
+#include "mongo/platform/decimal128.h"
 #include "mongo/unittest/inline_auto_update.h"
 #include "mongo/unittest/unittest.h"
 
@@ -243,49 +244,18 @@ TEST_F(QueryStatsStoreTest, GenerateMaxBsonSizeQueryShape) {
     auto parsedFindPair =
         uassertStatusOK(parsed_find_command::parse(opCtx.get(), std::move(fcrCopy)));
 
-    // TODO SERVER-84011 backport: re-enable SERVER-79794 test. This test is currently
-    // broken since the queryStatsfeatureFlags are off by default. Query stats assumes that the
-    // feature flag can never change without a restart, so enabling the flag in the test still
-    // doesn't allow for query stats functionality. The following replicates what queryStats would
-    // have done.
+    auto&& globalQueryStatsStoreManager = QueryStatsStoreManager::get(opCtx->getServiceContext());
+    globalQueryStatsStoreManager = std::make_unique<QueryStatsStoreManager>(500000, 1000);
 
+    // The shapification process will bloat the input query over the 16 MB memory limit. Assert that
+    // calling registerRequest() doesn't throw and that the opDebug isn't registered with a key hash
+    // (thus metrics won't be tracked for this query).
+    ASSERT_DOES_NOT_THROW(query_stats::registerRequest(opCtx.get(), nss, [&]() {
+        return std::make_unique<query_stats::FindKey>(
+            parsedFindPair.first, *parsedFindPair.second, query_shape::CollectionType::kCollection);
+    }));
     auto& opDebug = CurOp::get(*opCtx)->debug();
-    ASSERT_DOES_NOT_THROW(
-        try {
-            opDebug.queryStatsInfo.key =
-                std::make_unique<query_stats::FindKey>(parsedFindPair.first,
-                                                       *parsedFindPair.second,
-                                                       query_shape::CollectionType::kCollection);
-        } catch (ExceptionFor<ErrorCodes::BSONObjectTooLarge>&) { return; })
-
-    opDebug.queryStatsInfo.keyHash = absl::HashOf(*opDebug.queryStatsInfo.key);
     ASSERT_EQ(opDebug.queryStatsInfo.keyHash, boost::none);
-
-    // TODO SERVER-84011 backport. Below is the proper test using queryStats.
-    // RAIIServerParameterControllerForTest controller("featureFlagQueryStats", true);
-    // RAIIServerParameterControllerForTest queryKnobController{"internalQueryStatsRateLimit", -1};
-
-    // auto&& globalQueryStatsStoreManager =
-    // QueryStatsStoreManager::get(opCtx->getServiceContext()); globalQueryStatsStoreManager =
-    // std::make_unique<QueryStatsStoreManager>(500000, 1000);
-
-    // // The shapification process will bloat the input query over the 16 MB memory limit. Assert
-    // that
-    // // calling registerRequest() doesn't throw and that the opDebug isn't registered with a key
-    // hash
-    // // (thus metrics won't be tracked for this query).
-    // ASSERT_DOES_NOT_THROW(query_stats::registerRequest(
-    //     opCtx.get(),
-    //     nss,
-    //     [&]() {
-    //         return std::make_unique<query_stats::FindKey>(
-    //             parsedFindPair.first,
-    //             *parsedFindPair.second,
-    //             query_shape::CollectionType::kCollection);
-    //     },
-    //     /*requiresFullQueryStatsFeatureFlag*/ false));
-    // auto& opDebug = CurOp::get(*opCtx)->debug();
-    // ASSERT_EQ(opDebug.queryStatsInfo.keyHash, boost::none);
 }
 
 TEST_F(QueryStatsStoreTest, CorrectlyRedactsFindCommandRequestAllFields) {
@@ -1441,5 +1411,26 @@ TEST_F(QueryStatsStoreTest,
             ]
         })",
         shapified);
+}
+
+BSONObj toBSON(AggregatedMetric& am) {
+    BSONObjBuilder builder;
+    am.appendTo(builder, "m");
+    return builder.obj();
+}
+
+TEST_F(QueryStatsStoreTest, SumOfSquaresOverflowTest) {
+    // Ensure sumOfSquares is initialized correctly.
+    AggregatedMetric aggMetric;
+    auto res = toBSON(aggMetric).getObjectField("m").getField("sumOfSquares").Decimal();
+
+    ASSERT_EQ(res, Decimal128());
+
+    // Aggregating with the maximum int value does not overflow the sumOfSquares field.
+    auto maxVal = std::numeric_limits<uint64_t>::max();
+    aggMetric.aggregate(maxVal);
+    res = toBSON(aggMetric).getObjectField("m").getField("sumOfSquares").Decimal();
+
+    ASSERT_EQ(res, Decimal128(maxVal).power(Decimal128(2.0)));
 }
 }  // namespace mongo::query_stats

@@ -15,12 +15,14 @@ extbothro
 extbothrw
 exttestrwotherro
 exttestrootherrw
+Surname\\, Name
+Question? Mark! *{[(\\<\\>)]} #\\"\\+\\\\
 _EOU_
 
-while read line
+while read -r line
 do
   cat <<_EOLDIF_
-dn: cn=$line,dc=percona,dc=com
+dn: cn=$line,${LDAP_BIND_DN}
 objectclass: organizationalPerson
 cn: $line 
 sn: $line

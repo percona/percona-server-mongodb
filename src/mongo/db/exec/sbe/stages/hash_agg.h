@@ -31,6 +31,7 @@
 
 #include "mongo/db/exec/sbe/expressions/expression.h"
 #include "mongo/db/exec/sbe/stages/stages.h"
+#include "mongo/db/exec/sbe/util/spilling.h"
 #include "mongo/db/exec/sbe/vm/vm.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/storage/temporary_record_store.h"
@@ -100,8 +101,6 @@ public:
                  PlanNodeId planNodeId,
                  bool participateInTrialRunTracking = true,
                  bool forceIncreasedSpilling = false);
-
-    virtual ~HashAggStage();
 
     std::unique_ptr<PlanStage> clone() const final;
 
@@ -182,7 +181,7 @@ private:
      * but are not necessary for comparison purposes. Therefore, we carry the type bits separately
      * from the record id, instead appending them to the end of the serialized 'val' buffer.
      */
-    void spillRowToDisk(const value::MaterializedRow& key, const value::MaterializedRow& val);
+    int64_t spillRowToDisk(const value::MaterializedRow& key, const value::MaterializedRow& val);
 
     void checkMemoryUsageAndSpillIfNecessary(MemoryCheckData& mcd);
     void spill(MemoryCheckData& mcd);
@@ -290,7 +289,7 @@ private:
         internalQuerySBEAggApproxMemoryUseInBytesBeforeSpill.load();
 
     // A record store which is instantiated and written to in the case of spilling.
-    std::unique_ptr<TemporaryRecordStore> _recordStore;
+    std::unique_ptr<SpillingStore> _recordStore;
     std::unique_ptr<SeekableRecordCursor> _rsCursor;
 
     // A monotically increasing counter used to ensure uniqueness of 'RecordId' values. When

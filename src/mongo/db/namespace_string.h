@@ -509,6 +509,9 @@ public:
     bool isSystemDotJavascript() const {
         return coll() == kSystemDotJavascriptCollectionName;
     }
+    bool isSystemDotUsers() const {
+        return coll() == kSystemUsers;
+    }
     bool isServerConfigurationCollection() const {
         return (db() == DatabaseName::kAdmin.db()) && (coll() == "system.version");
     }
@@ -540,6 +543,12 @@ public:
      * never be marked as anything other than UNSHARDED.
      */
     bool isNamespaceAlwaysUnsharded() const;
+
+    /**
+     * Returns whether the specified namespace is shard-local, meaning it exists independently on
+     * each shard.
+     */
+    bool isShardLocalNamespace() const;
 
     /**
      * Returns whether the specified namespace is config.cache.chunks.<>.

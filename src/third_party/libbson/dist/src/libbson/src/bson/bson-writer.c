@@ -15,8 +15,8 @@
  */
 
 
-#include "bson-private.h"
-#include "bson-writer.h"
+#include <bson/bson-private.h>
+#include <bson/bson-writer.h>
 
 
 struct _bson_writer_t {
@@ -198,8 +198,7 @@ bson_writer_begin (bson_writer_t *writer, /* IN */
    }
 
    if (grown) {
-      *writer->buf = writer->realloc_func (
-         *writer->buf, *writer->buflen, writer->realloc_func_ctx);
+      *writer->buf = writer->realloc_func (*writer->buf, *writer->buflen, writer->realloc_func_ctx);
    }
 
    memset ((*writer->buf) + writer->offset + 1, 0, 5);

@@ -15,7 +15,7 @@
  */
 
 
-#include "bson-atomic.h"
+#include <bson/bson-atomic.h>
 
 #ifdef BSON_OS_UNIX
 /* For sched_yield() */
@@ -25,7 +25,7 @@
 int32_t
 bson_atomic_int_add (volatile int32_t *p, int32_t n)
 {
-   return n + bson_atomic_int32_fetch_add (p, n, bson_memory_order_seq_cst);
+   return n + bson_atomic_int32_fetch_add ((DECL_ATOMIC_INTEGRAL_INT32 *) p, n, bson_memory_order_seq_cst);
 }
 
 int64_t
@@ -54,41 +54,35 @@ bson_memory_barrier (void)
 static int8_t gEmulAtomicLock = 0;
 
 static void
-_lock_emul_atomic ()
+_lock_emul_atomic (void)
 {
    int i;
-   if (bson_atomic_int8_compare_exchange_weak (
-          &gEmulAtomicLock, 0, 1, bson_memory_order_acquire) == 0) {
+   if (bson_atomic_int8_compare_exchange_weak (&gEmulAtomicLock, 0, 1, bson_memory_order_acquire) == 0) {
       /* Successfully took the spinlock */
       return;
    }
    /* Failed. Try taking ten more times, then begin sleeping. */
    for (i = 0; i < 10; ++i) {
-      if (bson_atomic_int8_compare_exchange_weak (
-             &gEmulAtomicLock, 0, 1, bson_memory_order_acquire) == 0) {
+      if (bson_atomic_int8_compare_exchange_weak (&gEmulAtomicLock, 0, 1, bson_memory_order_acquire) == 0) {
          /* Succeeded in taking the lock */
          return;
       }
    }
    /* Still don't have the lock. Spin and yield */
-   while (bson_atomic_int8_compare_exchange_weak (
-             &gEmulAtomicLock, 0, 1, bson_memory_order_acquire) != 0) {
+   while (bson_atomic_int8_compare_exchange_weak (&gEmulAtomicLock, 0, 1, bson_memory_order_acquire) != 0) {
       bson_thrd_yield ();
    }
 }
 
 static void
-_unlock_emul_atomic ()
+_unlock_emul_atomic (void)
 {
-   int64_t rv = bson_atomic_int8_exchange (
-      &gEmulAtomicLock, 0, bson_memory_order_release);
+   int64_t rv = bson_atomic_int8_exchange (&gEmulAtomicLock, 0, bson_memory_order_release);
    BSON_ASSERT (rv == 1 && "Released atomic lock while not holding it");
 }
 
 int64_t
-_bson_emul_atomic_int64_fetch_add (volatile int64_t *p,
-                                   int64_t n,
-                                   enum bson_memory_order _unused)
+_bson_emul_atomic_int64_fetch_add (volatile int64_t *p, int64_t n, enum bson_memory_order _unused)
 {
    int64_t ret;
 
@@ -102,9 +96,7 @@ _bson_emul_atomic_int64_fetch_add (volatile int64_t *p,
 }
 
 int64_t
-_bson_emul_atomic_int64_exchange (volatile int64_t *p,
-                                  int64_t n,
-                                  enum bson_memory_order _unused)
+_bson_emul_atomic_int64_exchange (volatile int64_t *p, int64_t n, enum bson_memory_order _unused)
 {
    int64_t ret;
 
@@ -143,15 +135,12 @@ _bson_emul_atomic_int64_compare_exchange_weak (volatile int64_t *p,
                                                enum bson_memory_order order)
 {
    /* We're emulating. We can't do a weak version. */
-   return _bson_emul_atomic_int64_compare_exchange_strong (
-      p, expect_value, new_value, order);
+   return _bson_emul_atomic_int64_compare_exchange_strong (p, expect_value, new_value, order);
 }
 
 
 int32_t
-_bson_emul_atomic_int32_fetch_add (volatile int32_t *p,
-                                   int32_t n,
-                                   enum bson_memory_order _unused)
+_bson_emul_atomic_int32_fetch_add (volatile int32_t *p, int32_t n, enum bson_memory_order _unused)
 {
    int32_t ret;
 
@@ -165,9 +154,7 @@ _bson_emul_atomic_int32_fetch_add (volatile int32_t *p,
 }
 
 int32_t
-_bson_emul_atomic_int32_exchange (volatile int32_t *p,
-                                  int32_t n,
-                                  enum bson_memory_order _unused)
+_bson_emul_atomic_int32_exchange (volatile int32_t *p, int32_t n, enum bson_memory_order _unused)
 {
    int32_t ret;
 
@@ -206,15 +193,12 @@ _bson_emul_atomic_int32_compare_exchange_weak (volatile int32_t *p,
                                                enum bson_memory_order order)
 {
    /* We're emulating. We can't do a weak version. */
-   return _bson_emul_atomic_int32_compare_exchange_strong (
-      p, expect_value, new_value, order);
+   return _bson_emul_atomic_int32_compare_exchange_strong (p, expect_value, new_value, order);
 }
 
 
 int
-_bson_emul_atomic_int_fetch_add (volatile int *p,
-                                 int n,
-                                 enum bson_memory_order _unused)
+_bson_emul_atomic_int_fetch_add (volatile int *p, int n, enum bson_memory_order _unused)
 {
    int ret;
 
@@ -228,9 +212,7 @@ _bson_emul_atomic_int_fetch_add (volatile int *p,
 }
 
 int
-_bson_emul_atomic_int_exchange (volatile int *p,
-                                int n,
-                                enum bson_memory_order _unused)
+_bson_emul_atomic_int_exchange (volatile int *p, int n, enum bson_memory_order _unused)
 {
    int ret;
 
@@ -269,14 +251,11 @@ _bson_emul_atomic_int_compare_exchange_weak (volatile int *p,
                                              enum bson_memory_order order)
 {
    /* We're emulating. We can't do a weak version. */
-   return _bson_emul_atomic_int_compare_exchange_strong (
-      p, expect_value, new_value, order);
+   return _bson_emul_atomic_int_compare_exchange_strong (p, expect_value, new_value, order);
 }
 
 void *
-_bson_emul_atomic_ptr_exchange (void *volatile *p,
-                                void *n,
-                                enum bson_memory_order _unused)
+_bson_emul_atomic_ptr_exchange (void *volatile *p, void *n, enum bson_memory_order _unused)
 {
    void *ret;
 

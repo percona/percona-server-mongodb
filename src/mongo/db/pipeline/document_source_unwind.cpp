@@ -91,6 +91,10 @@ private:
 
     // Index into the _inputArray to return next.
     size_t _index = 0;
+
+    // True if we are including the array index and it's path is a parent of the unwind path. If
+    // this is true, we will just return the array indices and ignore the array values.
+    bool _conflictingPaths;
 };
 
 DocumentSourceUnwind::Unwinder::Unwinder(const FieldPath& unwindPath,
@@ -100,7 +104,8 @@ DocumentSourceUnwind::Unwinder::Unwinder(const FieldPath& unwindPath,
     : _unwindPath(unwindPath),
       _preserveNullAndEmptyArrays(preserveNullAndEmptyArrays),
       _indexPath(indexPath),
-      _strict(strict) {}
+      _strict(strict),
+      _conflictingPaths(indexPath ? indexPath->isPrefixOf(unwindPath) : false) {}
 
 void DocumentSourceUnwind::Unwinder::resetDocument(const Document& document) {
     // Reset document specific attributes.
@@ -141,8 +146,11 @@ DocumentSource::GetNextResult DocumentSourceUnwind::Unwinder::getNext() {
             // across documents that have come out of this pipeline operator. This is a partial deep
             // clone. Because the value at the end will be replaced, everything along the path
             // leading to that will be replaced in order not to share that change with any other
-            // clones (or the original).
-            _output.setNestedField(_unwindPathFieldIndexes, _inputArray[_index]);
+            // clones (or the original). If the array index path is a parent of the unwind path, we
+            // ignore the array value since it would be overwritten by the index.
+            if (!_conflictingPaths) {
+                _output.setNestedField(_unwindPathFieldIndexes, _inputArray[_index]);
+            }
             indexForOutput = _index;
             _index++;
             _haveNext = _index < length;
@@ -232,19 +240,16 @@ bool DocumentSourceUnwind::canPushSortBack(const DocumentSourceSort* sort) const
     // otherwise when we swap the limit and unwind, we could end up providing fewer results to the
     // user than expected.
     if (!sort->hasLimit() || _preserveNullAndEmptyArrays) {
-        auto unwindPath = _unwindPath.fullPath();
+        auto modifiedPaths = getModifiedPaths();
 
         // Checks if any of the $sort's paths depend on the unwind path (or vice versa).
         SortPattern sortKeyPattern = sort->getSortKeyPattern();
-        bool sortPathMatchesUnwindPath =
+        bool sortDependsOnUnwind =
             std::any_of(sortKeyPattern.begin(), sortKeyPattern.end(), [&](auto& sortKey) {
                 // If 'sortKey' is a $meta expression, we can do the swap.
-                if (!sortKey.fieldPath)
-                    return false;
-                return expression::bidirectionalPathPrefixOf(unwindPath,
-                                                             sortKey.fieldPath->fullPath());
+                return sortKey.fieldPath && modifiedPaths.canModify(*sortKey.fieldPath);
             });
-        return !sortPathMatchesUnwindPath;
+        return !sortDependsOnUnwind;
     }
     return false;
 }

@@ -35,6 +35,26 @@ apt-get install -y slapd  || {
 
 service slapd start
 
+# configure memberof overlay
+ldapmodify -Q -Y EXTERNAL -H ldapi:/// <<EOF
+dn: cn=module{0},cn=config
+changetype: modify
+add: olcModuleLoad
+olcModuleLoad: memberof.la
+EOF
+
+ldapadd -Y EXTERNAL -H ldapi:/// <<EOF
+dn: olcOverlay=memberof,olcDatabase={1}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcMemberOf
+olcOverlay: memberof
+olcMemberOfRefint: TRUE
+olcMemberOfDangling: ignore
+olcMemberOfGroupOC: groupOfNames
+olcMemberOfMemberAD: member
+olcMemberOfMemberOfAD: memberOf
+EOF
+
 # add the test users
 
 ${BASEDIR}/generate_users_ldif.sh > ${BASEDIR}/users.ldif

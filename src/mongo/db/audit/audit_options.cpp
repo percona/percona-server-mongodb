@@ -33,6 +33,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include <boost/filesystem/path.hpp>
+#include <boost/filesystem/operations.hpp>
 
 #include <fstream>
 
@@ -110,6 +111,42 @@ namespace mongo {
         return Status::OK();
     }
 
+    Status validateAuditOptions() {
+        if (!auditOptions.destination.empty() && auditOptions.destination != "file") {
+            // no validation needed if destination is not to a file
+            return Status::OK();
+        }
+
+        auto getAbsolutePath = [](auto const& p) {
+            return boost::filesystem::absolute(p, serverGlobalParams.cwd).native();
+        };
+
+        if (!auditOptions.path.empty()) {
+            auditOptions.path = getAbsolutePath(auditOptions.path);
+        } else {
+            const std::string defaultFilePath =
+                (auditOptions.format == "BSON") ? "auditLog.bson" : "auditLog.json";
+
+            const bool useLogPathBase =
+                !serverGlobalParams.logWithSyslog && !serverGlobalParams.logpath.empty();
+
+            const auto base = useLogPathBase
+                ? boost::filesystem::path(serverGlobalParams.logpath).parent_path()
+                : boost::filesystem::path();
+
+            auditOptions.path = getAbsolutePath(base / defaultFilePath);
+        }
+
+        std::ofstream auditFile(auditOptions.path.c_str(), std::ios_base::app);
+        if (!auditFile) {
+            return Status(ErrorCodes::BadValue,
+                          "Could not open a file for writing at the given auditPath: " +
+                              auditOptions.path);
+        }
+
+        return Status::OK();
+    }
+
     MONGO_MODULE_STARTUP_OPTIONS_REGISTER(AuditOptions)(InitializerContext* context) {
         uassertStatusOK(addAuditOptions(&optionenvironment::startupOptions));
     }
@@ -122,21 +159,6 @@ namespace mongo {
     // to be already initialized.
     MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"), ("default"))
     (InitializerContext*) {
-        if (!auditOptions.path.empty()) {
-            std::ofstream auditFile(auditOptions.path.c_str(), std::ios_base::app);
-            if (!auditFile) {
-                uassertStatusOK(
-                    Status(ErrorCodes::BadValue,
-                           "Could not open a file for writing at the given auditPath: " +
-                               auditOptions.path));
-            }
-        } else if (!serverGlobalParams.logWithSyslog && !serverGlobalParams.logpath.empty()) {
-            auditOptions.path = (boost::filesystem::path(serverGlobalParams.logpath).parent_path() /
-                                 "auditLog.json")
-                                    .native();
-        } else {
-            auditOptions.path =
-                (boost::filesystem::path(serverGlobalParams.cwd) / "auditLog.json").native();
-        }
+        uassertStatusOK(validateAuditOptions());
     }
 } // namespace mongo

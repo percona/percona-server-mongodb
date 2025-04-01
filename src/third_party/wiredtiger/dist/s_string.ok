@@ -491,6 +491,7 @@ bitstring
 bitwise
 blk
 blkcache
+blkincr
 blkmod
 bm
 bnd
@@ -819,6 +820,7 @@ iiii
 iiu
 ikey
 im
+img
 impl
 incr
 incrementals

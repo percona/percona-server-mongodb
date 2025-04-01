@@ -28,7 +28,7 @@ function countAuthInLog(conn) {
         } else if (entry.id === kAuthenticationFailedLogId) {
             // Authentication can fail legitimately because the secondary abandons the connection
             // during shutdown.
-            assert.eq(entry.attr.error.code, ErrorCodes.AuthenticationAbandoned);
+            assert.eq(entry.attr.result, ErrorCodes.AuthenticationAbandoned);
         } else {
             // Irrelevant.
             return;

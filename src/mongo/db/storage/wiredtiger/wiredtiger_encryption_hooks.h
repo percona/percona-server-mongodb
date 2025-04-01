@@ -34,9 +34,9 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <openssl/evp.h>
 
 #include "mongo/db/storage/encryption_hooks.h"
-#include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 
 namespace mongo {
+class EncryptionKeyDB;
 
 class WiredTigerEncryptionHooks: public EncryptionHooks
 {

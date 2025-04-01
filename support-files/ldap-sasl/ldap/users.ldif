@@ -54,3 +54,17 @@ sn: exttestrootherrw
 userPassword: exttestrootherrw9a5S
 description: exttestrootherrw userPassword
 
+dn: cn=Surname\, Name,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: Surname\, Name 
+sn: Surname\, Name
+userPassword: Surname\, Name9a5S
+description: Surname\, Name userPassword
+
+dn: cn=Question? Mark! *{[(\<\>)]} #\"\+\\,dc=percona,dc=com
+objectclass: organizationalPerson
+cn: Question? Mark! *{[(\<\>)]} #\"\+\\ 
+sn: Question? Mark! *{[(\<\>)]} #\"\+\\
+userPassword: Question? Mark! *{[(\<\>)]} #\"\+\\9a5S
+description: Question? Mark! *{[(\<\>)]} #\"\+\\ userPassword
+

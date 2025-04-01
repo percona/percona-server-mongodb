@@ -542,6 +542,11 @@ Status storeMongodOptions(const moe::Environment& params) {
         encryptionGlobalParams.vaultServerCAFile = params["security.vault.serverCAFile"].as<std::string>();
     }
 
+    if (params.count("security.vault.checkMaxVersions")) {
+        encryptionGlobalParams.vaultCheckMaxVersions =
+            params["security.vault.checkMaxVersions"].as<bool>();
+    }
+
     if (params.count("security.vault.disableTLSForTesting")) {
         encryptionGlobalParams.vaultDisableTLS = params["security.vault.disableTLSForTesting"].as<bool>();
     }
@@ -584,6 +589,23 @@ Status storeMongodOptions(const moe::Environment& params) {
     if (params.count("security.kmip.rotateMasterKey")) {
         encryptionGlobalParams.kmipRotateMasterKey =
             params["security.kmip.rotateMasterKey"].as<bool>();
+    }
+
+    if (params.count("security.kmip.activateKeys")) {
+        encryptionGlobalParams.kmipActivateKeys(params["security.kmip.activateKeys"].as<bool>());
+    }
+
+    if (params.count("security.kmip.keyStatePollingSeconds")) {
+        encryptionGlobalParams.kmipKeyStatePollingSeconds =
+            params["security.kmip.keyStatePollingSeconds"].as<int>();
+    }
+
+    if (params.count("security.kmip.useLegacyProtocol")) {
+        LOGV2_WARNING_OPTIONS(
+            29119,
+            {logv2::LogTag::kStartupWarnings},
+            "The security.kmip.useLegacyProtocol option was specified, but it has no effect. "
+            "KMIP protocol version 1.0 is always used.");
     }
 
     if (params.count("security.ldap.authz.queryTemplate")) {

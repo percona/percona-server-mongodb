@@ -21,6 +21,8 @@
 #
 last-continuous:
   all:
+  - test_file: jstests/aggregation/bugs/lookup_using_hashed_index.js
+    ticket: SERVER-92668
   - test_file: jstests/replsets/dbcheck_skip_applying_batch_on_secondary_parameter.js
     ticket: SERVER-88885
   - test_file: jstests/replsets/dbcheck_fails_on_write_concern_error.js
@@ -39,6 +41,8 @@ last-continuous:
     ticket: SERVER-51943
   - test_file: jstests/sharding/query/collation_shard_targeting_hashed_shard_key.js
     ticket: SERVER-53335
+  - test_file: jstests/core/index/elemmatch_index.js
+    ticket: SERVER-90747
   - test_file: jstests/sharding/migration_server_status.js
     ticket: SERVER-56186
   - test_file: jstests/sharding/cwwc_conflict_add_shard.js
@@ -499,9 +503,77 @@ last-continuous:
     ticket: SERVER-81454
   - test_file: jstests/sharding/move_chunk_deferred_lookup.js
     ticket: SERVER-89859
+  - test_file: jstests/sharding/secondaries_clear_filtering_metadata.js
+    ticket: SERVER-86669
+  - test_file: jstests/aggregation/unwind_sort.js
+    ticket: SERVER-90485
+  - test_file: jstests/aggregation/group_by_objectid.js
+    ticket: SERVER-90173
+  - test_file: jstests/aggregation/match_swapping_renamed_fields.js
+    ticket: SERVER-90869
+  - test_file: jstests/replsets/catchup_ignores_old_heartbeats.js
+    ticket: SERVER-86674
+  - test_file: jstests/aggregation/sources/redact/root_redact.js
+    ticket: SERVER-91339
+  - test_file: jstests/replsets/snapshot_read_drop_collection.js
+    ticket: SERVER-91178
+  - test_file: jstests/sharding/direct_shard_connection_auth.js
+    ticket: SERVER-89994
+  - test_file: jstests/core/timeseries/bucket_unpacking_with_sort.js
+    ticket: SERVER-90833
+  - test_file: jstests/core/write/bypass_empty_ts_replacement.js
+    ticket: SERVER-88750
+  - test_file: jstests/core/write/bypass_empty_ts_replacement_bulk_write.js
+    ticket: SERVER-88750
+  - test_file: jstests/core/write/bypass_empty_ts_replacement_timeseries.js
+    ticket: SERVER-88750
+  - test_file: jstests/core/timeseries/timeseries_groupby_reorder.js
+    ticket: SERVER-87961
+  - test_file: jstests/core/timeseries/timeseries_lastpoint.js
+    ticket: SERVER-87961
+  - test_file: jstests/core/timeseries/timeseries_shadowing_meta_project_pushdown.js
+    ticket: SERVER-90995
+  - test_file: jstests/change_streams/split_large_event.js
+    ticket: SERVER-91406
+  - test_file: jstests/aggregation/bugs/add_fields_adds_to_missing_fields.js
+    ticket: SERVER-91784
+  - test_file: jstests/core/query/plan_cache/match_or_duplicate_predicate_plan_cache.js
+    ticket: SERVER-92603
+  - test_file: jstests/core/index/geo/negated_geo_queries.js
+    ticket: SERVER-92193
+  - test_file: jstests/core/ddl/collmod.js
+    ticket: SERVER-84531
+  - test_file: jstests/core/timeseries/timeseries_insert_mixed_schema_bucket.js
+    ticket: SERVER-91195
+  - test_file: jstests/core/timeseries/timeseries_update_mixed_schema_bucket.js
+    ticket: SERVER-91195
+  - test_file: jstests/core/sparse_index_supports_ne_null.js
+    ticket: SERVER-37164
+  - test_file: jstests/core/timeseries/timeseries_insert_mixed_schema_bucket.js
+    ticket: SERVER-93099
+  - test_file: jstests/core/timeseries/timeseries_update_mixed_schema_bucket.js
+    ticket: SERVER-93099
+  - test_file: jstests/sharding/refresh_sessions.js
+    ticket: SERVER-94635
+  - test_file: jstests/core/query/project/projection_with_hashed_index.js
+    ticket: SERVER-91757
+  - test_file: jstests/change_streams/report_post_batch_resume_token.js
+    ticket: SERVER-92904
+  - test_file: jstests/core/ddl/create_indexes.js
+    ticket: SERVER-90952
+  - test_file: jstests/core/write/update/upsert_duplicate_key_retry_collation.js
+    ticket: SERVER-84089
+  - test_file: jstests/core/timeseries/timeseries_filter_extended_range.js
+    ticket: SERVER-94207
+  - test_file: jstests/core/query/find_all_values_at_path_expression.js
+    ticket: SERVER-95670
+  - test_file: jstests/sharding/query/owning_shard_expression.js
+    ticket: SERVER-95670
   suites: null
 last-lts:
   all:
+  - test_file: jstests/aggregation/bugs/lookup_using_hashed_index.js
+    ticket: SERVER-92668
   - test_file: jstests/replsets/dbcheck_skip_applying_batch_on_secondary_parameter.js
     ticket: SERVER-88885
   - test_file: jstests/replsets/dbcheck_fails_on_write_concern_error.js
@@ -584,6 +656,8 @@ last-lts:
     ticket: SERVER-55305
   - test_file: jstests/replsets/rollback_with_coalesced_txn_table_updates_from_vectored_inserts.js
     ticket: SERVER-55305
+  - test_file: jstests/core/index/elemmatch_index.js
+    ticket: SERVER-90747
   - test_file: jstests/sharding/migration_server_status.js
     ticket: SERVER-56186
   - test_file: jstests/sharding/time_zone_info_mongos.js
@@ -1048,4 +1122,72 @@ last-lts:
     ticket: SERVER-81454
   - test_file: jstests/sharding/move_chunk_deferred_lookup.js
     ticket: SERVER-89859
+  - test_file: jstests/sharding/secondaries_clear_filtering_metadata.js
+    ticket: SERVER-86669
+  - test_file: jstests/aggregation/unwind_sort.js
+    ticket: SERVER-90485
+  - test_file: jstests/aggregation/group_by_objectid.js
+    ticket: SERVER-90173
+  - test_file: jstests/aggregation/match_swapping_renamed_fields.js
+    ticket: SERVER-90869
+  - test_file: jstests/replsets/catchup_ignores_old_heartbeats.js
+    ticket: SERVER-86674
+  - test_file: jstests/aggregation/sources/redact/root_redact.js
+    ticket: SERVER-91339
+  - test_file: jstests/replsets/snapshot_read_drop_collection.js
+    ticket: SERVER-91178
+  - test_file: jstests/sharding/direct_shard_connection_auth.js
+    ticket: SERVER-89994
+  - test_file: jstests/core/timeseries/bucket_unpacking_with_sort.js
+    ticket: SERVER-90833
+  - test_file: jstests/core/write/bypass_empty_ts_replacement.js
+    ticket: SERVER-88750
+  - test_file: jstests/core/write/bypass_empty_ts_replacement_bulk_write.js
+    ticket: SERVER-88750
+  - test_file: jstests/core/write/bypass_empty_ts_replacement_timeseries.js
+    ticket: SERVER-88750
+  - test_file: jstests/core/timeseries/timeseries_groupby_reorder.js
+    ticket: SERVER-87961
+  - test_file: jstests/core/timeseries/timeseries_lastpoint.js
+    ticket: SERVER-87961
+  - test_file: jstests/core/timeseries/timeseries_shadowing_meta_project_pushdown.js
+    ticket: SERVER-90995
+  - test_file: jstests/change_streams/split_large_event.js
+    ticket: SERVER-91406
+  - test_file: jstests/aggregation/bugs/add_fields_adds_to_missing_fields.js
+    ticket: SERVER-91784
+  - test_file: jstests/core/query/plan_cache/match_or_duplicate_predicate_plan_cache.js
+    ticket: SERVER-92603
+  - test_file: jstests/core/index/geo/negated_geo_queries.js
+    ticket: SERVER-92193
+  - test_file: jstests/core/ddl/collmod.js
+    ticket: SERVER-84531
+  - test_file: jstests/replsets/backwards_compatible_timeseries_catalog_options.js
+    ticket: SERVER-91195
+  - test_file: jstests/core/timeseries/timeseries_insert_mixed_schema_bucket.js
+    ticket: SERVER-91195
+  - test_file: jstests/core/timeseries/timeseries_update_mixed_schema_bucket.js
+    ticket: SERVER-91195
+  - test_file: jstests/core/sparse_index_supports_ne_null.js
+    ticket: SERVER-37164
+  - test_file: jstests/core/timeseries/timeseries_insert_mixed_schema_bucket.js
+    ticket: SERVER-93099
+  - test_file: jstests/core/timeseries/timeseries_update_mixed_schema_bucket.js
+    ticket: SERVER-93099
+  - test_file: jstests/sharding/refresh_sessions.js
+    ticket: SERVER-94635
+  - test_file: jstests/core/query/project/projection_with_hashed_index.js
+    ticket: SERVER-91757
+  - test_file: jstests/change_streams/report_post_batch_resume_token.js
+    ticket: SERVER-92904
+  - test_file: jstests/core/ddl/create_indexes.js
+    ticket: SERVER-90952
+  - test_file: jstests/core/write/update/upsert_duplicate_key_retry_collation.js
+    ticket: SERVER-84089
+  - test_file: jstests/core/timeseries/timeseries_filter_extended_range.js
+    ticket: SERVER-94207
+  - test_file: jstests/core/query/find_all_values_at_path_expression.js
+    ticket: SERVER-95670
+  - test_file: jstests/sharding/query/owning_shard_expression.js
+    ticket: SERVER-95670
   suites: null

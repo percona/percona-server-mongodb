@@ -68,10 +68,13 @@ runDbCheck(replSet,
                maxDocsPerBatch: 20,
                minKey: {a: "0"},
                maxKey: {a: "199"},
-               batchWriteConcern: {w: 1},
+               batchWriteConcern: {w: 2},
                // , validateMode: "extraIndexKeysCheck", secondaryIndex: "a_1"
            },
            true /*awaitCompletion*/);
+
+// Wait to make sure that the secondary applied the stop entry before the ungraceful shutdown.
+replSet.awaitNodesAgreeOnAppliedOpTime();
 
 // Perform ungraceful shutdown of the secondary node and do not clean the db path directory.
 replSet.stop(
@@ -88,8 +91,6 @@ secondary = replSet.start(secondary,
                           {noCleanData: true});
 
 primary = replSet.getPrimary();
-
-replSet.awaitReplication();
 
 const primaryHealthLog = primary.getDB("local").system.healthlog;
 const secondaryHealthLog = secondary.getDB("local").system.healthlog;

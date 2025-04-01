@@ -190,11 +190,9 @@ static BSONObj createMatchStageJoinObj(const Document& input,
 
 }  // namespace
 
-DocumentSourceLookUp::DocumentSourceLookUp(
-    NamespaceString fromNs,
-    std::string as,
-    boost::optional<std::unique_ptr<CollatorInterface>> fromCollator,
-    const boost::intrusive_ptr<ExpressionContext>& expCtx)
+DocumentSourceLookUp::DocumentSourceLookUp(NamespaceString fromNs,
+                                           std::string as,
+                                           const boost::intrusive_ptr<ExpressionContext>& expCtx)
     : DocumentSource(kStageName, expCtx),
       _fromNs(std::move(fromNs)),
       _as(std::move(as)),
@@ -210,30 +208,28 @@ DocumentSourceLookUp::DocumentSourceLookUp(
 
     _fromExpCtx = expCtx->copyForSubPipeline(resolvedNamespace.ns, resolvedNamespace.uuid);
     _fromExpCtx->inLookup = true;
-    if (fromCollator) {
-        _fromExpCtx->setCollator(std::move(fromCollator.value()));
-        _hasExplicitCollation = true;
-    }
 }
 
-DocumentSourceLookUp::DocumentSourceLookUp(
-    NamespaceString fromNs,
-    std::string as,
-    std::string localField,
-    std::string foreignField,
-    boost::optional<std::unique_ptr<CollatorInterface>> fromCollator,
-    const boost::intrusive_ptr<ExpressionContext>& expCtx)
-    : DocumentSourceLookUp(fromNs, as, std::move(fromCollator), expCtx) {
+DocumentSourceLookUp::DocumentSourceLookUp(NamespaceString fromNs,
+                                           std::string as,
+                                           std::string localField,
+                                           std::string foreignField,
+                                           const boost::intrusive_ptr<ExpressionContext>& expCtx)
+    : DocumentSourceLookUp(fromNs, as, expCtx) {
     _localField = std::move(localField);
     _foreignField = std::move(foreignField);
 
     // We append an additional BSONObj to '_resolvedPipeline' as a placeholder for the $match stage
     // we'll eventually construct from the input document.
     _resolvedPipeline.reserve(_resolvedPipeline.size() + 1);
+
+    // Initialize the introspection pipeline before we insert the $match. This is okay because we do
+    // not use the introspection pipeline during/after query execution, which is when the $match is
+    // necessary.
+    initializeResolvedIntrospectionPipeline();
+
     _resolvedPipeline.push_back(BSON("$match" << BSONObj()));
     _fieldMatchPipelineIdx = _resolvedPipeline.size() - 1;
-
-    initializeResolvedIntrospectionPipeline();
 }
 
 std::vector<BSONObj> extractSourceStage(const std::vector<BSONObj>& pipeline) {
@@ -251,10 +247,9 @@ DocumentSourceLookUp::DocumentSourceLookUp(
     std::string as,
     std::vector<BSONObj> pipeline,
     BSONObj letVariables,
-    boost::optional<std::unique_ptr<CollatorInterface>> fromCollator,
     boost::optional<std::pair<std::string, std::string>> localForeignFields,
     const boost::intrusive_ptr<ExpressionContext>& expCtx)
-    : DocumentSourceLookUp(fromNs, as, std::move(fromCollator), expCtx) {
+    : DocumentSourceLookUp(fromNs, as, expCtx) {
     // '_resolvedPipeline' will first be initialized by the constructor delegated to within this
     // constructor's initializer list. It will be populated with view pipeline prefix if 'fromNs'
     // represents a view. We will then append stages to ensure any view prefix is not overwritten.
@@ -266,8 +261,9 @@ DocumentSourceLookUp::DocumentSourceLookUp(
         // the local/foreignField $match. It must next after $documents if present.
         auto sourceStages = extractSourceStage(pipeline);
         _resolvedPipeline.insert(_resolvedPipeline.end(), sourceStages.begin(), sourceStages.end());
-        _resolvedPipeline.push_back(BSON("$match" << BSONObj()));
-        _fieldMatchPipelineIdx = _resolvedPipeline.size() - 1;
+        // Save the correct position of the $match, but wait to insert it until we have finished
+        // constructing the pipeline and created the introspection pipeline below.
+        _fieldMatchPipelineIdx = _resolvedPipeline.size();
         // Add the user pipeline to '_resolvedPipeline' after any potential view prefix and $match
         _resolvedPipeline.insert(
             _resolvedPipeline.end(), pipeline.begin() + sourceStages.size(), pipeline.end());
@@ -292,7 +288,20 @@ DocumentSourceLookUp::DocumentSourceLookUp(
             _variablesParseState.defineVariable(varName));
     }
 
+    // Initialize the introspection pipeline before we insert the $match (if applicable). This is
+    // okay because we only use the introspection pipeline for reference while doing query analysis
+    // and analyzing involved dependencies/variables/collections/constraints. We do not use the
+    // introspection pipeline during/after query execution, which is when the $match is necessary.
+    // It wouldn't hurt anything to include the $match in this pipeline, but we also use the
+    // introspection pipeline in serialization, so it would be a bit odd to include an extra empty
+    // $match.
     initializeResolvedIntrospectionPipeline();
+
+    // Finally, insert the $match placeholder if we need it.
+    if (_fieldMatchPipelineIdx) {
+        _resolvedPipeline.insert(_resolvedPipeline.begin() + *_fieldMatchPipelineIdx,
+                                 BSON("$match" << BSONObj()));
+    }
 }
 
 DocumentSourceLookUp::DocumentSourceLookUp(const DocumentSourceLookUp& original,
@@ -308,10 +317,9 @@ DocumentSourceLookUp::DocumentSourceLookUp(const DocumentSourceLookUp& original,
       _variables(original._variables),
       _variablesParseState(original._variablesParseState.copyWith(_variables.useIdGenerator())),
       _fromExpCtx(original._fromExpCtx->copyWith(_resolvedNs, original._fromExpCtx->uuid)),
-      _hasExplicitCollation(original._hasExplicitCollation),
       _resolvedPipeline(original._resolvedPipeline),
       _userPipeline(original._userPipeline),
-      _resolvedIntrospectionPipeline(original._resolvedIntrospectionPipeline->clone()),
+      _resolvedIntrospectionPipeline(original._resolvedIntrospectionPipeline->clone(_fromExpCtx)),
       _letVariables(original._letVariables) {
     if (!_localField && !_foreignField) {
         _cache.emplace(internalDocumentSourceCursorBatchSizeBytes.load());
@@ -373,10 +381,8 @@ std::unique_ptr<DocumentSourceLookUp::LiteParsed> DocumentSourceLookUp::LitePars
         liteParsedPipeline = LiteParsedPipeline(fromNss, pipeline);
     }
 
-    bool hasInternalCollation = static_cast<bool>(specObj["_internalCollation"]);
-
     return std::make_unique<DocumentSourceLookUp::LiteParsed>(
-        spec.fieldName(), std::move(fromNss), std::move(liteParsedPipeline), hasInternalCollation);
+        spec.fieldName(), std::move(fromNss), std::move(liteParsedPipeline));
 }
 
 PrivilegeVector DocumentSourceLookUp::LiteParsed::requiredPrivileges(
@@ -430,8 +436,6 @@ void DocumentSourceLookUp::determineSbeCompatibility() {
         // than indexes into arrays, which is compatible with SBE.)
         && !FieldRef(_localField->fullPath()).hasNumericPathComponents() &&
         !FieldRef(_foreignField->fullPath()).hasNumericPathComponents()
-        // Setting a collator on an individual $lookup stage with _internalCollation isn't supported
-        && !_hasExplicitCollation
         // We currently don't lower $lookup against views ('_fromNs' does not correspond to a
         // view).
         && pExpCtx->getResolvedNamespace(_fromNs).pipeline.empty();
@@ -856,12 +860,14 @@ Pipeline::SourceContainer::iterator DocumentSourceLookUp::doOptimizeAt(
     bool isMatchOnlyOnAs = true;
     auto computeWhetherMatchOnAs = [&isMatchOnlyOnAs, &outputPath](MatchExpression* expression,
                                                                    std::string path) -> void {
-        // If 'expression' is the child of a $elemMatch, we cannot internalize the $match. For
-        // example, {b: {$elemMatch: {$gt: 1, $lt: 4}}}, where "b" is our "_as" field. This is
-        // because there's no way to modify the expression to be a match just on 'b'--we cannot
-        // change the path to an empty string, or remove the node entirely.
-        if (expression->matchType() == MatchExpression::ELEM_MATCH_VALUE ||
-            expression->matchType() == MatchExpression::ELEM_MATCH_OBJECT) {
+        // There are certain situations where this rewrite would not be correct. For example,
+        // if 'expression' is the child of a value $elemMatch, we cannot internalize the $match.
+        // Consider {b: {$elemMatch: {$gt: 1, $lt: 4}}}, where "b" is our "_as" field. This rewrite
+        // is not supported because there's no way to modify the expression to be a match just on
+        // 'b'--we cannot change the path to an empty string, or remove the node entirely.
+        // For other internal nodes with paths, we don't support the rewrite to keep the
+        // descendMatchOnPath implementation simple.
+        if (MatchExpression::isInternalNodeWithPath(expression->matchType())) {
             isMatchOnlyOnAs = false;
         }
         if (expression->numChildren() == 0) {
@@ -1082,12 +1088,20 @@ void DocumentSourceLookUp::serializeToArray(std::vector<Value>& array,
     // Add a pipeline field if only-pipeline syntax was used (to ensure the output is valid $lookup
     // syntax) or if a $match was absorbed.
     auto serializedPipeline = [&]() -> std::vector<BSONObj> {
-        auto pipeline = _userPipeline.get_value_or(std::vector<BSONObj>());
+        if (!_userPipeline) {
+            return std::vector<BSONObj>{};
+        }
         if (opts.transformIdentifiers ||
             opts.literalPolicy != LiteralSerializationPolicy::kUnchanged) {
-            return Pipeline::parse(pipeline, _fromExpCtx)->serializeToBson(opts);
+            return Pipeline::parse(*_userPipeline, _fromExpCtx, lookupPipeValidator)
+                ->serializeToBson(opts);
         }
-        return pipeline;
+        if (opts.serializeForQueryAnalysis) {
+            // If we are in query analysis, encrypted fields will have been marked in the
+            // introspection pipeline, so we need to serialize that here.
+            return _resolvedIntrospectionPipeline->serializeToBson(opts);
+        }
+        return *_userPipeline;
     }();
     if (_additionalFilter) {
         auto serializedFilter = [&]() -> BSONObj {
@@ -1110,10 +1124,6 @@ void DocumentSourceLookUp::serializeToArray(std::vector<Value>& array,
         output[getSourceName()]["let"] = Value(exprList.freeze());
 
         output[getSourceName()]["pipeline"] = Value(serializedPipeline);
-    }
-
-    if (_hasExplicitCollation) {
-        output[getSourceName()]["_internalCollation"] = Value(_fromExpCtx->getCollatorBSON());
     }
 
     if (opts.verbosity) {
@@ -1281,7 +1291,6 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
     std::vector<BSONObj> pipeline;
     bool hasPipeline = false;
     bool hasLet = false;
-    boost::optional<std::unique_ptr<CollatorInterface>> fromCollator;
 
     for (auto&& argument : elem.Obj()) {
         const auto argName = argument.fieldNameStringData();
@@ -1304,16 +1313,6 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
 
         if (argName == kFromField) {
             fromNs = parseLookupFromAndResolveNamespace(argument, pExpCtx->ns.dbName());
-            continue;
-        }
-
-        if (argName == "_internalCollation"_sd) {
-            const auto& collationSpec = argument.Obj();
-            if (!collationSpec.isEmpty()) {
-                fromCollator.emplace(uassertStatusOK(
-                    CollatorFactoryInterface::get(pExpCtx->opCtx->getServiceContext())
-                        ->makeFromBSON(collationSpec)));
-            }
             continue;
         }
 
@@ -1348,7 +1347,6 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
                                                    std::move(as),
                                                    std::move(pipeline),
                                                    std::move(letVariables),
-                                                   std::move(fromCollator),
                                                    boost::none,
                                                    pExpCtx);
         } else {
@@ -1363,7 +1361,6 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
                                          std::move(as),
                                          std::move(pipeline),
                                          std::move(letVariables),
-                                         std::move(fromCollator),
                                          std::pair(std::move(localField), std::move(foreignField)),
                                          pExpCtx);
         }
@@ -1381,7 +1378,6 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
                                                std::move(as),
                                                std::move(localField),
                                                std::move(foreignField),
-                                               std::move(fromCollator),
                                                pExpCtx);
     }
     lookupStage->determineSbeCompatibility();

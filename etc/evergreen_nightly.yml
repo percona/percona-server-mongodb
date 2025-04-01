@@ -6,7 +6,6 @@ include:
 - filename: etc/evergreen_yml_components/variants/task_generation.yml
 - filename: etc/evergreen_yml_components/variants/atlas.yml
 - filename: etc/evergreen_yml_components/variants/misc_release.yml
-- filename: etc/evergreen_yml_components/variants/openssl_111.yml
 ### Comment out when using this file for a Rapid release branch. ###
 - filename: etc/evergreen_yml_components/variants/ibm.yml
 ### Uncomment when using this file for a LTS release branch. ###
@@ -18,8 +17,6 @@ include:
 - filename: etc/evergreen_yml_components/variants/compile_static_analysis.yml
 ### Uncomment when using this file for a LTS or Rapid release branch. ###
 - filename: etc/evergreen_yml_components/variants/classic_engine.yml
-### Uncomment when using this file for a LTS or Rapid release branch. ###
-- filename: etc/evergreen_yml_components/variants/query_stats.yml
 ### Uncomment when using this file for a LTS or Rapid release branch. ###
 # TODO: (SERVER-86211) Re-enable config shard evergreen variant.
 # - filename: etc/evergreen_yml_components/variants/config_shard.yml
@@ -76,6 +73,7 @@ variables:
 
 - &linux_x86_generic_expansions
   multiversion_platform: rhel80
+  multiversion_platform_50_or_later: rhel8
   multiversion_edition: enterprise
   repo_edition: enterprise
   large_distro_name: rhel80-medium
@@ -102,7 +100,7 @@ buildvariants:
   - rhel80-medium
   expansions:
     resmoke_jobs_factor: 0.5  # Avoid starting too many mongod's
-    test_flags: --excludeWithAnyTags=requires_http_client --enableEnterpriseTests=off
+    test_flags: --excludeWithAnyTags=requires_http_client,requires_latch_analyzer --enableEnterpriseTests=off
     target_resmoke_time: 15
     max_sub_suites: 5
     large_distro_name: rhel80-medium
@@ -162,7 +160,7 @@ buildvariants:
     push_bucket: downloads.10gen.com
     push_name: windows
     push_arch: x86_64-enterprise
-    test_flags: --excludeWithAnyTags=incompatible_with_windows_tls
+    test_flags: --excludeWithAnyTags=incompatible_with_windows_tls,requires_latch_analyzer
     external_auth_jobs_max: 1
   tasks:
   - name: burn_in_tests_gen
@@ -197,18 +195,19 @@ buildvariants:
     distros:
     - windows-vsCurrent-large
   - name: sasl
+  - name: sasl_windows_cyrussasl
   - name: .sharding .txns
   - name: sharding_auth_audit_gen
   - name: sharding_max_mirroring_opportunistic_secondary_targeting_ese_gen
 
-- &enterprise-rhel-80-64-bit-dynamic-template
+- &enterprise-rhel-8-64-bit-dynamic-template
   <<: *linux_x86_dynamic_compile_variant_dependency
-  name: &enterprise-rhel-80-64-bit-dynamic-required enterprise-rhel-80-64-bit-dynamic-required
-  display_name: "! Shared Library Enterprise RHEL 8.0"
+  name: &enterprise-rhel-8-64-bit-dynamic-required enterprise-rhel-8-64-bit-dynamic-required
+  display_name: "! Shared Library Enterprise RHEL 8"
   cron: "0 */4 * * *" # From the ${project_required_suggested_cron} parameter
   run_on:
   - rhel80-small
-  expansions: &enterprise-rhel-80-64-bit-dynamic-expansions
+  expansions: &enterprise-rhel-8-64-bit-dynamic-expansions
     <<: *linux_x86_generic_expansions
     scons_cache_scope: shared
     scons_cache_mode: all
@@ -221,9 +220,10 @@ buildvariants:
     exec_timeout_factor: 1.5
     large_distro_name: rhel80-medium
     burn_in_tag_buildvariants: >-
-      enterprise-rhel-80-64-bit-inmem
-      enterprise-rhel-80-64-bit-multiversion
+      enterprise-rhel-8-64-bit-inmem
+      enterprise-rhel-8-64-bit-multiversion
     burn_in_tag_compile_task_dependency: archive_dist_test_debug
+    test_flags: --excludeWithAnyTags=requires_latch_analyzer
   depends_on:
   - name: archive_dist_test_debug
     variant: *linux_x86_dynamic_compile_variant_name
@@ -277,6 +277,10 @@ buildvariants:
   - name: multi_stmt_txn_jscore_passthrough_with_migration_gen
   - name: multiversion_gen
   - name: .query_fuzzer
+  - name: query_stats_aggregation_passthrough
+  - name: query_stats_mongos_aggregation_passthrough
+  - name: query_stats_mongos_passthrough
+  - name: query_stats_passthrough
   - name: .random_multiversion_ds
   - name: .read_write_concern .large
     distros:
@@ -319,10 +323,10 @@ buildvariants:
   - name: vector_search_auth
   - name: vector_search_ssl
 
-- &rhel80-debug-aubsan-lite-template
+- &rhel8-debug-aubsan-lite-template
   <<: *linux_debug_aubsan_compile_variant_dependency
-  name: &rhel80-debug-aubsan-lite-required rhel80-debug-aubsan-lite-required
-  display_name: "! Shared Library {A,UB}SAN Enterprise RHEL 8.0 DEBUG"
+  name: &rhel8-debug-aubsan-lite-required rhel8-debug-aubsan-lite-required
+  display_name: "! Shared Library {A,UB}SAN Enterprise RHEL 8 DEBUG"
   cron: "0 */4 * * *" # From the ${project_required_suggested_cron} parameter
   run_on:
   - rhel80-build
@@ -330,13 +334,14 @@ buildvariants:
     compile_variant: *linux_debug_aubsan_compile_variant_name
     lang_environment: LANG=C
     san_options: *aubsan_options
-    test_flags: --excludeWithAnyTags=requires_ocsp_stapling
+    test_flags: --excludeWithAnyTags=requires_ocsp_stapling,requires_latch_analyzer
     resmoke_jobs_factor: 0.3  # Avoid starting too many mongod's under {A,UB}SAN build.
     hang_analyzer_dump_core: false
     max_sub_suites: 3
     num_scons_link_jobs_available: 0.99
     large_distro_name: rhel80-build
     multiversion_platform: rhel80
+    multiversion_platform_50_or_later: rhel8
     multiversion_edition: enterprise
     gcov_tool: /opt/mongodbtoolchain/v4/bin/gcov
   tasks:
@@ -354,7 +359,7 @@ buildvariants:
     burn_in_tag_exclude_build_variants: >-
       macos-debug-suggested
     burn_in_tag_include_build_variants: >-
-      enterprise-rhel-80-64-bit-inmem
+      enterprise-rhel-8-64-bit-inmem
     burn_in_tag_compile_task_dependency: archive_dist_test_debug
     compile_variant: *linux_x86_dynamic_compile_variant_name
   depends_on:
@@ -373,7 +378,7 @@ buildvariants:
   tasks:
   - name: burn_in_tags_gen
 
-- <<: *enterprise-rhel-80-64-bit-dynamic-template
+- <<: *enterprise-rhel-8-64-bit-dynamic-template
   name: &commit-queue commit-queue
   display_name: "~ Commit Queue"
   cron: "0 4 * * 0" # From the ${project_weekly_cron} parameter
@@ -397,6 +402,7 @@ buildvariants:
     clang_tidy_toolchain: v4
     num_scons_unit_cc_jobs_available: 0.75
     compile_variant: *commit-queue
+    test_flags: --excludeWithAnyTags=requires_latch_analyzer
   depends_on: []
   tasks:
   - name: compile_ninja_quick_TG

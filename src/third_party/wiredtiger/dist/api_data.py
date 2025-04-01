@@ -628,6 +628,14 @@ connection_runtime_config = [
                 cache. The number of threads currently running will vary depending on the
                 current eviction load''',
                 min=1, max=20),
+            Config('evict_sample_inmem', 'true', r'''
+                If no in-memory ref is found on the root page, attempt to locate a random
+                in-memory page by examining all entries on the root page.''',
+                type='boolean'),
+            Config('legacy_page_visit_strategy', 'false', r'''
+                Use legacy page visit strategy for eviction. Using this option is highly discouraged
+                as it will re-introduce the bug described in WT-9121.''',
+                type='boolean'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
@@ -676,17 +684,17 @@ connection_runtime_config = [
         setting only alters behavior if it is lower than \c eviction_trigger''',
         min=0, max='10TB'),
     Config('extra_diagnostics', '[]', r'''
-        enable additional diagnostics in WiredTiger. These additional diagnostics include 
-        diagnostic assertions that can cause WiredTiger to abort when an invalid state 
+        enable additional diagnostics in WiredTiger. These additional diagnostics include
+        diagnostic assertions that can cause WiredTiger to abort when an invalid state
         is detected.
-        Options are given as a list, such as 
+        Options are given as a list, such as
         <code>"extra_diagnostics=[out_of_order,visibility]"</code>.
-        Choosing \c all enables all assertions. When WiredTiger is compiled with 
+        Choosing \c all enables all assertions. When WiredTiger is compiled with
         \c HAVE_DIAGNOSTIC=1 all assertions are enabled and cannot be reconfigured
         ''',
         type='list', choices=[
-            "all", "checkpoint_validate", "cursor_check", "disk_validate", "eviction_check", 
-            "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared", 
+            "all", "checkpoint_validate", "cursor_check", "disk_validate", "eviction_check",
+            "generation_check", "hs_validate", "key_out_of_order", "log_validate", "prepared",
             "slow_operation", "txn_visibility"]),
     Config('file_manager', '', r'''
         control how file handles are managed''',
@@ -1839,6 +1847,8 @@ methods = {
 ]),
 
 'WT_CONNECTION.debug_info' : Method([
+    Config('backup', 'false', r'''
+        print incremental backup information''', type='boolean'),
     Config('cache', 'false', r'''
         print cache information''', type='boolean'),
     Config('cursors', 'false', r'''

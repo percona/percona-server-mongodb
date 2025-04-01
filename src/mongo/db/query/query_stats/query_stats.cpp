@@ -110,7 +110,7 @@ void assertConfigurationAllowed() {
             "Cannot configure queryStats store. The feature flag is not enabled. Please restart "
             "and specify the feature flag, or upgrade the feature compatibility version to one "
             "where it is enabled by default.",
-            isQueryStatsFeatureEnabled(/* requiresFullQueryStatsFeatureFlag = */ false));
+            isQueryStatsFeatureEnabled());
 }
 
 class QueryStatsOnParamChangeUpdaterImpl final : public query_stats_util::OnParamChangeUpdater {
@@ -153,7 +153,7 @@ ServiceContext::ConstructorActionRegisterer queryStatsStoreManagerRegisterer{
         // number of cores. The size needs to be cast to a double since we want to round up the
         // number of partitions, and therefore need to avoid int division.
         size_t numPartitions = std::ceil(double(size) / (16 * 1024 * 1024));
-        auto numLogicalCores = ProcessInfo::getNumCores();
+        auto numLogicalCores = ProcessInfo::getNumLogicalCores();
         if (numPartitions < numLogicalCores) {
             numPartitions = numLogicalCores;
         }
@@ -168,13 +168,12 @@ ServiceContext::ConstructorActionRegisterer queryStatsStoreManagerRegisterer{
 /**
  * Top-level checks for whether queryStats collection is enabled. If this returns false, we must go
  * no further.
- * TODO SERVER-79494 Remove requiresFullQueryStatsFeatureFlag parameter.
  */
-bool isQueryStatsEnabled(const ServiceContext* serviceCtx, bool requiresFullQueryStatsFeatureFlag) {
+bool isQueryStatsEnabled(const ServiceContext* serviceCtx) {
     // During initialization, FCV may not yet be setup but queries could be run. We can't
     // check whether queryStats should be enabled without FCV, so default to not recording
     // those queries.
-    return isQueryStatsFeatureEnabled(requiresFullQueryStatsFeatureFlag) &&
+    return isQueryStatsFeatureEnabled() &&
         QueryStatsStoreManager::get(serviceCtx)->getMaxSize() > 0;
 }
 
@@ -222,25 +221,21 @@ void updateStatistics(const QueryStatsStore::Partition& proofOfLock,
 
 }  // namespace
 
-bool isQueryStatsFeatureEnabled(bool requiresFullQueryStatsFeatureFlag) {
+bool isQueryStatsFeatureEnabled() {
     const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
     return fcvSnapshot.isVersionInitialized() &&
-        (feature_flags::gFeatureFlagQueryStats.isEnabled(fcvSnapshot) ||
-         (!requiresFullQueryStatsFeatureFlag &&
-          feature_flags::gFeatureFlagQueryStatsFindCommand.isEnabled(fcvSnapshot)));
+        (feature_flags::gFeatureFlagQueryStats.isEnabled(fcvSnapshot));
 }
 
 void registerRequest(OperationContext* opCtx,
                      const NamespaceString& collection,
                      std::function<std::unique_ptr<Key>(void)> makeKey,
-                     bool requiresFullQueryStatsFeatureFlag,
                      bool willNeverExhaust) {
-    if (!isQueryStatsEnabled(opCtx->getServiceContext(), requiresFullQueryStatsFeatureFlag)) {
+    if (!isQueryStatsEnabled(opCtx->getServiceContext())) {
         LOGV2_DEBUG(8473000,
                     5,
                     "not collecting query stats for this request since it is disabled",
-                    "featureEnabled"_attr =
-                        isQueryStatsFeatureEnabled(requiresFullQueryStatsFeatureFlag));
+                    "featureEnabled"_attr = isQueryStatsFeatureEnabled());
         return;
     }
 
@@ -288,12 +283,38 @@ void registerRequest(OperationContext* opCtx,
     // original query from queryStats metrics collection and let it execute normally.
     try {
         opDebug.queryStatsInfo.key = makeKey();
-    } catch (ExceptionFor<ErrorCodes::BSONObjectTooLarge>&) {
-        LOGV2_DEBUG(7979400,
-                    1,
-                    "Query Stats shapification has exceeded the 16 MB memory limit. Metrics will "
-                    "not be collected ");
+    } catch (const DBException& ex) {
         queryStatsStoreWriteErrorsMetric.increment();
+
+        const auto status = ex.toStatus();
+        if (status.code() == ErrorCodes::BSONObjectTooLarge) {
+            LOGV2_DEBUG(7979400,
+                        2,
+                        "Query Stats shapification has exceeded the 16 MB memory limit. Metrics "
+                        "will not be collected");
+            return;
+        }
+
+        const auto& cmdObj = CurOp::get(opCtx)->opDescription();
+        LOGV2_DEBUG(9423100,
+                    2,
+                    "Error encountered when creating the Query Stats store key. Metrics will not "
+                    "be collected for this command",
+                    "status"_attr = status,
+                    "command"_attr = cmdObj);
+        if (kDebugBuild || internalQueryStatsErrorsAreCommandFatal.load()) {
+            // uassert rather than tassert so that we avoid creating fatal failures on queries that
+            // were going to fail anyway, but trigger the error here first. A query that ONLY fails
+            // when query stats is enabled will still be surfaced by the uassert.
+            // Note that in the former case, these queries will fail with a different error code
+            // than they would have otherwise. Since this block is only applicable in test
+            // environments, this is fine. We make this tradeoff because it is desirable to have
+            // real bugs clearly surfaced as query stats issues.
+            uasserted(9423101,
+                      str::stream() << "Failed to create query stats store key. Status: " << status
+                                    << " Command: " << cmdObj);
+        }
+
         return;
     }
     opDebug.queryStatsInfo.keyHash = absl::HashOf(*opDebug.queryStatsInfo.key);
@@ -307,8 +328,7 @@ QueryStatsStore& getQueryStatsStore(OperationContext* opCtx) {
     uassert(6579000,
             "Query stats is not enabled without the feature flag on and a cache size greater than "
             "0 bytes",
-            isQueryStatsEnabled(opCtx->getServiceContext(),
-                                /*requiresFullQueryStatsFeatureFlag*/ false));
+            isQueryStatsEnabled(opCtx->getServiceContext()));
     return QueryStatsStoreManager::get(opCtx->getServiceContext())->getQueryStatsStore();
 }
 
@@ -331,8 +351,7 @@ void writeQueryStats(OperationContext* opCtx,
     // (e.g., by FCV downgrade or setting the store size to 0). Rather than calling
     // getQueryStatsStore (which would trigger a uassert if queryStats is disabled), we return and
     // log a message if query stats is disabled, and otherwise grab the query stats store directly.
-    if (!isQueryStatsEnabled(opCtx->getServiceContext(),
-                             /*requiresFullQueryStatsFeatureFlag*/ false)) {
+    if (!isQueryStatsEnabled(opCtx->getServiceContext())) {
         LOGV2_DEBUG(8456700,
                     2,
                     "Query stats was enabled when the command started but is now disabled. "

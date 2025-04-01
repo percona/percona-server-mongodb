@@ -1,6 +1,10 @@
 /**
  * Tests hedging metrics in the serverStatus output.
- * @tags: [requires_fcv_70]
+ * @tags: [
+ *    requires_fcv_70,
+ *    # Disable windows testing as this feature is deprecated in v8.0.
+ *    incompatible_with_windows_tls,
+ * ]
  */
 (function() {
 "use strict";
@@ -143,7 +147,9 @@ try {
     setCommandDelay(sortedNodes[0], "count", kBlockCmdTimeMS, ns);
 
     // Make the hedged request block for a while to allow the operation to start on the other node.
-    setCommandDelay(sortedNodes[1], "count", 100, ns);
+    // The delay is intentionally large so we avoid the race where a killOp can arrive before the
+    // request.
+    setCommandDelay(sortedNodes[1], "count", 1000, ns);
 
     const comment = "test_kill_initial_request_" + ObjectId();
     assert.commandWorked(testDB.runCommand({
@@ -174,7 +180,9 @@ try {
     setCommandDelay(sortedNodes[1], "count", kBlockCmdTimeMS, ns);
 
     // Make the initial request block for a while to allow the operation to start on the other node.
-    setCommandDelay(sortedNodes[0], "count", 100, ns);
+    // The delay is intentionally large so we avoid the race where a killOp can arrive before the
+    // request.
+    setCommandDelay(sortedNodes[0], "count", 1000, ns);
 
     const comment = "test_kill_additional_request_" + ObjectId();
     assert.commandWorked(testDB.runCommand({

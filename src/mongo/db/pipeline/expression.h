@@ -3265,10 +3265,14 @@ public:
     FieldPath getFieldPath() const {
         auto inputConstExpression = dynamic_cast<ExpressionConstant*>(_children[0].get());
         uassert(5511201,
-                "Expected const expression as argument to _internalUnwindAllAlongPath",
+                "Expected const expression as argument to _internalFindAllValuesAtPath",
                 inputConstExpression);
         auto constVal = inputConstExpression->getValue();
-        // getString asserts if type != string, which is the correct behavior for what we want.
+
+        uassert(9567004,
+                str::stream() << getOpName() << " requires argument to be a string",
+                constVal.getType() == BSONType::String);
+
         return FieldPath(constVal.getString());
     }
 };
@@ -4484,7 +4488,8 @@ public:
                        boost::intrusive_ptr<Expression> field,
                        boost::intrusive_ptr<Expression> input,
                        boost::intrusive_ptr<Expression> value)
-        : Expression(expCtx, {std::move(field), std::move(input), std::move(value)}) {
+        : Expression(expCtx, {std::move(field), std::move(input), std::move(value)}),
+          _fieldName(getValidFieldName(_children[_kField])) {
         expCtx->sbeCompatibility = SbeCompatibility::notCompatible;
     }
 
@@ -4505,6 +4510,15 @@ public:
     static constexpr auto kExpressionName = "$setField"_sd;
 
 private:
+    /**
+     * Ensures 'fieldExpr' is a constant string representing a valid field name and returns it as a
+     * string. If 'fieldExpr' is not valid, this function will throw a 'uassert()'.
+     */
+    std::string getValidFieldName(boost::intrusive_ptr<Expression> fieldExpr);
+
+    // This is pre-validated by the constructor.
+    const std::string _fieldName;
+
     static constexpr size_t _kField = 0;
     static constexpr size_t _kInput = 1;
     static constexpr size_t _kValue = 2;

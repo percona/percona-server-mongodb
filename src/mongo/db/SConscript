@@ -47,6 +47,7 @@ env.SConscript(
         'sorter',
         'stats',
         'storage',
+        'telemetry',
         'timeseries',
         'transaction',
         'update',
@@ -738,6 +739,17 @@ if has_option('audit'):
             'audit',
             'commands'
         ],
+    )
+
+    env.CppUnitTest(
+        target='audit_test',
+        source=[
+            'audit/audit_options_test.cpp',
+        ],
+        LIBDEPS=[
+            'audit',
+            'server_options_base',
+        ]
     )
 else:
     env.Clone().InjectModule("enterprise").Library(
@@ -2473,6 +2485,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/pipeline/change_stream_expired_pre_image_remover',
         '$BUILD_DIR/mongo/db/s/query_analysis_writer',
         '$BUILD_DIR/mongo/db/set_change_stream_state_coordinator',
+        '$BUILD_DIR/mongo/db/telemetry/telemetry_d',
         '$BUILD_DIR/mongo/idl/cluster_server_parameter',
         '$BUILD_DIR/mongo/idl/cluster_server_parameter_initializer',
         '$BUILD_DIR/mongo/idl/cluster_server_parameter_op_observer',

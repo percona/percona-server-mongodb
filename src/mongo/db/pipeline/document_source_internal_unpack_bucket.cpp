@@ -247,7 +247,6 @@ DocumentSourceInternalUnpackBucket::DocumentSourceInternalUnpackBucket(
     bool assumeNoMixedSchemaData)
     : DocumentSource(kStageNameInternal, expCtx),
       _assumeNoMixedSchemaData(assumeNoMixedSchemaData),
-
       _bucketUnpacker(std::move(bucketUnpacker)),
       _bucketMaxSpanSeconds{bucketMaxSpanSeconds} {}
 
@@ -408,6 +407,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
                                   << " field must be an object, got: " << elem.type(),
                     elem.type() == BSONType::Object);
             wholeBucketFilterBson = elem.Obj();
+        } else if (fieldName == kSbeCompatible) {
+            // A 8.0 mongod my send 'kSbeCompatible' flag to a 7.0 node in a mixed version cluster.
+            // The 7.0 node should not throw an error for this case. Since SBE for time-series is
+            // not available in 7.0, this flag should be ignored.
         } else {
             uasserted(5346506,
                       str::stream()
@@ -623,49 +626,73 @@ DocumentSource::GetNextResult DocumentSourceInternalUnpackBucket::doGetNext() {
     return nextResult;
 }
 
-bool DocumentSourceInternalUnpackBucket::pushDownComputedMetaProjection(
+boost::optional<Pipeline::SourceContainer::iterator>
+DocumentSourceInternalUnpackBucket::pushDownComputedMetaProjection(
     Pipeline::SourceContainer::iterator itr, Pipeline::SourceContainer* container) {
-    bool nextStageWasRemoved = false;
-    if (std::next(itr) == container->end()) {
-        return nextStageWasRemoved;
+    if (_eventFilter || std::next(itr) == container->end()) {
+        return boost::none;
     }
-    if (!_bucketUnpacker.getMetaField() || !_bucketUnpacker.includeMetaField()) {
-        return nextStageWasRemoved;
+    if (!_bucketUnpacker.getMetaField() || !_bucketUnpacker.includeMetaField() ||
+        !_bucketUnpacker.bucketSpec().computedMetaProjFields().empty()) {
+        return boost::none;
     }
 
-    if (auto nextTransform =
-            dynamic_cast<DocumentSourceSingleDocumentTransformation*>(std::next(itr)->get());
-        nextTransform &&
-        (nextTransform->getType() == TransformerInterface::TransformerType::kInclusionProjection ||
-         nextTransform->getType() == TransformerInterface::TransformerType::kComputedProjection)) {
+    auto nextTransform =
+        dynamic_cast<DocumentSourceSingleDocumentTransformation*>(std::next(itr)->get());
+    if (!nextTransform) {
+        return boost::none;
+    }
 
-        auto& metaName = _bucketUnpacker.bucketSpec().metaField().value();
-        auto [addFieldsSpec, deleteStage] =
-            nextTransform->extractComputedProjections(metaName,
-                                                      timeseries::kBucketMetaFieldName.toString(),
-                                                      BucketUnpacker::reservedBucketFieldNames);
-        nextStageWasRemoved = deleteStage;
+    if (auto transformType = nextTransform->getType();
+        (transformType != TransformerInterface::TransformerType::kInclusionProjection &&
+         transformType != TransformerInterface::TransformerType::kComputedProjection)) {
+        return boost::none;
+    }
 
-        if (!addFieldsSpec.isEmpty()) {
-            // Extend bucket specification of this stage to include the computed meta projections
-            // that are passed through.
-            std::vector<StringData> computedMetaProjFields;
-            for (auto&& elem : addFieldsSpec) {
-                computedMetaProjFields.emplace_back(elem.fieldName());
-            }
-            _bucketUnpacker.addComputedMetaProjFields(computedMetaProjFields);
-            // Insert extracted computed projections before the $_internalUnpackBucket.
-            container->insert(
-                itr,
-                DocumentSourceAddFields::createFromBson(
-                    BSON("$addFields" << addFieldsSpec).firstElement(), getContext()));
-            // Remove the next stage if it became empty after the field extraction.
-            if (deleteStage) {
-                container->erase(std::next(itr));
-            }
+    // We should remember which $project / $addFields we have applied this optimization to and don't
+    // reapply this optimization as this method makes the optimization process restart at the newly
+    // pushed down stage which is inserted before $_internalUnpackBucket. Otherwise, an infinite
+    // optimization loop will be formed.
+    if (std::find(_triedComputedMetaPushDownFor.begin(),
+                  _triedComputedMetaPushDownFor.end(),
+                  nextTransform) != _triedComputedMetaPushDownFor.end()) {
+        return boost::none;
+    }
+    _triedComputedMetaPushDownFor.push_back(nextTransform);
+
+    auto& metaName = _bucketUnpacker.bucketSpec().metaField().value();
+    auto [addFieldsSpec, deleteStage] =
+        nextTransform->extractComputedProjections(metaName,
+                                                  timeseries::kBucketMetaFieldName.toString(),
+                                                  BucketUnpacker::reservedBucketFieldNames);
+    if (addFieldsSpec.isEmpty()) {
+        return boost::none;
+    }
+
+    // Extend bucket specification of this stage to include the computed meta projections that are
+    // passed through.
+    std::vector<StringData> computedMetaProjFields;
+    for (auto&& elem : addFieldsSpec) {
+        // If the added field name is same as 'meta', it should be treated as if it's the new 'meta'
+        // since it shadows the original 'meta' and so it should not be considered as "computed".
+        // Otherwise, it would disable several optimizations that needs the condition of no computed
+        // meta.
+        if (elem.fieldName() != timeseries::kBucketMetaFieldName) {
+            computedMetaProjFields.emplace_back(elem.fieldName());
         }
     }
-    return nextStageWasRemoved;
+
+    _bucketUnpacker.addComputedMetaProjFields(computedMetaProjFields);
+    // Insert extracted computed projections before the $_internalUnpackBucket.
+    container->insert(itr,
+                      DocumentSourceAddFields::createFromBson(
+                          BSON("$addFields" << addFieldsSpec).firstElement(), getContext()));
+    // Remove the next stage if it became empty after the field extraction.
+    if (deleteStage) {
+        container->erase(std::next(itr));
+        return std::prev(itr) == container->begin() ? std::prev(itr) : std::prev(std::prev(itr));
+    }
+    return std::prev(itr);
 }
 
 void DocumentSourceInternalUnpackBucket::internalizeProject(const BSONObj& project,
@@ -762,10 +789,11 @@ DocumentSourceInternalUnpackBucket::rewriteGroupByMinMax(Pipeline::SourceContain
         return {};
     }
 
-    if (!_bucketUnpacker.bucketSpec().metaField()) {
+    auto bucketSpec = _bucketUnpacker.bucketSpec();
+    if (!bucketSpec.metaField()) {
         return {};
     }
-    const auto& metaField = *_bucketUnpacker.bucketSpec().metaField();
+    const auto& metaField = *bucketSpec.metaField();
 
     const auto& idFields = groupPtr->getIdFields();
 
@@ -787,7 +815,8 @@ DocumentSourceInternalUnpackBucket::rewriteGroupByMinMax(Pipeline::SourceContain
     const auto& idPath = exprIdPath->getFieldPath();
     // {The path must be at or under the metaField for this re-write to be correct (and the zero
     // component is always CURRENT).}
-    if (idPath.getPathLength() < 2 || idPath.getFieldName(1) != metaField) {
+    if (idPath.getPathLength() < 2 || idPath.getFieldName(1) != metaField ||
+        !bucketSpec.doesBucketSpecProvideField(metaField)) {
         return {};
     }
 
@@ -818,11 +847,12 @@ DocumentSourceInternalUnpackBucket::rewriteGroupByMinMax(Pipeline::SourceContain
         if (path.getPathLength() <= 1) {
             return {};
         }
-        const auto& accFieldName = path.getFieldName(1);
+        const auto& accFieldName = path.getFieldName(1).toString();
 
         // Rewrite not valid for the timeField because control.min.time contains a rounded-down time
         // and not the actual min time of events in the bucket.
-        if (accFieldName == _bucketUnpacker.bucketSpec().timeField()) {
+        if (accFieldName == _bucketUnpacker.bucketSpec().timeField() ||
+            !bucketSpec.doesBucketSpecProvideFieldWithoutModification(accFieldName)) {
             return {};
         }
 
@@ -1388,7 +1418,16 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
         }
     }
 
-    if (!_eventFilter) {
+    //
+    // If a field is overwritten through computed projection/addFields, or project out using a
+    // $project, then the fields are no longer accessible after the projection stage. This would
+    // also invalidate the control block summaries. The optimizations below this check may assume
+    // that the bucket fields and the control block is still valid.
+    //
+    bool hasAlreadyAbsorbedProjectSpec = !_bucketUnpacker.bucketSpec().fieldSet().empty() ||
+        !_bucketUnpacker.bucketSpec().computedMetaProjFields().empty();
+
+    if (!_eventFilter && !hasAlreadyAbsorbedProjectSpec) {
         // Check if we can avoid unpacking if we have a group stage with min/max aggregates.
         auto [success, result] = rewriteGroupByMinMax(itr, container);
         if (success) {
@@ -1400,7 +1439,7 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
         // Check if the rest of the pipeline needs any fields. For example we might only be
         // interested in $count.
         auto deps = getRestPipelineDependencies(itr, container, true /* includeEventFilter */);
-        if (deps.hasNoRequirements()) {
+        if (deps.hasNoRequirements() && !hasAlreadyAbsorbedProjectSpec) {
             _bucketUnpacker.setBucketSpec({_bucketUnpacker.bucketSpec().timeField(),
                                            _bucketUnpacker.bucketSpec().metaField(),
                                            {},
@@ -1419,7 +1458,8 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
     }
 
     // Attempt to optimize last-point type queries.
-    if (!_triedLastpointRewrite && !_eventFilter && optimizeLastpoint(itr, container)) {
+    if (!hasAlreadyAbsorbedProjectSpec && !_triedLastpointRewrite && !_eventFilter &&
+        optimizeLastpoint(itr, container)) {
         _triedLastpointRewrite = true;
         // If we are able to rewrite the aggregation, give the resulting pipeline a chance to
         // perform further optimizations.
@@ -1427,8 +1467,8 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
     };
 
     // Attempt to map predicates on bucketed fields to the predicates on the control field.
-    if (auto nextMatch = dynamic_cast<DocumentSourceMatch*>(std::next(itr)->get())) {
-
+    if (auto nextMatch = dynamic_cast<DocumentSourceMatch*>(std::next(itr)->get());
+        !hasAlreadyAbsorbedProjectSpec && nextMatch) {
         // Merge multiple following $match stages.
         auto itrToMatch = std::next(itr);
         while (std::next(itrToMatch) != container->end() &&
@@ -1482,7 +1522,8 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
         return itr;
     }
 
-    // Attempt to push down a $project on the metaField past $_internalUnpackBucket.
+    // Attempt to push down an exclusion $project on the metaField past $_internalUnpackBucket. Only
+    // patterns {$project: {metaField: 0, ...}} would be eligible for this optimization.
     if (!_eventFilter && !haveComputedMetaField) {
         if (auto [metaProject, deleteRemainder] = extractProjectForPushDown(std::next(itr)->get());
             !metaProject.isEmpty()) {
@@ -1500,11 +1541,15 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
         }
     }
 
-    // Attempt to extract computed meta projections from subsequent $project, $addFields, or $set
-    // and push them before the $_internalunpackBucket.
-    if (!_eventFilter && pushDownComputedMetaProjection(itr, container)) {
+    // Attempt to extract computed projections on metaField from subsequent $project, $addFields, or
+    // $set and push them before the $_internalunpackBucket.
+    if (auto nextItr = pushDownComputedMetaProjection(itr, container)) {
         // We've pushed down and removed a stage after this one. Try to optimize the new stage.
-        return std::prev(itr) == container->begin() ? std::prev(itr) : std::prev(std::prev(itr));
+        return *nextItr;
+    }
+
+    if (!hasAlreadyAbsorbedProjectSpec) {
+        enableStreamingGroupIfPossible(itr, container);
     }
 
     // Attempt to build a $project based on dependency analysis or extract one from the pipeline. We
@@ -1520,8 +1565,6 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
             return itr;
         }
     }
-
-    enableStreamingGroupIfPossible(itr, container);
 
     return container->end();
 }

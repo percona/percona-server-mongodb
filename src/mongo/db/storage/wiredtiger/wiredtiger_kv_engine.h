@@ -44,7 +44,6 @@
 #include "mongo/db/storage/durable_catalog.h"
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/storage_engine.h"
-#include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_oplog_manager.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_session_cache.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
@@ -56,11 +55,29 @@
 
 namespace mongo {
 class ClockSource;
+class EncryptionKeyDB;
 class JournalListener;
 class WiredTigerRecordStore;
 class WiredTigerSessionCache;
 class WiredTigerSizeStorer;
 class WiredTigerEngineRuntimeConfigParameter;
+
+/**
+ * With the absolute path to an ident and the parent dbpath, return the ident.
+ *
+ * Note that the ident can have 4 different forms depending on the combination
+ * of server parameters present (directoryperdb / wiredTigerDirectoryForIndexes).
+ * With any one of these server parameters enabled, a directory could be included
+ * in the returned ident.
+ * See the unit test WiredTigerKVEngineTest::ExtractIdentFromPath for example usage.
+ *
+ * Note (2) idents use unix-style separators (always, see
+ * durable_catalog.cpp:generateUniqueIdent) but ident paths are platform-dependant.
+ * This method returns the unix-style "/" separators always.
+ */
+std::string extractIdentFromPath(const boost::filesystem::path& dbpath,
+                                 const boost::filesystem::path& identAbsolutePath);
+
 
 Status validateExtraDiagnostics(const std::vector<std::string>& value,
                                 const boost::optional<TenantId>& tenantId);
@@ -106,6 +123,11 @@ class WiredTigerKVEngine final : public KVEngine {
 public:
     static StringData kTableUriPrefix;
 
+    /// @brief Constructor.
+    ///
+    /// @param periodicRuner pointer to a `PeriodicRunner`. Must be a valid
+    ///     pointer if both data-at-rest encryption and key state polling are
+    ///     enabled in `encryptionGlobalParams`.
     WiredTigerKVEngine(OperationContext* opCtx,
                        const std::string& canonicalName,
                        const std::string& path,
@@ -115,6 +137,7 @@ public:
                        size_t maxHistoryFileSizeMB,
                        bool ephemeral,
                        bool repair,
+                       PeriodicRunner* periodicRunner = nullptr,
                        const encryption::MasterKeyProviderFactory& keyProviderFactory =
                            encryption::MasterKeyProvider::create);
 
@@ -334,9 +357,7 @@ public:
         return _canonicalName;
     }
 
-    EncryptionKeyDB* getEncryptionKeyDB() {
-        return _encryptionKeyDB.get();
-    }
+    EncryptionKeyDB* getEncryptionKeyDB() noexcept;
 
     /*
      * The oplog manager is always accessible, but this method will start the background thread to
@@ -447,6 +468,7 @@ public:
 
 private:
     class WiredTigerSessionSweeper;
+    class DataAtRestEncryption;
 
     struct IdentToDrop {
         std::string uri;
@@ -526,7 +548,7 @@ private:
     StorageEngine::OldestActiveTransactionTimestampCallback
         _oldestActiveTransactionTimestampCallback;
 
-    std::unique_ptr<EncryptionKeyDB> _encryptionKeyDB;
+    std::unique_ptr<DataAtRestEncryption> _restEncr;
     WT_CONNECTION* _conn;
     WiredTigerFileVersion _fileVersion;
     WiredTigerEventHandler _eventHandler;

@@ -48,17 +48,14 @@ TEST_F(TimeseriesWriteUtilTest, MakeNewBucketFromWriteBatch) {
 
     // Builds a write batch.
     OID oid = OID::createFromString("629e1e680958e279dc29a517"_sd);
-    bucket_catalog::BucketId bucketId(ns, oid);
     std::uint8_t stripe = 0;
+    bucket_catalog::BucketId bucketId(ns, oid, stripe);
     auto opId = 0;
     bucket_catalog::ExecutionStats globalStats;
     auto collectionStats = std::make_shared<bucket_catalog::ExecutionStats>();
     bucket_catalog::ExecutionStatsController stats(collectionStats, globalStats);
-    auto batch =
-        std::make_shared<bucket_catalog::WriteBatch>(bucket_catalog::BucketHandle{bucketId, stripe},
-                                                     bucket_catalog::BucketKey{ns, {}},
-                                                     opId,
-                                                     stats);
+    auto batch = std::make_shared<bucket_catalog::WriteBatch>(
+        bucketId, bucket_catalog::BucketKey{ns, {}}, opId, stats);
     const std::vector<BSONObj> measurements = {
         fromjson(R"({"time":{"$date":"2022-06-06T15:34:30.000Z"},"a":1,"b":1})"),
         fromjson(R"({"time":{"$date":"2022-06-06T15:34:30.000Z"},"a":2,"b":2})"),
@@ -90,17 +87,14 @@ TEST_F(TimeseriesWriteUtilTest, MakeNewBucketFromWriteBatchWithMeta) {
 
     // Builds a write batch.
     OID oid = OID::createFromString("629e1e680958e279dc29a517"_sd);
-    bucket_catalog::BucketId bucketId(ns, oid);
     std::uint8_t stripe = 0;
+    bucket_catalog::BucketId bucketId(ns, oid, stripe);
     auto opId = 0;
     bucket_catalog::ExecutionStats globalStats;
     auto collectionStats = std::make_shared<bucket_catalog::ExecutionStats>();
     bucket_catalog::ExecutionStatsController stats(collectionStats, globalStats);
-    auto batch =
-        std::make_shared<bucket_catalog::WriteBatch>(bucket_catalog::BucketHandle{bucketId, stripe},
-                                                     bucket_catalog::BucketKey{ns, {}},
-                                                     opId,
-                                                     stats);
+    auto batch = std::make_shared<bucket_catalog::WriteBatch>(
+        bucketId, bucket_catalog::BucketKey{ns, {}}, opId, stats);
     const std::vector<BSONObj> measurements = {
         fromjson(R"({"time":{"$date":"2022-06-06T15:34:30.000Z"},"meta":{"tag":1},"a":1,"b":1})"),
         fromjson(R"({"time":{"$date":"2022-06-06T15:34:30.000Z"},"meta":{"tag":1},"a":2,"b":2})"),
@@ -139,8 +133,12 @@ TEST_F(TimeseriesWriteUtilTest, MakeNewBucketFromMeasurements) {
         fromjson(R"({"time":{"$date":"2022-06-06T15:33:30.000Z"},"a":3,"b":3})")};
 
     // Makes the new document for write.
-    auto newDoc = timeseries::makeNewDocumentForWrite(
-        oid, measurements, /*metadata=*/{}, options, /*comparator=*/nullptr);
+    auto newDoc = timeseries::makeNewDocumentForWrite(oid,
+                                                      measurements,
+                                                      /*metadata=*/{},
+                                                      options,
+                                                      /*comparator=*/nullptr,
+                                                      boost::none);
 
     // Checks the measurements are stored in the bucket format.
     const BSONObj bucketDoc = fromjson(
@@ -169,7 +167,7 @@ TEST_F(TimeseriesWriteUtilTest, MakeNewBucketFromMeasurementsWithMeta) {
 
     // Makes the new document for write.
     auto newDoc = timeseries::makeNewDocumentForWrite(
-        oid, measurements, metadata, options, /*comparator=*/nullptr);
+        oid, measurements, metadata, options, /*comparator=*/nullptr, boost::none);
 
     // Checks the measurements are stored in the bucket format.
     const BSONObj bucketDoc = fromjson(
@@ -315,5 +313,58 @@ TEST_F(TimeseriesWriteUtilTest, PerformAtomicUpdate) {
     }
 }
 
+// When we perform a delete on a time-series collection with a non-meta data filter, we replace the
+// affected bucket with a new document that is generated out of the unchanged measurements. This
+// tests that if the current bucket's minTime is provided to the function that generates this
+// replacement bucket, the newly generated bucket will have that same minTime.
+TEST_F(TimeseriesWriteUtilTest, MakeNewDocumentForWriteUsesCurrentMinTimeIfProvided) {
+    const BSONObj bucketDoc = ::mongo::fromjson(
+        R"({"_id":{"$oid":"629e1e680958e279dc29a517"},
+            "control":{"version":1,"min":{"time":{"$date":"2024-11-13T15:34:00.000Z"},"a":1,"b":1},
+                                   "max":{"time":{"$date":"2024-11-13T15:38:30.000Z"},"a":3,"b":3}},
+            "data":{"time":{"0":{"$date":"2024-11-13T15:34:30.000Z"},
+                            "1":{"$date":"2024-11-13T15:36:30.000Z"},
+                            "2":{"$date":"2024-11-13T15:38:30.000Z"}},
+                    "a":{"0":1,"1":2,"2":3},
+                    "b":{"0":1,"1":2,"2":3}}})");
+
+    // Simulate deleting the earliest measurement in the bucket. Only the two later documents
+    // remain.
+    const std::vector<BSONObj> unchangedMeasurements = {
+        fromjson(R"({"time":{"$date":"2024-11-13T15:36:30.000Z"},"a":2,"b":2})"),
+        fromjson(R"({"time":{"$date":"2024-11-13T15:38:30.000Z"},"a":3,"b":3})")};
+
+    auto currentMinTime =
+        bucketDoc.getObjectField("control").getObjectField("min").getField("time").Date();
+    OID bucketId = bucketDoc.getField("_id").OID();
+    TimeseriesOptions options("time");
+
+    auto newDocWithoutCurrentMinTime = timeseries::makeNewDocumentForWrite(bucketId,
+                                                                           unchangedMeasurements,
+                                                                           /*metadata=*/{},
+                                                                           options,
+                                                                           /*comparator=*/nullptr,
+                                                                           boost::none);
+
+    auto newMinTime = newDocWithoutCurrentMinTime.getObjectField("control")
+                          .getObjectField("min")
+                          .getField("time")
+                          .Date();
+
+    ASSERT_NE(currentMinTime, newMinTime);
+
+    auto newDocWithCurrentMinTime = timeseries::makeNewDocumentForWrite(bucketId,
+                                                                        unchangedMeasurements,
+                                                                        /*metadata=*/{},
+                                                                        options,
+                                                                        /*comparator=*/nullptr,
+                                                                        currentMinTime);
+
+    auto newerMinTime = newDocWithCurrentMinTime.getObjectField("control")
+                            .getObjectField("min")
+                            .getField("time")
+                            .Date();
+    ASSERT_EQ(currentMinTime, newerMinTime);
+}
 }  // namespace
 }  // namespace mongo::timeseries

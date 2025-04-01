@@ -40,6 +40,7 @@
 #include "mongo/db/global_settings.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/storage/journal_listener.h"
+#include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_parameters_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
@@ -473,7 +474,7 @@ bool WiredTigerSessionCache::isEphemeral() {
 UniqueWiredTigerSession WiredTigerSessionCache::getSession() {
     // We should never be able to get here after _shuttingDown is set, because no new
     // operations should be allowed to start.
-    invariant(!(_shuttingDown.loadRelaxed() & kShuttingDownMask));
+    invariant(!(_shuttingDown.load() & kShuttingDownMask));
 
     {
         stdx::lock_guard<Latch> lock(_cacheLock);

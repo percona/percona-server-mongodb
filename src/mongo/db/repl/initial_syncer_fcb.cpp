@@ -616,7 +616,7 @@ void InitialSyncerFCB::_startInitialSyncAttemptCallback(
         // since that would also set the all_durable point to zero. We specifically don't set
         // the stable timestamp here because that will trigger taking a first stable checkpoint even
         // though the initialDataTimestamp is still set to kAllowUnstableCheckpointsSentinel.
-        storageEngine->setOldestTimestamp(kTimestampOne, true /*force*/);
+        storageEngine->setOldestTimestamp(kTimestampOne);
     }
 
     LOGV2_DEBUG(128427,

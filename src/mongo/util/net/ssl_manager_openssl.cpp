@@ -327,23 +327,6 @@ X509* X509_OBJECT_get0_X509(const X509_OBJECT* a) {
     return a->data.x509;
 }
 
-UniqueStackOfX509 SSLgetVerifiedChain(SSL* s) {
-    auto* store = SSL_CTX_get_cert_store(SSL_get_SSL_CTX(s));
-    auto* peerChain = SSL_get_peer_cert_chain(s);
-    UniqueX509 peer(SSL_get_peer_certificate(s));
-
-    UniqueX509StoreCtx ctx(X509_STORE_CTX_new());
-    if (!X509_STORE_CTX_init(ctx.get(), store, peer.get(), peerChain)) {
-        return nullptr;
-    }
-
-    if (X509_verify_cert(ctx.get()) <= 0) {
-        return nullptr;
-    }
-
-    return UniqueStackOfX509(X509_STORE_CTX_get1_chain(ctx.get()));
-}
-
 const OCSP_CERTID* OCSP_SINGLERESP_get0_id(const OCSP_SINGLERESP* single) {
     return single->certId;
 }
@@ -376,16 +359,24 @@ static ASN1OID tlsFeatureOID("1.3.6.1.5.5.7.1.24", "tlsfeature", "TLS Feature");
 static int const NID_tlsfeature = OBJ_create(tlsFeatureOID.identifier.c_str(),
                                              tlsFeatureOID.shortDescription.c_str(),
                                              tlsFeatureOID.longDescription.c_str());
-
-#else
-UniqueStackOfX509 SSLgetVerifiedChain(SSL* s) {
-    auto chain = SSL_get0_verified_chain(s);
-
-    return UniqueStackOfX509(X509_chain_up_ref(chain));
-}
-
 #endif
 
+UniqueStackOfX509 SSLgetVerifiedChain(SSL* s) {
+    auto* store = SSL_CTX_get_cert_store(SSL_get_SSL_CTX(s));
+    auto* peerChain = SSL_get_peer_cert_chain(s);
+    UniqueX509 peer(SSL_get_peer_certificate(s));
+
+    UniqueX509StoreCtx ctx(X509_STORE_CTX_new());
+    if (!X509_STORE_CTX_init(ctx.get(), store, peer.get(), peerChain)) {
+        return nullptr;
+    }
+
+    if (X509_verify_cert(ctx.get()) <= 0) {
+        return nullptr;
+    }
+
+    return UniqueStackOfX509(X509_STORE_CTX_get1_chain(ctx.get()));
+}
 
 SSLX509Name convertX509ToSSLX509Name(X509_NAME* x509Name) {
     std::vector<std::vector<SSLX509Name::Entry>> entries;
@@ -3033,7 +3024,7 @@ bool SSLManagerOpenSSL::_setupCRL(SSL_CTX* context, const std::string& crlFile) 
     X509_STORE* store = SSL_CTX_get_cert_store(context);
     fassert(16583, store);
 
-    X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK);
+    X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
     X509_LOOKUP* lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file());
     fassert(16584, lookup);
 
@@ -3047,15 +3038,7 @@ bool SSLManagerOpenSSL::_setupCRL(SSL_CTX* context, const std::string& crlFile) 
         return false;
     }
 
-    if (status == 1) {
-        LOGV2(4652601, "ssl imported 1 revoked certificate from the revocation list.");
-    } else {
-        LOGV2(4652602,
-              "ssl imported {numberCerts} revoked certificates from the revocation list",
-              "SSL imported revoked certificates from the revocation list",
-              "numberCerts"_attr = status);
-    }
-
+    LOGV2(4652602, "SSL imported certificate revocation list(s)", "numberCRLs"_attr = status);
     return true;
 }
 

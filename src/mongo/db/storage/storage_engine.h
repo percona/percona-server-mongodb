@@ -201,6 +201,8 @@ public:
 
     /**
      * List the databases stored in this storage engine.
+     * This function doesn't return databases whose creation has committed durably but hasn't been
+     * published yet in the CollectionCatalog.
      */
     virtual std::vector<DatabaseName> listDatabases(
         boost::optional<TenantId> tenantId = boost::none) const = 0;
@@ -586,7 +588,7 @@ public:
      * Sets the oldest timestamp for which the storage engine must maintain snapshot history
      * through. Additionally, all future writes must be newer or equal to this value.
      */
-    virtual void setOldestTimestamp(Timestamp timestamp, bool force) = 0;
+    virtual void setOldestTimestamp(Timestamp timestamp) = 0;
 
     /**
      * Gets the oldest timestamp for which the storage engine must maintain snapshot history

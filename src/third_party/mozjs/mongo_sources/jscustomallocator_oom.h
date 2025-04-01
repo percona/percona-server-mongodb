@@ -37,6 +37,8 @@ enum ThreadType {
     THREAD_TYPE_ION_FREE,              // 9
     THREAD_TYPE_WASM_GENERATOR_TIER2,  // 10
     THREAD_TYPE_WORKER,                // 11
+    THREAD_TYPE_DELAZIFY,              // 12
+    THREAD_TYPE_DELAZIFY_FREE,         // 13
     THREAD_TYPE_MAX                    // Used to check shell function arguments
 };
 
@@ -88,7 +90,7 @@ static MOZ_NEVER_INLINE void js_failedAllocBreakpoint() { asm(""); }
 #    else
 #      define JS_OOM_CALL_BP_FUNC() \
         do {                        \
-        } while (0)
+    } while (0)
 #    endif
 
 namespace js {

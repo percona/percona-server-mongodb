@@ -174,15 +174,17 @@ get_sources(){
     export PATH="/usr/local/go/bin:$PATH:$GOPATH"
     export GOBINPATH="/usr/local/go/bin"
     go mod edit \
-	    -replace golang.org/x/text@v0.3.0=golang.org/x/text@v0.3.8 \
-	    -replace golang.org/x/text@v0.3.7=golang.org/x/text@v0.3.8
+            -replace golang.org/x/text@v0.3.0=golang.org/x/text@v0.3.8 \
+            -replace golang.org/x/text@v0.3.7=golang.org/x/text@v0.3.8
+            go mod edit \
+	    -replace golang.org/x/crypto@v0.25.0=golang.org/x/crypto@v0.31.0
     go mod tidy
     go mod vendor
 
     # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
-    if [ x"$ARCH" = "xaarch64" ]; then
-        sed -i '126 {/\(GetByOsAndArch("ubuntu1804", archName)\)/ s/\bubuntu1804\b/rhel82/; t; q1}' release/platform/platform.go || exit 1
-    fi
+    #if [ x"$ARCH" = "xaarch64" ]; then
+        sed -i '131 {/\(GetByOsAndArch("ubuntu1804", archName)\)/ s/\bubuntu1804\b/rhel93/; t; q1}' release/platform/platform.go || exit 1
+    #fi
 
     cd ${WORKDIR}
     source percona-server-mongodb-70.properties
@@ -200,7 +202,7 @@ get_sources(){
                 git clean -xdf
                 git checkout 1.9.379
                 git submodule update --init --recursive
-                if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
+                if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
                     sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                     sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
                 fi
@@ -224,6 +226,12 @@ get_system(){
         ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
         OS_NAME="el$RHEL"
         OS="rpm"
+    elif [ -f /etc/amazon-linux-release ]; then
+        GLIBC_VER_TMP="$(rpm glibc -qa --qf %{VERSION})"
+        RHEL=$(rpm --eval %amzn)
+        ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
+        OS_NAME="amzn$RHEL"
+        OS="rpm"
     else
         GLIBC_VER_TMP="$(dpkg-query -W -f='${Version}' libc6 | awk -F'-' '{print $1}')"
         ARCH=$(uname -m)
@@ -240,11 +248,15 @@ install_golang() {
     elif [ x"$ARCH" = "xaarch64" ]; then
       GO_ARCH="arm64"
     fi
-    wget https://golang.org/dl/go1.19.12.linux-${GO_ARCH}.tar.gz -O /tmp/golang1.19.tar.gz
-    tar --transform=s,go,go1.19, -zxf /tmp/golang1.19.tar.gz
-    rm -rf /usr/local/go1.19 /usr/local/go1.11  /usr/local/go1.8 /usr/local/go1.9 /usr/local/go1.9.2 /usr/local/go
-    mv go1.19 /usr/local/
-    ln -s /usr/local/go1.19 /usr/local/go
+    for i in {1..3}; do
+        wget https://downloads.percona.com/downloads/packaging/go/go1.22.8.linux-${GO_ARCH}.tar.gz -O /tmp/golang1.22.tar.gz && break
+        echo "Failed to download GOLang, retrying in 10 seconds..."
+        sleep 10
+    done
+    tar --transform=s,go,go1.22, -zxf /tmp/golang1.22.tar.gz
+    rm -rf /usr/local/go1.22 /usr/local/go1.19 /usr/local/go1.11 /usr/local/go1.8 /usr/local/go1.9 /usr/local/go1.9.2 /usr/local/go
+    mv go1.22 /usr/local/
+    ln -s /usr/local/go1.22 /usr/local/go
 }
 
 install_gcc_centos(){
@@ -267,8 +279,10 @@ install_gcc_deb(){
 }
 
 set_compiler(){
-    export CC=/opt/mongodbtoolchain/v4/bin/gcc
-    export CXX=/opt/mongodbtoolchain/v4/bin/g++
+    if [ x"$RHEL" != x2023 ]; then
+        export CC=/opt/mongodbtoolchain/v4/bin/gcc
+        export CXX=/opt/mongodbtoolchain/v4/bin/g++
+    fi
     return
 }
 
@@ -290,7 +304,7 @@ aws_sdk_build(){
             git clean -xdf
             git checkout 1.9.379
             git submodule update --init --recursive
-            if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
+            if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
                 sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                 sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
             fi
@@ -299,14 +313,14 @@ aws_sdk_build(){
             CMAKE_CMD="cmake"
             set_compiler
             CMAKE_CXX_FLAGS=""
-            if [ x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xbookworm ]; then
+            if [ x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xbookworm -o x"${DEBIAN}" = xnoble ]; then
                 CMAKE_CXX_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
                 CMAKE_C_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=maybe-uninitialized -Wno-error=uninitialized "
             fi
             if [ -z "${CC}" -a -z "${CXX}" ]; then
-                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON || exit $?
+                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF || exit $?
             else
-                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON || exit $?
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF || exit $?
             fi
             make -j${NCPU} || exit $?
             make install
@@ -326,21 +340,22 @@ install_deps() {
     fi
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
-      RHEL=$(rpm --eval %rhel)
+      if [ "$RHEL" -eq 7 ]; then
+       sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+       sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+      fi
       yum -y update
       yum -y install wget sudo
       yum -y install perl
-      install_mongodbtoolchain
+      if [ x"$RHEL" != x2023 ]; then
+          install_mongodbtoolchain
+      fi
       if [ x"$ARCH" = "xx86_64" ]; then
-      #  if [ "$RHEL" -lt 9 ]; then
-      #    add_percona_yum_repo
-      #  fi
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
         yum clean all
         yum install -y patchelf
       fi
-      RHEL=$(rpm --eval %rhel)
       if [ x"$RHEL" = x7 ]; then
         yum -y install epel-release
         yum -y install rpmbuild rpm-build libpcap-devel gcc make cmake gcc-c++ openssl-devel
@@ -373,17 +388,27 @@ install_deps() {
 
         PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
         /usr/bin/pip install --user typing pyyaml regex Cheetah3
-      elif [ x"$RHEL" = x9 ]; then
+      elif [ x"$RHEL" = x9  -o x"$RHEL" = x2023 ]; then
         dnf config-manager --enable ol9_codeready_builder
 
         yum -y install oracle-epel-release-el9
         yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
         yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
-        yum -y install python3 python3-scons python3-pip python3-devel
+        yum -y install python3 python3-pip python3-devel
+        yum -y install python3-scons
+
         yum -y install redhat-rpm-config which e2fsprogs-devel expat-devel lz4-devel
         yum -y install openldap-devel krb5-devel xz-devel
         yum -y install perl
-        /usr/bin/pip install --user typing pyyaml regex Cheetah3
+        /usr/bin/pip install --upgrade pip setuptools --ignore-installed
+        /usr/bin/pip install --user typing pyyaml==5.3.1 regex Cheetah3
+
+      fi
+      if [ x"$RHEL" = x2023 ]; then
+          /usr/bin/pip install scons --root-user-action=ignore
+          ln -sf /usr/local/bin/scons /usr/bin/scons
+          ls -lah /usr/bin/scons
+          which scons
       fi
       wget https://curl.se/download/curl-7.77.0.tar.gz -O curl-7.77.0.tar.gz
       tar -xvzf curl-7.77.0.tar.gz
@@ -399,6 +424,9 @@ install_deps() {
           source /opt/rh/gcc-toolset-9/enable
           source /opt/rh/gcc-toolset-11/enable
         fi
+      fi
+      if [ x"$RHEL" = x2023 ]; then
+          yum install -y lld
       fi
       pip install --upgrade pip
 
@@ -440,8 +468,7 @@ install_deps() {
 }
 
 install_mongodbtoolchain(){
-    #curl -o toolchain_installer.sh https://jenkins.percona.com/downloads/mongodbtoolchain/installer.sh
-    curl -O https://downloads.percona.com/downloads/TESTING/issue-CUSTO83/toolchain_installer.tar.gz
+    curl -O https://downloads.percona.com/downloads/packaging/toolchain_installer.tar.gz
     tar -zxvf toolchain_installer.tar.gz
     if [ ! -z "${RHEL}" ]; then
         OS_CODE_NAME=${RHEL}
@@ -449,8 +476,7 @@ install_mongodbtoolchain(){
         OS_CODE_NAME=${DEBIAN}
     fi
     export USER=$(whoami)
-    #bash -x ./toolchain_installer.sh -k --download-url https://jenkins.percona.com/downloads/mongodbtoolchain/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
-    bash -x ./installer.sh -k --download-url https://downloads.percona.com/downloads/TESTING/issue-CUSTO83/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
+    bash -x ./installer.sh -k --download-url https://downloads.percona.com/downloads/packaging/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
     export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
 }
 
@@ -544,13 +570,13 @@ build_srpm(){
         -e "s:mongodb-org$:mongodb-org percona-server-mongodb:g" \
         -e "s:mongodb-org-server$:mongodb-org-server percona-server-mongodb-server:g" \
         -e "s:mongodb-org-mongos$:mongodb-org-mongos percona-server-mongodb-mongos:g" \
-        ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
+       ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     else
         sed -e "s:@@SOURCE_TARBALL@@:$(basename ${TARFILE}):g" \
         -e "s:@@VERSION@@:${VERSION}:g" \
         -e "s:@@RELEASE@@:${RELEASE}:g" \
         -e "s:@@SRC_DIR@@:$SRC_DIR:g" \
-        ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
+       ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     fi
     mv -fv ${TARFILE} ${WORKDIR}/rpmbuild/SOURCES
     if [ x"$RHEL" = x7 ]; then
@@ -631,25 +657,35 @@ build_rpm(){
         source /opt/rh/gcc-toolset-9/enable
         source /opt/rh/gcc-toolset-11/enable
       fi
+    elif [ x"$RHEL" = x9 ]; then
+      mv /usr/bin/python3 /usr/bin/python3_old
     fi
-    RHEL=$(rpm --eval %rhel)
-    ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
-    PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
-
-    pip install --upgrade pip
+    if [ "x${RHEL}" == "x2023" ]; then
+        pip install --upgrade pip
+        pip install --user  requirements_parser
+        pip install --user -r etc/pip/dev-requirements.txt
+        pip install --user -r etc/pip/evgtest-requirements.txt
+        pip install --user -r etc/pip/compile-requirements.txt
+#        export CC=/usr/bin/gcc
+#        export CXX=/usr/bin/g++
+    fi
+        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
+    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install --user -r etc/pip/dev-requirements.txt
     pip install --user -r etc/pip/evgtest-requirements.txt
-    #
-    cd $WORKDIR
 
-    echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-    export CC=/opt/mongodbtoolchain/v4/bin/gcc
-    export CXX=/opt/mongodbtoolchain/v4/bin/g++
-    #
+    if [ "x${RHEL}" != "x2023" ]; then
+        echo "CC and CXX should be modified once correct compiller would be installed on Centos"
+        export CC=/opt/mongodbtoolchain/v4/bin/gcc
+        export CXX=/opt/mongodbtoolchain/v4/bin/g++
+    fi
+    cd $WORKDIR
     echo "RHEL=${RHEL}" >> percona-server-mongodb-70.properties
     echo "ARCH=${ARCH}" >> percona-server-mongodb-70.properties
     #
@@ -658,11 +694,15 @@ build_rpm(){
     [[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
     export GOROOT="/usr/local/go/"
     export GOPATH=$(pwd)/
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
+    export PATH="/usr/bin:/usr/local/go/bin:$PATH:$GOPATH"
     export GOBINPATH="/usr/local/go/bin"
 
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+    if [ "x${RHEL}" == "x2023" ]; then
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
+    else
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+    fi
     if [[ "x${FIPSMODE}" == "x1" ]]; then
         rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --define "enable_fipsmode 1" --rebuild rpmbuild/SRPMS/$SRC_RPM
     else
@@ -709,7 +749,7 @@ build_source_deb(){
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
     fi
     #
@@ -732,7 +772,9 @@ build_source_deb(){
     pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
-    pip install pyyaml==5.4.1 --no-build-isolation
+    pip install pyyaml==5.4.1 --no-build-isolatioin
+    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install -r etc/pip/dev-requirements.txt
     pip install -r etc/pip/evgtest-requirements.txt
@@ -830,6 +872,8 @@ build_deb(){
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
+    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install -r etc/pip/dev-requirements.txt
     pip install -r etc/pip/evgtest-requirements.txt
@@ -846,7 +890,7 @@ build_deb(){
         sed -i "s:percona-server-mongodb-dbg:percona-server-mongodb-pro-dbg:g" debian/rules
     fi
 
-    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" ]; then
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' debian/control
     fi
     sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' mongo-tools/set_goenv.sh
@@ -866,6 +910,8 @@ build_deb(){
             cat call-home.sh >> percona-server-mongodb-server-pro.postinst
             echo "CALLHOME" >> percona-server-mongodb-server-pro.postinst
             echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server-pro.postinst
+            echo "chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server-pro.postinst
+            echo "chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server-pro.postinst
             echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server-pro.postinst
             echo "exit 0" >> percona-server-mongodb-server-pro.postinst
         else
@@ -874,6 +920,8 @@ build_deb(){
             cat call-home.sh >> percona-server-mongodb-server.postinst
             echo "CALLHOME" >> percona-server-mongodb-server.postinst
             echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
+            echo "chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server.postinst
+            echo "chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server.postinst
             echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
             echo "exit 0" >> percona-server-mongodb-server.postinst
         fi
@@ -931,9 +979,8 @@ build_tarball(){
         set_compiler
     fi
     #
-    if [ -f /etc/redhat-release ]; then
+    if [ -f /etc/redhat-release -o -f /etc/amazon-linux-release ]; then
     #export OS_RELEASE="centos$(lsb_release -sr | awk -F'.' '{print $1}')"
-        RHEL=$(rpm --eval %rhel)
         if [ x"$RHEL" = x7 ]; then
             if [ -f /opt/rh/devtoolset-9/enable ]; then
               source /opt/rh/devtoolset-9/enable
@@ -945,9 +992,14 @@ build_tarball(){
               source /opt/rh/gcc-toolset-11/enable
             fi
         fi
-        echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-        export CC=/opt/mongodbtoolchain/v4/bin/clang
-        export CXX=/opt/mongodbtoolchain/v4/bin/clang++
+        if [ "x${RHEL}" != "x2023" ]; then
+            echo "CC and CXX should be modified once correct compiller would be installed on Centos"
+            export CC=/opt/mongodbtoolchain/v4/bin/clang
+            export CXX=/opt/mongodbtoolchain/v4/bin/clang++
+        else
+            export CC=/usr/bin/gcc
+            export CXX=/usr/bin/g++
+        fi
     fi
     #
     ARCH=$(uname -m 2>/dev/null||true)
@@ -978,17 +1030,19 @@ build_tarball(){
 
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
-    install_mongodbtoolchain
-    PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
-    pip install --upgrade pip
-
+    if [ "x${RHEL}" != "x2023" ]; then
+        install_mongodbtoolchain
+        export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        pip install --upgrade pip
+    fi
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
+    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install --user -r etc/pip/dev-requirements.txt
     pip install --user -r etc/pip/evgtest-requirements.txt
-    if [ -f /etc/redhat-release ]; then
-        RHEL=$(rpm --eval %rhel)
+    if [ -f /etc/redhat-release -o -f /etc/amazon-linux-release ]; then
         if [ $RHEL = 7 -o $RHEL = 8 ]; then
             if [ -d aws-sdk-cpp ]; then
                 rm -rf aws-sdk-cpp
@@ -1001,7 +1055,7 @@ build_tarball(){
             git clean -xdf
             git checkout 1.9.379
             git submodule update --init --recursive
-            if [[ x"${RHEL}" =~ ^x[7,8,9]$ ]]; then
+            if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
                 sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                 sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
             fi
@@ -1017,9 +1071,9 @@ build_tarball(){
 #                CMAKE_CMD="cmake3"
 #            fi
             if [ -z "${CC}" -a -z "${CXX}" ]; then
-                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF || exit $?
             else
-                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF || exit $?
             fi
             make -j${NCPU} || exit $?
             make install
@@ -1032,7 +1086,11 @@ build_tarball(){
         fi
     fi
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+    if [ "x${RHEL}" == "x2023" ]; then
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
+    else
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+    fi
     if [ x"${DEBIAN}" = "xstretch" ]; then
       CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
       export OPT_LINKFLAGS="${OPT_LINKFLAGS} ${CURL_LINKFLAGS}"
@@ -1071,8 +1129,8 @@ build_tarball(){
     cp -r ${WORKDIR}/${TOOLSDIR} ./
     cd mongo-tools
     . ./set_tools_revision.sh
-    sed -i '15d' buildscript/build.go
-    sed -i '200,209d' buildscript/build.go
+    sed -i '13d' buildscript/build.go
+    sed -i '197,206d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
@@ -1085,15 +1143,15 @@ build_tarball(){
 
     # Patch needed libraries
     cd "${PSMDIR_ABS}/${PSMDIR}"
-    if [ ! -d lib/private ]; then
-        mkdir -p lib/private
-    fi
-    if [[ "x${FIPSMODE}" == "x1" ]]; then
+#    if [ ! -d lib/private ]; then
+#        mkdir -p lib/private
+#    fi
+#    if [[ "x${FIPSMODE}" == "x1" ]]; then
         LIBLIST=""
-    else
-        LIBLIST="libsasl2.so.3 libcrypto.so libssl.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so liblzma.so libidn.so"
-    fi
-    DIRLIST="bin lib/private"
+#    else
+#        LIBLIST="libsasl2.so.3 libcrypto.so libssl.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so liblzma.so libidn.so"
+#    fi
+    DIRLIST="bin"
 
     LIBPATH=""
 
@@ -1236,12 +1294,13 @@ build_tarball(){
 
     PSMDIR_ORIGINAL=${PSMDIR}
     if [[ "x${FIPSMODE}" == "x1" ]]; then
-        if [[ x"${OS}" == "xrpm" ]]; then
-            GLIBC_VER=".ol"${RHEL}
-        else
-            GLIBC_VER="."${DEBIAN}
-        fi
         PSMDIR=$(echo ${PSMDIR} | sed "s/-mongodb-/-mongodb-pro-/g")
+    fi
+
+    if [[ x"${OS}" == "xrpm" ]]; then
+        GLIBC_VER=".ol"${RHEL}
+    else
+        GLIBC_VER="."${DEBIAN}
     fi
 
     cd ${PSMDIR_ABS}

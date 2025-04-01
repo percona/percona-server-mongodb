@@ -1,6 +1,6 @@
 /**
  * Test that queryStats works properly for a find command that uses regex.
- * @tags: [featureFlagQueryStatsFindCommand]
+ * @tags: [requires_fcv_70]
  */
 (function() {
 "use strict";
@@ -28,14 +28,15 @@ assert.commandWorked(bulk.execute());
 {
     coll.find({foo: {$regex: "/^ABC/i"}}).itcount();
     const queryStats = getLatestQueryStatsEntry(testDB);
-    assert.eq({"foo": {"$regex": "?string"}}, queryStats.key.queryShape.filter);
+    assert.eq({"foo": {"$regex": "?string"}}, queryStats.key.queryShape.filter, queryStats);
 }
 
 {
     coll.find({foo: {$regex: ".*", $options: "m"}}).itcount();
     const queryStats = getLatestQueryStatsEntry(testDB);
     assert.eq({"foo": {"$regex": "?string", "$options": "?string"}},
-              queryStats.key.queryShape.filter);
+              queryStats.key.queryShape.filter,
+              queryStats);
 }
 
 MongoRunner.stopMongod(conn);

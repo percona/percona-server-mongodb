@@ -27,6 +27,7 @@ a notice will be included in
 | [benchmark]                | Apache-2.0        | 1.5.2             |                      |                                 |
 | [Boost]                    | BSL-1.0           | 1.79.0            |                      |                ✗                |
 | [c-ares]                   | MIT               | 1.19.1            |                      |                ✗                |
+| [Cyrus SASL]	             | BSD-Attribution-HPND-disclaimer | 2.1.28 |	unknown	        |                                 | 
 | [fmt]                      | BSD-2-Clause      | 7.1.3             |                      |                ✗                |
 | [GPerfTools]               | BSD-3-Clause      | 2.9.1             |                      |                ✗                |
 | [gRPC]                     | Apache-2.0        | 1.46.6            |                      |                ✗                |
@@ -37,7 +38,8 @@ a notice will be included in
 | [libstemmer]               | BSD-3-Clause      | Unknown           |          ✗           |                ✗                |
 | [librdkafka]               | BSD-2-Clause      | 2.0.2             |                      |                                 |
 | [linenoise]                | BSD-3-Clause      | 6cdc775 + changes |                      |                ✗                |
-| [MozJS]                    | MPL-2.0           | ESR 91.3.0        |                      |                ✗                |
+| [mongo-c-driver]           | Apache-2.0        | 1.27.6            |          ✗           |                ✗                |
+| [MozJS]                    | MPL-2.0           | ESR 115.7         |                      |                ✗                |
 | [MurmurHash3]              | Public Domain     | Unknown + changes |          ✗           |                ✗                |
 | [ocspbuilder]              | MIT               | 0.10.2            |                      |                                 |
 | [ocspresponder]            | Apache-2.0        | 0.5.0             |                      |                                 |
@@ -49,7 +51,7 @@ a notice will be included in
 | [schemastore.org]          | Apache-2.0        | 6847cfc3a1        |                      |                                 |
 | [scons]                    | MIT               | 3.1.2             |                      |                                 |
 | [Snappy]                   | BSD-3-Clause      | 1.1.7             |          ✗           |                ✗                |
-| [timelib]                  | MIT               | 2022.04           |                      |                ✗                |
+| [timelib]                  | MIT               | 2022.10           |                      |                ✗                |
 | [TomCrypt]                 | Public Domain     | 1.18.2            |          ✗           |                ✗                |
 | [Unicode]                  | Unicode-DFS-2015  | 8.0.0             |          ✗           |                ✗                |
 | [libunwind]                | MIT               | 1.6.2 + changes   |                      |                ✗                |
@@ -60,10 +62,12 @@ a notice will be included in
 | [Zlib]                     | Zlib              | 1.2.13            |          ✗           |                ✗                |
 | [Zstandard]                | BSD-3-Clause      | 1.5.2             |          ✗           |                ✗                |
 
+
 [abseil-cpp]: https://github.com/abseil/abseil-cpp
 [ASIO]: https://github.com/chriskohlhoff/asio
 [benchmark]: https://github.com/google/benchmark
 [Boost]: http://www.boost.org/
+[Cyrus SASL]: https://www.cyrusimap.org/sasl/
 [fmt]: http://fmtlib.net/
 [GPerfTools]: https://github.com/gperftools/gperftools
 [ICU4]: http://site.icu-project.org/download/

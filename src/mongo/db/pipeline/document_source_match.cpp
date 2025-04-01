@@ -466,8 +466,9 @@ boost::intrusive_ptr<DocumentSourceMatch> DocumentSourceMatch::descendMatchOnPat
     const intrusive_ptr<ExpressionContext>& expCtx) {
     expression::mapOver(matchExpr, [&descendOn](MatchExpression* node, std::string path) -> void {
         // Cannot call this method on a $match including a $elemMatch.
-        invariant(node->matchType() != MatchExpression::ELEM_MATCH_OBJECT &&
-                  node->matchType() != MatchExpression::ELEM_MATCH_VALUE);
+        tassert(9224700,
+                "The given match expression has a node that represents a partial path.",
+                !MatchExpression::isInternalNodeWithPath(node->matchType()));
         // Only leaf and array match expressions have a path.
         if (node->getCategory() != MatchExpression::MatchCategory::kLeaf &&
             node->getCategory() != MatchExpression::MatchCategory::kArrayMatching) {
@@ -475,7 +476,10 @@ boost::intrusive_ptr<DocumentSourceMatch> DocumentSourceMatch::descendMatchOnPat
         }
 
         auto leafPath = node->path();
-        invariant(expression::isPathPrefixOf(descendOn, leafPath));
+        tassert(9224701,
+                str::stream() << "Expected '" << redact(descendOn) << "' to be a prefix of '"
+                              << redact(leafPath) << "', but it is not.",
+                expression::isPathPrefixOf(descendOn, leafPath));
 
         auto newPath = leafPath.substr(descendOn.size() + 1);
         if (node->getCategory() == MatchExpression::MatchCategory::kLeaf) {
@@ -576,6 +580,24 @@ void DocumentSourceMatch::rebuild(BSONObj filter) {
         DepsTracker(_isTextQuery ? DepsTracker::kAllMetadata & ~DepsTracker::kOnlyTextScore
                                  : DepsTracker::kAllMetadata);
     getDependencies(&_dependencies);
+}
+
+Value DocumentSourceInternalChangeStreamMatch::serialize(const SerializationOptions& opts) const {
+    if (opts.literalPolicy != LiteralSerializationPolicy::kUnchanged || opts.transformIdentifiers) {
+        // Stages made internally by 'DocumentSourceChangeStream' should not be serialized for
+        // query stats. For query stats we will serialize only the user specified $changeStream
+        // stage.
+        return Value();
+    }
+    return doSerialize(opts);
+}
+
+intrusive_ptr<DocumentSourceInternalChangeStreamMatch>
+DocumentSourceInternalChangeStreamMatch::create(BSONObj filter,
+                                                const intrusive_ptr<ExpressionContext>& expCtx) {
+    intrusive_ptr<DocumentSourceInternalChangeStreamMatch> internalMatch(
+        new DocumentSourceInternalChangeStreamMatch(filter, expCtx));
+    return internalMatch;
 }
 
 }  // namespace mongo

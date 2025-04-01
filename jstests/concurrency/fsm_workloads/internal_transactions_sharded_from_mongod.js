@@ -97,32 +97,9 @@ var $config = extendWorkload($config, function($config, $super) {
                 print("Starting new sessions after internal transaction error: " +
                       tojsononeline(e));
                 this.startSessions(defaultDb);
-                // When causal consistency is required, the verifyDocuments state would perform
-                // reads against mongos with afterClusterTime equal to the max of the clusterTimes
-                // of all sessions that it has created on the shard that it uses to run internal
-                // transactions from. Bump the clusterTime on the mongos after the shard has
-                // recovered so that the mongos can gossip the clusterTime correctly to the other
-                // shard; otherwise when the next state is the verifyDocuments state, the
-                // afterClusterTime in the command could be higher than the clusterTime known to
-                // that shard and that would cause the command to fail.
-                this.bumpClusterTime(defaultDb, collName);
                 return;
             }
             throw e;
-        }
-    };
-
-    $config.teardown = function teardown(db, collName, cluster) {
-        $super.teardown.apply(this, arguments);
-
-        // If a shard node that is acting as a router for an internal transaction is
-        // killed/terminated/stepped down or the transaction's session is killed while running a
-        // non-retryable transaction, the transaction would be left in-progress since nothing
-        // would aborted it. Such dangling transactions can cause the CheckReplDBHash hook to hang
-        // as the fsyncLock command requires taking the global S lock and it cannot do that while
-        // there is an in-progress transaction.
-        if (TestData.runningWithShardStepdowns || this.retryOnKilledSession) {
-            this.killAllSessions(cluster);
         }
     };
 

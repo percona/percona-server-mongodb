@@ -32,6 +32,7 @@
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/curop.h"
+#include "mongo/db/s/sharding_api_d_params_gen.h"
 #include "mongo/db/s/sharding_cluster_parameters_gen.h"
 #include "mongo/db/s/sharding_state.h"
 #include "mongo/db/s/sharding_statistics.h"
@@ -46,8 +47,14 @@ MONGO_FAIL_POINT_DEFINE(skipDirectConnectionChecks);
 
 namespace direct_connection_util {
 
-void checkDirectShardOperationAllowed(OperationContext* opCtx, const DatabaseName& dbName) {
+void checkDirectShardOperationAllowed(OperationContext* opCtx, const NamespaceString& nss) {
     if (MONGO_unlikely(skipDirectConnectionChecks.shouldFail())) {
+        return;
+    }
+    // Skip direct shard connection checks for namespaces which can have independent contents on
+    // each shard. The direct shard connection check still applies to the sharding metadata
+    // collection namespaces because those collections exist on a single, particular shard.
+    if ((nsIsDbOnly(nss.ns()) && nss.isOnInternalDb()) || nss.isShardLocalNamespace()) {
         return;
     }
     const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
@@ -60,7 +67,8 @@ void checkDirectShardOperationAllowed(OperationContext* opCtx, const DatabaseNam
                     "shardedClusterCardinalityForDirectConns");
             return clusterCardinalityParam->getValue(boost::none).getHasTwoOrMoreShards();
         }();
-        if (clusterHasTwoOrMoreShards) {
+
+        if (clusterHasTwoOrMoreShards || directConnectionChecksWithSingleShard.load()) {
             const bool authIsEnabled = AuthorizationManager::get(opCtx->getServiceContext()) &&
                 AuthorizationManager::get(opCtx->getServiceContext())->isAuthEnabled();
 

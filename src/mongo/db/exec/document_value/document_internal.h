@@ -295,8 +295,8 @@ public:
         return _sd.size();
     }
 
-    inline void copyTo(char* dest, bool includeEndingNull) const {
-        return _sd.copyTo(dest, includeEndingNull);
+    inline size_t copy(char* dest, size_t len) const {
+        return _sd.copy(dest, len);
     }
 
     constexpr const char* rawData() const noexcept {
@@ -381,6 +381,11 @@ public:
      * Returns a cache-only copy of the document with no backing bson.
      */
     Document shred() const;
+
+    /**
+     * Loads the whole document into cache.
+     */
+    void loadIntoCache() const;
 
     static const DocumentStorage& emptyDoc() {
         return kEmptyDoc;

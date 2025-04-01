@@ -20,27 +20,30 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include "bson-atomic.h"
-#include "bson-config.h"
-#include "bson-memory.h"
+#include <bson/bson-atomic.h>
+#include <bson/bson-config.h>
+#include <bson/bson-memory.h>
 
 
 // Ensure size of exported structs are stable.
-BSON_STATIC_ASSERT2 (bson_mem_vtable_t,
-                     sizeof (bson_mem_vtable_t) == sizeof (void *) * 8u);
+BSON_STATIC_ASSERT2 (bson_mem_vtable_t, sizeof (bson_mem_vtable_t) == sizeof (void *) * 8u);
 
 
 // For compatibility with C standards prior to C11.
 static void *
 _aligned_alloc_impl (size_t alignment, size_t num_bytes)
-#if __STDC_VERSION__ >= 201112L
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(_WIN32) && !defined(__ANDROID__) && \
+   !defined(_AIX)
 {
    return aligned_alloc (alignment, num_bytes);
 }
 #elif defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
 {
    void *mem = NULL;
-   (void) posix_memalign (&mem, alignment, num_bytes);
+
+   // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66425.
+   BSON_MAYBE_UNUSED int ret = posix_memalign (&mem, alignment, num_bytes);
+
    return mem;
 }
 #else
@@ -94,9 +97,7 @@ bson_malloc (size_t num_bytes) /* IN */
 
    if (BSON_LIKELY (num_bytes)) {
       if (BSON_UNLIKELY (!(mem = gMemVtable.malloc (num_bytes)))) {
-         fprintf (stderr,
-                  "Failure to allocate memory in bson_malloc(). errno: %d.\n",
-                  errno);
+         fprintf (stderr, "Failure to allocate memory in bson_malloc(). errno: %d.\n", errno);
          abort ();
       }
    }
@@ -134,9 +135,7 @@ bson_malloc0 (size_t num_bytes) /* IN */
 
    if (BSON_LIKELY (num_bytes)) {
       if (BSON_UNLIKELY (!(mem = gMemVtable.calloc (1, num_bytes)))) {
-         fprintf (stderr,
-                  "Failure to allocate memory in bson_malloc0(). errno: %d.\n",
-                  errno);
+         fprintf (stderr, "Failure to allocate memory in bson_malloc0(). errno: %d.\n", errno);
          abort ();
       }
    }
@@ -148,7 +147,7 @@ bson_malloc0 (size_t num_bytes) /* IN */
 /*
  *--------------------------------------------------------------------------
  *
- * bson_aligned_malloc --
+ * bson_aligned_alloc --
  *
  *       Allocates @num_bytes of memory with an alignment of @alignment and
  *       returns a pointer to it.  If malloc failed to allocate the memory,
@@ -177,10 +176,8 @@ bson_aligned_alloc (size_t alignment /* IN */, size_t num_bytes /* IN */)
    void *mem = NULL;
 
    if (BSON_LIKELY (num_bytes)) {
-      if (BSON_UNLIKELY (
-             !(mem = gMemVtable.aligned_alloc (alignment, num_bytes)))) {
-         fprintf (stderr,
-                  "Failure to allocate memory in bson_aligned_alloc()\n");
+      if (BSON_UNLIKELY (!(mem = gMemVtable.aligned_alloc (alignment, num_bytes)))) {
+         fprintf (stderr, "Failure to allocate memory in bson_aligned_alloc()\n");
          abort ();
       }
    }
@@ -217,10 +214,8 @@ bson_aligned_alloc0 (size_t alignment /* IN */, size_t num_bytes /* IN */)
    void *mem = NULL;
 
    if (BSON_LIKELY (num_bytes)) {
-      if (BSON_UNLIKELY (
-             !(mem = gMemVtable.aligned_alloc (alignment, num_bytes)))) {
-         fprintf (stderr,
-                  "Failure to allocate memory in bson_aligned_alloc0()\n");
+      if (BSON_UNLIKELY (!(mem = gMemVtable.aligned_alloc (alignment, num_bytes)))) {
+         fprintf (stderr, "Failure to allocate memory in bson_aligned_alloc0()\n");
          abort ();
       }
       memset (mem, 0, num_bytes);
@@ -269,9 +264,7 @@ bson_realloc (void *mem,        /* IN */
    mem = gMemVtable.realloc (mem, num_bytes);
 
    if (BSON_UNLIKELY (!mem)) {
-      fprintf (stderr,
-               "Failure to re-allocate memory in bson_realloc(). errno: %d.\n",
-               errno);
+      fprintf (stderr, "Failure to re-allocate memory in bson_realloc(). errno: %d.\n", errno);
       abort ();
    }
 
@@ -410,8 +403,7 @@ bson_mem_set_vtable (const bson_mem_vtable_t *vtable)
 {
    BSON_ASSERT (vtable);
 
-   if (!vtable->malloc || !vtable->calloc || !vtable->realloc ||
-       !vtable->free) {
+   if (!vtable->malloc || !vtable->calloc || !vtable->realloc || !vtable->free) {
       fprintf (stderr,
                "Failure to install BSON vtable, "
                "missing functions.\n");

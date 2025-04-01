@@ -35,10 +35,15 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/error_builder.h"
 #include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/key_entry.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/key_operations.h"
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_options.h"
+#include "mongo/stdx/thread.h"
+#include "mongo/util/exit.h"
+#include "mongo/util/exit_code.h"
+#include "mongo/util/periodic_runner.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
@@ -48,28 +53,40 @@ MasterKeyProvider::~MasterKeyProvider() = default;
 
 MasterKeyProvider::MasterKeyProvider(std::unique_ptr<const KeyOperationFactory>&& factory,
                                      WtKeyIds& wtKeyIds,
-                                     logv2::LogComponent logComponent)
-    : _factory(std::move(factory)), _wtKeyIds(wtKeyIds), _logComponent(logComponent) {}
+                                     logv2::LogComponent logComponent,
+                                     bool toleratePreActiveKeys)
+    : _factory(std::move(factory)),
+      _wtKeyIds(wtKeyIds),
+      _logComponent(logComponent),
+      _toleratePreActiveKeys(toleratePreActiveKeys) {}
 
 std::unique_ptr<MasterKeyProvider> MasterKeyProvider::create(const EncryptionGlobalParams& params,
                                                              logv2::LogComponent logComponent) {
-    return std::make_unique<MasterKeyProvider>(
-        KeyOperationFactory::create(params), WtKeyIds::instance(), logComponent);
+    return std::make_unique<MasterKeyProvider>(KeyOperationFactory::create(params),
+                                               WtKeyIds::instance(),
+                                               logComponent,
+                                               params.kmipToleratePreActiveKeys());
 }
 
-KeyKeyIdPair MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateKeyIds) const {
-    auto keyKeyId = read();
-    if (!keyKeyId) {
-        KeyErrorBuilder b(
-            KeyOperationType::read,
-            "Cannot start. Master encryption key is absent on the key management facility. "
-            "Check configuration options.");
+KeyEntry MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateKeyIds) const {
+    std::variant<KeyEntry, NotFound, BadKeyState> readResult = read();
+    if (readResult.index() > 0) {
+        const char* reason = readResult.index() == 1
+            ? "Cannot start. Master encryption key is absent on the "
+              "key management facility. Check configuration options."
+            : "Master encryption key is not in the active state on the key management facility.";
+        KeyErrorBuilder b(KeyOperationType::kRead, reason);
         b.append("keyManagementFacilityType", read.facilityType());
         b.append("keyIdentifier", read.keyId());
+        if (readResult.index() == 2) {
+            b.append("keyState", toString(std::get<2>(readResult)));
+        }
         throw b.error();
     }
+
+    KeyEntry keyEntry = std::move(std::get<0>(readResult));
     if (updateKeyIds) {
-        _wtKeyIds.decryption = keyKeyId->keyId->clone();
+        _wtKeyIds.decryption = keyEntry.keyId->clone();
         if (!_wtKeyIds.configured &&
             _wtKeyIds.decryption->needsSerializationToStorageEngineEncryptionOptions()) {
             _wtKeyIds.futureConfigured = _wtKeyIds.decryption->clone();
@@ -79,8 +96,20 @@ KeyKeyIdPair MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateK
                   logv2::LogOptions(_logComponent),
                   "Master encryption key has been read from the key management facility.",
                   "keyManagementFacilityType"_attr = read.facilityType(),
-                  "keyIdentifier"_attr = *keyKeyId->keyId);
-    return KeyKeyIdPair(std::move(*keyKeyId));
+                  "keyIdentifier"_attr = *keyEntry.keyId);
+    if (_toleratePreActiveKeys && keyEntry.keyState && *keyEntry.keyState == KeyState::kPreActive) {
+        LOGV2_WARNING_OPTIONS(
+            29124,
+            logv2::LogOptions(_logComponent),
+            "Data-at-rest encryption was initialized with a pre-active master key. Since "
+            "version 8.0.0, an active key will be required. Please either activate the "
+            "master encryption keys manually, do a key rotation, or disable the "
+            "`security.kmip.activateKeys` option (the latter is not recommended though)",
+            "keyManagementFacilityType"_attr = read.facilityType(),
+            "keyIdentifier"_attr = *keyEntry.keyId,
+            "keyState"_attr = toString(*keyEntry.keyState));
+    }
+    return keyEntry;
 }
 
 std::unique_ptr<KeyId> MasterKeyProvider::_saveMasterKey(const SaveKey& save,
@@ -98,17 +127,17 @@ std::unique_ptr<KeyId> MasterKeyProvider::_saveMasterKey(const SaveKey& save,
     return keyId;
 }
 
-Key MasterKeyProvider::readMasterKey() const {
-    return _readMasterKey(*_factory->createRead(_wtKeyIds.configured.get())).key;
+KeyEntry MasterKeyProvider::readMasterKey() const {
+    return _readMasterKey(*_factory->createRead(_wtKeyIds.configured.get()));
 }
 
-std::pair<Key, std::unique_ptr<KeyId>> MasterKeyProvider::obtainMasterKey(bool saveKey) const {
+KeyEntry MasterKeyProvider::obtainMasterKey(bool saveKey) const {
     if (auto read = _factory->createProvidedRead(); read) {
-        auto keyKeyId = _readMasterKey(*read, false);
-        if (keyKeyId.keyId->needsSerializationToStorageEngineEncryptionOptions()) {
-            _wtKeyIds.futureConfigured = keyKeyId.keyId->clone();
+        auto keyEntry = _readMasterKey(*read, false);
+        if (keyEntry.keyId->needsSerializationToStorageEngineEncryptionOptions()) {
+            _wtKeyIds.futureConfigured = keyEntry.keyId->clone();
         }
-        return {keyKeyId.key, std::move(keyKeyId.keyId)};
+        return keyEntry;
     }
 
     Key key;
@@ -121,5 +150,68 @@ std::pair<Key, std::unique_ptr<KeyId>> MasterKeyProvider::obtainMasterKey(bool s
 
 void MasterKeyProvider::saveMasterKey(const Key& key) const {
     _saveMasterKey(*_factory->createSave(_wtKeyIds.configured.get()), key);
+}
+
+namespace {
+class KeyStateMonitor {
+public:
+    KeyStateMonitor(std::shared_ptr<GetKeyState> getState, logv2::LogComponent logComponent)
+        : _getState((invariant(getState), getState)), _logComponent(logComponent) {}
+
+    void operator()([[maybe_unused]] Client* client) const;
+
+private:
+    std::shared_ptr<GetKeyState> _getState;
+    logv2::LogComponent _logComponent;
+};
+
+void KeyStateMonitor::operator()([[maybe_unused]] Client* client) const try {
+    std::optional<KeyState> state = (*_getState)();
+    if (state && *state == KeyState::kActive) {
+        return;
+    }
+    if (!state) {
+        LOGV2_ERROR_OPTIONS(29121,
+                            logv2::LogOptions(_logComponent),
+                            "Master encryption key is absent on the key management facility.",
+                            "keyManagementFacilityType"_attr = _getState->facilityType(),
+                            "keyIdentifier"_attr = _getState->keyId());
+    } else {  // state is not `KeyState::kActive`
+        LOGV2_ERROR_OPTIONS(29122,
+                            logv2::LogOptions(_logComponent),
+                            "Master encryption key is not in the active "
+                            "state on the key management facility.",
+                            "keyManagementFacilityType"_attr = _getState->facilityType(),
+                            "keyIdentifier"_attr = _getState->keyId(),
+                            "keyState"_attr = toString(*state));
+    }
+    // Please note that launching a new detached thread for calling `shutdown`
+    // is essential here. The `KeyStateMonitor::operator()` is going to be
+    // called from within a particular thread associated with a `PeriodicJob`.
+    // The `shutdown` function eventually leads to the call to
+    // `PeriodicRunnerImpl::PeriodicJobImpl::stop` which joins the thread.
+    // If it were called directly, `shutdown` would result in a thread
+    // joining itself. The idea of launching a detached thread was adopted
+    // from `src/mongo/db/commands/shutdown.cpp`.
+    stdx::thread([] { shutdown(ExitCode::perconaDataAtRestEncryptionError); }).detach();
+} catch (const encryption::Error& e) {
+    // If the KMIP server is unavailable when key state verification job
+    // tries to reach it, then the `encryption::Error` exception is thrown.
+    // In that case, we just need to log the error and wait for another attempt,
+    // which will be done in `verify->period()` seconds. Please see the
+    // `registerKeyStateVerificationJob` member function below.
+    LOGV2_ERROR_OPTIONS(
+        29123, logv2::LogOptions(_logComponent), "Data-at-Rest Encryption Error", "error"_attr = e);
+}
+}  // namespace
+
+PeriodicJobAnchor MasterKeyProvider::registerKeyStateVerificationJob(PeriodicRunner& pr,
+                                                                     const KeyId& keyId) const {
+    auto getState = std::shared_ptr<GetKeyState>(_factory->createGetState(keyId));
+    if (!getState) {
+        return PeriodicJobAnchor();
+    }
+    return pr.makeJob(PeriodicRunner::PeriodicJob(
+        "KeyStateMonitor", KeyStateMonitor(getState, _logComponent), getState->period()));
 }
 }  // namespace mongo::encryption

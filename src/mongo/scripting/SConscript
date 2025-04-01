@@ -50,7 +50,12 @@ if jsEngine:
     scriptingEnv = env.Clone()
 
     scriptingEnv.Append(
-        CXXFLAGS=[] if scriptingEnv.TargetOSIs('windows') else [
+        CXXFLAGS=[
+            # See the /Zc:preprocessor comment in third_party/mozjs/SConscript
+            '/Zc:preprocessor',
+            '/wd5104',
+            '/wd5105',
+        ] if scriptingEnv.TargetOSIs('windows') else [
             # TODO(SERVER-59992): Remove -Wno-class-memacces where possible.
             '-Wno-unknown-warning-option',
             '-Wno-class-memaccess',
@@ -127,7 +132,10 @@ if jsEngine:
 
     scriptingEnv.CppUnitTest(
         target='scripting_mozjs_test',
-        source=['mozjs/module_loader_test.cpp'],
+        source=[
+            'mozjs/asan_handles_test.cpp',
+            'mozjs/module_loader_test.cpp',
+        ],
         LIBDEPS=[
             'bson_template_evaluator',
             'scripting',

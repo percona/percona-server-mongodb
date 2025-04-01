@@ -14,25 +14,22 @@
  * limitations under the License.
  */
 
-#include "bson-prelude.h"
+#include <bson/bson-prelude.h>
 
 
 #ifndef BSON_ISO8601_PRIVATE_H
 #define BSON_ISO8601_PRIVATE_H
 
 
-#include "bson-compat.h"
-#include "bson-macros.h"
-#include "bson-string.h"
+#include <bson/bson-compat.h>
+#include <bson/bson-macros.h>
+#include <bson/bson-string.h>
 
 
 BSON_BEGIN_DECLS
 
 bool
-_bson_iso8601_date_parse (const char *str,
-                          int32_t len,
-                          int64_t *out,
-                          bson_error_t *error);
+_bson_iso8601_date_parse (const char *str, int32_t len, int64_t *out, bson_error_t *error);
 
 /**
  * _bson_iso8601_date_format:

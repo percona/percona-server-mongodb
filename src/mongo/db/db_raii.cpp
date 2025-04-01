@@ -768,7 +768,7 @@ AutoGetCollectionForReadPITCatalog::AutoGetCollectionForReadPITCatalog(
 
     // Recheck if this operation is a direct connection and if it is authorized to be one after
     // acquiring collection locks.
-    direct_connection_util::checkDirectShardOperationAllowed(opCtx, _resolvedNss.dbName());
+    direct_connection_util::checkDirectShardOperationAllowed(opCtx, _resolvedNss);
 
     const auto receivedShardVersion{
         OperationShardingState::get(opCtx).getShardVersion(_resolvedNss)};
@@ -1130,6 +1130,11 @@ ConsistentCatalogAndSnapshot getConsistentCatalogAndSnapshot(
         // openCollection is eventually called to construct a Collection object from the durable
         // catalog.
         establishCappedSnapshotIfNeeded(opCtx, catalogBeforeSnapshot, nsOrUUID);
+        if (resolvedSecondaryNamespaces) {
+            for (const auto& secondaryNss : *resolvedSecondaryNamespaces) {
+                establishCappedSnapshotIfNeeded(opCtx, catalogBeforeSnapshot, {secondaryNss});
+            }
+        }
 
         openSnapshot(opCtx, nss.isOplog());
 
@@ -1268,7 +1273,8 @@ const Collection* AutoGetCollectionForReadLockFreePITCatalog::_restoreFromYield(
 
         // Check if this operation is a direct connection and if it is authorized to be one after
         // acquiring the snapshot.
-        direct_connection_util::checkDirectShardOperationAllowed(opCtx, _resolvedDbName);
+        direct_connection_util::checkDirectShardOperationAllowed(
+            opCtx, catalogStateForNamespace.resolvedNss);
 
         _resolvedNss = catalogStateForNamespace.resolvedNss;
         _view = catalogStateForNamespace.view;
@@ -1276,11 +1282,6 @@ const Collection* AutoGetCollectionForReadLockFreePITCatalog::_restoreFromYield(
 
         return catalogStateForNamespace.collection;
     } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
-        // In the case that direct connections have been disallowed during the yield, it is possible
-        // that the collection has been moved and therefore appears to have been dropped locally. In
-        // this case, we should still inform the user that direct connections are no longer allowed.
-        direct_connection_util::checkDirectShardOperationAllowed(opCtx, _resolvedDbName);
-
         // Calls to CollectionCatalog::resolveNamespaceStringOrUUID (called from
         // acquireCatalogStateForNamespace) will result in a NamespaceNotFound error if the
         // collection corresponding to the UUID passed as a parameter no longer exists. This can
@@ -1381,7 +1382,7 @@ AutoGetCollectionForReadLockFreePITCatalog::AutoGetCollectionForReadLockFreePITC
 
     // Check if this operation is a direct connection and if it is authorized to be one after
     // acquiring the snapshot.
-    direct_connection_util::checkDirectShardOperationAllowed(opCtx, nsOrUUID.dbName());
+    direct_connection_util::checkDirectShardOperationAllowed(opCtx, _resolvedNss);
 
     auto scopedCss = CollectionShardingState::acquire(opCtx, _resolvedNss);
     scopedCss->checkShardVersionOrThrow(opCtx);
@@ -1655,7 +1656,7 @@ AutoGetDbForReadLockFree::AutoGetDbForReadLockFree(OperationContext* opCtx,
 
     // Check if this operation is a direct connection and if it is authorized to be one after
     // acquiring the snapshot.
-    direct_connection_util::checkDirectShardOperationAllowed(opCtx, dbName);
+    direct_connection_util::checkDirectShardOperationAllowed(opCtx, NamespaceString(dbName));
 }
 
 AutoGetDbForReadMaybeLockFree::AutoGetDbForReadMaybeLockFree(OperationContext* opCtx,

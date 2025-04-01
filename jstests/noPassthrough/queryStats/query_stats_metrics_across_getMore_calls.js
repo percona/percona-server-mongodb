@@ -1,7 +1,7 @@
 /**
  * Test that the queryStats metrics are aggregated properly by distinct query shape over getMore
  * calls, for agg commands.
- * @tags: [featureFlagQueryStats]
+ * @tags: [requires_fcv_70]
  */
 load("jstests/libs/query_stats_utils.js");  // For verifyMetrics and getQueryStatsAggCmd.
 
@@ -95,8 +95,8 @@ const fooNeBatchSize = 3;
     for (const field of distributionFields) {
         // If there are getMore calls, queryExecMicros should be greater than or equal to
         // firstResponseExecMicros.
-        assert.gt(queryStatsResults[0].metrics.totalExecMicros[field],
-                  queryStatsResults[0].metrics.firstResponseExecMicros[field]);
+        assert(bsonWoCompare(queryStatsResults[0].metrics.totalExecMicros[field],
+                             queryStatsResults[0].metrics.firstResponseExecMicros[field]) > 0);
 
         // If there is no getMore calls, firstResponseExecMicros and queryExecMicros should be
         // equal.

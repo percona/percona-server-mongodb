@@ -109,7 +109,6 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/scopeguard.h"
-#include "mongo/util/stacktrace.h"
 #include "mongo/util/synchronized_value.h"
 #include "mongo/util/testing_proctor.h"
 #include "mongo/util/time_support.h"
@@ -311,7 +310,7 @@ InitialSyncerInterface::Options createInitialSyncerOptions(
         // WiredTiger to pin this data in memory. Advancing the oldest timestamp in step with the
         // last applied optime here will permit WiredTiger to evict this data as it sees fit.
         replCoord->getServiceContext()->getStorageEngine()->setOldestTimestamp(
-            opTimeAndWallTime.opTime.getTimestamp(), false /*force*/);
+            opTimeAndWallTime.opTime.getTimestamp());
     };
     options.resetOptimes = [replCoord]() {
         replCoord->resetMyLastOpTimes();
@@ -439,6 +438,10 @@ boost::optional<Date_t> ReplicationCoordinatorImpl::getCatchupTakeover_forTest()
 executor::TaskExecutor::CallbackHandle ReplicationCoordinatorImpl::getCatchupTakeoverCbh_forTest()
     const {
     return _catchupTakeoverCbh;
+}
+
+int64_t ReplicationCoordinatorImpl::getLastHorizonChange_forTest() const {
+    return _lastHorizonTopologyChange;
 }
 
 OpTime ReplicationCoordinatorImpl::getCurrentCommittedSnapshotOpTime() const {
@@ -2354,7 +2357,9 @@ long long ReplicationCoordinatorImpl::_calculateRemainingQuiesceTimeMillis() con
 }
 
 std::shared_ptr<HelloResponse> ReplicationCoordinatorImpl::_makeHelloResponse(
-    boost::optional<StringData> horizonString, WithLock lock, const bool hasValidConfig) const {
+    const boost::optional<std::string>& horizonString,
+    WithLock lock,
+    const bool hasValidConfig) const {
 
     uassert(ShutdownInProgressQuiesceInfo(_calculateRemainingQuiesceTimeMillis()),
             kQuiesceModeShutdownMessage,
@@ -2402,7 +2407,7 @@ SharedSemiFuture<ReplicationCoordinatorImpl::SharedHelloResponse>
 ReplicationCoordinatorImpl::_getHelloResponseFuture(
     WithLock lk,
     const SplitHorizon::Parameters& horizonParams,
-    boost::optional<StringData> horizonString,
+    const boost::optional<std::string>& horizonString,
     boost::optional<TopologyVersion> clientTopologyVersion) {
 
     uassert(ShutdownInProgressQuiesceInfo(_calculateRemainingQuiesceTimeMillis()),
@@ -2434,6 +2439,10 @@ ReplicationCoordinatorImpl::_getHelloResponseFuture(
             prevCounter <= topologyVersionCounter);
 
     if (prevCounter < topologyVersionCounter) {
+        uassert(ErrorCodes::SplitHorizonChange,
+                "Stale horizon detected, we have since received a reconfig that changed the "
+                "horizon mappings.",
+                prevCounter >= _lastHorizonTopologyChange);
         // The received hello command contains a stale topology version so we respond
         // immediately with a more current topology version.
         return SharedSemiFuture<SharedHelloResponse>(
@@ -2466,11 +2475,11 @@ ReplicationCoordinatorImpl::getHelloResponseFuture(
     return _getHelloResponseFuture(lk, horizonParams, horizonString, clientTopologyVersion);
 }
 
-boost::optional<StringData> ReplicationCoordinatorImpl::_getHorizonString(
+boost::optional<std::string> ReplicationCoordinatorImpl::_getHorizonString(
     WithLock, const SplitHorizon::Parameters& horizonParams) const {
     const auto myState = _topCoord->getMemberState();
     const bool hasValidConfig = _rsConfig.isInitialized() && !myState.removed();
-    boost::optional<StringData> horizonString;
+    boost::optional<std::string> horizonString;
     if (hasValidConfig) {
         const auto& self = _rsConfig.getMemberAt(_selfIndex);
         horizonString = self.determineHorizon(horizonParams);
@@ -2711,19 +2720,10 @@ ReplicationCoordinatorImpl::AutoGetRstlForStepUpStepDown::AutoGetRstlForStepUpSt
         auto lockerInfo = opCtx->lockState()->getLockerInfo(CurOp::get(opCtx)->getLockStatsBase());
         BSONObjBuilder lockRep;
         lockerInfo->stats.report(&lockRep);
-
-        LOGV2_FATAL_CONTINUE(
-            5675600,
-            "Time out exceeded waiting for RSTL, stepUp/stepDown is not possible thus "
-            "calling abort() to allow cluster to progress",
-            "lockRep"_attr = lockRep.obj());
-
-#if defined(MONGO_STACKTRACE_CAN_DUMP_ALL_THREADS)
-        // Dump the stack of each thread.
-        printAllThreadStacksBlocking();
-#endif
-
-        fassertFailed(7152000);
+        LOGV2_FATAL(5675600,
+                    "Time out exceeded waiting for RSTL, stepUp/stepDown is not possible thus "
+                    "calling abort() to allow cluster to progress",
+                    "lockRep"_attr = lockRep.obj());
     });
 };
 
@@ -4589,6 +4589,8 @@ void ReplicationCoordinatorImpl::_errorOnPromisesIfHorizonChanged(WithLock lk,
             promise->setError({ErrorCodes::SplitHorizonChange,
                                "Received a reconfig that changed the horizon mappings."});
         }
+        _topCoord->incrementTopologyVersion();
+        _lastHorizonTopologyChange = _topCoord->getTopologyVersion().getCounter();
         _sniToValidConfigPromiseMap.clear();
         HelloMetrics::get(opCtx)->resetNumAwaitingTopologyChanges();
     }
@@ -4603,6 +4605,10 @@ void ReplicationCoordinatorImpl::_errorOnPromisesIfHorizonChanged(WithLock lk,
                 promise->setError({ErrorCodes::SplitHorizonChange,
                                    "Received a reconfig that changed the horizon mappings."});
             }
+            // Increment topology version to mark a horizon change, since a reconfig doesn't
+            // increment the topology version until the end.
+            _topCoord->incrementTopologyVersion();
+            _lastHorizonTopologyChange = _topCoord->getTopologyVersion().getCounter();
             _createHorizonTopologyChangePromiseMapping(lk);
             HelloMetrics::get(opCtx)->resetNumAwaitingTopologyChanges();
         }
@@ -4623,7 +4629,7 @@ void ReplicationCoordinatorImpl::_fulfillTopologyChangePromise(WithLock lock) {
                 Status(ShutdownInProgressQuiesceInfo(_calculateRemainingQuiesceTimeMillis()),
                        kQuiesceModeShutdownMessage));
         } else {
-            StringData horizonString = iter->first;
+            boost::optional<std::string> horizonString = iter->first;
             auto response = _makeHelloResponse(horizonString, lock, hasValidConfig);
             // Fulfill the promise and replace with a new one for future waiters.
             iter->second->emplaceValue(response);
@@ -4643,7 +4649,8 @@ void ReplicationCoordinatorImpl::_fulfillTopologyChangePromise(WithLock lock) {
                                    "The original request horizon parameter does not exist in the "
                                    "current replica set config"});
             } else {
-                const auto horizon = sni.empty() ? SplitHorizon::kDefaultHorizon : iter->second;
+                const boost::optional<std::string> horizon =
+                    sni.empty() ? SplitHorizon::kDefaultHorizon.toString() : iter->second;
                 const auto response = _makeHelloResponse(horizon, lock, hasValidConfig);
                 promise->emplaceValue(response);
             }

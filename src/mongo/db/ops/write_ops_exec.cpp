@@ -907,7 +907,6 @@ boost::optional<write_ops::WriteError> generateErrorNoTenantMigration(OperationC
 WriteResult performInserts(OperationContext* opCtx,
                            const write_ops::InsertCommandRequest& wholeOp,
                            OperationSource source) {
-
     // Insert performs its own retries, so we should only be within a WriteUnitOfWork when run in a
     // transaction.
     auto txnParticipant = TransactionParticipant::get(opCtx);
@@ -966,14 +965,18 @@ WriteResult performInserts(OperationContext* opCtx,
     const size_t maxBatchBytes = write_ops::insertVectorMaxBytes;
     batch.reserve(std::min(wholeOp.getDocuments().size(), maxBatchSize));
 
+    // If 'wholeOp.getBypassEmptyTsReplacement()' is true or if 'source' is 'kFromMigrate', set
+    // "bypassEmptyTsReplacement=true" for fixDocumentForInsert().
+    const bool bypassEmptyTsReplacement = (source == OperationSource::kFromMigrate) ||
+        static_cast<bool>(wholeOp.getBypassEmptyTsReplacement());
+
     for (auto&& doc : wholeOp.getDocuments()) {
         const auto currentOpIndex = nextOpIndex++;
         const bool isLastDoc = (&doc == &wholeOp.getDocuments().back());
-        const bool preserveEmptyTimestamps = source == OperationSource::kFromMigrate;
         bool containsDotsAndDollarsField = false;
 
-        auto fixedDoc =
-            fixDocumentForInsert(opCtx, doc, preserveEmptyTimestamps, &containsDotsAndDollarsField);
+        auto fixedDoc = fixDocumentForInsert(
+            opCtx, doc, bypassEmptyTsReplacement, &containsDotsAndDollarsField);
 
         const StmtId stmtId = getStmtIdForWriteOp(opCtx, wholeOp, currentOpIndex);
         const bool wasAlreadyExecuted = opCtx->isRetryableWrite() &&
@@ -1227,6 +1230,7 @@ static SingleWriteResult performSingleUpdateOpWithDupKeyRetry(
     const write_ops::UpdateOpEntry& op,
     LegacyRuntimeConstants runtimeConstants,
     const boost::optional<BSONObj>& letParams,
+    const OptionalBool& bypassEmptyTsReplacement,
     const boost::optional<UUID>& sampleId,
     OperationSource source,
     bool forgoOpCounterIncrements) {
@@ -1255,6 +1259,7 @@ static SingleWriteResult performSingleUpdateOpWithDupKeyRetry(
     if (letParams) {
         request.setLetParameters(std::move(letParams));
     }
+    request.setBypassEmptyTsReplacement(bypassEmptyTsReplacement);
     request.setStmtIds(stmtIds);
     request.setYieldPolicy(PlanYieldPolicy::YieldPolicy::YIELD_AUTO);
     request.setSource(source);
@@ -1407,6 +1412,7 @@ WriteResult performUpdates(OperationContext* opCtx,
                                                      singleOp,
                                                      runtimeConstants,
                                                      wholeOp.getLet(),
+                                                     wholeOp.getBypassEmptyTsReplacement(),
                                                      sampleId,
                                                      source,
                                                      forgoOpCounterIncrements);
@@ -1921,6 +1927,24 @@ bool shouldRetryDuplicateKeyException(const ParsedUpdate& parsedUpdate,
         return false;
     }
 
+    // Check that collation of the query matches the unique index. To avoid calling
+    // CollatorFactoryInterface when possible, first check the simple collator case.
+    const auto& canonicalQuery = *parsedUpdate.getParsedQuery();
+    bool queryHasSimpleCollator = canonicalQuery.getCollator() == nullptr;
+    bool indexHasSimpleCollator = errorInfo.getCollation().isEmpty();
+    if (queryHasSimpleCollator != indexHasSimpleCollator) {
+        return false;
+    }
+
+    if (!indexHasSimpleCollator) {
+        auto indexCollator = uassertStatusOK(
+            CollatorFactoryInterface::get(canonicalQuery.getOpCtx()->getServiceContext())
+                ->makeFromBSON(errorInfo.getCollation()));
+        if (!CollatorInterface::collatorsMatch(canonicalQuery.getCollator(), indexCollator.get())) {
+            return false;
+        }
+    }
+
     auto keyValue = errorInfo.getDuplicatedKeyValue();
 
     BSONObjIterator keyPatternIter(keyPattern);
@@ -1950,7 +1974,8 @@ namespace {
 
 using TimeseriesBatches =
     std::vector<std::pair<std::shared_ptr<timeseries::bucket_catalog::WriteBatch>, size_t>>;
-using TimeseriesStmtIds = stdx::unordered_map<OID, std::vector<StmtId>, OID::Hasher>;
+using TimeseriesStmtIds =
+    stdx::unordered_map<timeseries::bucket_catalog::WriteBatch*, std::vector<StmtId>>;
 struct TimeseriesSingleWriteResult {
     StatusWith<SingleWriteResult> result;
     bool canContinue = true;
@@ -2059,7 +2084,7 @@ write_ops::UpdateOpEntry makeTimeseriesUpdateOpEntry(
         static_cast<bool>(repl::tenantMigrationInfo(opCtx));
     write_ops::UpdateModification u(
         updateBuilder.obj(), write_ops::UpdateModification::DeltaTag{}, options);
-    auto oid = batch->bucketHandle.bucketId.oid;
+    auto oid = batch->bucketId.oid;
     write_ops::UpdateOpEntry update(BSON("_id" << oid), std::move(u));
     invariant(!update.getMulti(), oid.toString());
     invariant(!update.getUpsert(), oid.toString());
@@ -2166,6 +2191,8 @@ write_ops::UpdateCommandRequest makeTimeseriesTransformationOp(
     // The schema validation configured in the bucket collection is intended for direct
     // operations by end users and is not applicable here.
     base.setBypassDocumentValidation(true);
+
+    base.setBypassEmptyTsReplacement(request.getBypassEmptyTsReplacement());
 
     // Timeseries compression operation is not a user operation and should not use a
     // statement id from any user op. Set to Uninitialized to bypass.
@@ -2308,7 +2335,7 @@ write_ops::UpdateCommandRequest makeTimeseriesDecompressAndUpdateOp(
     write_ops::UpdateCommandRequest op(
         makeTimeseriesBucketsNamespace(ns(request)),
         {makeTimeseriesTransformationOpEntry(
-            opCtx, batch->bucketHandle.bucketId.oid, std::move(bucketDecompressionFunc))});
+            opCtx, batch->bucketId.oid, std::move(bucketDecompressionFunc))});
     op.setWriteCommandRequestBase(makeTimeseriesWriteOpBase(std::move(stmtIds)));
     return op;
 }
@@ -2329,7 +2356,7 @@ bool commitTimeseriesBucket(OperationContext* opCtx,
                             const write_ops::InsertCommandRequest& request) try {
     auto& bucketCatalog = timeseries::bucket_catalog::BucketCatalog::get(opCtx);
 
-    auto metadata = getMetadata(bucketCatalog, batch->bucketHandle);
+    auto metadata = getMetadata(bucketCatalog, batch->bucketId);
     auto status = prepareCommit(bucketCatalog, batch);
     if (!status.isOK()) {
         invariant(timeseries::bucket_catalog::isWriteBatchFinished(*batch));
@@ -2339,7 +2366,7 @@ bool commitTimeseriesBucket(OperationContext* opCtx,
 
     hangTimeseriesInsertBeforeWrite.pauseWhileSet();
 
-    const auto docId = batch->bucketHandle.bucketId.oid;
+    const auto docId = batch->bucketId.oid;
     const bool performInsert = batch->numPreviouslyCommittedMeasurements == 0;
     if (performInsert) {
         const auto output =
@@ -2428,7 +2455,7 @@ bool commitTimeseriesBucketsAtomically(OperationContext* opCtx,
 
     // Sort by bucket so that preparing the commit for each batch cannot deadlock.
     std::sort(batchesToCommit.begin(), batchesToCommit.end(), [](auto left, auto right) {
-        return left.get()->bucketHandle.bucketId.oid < right.get()->bucketHandle.bucketId.oid;
+        return left.get()->bucketId.oid < right.get()->bucketId.oid;
     });
 
     Status abortStatus = Status::OK();
@@ -2445,7 +2472,7 @@ bool commitTimeseriesBucketsAtomically(OperationContext* opCtx,
         std::vector<write_ops::UpdateCommandRequest> updateOps;
 
         for (auto batch : batchesToCommit) {
-            auto metadata = getMetadata(bucketCatalog, batch.get()->bucketHandle);
+            auto metadata = getMetadata(bucketCatalog, batch.get()->bucketId);
             auto prepareCommitStatus = prepareCommit(bucketCatalog, batch);
             if (!prepareCommitStatus.isOK()) {
                 abortStatus = prepareCommitStatus;
@@ -2454,25 +2481,14 @@ bool commitTimeseriesBucketsAtomically(OperationContext* opCtx,
 
             if (batch.get()->numPreviouslyCommittedMeasurements == 0) {
                 insertOps.push_back(makeTimeseriesInsertOp(
-                    batch,
-                    metadata,
-                    std::move(stmtIds[batch.get()->bucketHandle.bucketId.oid]),
-                    request));
+                    batch, metadata, std::move(stmtIds[batch.get().get()]), request));
             } else {
                 if (batch.get()->decompressed.has_value()) {
                     updateOps.push_back(makeTimeseriesDecompressAndUpdateOp(
-                        opCtx,
-                        batch,
-                        metadata,
-                        std::move(stmtIds[batch.get()->bucketHandle.bucketId.oid]),
-                        request));
+                        opCtx, batch, metadata, std::move(stmtIds[batch.get().get()]), request));
                 } else {
                     updateOps.push_back(makeTimeseriesUpdateOp(
-                        opCtx,
-                        batch,
-                        metadata,
-                        std::move(stmtIds[batch.get()->bucketHandle.bucketId.oid]),
-                        request));
+                        opCtx, batch, metadata, std::move(stmtIds[batch.get().get()]), request));
                 }
             }
         }
@@ -2876,7 +2892,7 @@ std::tuple<TimeseriesBatches, TimeseriesStmtIds, size_t /* numInserted */> inser
         batches.emplace_back(std::move(insertResult->batch), index);
         const auto& batch = batches.back().first;
         if (isTimeseriesWriteRetryable(opCtx)) {
-            stmtIds[batch->bucketHandle.bucketId.oid].push_back(stmtId);
+            stmtIds[batch.get()].push_back(stmtId);
         }
 
         // If this insert closed buckets, rewrite to be a compressed column. If we cannot
@@ -2982,9 +2998,8 @@ std::vector<size_t> performUnorderedTimeseriesWrites(
         auto& [batch, index] = batches[itr];
         if (timeseries::bucket_catalog::claimWriteBatchCommitRights(*batch)) {
             handledHere.insert(batch.get());
-            auto stmtIds = isTimeseriesWriteRetryable(opCtx)
-                ? std::move(bucketStmtIds[batch->bucketHandle.bucketId.oid])
-                : std::vector<StmtId>{};
+            auto stmtIds = isTimeseriesWriteRetryable(opCtx) ? std::move(bucketStmtIds[batch.get()])
+                                                             : std::vector<StmtId>{};
             try {
                 canContinue = commitTimeseriesBucket(opCtx,
                                                      batch,

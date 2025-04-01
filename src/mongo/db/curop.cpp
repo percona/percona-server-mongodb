@@ -1754,6 +1754,7 @@ void OpDebug::setPlanSummaryMetrics(const PlanSummaryStats& planSummaryStats) {
     hasSortStage = planSummaryStats.hasSortStage;
     usedDisk = planSummaryStats.usedDisk;
     sortSpills = planSummaryStats.sortSpills;
+    sortSpillBytes = planSummaryStats.sortSpillBytes;
     sortTotalDataSizeBytes = planSummaryStats.sortTotalDataSizeBytes;
     keysSorted = planSummaryStats.keysSorted;
     fromMultiPlanner = planSummaryStats.fromMultiPlanner;

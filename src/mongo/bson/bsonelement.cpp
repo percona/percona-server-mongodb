@@ -45,6 +45,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/platform/strnlen.h"
 #include "mongo/util/base64.h"
+#include "mongo/util/decimal_counter.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/hex.h"
 #include "mongo/util/scopeguard.h"
@@ -447,6 +448,7 @@ int BSONElement::compareElements(const BSONElement& l,
     */
 std::vector<BSONElement> BSONElement::Array() const {
     chk(mongo::Array);
+
     std::vector<BSONElement> v;
     BSONObjIterator i(Obj());
     while (i.more()) {
@@ -463,6 +465,23 @@ std::vector<BSONElement> BSONElement::Array() const {
         } else {
             // ignore?
         }
+    }
+    return v;
+}
+
+std::vector<BSONElement> BSONElement::ArrayVerifyIndexes() const {
+    chk(mongo::Array);
+
+    std::vector<BSONElement> v;
+    DecimalCounter<std::uint32_t> counter(0);
+    for (auto element : Obj()) {
+        auto fieldName = element.fieldNameStringData();
+        uassert(ErrorCodes::BadValue,
+                fmt::format(
+                    "Invalid array index field name: \"{}\", expected \"{}\"", fieldName, counter),
+                fieldName == counter);
+        counter++;
+        v.push_back(element);
     }
     return v;
 }
@@ -649,41 +668,13 @@ BSONElement BSONElement::operator[](StringData field) const {
 }
 
 namespace {
-MONGO_COMPILER_NOINLINE void msgAssertedBadType [[noreturn]] (const char* data) {
-    // We intentionally read memory that may be out of the allocated memory's boundary, so do not
-    // do this when the address sanitizer is enabled. We do this in an attempt to log as much
-    // context about the failure, even if that risks undefined behavior or a segmentation fault.
-#if !__has_feature(address_sanitizer)
-    bool logMemory = true;
-#else
-    bool logMemory = false;
-#endif
 
-    str::stream output;
-    if (!logMemory) {
-        output << fmt::format("BSONElement: bad type {0:d} @ {1:p}", *data, data);
-    } else {
-        // To reduce the risk of a segmentation fault, only print the bytes in the 32-bit aligned
-        // block in which the address is located (i.e. round down to the lowest multiple of 32). The
-        // hope is that it's safe to read memory that may fall within the same cache line. Generate
-        // a mask to zero-out the last bits for a block-aligned address.
-        // Ex: Inverse of 0x1F (32 - 1) looks like 0xFFFFFFE0, and ANDed with the pointer, zeroes
-        // the lowest 5 bits, giving the starting address of a 32-bit block.
-        const size_t blockSize = 32;
-        const size_t mask = ~(blockSize - 1);
-        const char* startAddr =
-            reinterpret_cast<const char*>(reinterpret_cast<uintptr_t>(data) & mask);
-        const size_t offset = data - startAddr;
-
-        output << fmt::format(
-            "BSONElement: bad type {0:d} @ {1:p} at offset {2:d} in block: ", *data, data, offset);
-
-        for (size_t i = 0; i < blockSize; i++) {
-            output << fmt::format("{0:#x} ", static_cast<uint8_t>(startAddr[i]));
-        }
-    }
-    msgasserted(10320, output);
+MONGO_COMPILER_NOINLINE void msgAssertedBadType [[noreturn]] (int8_t type) {
+    int err = 10320;  // work around linter
+    LOGV2_ERROR(err, "BSONElement: bad type", "type"_attr = zeroPaddedHex(type));
+    uasserted(err, "BSONElement: bad type");
 }
+
 }  // namespace
 
 int BSONElement::computeSize(int8_t type, const char* elem, int fieldNameSize, int bufSize) {
@@ -754,7 +745,7 @@ int BSONElement::computeSize(int8_t type, const char* elem, int fieldNameSize, i
     if (type == MaxKey || type == MinKey)
         return fieldNameSize + 1;
     if (type != BSONType::RegEx)
-        msgAssertedBadType(elem);
+        msgAssertedBadType(type);
 
     // RegEx is two c-strings back-to-back.
     const char* p = elem + fieldNameSize + 1;
@@ -1004,7 +995,7 @@ bool BSONObj::coerceVector(std::vector<T>* out) const {
 /**
  * Types used to represent BSONElement memory in the Visual Studio debugger
  */
-#if defined(_MSC_VER) && defined(_DEBUG)
+#if defined(_MSC_VER)
 struct BSONElementData {
     char type;
     char name;
@@ -1020,6 +1011,6 @@ struct BSONElementDBRefType {
 } bsonElementDBPointerType;
 struct BSONElementCodeWithScopeType {
 } bsonElementCodeWithScopeType;
-#endif  // defined(_MSC_VER) && defined(_DEBUG)
+#endif  // defined(_MSC_VER)
 
 }  // namespace mongo

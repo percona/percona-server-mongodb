@@ -49,6 +49,7 @@ struct EncryptionGlobalParams {
     std::optional<std::uint64_t> vaultSecretVersion;
     bool vaultRotateMasterKey{false};
     std::string vaultServerCAFile;
+    bool vaultCheckMaxVersions{true};
     bool vaultDisableTLS{false};
     long vaultTimeout{15L};
     std::string kmipServerName;
@@ -60,10 +61,45 @@ struct EncryptionGlobalParams {
     int kmipConnectTimeoutMS{5000};
     std::string kmipKeyIdentifier;
     bool kmipRotateMasterKey{false};
+    int kmipKeyStatePollingSeconds{900};
 
     bool shouldRotateMasterKey() const noexcept {
         return vaultRotateMasterKey || kmipRotateMasterKey;
     }
+
+    void kmipActivateKeys(bool value) noexcept {
+        _kmipActivateKeys = value;
+        _kmipToleratePreActiveKeys = false;
+    }
+    bool kmipActivateKeys() const noexcept {
+        return _kmipActivateKeys;
+    }
+    bool kmipToleratePreActiveKeys() const noexcept {
+        return _kmipToleratePreActiveKeys;
+    }
+
+private:
+    bool _kmipActivateKeys{true};
+    /// The option implements a transitional period before all the keys are
+    /// strictly checked for being in the `Active` state (since Percona Server
+    /// for MongoDB version 8.0). Untill then, not specifying the
+    /// `security.kmip.activateKeys` option results in the feature being eanbled
+    /// but working in the "soft" mode, meaning that Percona Server for MongoDB:
+    /// - activates newly generated keys;
+    /// - checks that the exising keys it reads from a KMIP server is either in
+    /// the `Active` _or `Pre-Active`_ state.
+    ///
+    /// In the latter case, `mongod` still uses the key but logs a warning
+    /// informing that it won't accept pre-active keys since version 8.0.
+    ///
+    /// If the key state checking is explicitly enabled by setting
+    /// `activateKeys` to `true` in either config file or CLI, then pre-active
+    /// keys aren't allowed.
+    ///
+    /// @note The option is internal, that is its value is determined by
+    /// `security.kmip.activateKeys` being present or absent and
+    /// can't be set in the configuration file or command line directly.
+    bool _kmipToleratePreActiveKeys{true};
 };
 
 extern EncryptionGlobalParams encryptionGlobalParams;

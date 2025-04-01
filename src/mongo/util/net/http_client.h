@@ -73,6 +73,14 @@ public:
     virtual void allowInsecureHTTP(bool allow) = 0;
 
     /**
+     * For all future requests on this client, add the root certificate at
+     * `caFilePath` to the list of trusted certificate authorities.
+     */
+    void setCAFile(const std::string& caFilePath) {
+        _caFilePath = caFilePath;
+    }
+
+    /**
      * Returns Status::OK iff the provided URL endpoint is "secure".
      *
      * HTTPS endpoints are secure. If test commands are enabled, localhost endpoints
@@ -153,6 +161,7 @@ public:
 protected:
     Seconds _timeout = kTotalRequestTimeout;
     Seconds _connectTimeout = kConnectionTimeout;
+    std::string _caFilePath;
 
 private:
     DataBuilder requestSuccess(HttpMethod method, StringData url, ConstDataRange data) const {

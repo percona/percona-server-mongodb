@@ -10,7 +10,6 @@
  * stepdown/kill/terminate.
  * @tags: [
  *  requires_fcv_70,
- *  featureFlagUpdateOneWithoutShardKey,
  *  uses_transactions,
  *  resource_intensive,
  *  incompatible_with_concurrency_simultaneous,
@@ -304,9 +303,21 @@ var $config = extendWorkload($config, function($config, $super) {
             percentageOfScatterGatherReads
         };
 
-        [this.percentageOfWritesFilterByShardKeyEquality,
-         this.percentageOfWritesFilterByShardKeyRange,
-         this.percentageOfWritesNotFilterByShardKey] = this.generateRandomPercentages(3);
+        if (Object.keys(this.shardKeyOptions.shardKey).includes(this.currentShardKeyFieldName)) {
+            // For a sharded collection, it is illegal to perform a multi:false write that targets
+            // more than one shard. This collection is sharded on the shard key being analyzed, so
+            // we cannot test multi:false writes that do not filter by shard key equality since such
+            // writes may target more than one shard. For simplicity, just skip testing writes that
+            // do not filter by shard key equality.
+            this.percentageOfWritesFilterByShardKeyEquality = 100;
+            this.percentageOfWritesFilterByShardKeyRange = 0;
+            this.percentageOfWritesNotFilterByShardKey = 0;
+        } else {
+            [this.percentageOfWritesFilterByShardKeyEquality,
+             this.percentageOfWritesFilterByShardKeyRange,
+             this.percentageOfWritesNotFilterByShardKey] = this.generateRandomPercentages(3);
+        }
+
         const [percentageOfSingleShardWrites,
                percentageOfMultiShardWrites,
                percentageOfScatterGatherWrites] =
@@ -405,8 +416,8 @@ var $config = extendWorkload($config, function($config, $super) {
      * this. If the document lookup fails with an expected error, returns null. If it fails with
      * some other error, throws the error.
      */
-    $config.data.tryGenerateRandomWriteFilter = function tryGenerateRandomWriteFilter(db,
-                                                                                      collName) {
+    $config.data.tryGenerateRandomWriteFilter = function tryGenerateRandomWriteFilter(
+        db, collName, isMulti) {
         let doc;
         try {
             doc = this.getRandomDocument(db, collName);
@@ -433,6 +444,13 @@ var $config = extendWorkload($config, function($config, $super) {
             }
         } else {
             filter[this.nonCandidateShardKeyFieldName] = doc[this.nonCandidateShardKeyFieldName];
+        }
+
+        // For a sharded collection, it is illegal to perform a multi:false write that targets more
+        // than one shard. To guarantee that this write targets only one shard, add shard key
+        // equality to its filter.
+        if (!isMulti && this.isShardedCluster) {
+            filter[this.currentShardKeyFieldName] = doc[this.currentShardKeyFieldName];
         }
 
         return filter;
@@ -496,14 +514,29 @@ var $config = extendWorkload($config, function($config, $super) {
         }
 
         // Validate the frequency metrics. Likewise, due to the concurrent writes by other threads,
-        // it is not feasible to assert on the exact "mostCommonValues".
-        assert.eq(metrics.mostCommonValues.length, this.analyzeShardKeyNumMostCommonValues);
+        // it is not feasible to assert on the exact "mostCommonValues". Also, if the shard key is
+        // unique and the suite performs unclean shutdown, then the length of "mostCommonValues" may
+        // be less than analyzeShardKeyNumMostCommonValues since unclean shutdown can cause
+        // $collStats to return wrong number of documents and the calculation of the cardinality and
+        // frequency metrics for a unique shard key depends on the metrics returned by $collStats.
+        const shouldCheckMostCommonValues = !(this.shardKeyOptions.isUnique && TestData.killShards);
+        if (shouldCheckMostCommonValues) {
+            assert.eq(metrics.mostCommonValues.length, this.analyzeShardKeyNumMostCommonValues);
+        }
 
-        // Validate the monotonicity metrics. This check is skipped if the balancer is enabled
-        // since chunk migration deletes documents from the donor shard and re-inserts them on the
-        // recipient shard so there is no guarantee that the insertion order from the client is
-        // preserved.
-        if (!isSampling && !TestData.runningWithBalancer) {
+        // Validate the monotonicity metrics. This check is skipped if:
+        // - The analyzeShardKey command is run with a custom 'sampleRate' or 'sampleSize' since
+        //   the number of sampled documents may be so low that the resulting correlation
+        //   coefficient is very different from the actual correlation coefficient.
+        // - The balancer is enabled since chunk migration deletes documents from the donor shard
+        //   and re-inserts them on the recipient shard so there is no guarantee that the original
+        //   insertion order is preserved.
+        // - There is a lot of shard key updates since they overwrite the recordId order in the
+        //   the shard key index.
+        const shouldCheckMonotonicity = !isSampling && !TestData.runningWithBalancer &&
+            (this.writeDistribution.percentageOfShardKeyUpdates <=
+             this.percentageOfShardKeyUpdatesThresholdForMonotonicityCheck);
+        if (shouldCheckMonotonicity) {
             assert.eq(metrics.monotonicity.type,
                       this.shardKeyOptions.isMonotonic && !this.shardKeyOptions.isHashed
                           ? "monotonic"
@@ -528,6 +561,11 @@ var $config = extendWorkload($config, function($config, $super) {
 
     // The number of sampled queries returned by the latest analyzeShardKey command.
     $config.data.previousNumSampledQueries = 0;
+
+    // The maximum percentage of shard key updates to still do the monotonicity check. Shard key
+    // updates overwrite recordId order in the shard key index so if the accuracy of the
+    // monotonicity check decreases as the number of shard key updates increases.
+    $config.data.percentageOfShardKeyUpdatesThresholdForMonotonicityCheck = 20;
 
     $config.data.isAcceptableSampleSize = function isAcceptableSampleSize(
         part, whole, expectedPercentage) {
@@ -689,6 +727,14 @@ var $config = extendWorkload($config, function($config, $super) {
                   `collection is empty. ${tojsononeline(err)}`);
             // Inaccurate fast count is only expected when there is unclean shutdown.
             return TestData.runningWithShardStepdowns;
+        }
+        // TODO SERVER-91030: Remove special handling of error code 7826507.
+        if (err.code == 7826507) {
+            print(
+                `Failed to analyze the shard key because the number of sampled documents is zero. ${
+                    tojsononeline(err)}`);
+            // This may be due to chunk migrations.
+            return true;
         }
         if (err.code == ErrorCodes.IllegalOperation && err.errmsg &&
             err.errmsg.includes("monotonicity") && err.errmsg.includes("empty collection")) {
@@ -870,6 +916,8 @@ var $config = extendWorkload($config, function($config, $super) {
     // The body of the workload.
 
     $config.setup = function setup(db, collName, cluster) {
+        this.isShardedCluster = cluster.isSharded();
+
         // Look up the number of most common values and the number of ranges that the
         // analyzeShardKey command should return.
         cluster.executeOnMongodNodes((db) => {
@@ -1091,18 +1139,19 @@ var $config = extendWorkload($config, function($config, $super) {
     };
 
     $config.states.update = function update(db, collName) {
-        const filter = this.tryGenerateRandomWriteFilter(db, collName);
+        const isMulti = Math.random() < this.probabilityOfMultiWrites;
+        const filter = this.tryGenerateRandomWriteFilter(db, collName, isMulti);
         if (!filter) {
             return;
         }
         const update = this.generateRandomModifierUpdate();
-        const isMulti = Math.random() < this.probabilityOfMultiWrites;
 
         const cmdObj = {
             update: collName,
             updates: [{q: filter, u: update, multi: isMulti}],
             comment: this.eligibleForSamplingComment
         };
+
         print("Starting update state " + tojsononeline(cmdObj));
         const res = db.runCommand(cmdObj);
         try {
@@ -1120,11 +1169,11 @@ var $config = extendWorkload($config, function($config, $super) {
     };
 
     $config.states.remove = function remove(db, collName) {
-        const filter = this.tryGenerateRandomWriteFilter(db, collName);
+        const isMulti = Math.random() < this.probabilityOfMultiWrites;
+        const filter = this.tryGenerateRandomWriteFilter(db, collName, isMulti);
         if (!filter) {
             return;
         }
-        const isMulti = Math.random() < this.probabilityOfMultiWrites;
 
         const cmdObj = {
             delete: collName,
@@ -1141,7 +1190,7 @@ var $config = extendWorkload($config, function($config, $super) {
     };
 
     $config.states.findAndModifyUpdate = function findAndModifyUpdate(db, collName) {
-        const filter = this.tryGenerateRandomWriteFilter(db, collName);
+        const filter = this.tryGenerateRandomWriteFilter(db, collName, false /* isMulti */);
         if (!filter) {
             return;
         }
@@ -1168,7 +1217,7 @@ var $config = extendWorkload($config, function($config, $super) {
     };
 
     $config.states.findAndModifyRemove = function findAndModifyRemove(db, collName) {
-        const filter = this.tryGenerateRandomWriteFilter(db, collName);
+        const filter = this.tryGenerateRandomWriteFilter(db, collName, false /* isMulti */);
         if (!filter) {
             return;
         }

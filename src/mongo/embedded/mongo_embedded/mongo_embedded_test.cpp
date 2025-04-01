@@ -586,6 +586,7 @@ TEST_F(MongodbCAPITest, RunListCommands) {
                                           "findAndModify",
                                           "getMore",
                                           "getParameter",
+                                          "getQueryableEncryptionCountInfo",
                                           "httpClientRequest",
                                           "insert",
                                           "isMaster",

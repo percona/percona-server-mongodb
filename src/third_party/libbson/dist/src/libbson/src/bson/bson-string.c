@@ -18,17 +18,60 @@
 #include <limits.h>
 #include <stdarg.h>
 
-#include "bson-compat.h"
-#include "bson-config.h"
-#include "bson-string.h"
-#include "bson-memory.h"
-#include "bson-utf8.h"
+#include <bson/bson-compat.h>
+#include <bson/bson-config.h>
+#include <bson/bson-cmp.h>
+#include <bson/bson-string.h>
+#include <bson/bson-memory.h>
+#include <bson/bson-utf8.h>
 
 #ifdef BSON_HAVE_STRINGS_H
 #include <strings.h>
 #else
 #include <string.h>
 #endif
+
+// `bson_next_power_of_two_u32` returns 0 on overflow.
+static BSON_INLINE uint32_t
+bson_next_power_of_two_u32 (uint32_t v)
+{
+   BSON_ASSERT (v > 0);
+
+   // https://graphics.stanford.edu/%7Eseander/bithacks.html#RoundUpPowerOf2
+   v--;
+   v |= v >> 1;
+   v |= v >> 2;
+   v |= v >> 4;
+   v |= v >> 8;
+   v |= v >> 16;
+   v++;
+
+   return v;
+}
+
+// `bson_string_ensure_space` ensures `string` has enough room for `needed` + a null terminator.
+static void
+bson_string_ensure_space (bson_string_t *string, uint32_t needed)
+{
+   BSON_ASSERT_PARAM (string);
+   BSON_ASSERT (needed <= UINT32_MAX - 1u);
+   needed += 1u; // Add one for trailing NULL byte.
+   if (string->alloc >= needed) {
+      return;
+   }
+   // Get the next largest power of 2 if possible.
+   uint32_t alloc = bson_next_power_of_two_u32 (needed);
+   if (alloc == 0) {
+      // Overflowed: saturate at UINT32_MAX.
+      alloc = UINT32_MAX;
+   }
+   if (!string->str) {
+      string->str = bson_malloc (alloc);
+   } else {
+      string->str = bson_realloc (string->str, alloc);
+   }
+   string->alloc = alloc;
+}
 
 /*
  *--------------------------------------------------------------------------
@@ -63,23 +106,16 @@ bson_string_new (const char *str) /* IN */
    bson_string_t *ret;
 
    ret = bson_malloc0 (sizeof *ret);
-   ret->len = str ? (int) strlen (str) : 0;
-   ret->alloc = ret->len + 1;
-
-   if (!bson_is_power_of_two (ret->alloc)) {
-      ret->alloc = (uint32_t) bson_next_power_of_two ((size_t) ret->alloc);
-   }
-
-   BSON_ASSERT (ret->alloc >= 1);
-
-   ret->str = bson_malloc (ret->alloc);
-
+   const size_t len_sz = str == NULL ? 0u : strlen (str);
+   BSON_ASSERT (bson_in_range_unsigned (uint32_t, len_sz));
+   const uint32_t len_u32 = (uint32_t) len_sz;
+   bson_string_ensure_space (ret, len_u32);
    if (str) {
-      memcpy (ret->str, str, ret->len);
+      memcpy (ret->str, str, len_sz);
    }
-   ret->str[ret->len] = '\0';
 
-   ret->str[ret->len] = '\0';
+   ret->str[len_u32] = '\0';
+   ret->len = len_u32;
 
    return ret;
 }
@@ -90,7 +126,9 @@ bson_string_free (bson_string_t *string, /* IN */
 {
    char *ret = NULL;
 
-   BSON_ASSERT (string);
+   if (!string) {
+      return NULL;
+   }
 
    if (!free_segment) {
       ret = string->str;
@@ -124,25 +162,18 @@ void
 bson_string_append (bson_string_t *string, /* IN */
                     const char *str)       /* IN */
 {
-   uint32_t len;
-
    BSON_ASSERT (string);
    BSON_ASSERT (str);
 
-   len = (uint32_t) strlen (str);
-
-   if ((string->alloc - string->len - 1) < len) {
-      string->alloc += len;
-      if (!bson_is_power_of_two (string->alloc)) {
-         string->alloc =
-            (uint32_t) bson_next_power_of_two ((size_t) string->alloc);
-      }
-      string->str = bson_realloc (string->str, string->alloc);
-   }
-
-   memcpy (string->str + string->len, str, len);
-   string->len += len;
-   string->str[string->len] = '\0';
+   const size_t len_sz = strlen (str);
+   BSON_ASSERT (bson_in_range_unsigned (uint32_t, len_sz));
+   const uint32_t len_u32 = (uint32_t) len_sz;
+   BSON_ASSERT (len_u32 <= UINT32_MAX - string->len);
+   const uint32_t new_len = len_u32 + string->len;
+   bson_string_ensure_space (string, new_len);
+   memcpy (string->str + string->len, str, len_sz);
+   string->str[new_len] = '\0';
+   string->len = new_len;
 }
 
 
@@ -472,11 +503,11 @@ bson_strndup (const char *str, /* IN */
 void
 bson_strfreev (char **str) /* IN */
 {
-   int i;
-
    if (str) {
-      for (i = 0; str[i]; i++)
-         bson_free (str[i]);
+      for (char **ptr = str; *ptr != NULL; ++ptr) {
+         bson_free (*ptr);
+      }
+
       bson_free (str);
    }
 }
@@ -727,8 +758,7 @@ bson_ascii_strtoll (const char *s, char **e, int base)
    }
 
    /* from here down, inspired by NetBSD's strtoll */
-   if ((base == 0 || base == 16) && c == '0' &&
-       (tok[1] == 'x' || tok[1] == 'X')) {
+   if ((base == 0 || base == 16) && c == '0' && (tok[1] == 'x' || tok[1] == 'X')) {
       tok += 2;
       c = *tok;
       base = 16;

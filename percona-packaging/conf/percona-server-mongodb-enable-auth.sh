@@ -148,7 +148,7 @@ add_user_to_mongo() {
     port="$(get_value_from_yaml net port)"
     user="$USERNAME"
     password="$PASSWORD"
-    echo "db.createUser({user: \"$user\", pwd: \"$password\", roles: [ \"root\" ] });" | ${MONGO_CLIENT_BIN} admin --port 27017 --eval > /dev/null 2>&1
+    echo "db.createUser({user: \"$user\", pwd: \"$password\", roles: [ \"root\" ] });" | ${MONGO_CLIENT_BIN} admin --port ${port} --eval > /dev/null 2>&1
     if [ $? -eq 0 ];then
         echo -e "User has been created successfully!\nUser:${user}\nPassword:${password}"
     else

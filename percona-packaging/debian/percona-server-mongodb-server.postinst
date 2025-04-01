@@ -114,4 +114,8 @@ else
     fi
 fi
 
+if [ -d /usr/local/percona/telemetry ]; then
+    install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdb
+fi
+
 exit 0
