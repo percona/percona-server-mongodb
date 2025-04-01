@@ -112,32 +112,32 @@ namespace mongo {
 namespace repl {
 
 // Failpoint for initial sync
-MONGO_FAIL_POINT_DEFINE(failInitialSyncWithBadHostFCB);
+extern FailPoint failInitialSyncWithBadHost;
 
 // Failpoint which causes the initial sync function to hang before creating shared data and
 // splitting control flow between the oplog fetcher and the cloners.
-MONGO_FAIL_POINT_DEFINE(initialSyncHangBeforeSplittingControlFlowFCB);
+extern FailPoint initialSyncHangBeforeSplittingControlFlow;
 
 // Failpoint which causes the initial sync function to hang before copying databases.
-MONGO_FAIL_POINT_DEFINE(initialSyncHangBeforeCopyingDatabasesFCB);
+extern FailPoint initialSyncHangBeforeCopyingDatabases;
 
 // Failpoint which causes the initial sync function to hang before finishing.
-MONGO_FAIL_POINT_DEFINE(initialSyncHangBeforeFinishFCB);
+extern FailPoint initialSyncHangBeforeFinish;
 
 // Failpoint which causes the initial sync function to hang before creating the oplog.
-MONGO_FAIL_POINT_DEFINE(initialSyncHangBeforeCreatingOplogFCB);
+extern FailPoint initialSyncHangBeforeCreatingOplog;
 
 // Failpoint which skips clearing _initialSyncState after a successful initial sync attempt.
-MONGO_FAIL_POINT_DEFINE(skipClearInitialSyncStateFCB);
+extern FailPoint skipClearInitialSyncState;
 
 // Failpoint which causes the initial sync function to fail and hang before starting a new attempt.
-MONGO_FAIL_POINT_DEFINE(failAndHangInitialSyncFCB);
+extern FailPoint failAndHangInitialSync;
 
 // Failpoint which causes the initial sync function to hang before choosing a sync source.
-MONGO_FAIL_POINT_DEFINE(initialSyncHangBeforeChoosingSyncSourceFCB);
+extern FailPoint initialSyncHangBeforeChoosingSyncSource;
 
 // Failpoint which causes the initial sync function to hang after finishing.
-MONGO_FAIL_POINT_DEFINE(initialSyncHangAfterFinishFCB);
+extern FailPoint initialSyncHangAfterFinish;
 
 namespace {
 using namespace executor;
@@ -650,9 +650,9 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
     std::uint32_t chooseSyncSourceAttempt,
     std::uint32_t chooseSyncSourceMaxAttempts,
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
-    if (MONGO_unlikely(initialSyncHangBeforeChoosingSyncSourceFCB.shouldFail())) {
-        LOGV2(128428, "initialSyncHangBeforeChoosingSyncSourceFCB fail point enabled");
-        initialSyncHangBeforeChoosingSyncSourceFCB.pauseWhileSet();
+    if (MONGO_unlikely(initialSyncHangBeforeChoosingSyncSource.shouldFail())) {
+        LOGV2(128428, "initialSyncHangBeforeChoosingSyncSource fail point enabled");
+        initialSyncHangBeforeChoosingSyncSource.pauseWhileSet();
     }
 
     stdx::unique_lock<Latch> lock(_mutex);
@@ -666,9 +666,9 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
         return;
     }
 
-    if (MONGO_unlikely(failInitialSyncWithBadHostFCB.shouldFail())) {
+    if (MONGO_unlikely(failInitialSyncWithBadHost.shouldFail())) {
         status = Status(ErrorCodes::InvalidSyncSource,
-                        "initial sync failed - failInitialSyncWithBadHostFCB failpoint is set.");
+                        "initial sync failed - failInitialSyncWithBadHost failpoint is set.");
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
@@ -712,13 +712,13 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
         return;
     }
 
-    if (MONGO_unlikely(initialSyncHangBeforeCreatingOplogFCB.shouldFail())) {
+    if (MONGO_unlikely(initialSyncHangBeforeCreatingOplog.shouldFail())) {
         // This log output is used in js tests so please leave it.
         LOGV2(128430,
-              "initial sync - initialSyncHangBeforeCreatingOplogFCB fail point "
+              "initial sync - initialSyncHangBeforeCreatingOplog fail point "
               "enabled. Blocking until fail point is disabled.");
         lock.unlock();
-        while (MONGO_unlikely(initialSyncHangBeforeCreatingOplogFCB.shouldFail()) &&
+        while (MONGO_unlikely(initialSyncHangBeforeCreatingOplog.shouldFail()) &&
                !_isShuttingDown()) {
             mongo::sleepsecs(1);
         }
@@ -894,12 +894,12 @@ void InitialSyncerFCB::_fcvFetcherCallback(const StatusWith<Fetcher::QueryRespon
         serverGlobalParams.mutableFCV.setVersion(version);
     }
 
-    if (MONGO_unlikely(initialSyncHangBeforeSplittingControlFlowFCB.shouldFail())) {
+    if (MONGO_unlikely(initialSyncHangBeforeSplittingControlFlow.shouldFail())) {
         lock.unlock();
         LOGV2(128436,
-              "initial sync - initialSyncHangBeforeSplittingControlFlowFCB fail point "
+              "initial sync - initialSyncHangBeforeSplittingControlFlow fail point "
               "enabled. Blocking until fail point is disabled.");
-        while (MONGO_unlikely(initialSyncHangBeforeSplittingControlFlowFCB.shouldFail()) &&
+        while (MONGO_unlikely(initialSyncHangBeforeSplittingControlFlow.shouldFail()) &&
                !_isShuttingDown()) {
             mongo::sleepsecs(1);
         }
@@ -946,15 +946,15 @@ void InitialSyncerFCB::_fcvFetcherCallback(const StatusWith<Fetcher::QueryRespon
         return;
     }
 
-    if (MONGO_unlikely(initialSyncHangBeforeCopyingDatabasesFCB.shouldFail())) {
+    if (MONGO_unlikely(initialSyncHangBeforeCopyingDatabases.shouldFail())) {
         lock.unlock();
         // This could have been done with a scheduleWorkAt but this is used only by JS tests where
         // we run with multiple threads so it's fine to spin on this thread.
         // This log output is used in js tests so please leave it.
         LOGV2(128438,
-              "initial sync - initialSyncHangBeforeCopyingDatabasesFCB fail point "
+              "initial sync - initialSyncHangBeforeCopyingDatabases fail point "
               "enabled. Blocking until fail point is disabled.");
-        while (MONGO_unlikely(initialSyncHangBeforeCopyingDatabasesFCB.shouldFail()) &&
+        while (MONGO_unlikely(initialSyncHangBeforeCopyingDatabases.shouldFail()) &&
                !_isShuttingDown()) {
             mongo::sleepsecs(1);
         }
@@ -1010,10 +1010,10 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
             durationCount<Milliseconds>(_sharedData->getTotalTimeUnreachable(sdLock));
     }
 
-    if (MONGO_unlikely(failAndHangInitialSyncFCB.shouldFail())) {
-        LOGV2(128441, "failAndHangInitialSyncFCB fail point enabled");
-        failAndHangInitialSyncFCB.pauseWhileSet();
-        result = Status(ErrorCodes::InternalError, "failAndHangInitialSyncFCB fail point enabled");
+    if (MONGO_unlikely(failAndHangInitialSync.shouldFail())) {
+        LOGV2(128441, "failAndHangInitialSync fail point enabled");
+        failAndHangInitialSync.pauseWhileSet();
+        result = Status(ErrorCodes::InternalError, "failAndHangInitialSync fail point enabled");
     }
 
     _stats.initialSyncAttemptInfos.emplace_back(
@@ -1111,12 +1111,12 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
         std::swap(_onCompletion, onCompletion);
     }
 
-    if (MONGO_unlikely(initialSyncHangBeforeFinishFCB.shouldFail())) {
+    if (MONGO_unlikely(initialSyncHangBeforeFinish.shouldFail())) {
         // This log output is used in js tests so please leave it.
         LOGV2(128444,
-              "initial sync - initialSyncHangBeforeFinishFCB fail point "
+              "initial sync - initialSyncHangBeforeFinish fail point "
               "enabled. Blocking until fail point is disabled.");
-        while (MONGO_unlikely(initialSyncHangBeforeFinishFCB.shouldFail()) && !_isShuttingDown()) {
+        while (MONGO_unlikely(initialSyncHangBeforeFinish.shouldFail()) && !_isShuttingDown()) {
             mongo::sleepsecs(1);
         }
     }
@@ -1148,7 +1148,7 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
 
         // Clear the initial sync progress after an initial sync attempt has been successfully
         // completed.
-        if (lastApplied.isOK() && !MONGO_unlikely(skipClearInitialSyncStateFCB.shouldFail())) {
+        if (lastApplied.isOK() && !MONGO_unlikely(skipClearInitialSyncState.shouldFail())) {
             _initialSyncState.reset();
         }
 
@@ -1159,11 +1159,11 @@ void InitialSyncerFCB::_finishCallback(StatusWith<OpTimeAndWallTime> lastApplied
         _exec = nullptr;
     }
 
-    if (MONGO_unlikely(initialSyncHangAfterFinishFCB.shouldFail())) {
+    if (MONGO_unlikely(initialSyncHangAfterFinish.shouldFail())) {
         LOGV2(128446,
-              "initial sync finished - initialSyncHangAfterFinishFCB fail point "
+              "initial sync finished - initialSyncHangAfterFinish fail point "
               "enabled. Blocking until fail point is disabled.");
-        while (MONGO_unlikely(initialSyncHangAfterFinishFCB.shouldFail()) && !_isShuttingDown()) {
+        while (MONGO_unlikely(initialSyncHangAfterFinish.shouldFail()) && !_isShuttingDown()) {
             mongo::sleepsecs(1);
         }
     }
