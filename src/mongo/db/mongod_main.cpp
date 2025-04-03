@@ -49,7 +49,9 @@
 #include "mongo/db/audit/audit_options.h"
 #include "mongo/db/auth/auth_op_observer.h"
 #include "mongo/db/auth/authorization_manager.h"
+#include "mongo/db/auth/oidc/oidc_server_parameters_logger.h"
 #include "mongo/db/auth/sasl_options.h"
+#include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_catalog.h"
 #include "mongo/db/catalog/collection_impl.h"
 #include "mongo/db/catalog/collection_write_path.h"
@@ -1080,6 +1082,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     // Startup options are written to the audit log at the end of startup so that cluster server
     // parameters are guaranteed to have been initialized from disk at this point.
     audit::logStartupOptions(Client::getCurrent(), serverGlobalParams.parsedOpts);
+
+    OidcServerParameterLogger::log();
 
     // MessageServer::run will return when exit code closes its socket and we don't need the
     // operation context anymore
