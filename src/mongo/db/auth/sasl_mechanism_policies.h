@@ -114,5 +114,20 @@ struct GSSAPIPolicy {
     }
 };
 
+struct OidcPolicy {
+    static constexpr StringData getName() {
+        return "MONGODB-OIDC"_sd;
+    }
+    static SecurityPropertySet getProperties() {
+        return SecurityPropertySet{SecurityProperty::kNoPlainText};
+    }
+    static int securityLevel() {
+        return 0;
+    }
+    static constexpr bool isInternalAuthMech() {
+        return false;
+    }
+};
+
 
 }  // namespace mongo
