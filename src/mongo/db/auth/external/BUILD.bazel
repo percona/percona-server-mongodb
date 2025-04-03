@@ -16,12 +16,14 @@ mongo_cc_library(
         "cyrus_sasl_server_session.cpp",
         "external_sasl_authentication_session.cpp",
         "gssapi_server_mechanism.cpp",
+        "sasl_oidc_server_mechanism.cpp",
     ],
     hdrs = [
         "awsiam_server_mechanism.h",
         "cyrus_sasl_server_session.h",
         "external_sasl_authentication_session.h",
         "gssapi_server_mechanism.h",
+        "sasl_oidc_server_mechanism.h",
     ],
     deps = [
         "//src/mongo/db/auth:saslauth",
