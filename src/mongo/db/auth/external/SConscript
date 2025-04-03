@@ -11,6 +11,7 @@ env.Library(
         'cyrus_sasl_server_session.cpp',
         'external_sasl_authentication_session.cpp',
         'gssapi_server_mechanism.cpp',
+        'sasl_oidc_server_mechanism.cpp',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/auth/saslauth',
