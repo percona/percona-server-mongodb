@@ -698,6 +698,7 @@ env.Library(
         "$BUILD_DIR/mongo/watchdog/watchdog_mongod",
         "admission/execution_control",
         "auth/auth_op_observer",
+        "auth/oidc/oidc_server_parameters",
         "catalog/catalog_helpers",
         "catalog/catalog_impl",
         "catalog/collection_crud",
