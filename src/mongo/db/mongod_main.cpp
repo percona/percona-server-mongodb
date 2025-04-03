@@ -72,6 +72,7 @@
 #include "mongo/db/audit/audit_options.h"
 #include "mongo/db/auth/auth_op_observer.h"
 #include "mongo/db/auth/authorization_manager.h"
+#include "mongo/db/auth/oidc/oidc_server_parameters_logger.h"
 #include "mongo/db/auth/user_cache_invalidator_job.h"
 #include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_catalog.h"
@@ -1222,6 +1223,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
                                                   &startupTimeElapsedBuilder);
         audit::logStartupOptions(Client::getCurrent(), serverGlobalParams.parsedOpts);
     }
+
+    OidcServerParameterLogger::log();
 
     // MessageServer::run will return when exit code closes its socket and we don't need the
     // operation context anymore
