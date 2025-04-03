@@ -1,0 +1,29 @@
+load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+idl_generator(
+    name = "oidc_server_parameters_gen",
+    src = "oidc_server_parameters.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
+mongo_cc_library(
+    name = "oidc_server_parameters",
+    srcs = [
+        "oidc_server_parameters.cpp",
+        "oidc_server_parameters_logger.cpp",
+        "oidc_server_parameters_gen",
+    ],
+    hdrs = [
+        "oidc_server_parameters_logger.h",
+        "match_pattern.h",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db:server_base",
+        "//src/mongo/util/options_parser"
+    ],
+)
