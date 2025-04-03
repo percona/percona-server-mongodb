@@ -994,8 +994,8 @@ build_tarball(){
         fi
         if [ "x${RHEL}" != "x2023" ]; then
             echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-            export CC=/opt/mongodbtoolchain/v4/bin/clang
-            export CXX=/opt/mongodbtoolchain/v4/bin/clang++
+            export CC=/opt/mongodbtoolchain/v4/bin/gcc
+            export CXX=/opt/mongodbtoolchain/v4/bin/g++
         else
             export CC=/usr/bin/gcc
             export CXX=/usr/bin/g++
