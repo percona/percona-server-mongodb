@@ -1,0 +1,4 @@
+selector:
+  js_test:
+     jstests/oidc/*.js:
+     - oidc_idp_mock_cert_installed
