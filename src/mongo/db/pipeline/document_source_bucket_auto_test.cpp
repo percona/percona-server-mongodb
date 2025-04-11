@@ -587,16 +587,16 @@ TEST_F(BucketAutoTests, FailsWithNonOrInvalidExpressionGroupBy) {
     spec = fromjson("{$bucketAuto : {groupBy : '', buckets : 1}}");
     ASSERT_THROWS_CODE(createBucketAuto(spec), AssertionException, 40239);
 
-    spec = fromjson("{$bucketAuto : {groupBy : {}}, buckets : 1}}");
+    spec = fromjson("{$bucketAuto : {groupBy : {}}, buckets : 1}");
     ASSERT_THROWS_CODE(createBucketAuto(spec), AssertionException, 40239);
 
-    spec = fromjson("{$bucketAuto : {groupBy : '$'}, buckets : 1}}");
+    spec = fromjson("{$bucketAuto : {groupBy : '$'}, buckets : 1}");
     ASSERT_THROWS_CODE(createBucketAuto(spec), AssertionException, 40239);
 
-    spec = fromjson("{$bucketAuto : {groupBy : []}, buckets : 1}}");
+    spec = fromjson("{$bucketAuto : {groupBy : []}, buckets : 1}");
     ASSERT_THROWS_CODE(createBucketAuto(spec), AssertionException, 40239);
 
-    spec = fromjson("{$bucketAuto : {groupBy : null}, buckets : 1}}");
+    spec = fromjson("{$bucketAuto : {groupBy : null}, buckets : 1}");
     ASSERT_THROWS_CODE(createBucketAuto(spec), AssertionException, 40239);
 }
 
@@ -717,7 +717,7 @@ TEST_F(BucketAutoTests, ShouldCorrectlyTrackMemoryUsageBetweenPauses) {
     auto bucketAutoStage = DocumentSourceBucketAuto::create(
         expCtx, groupByExpression, numBuckets, {}, nullptr, maxMemoryUsageBytes);
 
-    string largeStr(maxMemoryUsageBytes / 2, 'x');
+    string largeStr(maxMemoryUsageBytes / 5, 'x');
     auto mock =
         DocumentSourceMock::createForTest({Document{{"a", 0}, {"largeStr", largeStr}},
                                            DocumentSource::GetNextResult::makePauseExecution(),

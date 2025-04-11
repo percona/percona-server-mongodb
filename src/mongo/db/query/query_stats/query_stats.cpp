@@ -222,9 +222,9 @@ void updateStatistics(const QueryStatsStore::Partition& proofOfLock,
 }  // namespace
 
 bool isQueryStatsFeatureEnabled() {
-    const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-    return fcvSnapshot.isVersionInitialized() &&
-        (feature_flags::gFeatureFlagQueryStats.isEnabled(fcvSnapshot));
+    // (Ignore FCV check): Now that query stats is enabled on v6.0, we don't want to enforce FCV
+    // gating on v7.0.
+    return feature_flags::gFeatureFlagQueryStats.isEnabledAndIgnoreFCVUnsafe();
 }
 
 void registerRequest(OperationContext* opCtx,
@@ -301,7 +301,7 @@ void registerRequest(OperationContext* opCtx,
                     "Error encountered when creating the Query Stats store key. Metrics will not "
                     "be collected for this command",
                     "status"_attr = status,
-                    "command"_attr = cmdObj);
+                    "command"_attr = redact(cmdObj));
         if (kDebugBuild || internalQueryStatsErrorsAreCommandFatal.load()) {
             // uassert rather than tassert so that we avoid creating fatal failures on queries that
             // were going to fail anyway, but trigger the error here first. A query that ONLY fails

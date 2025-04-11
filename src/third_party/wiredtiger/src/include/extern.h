@@ -2391,6 +2391,8 @@ static inline uint64_t __wt_btree_bytes_inuse(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline uint64_t __wt_btree_bytes_updates(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline uint64_t __wt_btree_dirty_intl_inuse(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline uint64_t __wt_btree_dirty_inuse(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline uint64_t __wt_btree_dirty_leaf_inuse(WT_SESSION_IMPL *session)
@@ -2404,6 +2406,8 @@ static inline uint64_t __wt_cache_bytes_other(WT_CACHE *cache)
 static inline uint64_t __wt_cache_bytes_plus_overhead(WT_CACHE *cache, uint64_t sz)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline uint64_t __wt_cache_bytes_updates(WT_CACHE *cache)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline uint64_t __wt_cache_dirty_intl_inuse(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline uint64_t __wt_cache_dirty_inuse(WT_CACHE *cache)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2524,6 +2528,8 @@ extern int __ut_ckpt_add_blkmod_entry(WT_SESSION_IMPL *session, WT_BLOCK_MODS *b
 extern int __ut_ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell,
   const char *tag) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __ut_ovfl_discard_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __ut_session_config_int(WT_SESSION_IMPL *session, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __ut_block_off_srch(WT_EXT **head, wt_off_t off, WT_EXT ***stack, bool skip_off);
 extern void __ut_block_size_srch(WT_SIZE **head, wt_off_t size, WT_SIZE ***stack);

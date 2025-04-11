@@ -276,24 +276,12 @@ __compact_worker(WT_SESSION_IMPL *session)
                 continue;
             }
 
-            /*
-             * If compaction failed because checkpoint was running, continue with the next handle.
-             * We might continue to race with checkpoint on each handle, but that's OK, we'll step
-             * through all the handles, and then we'll block until a checkpoint completes.
-             *
-             * Just quit if eviction is the problem.
-             */
+            /* Compact will return EBUSY if eviction is a problem. */
             if (ret == EBUSY) {
-                if (__wt_cache_stuck(session)) {
-                    WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
-                    WT_ERR_MSG(session, EBUSY, "compaction halted by eviction pressure");
-                }
-                ret = 0;
-                another_pass = true;
-
-                __wt_verbose_info(session, WT_VERB_COMPACT, "%s",
-                  "Data handle compaction failed with EBUSY but the cache is not stuck. "
-                  "Will give it another go.");
+                WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
+                WT_ERR_MSG(session, EBUSY,
+                  "Compaction halted at data handle %s by eviction pressure. Returning EBUSY.",
+                  session->op_handle[i]->name);
             }
         }
         if (!another_pass)
@@ -332,6 +320,9 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, compact, config, cfg);
+
+    if (uri == NULL)
+        WT_ERR_MSG(session, EINVAL, "Compaction requires a URI");
 
     WT_STAT_CONN_SET(session, session_table_compact_running, 1);
 

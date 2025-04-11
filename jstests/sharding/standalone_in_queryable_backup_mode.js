@@ -10,14 +10,6 @@
  * ]
  */
 
-// This test shuts down a shard.
-TestData.skipCheckingUUIDsConsistentAcrossCluster = true;
-TestData.skipCheckingIndexesConsistentAcrossCluster = true;
-TestData.skipCheckDBHashes = true;
-TestData.skipCheckOrphans = true;
-TestData.skipCheckShardFilteringMetadata = true;
-TestData.skipCheckMetadataConsistency = true;
-
 (function() {
 'use strict';
 
@@ -32,6 +24,10 @@ var kDbName = 'testDb';
 var kShardedCollName = 'testShardedColl';
 var kUnshardedCollName = 'testUnshardedColl';
 
+const shard0Identity = st.rs0.getPrimary().getDB("admin").getCollection("system.version").findOne({
+    _id: "shardIdentity"
+});
+
 assert.commandWorked(
     st.s.adminCommand({shardCollection: kDbName + '.' + kShardedCollName, key: {_id: 1}}));
 
@@ -42,7 +38,8 @@ jsTest.log("Going to hold the stable timestamp of the secondary node at " +
            tojson(recoveryTimestamp));
 // Hold back the recovery timestamp before doing another write so we have some oplog entries to
 // apply when restart in queryableBackupMode with recoverToOplogTimestamp.
-assert.commandWorked(st.rs0.getSecondary().getDB('admin').adminCommand({
+const secondary = st.rs0.getSecondary();
+assert.commandWorked(secondary.getDB('admin').adminCommand({
     "configureFailPoint": 'holdStableTimestampAtSpecificTimestamp',
     "mode": 'alwaysOn',
     "data": {"timestamp": recoveryTimestamp}
@@ -61,17 +58,17 @@ st.rs0.awaitReplication();
 jsTest.log("Going to stop the secondary node of the shard");
 const operationTime =
     assert.commandWorked(st.rs0.getPrimary().getDB(kDbName).runCommand({ping: 1})).operationTime;
-const secondaryPort = st.rs0.getSecondary().port;
-const secondaryDbPath = st.rs0.getSecondary().dbpath;
-MongoRunner.stopMongod(st.rs0.getSecondary());
+const secondaryPort = secondary.port;
+const secondaryDbPath = secondary.dbpath;
+// Remove the secondary from the cluster since we will restart it in queryable backup mode later.
+const secondaryId = st.rs0.getNodeId(secondary);
+st.rs0.remove(secondaryId);
+st.rs0.reInitiate();
 
 jsTest.log(
     "Going to start a mongod process with --shardsvr, --queryableBackupMode and recoverToOplogTimestamp");
-const shardIdentity = st.rs0.getPrimary().getDB("admin").getCollection("system.version").findOne({
-    _id: "shardIdentity"
-});
 let configFileStr =
-    "sharding:\n _overrideShardIdentity: '" + tojson(shardIdentity).replace(/\s+/g, ' ') + "'";
+    "sharding:\n _overrideShardIdentity: '" + tojson(shard0Identity).replace(/\s+/g, ' ') + "'";
 let delim = _isWindows() ? '\\' : '/';
 let configFilePath = secondaryDbPath + delim + "config-for-read-only-mongod.yml";
 writeFile(configFilePath, configFileStr);

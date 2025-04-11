@@ -35,7 +35,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Server Programmability"
         }
       ],
       "type": "library",
@@ -128,7 +128,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Networking & Observability"
         }
       ],
       "type": "library",
@@ -159,7 +159,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Server Programmability"
         }
       ],
       "type": "library",
@@ -190,7 +190,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Server Programmability"
         }
       ],
       "type": "library",
@@ -221,7 +221,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Networking & Observability"
         }
       ],
       "type": "library",
@@ -307,7 +307,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Server Programmability"
         }
       ],
       "type": "library",
@@ -431,7 +431,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Server Programmability"
         }
       ],
       "type": "library",
@@ -493,7 +493,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Networking & Observability"
         }
       ],
       "type": "library",
@@ -524,7 +524,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Workload Scheduling"
         }
       ],
       "type": "library",
@@ -555,7 +555,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Networking & Observability"
         }
       ],
       "type": "library",
@@ -858,7 +858,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Server Programmability"
         }
       ],
       "type": "library",
@@ -942,7 +942,7 @@
         "name": "Organization: debian"
       },
       "name": "Mozilla Firefox",
-      "version": "115.7.0esr",
+      "version": "115.19.0esr",
       "licenses": [
         {
           "license": {
@@ -950,7 +950,7 @@
           }
         }
       ],
-      "purl": "pkg:deb/debian/firefox-esr@115.7.0esr-1",
+      "purl": "pkg:deb/debian/firefox-esr@115.19.0esr-1",
       "properties": [
         {
           "name": "internal:team_responsible",
@@ -985,7 +985,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Architecture"
+          "value": "Server Programmability"
         }
       ],
       "type": "library",
@@ -1145,7 +1145,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Networking & Observability"
         }
       ],
       "type": "library",
@@ -1491,7 +1491,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Networking & Observability"
         }
       ],
       "type": "library",
@@ -1527,7 +1527,7 @@
       "properties": [
         {
           "name": "internal:team_responsible",
-          "value": "Service Arch"
+          "value": "Networking & Observability"
         }
       ],
       "type": "library",
