@@ -174,10 +174,8 @@ get_sources(){
     export PATH="/usr/local/go/bin:$PATH:$GOPATH"
     export GOBINPATH="/usr/local/go/bin"
     go mod edit \
-	    -replace golang.org/x/text@v0.3.0=golang.org/x/text@v0.3.8 \
-	    -replace golang.org/x/text@v0.3.7=golang.org/x/text@v0.3.8
-    go mod edit \
-	    -replace golang.org/x/crypto@v0.25.0=golang.org/x/crypto@v0.31.0
+           -replace golang.org/x/crypto@v0.32.0=golang.org/x/crypto@v0.35.0 \
+           -replace github.com/golang-jwt/jwt/v5@v5.2.1=github.com/golang-jwt/jwt/v5@v5.2.2
     go mod tidy
     go mod vendor
 
@@ -245,7 +243,7 @@ install_golang() {
         return 1
     fi
 
-    GO_VERSION="1.22.8"
+    GO_VERSION="1.23.8"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
