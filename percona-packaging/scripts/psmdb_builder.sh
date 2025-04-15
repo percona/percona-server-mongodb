@@ -674,7 +674,7 @@ build_rpm(){
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
-    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'referencing<=0.35.1' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install --user -r etc/pip/dev-requirements.txt
@@ -773,7 +773,7 @@ build_source_deb(){
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolatioin
-    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'referencing<=0.35.1' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install -r etc/pip/dev-requirements.txt
@@ -872,7 +872,7 @@ build_deb(){
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
-    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'referencing<=0.35.1' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install -r etc/pip/dev-requirements.txt
@@ -1037,7 +1037,7 @@ build_tarball(){
     fi
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
-    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'referencing<=0.35.1' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install --user -r etc/pip/dev-requirements.txt
