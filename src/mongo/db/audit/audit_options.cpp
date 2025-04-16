@@ -112,8 +112,11 @@ namespace mongo {
     }
 
     Status validateAuditOptions() {
-        if (!auditOptions.destination.empty() && auditOptions.destination != "file") {
-            // no validation needed if destination is not to a file
+        if (auditOptions.destination == "" || auditOptions.destination != "file") {
+            // no validation needed if:
+            // - audit is not enabled (destination is empty) or
+            // - destination is not to a file
+            // NOTE: this is aligned wit _auditEnabledOnCommandLine from audit.cpp
             return Status::OK();
         }
 
