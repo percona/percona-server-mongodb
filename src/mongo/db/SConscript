@@ -271,10 +271,12 @@ env.Library(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/util/fail_point',
-        'query/query_stats/query_stats',
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/util/concurrency/spin_lock',
+        'commands',
+        'server_base',
+        'service_context'
     ],
 )
 
