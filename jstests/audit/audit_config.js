@@ -12,6 +12,8 @@ var configFile = basePath + '/libs/config_files/audit_config.yaml';
 var configFileDeprecated = basePath + '/libs/config_files/audit_config_deprecated.yaml';
 var configFileBasic = basePath + '/libs/config_files/audit_config_basic.yaml';
 var configFileFork = basePath + '/libs/config_files/audit_config_fork.yaml';
+var configFileEmpty = basePath + '/libs/config_files/audit_config_empty.yaml';
+var configFileDestinationEmpty = basePath + '/libs/config_files/audit_config_destination_empty.yaml';
 
 var defaultNameJson = 'auditLog.json'
 var defaultNameBson = 'auditLog.bson'
@@ -108,4 +110,30 @@ auditTest(
         assert.eq(fileExists(defaultNameJson), false);
     },
     { config: configFileBasic, auditDestination: 'console' }
+)
+
+// Destination: not defined
+// Expect no file created
+removeFile(defaultNameJson)
+removeFile(defaultNameBson)
+auditTest(
+    'destinationNotDefinedNoAuditFileCreated',
+    function(m, restartServer) {
+        assert.eq(fileExists(defaultNameJson), false);
+        assert.eq(fileExists(defaultNameBson), false);
+    },
+    { config: configFileEmpty }
+)
+
+// Destination: ''
+// Expect no file created
+removeFile(defaultNameJson)
+removeFile(defaultNameBson)
+auditTest(
+    'destinationEmptyNoAuditFileCreated',
+    function(m, restartServer) {
+        assert.eq(fileExists(defaultNameJson), false);
+        assert.eq(fileExists(defaultNameBson), false);
+    },
+    { config: configFileDestinationEmpty }
 )
