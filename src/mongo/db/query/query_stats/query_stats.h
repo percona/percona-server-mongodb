@@ -48,7 +48,6 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/query/cursor_response_gen.h"
 #include "mongo/db/query/partitioned_cache.h"
 #include "mongo/db/query/plan_explainer.h"
