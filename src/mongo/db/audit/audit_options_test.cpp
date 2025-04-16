@@ -109,8 +109,21 @@ TEST_F(ValidateAuditOptionsTestFixture, Default) {
 
     ASSERT_OK(storeAuditOptions(env));
     ASSERT_OK(validateAuditOptions());
-    ASSERT_EQ(auditOptions.path, getCwd() / kDefaultPathJson);
-    ASSERT_TRUE(fs::exists(kDefaultPathJson));
+    // expect no file created if 'destination' is not set
+    ASSERT_FALSE(fs::exists(kDefaultPathJson));
+    ASSERT_FALSE(fs::exists(kDefaultPathBson));
+}
+
+// Test destination is set to empty string
+TEST_F(ValidateAuditOptionsTestFixture, DestinationEmptyString) {
+    moe::Environment env;
+    set(env, "auditLog.destination", "");
+
+    ASSERT_OK(storeAuditOptions(env));
+    ASSERT_OK(validateAuditOptions());
+    // expect no file created if 'destination' is empty string
+    ASSERT_FALSE(fs::exists(kDefaultPathJson));
+    ASSERT_FALSE(fs::exists(kDefaultPathBson));
 }
 
 // Test BSON format with default path
