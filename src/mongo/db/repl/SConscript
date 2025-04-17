@@ -1,7 +1,10 @@
 # -*- mode: python -*-
 
-Import("env")
-Import("wiredtiger")
+Import([
+    'env',
+    'has_option',
+    'wiredtiger',
+])
 
 env = env.Clone()
 
@@ -816,6 +819,7 @@ env.Library(
         'replica_set_messages',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/catalog/commit_quorum_options',
         '$BUILD_DIR/mongo/db/server_base',
         '$BUILD_DIR/mongo/db/stats/counters',
@@ -1036,6 +1040,7 @@ env.Library(
         'repl_coordinator_interface',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/executor/connection_pool_executor',
         '$BUILD_DIR/mongo/executor/network_interface',
         '$BUILD_DIR/mongo/executor/network_interface_factory',
@@ -1066,6 +1071,9 @@ env.Library(
         'replication_process',
         'serveronly_repl',
     ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
+    ],
 )
 
 env.Library(
@@ -1084,6 +1092,7 @@ env.Library(
         'replica_set_messages',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/commands/server_status_core',
         '$BUILD_DIR/mongo/db/pipeline/pipeline',
         '$BUILD_DIR/mongo/db/pipeline/process_interface/mongo_process_interface',

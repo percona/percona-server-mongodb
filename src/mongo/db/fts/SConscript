@@ -1,6 +1,9 @@
 # -*- mode: python -*-
 
-Import("env")
+Import([
+    'env',
+    'has_option',
+])
 
 env = env.Clone()
 
@@ -71,6 +74,9 @@ baseEnv.Library(
         "$BUILD_DIR/mongo/util/md5",
         "$BUILD_DIR/third_party/shim_stemmer",
     ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
+    ],
 )
 
 env.Library(
@@ -115,6 +121,7 @@ env.CppUnitTest(
         "tokenizer_test.cpp",
     ],
     LIBDEPS=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         "$BUILD_DIR/mongo/db/fts/fts_query_noop",
         "$BUILD_DIR/mongo/db/query_expressions",
         "base_fts",

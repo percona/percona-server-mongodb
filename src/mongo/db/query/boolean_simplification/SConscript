@@ -1,6 +1,9 @@
 # -*- mode: python -*-
 
-Import("env")
+Import([
+    'env',
+    'has_option',
+])
 
 env.Library(
     target="boolean_simplification",
@@ -38,6 +41,7 @@ env.Benchmark(
         "quine_mccluskey_bm.cpp",
     ],
     LIBDEPS=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         "$BUILD_DIR/mongo/db/query_expressions",
         "boolean_simplification",
     ],

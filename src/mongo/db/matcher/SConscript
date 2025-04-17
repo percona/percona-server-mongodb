@@ -1,6 +1,9 @@
 # -*- mode: python; -*-
 
-Import('env')
+Import([
+    'env',
+    'has_option',
+])
 
 env = env.Clone()
 
@@ -29,6 +32,9 @@ env.Library(
         '$BUILD_DIR/mongo/db/query_expressions',
         '$BUILD_DIR/mongo/db/shard_role',
         '$BUILD_DIR/mongo/scripting/scripting_server',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
     ],
 )
 
@@ -96,6 +102,7 @@ env.CppUnitTest(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/crypto/encrypted_field_config',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/query/collation/collator_interface_mock',
         '$BUILD_DIR/mongo/db/query/query_planner',
         '$BUILD_DIR/mongo/db/query/query_test_service_context',

@@ -1,6 +1,9 @@
 # -*- mode: python -*-
 
-Import("env")
+Import([
+    'env',
+    'has_option',
+])
 
 env = env.Clone()
 
@@ -60,6 +63,7 @@ iamEnv.Library(
         'wildcard_validation.cpp',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/bson/dotted_path_support',
         '$BUILD_DIR/mongo/db/catalog/index_catalog',
         '$BUILD_DIR/mongo/db/concurrency/exception_util',
@@ -141,6 +145,7 @@ indexTestEnv.CppUnitTest(
         "wildcard_validation_test.cpp",
     ],
     LIBDEPS=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/catalog/catalog_test_fixture',
         '$BUILD_DIR/mongo/db/exec/document_value/document_value_test_util',
         '$BUILD_DIR/mongo/db/exec/working_set',

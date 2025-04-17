@@ -445,6 +445,7 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         "$BUILD_DIR/mongo/db/audit",
+        "$BUILD_DIR/mongo/db/audit_impl" if has_option('audit') else [],
         "$BUILD_DIR/mongo/db/server_base",
         "$BUILD_DIR/mongo/util/processinfo",
         "$BUILD_DIR/mongo/util/signal_handlers",
@@ -840,67 +841,96 @@ env.Library(
     ],
 )
 
-audit_libdeps = [
-    '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
-    '$BUILD_DIR/mongo/db/query_expressions',
-    '$BUILD_DIR/mongo/db/server_base',
-    '$BUILD_DIR/mongo/util/background_job',
-    'service_context',
-]
+auditEnv = env if has_option('audit') else env.Clone().InjectModule('enterprise')
+
+auditEnv.Library(
+    target='audit_interface',
+    source=[
+        'audit_interface.cpp',
+    ],
+    LIBDEPS=[
+        'service_context',
+    ],
+)
+
+auditEnv.Library(
+    target='audit',
+    source=[
+        'audit.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        'service_context',
+    ],
+    LIBDEPS_PRIVATE=[
+        'audit_interface',
+    ],
+)
+
 if has_option('audit'):
-    # The Percona's `audit` library is intended to be a drop-in replacement of
-    # the upstream `audit` (please @see the `else` branch). Hense, it has to
-    # have the same filepath and set of dependencies as the upstream `audit`
-    # has. That's why the Percona's `audit` library is built here rather than in
-    # the `src/mongo/db/audit` directory.
-    env.Library(
-        target='audit',
+    auditEnv.Library(
+        target='audit_options',
         source=[
-            'audit.cpp',
-            'audit/audit_flusher.cpp',
             'audit/audit_options.cpp',
-            'audit/audit.cpp',
             'audit/audit_parameters.idl',
             'audit/audit_options.idl',
         ],
-        LIBDEPS=audit_libdeps,
+        LIBDEPS=[
+            '$BUILD_DIR/mongo/util/options_parser/options_parser',
+            'server_base',
+        ],
+        LIBDEPS_PRIVATE=[
+            'service_context',
+        ],
     )
+
+    auditEnv.CppUnitTest(
+        target='audit_options_test',
+        source=[
+            'audit/audit_options_test.cpp',
+        ],
+        LIBDEPS=[
+            'audit_options',
+            'server_options_base',
+        ]
+    )
+
+    auditEnv.Library(
+        target='audit_impl',
+        source=[
+            'audit/audit_flusher.cpp',
+            'audit/audit.cpp',
+        ],
+        LIBDEPS=[
+        ],
+        LIBDEPS_PRIVATE=[
+            '$BUILD_DIR/mongo/util/background_job',
+            'audit_interface',
+            'audit_options',
+            'query_expressions',
+            'server_base',
+            'service_context',
+        ],
+    )
+
     # Please note that the `commands` library (@see below) depends on
     # the `audit` library and the `audit_commands` depends on `commands`.
-    #
-    # Since the Percona's `audit` library is built in this file, it is natural
-    # to build `audit_commands` here as well rather than in
-    # the `src/mongo/db/audit` directory.
-    env.Library(
+    auditEnv.Library(
         target='audit_commands',
         source=[
             'audit/audit_commands.cpp',
         ],
         LIBDEPS_PRIVATE=[
+            '$BUILD_DIR/mongo/db/auth/auth',
+            '$BUILD_DIR/mongo/db/auth/authprivilege',
             '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
             'audit',
+            'audit_impl',
+            'audit_options',
             'commands'
         ],
     )
 
-    env.CppUnitTest(
-        target='audit_test',
-        source=[
-            'audit/audit_options_test.cpp',
-        ],
-        LIBDEPS=[
-            'audit',
-            'server_options_base',
-        ]
-    )
-else:
-    env.Clone().InjectModule("enterprise").Library(
-        target="audit",
-        source=[
-            "audit.cpp",
-        ],
-        LIBDEPS=audit_libdeps,
-    )
 
 env.Library(
     target='client_out_of_line_executor',
@@ -1214,6 +1244,7 @@ env.Library(
         '$BUILD_DIR/mongo/executor/task_executor_pool',
         '$BUILD_DIR/mongo/s/sharding_router_api',
         '$BUILD_DIR/mongo/util/concurrency/spin_lock',
+        'audit_impl' if has_option('audit') else [],
         'dbdirectclient',
         'query/collation/collator_factory_interface',
         'query/query_request',
@@ -1391,6 +1422,7 @@ env.Library(
         '$BUILD_DIR/mongo/transport/service_executor',
         'admission/ingress_admission_control',
         'audit',
+        'audit_impl' if has_option('audit') else [],
         'auth/auth',
         'auth/auth_umc',
         'auth/authprivilege',
@@ -1451,6 +1483,8 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/executor/task_executor_interface',
+        'audit',
+        'audit_impl' if has_option('audit') else [],
         'catalog/collection_catalog',
         'catalog/index_build_entry_idl',
         'index_build_entry_helpers',
@@ -1893,6 +1927,7 @@ execEnv.Library(
         'update/update_driver',
     ],
     LIBDEPS_PRIVATE=[
+        'audit_impl' if has_option('audit') else [],
         'catalog/collection_crud',
         'catalog/database_holder',
         'catalog/health_log_interface',
@@ -2742,6 +2777,7 @@ env.Library(
         '$BUILD_DIR/mongo/util/signal_handlers',
         '$BUILD_DIR/mongo/watchdog/watchdog_mongod',
         'admission/execution_control',
+        'audit_options' if has_option('audit') else [],
         'auth/auth_op_observer',
         'catalog/catalog_helpers',
         'catalog/catalog_impl',

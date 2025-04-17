@@ -1,7 +1,10 @@
 # -*- mode: python; -*-
 
-Import("env")
-Import('wiredtiger')
+Import([
+    'env',
+    'has_option',
+    'wiredtiger',
+])
 
 env = env.Clone()
 
@@ -176,6 +179,7 @@ env.Library(
         'index_key_validate.cpp',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/common',
         '$BUILD_DIR/mongo/db/index/index_access_method',
         '$BUILD_DIR/mongo/db/query/collation/collator_factory_interface',
@@ -205,6 +209,7 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/audit',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/collection_index_usage_tracker',
         '$BUILD_DIR/mongo/db/common',
         '$BUILD_DIR/mongo/db/index/index_access_method',
@@ -295,6 +300,7 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/audit',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/concurrency/lock_manager',
         '$BUILD_DIR/mongo/db/index/index_access_method',
         '$BUILD_DIR/mongo/db/profile_filter',
@@ -381,6 +387,7 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/audit',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/collection_index_usage_tracker',
         '$BUILD_DIR/mongo/db/commands/server_status_core',
         '$BUILD_DIR/mongo/db/dbcommands_idl',
@@ -545,6 +552,7 @@ env.Library(
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/db/audit',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/coll_mod_command_idl',
         '$BUILD_DIR/mongo/db/concurrency/exception_util',
         '$BUILD_DIR/mongo/db/index/index_access_method',
@@ -702,6 +710,7 @@ if wiredtiger:
             'throttle_cursor_test.cpp',
         ],
         LIBDEPS=[
+            '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
             '$BUILD_DIR/mongo/db/auth/authmocks',
             '$BUILD_DIR/mongo/db/coll_mod_command_idl',
             '$BUILD_DIR/mongo/db/commands/create_command',

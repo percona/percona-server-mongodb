@@ -1,6 +1,9 @@
 # -*- mode: python -*-
 
-Import("env")
+Import([
+    'env',
+    'has_option',
+])
 
 env = env.Clone()
 
@@ -358,6 +361,7 @@ env.Library(
         '$BUILD_DIR/mongo/bson/util/bson_extract',
         '$BUILD_DIR/mongo/client/fetcher',
         '$BUILD_DIR/mongo/db/audit',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/auth/security_token_auth',
         '$BUILD_DIR/mongo/db/catalog/catalog_helpers',
         '$BUILD_DIR/mongo/db/catalog/collection_options',
@@ -838,6 +842,7 @@ env.CppUnitTest(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/client/remote_command_targeter_mock',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/auth/authmocks',
         '$BUILD_DIR/mongo/db/catalog/catalog_helpers',
         '$BUILD_DIR/mongo/db/catalog/catalog_test_fixture',

@@ -2,7 +2,10 @@
 
 from site_scons.mongo import insort_wrapper
 
-Import("env")
+Import([
+    'env',
+    'has_option',
+])
 
 env = env.Clone()
 
@@ -59,6 +62,7 @@ env.Library(
         'ftdc',
     ] + platform_libs,
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/repl/repl_coordinator_interface',
         '$BUILD_DIR/mongo/db/repl/repl_settings',
         '$BUILD_DIR/mongo/db/server_base',

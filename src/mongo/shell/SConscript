@@ -250,6 +250,7 @@ if get_option('ssl') == 'on':
                 '$BUILD_DIR/mongo/crypto/fle_crypto',
                 '$BUILD_DIR/mongo/crypto/fle_fields',
                 '$BUILD_DIR/mongo/crypto/symmetric_crypto',
+                '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
                 '$BUILD_DIR/mongo/db/query_expressions',
                 '$BUILD_DIR/mongo/scripting/scripting',
                 '$BUILD_DIR/mongo/shell/shell_options_register',

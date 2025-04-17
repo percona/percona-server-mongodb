@@ -1,6 +1,9 @@
 # -*- mode: python -*-
 
-Import("env")
+Import([
+    'env',
+    'has_option',
+])
 
 env = env.Clone()
 
@@ -11,6 +14,7 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/bson/mutable/mutable_bson',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/auth/auth',
         '$BUILD_DIR/mongo/db/auth/authprivilege',
         '$BUILD_DIR/mongo/db/commands',
