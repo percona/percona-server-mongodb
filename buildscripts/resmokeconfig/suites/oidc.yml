@@ -1,0 +1,13 @@
+test_kind: js_test
+
+selector:
+  roots:
+  - jstests/oidc/*.js
+  include_with_any_tags:
+  - oidc_idp_mock_cert_installed
+  - oidc_idp_mock_cert_not_required
+
+executor:
+  config:
+    shell_options:
+      nodb: ''
