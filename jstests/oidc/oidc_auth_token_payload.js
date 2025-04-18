@@ -66,6 +66,26 @@ const variants = [
         },
         expectedError: MissingClaimsError,
     },
+    {
+        // Invalid type of claim
+        payload: {
+            sub: "user",
+            aud: "audience",
+            claim: {
+                some_field: "group1",
+            },
+        },
+        expectedError: "BadValue: Invalid JWT: `authorizationClaim` is neither a string nor an array of strings",
+    },
+    {
+        // Invalid type of sub
+        payload: {
+            sub: ["user"],
+            aud: "audience",
+            claim: "group",
+        },
+        expectedError: "BadValue: Invalid JWT: Some claim has a wrong type",
+    },
 ];
 
 for (const variant of variants) {

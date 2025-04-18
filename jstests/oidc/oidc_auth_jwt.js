@@ -42,6 +42,20 @@ var variants = [
         },
         expectSuccess: true, // TODO: This should be false
     },
+    {
+        faults: {
+            jwt_invalid_format: true
+        },
+        expectSuccess: false,
+        expectedError: "BadValue: Invalid JWT: incorrect format: invalid token supplied"
+    },
+    {
+        faults: {
+            jwt_invalid_padding: true
+        },
+        expectSuccess: false,
+        expectedError: "BadValue: Invalid JWT: base64 decoding failed or invalid JSON: Invalid input: not within alphabet"
+    },
 ]
 
 for (const variant of variants) {
@@ -60,8 +74,17 @@ for (const variant of variants) {
     idp.assert_config_requested();
     idp.assert_token_requested(oidcProvider.clientId);
 
-    if (variant.expectedLog) {
-        assert(test.checkLogExists(variant.expectedLog), "Expected log not found for variant " + tojson(variant));
+    if (variant.expectedError) {
+
+        var expectedLog = {
+            msg: "Failed to authenticate",
+            attr: {
+                mechanism: "MONGODB-OIDC",
+                error: variant.expectedError,
+            }
+        };
+
+        assert(test.checkLogExists(expectedLog), "Expected log not found for variant " + tojson(variant));
     }
 
     if (variant.expectSuccess) {
