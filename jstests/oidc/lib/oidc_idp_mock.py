@@ -302,21 +302,24 @@ class JWFactory:
         Returns:
             Dict: The decoded JWT payload with headers.
         """
-        options = {
-            "verify_signature": False,
-            "verify_aud": False,
-            "verify_iat": False,
-            "verify_exp": False,
-            "verify_nbf": False,
-            "verify_iss": False,
-        }
-        dec = jwt_decode_complete(
-            jwt,
-            key=params.private_key.public_key(),
-            algorithms=[self.algorithm],
-            options=options,
-        )
-        del dec["signature"]
+        try:
+            options = {
+                "verify_signature": False,
+                "verify_aud": False,
+                "verify_iat": False,
+                "verify_exp": False,
+                "verify_nbf": False,
+                "verify_iss": False,
+            }
+            dec = jwt_decode_complete(
+                jwt,
+                key=params.private_key.public_key(),
+                algorithms=[self.algorithm],
+                options=options,
+            )
+            del dec["signature"]
+        except Exception as e:
+            return {"error": str(e)}
         return dec
 
 
@@ -326,7 +329,7 @@ class TokenFaultInjector:
     """
 
     @classmethod
-    def apply(cls, jwf: JWFactory, params: TokenParams) -> None:
+    def apply_params(cls, jwf: JWFactory, params: TokenParams) -> None:
         """
         Inject faults into the token parameters.
         Args:
@@ -347,7 +350,25 @@ class TokenFaultInjector:
         if "jwt_other_valid_key" in params.faults:
             other_key_id = 1 if params.key_id == 0 else 0
             params.private_key = jwf.get_private_key(other_key_id)
-            params.kid = jwf.get_kid(other_key_id)
+            params.kid = jwf.get_kid(params.key_id)
+
+    @classmethod
+    def apply_jwt_format(cls, jwt: str, params: TokenParams) -> str:
+        """
+        Apply faults to the JWT format.
+        Args:
+            jwt (str): The JWT to modify.
+            params (TokenParams): The token parameters.
+        Returns:
+            str: The modified JWT.
+        """
+        if "jwt_invalid_format" in params.faults:
+            # Change the format of the JWT
+            jwt = jwt.replace(".", "-")
+        if "jwt_invalid_padding" in params.faults:
+            # Change the padding of the JWT
+            jwt = jwt + "="
+        return jwt
 
 
 class RequestHandler(http.server.BaseHTTPRequestHandler):
@@ -563,7 +584,7 @@ class IdPMock:
         Returns:
             HandlerReturnType: The HTTP status code and response body.
         """
-        return (200, {"keys": self.jwf.get_jwks()})
+        return (200, self.jwf.get_jwks())
 
     def handle_device_authorize(self, _) -> HandlerReturnType:
         """
@@ -593,12 +614,16 @@ class IdPMock:
         if params is None:
             return (400, {"error": "No more tokens available"})
 
-        # apply faults if any
+        # apply faults to params
         if params.faults is not None:
-            TokenFaultInjector.apply(self.jwf, params)
+            TokenFaultInjector.apply_params(self.jwf, params)
 
         # create JWT
         jwt = self.jwf.create_jwt(params)
+
+        # apply faults to the JWT format
+        if params.faults is not None:
+            jwt = TokenFaultInjector.apply_jwt_format(jwt, params)
 
         # cache for the introspection
         self.jwts[jwt] = params
