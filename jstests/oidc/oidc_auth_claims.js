@@ -3,16 +3,39 @@ import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
 var idp_config = {
-    token: {
-        payload: {
-            aud: "audience",
-            sub: "user",
-            claim: [
-                "group1",
-                "group2",
-            ],
+    token: [
+        {
+            payload: {
+                aud: "audience",
+                sub: "user",
+                claim: [
+                    "group1",
+                    "group2",
+                ],
+            }
+        },
+        {
+            payload: {
+                aud: "audience",
+                sub: "user",
+                claim: [],
+            }
+        },
+        {
+            payload: {
+                aud: "audience",
+                sub: "user",
+                claim: ["group3"],
+            }
+        },
+        {
+            payload: {
+                aud: "audience",
+                sub: "user",
+                claim: "group4",
+            }
         }
-    },
+    ]
 };
 
 var oidcProvider = {
@@ -28,6 +51,8 @@ test.setup();
 
 test.create_role("test/group1", [{ role: "readWrite", db: "test_db1" }]);
 test.create_role("test/group2", [{ role: "read", db: "test_db2" }]);
+test.create_role("test/group3", [{ role: "dbAdmin", db: "test_db3" }]);
+test.create_role("test/group4", [{ role: "dbOwner", db: "test_db4" }]);
 
 var conn = test.create_conn();
 
@@ -38,5 +63,24 @@ test.assert_authenticated(conn, "test/user", [
     { role: "readWrite", db: "test_db1" },
     { role: "read", db: "test_db2" },
 ]);
+test.logout(conn);
+
+test.auth(conn, "user");
+test.assert_authenticated(conn, "test/user", []); // empty claim
+test.logout(conn);
+
+test.auth(conn, "user");
+test.assert_authenticated(conn, "test/user", [
+    "test/group3",
+    { role: "dbAdmin", db: "test_db3" }
+]);
+test.logout(conn);
+
+test.auth(conn, "user");
+test.assert_authenticated(conn, "test/user", [
+    "test/group4",
+    { role: "dbOwner", db: "test_db4" }
+]);
+test.logout(conn);
 
 test.teardown();

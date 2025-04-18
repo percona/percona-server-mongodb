@@ -19,8 +19,8 @@ var idp_config = {
                 aud: "audience",
                 sub: "user2",
                 claim: [
-                    "group1",
-                    "group2",
+                    "group3",
+                    "group4",
                 ]
             }
         }
@@ -45,22 +45,33 @@ var test = new OIDCFixture({
 test.setup();
 test.create_role("idp/group1", [{ role: "readWrite", db: "test_db1" }]);
 test.create_role("idp/group2", [{ role: "read", db: "test_db2" }]);
+test.create_role("idp/group3", [{ role: "readWrite", db: "test_db3" }]);
+test.create_role("idp/group4", [{ role: "read", db: "test_db4" }]);
 
-const expectedRoles = [
+const expectedRolesUser1 = [
     "idp/group1",
     "idp/group2",
     { role: "readWrite", db: "test_db1" },
     { role: "read", db: "test_db2" },
 ];
 
-var conn = test.create_conn();
+const expectedRolesUser2 = [
+    "idp/group3",
+    "idp/group4",
+    { role: "readWrite", db: "test_db3" },
+    { role: "read", db: "test_db4" },
+];
 
-assert(test.auth(conn, "user1"), "Failed to authenticate user1");
-test.assert_authenticated(conn, "idp/user1", expectedRoles);
-test.logout(conn);
+var conn1 = test.create_conn();
+var conn2 = test.create_conn();
 
-assert(test.auth(conn, "user2"), "Failed to authenticate user2");
-test.assert_authenticated(conn, "idp/user2", expectedRoles);
-test.logout(conn);
+test.auth(conn1, "user1");
+test.assert_authenticated(conn1, "idp/user1", expectedRolesUser1);
+
+test.auth(conn2, "user2");
+test.assert_authenticated(conn2, "idp/user2", expectedRolesUser2);
+
+test.logout(conn1);
+test.logout(conn2);
 
 test.teardown();
