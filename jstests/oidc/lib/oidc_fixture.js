@@ -286,7 +286,7 @@ export class OIDCFixture {
      */
     logout(conn) {
         assert(conn, "Connection is not defined");
-        var db = conn.getDB('$external')
+        var db = conn.getDB('$external');
         return db.logout();
     }
 
@@ -300,9 +300,63 @@ export class OIDCFixture {
      */
     authInfo(conn) {
         assert(conn, "Connection is not defined");
-        var db = conn.getDB('$external')
-        return db.runCommand({ connectionStatus: "1" }).authInfo;
+        var db = conn.getDB('$external');
+        return db.runCommand({ connectionStatus: 1, showPrivileges: 1 }).authInfo;
     }
+
+    /**
+     * Assert that the expected privileges match the privileges in the array.
+     * The privileges for the 'system.js' collection are ignored.
+     *
+     * @param {object[]} allPrivileges - Privileges to check.
+     * @param {object[]} expectedPrivileges - Expected privileges.
+     */
+    assert_has_privileges(allPrivileges, expectedPrivileges) {
+        // Ignore privileges for system.js collections.
+        const privileges = allPrivileges.filter(privilege => privilege.resource.collection !== "system.js");
+
+        assert.eq(privileges.length, expectedPrivileges.length, "Privileges count mismatch");
+
+        for (const expectedPrivilege of expectedPrivileges) {
+            assert(privileges.some(privilege => {
+                if (privilege.resource.db !== expectedPrivilege.resource.db) {
+                    return false;
+                }
+
+                if (privilege.resource.collection !== expectedPrivilege.resource.collection) {
+                    return false;
+                }
+
+                assert.eq(privilege.actions.length, expectedPrivilege.actions.length, "Actions count mismatch");
+                for (const action of expectedPrivilege.actions) {
+                    assert(privilege.actions.includes(action),
+                        `Action ${action} not found in privilege actions: ${JSON.stringify(privilege.actions)}`);
+                }
+
+                return true;
+            }), `Privileges mismatch: expected: ${JSON.stringify(expectedPrivileges)} current: ${JSON.stringify(privileges)}`);
+        }
+    }
+
+    /**
+     * Assert that the expected roles are teh same as the roles in the array.
+     *
+     * @param {object[]} roles Roles to check
+     * @param {object[]} expectedRoles Expected roles
+     */
+    assert_has_roles(roles, expectedRoles) {
+        assert.eq(roles.length, expectedRoles.length, "Roles count mismatch");
+        for (const expectedRole of expectedRoles) {
+            assert(roles.some(role => {
+                if (typeof expectedRole === "string") {
+                    return role.role == expectedRole && role.db == "admin";
+                }
+
+                return role.role == expectedRole.role && role.db == expectedRole.db;
+            }), "Role not found: " + JSON.stringify(expectedRole));
+        }
+    }
+
 
     /**
      * Assert that the user is authenticated with the provided roles. 
@@ -312,7 +366,7 @@ export class OIDCFixture {
      * @param {(string|object)[]} roles The expected roles. If a string is provided,
      *                                  it is assumed to be a role name in the 'admin' database.
      */
-    assert_authenticated(conn, user, roles) {
+    assert_authenticated(conn, user, roles, privileges) {
         assert(conn, "Connection is not defined");
         assert(user, "User is not defined");
 
@@ -333,19 +387,17 @@ export class OIDCFixture {
         assert.eq(authInfo.authenticatedUsers[0].user, user, user + " is not authenticated");
         assert.eq(authInfo.authenticatedUsers[0].db, "$external");
 
+        print("Authinfo:");
+        printjson(authInfo);
         // Verify roles if provided
         if (roles) {
             print("OIDCFixture.assert_authenticated: checking roles");
-            assert.eq(authInfo.authenticatedUserRoles.length, roles.length, "Role count mismatch");
-            for (var i = 0; i < roles.length; i++) {
-                assert(authInfo.authenticatedUserRoles.some(role => {
-                    if (typeof roles[i] === "string") {
-                        return role.role == roles[i] && role.db == "admin";
-                    }
+            this.assert_has_roles(authInfo.authenticatedUserRoles, roles);
+        }
 
-                    return role.role == roles[i].role && role.db == roles[i].db;
-                }), "Role not found: " + JSON.stringify(roles[i]));
-            }
+        if (privileges) {
+            print("OIDCFixture.assert_authenticated: checking privileges");
+            this.assert_has_privileges(authInfo.authenticatedUserPrivileges, privileges);
         }
     }
 
@@ -386,8 +438,8 @@ export class OIDCFixture {
      * Assert that the mongod process fails with the provided OIDC providers configuration.
      * The mongod output is checked against the provided regular expression.
      * 
-     * @param {object} oidcProviders - The OIDC providers configuration object for mongod.
-     * @param {*} match - The regular expression to match against the mongod output.
+     * @param {object} oidcProviders The OIDC providers configuration object for mongod.
+     * @param {string} match The regular expression to match against the mongod output.
      */
     static assert_mongod_fails_with(oidcProviders, match) {
         clearRawMongoProgramOutput();
@@ -398,6 +450,15 @@ export class OIDCFixture {
         } catch (e) {
             // ignore
         }
+        this.assert_mongod_output_match(match);
+    }
+
+    /**
+     * Assert that the mongod output matches the provided regular expression.
+     *
+     * @param {string} match The regular expression to match against the mongod output.
+     */
+    static assert_mongod_output_match(match) {
         assert(rawMongoProgramOutput(match), `mongod output does not match: '${match}':\n` + rawMongoProgramOutput(match));
     }
 }
