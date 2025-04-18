@@ -38,7 +38,8 @@ var oidcProviders = [
         audience: "audience1",
         authNamePrefix: "idp1",
         matchPattern: "1$",
-        authorizationClaim: "claim1"
+        authorizationClaim: "claim1",
+        supportsHumanFlows: false,
     },
     {
         issuer: issuer2_url,
@@ -46,7 +47,8 @@ var oidcProviders = [
         audience: "audience2",
         authNamePrefix: "idp2",
         matchPattern: "2$",
-        authorizationClaim: "claim2"
+        authorizationClaim: "claim2",
+        supportsHumanFlows: false,
     }
 ];
 
@@ -58,29 +60,22 @@ var test = new OIDCFixture({
     ]
 });
 
+const expectedLog = {
+    id: 5286307,
+    msg: "Failed to authenticate",
+    attr: {
+        error: "BadValue: None of configured identity providers support human flows"
+    }
+};
+
 test.setup();
 
 var conn = test.create_conn();
 
-assert(test.auth(conn, "user1"), "Failed to authenticate user1");
-test.get_idp(issuer1_url).assert_token_requested("clientId1");
-test.assert_authenticated(conn, "idp1/user1", ["idp1/group11", "idp1/group12"]);
-test.logout(conn);
+assert(!test.auth(conn, "user1"), "Authentication should fail");
+assert(test.checkLogExists(expectedLog), "Expected log not found");
 
-assert(test.auth(conn, "user2"), "Failed to authenticate user2");
-test.get_idp(issuer2_url).assert_token_requested("clientId2");
-test.assert_authenticated(conn, "idp2/user2", ["idp2/group21", "idp2/group22"]);
-test.logout(conn);
-
-assert(!test.auth(conn, "user3"), "Authentication should fail");
-const expectedLog = {
-    msg: "Failed to authenticate",
-    attr: {
-        mechanism: "MONGODB-OIDC",
-        error: "BadValue: No identity provider found matching principal name `user3`"
-    }
-};
-
+assert(!test.auth(conn, "user2"), "Authentication should fail");
 assert(test.checkLogExists(expectedLog), "Expected log not found");
 
 test.teardown();

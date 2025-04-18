@@ -386,8 +386,8 @@ export class OIDCFixture {
      * Assert that the mongod process fails with the provided OIDC providers configuration.
      * The mongod output is checked against the provided regular expression.
      * 
-     * @param {object} oidcProviders - The OIDC providers configuration object for mongod.
-     * @param {*} match - The regular expression to match against the mongod output.
+     * @param {object} oidcProviders The OIDC providers configuration object for mongod.
+     * @param {string} match The regular expression to match against the mongod output.
      */
     static assert_mongod_fails_with(oidcProviders, match) {
         clearRawMongoProgramOutput();
@@ -398,6 +398,15 @@ export class OIDCFixture {
         } catch (e) {
             // ignore
         }
+        this.assert_mongod_output_match(match);
+    }
+
+    /**
+     * Assert that the mongod output matches the provided regular expression.
+     *
+     * @param {string} match The regular expression to match against the mongod output.
+     */
+    static assert_mongod_output_match(match) {
         assert(rawMongoProgramOutput().match(match), `mongod output does not match: '${match}':\n` + rawMongoProgramOutput());
     }
 }
