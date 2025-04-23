@@ -105,12 +105,12 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
                                      return conf.getSupportsHumanFlows();
                                  })};
     if (hfIdPs.empty()) {
-        Status{ErrorCodes::BadValue, "None of configured identity providers support human flows"};
+        return Status{ErrorCodes::BadValue, "None of configured identity providers support human flows"};
     }
     boost::optional<StringData> principalName{request.getPrincipalName()};
     LOGV2(77012, "OIDC step 1", "principalName"_attr = principalName ? *principalName : "none");
     if (!principalName && hfIdPs.size() > 1) {
-        Status{
+        return Status{
             ErrorCodes::BadValue,
             "Multiple identity providers are known, provide a principal name for choosing a one"};
     }
