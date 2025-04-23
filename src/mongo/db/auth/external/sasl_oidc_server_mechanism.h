@@ -71,7 +71,7 @@ private:
     StatusWith<std::tuple<bool, std::string>> step2(const auth::OIDCMechanismClientStep2& request);
 
     unsigned int _step{0};
-    std::set<RoleName> _roles;
+    boost::optional<std::set<RoleName>> _roles;
 };
 
 class OidcServerFactory final : public MakeServerFactory<SaslOidcServerMechanism> {
