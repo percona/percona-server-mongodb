@@ -37,7 +37,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include <jwt-cpp/jwt.h>
 #include <jwt-cpp/traits/boost-json/traits.h>
 #include <jwt-cpp/traits/boost-json/defaults.h>
-
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
@@ -155,9 +154,10 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step2(
         token.get_payload_claim(std::string{idp->getPrincipalName()}).as_string();
 
     if (idp->getUseAuthorizationClaim()) {
+        _roles.emplace();
         jwt::claim authClaim{token.get_payload_claim(std::string{*idp->getAuthorizationClaim()})};
         auto addRole = [&roles = this->_roles, &authNamePrefix](const std::string& claim) {
-            roles.emplace(authNamePrefix + "/" + claim, "admin");
+            roles->emplace(authNamePrefix + "/" + claim, "admin");
         };
         switch (authClaim.get_type()) {
             case jwt::json::type::string:
