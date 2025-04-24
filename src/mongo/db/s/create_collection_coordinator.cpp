@@ -278,6 +278,27 @@ bool isTimeseries(const boost::optional<CollectionAcquisition>& collection) {
         collection->getCollectionPtr()->getTimeseriesOptions().has_value();
 }
 
+void assertTimeseriesOptionsConsistency(const Collection* coll) {
+    tassert(9934501,
+            "Encountered invalid state for target collection '{}'. "_format(
+                coll->ns().toStringForErrorMsg()) +
+                "The collection namespace is prefixed with 'system.buckets.' but does not have "
+                "associated time-series options. Please consider options to correct this, "
+                "including renaming the collection or dropping the collection after inspecting "
+                "and/or backing up its contents.",
+            !coll->ns().isTimeseriesBucketsCollection() ||
+                coll->getTimeseriesOptions().has_value());
+    tassert(9934502,
+            "Encountered invalid state for target collection '{}'. "_format(
+                coll->ns().toStringForErrorMsg()) +
+                "The collection namespace is not prefixed with 'system.buckets.' but has "
+                "associated time-series options. Please consider options to correct this, "
+                "including renaming the collection or dropping the collection after inspecting "
+                "and/or backing up its contents.",
+            coll->ns().isTimeseriesBucketsCollection() ||
+                !coll->getTimeseriesOptions().has_value());
+}
+
 // NOTES on the 'collation' optional parameter contained by the shardCollection() request:
 // 1. It specifies the ordering criteria that will be applied when comparing chunk boundaries
 // during sharding operations (such as move/mergeChunks).
@@ -644,6 +665,11 @@ void checkLocalCatalogCollectionOptions(OperationContext* opCtx,
                                         const NamespaceString& targetNss,
                                         const ShardsvrCreateCollectionRequest& request,
                                         boost::optional<CollectionAcquisition>&& targetColl) {
+    tassert(9934500,
+            "expected the target collection to exist",
+            targetColl.has_value() && targetColl->exists());
+    assertTimeseriesOptionsConsistency(targetColl->getCollectionPtr().get());
+
     if (request.getRegisterExistingCollectionInGlobalCatalog()) {
         // No need to check for collection options when registering an existing collection
         return;
@@ -940,11 +966,7 @@ void checkCommandArguments(OperationContext* opCtx,
                 "Sharding a buckets collection is not allowed",
                 !originalNss.isTimeseriesBucketsCollection());
 
-        uassert(ErrorCodes::InvalidNamespace,
-                str::stream() << "Namespace too long. Namespace: "
-                              << originalNss.toStringForErrorMsg()
-                              << " Max: " << NamespaceString::MaxNsShardedCollectionLen,
-                originalNss.size() <= NamespaceString::MaxNsShardedCollectionLen);
+        sharding_ddl_util::assertNamespaceLengthLimit(originalNss, request.getUnsplittable());
     }
 }
 
@@ -1441,11 +1463,10 @@ TranslatedRequestParams CreateCollectionCoordinatorLegacy::_translateRequestPara
     if (targetingStandardCollection) {
         const auto& resolvedNamespace = originalNss();
         performCheckOnCollectionUUID(resolvedNamespace);
-        uassert(ErrorCodes::InvalidNamespace,
-                str::stream() << "Namespace too long. Namespace: "
-                              << resolvedNamespace.toStringForErrorMsg()
-                              << " Max: " << NamespaceString::MaxNsShardedCollectionLen,
-                resolvedNamespace.size() <= NamespaceString::MaxNsShardedCollectionLen);
+
+        sharding_ddl_util::assertNamespaceLengthLimit(resolvedNamespace,
+                                                      _request.getUnsplittable());
+
         return makeTranslateRequestParams(
             resolvedNamespace,
             *_request.getShardKey(),
@@ -1462,11 +1483,7 @@ TranslatedRequestParams CreateCollectionCoordinatorLegacy::_translateRequestPara
     const auto& resolvedNamespace = bucketsNs;
     performCheckOnCollectionUUID(resolvedNamespace);
 
-    uassert(ErrorCodes::InvalidNamespace,
-            str::stream() << "Namespace too long. Namespace: "
-                          << resolvedNamespace.toStringForErrorMsg()
-                          << " Max: " << NamespaceString::MaxNsShardedCollectionLen,
-            resolvedNamespace.size() <= NamespaceString::MaxNsShardedCollectionLen);
+    sharding_ddl_util::assertNamespaceLengthLimit(resolvedNamespace, _request.getUnsplittable());
 
     // Consolidate the related request parameters...
     auto existingTimeseriesOptions = [&bucketsNs, &existingBucketsColl] {
@@ -2125,6 +2142,22 @@ void CreateCollectionCoordinator::_checkPreconditions() {
                   str::stream() << "The collection" << originalNss().toStringForErrorMsg()
                                 << "is already tracked from a past request");
     }
+
+    // When running on a configsvr, make sure that we are indeed a data-bearing shard (config
+    // shard).
+    // This is important in order to fix a race where create collection for 'config.system.session',
+    // which is sent to a random shard, could otherwise execute on a config server that is no longer
+    // a data-bearing shard.
+    // TODO: SERVER-86949 Remove this.
+    if (ShardingState::get(opCtx)->pollClusterRole()->has(ClusterRole::ConfigServer)) {
+        const auto allShardIds = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
+        bool amIAConfigShard = std::find(allShardIds.begin(),
+                                         allShardIds.end(),
+                                         ShardingState::get(opCtx)->shardId()) != allShardIds.end();
+        uassert(ErrorCodes::ConflictingOperationInProgress,
+                "Cannot run CreateCollectionCoordinator on a non data bearing config server",
+                amIAConfigShard);
+    }
 }
 
 void CreateCollectionCoordinator::_enterWriteCriticalSectionOnCoordinator() {
@@ -2156,11 +2189,7 @@ void CreateCollectionCoordinator::_translateRequestParameters() {
         }
     }
 
-    uassert(ErrorCodes::InvalidNamespace,
-            str::stream() << "Namespace too long. Namespace: " << targetNs.toStringForErrorMsg()
-                          << " has length " << targetNs.size() << " but max lenth is "
-                          << NamespaceString::MaxNsShardedCollectionLen,
-            targetNs.size() <= NamespaceString::MaxNsShardedCollectionLen);
+    sharding_ddl_util::assertNamespaceLengthLimit(targetNs, _request.getUnsplittable());
 
     const auto resolvedCollator =
         resolveCollationForUserQueries(opCtx,

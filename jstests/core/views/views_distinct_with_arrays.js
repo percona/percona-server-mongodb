@@ -3,9 +3,10 @@
  * is a view.
  * @tags: [
  *   requires_fcv_60,
- *   assumes_unsharded_collection,
  *   # Explain of a resolved view must be executed by mongos.
  *   directly_against_shardsvrs_incompatible,
+ *   # Explain doesn't support read concern majority in sharding.
+ *   assumes_read_concern_unchanged,
  * ]
  */
 import {arrayEq} from "jstests/aggregation/extras/utils.js";
@@ -34,9 +35,8 @@ const coll = viewsDB[baseCollName];
 coll.drop();
 coll.insertMany([getDocument(1, 1), getDocument(2, 2), getDocument(3, 3), getDocument(4, 1)]);
 
-const viewColl = viewsDB[viewCollName];
-viewColl.drop();
 assert.commandWorked(viewsDB.createView(viewCollName, baseCollName, []));
+const viewColl = viewsDB[viewCollName];
 
 function buildComparisonString(query, collRes, viewRes) {
     const collExplain = coll.explain().distinct(query);

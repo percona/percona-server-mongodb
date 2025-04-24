@@ -2078,27 +2078,6 @@ if env.get('ENABLE_OOM_RETRY'):
     else:
         env['OOM_RETRY_ATTEMPTS'] = 10
         env['OOM_RETRY_MAX_DELAY_SECONDS'] = 120
-
-        if env.ToolchainIs('clang', 'gcc'):
-            env['OOM_RETRY_MESSAGES'] = [
-                ': out of memory',
-                'virtual memory exhausted: Cannot allocate memory',
-                ': fatal error: Killed signal terminated program cc1',
-                # TODO: SERVER-77322 remove this non memory related ICE.
-                r'during IPA pass: cp.+g\+\+: internal compiler error',
-                'ld terminated with signal 9',
-            ]
-        elif env.ToolchainIs('msvc'):
-            env['OOM_RETRY_MESSAGES'] = [
-                'LNK1102: out of memory',
-                'C1060: compiler is out of heap space',
-                'c1xx : fatal error C1063: INTERNAL COMPILER ERROR',
-                r'LNK1171: unable to load mspdbcore\.dll',
-                "LNK1201: error writing to program database ",
-                "The paging file is too small for this operation to complete.",
-            ]
-            env['OOM_RETRY_RETURNCODES'] = [1102]
-
         env.Tool('oom_auto_retry')
 
 if env.ToolchainIs('clang'):
@@ -2137,10 +2116,8 @@ if env.TargetOSIs('posix'):
     if env.ToolchainIs('gcc', 'clang'):
         env.Append(
             CCFLAGS_WERROR=["-Werror"],
-            CXXFLAGS_WERROR=['-Werror=unused-result'] if env.ToolchainIs('clang') else [],
-            LINKFLAGS_WERROR=[
-                '-Wl,-fatal_warnings' if env.TargetOSIs('darwin') else "-Wl,--fatal-warnings"
-            ],
+            CXXFLAGS_WERROR=["-Werror=unused-result"] if env.ToolchainIs("clang") else [],
+            LINKFLAGS_WERROR=["-Wl,--fatal-warnings"] if not env.TargetOSIs("darwin") else [],
         )
 elif env.TargetOSIs('windows'):
     env.Append(CCFLAGS_WERROR=["/WX"])
@@ -3253,10 +3230,12 @@ if env.TargetOSIs('posix'):
     # SERVER-9761: Ensure early detection of missing symbols in dependent
     # libraries at program startup. For non-release dynamic builds we disable
     # this behavior in the interest of improved mongod startup times.
-    if has_option('release') or get_option('link-model') != 'dynamic':
-        env.Append(LINKFLAGS=[
-            "-Wl,-bind_at_load" if env.TargetOSIs('macOS') else "-Wl,-z,now",
-        ], )
+
+    # Xcode15 removed bind_at_load functionality so we cannot have a selection for macosx here
+    # ld: warning: -bind_at_load is deprecated on macOS
+    if has_option("release") or get_option("link-model") != "dynamic":
+        if not env.TargetOSIs("macOS"):
+            env.Append(LINKFLAGS=["-Wl,-z,now"])
 
     # We need to use rdynamic for backtraces with glibc unless we have libunwind.
     nordyn = (env.TargetOSIs('darwin') or use_libunwind)
@@ -3891,8 +3870,13 @@ def doConfigure(myenv):
         # As of XCode 9, this flag must be present (it is not enabled
         # by -Wall), in order to enforce that -mXXX-version-min=YYY
         # will enforce that you don't use APIs from ZZZ.
-        if env.TargetOSIs('darwin'):
-            env.AddToCCFLAGSIfSupported('-Wunguarded-availability')
+        if env.TargetOSIs("darwin"):
+            env.AddToCCFLAGSIfSupported("-Wunguarded-availability")
+            env.AddToCCFLAGSIfSupported("-Wno-enum-constexpr-conversion")
+            # TODO SERVER-54659 - ASIO depends on std::result_of which was removed in C++ 20
+            myenv.Append(CPPDEFINES=["ASIO_HAS_STD_INVOKE_RESULT"])
+            # This is needed to compile boost on the newer xcodes
+            myenv.Append(CPPDEFINES=["BOOST_NO_CXX98_FUNCTION_BASE"])
 
     if get_option('runtime-hardening') == "on":
         # Enable 'strong' stack protection preferentially, but fall back to 'all' if it is not

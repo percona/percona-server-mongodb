@@ -4783,7 +4783,6 @@ export const authCommandsLib = {
         {
           testname: "fsyncUnlock",
           command: {fsyncUnlock: 1},
-          skipSharded: true,  // TODO: remove when fsyncUnlock is implemented in mongos
           testcases: [
               {
                 runOnDb: adminDbName,
@@ -6728,6 +6727,21 @@ export const authCommandsLib = {
               {runOnDb: secondDbName, roles: {}}
           ]
         },
+        {
+          testname: "untrackUnshardedCollection",
+          command: {untrackUnshardedCollection: "test.x"},
+          skipUnlessSharded: true,
+          testcases: [
+              {
+                runOnDb: adminDbName,
+                roles: {__system: 1},
+                privileges: [{resource: {cluster: true}, actions: ["internal"]}],
+                expectFail: true
+              },
+              {runOnDb: firstDbName, roles: {}},
+              {runOnDb: secondDbName, roles: {}}
+          ]
+        },    
         {
           testname: "updateRole_authenticationRestrictions",
           command: {updateRole: "testRole", authenticationRestrictions: []},

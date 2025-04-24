@@ -3,7 +3,7 @@
  * consecutive identical index keys.
  *
  * @tags: [
- *   featureFlagSecondaryIndexChecksInDbCheck
+ *   requires_fcv_80
  * ]
  */
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
@@ -69,7 +69,6 @@ function setNumMaxIdenticalKeys(numMaxIdenticalKeys) {
         "setParameter": 1,
         "dbCheckMaxConsecutiveIdenticalIndexKeysPerSnapshot": numMaxIdenticalKeys
     }));
-    // TODO SERVER-86858: Investigate removing the use of this parameter on secondaries.
     assert.commandWorked(secondaryDB.adminCommand({
         "setParameter": 1,
         "dbCheckMaxConsecutiveIdenticalIndexKeysPerSnapshot": numMaxIdenticalKeys
@@ -80,13 +79,14 @@ function resetNumMaxIdenticalKeys() {
     setNumMaxIdenticalKeys(defaultNumMaxIdenticalKeys);
 }
 
-function onlyIdenticalKeys(nDocs, batchSize, snapshotSize, numMaxIdenticalKeys, failpoint = null) {
+function onlyIdenticalKeys(
+    nDocs, batchSize, snapshotSize, numMaxIdenticalKeys, collOpts, failpoint = null) {
     clearRawMongoProgramOutput();
     jsTestLog(`Testing behavior with a collection of only identical index keys with ${nDocs} 
-              docs, batchSize: ${batchSize}, + snapshotSize: ${snapshotSize}, 
+              docs, collOpts: ${collOpts}, batchSize: ${batchSize}, + snapshotSize: ${snapshotSize}, 
               numMaxIdenticalIndexKeys: ${numMaxIdenticalKeys}, failpoint: ${failpoint}`);
 
-    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs);
+    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs, collOpts);
     assert.commandWorked(primaryDB.runCommand({
         createIndexes: collName,
         indexes: [{key: {a: 1}, name: 'a_1'}],
@@ -184,6 +184,11 @@ function onlyIdenticalKeys(nDocs, batchSize, snapshotSize, numMaxIdenticalKeys, 
         checkHealthLog(secondaryHealthLog, query, 1 /* expectedNumBatches */);
     }
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey}, 1);
+    checkHealthLog(primaryHealthLog, {"data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchEnd.a": MaxKey}, 1);
+
     // Cleanup test.
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
@@ -203,11 +208,12 @@ function setUpIdenticalKeysInMiddleOfColl(nIdenticalDocs,
                                           batchSize,
                                           snapshotSize,
                                           numMaxIdenticalKeys,
+                                          collOpts,
                                           failpoint,
                                           skipErrorChecks = false) {
     clearRawMongoProgramOutput();
 
-    resetAndInsertIdentical(replSet, primaryDB, collName, nIdenticalDocs);
+    resetAndInsertIdentical(replSet, primaryDB, collName, nIdenticalDocs, collOpts);
     assert.commandWorked(primaryDB.runCommand({
         createIndexes: collName,
         indexes: [{key: {a: 1}, name: 'a_1'}],
@@ -294,10 +300,11 @@ function setUpIdenticalKeysInMiddleOfColl(nIdenticalDocs,
 }
 
 function simpleIdenticalKeysInMiddleOfColl(
-    nIdenticalDocs, batchSize, snapshotSize, numMaxIdenticalKeys, failpoint) {
+    nIdenticalDocs, batchSize, snapshotSize, numMaxIdenticalKeys, collOpts, failpoint) {
     jsTestLog(`Testing simple identical key behavior in middle of collection with ${nIdenticalDocs} 
-              docs with identical index keys, batchSize: ${batchSize}, + snapshotSize: ${snapshotSize}, 
-              numMaxIdenticalIndexKeys: ${numMaxIdenticalKeys}, failpoint: ${failpoint}`);
+              docs with identical index keys, collOpts: ${collOpts}, batchSize: ${batchSize}, 
+              snapshotSize: ${snapshotSize}, numMaxIdenticalIndexKeys: ${numMaxIdenticalKeys},
+              failpoint: ${failpoint}`);
 
     // This sets up a collection with `nIdenticalDocs` of distinct key docs, then `nIdenticalDocs`
     // of identical key docs, then `nIdenticalDocs` of distinct key docs.
@@ -305,7 +312,7 @@ function simpleIdenticalKeysInMiddleOfColl(
     // with {a:0}, {a:1},...{a:10}.
     let primaryFailpoint,
         secondaryFailpoint = setUpIdenticalKeysInMiddleOfColl(
-            nIdenticalDocs, batchSize, snapshotSize, numMaxIdenticalKeys, failpoint);
+            nIdenticalDocs, batchSize, snapshotSize, numMaxIdenticalKeys, collOpts, failpoint);
 
     const nDiffDocs = nIdenticalDocs * 2;
     const nIdenticalDocsChecked = Math.min(numMaxIdenticalKeys, nIdenticalDocs);
@@ -352,6 +359,11 @@ function simpleIdenticalKeysInMiddleOfColl(
         checkHealthLog(secondaryHealthLog, logQueries.allErrorsOrWarningsQuery, 0);
     }
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey}, 1);
+    checkHealthLog(primaryHealthLog, {"data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchEnd.a": MaxKey}, 1);
+
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
 
@@ -363,14 +375,15 @@ function simpleIdenticalKeysInMiddleOfColl(
     }
 }
 
-function allKeysInOneBatch(failpoint) {
+function allKeysInOneBatch(collOpts, failpoint) {
     const nIdenticalDocs = 10;
     const batchSize = 30;
     const snapshotSize = 30;
     const numMaxIdenticalKeys = 6;
     jsTestLog(`Testing all keys in one batch with ${nIdenticalDocs} 
-              docs with identical index keys, batchSize: ${batchSize}, + snapshotSize: ${snapshotSize}, 
-              numMaxIdenticalIndexKeys: ${numMaxIdenticalKeys}, failpoint: ${failpoint}`);
+              docs with identical index keys, collOpts: ${collOpts}, batchSize: ${batchSize}, 
+              snapshotSize: ${snapshotSize}, numMaxIdenticalIndexKeys: ${numMaxIdenticalKeys}, 
+              failpoint: ${failpoint}`);
     // This sets up a collection with `nIdenticalDocs` of distinct key docs, then `nIdenticalDocs`
     // of identical key docs, then `nIdenticalDocs` of distinct key docs.
     // Ex: if `nIdenticalDocs` is 10, we will have {a: -10},...,{a: -1}, 10 docs
@@ -380,6 +393,7 @@ function allKeysInOneBatch(failpoint) {
                                                               batchSize,
                                                               snapshotSize,
                                                               numMaxIdenticalKeys,
+                                                              collOpts,
                                                               failpoint,
                                                               true /* skipErrorChecks */);
 
@@ -431,6 +445,9 @@ function allKeysInOneBatch(failpoint) {
         checkHealthLog(secondaryHealthLog, logQueries.infoBatchQuery, expectedNumBatches);
     }
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
 
@@ -442,14 +459,15 @@ function allKeysInOneBatch(failpoint) {
     }
 }
 
-function identicalKeysAtEndOfBatch(failpoint) {
+function identicalKeysAtEndOfBatch(collOpts, failpoint) {
     const nIdenticalDocs = 5;
     const batchSize = 6;
     const snapshotSize = 4;
     const numMaxIdenticalKeys = 4;
     jsTestLog(`Testing identical key behavior at end of batch with ${nIdenticalDocs} 
-              docs with identical index keys, batchSize: ${batchSize}, + snapshotSize: ${snapshotSize}, 
-              numMaxIdenticalIndexKeys: ${numMaxIdenticalKeys}, failpoint: ${failpoint}`);
+              docs with identical index keys, collOpts: ${collOpts}, batchSize: ${batchSize}, 
+              snapshotSize: ${snapshotSize}, numMaxIdenticalIndexKeys: ${numMaxIdenticalKeys}, 
+              failpoint: ${failpoint}`);
 
     // This sets up a collection with `nIdenticalDocs` of distinct key docs, then `nIdenticalDocs`
     // of identical key docs, then `nIdenticalDocs` of distinct key docs.
@@ -457,7 +475,7 @@ function identicalKeysAtEndOfBatch(failpoint) {
     // with {a:0}, {a:1},...{a:10}.
     let primaryFailpoint,
         secondaryFailpoint = setUpIdenticalKeysInMiddleOfColl(
-            nIdenticalDocs, batchSize, snapshotSize, numMaxIdenticalKeys, failpoint);
+            nIdenticalDocs, batchSize, snapshotSize, numMaxIdenticalKeys, collOpts, failpoint);
 
     const nIdenticalDocsChecked = Math.min(numMaxIdenticalKeys, nIdenticalDocs);
 
@@ -489,6 +507,11 @@ function identicalKeysAtEndOfBatch(failpoint) {
         checkHealthLog(secondaryHealthLog, logQueries.allErrorsOrWarningsQuery, 0);
     }
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey}, 1);
+    checkHealthLog(primaryHealthLog, {"data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchEnd.a": MaxKey}, 1);
+
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
 
@@ -500,13 +523,15 @@ function identicalKeysAtEndOfBatch(failpoint) {
     }
 }
 
-function nConsecutiveIdenticalIndexKeysSeenAtEndIsReset(failpoint) {
+function nConsecutiveIdenticalIndexKeysSeenAtEndIsReset(collOpts, failpoint) {
     clearRawMongoProgramOutput();
     primaryDB.getCollection(collName).drop();
     clearHealthLog(replSet);
     jsTestLog(
-        "Testing that nConsecutiveIdenticalIndexKeysSeenAtEnd is reset when encountering a new distinct key");
+        "Testing that nConsecutiveIdenticalIndexKeysSeenAtEnd is reset when encountering a new distinct key. collOpts: " +
+        tojson(collOpts));
 
+    assert.commandWorked(primaryDB.createCollection(collName, collOpts));
     const nDocs = 3;
     setSnapshotSize(defaultSnapshotSize);
 
@@ -617,6 +642,9 @@ function nConsecutiveIdenticalIndexKeysSeenAtEndIsReset(failpoint) {
         checkHealthLog(secondaryHealthLog, query, 1 /* expectedNumBatches */);
     }
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+
     // Cleanup test.
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
@@ -628,12 +656,13 @@ function nConsecutiveIdenticalIndexKeysSeenAtEndIsReset(failpoint) {
     }
 }
 
-function hashingExtraIdenticalIndexKeysOnPrimary() {
+function hashingExtraIdenticalIndexKeysOnPrimary(collOpts) {
     clearRawMongoProgramOutput();
-    jsTestLog("Testing that hashing will catch extra identical index keys on primary");
+    jsTestLog("Testing that hashing will catch extra identical index keys on primary. collOpts: " +
+              tojson(collOpts));
     const nDocs = 10;
 
-    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs);
+    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs, collOpts);
     assert.commandWorked(primaryDB.runCommand({
         createIndexes: collName,
         indexes: [{key: {a: 1}, name: 'a_1'}],
@@ -699,19 +728,22 @@ function hashingExtraIdenticalIndexKeysOnPrimary() {
     checkHealthLog(
         secondaryHealthLog, logQueries.allErrorsOrWarningsQuery, 1 /*expectedNumBatches*/);
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
     // Cleanup test.
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
     primaryFailpoint.off();
 }
 
-function hashingExtraIdenticalIndexKeysOnSecondary() {
+function hashingExtraIdenticalIndexKeysOnSecondary(collOpts) {
     clearRawMongoProgramOutput();
     const nDocs = 20;
     jsTestLog(
-        "Testing that hashing will catch extra identical index keys on secondary for any extra identical index keys up to numMaxIdenticalIndexKeys");
+        `Testing that hashing will catch extra identical index keys on secondary for any extra 
+        identical index keys up to numMaxIdenticalIndexKeys. collOpts: ${collOpts}`);
 
-    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs);
+    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs, collOpts);
     assert.commandWorked(primaryDB.runCommand({
         createIndexes: collName,
         indexes: [{key: {a: 1}, name: 'a_1'}],
@@ -776,19 +808,23 @@ function hashingExtraIdenticalIndexKeysOnSecondary() {
     checkHealthLog(
         secondaryHealthLog, logQueries.allErrorsOrWarningsQuery, 1 /*expectedNumBatches*/);
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+
     // Cleanup test.
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
     secondaryFailpoint.off();
 }
 
-function extraIdenticalIndexKeysOnSecondaryBeyondMax() {
+function extraIdenticalIndexKeysOnSecondaryBeyondMax(collOpts) {
     clearRawMongoProgramOutput();
     const nDocs = 20;
     jsTestLog(
-        "Testing that hashing will not catch extra identical index keys on secondary for the extra identical index keys beyond numMaxIdenticalIndexKeys");
+        `Testing that hashing will not catch extra identical index keys on secondary for the 
+        extra identical index keys beyond numMaxIdenticalIndexKeys. collOpts: ${collOpts}`);
 
-    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs);
+    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs, collOpts);
     assert.commandWorked(primaryDB.runCommand({
         createIndexes: collName,
         indexes: [{key: {a: 1}, name: 'a_1'}],
@@ -803,7 +839,7 @@ function extraIdenticalIndexKeysOnSecondaryBeyondMax() {
 
     const secondaryFailpoint =
         configureFailPoint(secondaryDB, "skipUnindexingDocumentWhenDeleted", {indexName: "a_1"});
-    jsTestLog("Deleting 1 doc");
+    jsTestLog("Deleting docs");
     const primaryColl = primaryDB.getCollection(collName);
     // Delete docs after numMaxIdenticalKeys.
     for (let i = 10; i < 20; i++) {
@@ -844,19 +880,92 @@ function extraIdenticalIndexKeysOnSecondaryBeyondMax() {
 
     checkNumSnapshots(debugBuild, 1);
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+
     // Cleanup test.
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
     secondaryFailpoint.off();
 }
 
-function hashingExtraIdenticalIndexKeysOnSecondaryMiddleOfBatch() {
+function extraDistinctIndexKeysOnSecondaryBeyondMax() {
+    clearRawMongoProgramOutput();
+    const nDocs = 20;
+    jsTestLog(
+        "Testing that hashing will catch extra distinct index keys on secondary after hitting numMaxIdenticalIndexKeys");
+
+    // Inserting docs all with {a: 0.1}
+    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs);
+    assert.commandWorked(primaryDB.runCommand({
+        createIndexes: collName,
+        indexes: [{key: {a: 1}, name: 'a_1'}],
+    }));
+    assert.commandWorked(primaryDB.getCollection(collName).insertOne({a: 1}));
+    setSnapshotSize(defaultSnapshotSize);
+    const numMaxIdenticalKeys = 10;
+    setNumMaxIdenticalKeys(numMaxIdenticalKeys);
+    replSet.awaitReplication();
+
+    assert.eq(primaryDB.getCollection(collName).find({}).count(), nDocs + 1);
+    assert.eq(secondaryDB.getCollection(collName).find({}).count(), nDocs + 1);
+
+    const secondaryFailpoint =
+        configureFailPoint(secondaryDB, "skipUnindexingDocumentWhenDeleted", {indexName: "a_1"});
+    jsTestLog("Deleting docs");
+    const primaryColl = primaryDB.getCollection(collName);
+    assert.commandWorked(primaryColl.deleteOne({a: 1}));
+
+    replSet.awaitReplication();
+    assert.eq(primaryColl.find({}).count(), nDocs);
+    assert.eq(secondaryDB.getCollection(collName).find({}).count(), nDocs);
+
+    // Running DbCheck.
+    const dbCheckParameters = {
+        validateMode: "extraIndexKeysCheck",
+        secondaryIndex: "a_1",
+        maxDocsPerBatch: defaultMaxDocsPerBatch,
+        batchWriteConcern: writeConcern,
+        skipLookupForExtraKeys: false,
+    };
+
+    runDbCheck(replSet, primaryDB, collName, dbCheckParameters, true /* awaitCompletion */);
+
+    // Checking for correct batches and errors.
+    jsTestLog("Checking primary for no errors");
+    checkHealthLog(primaryHealthLog, logQueries.allErrorsOrWarningsQuery, 0);
+
+    jsTestLog("Checking secondary for extra key at end of batch error");
+    checkHealthLog(secondaryHealthLog, logQueries.extraIndexKeyAtEndOfSecondary, 1);
+    checkHealthLog(secondaryHealthLog, logQueries.allErrorsOrWarningsQuery, 1);
+
+    jsTestLog("Checking for correct number of batches on primary and secondary");
+    let query = {
+        ...logQueries.infoBatchQuery,
+        "data.batchStart.a": MinKey,
+        "data.batchEnd.a": MaxKey,
+        "data.count": numMaxIdenticalKeys,
+        "data.nConsecutiveIdenticalIndexKeysSeenAtEnd": numMaxIdenticalKeys,
+    };
+    checkHealthLog(primaryHealthLog, query, 1 /* expectedNumBatches */);
+    checkHealthLog(secondaryHealthLog, query, 1 /* expectedNumBatches */);
+
+    checkNumSnapshots(debugBuild, 1);
+
+    // Cleanup test.
+    resetSnapshotSize();
+    resetNumMaxIdenticalKeys();
+    secondaryFailpoint.off();
+}
+
+function hashingExtraIdenticalIndexKeysOnSecondaryMiddleOfBatch(collOpts) {
     clearRawMongoProgramOutput();
     const nDocs = 10;
     jsTestLog(
-        "Testing that hashing will catch extra identical index keys on secondary in the middle of a batch");
+        `Testing that hashing will catch extra identical index keys on secondary in the middle of 
+        a batch, collOpts: ${collOpts}`);
 
-    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs);
+    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs, collOpts);
     assert.commandWorked(primaryDB.runCommand({
         createIndexes: collName,
         indexes: [{key: {a: 1}, name: 'a_1'}],
@@ -922,20 +1031,24 @@ function hashingExtraIdenticalIndexKeysOnSecondaryMiddleOfBatch() {
     checkHealthLog(
         secondaryHealthLog, logQueries.allErrorsOrWarningsQuery, 1 /*expectedNumBatches*/);
 
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+
     // Cleanup test.
     resetSnapshotSize();
     resetNumMaxIdenticalKeys();
     secondaryFailpoint.off();
 }
 
-function identicalKeysChangedBeforeHashing() {
+function identicalKeysChangedBeforeHashing(collOpts) {
     jsTestLog(
-        "Testing that if identical keys change in between reverse lookup and hashing we won't error.");
+        `Testing that if identical keys change in between reverse lookup and hashing we won't 
+        error. collOpts: ${collOpts}`);
     setSnapshotSize(defaultSnapshotSize);
     setNumMaxIdenticalKeys(defaultNumMaxIdenticalKeys);
 
     const nDocs = 10;
-    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs);
+    resetAndInsertIdentical(replSet, primaryDB, collName, nDocs, collOpts);
 
     const primaryColl = primaryDB.getCollection(collName);
     // Delete one doc.
@@ -965,9 +1078,12 @@ function identicalKeysChangedBeforeHashing() {
     hangBeforeExtraIndexKeysHashing.wait();
 
     // Actual batch will have 8.
-    primaryColl.deleteOne({_id: 0});
-    primaryColl.insertOne({_id: 3, a: 0});
-    primaryColl.deleteOne({_id: 9});
+    assert.commandWorked(primaryColl.deleteOne({_id: 0}));
+    assert.commandWorked(primaryColl.insertOne({_id: 3, a: 0.1}));
+    assert.commandWorked(primaryColl.deleteOne({_id: 9}));
+    replSet.awaitReplication();
+    assert.eq(primaryDB.getCollection(collName).find({}).count(), nDocs - 2);
+    assert.eq(secondaryDB.getCollection(collName).find({}).count(), nDocs - 2);
 
     hangBeforeExtraIndexKeysHashing.off();
 
@@ -982,69 +1098,88 @@ function identicalKeysChangedBeforeHashing() {
         "data.nConsecutiveIdenticalIndexKeysSeenAtEnd": nDocs - 2,
     };
     jsTestLog("Checking for correct number of batches on primary");
-    checkHealthLog(primaryHealthLog, logQueries.infoBatchQuery, 1);
+    checkHealthLog(primaryHealthLog, query, 1);
     jsTestLog("Checking for correct number of batches on secondary");
-    checkHealthLog(secondaryHealthLog, logQueries.infoBatchQuery, 1);
+    checkHealthLog(secondaryHealthLog, query, 1);
+
+    checkHealthLog(primaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+    checkHealthLog(secondaryHealthLog, {"data.batchStart.a": MinKey, "data.batchEnd.a": MaxKey}, 1);
+    // Cleanup test.
+    resetSnapshotSize();
+    resetNumMaxIdenticalKeys();
 }
 
-[null /* no errors */,
- "skipUnindexingDocumentWhenDeleted", /* recordNotFound and inconsistent batch errors are caught
-                                       */
- "skipUpdatingIndexDocument" /* recordDoesNotMatch errors are caught.*/]
-    .forEach((failpoint) => {
-        // Check maxIdenticalKeys > numDocs > batch/snapshot size - all keys should be checked in
-        // one batch/snapshot.
-        onlyIdenticalKeys(11 /*numDocs*/,
-                          10 /*batchSize*/,
-                          5 /*snapshotSize*/,
-                          defaultNumMaxIdenticalKeys,
-                          failpoint);
+[{},
+ {clusteredIndex: {key: {_id: 1}, unique: true}}]
+    .forEach(collOpts => {
+        [null /* no errors */,
+         "skipUnindexingDocumentWhenDeleted", /* recordNotFound and inconsistent batch errors are
+                                               * caught
+                                               */
+         "skipUpdatingIndexDocument" /* recordDoesNotMatch errors are caught.*/]
+            .forEach((failpoint) => {
+                // Check maxIdenticalKeys > numDocs > batch/snapshot size - all keys should be
+                // checked in one batch/snapshot.
+                onlyIdenticalKeys(11 /*numDocs*/,
+                                  10 /*batchSize*/,
+                                  5 /*snapshotSize*/,
+                                  defaultNumMaxIdenticalKeys,
+                                  collOpts,
+                                  failpoint);
 
-        // numDocs > maxIdenticalKeys > batch/snapshotsize - should only check up to
-        // numMaxIdenticalKeys.
-        onlyIdenticalKeys(20 /*numDocs*/,
-                          5 /*batchSize*/,
-                          6 /*snapshotSize*/,
-                          7 /*numMaxIdenticalKeys*/,
-                          failpoint);
+                // numDocs > maxIdenticalKeys > batch/snapshotsize - should only check up to
+                // numMaxIdenticalKeys.
+                onlyIdenticalKeys(20 /*numDocs*/,
+                                  5 /*batchSize*/,
+                                  6 /*snapshotSize*/,
+                                  7 /*numMaxIdenticalKeys*/,
+                                  collOpts,
+                                  failpoint);
 
-        // Simple tests with distinct keys before and after identical keys.
-        // Tests nIdenticalDocs < numMaxIdenticalKeys, batchSize < snapshotSize.
-        simpleIdenticalKeysInMiddleOfColl(11 /*nIdenticalDocs*/,
-                                          1 /*batchSize*/,
-                                          2 /*snapshotSize*/,
-                                          defaultNumMaxIdenticalKeys,
-                                          failpoint);
-        // Tests nIdenticalDocs > numMaxIdenticalKeys, batchSize == snapshotSize.
-        simpleIdenticalKeysInMiddleOfColl(20 /*nIdenticalDocs*/,
-                                          5 /*batchSize*/,
-                                          5 /*snapshotSize*/,
-                                          6 /*numMaxIdenticalKeys*/,
-                                          failpoint);
-        // Tests nIdenticalDocs > numMaxIdenticalKeys, batchSize > snapshotSize.
-        simpleIdenticalKeysInMiddleOfColl(20 /*nIdenticalDocs*/,
-                                          5 /*batchSize*/,
-                                          2 /*snapshotSize*/,
-                                          6 /*numMaxIdenticalKeys*/,
-                                          failpoint);
+                // Simple tests with distinct keys before and after identical keys.
+                // Tests nIdenticalDocs < numMaxIdenticalKeys, batchSize < snapshotSize.
+                simpleIdenticalKeysInMiddleOfColl(11 /*nIdenticalDocs*/,
+                                                  1 /*batchSize*/,
+                                                  2 /*snapshotSize*/,
+                                                  defaultNumMaxIdenticalKeys,
+                                                  collOpts,
+                                                  failpoint);
+                // Tests nIdenticalDocs > numMaxIdenticalKeys, batchSize == snapshotSize.
+                simpleIdenticalKeysInMiddleOfColl(20 /*nIdenticalDocs*/,
+                                                  5 /*batchSize*/,
+                                                  5 /*snapshotSize*/,
+                                                  6 /*numMaxIdenticalKeys*/,
+                                                  collOpts,
+                                                  failpoint);
+                // Tests nIdenticalDocs > numMaxIdenticalKeys, batchSize > snapshotSize.
+                simpleIdenticalKeysInMiddleOfColl(20 /*nIdenticalDocs*/,
+                                                  5 /*batchSize*/,
+                                                  2 /*snapshotSize*/,
+                                                  6 /*numMaxIdenticalKeys*/,
+                                                  collOpts,
+                                                  failpoint);
 
-        // Identical keys at the end of the batch/snapshot size result in batch/snapshot limit
-        // getting ignored.
-        identicalKeysAtEndOfBatch(failpoint);
+                // Identical keys at the end of the batch/snapshot size result in batch/snapshot
+                // limit getting ignored.
+                identicalKeysAtEndOfBatch(collOpts, failpoint);
 
-        // Batch/snapshot size >= nDocs, numMaxIdenticalKeys is ignored.
-        allKeysInOneBatch(failpoint);
+                // Batch/snapshot size >= nDocs, numMaxIdenticalKeys is ignored.
+                allKeysInOneBatch(collOpts, failpoint);
 
-        // Testing that nConsecutiveIdenticalIndexKeysSeenAtEnd is reset when encountering a new
-        // distinct key.
-        nConsecutiveIdenticalIndexKeysSeenAtEndIsReset(failpoint);
+                // Testing that nConsecutiveIdenticalIndexKeysSeenAtEnd is reset when encountering a
+                // new distinct key.
+                nConsecutiveIdenticalIndexKeysSeenAtEndIsReset(collOpts, failpoint);
+            });
+
+        hashingExtraIdenticalIndexKeysOnPrimary(collOpts);
+        hashingExtraIdenticalIndexKeysOnSecondary(collOpts);
+        hashingExtraIdenticalIndexKeysOnSecondaryMiddleOfBatch(collOpts);
+        identicalKeysChangedBeforeHashing(collOpts);
+        extraIdenticalIndexKeysOnSecondaryBeyondMax(collOpts);
+
+        // TODO SERVER-93406: Uncomment this test.
+        // extraDistinctIndexKeysOnSecondaryBeyondMax(collOpts);
     });
-
-hashingExtraIdenticalIndexKeysOnPrimary();
-hashingExtraIdenticalIndexKeysOnSecondary();
-hashingExtraIdenticalIndexKeysOnSecondaryMiddleOfBatch();
-identicalKeysChangedBeforeHashing();
-extraIdenticalIndexKeysOnSecondaryBeyondMax();
 
 replSet.stopSet(undefined /* signal */,
                 false /* forRestart */,

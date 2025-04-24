@@ -149,6 +149,17 @@ env.Library(
 )
 
 env.Library(
+    target='spill_util',
+    source=[
+        'util/spill_util.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/storage/disk_space_util',
+    ],
+)
+
+env.Library(
     target='projection_ast',
     source=[
         'projection.cpp',
@@ -490,6 +501,7 @@ env.CppUnitTest(
         'plan_cache_indexability_test.cpp',
         'plan_cache_key_info_test.cpp',
         'plan_cache_test.cpp',
+        'plan_executor_express_test.cpp',
         'plan_ranker_index_prefix_test.cpp',
         'plan_ranker_test.cpp',
         'planner_access_test.cpp',
@@ -516,6 +528,7 @@ env.CppUnitTest(
         'query_request_test.cpp',
         'query_settings/query_settings_hash_test.cpp',
         'query_settings/query_settings_manager_test.cpp',
+        'query_settings/query_settings_utils_test.cpp',
         'query_settings/query_settings_validation_test.cpp',
         'query_settings_test.cpp',
         'query_shape/agg_cmd_shape_test.cpp',

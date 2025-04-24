@@ -3,13 +3,13 @@
  * cursor has already been taken by magic_restore_backup.js.
  */
 
-import {MagicRestoreUtils} from "jstests/libs/backup_utils.js";
 import {DiscoverTopology, Topology} from "jstests/libs/discover_topology.js";
+import {MagicRestoreTest} from "jstests/libs/magic_restore_test.js";
 
 // Starts up a new node on dbpath where a backup cursor has already been written from sourceConn.
 // sourceConn must also contain a timestamp in `test.magic_restore_checkpointTimestamp` of when the
 // backup was taken.
-function performRestore(sourceConn, expectedConfig, dbpath, name, options) {
+function performRestore(sourceConn, expectedConfig, nodeType, dbpath, name, options) {
     // Read checkpointTimestamp from source cluster.
     const checkpointTimestamp = sourceConn.getDB("magic_restore_metadata")
                                     .getCollection("magic_restore_checkpointTimestamp")
@@ -26,6 +26,16 @@ function performRestore(sourceConn, expectedConfig, dbpath, name, options) {
             .toArray();
 
     if (entriesAfterBackup.length > 0) {
+        // Need to check if the oplog has been truncated before attempting a PIT restore. If the
+        // oplog has been truncated and the entry at the checkpoint timestamp does not exist we
+        // cannot proceed with a PIT restore. We should throw an error so we don't get an obscure
+        // error which looks like data inconsistency later.
+        const checkpointOplogEntry = oplog.findOne({ns: {$regex: "magic_restore_metadata.*"}});
+        if (!checkpointOplogEntry) {
+            throw new Error(
+                "Oplog has been truncated while getting PIT restore oplog entries during Magic Restore.");
+        }
+
         // BSON arrays take up more space than raw objects do, but computing the size of a BSON
         // array is extremely expensive (O(N^2) time). As a compromise we will limit our size to be
         // 90% of the real BSON max which should allow us to stay under the threshold of max BSON
@@ -36,7 +46,7 @@ function performRestore(sourceConn, expectedConfig, dbpath, name, options) {
         let currentBatchSize = 0;
 
         const metadataDocument = {
-            "nodeType": "replicaSet",
+            "nodeType": nodeType,
             "replicaSetConfig": expectedConfig,
             "maxCheckpointTs": checkpointTimestamp,
             // Restore to the timestamp of the last oplog entry on the source cluster.
@@ -58,7 +68,7 @@ function performRestore(sourceConn, expectedConfig, dbpath, name, options) {
                 jsTestLog("Magic Restore: Writing " + currentBatchSize.toString() +
                           " bytes to pipe.");
 
-                MagicRestoreUtils.writeObjsToMagicRestorePipe(
+                MagicRestoreTest.writeObjsToMagicRestorePipe(
                     MongoRunner.dataDir + "/" + name, currentBatch, true /* persistPipe */);
 
                 currentBatch = [];
@@ -76,26 +86,33 @@ function performRestore(sourceConn, expectedConfig, dbpath, name, options) {
 
         // If non-empty batch remains push it into batches.
         if (currentBatch.length != 0) {
-            MagicRestoreUtils.writeObjsToMagicRestorePipe(
+            MagicRestoreTest.writeObjsToMagicRestorePipe(
                 MongoRunner.dataDir + "/" + name, currentBatch, true /* persistPipe */);
         }
     } else {
         const objs = [{
-            "nodeType": "replicaSet",
+            "nodeType": nodeType,
             "replicaSetConfig": expectedConfig,
             "maxCheckpointTs": checkpointTimestamp,
         }];
         jsTestLog("Restore configuration: " + tojson(objs[0]));
-        MagicRestoreUtils.writeObjsToMagicRestorePipe(MongoRunner.dataDir + "/" + name, objs);
+        MagicRestoreTest.writeObjsToMagicRestorePipe(MongoRunner.dataDir + "/" + name, objs);
     }
 
-    MagicRestoreUtils.runMagicRestoreNode(MongoRunner.dataDir + "/" + name, dbpath, options);
+    MagicRestoreTest.runMagicRestoreNode(MongoRunner.dataDir + "/" + name, dbpath, options);
     return consistencyTs;
 }
 
 // Helper function to retrieve the databases and collections on a node. The result is a map of
 // database names to lists of collections in that database.
 function getDatabasesAndCollectionsSnapshot(node, consistencyTs) {
+    // Magic restore explicitly drops these collections from the config database.
+    const excludedCollections = [
+        "clusterParameters",
+        "mongos",
+        "cache.collections",
+        "cache.databases",
+    ];
     return node.getDB("admin")
         .aggregate([{$listCatalog: {}}],
                    {readConcern: {level: 'snapshot', atClusterTime: consistencyTs}})
@@ -112,6 +129,21 @@ function getDatabasesAndCollectionsSnapshot(node, consistencyTs) {
                           db + "." + name + ".");
                 return acc;
             }
+
+            // We drop cached metadata during restore. There could be cached metadata for different
+            // namespaces produced by the tests, so we must match any name to "cache.chunks.*".
+            if (db === "config" &&
+                (excludedCollections.includes(name) || name.startsWith("cache.chunks"))) {
+                return acc;
+            }
+
+            // Magic restore will drop and re-insert the shard identity document on config servers,
+            // which will alter the field ordering. We manually check the shard identity document
+            // elsewhere.
+            if (db === "admin" && name === "system.version") {
+                return acc;
+            }
+
             if (!acc[db]) {
                 acc[db] = [];
             }
@@ -136,6 +168,20 @@ function dataConsistencyCheck(sourceNode, restoreNode, consistencyTs) {
                         ". restore database names: " + tojson(Object.keys(restoreDatabases)));
     }
 
+    // Check the shard identity documents.
+    let sourceShardIdentity =
+        sourceNode.getDB("admin").getCollection("system.version").findOne({_id: "shardIdentity"});
+    let destShardIdentity =
+        sourceNode.getDB("admin").getCollection("system.version").findOne({_id: "shardIdentity"});
+    // On replica set nodes, output of 'findOne' will be null as the shard identity document should
+    // not exist. On shard and config servers, the documents may have different field orderings but
+    // the contents should match.
+    assert((sourceShardIdentity === null && destShardIdentity === null) ||
+               bsonUnorderedFieldsCompare(sourceShardIdentity, destShardIdentity) === 0,
+           "shard identity documents do not match. source shard identity: " +
+               tojson(sourceShardIdentity) +
+               " destination shard identity: " + tojson(destShardIdentity));
+
     Object.keys(sourceDatabases).forEach((dbName) => {
         // Ignore the `local` db.
         if (dbName === "local") {
@@ -145,7 +191,12 @@ function dataConsistencyCheck(sourceNode, restoreNode, consistencyTs) {
         let sourceDb = sourceNode.getDB(dbName);
         let restoreDb = restoreNode.getDB(dbName);
 
-        let sourceCollections = sourceDatabases[dbName].sort((a, b) => a.localeCompare(b));
+        // Restore will drop "config.placementHistory", so we should omit that namespace from the
+        // consistency checker.
+        let sourceCollections =
+            sourceDatabases[dbName]
+                .filter(collection => dbName !== "config" || collection !== "placementHistory")
+                .sort((a, b) => a.localeCompare(b));
         let restoreCollections = restoreDatabases[dbName].sort((a, b) => a.localeCompare(b));
 
         let idx = 0;
@@ -163,7 +214,8 @@ function dataConsistencyCheck(sourceNode, restoreNode, consistencyTs) {
             // collection is expected to be different here since shard names and last known ping
             // times will be different from the source node. The preimages and change_collections
             // collections use independent untimestamped truncates to delete old data, and therefore
-            // they be inconsistent between source and destination.
+            // they be inconsistent between source and destination. placementHistory is dropped by
+            // magic restore.
             if (sourceCollName === "system.keys" || sourceCollName === "mongos" ||
                 sourceCollName === "system.preimages" ||
                 sourceCollName === "system.change_collection") {
@@ -212,7 +264,7 @@ function dataConsistencyCheck(sourceNode, restoreNode, consistencyTs) {
     });
 }
 
-function performMagicRestore(sourceNode, dbPath, name, options) {
+function performMagicRestore(sourceNode, dbPath, nodeType, name, options) {
     jsTestLog("Magic Restore: Beginning magic restore for node " + sourceNode.host + ".");
 
     let rst = new ReplSetTest({nodes: 1});
@@ -228,14 +280,25 @@ function performMagicRestore(sourceNode, dbPath, name, options) {
     rst.stopSet(null /*signal*/, true /*forRestart*/);
 
     jsTestLog("Magic Restore: Restarting with magic restore options.");
+
+    // Increase snapshot history window on the restore node so we don't get a SnapshotTooOld error
+    // when doing the consistency checker for long running tests.
+    const snapshotHistory = 3600;
+    options.setParameter = {minSnapshotHistoryWindowInSeconds: snapshotHistory};
+
     // performRestore returns a read timestamp for snapshot reads in consistency checks.
-    const consistencyTs = performRestore(sourceNode, expectedConfig, dbPath, name, options);
+    const consistencyTs =
+        performRestore(sourceNode, expectedConfig, nodeType, dbPath, name, options);
 
     jsTestLog(
         "Magic Restore: Starting restore cluster for data consistency check at snapshot timestamp " +
         tojson(consistencyTs) + ".");
 
-    rst.startSet({restart: true, dbpath: dbPath});
+    rst.startSet({
+        restart: true,
+        dbpath: dbPath,
+        setParameter: {minSnapshotHistoryWindowInSeconds: snapshotHistory}
+    });
 
     dataConsistencyCheck(sourceNode, rst.getPrimary(), consistencyTs);
 
@@ -254,18 +317,34 @@ if (topology.type == Topology.kShardedCluster) {
     // Perform restore for the config server.
     const path = MongoRunner.dataPath + '../magicRestore/configsvr/node0';
     let configMongo = new Mongo(topology.configsvr.nodes[0]);
-    performMagicRestore(configMongo, path, "configsvr", {"replSet": "config-rs", "configsvr": ''});
+
+    // Config shards must perform both dedicated config server and shard server steps in restore, so
+    // we must make the distinction between a config shard and dedicated config server in the
+    // nodeType. We can determine the node role by checking the 'config.shards' collection and the
+    // node's shard identity document.
+    const isConfigShard = (conn) => {
+        const configShardDoc = conn.getDB("config").shards.findOne({_id: "config"});
+        if (configShardDoc == null) {
+            return false;
+        }
+        const shardIdentityDoc = conn.getDB("admin").system.version.findOne({_id: "shardIdentity"});
+        if (shardIdentityDoc == null) {
+            return false;
+        }
+        return shardIdentityDoc.shardName == "config";
+    };
+    const cfgNodeType = isConfigShard(configMongo) ? "configShard" : "configServer";
+    performMagicRestore(configMongo, path, cfgNodeType, "configsvr", {"replSet": "config-rs"});
 
     // Need to iterate over the shards and do one restore per shard.
     for (const [shardName, shard] of Object.entries(topology.shards)) {
         const dbPathPrefix = MongoRunner.dataPath + '../magicRestore/' + shardName + '/node0';
         let nodeMongo = new Mongo(shard.nodes[0]);
-        performMagicRestore(
-            nodeMongo, dbPathPrefix, shardName, {"replSet": shardName, "shardsvr": ''});
+        performMagicRestore(nodeMongo, dbPathPrefix, "shard", shardName, {"replSet": shardName});
     }
 } else {
     // Is replica set so just need to do one restore.
     const conn = db.getMongo();
     const backupDbPath = MongoRunner.dataPath + '../magicRestore/node0';
-    performMagicRestore(conn, backupDbPath, "rs", {"replSet": "rs"});
+    performMagicRestore(conn, backupDbPath, "replicaSet", "rs", {"replSet": "rs"});
 }

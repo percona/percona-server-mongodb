@@ -111,6 +111,9 @@ struct QueryPlannerParams {
 
         // Set this if you don't want a table scan.
         // See http://docs.mongodb.org/manual/reference/parameters/
+        // Beware: setting only this option can still lead to 'CLUSTERED_IXSCAN' plans. To avoid
+        // creating such plans, the option 'STRICT_NO_TABLE_SCAN' should be used together with this
+        // option.
         NO_TABLE_SCAN = 1,
 
         // Set this if you *always* want a collscan outputted, even if there's an ixscan.  This
@@ -175,8 +178,8 @@ struct QueryPlannerParams {
         // yet.
         GENERATE_PER_COLUMN_FILTERS = 1 << 11,
 
-        // This is an extension to the NO_TABLE_SCAN parameter. This more stricter option will also
-        // avoid a CLUSTEREDIDX_SCAN which comes built into a collection scan when the collection is
+        // This is an extension to the NO_TABLE_SCAN parameter. This stricter option will also
+        // avoid a CLUSTERED_IXSCAN which comes built into a collection scan when the collection is
         // clustered.
         STRICT_NO_TABLE_SCAN = 1 << 12,
 
@@ -401,19 +404,19 @@ private:
      * Applies 'indexHints' query settings for the given 'collection'.In addition, sets that there
      * were query settings applied.
      */
-    void applyQuerySettingsForCollection(const CanonicalQuery& canonicalQuery,
-                                         const CollectionPtr& collection,
-                                         const query_settings::IndexHintSpecs& indexHintSpecs,
-                                         CollectionInfo& collectionInfo);
+    void applyQuerySettingsForCollection(
+        const CanonicalQuery& canonicalQuery,
+        const NamespaceString& nss,
+        const query_settings::IndexHintSpecs& indexHintSpecs,
+        CollectionInfo& collectionInfo,
+        const boost::optional<TimeseriesOptions>& timeseriesOptions);
 
     void applyQuerySettingsIndexHintsForCollection(const CanonicalQuery& canonicalQuery,
-                                                   const CollectionPtr& collection,
                                                    const std::vector<mongo::IndexHint>& indexHints,
                                                    std::vector<IndexEntry>& indexes);
 
     void applyQuerySettingsNaturalHintsForCollection(
         const CanonicalQuery& canonicalQuery,
-        const CollectionPtr& collection,
         const std::vector<mongo::IndexHint>& indexHints,
         CollectionInfo& collectionInfo);
 };

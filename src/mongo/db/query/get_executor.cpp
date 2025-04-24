@@ -433,22 +433,6 @@ public:
         }
     }
 
-    /**
-     * When the instance of this class goes out of scope the trials for multiplanner are completed.
-     */
-    virtual ~PrepareExecutionHelper() {
-        if (_opCtx) {
-            if (auto curOp = CurOp::get(_opCtx)) {
-
-                LOGV2_DEBUG(8276400,
-                            4,
-                            "Stopping the planningTime timer",
-                            "query"_attr = redact(_queryStringForDebugLog));
-                curOp->stopQueryPlanningTimer();
-            }
-        }
-    }
-
     StatusWith<std::unique_ptr<ResultType>> prepare() {
         const auto& mainColl = getCollections().getMainCollection();
 
@@ -1387,11 +1371,13 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     Pipeline* pipeline,
     bool needsMerge,
     QueryMetadataBitSet unavailableMetadata,
-    boost::optional<TraversalPreference> traversalPreference) {
+    boost::optional<TraversalPreference> traversalPreference,
+    ExecShardFilterPolicy execShardFilterPolicy) {
     invariant(canonicalQuery);
 
     // Ensure that the shard filter option is set if this is a shard.
-    if (OperationShardingState::isComingFromRouter(opCtx)) {
+    if (OperationShardingState::isComingFromRouter(opCtx) &&
+        std::holds_alternative<AutomaticShardFiltering>(execShardFilterPolicy)) {
         plannerOptions |= QueryPlannerParams::INCLUDE_SHARD_FILTER;
     }
 
@@ -1408,6 +1394,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
                 .traversalPreference = traversalPreference,
             });
     };
+
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
 
     // First try to use the express id point query fast path.
     const auto& mainColl = collections.getMainCollection();
@@ -1454,6 +1445,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
                 *indexEntry,
                 getScopedCollectionFilter(opCtx, collections, *paramsForSingleCollectionQuery),
                 plannerOptions & QueryPlannerParams::RETURN_OWNED_DATA);
+
             setCurOpQueryFramework(expressExecutor.get());
             return std::move(expressExecutor);
         }
@@ -1556,7 +1548,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
                         2,
                         "Encountered planning error while running with query settings. Retrying "
                         "without query settings.",
-                        "query"_attr = canonicalQuery->toStringForErrorMsg(),
+                        "query"_attr = redact(canonicalQuery->toStringForErrorMsg()),
                         "querySettings"_attr = querySettings,
                         "reason"_attr = exception.reason(),
                         "code"_attr = exception.codeString());
@@ -1687,6 +1679,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorDele
                       str::stream()
                           << "Not primary while removing from " << nss.toStringForErrorMsg());
     }
+
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
 
     if (!collectionPtr) {
         std::unique_ptr<WorkingSet> ws = std::make_unique<WorkingSet>();
@@ -1861,6 +1858,10 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorUpda
         return UpdateStageParams::DocumentCounter{};
     }();
 
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
 
     // If the collection doesn't exist, then return a PlanExecutor for a no-op EOF plan. We have
     // should have already enforced upstream that in this case either the upsert flag is false, or
@@ -1901,6 +1902,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorUpda
                      clustered_util::isClusteredOnId(collectionPtr->getClusteredInfo()))) {
                     // Upserts not supported in express for now.
                     LOGV2_DEBUG(83759, 2, "Using Express", "query"_attr = redact(unparsedQuery));
+
                     return makeExpressExecutorForUpdate(
                         opCtx, coll, parsedUpdate, false /* return owned BSON */);
 
@@ -2158,6 +2160,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorCoun
     const auto skip = request.getSkip().value_or(0);
     const auto limit = request.getLimit().value_or(0);
 
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
+
     if (!collection) {
         // Treat collections that do not exist as empty collections. Note that the explain reporting
         // machinery always assumes that the root stage for a count operation is a CountStage, so in
@@ -2186,6 +2193,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorCoun
     if (useRecordStoreCount) {
         std::unique_ptr<PlanStage> root =
             std::make_unique<RecordStoreFastCountStage>(expCtx.get(), &collection, skip, limit);
+
         return plan_executor_factory::make(expCtx,
                                            std::move(ws),
                                            std::move(root),
@@ -2502,6 +2510,10 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> tryGetExecutorD
 
     auto cq = canonicalDistinct.releaseQuery();
     LOGV2_DEBUG(20932, 2, "Using fast distinct", "query"_attr = redact(cq->toStringShort()));
+
+    // Stop the query planning timer once we have an execution plan.
+    CurOp::get(opCtx)->stopQueryPlanningTimer();
+
     return plan_executor_factory::make(std::move(cq),
                                        std::move(ws),
                                        std::move(root),

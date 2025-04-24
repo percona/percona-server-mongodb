@@ -130,6 +130,15 @@ export function getWinningSBEPlan(queryPlanner) {
  * This helper function can be used for any optimizer.
  */
 export function getWinningPlanFromExplain(explain, isSBEPlan = false) {
+    let getWinningSBEPlan = (queryPlanner) => queryPlanner.winningPlan.slotBasedPlan;
+
+    // The 'queryPlan' format is used when the SBE engine is turned on. If this field is present,
+    // it will hold a serialized winning plan, otherwise it will be stored in the 'winningPlan'
+    // field itself.
+    let getWinningPlan = (queryPlanner) => queryPlanner.winningPlan.hasOwnProperty("queryPlan")
+        ? queryPlanner.winningPlan.queryPlan
+        : queryPlanner.winningPlan;
+
     if ("shards" in explain) {
         for (const shardName in explain.shards) {
             let queryPlanner = getQueryPlanner(explain.shards[shardName]);
@@ -149,7 +158,10 @@ export function getWinningPlanFromExplain(explain, isSBEPlan = false) {
         }
     }
 
-    let queryPlanner = getQueryPlanner(explain);
+    let queryPlanner = explain;
+    if (explain.hasOwnProperty("queryPlanner") || explain.hasOwnProperty("stages")) {
+        queryPlanner = getQueryPlanner(explain);
+    }
     return isSBEPlan ? getWinningSBEPlan(queryPlanner) : getWinningPlan(queryPlanner);
 }
 
@@ -207,6 +219,64 @@ export function getCachedPlan(cachedPlan) {
     // will hold a serialized cached plan, otherwise it will be stored in the 'cachedPlan' field
     // itself.
     return cachedPlan.hasOwnProperty("queryPlan") ? cachedPlan.queryPlan : cachedPlan;
+}
+
+function isPlainObject(value) {
+    return value && typeof (value) == "object" && value.constructor === Object;
+}
+
+/**
+ * Flattens the given plan by turning it into an array of stages/children. It excludes fields which
+ * might differ in the explain across multiple executions of the same query.
+ */
+export function flattenPlan(plan) {
+    const results = [];
+
+    if (!isPlainObject(plan)) {
+        return results;
+    }
+
+    const childFields = [
+        "inputStage",
+        "inputStages",
+        "thenStage",
+        "elseStage",
+        "outerStage",
+        "stages",
+        "innerStage",
+        "child",
+        "leftChild",
+        "rightChild"
+    ];
+
+    // Expand this array if you find new fields which are inconsistent across different test runs.
+    const ignoreFields = ["isCached", "indexVersion", "planNodeId"];
+
+    // Iterates over the plan while ignoring the `ignoreFields`, to create flattened stages whenever
+    // `childFields` are encountered.
+    const stack = [["root", {...plan}]];
+    while (stack.length > 0) {
+        const [_, next] = stack.pop();
+        ignoreFields.forEach(field => delete next[field]);
+
+        for (const childField of childFields) {
+            if (childField in next) {
+                const child = next[childField];
+                delete next[childField];
+                if (Array.isArray(child)) {
+                    for (let i = 0; i < child.length; i++) {
+                        stack.push([childField, child[i]]);
+                    }
+                } else {
+                    stack.push([childField, child]);
+                }
+            }
+        }
+
+        results.push(next);
+    }
+
+    return results;
 }
 
 /**
@@ -985,13 +1055,12 @@ export function getPlanCacheKeyFromExplain(explain) {
 }
 
 /**
- * Get the 'planCacheShapeHash' from 'object'.
+ * Get the 'queryHash' from 'object'.
  */
 export function getPlanCacheShapeHashFromObject(object) {
-    // TODO SERVER 93305: Remove deprecated 'queryHash' usages.
-    const planCacheShapeHash = object.planCacheShapeHash || object.queryHash;
-    assert.neq(planCacheShapeHash, undefined);
-    return planCacheShapeHash;
+    const queryHash = object.queryHash;
+    assert.neq(queryHash, undefined);
+    return queryHash;
 }
 
 /**
@@ -1177,7 +1246,7 @@ export function getNumberOfColumnScans(explain) {
 export function isIxscanMultikey(winningPlan) {
     // SERVER-77719: Update to expected this method to allow also use with CQF optimizer.
     let ixscanStage = getPlanStage(winningPlan, "IXSCAN");
-    return ixscanStage.isMultiKey;
+    return ixscanStage && ixscanStage.isMultiKey;
 }
 
 /**

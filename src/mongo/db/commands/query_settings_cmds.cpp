@@ -323,10 +323,7 @@ public:
                 utils::validateRepresentativeQuery(*representativeQueryInfo);
             }
 
-            // Make a query shape configuration to insert.
-            QueryShapeConfiguration newQueryShapeConfiguration(queryShapeHash,
-                                                               request().getSettings());
-            newQueryShapeConfiguration.setRepresentativeQuery(representativeQuery);
+            SetQuerySettingsCommandReply reply;
             auto&& tenantId = request().getDbName().tenantId();
 
             readModifyWriteQuerySettingsConfigOption(
@@ -339,6 +336,10 @@ public:
                         findQueryShapeConfigurationByQueryShapeHash(queryShapeConfigurations,
                                                                     queryShapeHash);
                     if (matchingQueryShapeConfigurationIt == queryShapeConfigurations.end()) {
+                        // Make a query shape configuration to insert.
+                        QueryShapeConfiguration newQueryShapeConfiguration(queryShapeHash,
+                                                                           request().getSettings());
+                        newQueryShapeConfiguration.setRepresentativeQuery(representativeQuery);
                         // Add a new query settings entry.
                         validateAndSimplifyQuerySettings(
                             opCtx,
@@ -346,13 +347,18 @@ public:
                             representativeQueryInfo,
                             boost::none /*previousRepresentativeQuery*/,
                             newQueryShapeConfiguration.getSettings());
-                        LOGV2_DEBUG(8911805,
-                                    1,
-                                    "Inserting query settings entry",
-                                    "representativeQuery"_attr = representativeQuery,
-                                    "settings"_attr =
-                                        newQueryShapeConfiguration.getSettings().toBSON());
+
+                        LOGV2_DEBUG(
+                            8911805,
+                            1,
+                            "Inserting query settings entry",
+                            "representativeQuery"_attr =
+                                representativeQuery.map([](const BSONObj& b) { return redact(b); }),
+                            "settings"_attr = newQueryShapeConfiguration.getSettings().toBSON());
                         queryShapeConfigurations.push_back(newQueryShapeConfiguration);
+
+                        // Update the reply with the new query shape configuration.
+                        reply.setQueryShapeConfiguration(std::move(newQueryShapeConfiguration));
                     } else {
                         // Update an existing query settings entry by updating the existing
                         // QueryShapeConfiguration with the new query settings.
@@ -368,7 +374,8 @@ public:
                         LOGV2_DEBUG(8911806,
                                     1,
                                     "Updating query settings entry",
-                                    "representativeQuery"_attr = representativeQuery,
+                                    "representativeQuery"_attr = representativeQuery.map(
+                                        [](const BSONObj& b) { return redact(b); }),
                                     "settings"_attr = mergedQuerySettings.toBSON());
                         queryShapeConfigurationToUpdate.setSettings(mergedQuerySettings);
 
@@ -377,11 +384,11 @@ public:
                             queryShapeConfigurationToUpdate.setRepresentativeQuery(
                                 representativeQuery);
                         }
+
+                        // Update the reply with the updated query shape configuration.
+                        reply.setQueryShapeConfiguration(queryShapeConfigurationToUpdate);
                     }
                 });
-
-            SetQuerySettingsCommandReply reply;
-            reply.setQueryShapeConfiguration(std::move(newQueryShapeConfiguration));
             return reply;
         }
     };
@@ -450,11 +457,12 @@ public:
                         findQueryShapeConfigurationByQueryShapeHash(queryShapeConfigurations,
                                                                     queryShapeHash);
                     if (matchingQueryShapeConfigurationIt != queryShapeConfigurations.end()) {
+                        const auto& rep = queryShapeHashAndRepresentativeQuery.second;
                         LOGV2_DEBUG(8911807,
                                     1,
                                     "Removing query settings entry",
                                     "representativeQuery"_attr =
-                                        queryShapeHashAndRepresentativeQuery.second);
+                                        rep.map([](const BSONObj& b) { return redact(b); }));
                         queryShapeConfigurations.erase(matchingQueryShapeConfigurationIt);
                     }
                 });

@@ -120,6 +120,11 @@ std::string escapeNewlines(const char* input, int len) {
     }
     return out.str();
 }
+
+bool isAllSpace(StringData str) {
+    return std::all_of(str.begin(), str.end(), [](char c) { return ctype::isSpace(c); });
+}
+
 }  // namespace
 
 JParse::JParse(StringData str)
@@ -182,15 +187,15 @@ Status JParse::parseError(StringData msg) {
     return Status(ErrorCodes::FailedToParse, ossmsg.str());
 }
 
-Status JParse::value(StringData fieldName, BSONObjBuilder& builder) {
+Status JParse::value(StringData fieldName, BSONObjBuilder& builder, int depth) {
     MONGO_JSON_DEBUG("fieldName: " << fieldName);
     if (peekToken(LBRACE)) {
-        Status ret = object(fieldName, builder);
+        Status ret = object(fieldName, builder, true, depth + 1);
         if (ret != Status::OK()) {
             return ret;
         }
     } else if (peekToken(LBRACKET)) {
-        Status ret = array(fieldName, builder);
+        Status ret = array(fieldName, builder, true, depth + 1);
         if (ret != Status::OK()) {
             return ret;
         }
@@ -230,7 +235,7 @@ Status JParse::value(StringData fieldName, BSONObjBuilder& builder) {
             return ret;
         }
     } else if (readToken("Dbref") || readToken("DBRef")) {
-        Status ret = dbRef(fieldName, builder);
+        Status ret = dbRef(fieldName, builder, depth + 1);
         if (ret != Status::OK()) {
             return ret;
         }
@@ -278,11 +283,14 @@ Status JParse::value(StringData fieldName, BSONObjBuilder& builder) {
 }
 
 Status JParse::parse(BSONObjBuilder& builder) {
-    return isArray() ? array("UNUSED", builder, false) : object("UNUSED", builder, false);
+    return isArray() ? array("UNUSED", builder, false, 0) : object("UNUSED", builder, false, 0);
 }
 
-Status JParse::object(StringData fieldName, BSONObjBuilder& builder, bool subObject) {
+Status JParse::object(StringData fieldName, BSONObjBuilder& builder, bool subObject, int depth) {
     MONGO_JSON_DEBUG("fieldName: " << fieldName);
+    if (depth > kMaxDepth) {
+        return parseError("Reached nested object limit");
+    }
     if (!readToken(LBRACE)) {
         return parseError("Expecting '{'");
     }
@@ -364,7 +372,7 @@ Status JParse::object(StringData fieldName, BSONObjBuilder& builder, bool subObj
         if (!subObject) {
             return parseError("Reserved field name in base object: $ref");
         }
-        Status ret = dbRefObject(fieldName, builder);
+        Status ret = dbRefObject(fieldName, builder, depth + 1);
         if (ret != Status::OK()) {
             return ret;
         }
@@ -439,7 +447,7 @@ Status JParse::object(StringData fieldName, BSONObjBuilder& builder, bool subObj
         if (!readToken(COLON)) {
             return parseError("Expecting ':'");
         }
-        Status valueRet = value(firstField, *objBuilder);
+        Status valueRet = value(firstField, *objBuilder, depth);
         if (valueRet != Status::OK()) {
             return valueRet;
         }
@@ -453,7 +461,7 @@ Status JParse::object(StringData fieldName, BSONObjBuilder& builder, bool subObj
             if (!readToken(COLON)) {
                 return parseError("Expecting ':'");
             }
-            Status nextFieldValueRet = value(nextFieldName, *objBuilder);
+            Status nextFieldValueRet = value(nextFieldName, *objBuilder, depth);
             if (nextFieldValueRet != Status::OK()) {
                 return nextFieldValueRet;
             }
@@ -783,7 +791,10 @@ Status JParse::regexObjectCanonical(StringData fieldName, BSONObjBuilder& builde
     return Status::OK();
 }
 
-Status JParse::dbRefObject(StringData fieldName, BSONObjBuilder& builder) {
+Status JParse::dbRefObject(StringData fieldName, BSONObjBuilder& builder, int depth) {
+    if (depth > kMaxDepth) {
+        return parseError("Reached nested object limit");
+    }
     BSONObjBuilder subBuilder(builder.subobjStart(fieldName));
 
     if (!readToken(COLON)) {
@@ -807,7 +818,7 @@ Status JParse::dbRefObject(StringData fieldName, BSONObjBuilder& builder) {
     if (!readToken(COLON)) {
         return parseError("DBRef: Expecting ':'");
     }
-    Status valueRet = value("$id", subBuilder);
+    Status valueRet = value("$id", subBuilder, depth);
     if (valueRet != Status::OK()) {
         return valueRet;
     }
@@ -955,8 +966,11 @@ Status JParse::maxKeyObject(StringData fieldName, BSONObjBuilder& builder) {
     return Status::OK();
 }
 
-Status JParse::array(StringData fieldName, BSONObjBuilder& builder, bool subObject) {
+Status JParse::array(StringData fieldName, BSONObjBuilder& builder, bool subObject, int depth) {
     MONGO_JSON_DEBUG("fieldName: " << fieldName);
+    if (depth > kMaxDepth) {
+        return parseError("Reached nested object limit");
+    }
     if (!readToken(LBRACKET)) {
         return parseError("Expecting '['");
     }
@@ -971,7 +985,7 @@ Status JParse::array(StringData fieldName, BSONObjBuilder& builder, bool subObje
     if (!peekToken(RBRACKET)) {
         DecimalCounter<uint32_t> index;
         do {
-            Status ret = value(StringData{index}, *arrayBuilder);
+            Status ret = value(StringData{index}, *arrayBuilder, depth);
             if (!ret.isOK()) {
                 return ret;
             }
@@ -1168,7 +1182,10 @@ Status JParse::numberInt(StringData fieldName, BSONObjBuilder& builder) {
     return Status::OK();
 }
 
-Status JParse::dbRef(StringData fieldName, BSONObjBuilder& builder) {
+Status JParse::dbRef(StringData fieldName, BSONObjBuilder& builder, int depth) {
+    if (depth > kMaxDepth) {
+        return parseError("Reached nested object limit");
+    }
     BSONObjBuilder subBuilder(builder.subobjStart(fieldName));
 
     if (!readToken(LPAREN)) {
@@ -1186,7 +1203,7 @@ Status JParse::dbRef(StringData fieldName, BSONObjBuilder& builder) {
         return parseError("Expecting ','");
     }
 
-    Status valueRet = value("$id", subBuilder);
+    Status valueRet = value("$id", subBuilder, depth);
     if (valueRet != Status::OK()) {
         return valueRet;
     }
@@ -1541,7 +1558,9 @@ StatusWith<Date_t> JParse::parseDate() {
             return parseError("Date milliseconds overflow");
         }
         msSinceEpoch = static_cast<long long>(oldDate);
-    } else if (!parsedStatus.isOK()) {
+    }
+
+    if (!parsedStatus.isOK()) {
         return parseError("Date expecting integer milliseconds");
     }
     invariant(endptr != _input);
@@ -1550,14 +1569,14 @@ StatusWith<Date_t> JParse::parseDate() {
     return date;
 }
 
-BSONObj fromjson(const char* jsonString, int* len) {
+namespace fromjson_detail {
+
+BSONObj fromJsonImpl(const char* jsonString, size_t len) {
     MONGO_JSON_DEBUG("jsonString: " << jsonString);
-    if (jsonString[0] == '\0') {
-        if (len)
-            *len = 0;
+    if (len == 0) {
         return BSONObj();
     }
-    JParse jparse(jsonString);
+    JParse jparse(StringData{jsonString, len});
     BSONObjBuilder builder;
     Status ret = Status::OK();
     try {
@@ -1571,14 +1590,13 @@ BSONObj fromjson(const char* jsonString, int* len) {
     if (ret != Status::OK()) {
         uasserted(16619, "code {}: {}: {}"_format(ret.code(), ret.codeString(), ret.reason()));
     }
-    if (len)
-        *len = jparse.offset();
+    uassert(ErrorCodes::FailedToParse,
+            "Garbage at end of json string",
+            isAllSpace(jsonString + jparse.offset()));
     return builder.obj();
 }
 
-BSONObj fromjson(StringData str) {
-    return fromjson(str.toString().c_str());
-}
+}  // namespace fromjson_detail
 
 std::string tojson(const BSONObj& obj, JsonStringFormat format, bool pretty) {
     return obj.jsonString(format, pretty);

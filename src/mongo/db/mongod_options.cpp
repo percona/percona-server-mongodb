@@ -782,6 +782,14 @@ Status storeMongodOptions(const moe::Environment& params) {
             return Status(ErrorCodes::BadValue,
                           str::stream() << "Cannot start magic restore without --replSet.");
         }
+
+        if (params.count("sharding.clusterRole")) {
+            return Status(ErrorCodes::BadValue,
+                          str::stream()
+                              << "Cannot start magic restore with --shardsvr or --configsvr. Magic "
+                                 "restore performs the restore procedure as a replica set node.");
+        }
+
         storageGlobalParams.magicRestore = 1;
 
         // Use an ephemeral port so that users don't connect to a node that is being restored.
@@ -958,16 +966,4 @@ Status storeMongodOptions(const moe::Environment& params) {
     setGlobalReplSettings(replSettings);
     return Status::OK();
 }
-
-namespace {
-std::function<ExitCode(ServiceContext* svcCtx)> _magicRestoreMainFn = nullptr;
-}
-
-void setMagicRestoreMain(std::function<ExitCode(ServiceContext* svcCtx)> magicRestoreMainFn) {
-    _magicRestoreMainFn = magicRestoreMainFn;
-}
-std::function<ExitCode(ServiceContext* svcCtx)> getMagicRestoreMain() {
-    return _magicRestoreMainFn;
-}
-
 }  // namespace mongo

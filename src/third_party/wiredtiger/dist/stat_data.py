@@ -698,6 +698,7 @@ conn_stats = [
     SessionOpStat('session_table_create_fail', 'table create failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_fail', 'table create with import failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_create_import_repair', 'table create with import repair calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
@@ -983,6 +984,8 @@ conn_dsrc_stats = [
     # Cache and eviction statistics
     ##########################################
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_dirty_internal', 'tracked dirty internal page bytes in the cache', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_dirty_leaf', 'tracked dirty leaf page bytes in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_total', 'bytes dirty in the cache cumulative', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),

@@ -163,7 +163,7 @@ struct TargetingResults {
  * {aggregate: "myCollection", pipeline: [], ...},
  *
  * produces the corresponding explain command:
- * {explain: {aggregate: "myCollection", pipline: [], ...}, $queryOptions: {...}, verbosity: ...}
+ * {explain: {aggregate: "myCollection", pipeline: [], ...}, $queryOptions: {...}, verbosity: ...}
  */
 Document wrapAggAsExplain(Document aggregateCommand, ExplainOptions::Verbosity verbosity) {
     MutableDocument explainCommandBuilder;
@@ -891,8 +891,10 @@ bool canUseLocalReadAsCursorSource(OperationContext* opCtx,
  */
 std::unique_ptr<Pipeline, PipelineDeleter> tryAttachCursorSourceForLocalRead(
     OperationContext* opCtx,
-    std::unique_ptr<Pipeline, PipelineDeleter>& pipelineToTarget,
     const ExpressionContext& expCtx,
+    std::unique_ptr<Pipeline, PipelineDeleter>& pipelineToTarget,
+    const AggregateCommandRequest& aggRequest,
+    bool useCollectionDefaultCollator,
     const CollectionRoutingInfo& targetingCri,
     const ShardId& localShardId) {
     try {
@@ -920,7 +922,7 @@ std::unique_ptr<Pipeline, PipelineDeleter> tryAttachCursorSourceForLocalRead(
         // service_entry_point and refresh the shard if needed.
         auto pipelineWithCursor =
             expCtx.mongoProcessInterface->attachCursorSourceToPipelineForLocalRead(
-                pipelineToTarget.release());
+                pipelineToTarget.release(), aggRequest, useCollectionDefaultCollator);
 
         LOGV2_DEBUG(5837600,
                     3,
@@ -1802,6 +1804,7 @@ BSONObj targetShardsForExplain(Pipeline* ownedPipeline) {
     invariant(pipeline->getSources().empty() ||
               !dynamic_cast<DocumentSourceMergeCursors*>(pipeline->getSources().front().get()));
     invariant(expCtx->explain);
+
     // Generate the command object for the targeted shards.
     auto rawStages = [&pipeline]() {
         auto serialization = pipeline->serialize();
@@ -1815,7 +1818,6 @@ BSONObj targetShardsForExplain(Pipeline* ownedPipeline) {
 
         return stages;
     }();
-
     AggregateCommandRequest aggRequest(expCtx->ns, rawStages);
 
     LiteParsedPipeline liteParsedPipeline(aggRequest);
@@ -1824,17 +1826,26 @@ BSONObj targetShardsForExplain(Pipeline* ownedPipeline) {
     auto pipelineDataSource = hasChangeStream ? PipelineDataSource::kChangeStream
         : startsWithQueue                     ? PipelineDataSource::kQueue
                                               : PipelineDataSource::kNormal;
-    auto shardDispatchResults =
-        dispatchShardPipeline(aggregation_request_helper::serializeToCommandDoc(expCtx, aggRequest),
-                              pipelineDataSource,
-                              expCtx->eligibleForSampling(),
-                              std::move(pipeline),
-                              expCtx->explain);
-    BSONObjBuilder explainBuilder;
-    auto appendStatus =
-        appendExplainResults(std::move(shardDispatchResults), expCtx, &explainBuilder);
-    uassertStatusOK(appendStatus);
-    return BSON("pipeline" << explainBuilder.done());
+
+    sharding::router::CollectionRouter router(expCtx->opCtx->getServiceContext(), expCtx->ns);
+    return router.route(
+        expCtx->opCtx,
+        "collecting explain from shards"_sd,
+        [&](OperationContext* opCtx, const CollectionRoutingInfo& _) {
+            auto shardDispatchResults = dispatchShardPipeline(
+                aggregation_request_helper::serializeToCommandDoc(expCtx, aggRequest),
+                pipelineDataSource,
+                expCtx->eligibleForSampling(),
+                pipeline->clone(),
+                expCtx->explain,
+                false /* requestQueryStatsFromRemotes */,
+                uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, expCtx->ns)));
+            BSONObjBuilder explainBuilder;
+            auto appendStatus =
+                appendExplainResults(std::move(shardDispatchResults), expCtx, &explainBuilder);
+            uassertStatusOK(appendStatus);
+            return BSON("pipeline" << explainBuilder.done());
+        });
 }
 
 StatusWith<CollectionRoutingInfo> getExecutionNsRoutingInfo(OperationContext* opCtx,
@@ -1937,8 +1948,9 @@ std::unique_ptr<Pipeline, PipelineDeleter> targetShardsAndAddMergeCursors(
         targetRequest,
     boost::optional<BSONObj> shardCursorsSortSpec,
     ShardTargetingPolicy shardTargetingPolicy,
-    boost::optional<BSONObj> readConcern) {
-    auto&& [aggRequest, pipeline] = [&] {
+    boost::optional<BSONObj> readConcern,
+    bool useCollectionDefaultCollator) {
+    auto&& aggRequestPipelinePair = [&] {
         return visit(
             OverloadedVisitor{
                 [&](std::unique_ptr<Pipeline, PipelineDeleter>&& pipeline) {
@@ -1957,9 +1969,32 @@ std::unique_ptr<Pipeline, PipelineDeleter> targetShardsAndAddMergeCursors(
                 }},
             std::move(targetRequest));
     }();
+    const auto& aggRequest = aggRequestPipelinePair.first;
+    auto&& pipeline = aggRequestPipelinePair.second;
 
-    invariant(pipeline->getSources().empty() ||
-              !dynamic_cast<DocumentSourceMergeCursors*>(pipeline->getSources().front().get()));
+    LOGV2_DEBUG(9497004,
+                5,
+                "Preparing pipeline for execution",
+                "pipeline"_attr = pipeline->serializeToBson());
+
+    if (firstStageCanExecuteWithoutCursor(*pipeline)) {
+        // There's no need to attach a cursor here - the first stage provides its own data and
+        // is meant to be run locally (e.g. $documents).
+        return std::move(pipeline);
+    }
+
+    tassert(9597602,
+            "Pipeline should not start with $mergeCursors",
+            pipeline->getSources().empty() ||
+                !dynamic_cast<DocumentSourceMergeCursors*>(pipeline->getSources().front().get()));
+
+    if (isRequiredToReadLocalData(shardTargetingPolicy, expCtx->ns)) {
+        tassert(8375101,
+                "Only shard role operations can perform local reads.",
+                expCtx->opCtx->getService()->role().has(ClusterRole::ShardServer));
+        return expCtx->mongoProcessInterface->attachCursorSourceToPipelineForLocalRead(
+            pipeline.release(), aggRequest, useCollectionDefaultCollator);
+    }
 
     LiteParsedPipeline liteParsedPipeline(aggRequest);
     auto hasChangeStream = liteParsedPipeline.hasChangeStream();
@@ -1967,50 +2002,6 @@ std::unique_ptr<Pipeline, PipelineDeleter> targetShardsAndAddMergeCursors(
     auto pipelineDataSource = hasChangeStream ? PipelineDataSource::kChangeStream
         : startsWithQueue                     ? PipelineDataSource::kQueue
                                               : PipelineDataSource::kNormal;
-    auto cri = getCollectionRoutingInfoForTargeting(expCtx, pipelineDataSource);
-    auto targeting =
-        targetPipeline(expCtx, pipeline.get(), pipelineDataSource, shardTargetingPolicy, cri);
-
-    bool requestQueryStatsFromRemotes =
-        query_stats::shouldRequestRemoteMetrics(CurOp::get(expCtx->opCtx)->debug());
-    return dispatchTargetedPipelineAndAddMergeCursors(expCtx,
-                                                      std::move(aggRequest),
-                                                      std::move(pipeline),
-                                                      std::move(targeting),
-                                                      hasChangeStream,
-                                                      std::move(cri),
-                                                      std::move(shardCursorsSortSpec),
-                                                      std::move(readConcern),
-                                                      requestQueryStatsFromRemotes);
-}
-
-std::unique_ptr<Pipeline, PipelineDeleter> preparePipelineForExecution(
-    Pipeline* ownedPipeline,
-    ShardTargetingPolicy shardTargetingPolicy,
-    boost::optional<BSONObj> readConcern) {
-    auto expCtx = ownedPipeline->getContext();
-    std::unique_ptr<Pipeline, PipelineDeleter> pipeline(ownedPipeline,
-                                                        PipelineDeleter(expCtx->opCtx));
-
-    LOGV2_DEBUG(9497004,
-                5,
-                "Preparing pipeline for execution",
-                "pipeline"_attr = pipeline->serializeToBson());
-    if (firstStageCanExecuteWithoutCursor(*pipeline)) {
-        // There's no need to attach a cursor here - the first stage provides its own data and
-        // is meant to be run locally (e.g. $documents).
-        return pipeline;
-    }
-
-    if (isRequiredToReadLocalData(shardTargetingPolicy, expCtx->ns)) {
-        tassert(8375101,
-                "Only shard role operations can perform local reads.",
-                expCtx->opCtx->getService()->role().has(ClusterRole::ShardServer));
-        auto pipelineToTarget = pipeline->clone();
-        return expCtx->mongoProcessInterface->attachCursorSourceToPipelineForLocalRead(
-            pipelineToTarget.release());
-    }
-
 
     // We're not required to read locally, and we need a cursor source. We need to perform routing
     // to see what shard(s) the pipeline targets.
@@ -2020,35 +2011,36 @@ std::unique_ptr<Pipeline, PipelineDeleter> preparePipelineForExecution(
         "targeting pipeline to attach cursors"_sd,
         [&](OperationContext* opCtx, const CollectionRoutingInfo& _) {
             auto pipelineToTarget = pipeline->clone();
-            LOGV2_DEBUG(9497005,
-                        5,
-                        "Cloned pipeline",
-                        "pipelineToTarget"_attr = pipelineToTarget->serializeToBson());
 
-            AggregateCommandRequest aggRequest(expCtx->ns, pipeline->serializeToBson());
-            LiteParsedPipeline liteParsedPipeline{aggRequest};
-            const bool hasChangeStream = liteParsedPipeline.hasChangeStream();
-            const bool startsWithQueue = liteParsedPipeline.startsWithQueue();
-            auto pipelineDataSource = hasChangeStream ? PipelineDataSource::kChangeStream
-                : startsWithQueue                     ? PipelineDataSource::kQueue
-                                                      : PipelineDataSource::kNormal;
-            // CRI, provided by CollectionRouter, contains the latest data. We call
-            // getCollectionRoutingInfoForTxnCmd to get CRI with historical data for transactions
+            // CollectionRoutingInfo provided by CollectionRouter, contains the latest data. We call
+            // getCollectionRoutingInfoForTxnCmd() to get CRI with historical data for transactions
             // with snapshot isolations. We wrap the result into boost::optional, as the next
-            // function accept only boost::optional.
+            // function accepts only boost::optional.
             boost::optional<CollectionRoutingInfo> targetingCri =
                 uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, expCtx->ns));
-            TargetingResults targeting = targetPipeline(
-                expCtx, pipeline.get(), pipelineDataSource, shardTargetingPolicy, targetingCri);
+            auto pipelineTargetingInfo = targetPipeline(expCtx,
+                                                        pipelineToTarget.get(),
+                                                        pipelineDataSource,
+                                                        shardTargetingPolicy,
+                                                        targetingCri);
 
             const auto localShardId = expCtx->mongoProcessInterface->getShardId(opCtx);
             if (localShardId &&
-                canUseLocalReadAsCursorSource(opCtx, targeting, *localShardId, readConcern)) {
-                if (auto pipelineWithCursor = tryAttachCursorSourceForLocalRead(
-                        opCtx, pipelineToTarget, *expCtx, *targetingCri, *localShardId)) {
+                canUseLocalReadAsCursorSource(
+                    opCtx, pipelineTargetingInfo, *localShardId, readConcern)) {
+                if (auto pipelineWithCursor =
+                        tryAttachCursorSourceForLocalRead(opCtx,
+                                                          *expCtx,
+                                                          pipelineToTarget,
+                                                          aggRequest,
+                                                          useCollectionDefaultCollator,
+                                                          *targetingCri,
+                                                          *localShardId)) {
                     return pipelineWithCursor;
                 }
-                // The local read failed. Recreate 'pipelineToTarget' if it was released above.
+
+                // Recreate 'pipelineToTarget' in case it was consumed by
+                // tryAttachCursorSourceForLocalRead().
                 if (!pipelineToTarget) {
                     pipelineToTarget = pipeline->clone();
                 }
@@ -2057,16 +2049,29 @@ std::unique_ptr<Pipeline, PipelineDeleter> preparePipelineForExecution(
             bool requestQueryStatsFromRemotes =
                 query_stats::shouldRequestRemoteMetrics(CurOp::get(expCtx->opCtx)->debug());
             return dispatchTargetedPipelineAndAddMergeCursors(expCtx,
-                                                              std::move(aggRequest),
+                                                              aggRequest,
                                                               std::move(pipelineToTarget),
-                                                              std::move(targeting),
+                                                              std::move(pipelineTargetingInfo),
                                                               hasChangeStream,
                                                               std::move(targetingCri),
-                                                              boost::none /*shardCursorsSortSpec*/,
+                                                              std::move(shardCursorsSortSpec),
                                                               std::move(readConcern),
                                                               requestQueryStatsFromRemotes);
         });
 }
 
+std::unique_ptr<Pipeline, PipelineDeleter> preparePipelineForExecution(
+    Pipeline* ownedPipeline,
+    ShardTargetingPolicy shardTargetingPolicy,
+    boost::optional<BSONObj> readConcern) {
+    auto expCtx = ownedPipeline->getContext();
+    std::unique_ptr<Pipeline, PipelineDeleter> pipeline(ownedPipeline,
+                                                        PipelineDeleter(expCtx->opCtx));
+    return targetShardsAndAddMergeCursors(expCtx,
+                                          std::move(pipeline),
+                                          boost::none /* shardCursorsSortSpec */,
+                                          shardTargetingPolicy,
+                                          readConcern);
+}
 }  // namespace sharded_agg_helpers
 }  // namespace mongo

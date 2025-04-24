@@ -56,9 +56,7 @@ void DbCheckTest::setUp() {
     CatalogTestFixture::setUp();
 
     // Create collection kNss for unit tests to use. It will possess a default _id index.
-    const CollectionOptions defaultCollectionOptions;
-    ASSERT_OK(
-        storageInterface()->createCollection(operationContext(), kNss, defaultCollectionOptions));
+    ASSERT_OK(storageInterface()->createCollection(operationContext(), kNss, _collectionOptions));
 
     auto service = getServiceContext();
 
@@ -220,13 +218,14 @@ void DbCheckTest::dropIndex(OperationContext* opCtx, const std::string& indexNam
     wuow.commit();
 }
 
-void DbCheckTest::runHashForCollectionCheck(
+Status DbCheckTest::runHashForCollectionCheck(
     OperationContext* opCtx,
     const BSONObj& start,
     const BSONObj& end,
     boost::optional<SecondaryIndexCheckParameters> secondaryIndexCheckParams,
     int64_t maxCount,
-    int64_t maxBytes) {
+    int64_t maxBytes,
+    Date_t deadlineOnSecondary) {
     const DbCheckAcquisition acquisition(
         opCtx, kNss, {RecoveryUnit::ReadSource::kNoTimestamp}, PrepareConflictBehavior::kEnforce);
     const auto& collection = acquisition.coll.getCollectionPtr();
@@ -240,8 +239,37 @@ void DbCheckTest::runHashForCollectionCheck(
                                 &dataThrottle,
                                 boost::none /* indexName */,
                                 maxCount,
-                                maxBytes);
-    ASSERT_OK(hasher.hashForCollectionCheck(opCtx, collection));
+                                maxBytes,
+                                deadlineOnSecondary);
+    return hasher.hashForCollectionCheck(opCtx, collection);
+}
+
+Status DbCheckTest::runHashForExtraIndexKeysCheck(
+    OperationContext* opCtx,
+    const BSONObj& batchStart,
+    const BSONObj& batchEnd,
+    const BSONObj& lastKeyChecked,
+    boost::optional<SecondaryIndexCheckParameters> secondaryIndexCheckParams,
+    int64_t maxCount,
+    int64_t maxBytes,
+    Date_t deadlineOnSecondary) {
+    const DbCheckAcquisition acquisition(
+        opCtx, kNss, {RecoveryUnit::ReadSource::kNoTimestamp}, PrepareConflictBehavior::kEnforce);
+    const auto& collection = acquisition.coll.getCollectionPtr();
+    // Disable throttling for testing.
+    DataThrottle dataThrottle(opCtx, []() { return 0; });
+    auto hasher = DbCheckHasher(opCtx,
+                                acquisition,
+                                batchStart,
+                                batchEnd,
+                                secondaryIndexCheckParams,
+                                &dataThrottle,
+                                secondaryIndexCheckParams.get().getSecondaryIndex(),
+                                maxCount,
+                                maxBytes,
+                                deadlineOnSecondary);
+    return hasher.hashForExtraIndexKeysCheck(
+        opCtx, collection.get(), batchStart, batchEnd, lastKeyChecked);
 }
 
 SecondaryIndexCheckParameters DbCheckTest::createSecondaryIndexCheckParams(

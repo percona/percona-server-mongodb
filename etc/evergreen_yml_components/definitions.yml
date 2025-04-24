@@ -25,6 +25,7 @@ variables:
   - debian12
   - enterprise-debian12-64
   - enterprise-rhel-81-ppc64le
+  - enterprise-rhel-9-ppc64le
   - ubi8
   - rhel8
   - rhel-8-arm64
@@ -34,6 +35,7 @@ variables:
   - enterprise-rhel-8-64-bit-suggested  # For testing selinux.
   - enterprise-rhel-8-arm64
   - enterprise-rhel-83-s390x
+  - enterprise-rhel-9-s390x
   - enterprise-rhel-93-64-bit
   - enterprise-rhel-93-arm64
   - suse15
@@ -1375,7 +1377,15 @@ functions:
       params:
         owner: 10gen
         repo: jepsen-io-mongodb
-        expansion_name: github_token
+        expansion_name: jepsen_io_github_token
+        permissions:
+          metadata: read
+          contents: read
+    - command: github.generate_token
+      params:
+        owner: 10gen
+        repo: jepsen
+        expansion_name: jepsen_github_token
         permissions:
           metadata: read
           contents: read
@@ -1386,7 +1396,8 @@ functions:
         args:
           - "./src/evergreen/jepsen_docker/setup.sh"
         include_expansions_in_env:
-          - github_token
+          - jepsen_io_github_token
+          - jepsen_github_token
   "setup jepsen config fuzzer":
   - *f_expansions_write
   - command: subprocess.exec
@@ -1743,7 +1754,7 @@ functions:
     params:
       provider: ec2
       distro: ${distro_id}
-      timeout_teardown_secs: 604800 # 7 days
+      timeout_teardown_secs: 86400 # 24 hours
       security_group_ids:
       - sg-097bff6dd0d1d31d0
 
@@ -2537,12 +2548,39 @@ functions:
       display_name: multiversion_exclude_tags.yml from resmoke invocation
 
   "antithesis image build and push":
-  - *f_expansions_write
-  - command: subprocess.exec
-    params:
-      binary: bash
-      args:
-      - "./src/evergreen/antithesis_image_build_and_push.sh"
+    - command: github.generate_token
+      params:
+        owner: 10gen
+        repo: QA
+        expansion_name: github_token_qa_temp
+        permissions:
+          metadata: read
+          contents: read
+    - command: github.generate_token
+      params:
+        owner: 10gen
+        repo: jstestfuzz
+        expansion_name: github_token_jstestfuzz_temp
+        permissions:
+          metadata: read
+          contents: read
+    - command: subprocess.exec
+      params:
+        binary: "bash"
+        args:
+          - "-c"
+          - |
+            echo "github_token_qa: ${github_token_qa_temp}" >> github_expansions.yml
+            echo "github_token_jstestfuzz: ${github_token_jstestfuzz_temp}" >> github_expansions.yml
+    - command: expansions.update
+      params:
+        file: github_expansions.yml
+    - *f_expansions_write
+    - command: subprocess.exec
+      params:
+        binary: bash
+        args:
+          - "./src/evergreen/antithesis_image_build_and_push.sh"
 
   "cleanup external auth OIDC resources":
   - command: subprocess.exec
@@ -2597,3 +2635,22 @@ functions:
   - *get_engflow_key
   - *get_engflow_cert
   - *generate_evergreen_engflow_bazelrc
+
+  "gen supplementary data":
+    command: subprocess.exec
+    params:
+      binary: bash
+      args:
+        - "src/evergreen/gen_supplementary_data.sh"
+
+  "upload supplementary data":
+    - command: s3.put
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: src/supplementary-data.tgz
+        remote_file: ${project}/${compile_variant}/${version_id}/dsi/supplementary-data.tgz
+        bucket: mciuploads
+        permissions: public-read
+        content_type: application/x-gzip
+        display_name: supplementary-data.tgz

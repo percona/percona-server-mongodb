@@ -141,6 +141,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: the number of times full update inserted to history store",
   "cache: the number of times reverse modify inserted to history store",
   "cache: tracked dirty bytes in the cache",
+  "cache: tracked dirty internal page bytes in the cache",
+  "cache: tracked dirty leaf page bytes in the cache",
   "cache: uncommitted truncate blocked page eviction",
   "cache: unmodified pages evicted",
   "cache_walk: Average difference between current eviction generation when the page was last "
@@ -492,6 +494,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_hs_insert_full_update = 0;
     stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_bytes_dirty */
+    /* not clearing cache_bytes_dirty_internal */
+    /* not clearing cache_bytes_dirty_leaf */
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
     /* not clearing cache_state_gen_avg_gap */
@@ -828,6 +832,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
     to->cache_hs_insert_reverse_modify += from->cache_hs_insert_reverse_modify;
     to->cache_bytes_dirty += from->cache_bytes_dirty;
+    to->cache_bytes_dirty_internal += from->cache_bytes_dirty_internal;
+    to->cache_bytes_dirty_leaf += from->cache_bytes_dirty_leaf;
     to->cache_eviction_blocked_uncommitted_truncate +=
       from->cache_eviction_blocked_uncommitted_truncate;
     to->cache_eviction_clean += from->cache_eviction_clean;
@@ -1173,6 +1179,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_hs_insert_full_update += WT_STAT_READ(from, cache_hs_insert_full_update);
     to->cache_hs_insert_reverse_modify += WT_STAT_READ(from, cache_hs_insert_reverse_modify);
     to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
+    to->cache_bytes_dirty_internal += WT_STAT_READ(from, cache_bytes_dirty_internal);
+    to->cache_bytes_dirty_leaf += WT_STAT_READ(from, cache_bytes_dirty_leaf);
     to->cache_eviction_blocked_uncommitted_truncate +=
       WT_STAT_READ(from, cache_eviction_blocked_uncommitted_truncate);
     to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
@@ -1619,6 +1627,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to leaf pages in the cache",
   "cache: tracked dirty bytes in the cache",
+  "cache: tracked dirty internal page bytes in the cache",
+  "cache: tracked dirty leaf page bytes in the cache",
   "cache: tracked dirty pages in the cache",
   "cache: uncommitted truncate blocked page eviction",
   "cache: unmodified pages evicted",
@@ -1993,6 +2003,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table create failed calls",
   "session: table create successful calls",
   "session: table create with import failed calls",
+  "session: table create with import repair calls",
   "session: table create with import successful calls",
   "session: table drop failed calls",
   "session: table drop successful calls",
@@ -2364,6 +2375,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_leaf */
     /* not clearing cache_bytes_dirty */
+    /* not clearing cache_bytes_dirty_internal */
+    /* not clearing cache_bytes_dirty_leaf */
     /* not clearing cache_pages_dirty */
     stats->cache_eviction_blocked_uncommitted_truncate = 0;
     stats->cache_eviction_clean = 0;
@@ -2734,6 +2747,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_create_fail */
     /* not clearing session_table_create_success */
     /* not clearing session_table_create_import_fail */
+    /* not clearing session_table_create_import_repair */
     /* not clearing session_table_create_import_success */
     /* not clearing session_table_drop_fail */
     /* not clearing session_table_drop_success */
@@ -3131,6 +3145,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
     to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
     to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
+    to->cache_bytes_dirty_internal += WT_STAT_READ(from, cache_bytes_dirty_internal);
+    to->cache_bytes_dirty_leaf += WT_STAT_READ(from, cache_bytes_dirty_leaf);
     to->cache_pages_dirty += WT_STAT_READ(from, cache_pages_dirty);
     to->cache_eviction_blocked_uncommitted_truncate +=
       WT_STAT_READ(from, cache_eviction_blocked_uncommitted_truncate);
@@ -3528,6 +3544,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_create_fail += WT_STAT_READ(from, session_table_create_fail);
     to->session_table_create_success += WT_STAT_READ(from, session_table_create_success);
     to->session_table_create_import_fail += WT_STAT_READ(from, session_table_create_import_fail);
+    to->session_table_create_import_repair +=
+      WT_STAT_READ(from, session_table_create_import_repair);
     to->session_table_create_import_success +=
       WT_STAT_READ(from, session_table_create_import_success);
     to->session_table_drop_fail += WT_STAT_READ(from, session_table_drop_fail);

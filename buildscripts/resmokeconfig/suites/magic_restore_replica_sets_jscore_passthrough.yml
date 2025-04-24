@@ -1,4 +1,4 @@
-test_kind: js_test
+test_kind: magic_restore_js_test
 
 selector:
   roots:
@@ -16,7 +16,7 @@ selector:
   # server parameter.
   - jstests/core/**/set_param1.js
   # Different explain format
-  # TODO(SERVER-81158): Enable these tests.
+
   # These tests fails while DbCheck running in the background:
   # The DBCheck process continuously populates the currentOp, causing this test to time out while
   # waiting for empty 'getMore' requests.
@@ -50,18 +50,23 @@ selector:
   # Int types within an array type in BSON get their type changed when passed into a C++ function from Javascript.
   - jstests/core/query/type/type_array.js
   - jstests/core/timeseries/timeseries_internal_bounded_sort_compound_mixed_types.js
+  - jstests/core/json_schema/unique_items.js
 
   # Uses documents that are too close to max BSON size for us to support passing to C++ as a BSON array.
   - jstests/core/max_doc_size.js
   - jstests/core/query/find/find_getmore_bsonsize.js
 
-  # This test does a large number of write operations and can cause magic restore to take a
-  # long time. If the restore duration exceeds 5 minutes, the restore node will throw away
-  # durable history that is required to do PIT reads for consistency checks.
-  - jstests/core/query/query_settings/query_settings_size_limits.js
+  # Spawns a separate shell program which is not compatible with try/catch wrapping.
+  - src/mongo/db/modules/enterprise/jstests/fle2/fle2_bulk_write.js
 
-  # BF-33295. Magic restore fails in burn_in tasks with NamespaceNotFound error
-  - jstests/core/query/sort/sortj.js
+  # Spawns a separate shell program which is not compatible with try/catch wrapping.
+  - src/mongo/db/modules/enterprise/jstests/fle2/fle2_bulk_write.js
+
+  # Uses invalid views which causes listCollections to fail in the data consistency checker.
+  - jstests/core/views/invalid_system_views.js
+  - jstests/core/views/views_validation.js
+  - jstests/core/txns/no_writes_to_config_transactions_with_prepared_transaction.js
+  - jstests/core/catalog/list_collections_no_views.js
 
   exclude_with_any_tags:
   - assumes_standalone_mongod
@@ -69,11 +74,15 @@ selector:
   # up during profiling. Some profiling tests expect a certain command other than this "listIndexes"
   # command.
   - requires_profiling
+  - uses_parallel_shell
 
 executor:
   config:
     shell_options:
-      eval: "globalThis.testingReplication = true;"
+      eval: >-
+        globalThis.testingReplication = true;
+        await import("jstests/libs/override_methods/noop_assertions.js");
+        await import("jstests/libs/override_methods/noop_drop.js");
   hooks:
   - class: MagicRestoreEveryN
     n: 20
@@ -81,6 +90,9 @@ executor:
   fixture:
     class: ReplicaSetFixture
     mongod_options:
+      set_parameters:
+        minSnapshotHistoryWindowInSeconds: 3600
+      oplogSize: 2048
     all_nodes_electable: true
     num_nodes: 1
     use_replica_set_connection_string: true

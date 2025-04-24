@@ -152,6 +152,7 @@
 #include "mongo/util/functional.h"
 #include "mongo/util/net/cidr.h"
 #include "mongo/util/scopeguard.h"
+#include "mongo/util/stacktrace.h"
 #include "mongo/util/str.h"
 #include "mongo/util/synchronized_value.h"
 #include "mongo/util/testing_proctor.h"
@@ -990,6 +991,8 @@ void ReplicationCoordinatorImpl::_startDataReplication(OperationContext* opCtx) 
 void ReplicationCoordinatorImpl::startup(OperationContext* opCtx,
                                          StorageEngine::LastShutdownState lastShutdownState) {
     if (!_settings.isReplSet()) {
+        // We do not need to check for magic restore since magic restore always runs in a replica
+        // set.
         if (ReplSettings::shouldRecoverFromOplogAsStandalone()) {
             uassert(ErrorCodes::InvalidOptions,
                     str::stream() << "Cannot set parameter 'recoverToOplogTimestamp' "
@@ -2359,13 +2362,17 @@ ReplicationCoordinator::StatusAndDuration ReplicationCoordinatorImpl::awaitRepli
     OperationContext* opCtx, const OpTime& opTime, const WriteConcernOptions& writeConcern) {
     // It is illegal to wait for replication with a session checked out because it can lead to
     // deadlocks.
-    invariant(OperationContextSession::get(opCtx) == nullptr);
+    tassert(8731900,
+            "session must be checked out before waiting for replication",
+            OperationContextSession::get(opCtx) == nullptr);
 
     Timer timer;
 
     // We should never wait for replication if we are holding any locks, because this can
     // potentially block for long time while doing network activity.
-    invariant(!shard_role_details::getLocker(opCtx)->isLocked());
+    tassert(8731901,
+            "no locks should be held when waiting for replication",
+            !shard_role_details::getLocker(opCtx)->isLocked());
 
     auto interruptStatus = opCtx->checkForInterruptNoAssert();
     if (!interruptStatus.isOK()) {
@@ -2964,16 +2971,30 @@ ReplicationCoordinatorImpl::AutoGetRstlForStepUpStepDown::AutoGetRstlForStepUpSt
         }
 
         // Dump all locks to identify which thread(s) are holding RSTL.
-        dumpLockManager();
+        try {
+            dumpLockManager();
+        } catch (const DBException& e) {
+            // If there are too many locks, dumpLockManager may fail.
+            LOGV2_FATAL_CONTINUE(9222300, "Dumping locks failed", "error"_attr = e);
+        }
 
         auto lockerInfo = shard_role_details::getLocker(opCtx)->getLockerInfo(
             CurOp::get(opCtx)->getLockStatsBase());
         BSONObjBuilder lockRep;
         lockerInfo.stats.report(&lockRep);
-        LOGV2_FATAL(5675600,
-                    "Time out exceeded waiting for RSTL, stepUp/stepDown is not possible thus "
-                    "calling abort() to allow cluster to progress",
-                    "lockRep"_attr = lockRep.obj());
+
+        LOGV2_FATAL_CONTINUE(
+            5675600,
+            "Time out exceeded waiting for RSTL, stepUp/stepDown is not possible thus "
+            "calling abort() to allow cluster to progress",
+            "lockRep"_attr = lockRep.obj());
+
+#if defined(MONGO_STACKTRACE_CAN_DUMP_ALL_THREADS)
+        // Dump the stack of each thread.
+        printAllThreadStacksBlocking();
+#endif
+
+        fassertFailed(7152000);
     });
     callReplCoordExit.dismiss();
 };
@@ -6678,6 +6699,11 @@ ReplicationCoordinatorImpl::getWriteConcernTagChanges() {
 
 SplitPrepareSessionManager* ReplicationCoordinatorImpl::getSplitPrepareSessionManager() {
     return &_splitSessionManager;
+}
+
+void ReplicationCoordinatorImpl::clearSyncSource() {
+    stdx::lock_guard<Latch> lk(_mutex);
+    _topCoord->clearSyncSource();
 }
 
 bool ReplicationCoordinatorImpl::isRetryableWrite(OperationContext* opCtx) const {

@@ -140,6 +140,9 @@ CanonicalDistinct parseDistinctCmd(OperationContext* opCtx,
                                                        serializationContext),
                                       cmdObj));
 
+    // Start the query planning timer right after parsing.
+    CurOp::get(opCtx)->beginQueryPlanningTimer();
+
     // Forbid users from passing 'querySettings' explicitly.
     uassert(7923000,
             "BSON field 'querySettings' is an unknown field",
@@ -491,7 +494,7 @@ public:
                           "Plan executor error during distinct command",
                           "error"_attr = exception.toStatus(),
                           "stats"_attr = redact(stats),
-                          "cmd"_attr = cmdObj);
+                          "cmd"_attr = redact(cmdObj));
 
             exception.addContext("Executor error during distinct command");
             throw;

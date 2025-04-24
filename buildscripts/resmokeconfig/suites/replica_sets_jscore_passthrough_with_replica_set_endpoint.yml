@@ -25,7 +25,7 @@ selector:
     # Mongos ClusteredKillCursors is async with mongod.
     - jstests/core/**/operation_latency_histogram.js
     # Different explain format
-    # TODO(SERVER-81158): Enable these tests.
+
     # These tests fails while DbCheck running in the background:
     # The DBCheck process continuously populates the currentOp, causing this test to time out while
     # waiting for empty 'getMore' requests.
@@ -98,6 +98,9 @@ selector:
     - jstests/core/query/query_settings/query_settings_size_limits.js
     # This test cares about command metrics, and fails under this suite.
     - jstests/core/query/query_settings/query_settings_reject_application.js
+    # The 'queryShapeHash' is only computed on mongos in sharded clusters, therefore the test will fail
+    # as hash won't be present when running via replica set endpoint.
+    - jstests/core/query/query_settings/query_shape_hash_in_current_op.js
 
   exclude_with_any_tags:
     - assumes_standalone_mongod

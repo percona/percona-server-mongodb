@@ -122,7 +122,7 @@ const nonExistentQueryShapeHash = "0".repeat(64);
         [qsutils.makeQueryShapeConfiguration({reject: true}, query)]);
 
     // Ensure updating with empty query settings fails.
-    const queryShapeHash = qsutils.getQueryHashFromQuerySettings(query);
+    const queryShapeHash = qsutils.getQueryShapeHashFromQuerySettings(query);
     assert.commandFailedWithCode(db.adminCommand({setQuerySettings: queryShapeHash, settings: {}}),
                                  8727502);
     assert.commandFailedWithCode(db.adminCommand({setQuerySettings: query, settings: {}}), 8727502);
@@ -230,5 +230,34 @@ const nonExistentQueryShapeHash = "0".repeat(64);
                                  7746604);
 
     // Clean-up after the end of the test.
+    qsutils.removeAllQuerySettings();
+}
+
+// Test that 'setQuerySettings' reply contains simplified settings.
+{
+    const query = qsutils.makeFindQueryInstance({filter: {a: 15}});
+    const querySettings = {
+        indexHints: [{ns: {db: db.getName(), coll: collName}, allowedIndexes: [{a: 1}]}],
+        queryFramework: "sbe",
+        reject: false
+    };
+    const simplifiedQuerySettings = {
+        indexHints: [{ns: {db: db.getName(), coll: collName}, allowedIndexes: [{a: 1}]}],
+        queryFramework: "sbe",
+    };
+
+    const reply =
+        assert.commandWorked(db.adminCommand({setQuerySettings: query, settings: querySettings}));
+
+    // Verify that the set query settings are simplified.
+    qsutils.assertQueryShapeConfiguration(
+        [qsutils.makeQueryShapeConfiguration(simplifiedQuerySettings, query)]);
+
+    // Verify that reply of "setQuerySettings" command contains simplified query settings.
+    assert.eq(reply.settings,
+              simplifiedQuerySettings,
+              "Reply: " + tojson(reply) + " does not contain simplified query settings: " +
+                  tojson(simplifiedQuerySettings));
+
     qsutils.removeAllQuerySettings();
 }

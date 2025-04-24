@@ -100,7 +100,7 @@ public:
     boost::optional<Document> lookupSingleDocument(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const NamespaceString& nss,
-        UUID collectionUUID,
+        boost::optional<UUID> collectionUUID,
         const Document& documentKey,
         boost::optional<BSONObj> readConcern) final;
 
@@ -257,7 +257,10 @@ public:
                                       ExplainOptions::Verbosity verbosity) final;
 
     std::unique_ptr<Pipeline, PipelineDeleter> attachCursorSourceToPipelineForLocalRead(
-        Pipeline* pipeline, boost::optional<const AggregateCommandRequest&> aggRequest) final {
+        Pipeline* pipeline,
+        boost::optional<const AggregateCommandRequest&> aggRequest,
+        bool shouldUseCollectionDefaultCollator,
+        ExecShardFilterPolicy shardFilterPolicy = AutomaticShardFiltering{}) final {
         // It is not meaningful to perform a "local read" on mongos.
         MONGO_UNREACHABLE;
     }
@@ -340,12 +343,13 @@ public:
         boost::optional<BSONObj> readConcern = boost::none) final;
 
     std::unique_ptr<Pipeline, PipelineDeleter> preparePipelineForExecution(
+        const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const AggregateCommandRequest& aggRequest,
         Pipeline* pipeline,
-        const boost::intrusive_ptr<ExpressionContext>& expCtx,
         boost::optional<BSONObj> shardCursorsSortSpec = boost::none,
         ShardTargetingPolicy shardTargetingPolicy = ShardTargetingPolicy::kAllowed,
-        boost::optional<BSONObj> readConcern = boost::none) final;
+        boost::optional<BSONObj> readConcern = boost::none,
+        bool shouldUseCollectionDefaultCollator = false) final;
 
     std::unique_ptr<TemporaryRecordStore> createTemporaryRecordStore(
         const boost::intrusive_ptr<ExpressionContext>& expCtx, KeyFormat keyFormat) const final {

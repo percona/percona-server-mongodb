@@ -371,7 +371,7 @@ bool getFirstBatch(OperationContext* opCtx,
                           "Aggregate command executor error",
                           "error"_attr = exception.toStatus(),
                           "stats"_attr = redact(stats),
-                          "cmd"_attr = *cmdObj);
+                          "cmd"_attr = redact(*cmdObj));
 
             exception.addContext("PlanExecutor error during aggregation");
             throw;
@@ -1021,11 +1021,16 @@ Status runAggregateOnView(OperationContext* opCtx,
         const ScopedStashShardRole scopedUnsetShardRole{opCtx, resolvedView.getNamespace()};
 
         sharding::router::CollectionRouter router(opCtx->getServiceContext(),
-                                                  resolvedView.getNamespace());
+                                                  resolvedView.getNamespace(),
+                                                  false  // retryOnStaleShard=false
+        );
         status = router.route(
             opCtx,
             "runAggregateOnView",
             [&](OperationContext* opCtx, const CollectionRoutingInfo& cri) {
+                // TODO: SERVER-77402 Use a ShardRoleLoop here and remove this usage of
+                // CollectionRouter's retryOnStaleShard=false.
+
                 // Setup the opCtx's OperationShardingState with the expected placement versions for
                 // the underlying collection. Use the same 'placementConflictTime' from the original
                 // request, if present.
@@ -1479,6 +1484,9 @@ Status _runAggregate(OperationContext* opCtx,
                                                origRequest);
         expCtx = pipeline->getContext();
 
+        // Start the query planning timer right after parsing.
+        CurOp::get(opCtx)->beginQueryPlanningTimer();
+
         if (expCtx->hasServerSideJs.accumulator && _samplerAccumulatorJs.tick()) {
             LOGV2_WARNING(
                 8996502,
@@ -1498,8 +1506,6 @@ Status _runAggregate(OperationContext* opCtx,
                 "Manually setting 'runtimeConstants' is not supported. Use 'let' for user-defined "
                 "constants.",
                 expCtx->fromMongos || !request.getLegacyRuntimeConstants());
-
-        CurOp::get(opCtx)->beginQueryPlanningTimer();
 
         // This prevents opening a new change stream in the critical section of a serverless shard
         // split or merge operation to prevent resuming on the recipient with a resume token higher

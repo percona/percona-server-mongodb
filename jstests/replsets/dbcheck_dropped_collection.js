@@ -5,6 +5,8 @@
  * After dbcheck command succeeds, If the collection is not present or if there exists a view with
  * an identical name, the 'dbcheck healthLog' must issue a 'NamespaceNotFound' warning and not an
  * inconsistency error.
+ *
+ * @tags: [requires_fcv_80]
  */
 
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
@@ -26,10 +28,15 @@ const primary = rst.getPrimary();
 const testDB = primary.getDB("dbCheck_deleted_collection");
 const collName = "coll_view";
 
-const runTest = (failpoint, mode) => {
-    jsTestLog("Running with failpoint " + failpoint + " and mode " + mode);
+const runTest = (failpoint, mode, dbCheckParameters) => {
+    jsTestLog(`Running with failpoint: ${failpoint}, mode: ${mode}, and parameters: ${
+        dbCheckParameters}`);
     jsTestLog("Reset the health log and delete the collection/view, then create a new collection.");
     resetAndInsert(rst, testDB, collName, 10);
+    assert.commandWorked(testDB.runCommand({
+        createIndexes: collName,
+        indexes: [{key: {a: 1}, name: 'a_1'}],
+    }));
 
     const dbcheckFp = configureFailPoint(primary, failpoint);
     runDbCheck(rst, testDB, collName);
@@ -67,7 +74,8 @@ const runTest = (failpoint, mode) => {
         assert.eq(warnings.length, 1);
         assert.eq(warnings[0]["severity"], "warning");
         assert.eq(warnings[0]["namespace"], testDB[collName].getFullName());
-        assert.includes(warnings[0]["data"]["error"], "Collection under dbCheck no longer exists");
+        assert.includes(warnings[0]["msg"],
+                        "abandoning dbCheck batch because collection no longer exists");
         if (mode == "createView" &&
             (failpoint == "hangBeforeProcessingDbCheckRun" ||
              FeatureFlagUtil.isPresentAndEnabled(
@@ -75,8 +83,7 @@ const runTest = (failpoint, mode) => {
                  "SecondaryIndexChecksInDbCheck",
                  ))) {
             // 'acquireCollectionMaybeLockFree' should have failed with 'CommandNotSupportedOnView'.
-            assert.includes(warnings[0]["data"]["error"],
-                            "but there is a view with the identical name");
+            assert.includes(warnings[0]["data"]["error"], "is a view, not a collection");
         }
     }
 };
@@ -106,7 +113,12 @@ jsTestLog("Testing the dbcheck command invocation.");
 jsTestLog("Testing the healthLog inconsistency.");
 const fps = ["hangBeforeProcessingDbCheckRun", "hangBeforeProcessingFirstBatch"];
 const modes = ["doNothing", "createCollection", "createView"];
-fps.forEach(fb => modes.forEach(mode => runTest(fb, mode)));
+const params = [
+    {},
+    {validateMode: "dataConsistencyAndMissingIndexKeysCheck"},
+    {validateMode: "extraIndexKeysCheck", indexName: "a_1"}
+];
+fps.forEach(fb => modes.forEach(mode => params.forEach(param => runTest(fb, mode, param))));
 
 rst.stopSet();
 }());
