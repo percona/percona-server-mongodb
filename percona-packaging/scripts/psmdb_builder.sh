@@ -174,10 +174,8 @@ get_sources(){
     export PATH="/usr/local/go/bin:$PATH:$GOPATH"
     export GOBINPATH="/usr/local/go/bin"
     go mod edit \
-            -replace golang.org/x/text@v0.3.0=golang.org/x/text@v0.3.8 \
-            -replace golang.org/x/text@v0.3.7=golang.org/x/text@v0.3.8
-            go mod edit \
-	    -replace golang.org/x/crypto@v0.25.0=golang.org/x/crypto@v0.31.0
+           -replace golang.org/x/crypto@v0.32.0=golang.org/x/crypto@v0.35.0 \
+           -replace github.com/golang-jwt/jwt/v5@v5.2.1=github.com/golang-jwt/jwt/v5@v5.2.2
     go mod tidy
     go mod vendor
 
@@ -243,20 +241,50 @@ get_system(){
 }
 
 install_golang() {
-    if [ x"$ARCH" = "xx86_64" ]; then
+    if [ "$ARCH" = "x86_64" ]; then
       GO_ARCH="amd64"
-    elif [ x"$ARCH" = "xaarch64" ]; then
+    elif [ "$ARCH" = "aarch64" ]; then
       GO_ARCH="arm64"
+    else
+        echo "Unsupported architecture: $ARCH"
+        return 1
     fi
-    for i in {1..3}; do
-        wget https://downloads.percona.com/downloads/packaging/go/go1.22.8.linux-${GO_ARCH}.tar.gz -O /tmp/golang1.22.tar.gz && break
-        echo "Failed to download GOLang, retrying in 10 seconds..."
+
+    GO_VERSION="1.23.8"
+    GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+    GO_SHA="${GO_TAR}.sha256"
+    GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
+    SHA_URL="https://downloads.percona.com/downloads/packaging/go/${GO_SHA}"
+    DL_PATH="/tmp/${GO_TAR}"
+    SHA_PATH="/tmp/${GO_SHA}"
+
+    while :; do
+        #if wget --spider "$GO_URL" && wget --spider "$SHA_URL"; then
+        if wget --spider "$GO_URL"; then
+            wget -q "$GO_URL" -O "$DL_PATH"
+            break
+            #wget -q "$SHA_URL" -O "$SHA_PATH"
+
+            #EXPECTED_SHA=$(awk '{print $1}' "$SHA_PATH")
+            #ACTUAL_SHA=$(sha256sum "$DL_PATH" | awk '{print $1}')
+
+            #if [ "$EXPECTED_SHA" = "$ACTUAL_SHA" ]; then
+            #    echo "SHA256 verification passed."
+            #    break
+            #else
+            #    echo "SHA256 verification failed! Retrying in 10 seconds..."
+            #    rm -f "$DL_PATH" "$SHA_PATH"
+            #fi
+        else
+            echo "Go archive not available. Retrying in 10 seconds..."
+        fi
         sleep 10
     done
-    tar --transform=s,go,go1.22, -zxf /tmp/golang1.22.tar.gz
-    rm -rf /usr/local/go1.22 /usr/local/go1.19 /usr/local/go1.11 /usr/local/go1.8 /usr/local/go1.9 /usr/local/go1.9.2 /usr/local/go
-    mv go1.22 /usr/local/
-    ln -s /usr/local/go1.22 /usr/local/go
+
+    tar --transform=s,go,go${GO_VERSION}, -zxf "$DL_PATH"
+    rm -rf /usr/local/go*
+    mv go${GO_VERSION} /usr/local/
+    ln -s /usr/local/go${GO_VERSION} /usr/local/go
 }
 
 install_gcc_centos(){
@@ -674,7 +702,7 @@ build_rpm(){
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
-    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'referencing<=0.35.1' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install --user -r etc/pip/dev-requirements.txt
@@ -773,7 +801,7 @@ build_source_deb(){
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolatioin
-    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'referencing<=0.35.1' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install -r etc/pip/dev-requirements.txt
@@ -872,7 +900,7 @@ build_deb(){
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
-    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'referencing<=0.35.1' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install -r etc/pip/dev-requirements.txt
@@ -1037,7 +1065,7 @@ build_tarball(){
     fi
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
-    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'referencing<=0.35.1' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
     pip install --user -r etc/pip/dev-requirements.txt
@@ -1129,8 +1157,8 @@ build_tarball(){
     cp -r ${WORKDIR}/${TOOLSDIR} ./
     cd mongo-tools
     . ./set_tools_revision.sh
-    sed -i '13d' buildscript/build.go
-    sed -i '197,206d' buildscript/build.go
+    sed -i '14d' buildscript/build.go
+    sed -i '209,217d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
