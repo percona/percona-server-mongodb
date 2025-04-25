@@ -221,6 +221,11 @@ class JWFactory:
         else:
             token_config = self.token_config
 
+        # Create new JWKs if requested by token's config
+        if token_config.get("generate_jwks", False):
+            logger.info(f"generate_jwks: true")
+            self.create_jwks();
+
         expires_in_seconds = token_config.get("expires_in_seconds", 3600)
         key_id = token_config.get("key_id", 0)
         payload = token_config.get("payload")

@@ -15,13 +15,11 @@ var oidcProvider =
     authorizationClaim: "claim"
 };
 
-const MissingClaimsError = "BadValue: Invalid JWT: Some claims are missing";
-
 const variants = [
     {
         // Empty payload
         payload: {},
-        expectedError: MissingClaimsError,
+        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.aud' is missing but a required field",
     },
     {
         // Missing 'sub'
@@ -32,7 +30,7 @@ const variants = [
                 "group2",
             ],
         },
-        expectedError: MissingClaimsError,
+        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.sub' is missing but a required field",
     },
     {
         // Missing 'aud'
@@ -43,7 +41,7 @@ const variants = [
                 "group2",
             ],
         },
-        expectedError: MissingClaimsError,
+        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.aud' is missing but a required field",
     },
     {
         // Missing 'claim'
@@ -51,7 +49,7 @@ const variants = [
             sub: "user",
             aud: "audience",
         },
-        expectedError: MissingClaimsError,
+        expectedError: "BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim' is missing",
     },
     {
         // Missing 'iss'
@@ -64,7 +62,20 @@ const variants = [
                 "group2",
             ],
         },
-        expectedError: MissingClaimsError,
+        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.iss' is missing but a required field",
+    },
+    {
+        // Missing 'exp'
+        payload: {
+            sub: "user",
+            aud: "audience",
+            exp: "$remove",
+            claim: [
+                "group1",
+                "group2",
+            ],
+        },
+        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.exp' is missing but a required field",
     },
     {
         // Invalid type of claim
@@ -75,7 +86,7 @@ const variants = [
                 some_field: "group1",
             },
         },
-        expectedError: "BadValue: Invalid JWT: `authorizationClaim` is neither a string nor an array of strings",
+        expectedError: "BadValue: Invalid JWT :: caused by :: authorizationClaim `claim` is neither a string nor an array of strings",
     },
     {
         // Invalid type of sub
@@ -84,7 +95,27 @@ const variants = [
             aud: "audience",
             claim: "group",
         },
-        expectedError: "BadValue: Invalid JWT: Some claim has a wrong type",
+        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.sub' is the wrong type 'array', expected type 'string'",
+    },
+    {
+        // Expired token
+        payload: {
+            sub: "user",
+            aud: "audience",
+            exp: Math.floor(Date.now() / 1000) - 1000,
+            claim: "group",
+        },
+        expectedError: "BadValue: Invalid JWT :: caused by :: Token is expired",
+    },
+    {
+        // Not yet valid token
+        payload: {
+            sub: "user",
+            aud: "audience",
+            nbf: Math.floor(Date.now() / 1000) + 1000,
+            claim: "group",
+        },
+        expectedError: "BadValue: Invalid JWT :: caused by :: Token not yet valid",
     },
 ];
 
