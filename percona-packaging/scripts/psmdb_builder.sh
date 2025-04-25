@@ -704,7 +704,7 @@ build_rpm(){
     pip install 'referencing<0.30.0' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
-    pip install 'poetry==1.5.1' 'pyproject-hooks==1.0.0'
+    pip install 'poetry==2.0.0' 'pyproject-hooks==1.2.0'
     pip install 'mongo_tooling_metrics==1.0.8' 'retry' 'psutil' 'Cheetah3'
 
 
@@ -809,7 +809,7 @@ build_source_deb(){
     pip install 'referencing<0.30.0' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
-    pip install 'poetry==1.5.1' 'pyproject-hooks==1.0.0'
+    pip install 'poetry==2.0.0' 'pyproject-hooks==1.2.0'
     pip install 'mongo_tooling_metrics==1.0.8' 'retry' 'psutil' 'Cheetah3'
 
     #update toolchain pathes to know about installed poetry
@@ -914,7 +914,7 @@ build_deb(){
     pip install 'referencing<0.30.0' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
-    pip install 'poetry==1.5.1' 'pyproject-hooks==1.0.0'
+    pip install 'poetry==2.0.0' 'pyproject-hooks==1.2.0'
     pip install 'mongo_tooling_metrics==1.0.8' 'retry' 'psutil' 'Cheetah3'
 
     #update toolchain pathes to know about installed poetry
@@ -1087,7 +1087,7 @@ build_tarball(){
     pip install 'referencing<0.30.0' --no-build-isolation
     pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
 
-    pip install 'poetry==1.5.1' 'pyproject-hooks==1.0.0'
+    pip install 'poetry==2.0.0' 'pyproject-hooks==1.2.0'
     pip install 'mongo_tooling_metrics==1.0.8' 'retry' 'psutil' 'Cheetah3'
 
     #update toolchain pathes to know about installed poetry
