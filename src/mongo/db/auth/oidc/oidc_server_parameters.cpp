@@ -62,6 +62,13 @@ struct IssuerAudiencePair {
     StringData audience;
 };
 
+struct JWKSPollSecsIndexes {
+    using JWKSPollSecsType = decltype(std::declval<OidcIdentityProviderConfig>().getJWKSPollSecs());
+    JWKSPollSecsType jwksPollSecs;
+    std::size_t differentValuesCount;
+    std::vector<std::size_t> indexes;
+};
+
 bool operator<(const IssuerAudiencePair& lhs, const IssuerAudiencePair& rhs) noexcept {
     return std::tie(lhs.issuer, lhs.audience) < std::tie(rhs.issuer, rhs.audience);
 }
@@ -110,9 +117,11 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
     // Indexes of `OidcIdentityProviderConfig`s with specified `matchPattern`
     std::vector<std::size_t> matchPatternIndexes;
     // Mapping from `{issuer, audience}` pair to the indexes of those
-    // `OidcIdentityProviderConfig`s that have those poarticular `issuer` and
+    // `OidcIdentityProviderConfig`s that have those particular `issuer` and
     // `audience` values.
     std::map<IssuerAudiencePair, std::vector<std::size_t>> equalAudienceIndexes;
+
+    std::map<StringData, JWKSPollSecsIndexes> jwksPollSecsMap;
 
     for (std::size_t i{0u}; i < param._data.size(); ++i) {
         const auto& conf{param._data[i]};
@@ -124,6 +133,16 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
             matchPatternIndexes.push_back(i);
         }
         equalAudienceIndexes[{conf.getIssuer(), conf.getAudience()}].push_back(i);
+
+        auto it = jwksPollSecsMap.find(conf.getIssuer());
+        if (it == jwksPollSecsMap.end()) {
+            jwksPollSecsMap[conf.getIssuer()] = {conf.getJWKSPollSecs(), 0, {i}};
+        } else {
+            it->second.indexes.push_back(i);
+            if (it->second.jwksPollSecs != conf.getJWKSPollSecs()) {
+                it->second.differentValuesCount++;
+            }
+        }
     }
 
     for (std::size_t i{0u}; i < matchPatternIndexes.size(); ++i) {
@@ -153,6 +172,15 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
                     << "`). `audience` should be unique for each "
                     << "configuration that shares an `issuer`.",
                 indexes.size() < 2);
+    }
+
+    for (const auto& [issuer, valuePair] : jwksPollSecsMap) {
+        uassert(77708,
+                errorMsgHeader(valuePair.indexes)
+                    << "`jwksPollSecs` values are different for the same `issuer` (`" << issuer
+                    << "`). `jwksPollSecs` should be the same for each "
+                    << "configuration that shares an `issuer`.",
+                valuePair.differentValuesCount == 0);
     }
 }
 

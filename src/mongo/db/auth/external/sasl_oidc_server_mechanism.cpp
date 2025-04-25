@@ -33,33 +33,22 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include <fmt/format.h>
 
-#define JWT_DISABLE_PICOJSON
-#include <jwt-cpp/jwt.h>
-#include <jwt-cpp/traits/boost-json/traits.h>
-#include <jwt-cpp/traits/boost-json/defaults.h>
 #include "mongo/bson/bsonobj.h"
-#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/crypto/jws_validated_token.h"
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/auth/oidc_protocol_gen.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
-#include "mongo/db/auth/sasl_plain_server_conversation.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_attr.h"
-#include "mongo/logv2/log_component.h"
 #include "mongo/util/assert_util.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
 namespace mongo {
-namespace {
-const std::vector<OidcIdentityProviderConfig>& getIdPConfigs() {
-    return ServerParameterSet::getNodeParameterSet()
-            ->get<OidcIdentityProvidersServerParameter>("oidcIdentityProviders")
-            ->_data;
-}
-}
-StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(OperationContext*,
+
+StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(OperationContext* opCtx,
                                                                             StringData input) {
     if (Status s{validateBSON(input.data(), input.size())}; !s.isOK()) {
         return s;
@@ -77,6 +66,7 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(Oper
     // described issue because its only `jwt` field is mandatory.
     try {
         return step2(
+            opCtx->getServiceContext(),
             auth::OIDCMechanismClientStep2::parse(IDLParserContext("OIDCStep2Request"), inputBson));
     } catch (const DBException& e) {
         // Failed to parse the input as a step 2 request. It still can be
@@ -84,6 +74,7 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(Oper
     }
     try {
         return step1(
+            opCtx->getServiceContext(),
             auth::OIDCMechanismClientStep1::parse(IDLParserContext("OIDCStep1Request"), inputBson));
     } catch (const DBException& e) {
         return e.toStatus();
@@ -92,116 +83,175 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(Oper
 }
 
 StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
-    const auth::OIDCMechanismClientStep1& request) {
+    ServiceContext* serviceContext, const auth::OIDCMechanismClientStep1& request) {
     _step = 1;
-    const std::vector<OidcIdentityProviderConfig>& allIdPs{getIdPConfigs()};
-    // `hfIdPs` stands for configurations of the identity providers that support human flows.
-    // The correctness of the code below stems from the fact that server parameters validation
-    // (@see the `src/mongo/db/auth/oidc/oidc_server_parameters.cpp` file) ensures that the
-    // configurations of all identity providers that support human flows are listed _before_ those
-    // without such support.
-    std::ranges::subrange hfIdPs{allIdPs.begin(),
-                                 std::ranges::find_if_not(allIdPs, [](const auto& conf) {
-                                     return conf.getSupportsHumanFlows();
-                                 })};
-    if (hfIdPs.empty()) {
-        return Status{ErrorCodes::BadValue, "None of configured identity providers support human flows"};
+
+    const auto& oidcIdPRegistry = OidcIdentityProvidersRegistry::get(serviceContext);
+
+    // Check if there is any IdP with 'supportsHumanFlows'. If not, cannot proceed with step1.
+    if (!oidcIdPRegistry.hasIdpWithHumanFlowsSupport()) {
+        return Status{ErrorCodes::BadValue,
+                      "None of configured identity providers support human flows"};
     }
-    boost::optional<StringData> principalName{request.getPrincipalName()};
-    LOGV2(77012, "OIDC step 1", "principalName"_attr = principalName ? *principalName : "none");
-    if (!principalName && hfIdPs.size() > 1) {
+
+    auto principalName =
+        request.getPrincipalName().map([](const auto& str) -> std::string_view { return std::string_view{str}; });
+
+    LOGV2(77012, "OIDC step 1", "principalName"_attr = principalName.value_or("none"));
+
+    // If there are more than one IdP with human flows support, the client must provide a principal
+    // name to choose a specific IdP. If there is only one IdP with human flows support, the client
+    // can omit the principal name and the server will choose the only IdP available.
+    if (!principalName && oidcIdPRegistry.numOfIdpsWithHumanFlowsSupport() > 1) {
         return Status{
             ErrorCodes::BadValue,
             "Multiple identity providers are known, provide a principal name for choosing a one"};
     }
-    for (const auto& idp : hfIdPs) {
-        if (const boost::optional<mongo::MatchPattern>& pattern{idp.getMatchPattern()};
-            !principalName || !pattern ||
-            std::regex_search(principalName->begin(), principalName->end(), pattern->toRegex())) {
-            auth::OIDCMechanismServerStep1 response;
-            response.setIssuer(idp.getIssuer());
-            // Server parameters validation
-            // (@see the `src/mongo/db/auth/oidc/oidc_server_parameters.cpp` file) ensures that
-            // a client ID exists for the identity providers supporting human flows.
-            response.setClientId(*idp.getClientId());
-            BSONObj b{response.toBSON()};
-            return std::tuple{false, std::string{b.objdata(), static_cast<std::size_t>(b.objsize())}};
-        }
+
+    // Choose the IdP configuration for a given principal name.
+    auto idp = oidcIdPRegistry.getIdpForPrincipalName(principalName);
+    if (!idp.has_value()) {
+        return Status{
+            ErrorCodes::BadValue,
+            fmt::format("No identity provider found for principal name `{}`", *principalName)};
     }
-    return Status{
-        ErrorCodes::BadValue,
-        fmt::format("No identity provider found matching principal name `{}`", *principalName)};
+
+    // Reply with the 'issuer' and 'clientId' fields of the chosen IdP.
+    auth::OIDCMechanismServerStep1 response;
+    response.setIssuer(idp->getIssuer());
+
+    // Server parameters validation
+    // (@see the `src/mongo/db/auth/oidc/oidc_server_parameters.cpp` file) ensures that
+    // a client ID exists for the identity providers supporting human flows.
+    invariant(idp->getClientId().has_value());
+    response.setClientId(*idp->getClientId());
+    BSONObj b{response.toBSON()};
+    return std::tuple{false, std::string{b.objdata(), static_cast<std::size_t>(b.objsize())}};
 }
 
 StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step2(
-    const auth::OIDCMechanismClientStep2& request) try {
+    ServiceContext* serviceContext, const auth::OIDCMechanismClientStep2& request) try {
     _step = 2;
-    const std::vector<OidcIdentityProviderConfig>& allIdPs{getIdPConfigs()};
-    auto token{jwt::decode(std::string{request.getJWT()})};
-    std::string issuer{token.get_issuer()};
-    std::set<std::string> audience{token.get_audience()};
-    uassert(ErrorCodes::BadValue, "Invalid JWT: `audience` is an empty set", !audience.empty());
 
-    auto idp{std::ranges::find_if(allIdPs, [&](const auto& idp) {
-        return std::string_view{idp.getIssuer()} == issuer &&
-            audience.contains(std::string{idp.getAudience()});
-    })};
-    uassert(
-        ErrorCodes::BadValue, "Invalid JWT: Unsupported issuer or audience", idp != allIdPs.end());
+    const auto& oidcIdPRegistry = OidcIdentityProvidersRegistry::get(serviceContext);
+
+    // Parse the JWT and check for required claims, such as 'iss', 'aud', 'sub' and 'exp'.
+    // Extract the issuer and audience claims which are essential for further processing of the
+    // token.
+    const auto issuerAudienceStatus =
+        crypto::JWSValidatedToken::extractIssuerAndAudienceFromCompactSerialization(
+            request.getJWT());
+    uassert(ErrorCodes::BadValue,
+            fmt::format("parsing failed: {}", issuerAudienceStatus.getStatus().reason()),
+            issuerAudienceStatus.isOK());
+
+    const auto& issuer = issuerAudienceStatus.getValue().issuer;
+    const auto& audience = issuerAudienceStatus.getValue().audience;
+
+    // Get the IdP configuration for a issuer/audience pair from the token
+    auto idp = oidcIdPRegistry.getIdp(issuer, audience);
+    uassert(ErrorCodes::BadValue, "unsupported issuer or audience", idp.has_value());
+
+    // Get the JWKManager for a given issuer for token validation.
+    auto jwkManager = oidcIdPRegistry.getJWKManager(issuer);
+    invariant(jwkManager);  // if the issuer is valid, the JWKManager for the issuer must exist
+
+    // Validate the token's signature, as well as 'exp' and 'nbf' claims.
+    const crypto::JWSValidatedToken token{jwkManager.get(), std::string{request.getJWT()}};
+
+    const auto principalNameField = token.getBodyBSON().getField(idp->getPrincipalName());
+    // Check if the configured claim for principalName exists and is a string.
+    uassert(ErrorCodes::BadValue,
+            fmt::format("{} '{}' claim is missing",
+                        OidcIdentityProviderConfig::kPrincipalNameFieldName,
+                        idp->getPrincipalName()),
+            principalNameField.ok());
+
+    uassert(ErrorCodes::BadValue,
+            fmt::format("{} '{}' claim format is not string",
+                        OidcIdentityProviderConfig::kPrincipalNameFieldName,
+                        idp->getPrincipalName()),
+            principalNameField.type() == BSONType::String);
 
     std::string authNamePrefix{idp->getAuthNamePrefix()};
-    _principalName = authNamePrefix + "/" +
-        token.get_payload_claim(std::string{idp->getPrincipalName()}).as_string();
 
-    if (idp->getUseAuthorizationClaim()) {
-        _roles.emplace();
-        jwt::claim authClaim{token.get_payload_claim(std::string{*idp->getAuthorizationClaim()})};
-        auto addRole = [&roles = this->_roles, &authNamePrefix](const std::string& claim) {
-            roles->emplace(authNamePrefix + "/" + claim, "admin");
-        };
-        switch (authClaim.get_type()) {
-            case jwt::json::type::string:
-                addRole(authClaim.as_string());
-                break;
-            case jwt::json::type::array:
-                for (const auto& c : authClaim.as_array()) {
-                    // @todo improve the `jwt-cpp` library so that an array
-                    // element can be converted to a C++ scalar data type
-                    // in a json-library-agnostic way
-                    addRole(jwt::traits::boost_json::as_string(c));
-                }
-                break;
-            default:
-                return Status{
-                    ErrorCodes::BadValue,
-                    fmt::format("Invalid JWT: `{}` is neither a string nor an array of strings",
-                                OidcIdentityProviderConfig::kAuthorizationClaimFieldName)};
-        }
-    }
+    // Store _principalName to return it in UserRequest for authorization manager.
+    _principalName = authNamePrefix + "/" + principalNameField.String();
+
+    // Store _expirationTime for authorization manager.
+    _expirationTime = token.getBody().getExpiration();
+
+    processAuthorizationClaim(*idp, token);
 
     LOGV2(77012, "OIDC step 2", "principalName"_attr = _principalName, "roles"_attr = _roles);
 
     // authentication succeeded
     return std::tuple{true, std::string{}};
-    // // authentication failed
-    // return Status{ErrorCodes::AuthenticationFailed, "auth failed"};
-} catch (const std::bad_cast& e) {
-    // @todo: improve the `jwt-cp` library so that it provides the name of the bad-typed claim
-    return Status{ErrorCodes::BadValue, "Invalid JWT: Some claim has a wrong type"};
-} catch (const jwt::error::claim_not_present_exception& e) {
-    // @todo: improve the `jwt-cp` library so that it provides the name of the missing claim
-    return Status{ErrorCodes::BadValue, "Invalid JWT: Some claims are missing"};
-} catch (const std::invalid_argument& e) {  // can be thrown by `jwt::decode`
-    return Status{ErrorCodes::BadValue, fmt::format("Invalid JWT: incorrect format: {}", e.what())};
 } catch (const DBException& e) {
-    return e.toStatus();
-} catch (const std::runtime_error& e) {  // can be thrown by `jwt::decode`
-    return Status{ErrorCodes::BadValue,
-                  fmt::format("Invalid JWT: base64 decoding failed or invalid JSON: {}", e.what())};
+    return e.toStatus().withContext("Invalid JWT");
+}
+
+void SaslOidcServerMechanism::processAuthorizationClaim(const OidcIdentityProviderConfig& idp,
+                                                        const crypto::JWSValidatedToken& token) {
+    if (!idp.getUseAuthorizationClaim()) {
+        return;
+    }
+    // Check if configured authorization claim exists, is of correct format and
+    // store the roles.
+    // The server parameters validation ensures the 'authorizationClaim' fields is
+    // present if the 'useAuthorizationClaim=true'
+    // (@see the `src/mongo/db/auth/oidc/oidc_server_parameters.cpp` file).
+    invariant(idp.getAuthorizationClaim().has_value());
+    std::string authorizationClaim{*idp.getAuthorizationClaim()};
+
+    const auto authClaim = token.getBodyBSON().getField(authorizationClaim);
+
+    uassert(ErrorCodes::BadValue,
+            fmt::format("{} '{}' is missing",
+                        OidcIdentityProviderConfig::kAuthorizationClaimFieldName,
+                        *idp.getAuthorizationClaim()),
+                        authClaim.ok());
+
+    // The '_roles' is an optional set. Constructing an empty set if 'useAuthorizationClaim'
+    // is true is essential to distinguish between 'useAuthorizationClaim=false' and
+    // 'useAuthorizationClaim=true' when the claim has no roles. This makes a difference
+    // in processing the UserRequest by the authorization manager.
+    _roles.emplace();
+
+    std::string authNamePrefix{idp.getAuthNamePrefix()};
+
+    auto addRole = [&roles = this->_roles, &authNamePrefix](const std::string& claim) {
+        roles->emplace(authNamePrefix + "/" + claim, "admin");
+    };
+
+    switch (authClaim.type()) {
+        case BSONType::String:
+            addRole(authClaim.String());
+            break;
+        case BSONType::Array:
+            for (const auto& c : authClaim.Array()) {
+                uassert(ErrorCodes::BadValue,
+                        fmt::format("{} '{}' value is not a string",
+                                    OidcIdentityProviderConfig::kAuthorizationClaimFieldName,
+                                    authorizationClaim),
+                        c.type() == BSONType::String);
+                addRole(c.String());
+            }
+            break;
+        default:
+            uasserted(ErrorCodes::BadValue,
+                      fmt::format("{} `{}` is neither a string nor an array of strings",
+                                  OidcIdentityProviderConfig::kAuthorizationClaimFieldName,
+                                  authorizationClaim));
+    }
 }
 
 UserRequest SaslOidcServerMechanism::getUserRequest() const {
     return UserRequest{UserName{getPrincipalName(), getAuthenticationDatabase()}, _roles};
+}
+
+boost::optional<Date_t> SaslOidcServerMechanism::getExpirationTime() const {
+    return _expirationTime;
 }
 
 namespace {

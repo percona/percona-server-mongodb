@@ -4,15 +4,27 @@ Import("env")
 env = env.Clone()
 
 env.Library(
-    target='oidc_server_parameters',
+    target='oidc',
     source=[
+        'oidc_identity_providers_registry.cpp',
         'oidc_server_parameters.cpp',
         'oidc_server_parameters.idl',
         'oidc_server_parameters_logger.cpp',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/crypto/jwt',
         '$BUILD_DIR/mongo/db/server_base',
         '$BUILD_DIR/mongo/util/options_parser/options_parser',
+    ],
+)
+
+env.CppUnitTest(
+    target='oidc_test',
+    source=[
+        'oidc_identity_providers_registry_test.cpp',
+    ],
+    LIBDEPS=[
+        'oidc',
     ],
 )

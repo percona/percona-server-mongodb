@@ -73,6 +73,7 @@
 #include "mongo/db/auth/auth_op_observer.h"
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_logger.h"
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/user_cache_invalidator_job.h"
 #include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_catalog.h"
@@ -1225,6 +1226,19 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     }
 
     OidcServerParameterLogger::log();
+
+    // Cannot use ServiceContext::ConstructorActionRegisterer to construct the
+    // OidcIdentityProvidersRegistry because the PeriodicRunner is not yet initialized
+    // when the initializer runs.
+    //
+    // Constructors are called early in mongod_main(), when the ServiceContext is created
+    // (see ServiceContext::make()).
+    // However, the PeriodicRunner is only created later in the current function
+    // (_initAndListen(), see makePeriodicRunner()).
+    //
+    // To ensure proper initialization of the registry, use a global initializer
+    // function to construct the registry and register it with the ServiceContext.
+    initializeOidcIdentityProvidersRegistry(serviceContext);
 
     // MessageServer::run will return when exit code closes its socket and we don't need the
     // operation context anymore

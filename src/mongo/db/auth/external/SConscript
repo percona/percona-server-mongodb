@@ -19,7 +19,8 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/client/sasl_aws_common' if get_option('ssl') == 'on' else [],
-        '$BUILD_DIR/mongo/db/auth/oidc/oidc_server_parameters',
+        '$BUILD_DIR/mongo/crypto/jwt',
+        '$BUILD_DIR/mongo/db/auth/oidc/oidc',
         '$BUILD_DIR/mongo/db/auth/oidc_protocol_messages',
         '$BUILD_DIR/mongo/db/ldap/ldapmanager',
         '$BUILD_DIR/mongo/db/ldap_options',
