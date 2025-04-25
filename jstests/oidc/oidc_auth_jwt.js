@@ -1,6 +1,7 @@
 import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
 
 var idp_config = {
+    number_of_jwks: 2,
     token: {
         payload: {
             aud: "audience",
@@ -28,33 +29,31 @@ var variants = [
         faults: {
             jwt_invalid_kid: true
         },
-        expectSuccess: true, // TODO: This should be false
+        expectedError: "BadValue: Invalid JWT :: caused by :: Unknown JWT keyId << 'invalid_kid'",
     },
     {
         faults: {
             jwt_missing_kid: true
         },
-        expectSuccess: true, // TODO: This should be false
+        expectedError: "IDLFailedToParse: Invalid JWT :: caused by :: BSON field 'JWSHeader.kid' is missing but a required field",
     },
     {
         faults: {
             jwt_invalid_key: true
         },
-        expectSuccess: true, // TODO: This should be false
+        expectedError: "InvalidSignature: Invalid JWT :: caused by :: OpenSSL: Signature is invalid",
+    },
+    {
+        faults: {
+            jwt_other_valid_key: true
+        },
+        expectedError: "InvalidSignature: Invalid JWT :: caused by :: OpenSSL: Signature is invalid",
     },
     {
         faults: {
             jwt_invalid_format: true
         },
-        expectSuccess: false,
-        expectedError: "BadValue: Invalid JWT: incorrect format: invalid token supplied"
-    },
-    {
-        faults: {
-            jwt_invalid_padding: true
-        },
-        expectSuccess: false,
-        expectedError: "BadValue: Invalid JWT: base64 decoding failed or invalid JSON: Invalid input: not within alphabet"
+        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: Missing JWS delimiter"
     },
 ]
 
@@ -74,25 +73,18 @@ for (const variant of variants) {
     idp.assert_config_requested();
     idp.assert_token_requested(oidcProvider.clientId);
 
-    if (variant.expectedError) {
 
-        var expectedLog = {
-            msg: "Failed to authenticate",
-            attr: {
-                mechanism: "MONGODB-OIDC",
-                error: variant.expectedError,
-            }
-        };
+    var expectedLog = {
+        msg: "Failed to authenticate",
+        attr: {
+            mechanism: "MONGODB-OIDC",
+            error: variant.expectedError,
+        }
+    };
 
-        assert(test.checkLogExists(expectedLog), "Expected log not found for variant " + tojson(variant));
-    }
+    assert(test.checkLogExists(expectedLog), "Expected log not found for variant " + tojson(variant));
 
-    if (variant.expectSuccess) {
-        assert(res, "Authentication should succeed for variant " + tojson(variant));
-    }
-    else {
-        assert(!res, "Authentication should fail for variant " + tojson(variant));
-    }
+    assert(!res, "Authentication should fail for variant " + tojson(variant));
 
     test.teardown();
 }

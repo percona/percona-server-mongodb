@@ -50,7 +50,7 @@ export class OIDCIdPMock {
     /**
      * Clear the program output to prepare for the next assertions.
      */
-    clear() {
+    clear_output() {
         clearRawMongoProgramOutput();
     }
 
@@ -65,6 +65,17 @@ export class OIDCIdPMock {
         assert.soon(function () {
             return rawMongoProgramOutput().search(request_msg) !== -1;
         }, "Request not found: " + request_msg, 1000);
+    }
+
+    /**
+     * Assert that the given HTTP request was NOT made to the OIDC IDP mock server.
+     *
+     * @param {string} method HTTP method (e.g., GET, POST).
+     * @param {string} path Path relative to issuer_url (e.g.: /token, /keys).
+     */
+    assert_no_http_request(method, path) {
+        const request_msg = method + " " + this.issuer_url + path;
+        assert(rawMongoProgramOutput().search(request_msg) === -1, "Request found: " + request_msg);
     }
 
     /**
@@ -127,5 +138,13 @@ export class OIDCIdPMock {
             stopMongoProgramByPid(this.pid);
             this.pid = null;
         }
+    }
+
+    /**
+     * Restart the OIDC IDP mock server.
+     */
+    restart() {
+        this.stop();
+        this.start();
     }
 }
