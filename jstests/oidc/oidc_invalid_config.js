@@ -2,6 +2,8 @@
 import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer = OIDCFixture.allocate_issuer_url();
+const issuer1 = OIDCFixture.allocate_issuer_url();
+const issuer2 = OIDCFixture.allocate_issuer_url();
 
 // Tests for invalid OIDC configurations
 var variants = [
@@ -154,6 +156,58 @@ var variants = [
                 authNamePrefix: "test1",
                 matchPattern: "(1$",
                 useAuthorizationClaim: false,
+            },
+        ],
+    },
+    {
+        expected_error: "BadValue: Bad value for parameter.*oidcIdentityProviders.*: In `oidcIdentityProviders.1.`" +
+            ", `oidcIdentityProviders.3.`, `oidcIdentityProviders.4.`: `jwksPollSecs` values are different for the " +
+            "same `issuer` .*`jwksPollSecs` should be the same for each configuration that shares an `issuer`",
+        config: [
+            {
+                issuer: issuer1,
+                audience: "audience1",
+                clientId: "client1",
+                authNamePrefix: "test1",
+                matchPattern: "1$",
+                useAuthorizationClaim: false,
+                JWKSPollSecs: 1,
+            },
+            {
+                issuer: issuer2,
+                audience: "audience1",
+                clientId: "client1",
+                authNamePrefix: "test1",
+                matchPattern: "1$",
+                useAuthorizationClaim: false,
+                JWKSPollSecs: 1,
+            },
+            {
+                issuer: issuer1,
+                audience: "audience2",
+                clientId: "client2",
+                authNamePrefix: "test2",
+                matchPattern: "2$",
+                useAuthorizationClaim: false,
+                JWKSPollSecs: 1, // same value: ok
+            },
+            {
+                issuer: issuer2,
+                audience: "audience2",
+                clientId: "client2",
+                authNamePrefix: "test2",
+                matchPattern: "2$",
+                useAuthorizationClaim: false,
+                JWKSPollSecs: 1, // same value: ok
+            },
+            {
+                issuer: issuer2,
+                audience: "audience3",
+                clientId: "client1",
+                authNamePrefix: "test1",
+                matchPattern: "1$",
+                useAuthorizationClaim: false,
+                JWKSPollSecs: 2, // different value: not ok
             },
         ],
     },

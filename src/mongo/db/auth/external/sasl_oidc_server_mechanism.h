@@ -41,17 +41,25 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
 #include "mongo/db/auth/oidc_protocol_gen.h"
+#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/auth/role_name.h"
 #include "mongo/db/auth/sasl_mechanism_policies.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
 #include "mongo/db/auth/user.h"
 #include "mongo/db/operation_context.h"
 
+
 namespace mongo {
+
+namespace crypto {
+class JWSValidatedToken;
+}  // namespace crypto
+
 class SaslOidcServerMechanism final : public MakeServerMechanism<OidcPolicy> {
 public:
     explicit SaslOidcServerMechanism(std::string authenticationDatabase)
-        : MakeServerMechanism<OidcPolicy>{std::move(authenticationDatabase)} {}
+        : MakeServerMechanism<OidcPolicy>{std::move(authenticationDatabase)},
+          _expirationTime{Date_t::min()} {}
 
     boost::optional<unsigned int> currentStep() const final {
         return _step;
@@ -63,14 +71,22 @@ public:
 
     UserRequest getUserRequest() const final;
 
+    boost::optional<Date_t> getExpirationTime() const final;
+
 private:
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
                                                        StringData input) final;
-    StatusWith<std::tuple<bool, std::string>> step1(const auth::OIDCMechanismClientStep1& request);
-    StatusWith<std::tuple<bool, std::string>> step2(const auth::OIDCMechanismClientStep2& request);
+    StatusWith<std::tuple<bool, std::string>> step1(ServiceContext* serviceContext,
+                                                    const auth::OIDCMechanismClientStep1& request);
+    StatusWith<std::tuple<bool, std::string>> step2(ServiceContext* serviceContext,
+                                                    const auth::OIDCMechanismClientStep2& request);
+
+    void processAuthorizationClaim(const OidcIdentityProviderConfig& idp,
+                                   const crypto::JWSValidatedToken& token);
 
     unsigned int _step{0};
     boost::optional<std::set<RoleName>> _roles;
+    Date_t _expirationTime;
 };
 
 class OidcServerFactory final : public MakeServerFactory<SaslOidcServerMechanism> {
