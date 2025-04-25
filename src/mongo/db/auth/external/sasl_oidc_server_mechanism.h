@@ -31,6 +31,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include <set>
 #include <string>
 #include <tuple>
@@ -48,6 +49,11 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/operation_context.h"
 
 namespace mongo {
+
+namespace crypto {
+class JWSValidatedToken;
+}  // namespace crypto
+
 class SaslOidcServerMechanism final : public MakeServerMechanism<OidcPolicy> {
 public:
     explicit SaslOidcServerMechanism(std::string authenticationDatabase)
@@ -66,8 +72,13 @@ public:
 private:
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
                                                        StringData input) final;
-    StatusWith<std::tuple<bool, std::string>> step1(const auth::OIDCMechanismClientStep1& request);
-    StatusWith<std::tuple<bool, std::string>> step2(const auth::OIDCMechanismClientStep2& request);
+    StatusWith<std::tuple<bool, std::string>> step1(ServiceContext* serviceContext,
+                                                    const auth::OIDCMechanismClientStep1& request);
+    StatusWith<std::tuple<bool, std::string>> step2(ServiceContext* serviceContext,
+                                                    const auth::OIDCMechanismClientStep2& request);
+
+    Status processAuthorizationClaim(const OidcIdentityProviderConfig& idp,
+                                   const crypto::JWSValidatedToken& token);
 
     unsigned int _step{0};
     boost::optional<std::set<RoleName>> _roles;

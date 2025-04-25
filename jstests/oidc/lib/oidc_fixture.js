@@ -387,8 +387,6 @@ export class OIDCFixture {
         assert.eq(authInfo.authenticatedUsers[0].user, user, user + " is not authenticated");
         assert.eq(authInfo.authenticatedUsers[0].db, "$external");
 
-        print("Authinfo:");
-        printjson(authInfo);
         // Verify roles if provided
         if (roles) {
             print("OIDCFixture.assert_authenticated: checking roles");
