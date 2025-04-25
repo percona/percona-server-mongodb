@@ -2777,6 +2777,7 @@ env.Library(
         '$BUILD_DIR/mongo/util/signal_handlers',
         '$BUILD_DIR/mongo/watchdog/watchdog_mongod',
         'admission/execution_control',
+        'audit_impl' if has_option('audit') else [],
         'audit_options' if has_option('audit') else [],
         'auth/auth_op_observer',
         'catalog/catalog_helpers',
