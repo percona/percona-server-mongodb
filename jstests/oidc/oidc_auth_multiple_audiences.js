@@ -114,24 +114,26 @@ test.auth(conn, "user3");
 test.assert_authenticated(conn, "idp/user3", []);
 test.logout(conn);
 
-const expectedLog = {
-    msg: "Failed to authenticate",
-    attr: {
-        mechanism: "MONGODB-OIDC",
-        error: "BadValue: Invalid JWT: Some claims are missing"
-    }
+const expectedLog = (error) => {
+    return {
+        msg: "Failed to authenticate",
+        attr: {
+            mechanism: "MONGODB-OIDC",
+            error: error
+        }
+    };
 };
 
 // authenticate as user2 with wrong claim in the token
 assert(!test.auth(conn, "user2"), "Authentication should fail due to invalid claim");
-assert(test.checkLogExists(expectedLog), "Expected log not found for token with invalid claim");
+assert(test.checkLogExists(expectedLog("BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim2' is missing")), "Expected log not found for token with invalid claim");
 
 // authenticate as user1 with wrong claim in the token
 assert(!test.auth(conn, "user1"), "Authentication should fail due to invalid claim");
-assert(test.checkLogExists(expectedLog), "Expected log not found for token with invalid claim");
+assert(test.checkLogExists(expectedLog("BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim1' is missing")), "Expected log not found for token with invalid claim");
 
 // authenticate as user1 with wrong claim in the token
 assert(!test.auth(conn, "user1"), "Authentication should fail due to invalid claim");
-assert(test.checkLogExists(expectedLog), "Expected log not found for token with invalid claim");
+assert(test.checkLogExists(expectedLog("BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim1' is missing")), "Expected log not found for token with invalid claim");
 
 test.teardown();

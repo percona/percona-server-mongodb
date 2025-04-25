@@ -89,6 +89,7 @@ export class OIDCFixture {
             setParameter: {
                 authenticationMechanisms: "SCRAM-SHA-256,MONGODB-OIDC",
                 oidcIdentityProviders: JSON.stringify(oidcProviders),
+                JWKSMinimumQuiescePeriodSecs: 0, // Disable JWKS quiesce period for testing
             }
         };
     }
@@ -387,8 +388,6 @@ export class OIDCFixture {
         assert.eq(authInfo.authenticatedUsers[0].user, user, user + " is not authenticated");
         assert.eq(authInfo.authenticatedUsers[0].db, "$external");
 
-        print("Authinfo:");
-        printjson(authInfo);
         // Verify roles if provided
         if (roles) {
             print("OIDCFixture.assert_authenticated: checking roles");
@@ -399,6 +398,20 @@ export class OIDCFixture {
             print("OIDCFixture.assert_authenticated: checking privileges");
             this.assert_has_privileges(authInfo.authenticatedUserPrivileges, privileges);
         }
+    }
+
+    /**
+     * Assert that the user is not authenticated.
+     *
+     * @param {object} conn The connection object.
+     */
+    assert_not_authenticated(conn) {
+        assert(conn, "Connection is not defined");
+
+        const authInfo = this.authInfo(conn);
+        assert.eq(authInfo.authenticatedUsers.length, 0, "User is authenticated");
+        assert.eq(authInfo.authenticatedUserRoles.length, 0, "User has roles");
+        assert.eq(authInfo.authenticatedUserPrivileges.length, 0, "User has privileges");
     }
 
     /**

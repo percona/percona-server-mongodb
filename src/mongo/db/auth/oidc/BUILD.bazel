@@ -11,19 +11,25 @@ idl_generator(
 )
 
 mongo_cc_library(
-    name = "oidc_server_parameters",
+    name = "oidc",
     srcs = [
+        "oidc_identity_providers_registry.cpp",
         "oidc_server_parameters.cpp",
         "oidc_server_parameters_logger.cpp",
         "oidc_server_parameters_gen",
     ],
     hdrs = [
+        "oidc_identity_providers_registry.h",
         "oidc_server_parameters_logger.h",
         "match_pattern.h",
+        "//src/mongo/crypto:jwks_fetcher_factory.h",
     ],
     deps = [
         "//src/mongo:base",
+        "//src/mongo/crypto:jwt",
+        "//src/mongo/crypto:jwt_types",
         "//src/mongo/db:server_base",
         "//src/mongo/util/options_parser"
     ],
 )
+

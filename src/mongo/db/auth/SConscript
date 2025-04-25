@@ -10,6 +10,15 @@ Import(
 
 env = env.Clone()
 
+env.SConscript(
+    dirs=[
+        "oidc",
+    ],
+    exports=[
+        "env",
+    ],
+)
+
 env.Library(
     target="authorization_session_test_fixture",
     source=[
