@@ -2,8 +2,12 @@
 %define         mongo_home /var/lib/mongo
 %define         psmdb_telemetry /usr/local/percona/telemetry/psmdb
 %define         psmdbs_telemetry /usr/local/percona/telemetry/psmdbs
-%if 0%{?amzn} == 2023 || 0%{?rhel} == 9
+
+%if 0%{?amzn} == 2023 || 0%{?rhel} >= 9
 %undefine _debugsource_packages
+# Disable dwz optimization and addition of gdb index options
+%global _find_debuginfo_dwz_opts %{nil}
+%undefine _include_gdb_index
 %endif
 
 # By default a build will be done in normal mode
@@ -43,7 +47,7 @@ BuildRoot:      /var/tmp/%{name}-%{version}-%{release}
 %undefine       _missing_build_ids_terminate_build
 %define         _unpackaged_files_terminate_build 0
 
-%if 0%{?amzn} == 2023 || 0%{?rhel} > 6
+%if 0%{?rhel} == 8
 %global _dwz_low_mem_die_limit    0
 %global _dwz_max_die_limit_x86_64 550000000
 %endif
