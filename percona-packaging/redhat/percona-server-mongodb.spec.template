@@ -6,8 +6,10 @@
 %undefine _debugsource_packages
 %endif
 
-%if  0%{?amzn} == 2023 || 0%{?rhel} == 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 8
+# Disable dwz optimization and addition of gdb index options
 %global _find_debuginfo_dwz_opts %{nil}
+%undefine _include_gdb_index
 %endif
 
 # By default a build will be done in normal mode
@@ -46,11 +48,6 @@ Requires(preun):  /sbin/service
 BuildRoot:      /var/tmp/%{name}-%{version}-%{release}
 %undefine       _missing_build_ids_terminate_build
 %define         _unpackaged_files_terminate_build 0
-
-%if  0%{?amzn} == 2023 || 0%{?rhel} > 6
-%global _dwz_low_mem_die_limit    0
-%global _dwz_max_die_limit_x86_64 550000000
-%endif
 
 %define         src_dir @@SRC_DIR@@
 
