@@ -439,6 +439,11 @@ private:
     // Returns error if a sync source cannot be found.
     StatusWith<HostAndPort> _chooseSyncSource_inlock();
 
+    // Denylist sync source and return status with InvalidSyncSource
+    Status _invalidSyncSource_inlock(const HostAndPort& syncSource,
+                                     Seconds denylistDuration,
+                                     const std::string& context);
+
     void _appendInitialSyncProgressMinimal_inlock(BSONObjBuilder* bob) const;
     BSONObj _getInitialSyncProgress_inlock() const;
 
