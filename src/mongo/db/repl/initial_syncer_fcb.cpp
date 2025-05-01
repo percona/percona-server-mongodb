@@ -90,6 +90,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/logv2/log.h"
@@ -681,8 +682,8 @@ void InitialSyncerFCB::_chooseSyncSourceCallback(
         if (chooseSyncSourceAttempt + 1 >= chooseSyncSourceMaxAttempts) {
             onCompletionGuard->setResultAndCancelRemainingWork_inlock(
                 lock,
-                Status(ErrorCodes::InitialSyncOplogSourceMissing,
-                       "No valid sync source found in current replica set to do an initial sync."));
+                syncSource.getStatus().withContext("Finishing file copy based initial sync "
+                                                   "attempt: could not choose valid sync source"));
             return;
         }
 
@@ -1065,13 +1066,6 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         return;
     }
 
-    // denylist only makes sense if we still have retries left.
-    if (result.getStatus() == ErrorCodes::InvalidSyncSource) {
-        // If the sync source is invalid, we should denylist it for a while.
-        const auto until = (*_attemptExec)->now() + _opts.syncSourceRetryWait * 2;
-        _opts.syncSourceSelector->denylistSyncSource(_syncSource, until);
-    }
-
     _attemptExec = std::make_unique<executor::ScopedTaskExecutor>(
         _exec, Status(ErrorCodes::CallbackCanceled, "Initial Sync Attempt Canceled"));
     _clonerAttemptExec = std::make_unique<executor::ScopedTaskExecutor>(
@@ -1284,7 +1278,69 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                       str::stream() << "No valid sync source available. Our last fetched optime: "
                                     << _lastFetched.toString()};
     }
-    return syncSource;
+
+    StatusWith<HostAndPort> result = syncSource;
+
+    executor::RemoteCommandRequest getParameterRequest(
+        syncSource, "admin", BSON("getParameter" << "*"), nullptr);
+    auto scheduleResult =
+        (*_attemptExec)
+            ->scheduleRemoteCommand(
+                getParameterRequest,
+                [this, &syncSource, &result](
+                    const executor::TaskExecutor::RemoteCommandCallbackArgs& args) {
+                    if (!args.response.isOK()) {
+                        LOGV2_WARNING(128448,
+                                      "getParameter command task failed",
+                                      "error"_attr = redact(args.response.status));
+                        result = Status(ErrorCodes::InvalidSyncSource,
+                                        str::stream()
+                                            << "getParameter command failed on sync source, error: "
+                                            << args.response.status.toString());
+                        return;
+                    }
+                    // validate critical parameters
+                    bool dirPerDB =
+                        args.response.data.getBoolField("storageGlobalParams.directoryperdb");
+                    if (dirPerDB != storageGlobalParams.directoryperdb) {
+                        LOGV2_WARNING(128449,
+                                      "Invalid sync source",
+                                      "error"_attr = "directoryperdb mismatch");
+                        result = _invalidSyncSource_inlock(
+                            syncSource, Seconds(60), "directoryperdb mismatch");
+                        return;
+                    }
+                    bool dirForIndexes =
+                        args.response.data.getBoolField("wiredTigerDirectoryForIndexes");
+                    if (dirForIndexes != wiredTigerGlobalOptions.directoryForIndexes) {
+                        LOGV2_WARNING(128450,
+                                      "Invalid sync source",
+                                      "error"_attr = "wiredTigerDirectoryForIndexes mismatch");
+                        result = _invalidSyncSource_inlock(
+                            syncSource, Seconds(60), "wiredTigerDirectoryForIndexes mismatch");
+                        return;
+                    }
+                });
+    if (!scheduleResult.isOK()) {
+        return scheduleResult.getStatus().withContext(
+            str::stream() << "Failed to schedule getParameter command to sync source: "
+                          << syncSource.toString());
+    }
+    // Block until the command is executed.
+    (*_attemptExec)->wait(scheduleResult.getValue());
+
+    return result;
+}
+
+Status InitialSyncerFCB::_invalidSyncSource_inlock(const HostAndPort& syncSource,
+                                                   Seconds denylistDuration,
+                                                   const std::string& context) {
+    // If the sync source is invalid, we should denylist it for a while.
+    const auto until = (*_attemptExec)->now() + denylistDuration;
+    _opts.syncSourceSelector->denylistSyncSource(syncSource, until);
+    return Status{ErrorCodes::InvalidSyncSource,
+                  str::stream() << "Invalid sync source: " << syncSource.toString()}
+        .withContext(context);
 }
 
 namespace {
@@ -1541,7 +1597,10 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
             // "Location50886: The existing backup cursor must be closed before $backupCursor can
             // succeed." replace error code with InvalidSyncSource to ensure fallback to logical
             if (fetchStatus->get().code() == 50886) {
-                *fetchStatus = Status{ErrorCodes::InvalidSyncSource, ex.reason()};
+                *fetchStatus = _invalidSyncSource_inlock(
+                    _syncSource,
+                    Seconds{5},
+                    str::stream() << "Error fetching backup cursor entries: " << ex.reason());
             }
         }
     };
