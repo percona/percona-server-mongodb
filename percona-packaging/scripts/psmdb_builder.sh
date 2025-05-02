@@ -1078,7 +1078,6 @@ build_tarball(){
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
     if [ "x${RHEL}" != "x2023" ]; then
-        install_mongodbtoolchain
         export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
         pip install --upgrade pip
     fi
