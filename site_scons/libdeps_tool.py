@@ -57,6 +57,7 @@ import enum
 import copy
 import json
 import os
+import os.path
 import sys
 import glob
 import textwrap
@@ -79,6 +80,7 @@ from SCons.Script import COMMAND_LINE_TARGETS
 
 
 class Constants:
+    LibAuditImplCached = "LIBAUDITIMPL_cached"
     Libdeps = "LIBDEPS"
     LibdepsCached = "LIBDEPS_cached"
     LibdepsDependents = "LIBDEPS_DEPENDENTS"
@@ -647,8 +649,25 @@ class LibdepsVisitationMark(enum.IntEnum):
     MARKED_PRIVATE = 1
     MARKED_PUBLIC = 2
 
+class AuditLibCache:
+    __instance = None
 
-def _libdeps_visit_private(n, marked, walking, debug=False):
+    def __new__(cls, *args, **kwargs):
+        if cls.__instance is None:
+            cls.__instance = super().__new__(cls)
+            cls.__instance._cache = {}
+        return cls.__instance
+
+    def insert(self, builder_id, audit_impl_dep):
+        # breakpoint()
+        self._cache[builder_id]=audit_impl_dep
+        # breakpoint()
+
+    def get(self, builder_id):
+        # breakpoint()
+        return self._cache.get(builder_id, None)
+
+def _libdeps_visit_private(n, audit, marked, walking, debug=False):
     if marked[n.target_node] >= LibdepsVisitationMark.MARKED_PRIVATE:
         return
 
@@ -657,9 +676,15 @@ def _libdeps_visit_private(n, marked, walking, debug=False):
 
     walking.add(n.target_node)
 
+    if os.path.split(n.listed_name)[1] == 'audit':
+        print("seen audit")
+        # breakpoint()
+        if len(audit) == 0:
+            audit.append(AuditLibCache().get(id(n.target_node.builder)))
+
     try:
         for child in _get_sorted_direct_libdeps(n.target_node):
-            _libdeps_visit_private(child, marked, walking)
+            _libdeps_visit_private(child, audit, marked, walking)
 
         marked[n.target_node] = LibdepsVisitationMark.MARKED_PRIVATE
 
@@ -672,7 +697,7 @@ def _libdeps_visit_private(n, marked, walking, debug=False):
         walking.remove(n.target_node)
 
 
-def _libdeps_visit(n, tsorted, marked, walking, debug=False):
+def _libdeps_visit(n, tsorted, audit, marked, walking, debug=False):
     # The marked dictionary tracks which sorts of visitation a node
     # has received. Values for a given node can be UNMARKED/absent,
     # MARKED_PRIVATE, or MARKED_PUBLIC. These are to be interpreted as
@@ -692,6 +717,13 @@ def _libdeps_visit(n, tsorted, marked, walking, debug=False):
     if marked[n.target_node] == LibdepsVisitationMark.MARKED_PUBLIC:
         return
 
+    # print(f"`n`: {type(n)}")
+    # print(f"`n.target_node`: type={type(n.target_node)}; value={str(n.target_node)}")
+    # print(f"`n.dependency_type`: {type(n.dependency_type)}")
+    # print(f"`n.listed_name`: type={type(n.listed_name)}; value={str(n.listed_name)}")
+    # if "absl_time_zone" in n.listed_name:
+    #     breakpoint()
+
     # The walking set is used for cycle detection. We record all our
     # predecessors in our depth-first search, and if we observe one of
     # our predecessors as a child, we know we have a cycle.
@@ -699,6 +731,12 @@ def _libdeps_visit(n, tsorted, marked, walking, debug=False):
         raise DependencyCycleError(n.target_node)
 
     walking.add(n.target_node)
+
+    if os.path.split(n.listed_name)[1] == 'audit':
+        print("seen audit")
+        # breakpoint()
+        if len(audit) == 0:
+            audit.append(AuditLibCache().get(id(n.target_node.builder)))
 
     if debug:
         print(f"    * {n.dependency_type} => {n.listed_name}")
@@ -723,11 +761,11 @@ def _libdeps_visit(n, tsorted, marked, walking, debug=False):
 
         for child in children:
             if child.dependency_type != deptype.Private:
-                _libdeps_visit(child, tsorted, marked, walking, debug)
+                _libdeps_visit(child, tsorted, audit, marked, walking, debug)
 
         for child in children:
             if child.dependency_type == deptype.Private:
-                _libdeps_visit_private(child, marked, walking, debug)
+                _libdeps_visit_private(child, audit, marked, walking, debug)
 
         marked[n.target_node] = LibdepsVisitationMark.MARKED_PUBLIC
         tsorted.append(n.target_node)
@@ -741,36 +779,66 @@ def _libdeps_visit(n, tsorted, marked, walking, debug=False):
         walking.remove(n.target_node)
 
 
-def _get_libdeps(node, debug=False):
+def _get_libdeps(node, debug=False, with_audit=False):
     """Given a SCons Node, return its library dependencies, topologically sorted.
 
     Computes the dependencies if they're not already cached.
     """
 
     cache = getattr(node.attributes, Constants.LibdepsCached, None)
+    audit_impl_cache = getattr(node.attributes, Constants.LibAuditImplCached, None)
     if cache is not None:
         if debug:
             print("  Cache:")
             for dep in cache:
                 print(f"    * {str(dep)}")
-        return cache
+            print("  Audit Impl Cache:")
+            for dep in audit_impl_cache:
+                print(f"    * {str(dep)}")
+        if with_audit:
+            result = []
+            result.extend(cache)
+            result.extend(audit_impl_cache)
+            return result
+        else:
+            return cache
+        # if with_audit:
+        #     return [cache, audit_impl_cache]
+        # else:
+        #     return cache
 
     if debug:
         print(f"  Edges:")
 
     tsorted = []
+    audit = []
 
     marked = defaultdict(lambda: LibdepsVisitationMark.UNMARKED)
     walking = set()
 
     for child in _get_sorted_direct_libdeps(node):
         if child.dependency_type != deptype.Interface:
-            _libdeps_visit(child, tsorted, marked, walking, debug=debug)
+            _libdeps_visit(child, tsorted, audit, marked, walking, debug=debug)
     tsorted.reverse()
+    # if with_audit:
+    #     tsorted.extend(audit)
 
     setattr(node.attributes, Constants.LibdepsCached, tsorted)
-    return tsorted
-
+    setattr(node.attributes, Constants.LibAuditImplCached, audit)
+    # if node.name == 'stub_test':
+    #     breakpoint()
+    if with_audit:
+        result = []
+        result.extend(tsorted)
+        result.extend(audit)
+        return result
+    else:
+        return tsorted
+    # return tsorted, audit if with_audit else tsorted
+    # if with_audit:
+    #     return [tsorted, audit]
+    # else:
+    #     return tsorted
 
 def _missing_syslib(name):
     return Constants.MissingLibdep + name
@@ -801,7 +869,22 @@ def update_scanner(env, builder_name=None, debug=False):
             result = old_scanner.function(node, env, path)
         else:
             result = []
-        result.extend(_get_libdeps(node, debug=debug))
+        result.extend(_get_libdeps(node, debug=debug, with_audit=builder_name=='Program'))
+        # breakpoint()
+        # libdeps, audit = _get_libdeps(node, debug=debug, with_audit=builder_name=='Program')
+        # result.extend(libdeps)
+        # if audit:
+        #     result.extend(audit)
+        # breakpoint()
+
+        # print(type(node))
+        # print(str(node))
+        # if 'stub_test' in str(node):
+        #     result.append(dependency(
+        #         env.File('$BUILD_DIR/db/libaudit_impl.so'),
+        #         deptype.Public,
+        #         '$BUILD_DIR/mongo/db/audit_impl'))
+
         if debug:
             print(f"  Build dependencies:")
             print('\n'.join(['    * ' + str(t) for t in result]))
@@ -812,14 +895,14 @@ def update_scanner(env, builder_name=None, debug=False):
                                                    path_function=path_function)
 
 
-def get_libdeps(source, target, env, for_signature, debug=False):
+def get_libdeps(source, target, env, for_signature, debug=False, with_audit=False):
     """Implementation of the special _LIBDEPS environment variable.
 
     Expands to the library dependencies for a target.
     """
 
     target = env.Flatten([target])
-    return _get_libdeps(target[0], debug=debug)
+    return _get_libdeps(target[0], debug=debug, with_audit=with_audit)
 
 
 def get_libdeps_objs(source, target, env, for_signature, debug=False):
@@ -1069,6 +1152,23 @@ def libdeps_emitter(target, source, env, debug=False, builder=None, visibility_m
         print(f"    interface: {env.get(Constants.LibdepsInterface, None)}")
         print(f"    no_inherit: {env.get(Constants.LibdepsNoInherit, None)}")
         print(f"  Edges:")
+
+    if 'audit_impl' in target[0].name:
+        # breakpoint()
+        # AuditLibCache().insert(
+        #     id(env["BUILDERS"][builder]),
+        #     dependency(target[0], deptype.Public, 'audit_impl'))
+        AuditLibCache().insert(id(env["BUILDERS"][builder]), target[0])
+        # breakpoint()
+
+    # audit_impl_node = _get_node_with_ixes(env, 'audit_impl', builder)
+    # if target[0].get_tpath() == audit_impl_node.get_tpath():
+    #     target[0].builder.target_scaner.audit_impl_dep = dependency(
+    #         audit_impl_node, dependency.Public. 'audit_impl')
+    #     breakpoint()
+
+    # if 'conftest' not in str(target[0]):
+    #     print(f"builder_id: {id(target[0].builder)}")
 
     libdeps = get_libdeps_nodes(env, target, builder, debug, visibility_map)
 

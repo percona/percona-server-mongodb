@@ -1,0 +1,33 @@
+# -*- mode: python -*-
+
+Import([
+    "env",
+    "has_option",
+])
+
+env = env.Clone()
+
+env.Library(
+    target='stub',
+    source=[
+        'stub.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/db/audit',
+    ],
+    LIBDEPS_PRIVATE=[
+        # '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
+        # '$BUILD_DIR/mongo/db/server_base',
+    ],
+)
+
+env.CppUnitTest(
+    target='stub_test',
+    source=[
+        'stub_test.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/unittest/unittest',
+        'stub',
+    ],
+)
