@@ -211,6 +211,48 @@ var variants = [
             },
         ],
     },
+    { // string is an invalid 'requestScopes' field
+        expected_error: "BadValue: Bad value for parameter.*: BSON field '.*.requestScopes' is the wrong type 'string', expected type 'array'",
+        config: [
+            {
+                issuer: issuer,
+                audience: "audience",
+                clientId: "client",
+                authNamePrefix: "test",
+                useAuthorizationClaim: false,
+                requestScopes: "foo",
+            },
+        ],
+    },
+    { // number is an invalid 'requestScopes' field
+        expected_error: "BadValue: Bad value for parameter.*: BSON field '.*.requestScopes' is the wrong type 'int', expected type 'array'",
+        config: [
+            {
+                issuer: issuer,
+                audience: "audience",
+                clientId: "client",
+                authNamePrefix: "test",
+                useAuthorizationClaim: false,
+                requestScopes: 2,
+            },
+        ],
+    },
+    { // number is an invalid 'requestScopes' element
+        expected_error: "BadValue: Bad value for parameter.*: BSON field '.*.requestScopes.1' is the wrong type 'int', expected type 'string'",
+        config: [
+            {
+                issuer: issuer,
+                audience: "audience",
+                clientId: "client",
+                authNamePrefix: "test",
+                useAuthorizationClaim: false,
+                requestScopes: [
+                    "foo",
+                    2
+                ],
+            },
+        ],
+    },
 ];
 
 for (const variant of variants) {
