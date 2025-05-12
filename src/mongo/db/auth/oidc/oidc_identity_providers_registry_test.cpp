@@ -62,7 +62,7 @@ private:
 
 class OidcIdentityProvidersRegistryTest : public unittest::Test {
 protected:
-    std::unique_ptr<OidcIdentityProvidersRegistry> create_registry(
+    std::unique_ptr<OidcIdentityProvidersRegistryImpl> create_registry(
         const std::vector<OidcIdentityProviderConfig>& configs) {
         return std::make_unique<OidcIdentityProvidersRegistryImpl>(
             &_periodicRunnerMock, _jwksFetcherFactoryMock, configs);
