@@ -12,6 +12,7 @@ env = env.Clone()
 
 env.SConscript(
     dirs=[
+        "external",
         "oidc",
     ],
     exports=[
