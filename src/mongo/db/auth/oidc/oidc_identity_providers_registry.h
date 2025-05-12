@@ -33,31 +33,19 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include <boost/optional.hpp>
 #include <memory>
-#include <ranges>
-#include <unordered_map>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "mongo/crypto/jwk_manager.h"
-#include "mongo/crypto/jwks_fetcher_factory.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
-#include "mongo/util/periodic_runner.h"
+#include "mongo/db/service_context.h"
 
 namespace mongo {
 
 // Constructs and registers the OIDC identity providers registry in the given ServiceContext.
 void initializeOidcIdentityProvidersRegistry(ServiceContext* serviceContext);
 
-/**
- * Holds and manages all configured OIDC identity providers, along with associated
- * JWK managers and periodic tasks.
- *
- * This registry is constructed once during server initialization and remains
- * immutable for the lifetime of the ServiceContext. The identity provider
- * configurations, associated JWK managers, and periodic jobs are fixed at
- * construction time and not meant to be modified at runtime.
- *
- * If support for dynamic updates or reloads is required in the future,
- * appropriate synchronization must be implemented to ensure thread safety.
- */
 class OidcIdentityProvidersRegistry {
 public:
     // Returns the registry instance from service context decoration.
@@ -67,55 +55,25 @@ public:
     static void set(ServiceContext* serviceContext,
                     std::unique_ptr<OidcIdentityProvidersRegistry> registry);
 
-    /**
-     * Constructs the OidcIdentityProvidersRegistry with a const lvalue reference to the given
-     * configuration list.
-     *
-     * The registry does not take ownership of the configuration vector and assumes it remains valid
-     * for the entire lifetime of the registry instance. The caller must ensure that the passed-in
-     * vector is not a temporary and that it outlives the registry.
-     *
-     * Binding a temporary (e.g., via `{}` or `std::vector<...>{}`) to this constructor will compile
-     * but results in undefined behavior due to a dangling reference.
-     */
-    explicit OidcIdentityProvidersRegistry(PeriodicRunner* periodicRunner,
-                                           const JWKSFetcherFactory& jwksFetcherFactory,
-                                           const std::vector<OidcIdentityProviderConfig>& configs);
+    virtual ~OidcIdentityProvidersRegistry() = default;
 
     // Returns the OIDC identity provider configuration for the given issuer and audience.
-    boost::optional<const OidcIdentityProviderConfig&> getIdp(
-        const std::string& issuer, const std::vector<std::string>& audience) const;
+    virtual boost::optional<const OidcIdentityProviderConfig&> getIdp(
+        const std::string& issuer, const std::vector<std::string>& audience) const = 0;
 
     // Returns the identity provider configuration associated with the given principal name,
     // or boost::none if no match is found.
-    boost::optional<const OidcIdentityProviderConfig&> getIdpForPrincipalName(
-        boost::optional<std::string_view> principalName) const;
+    virtual boost::optional<const OidcIdentityProviderConfig&> getIdpForPrincipalName(
+        boost::optional<std::string_view> principalName) const = 0;
 
     // Returns true if there is at least one identity provider with human flows support.
-    bool hasIdpWithHumanFlowsSupport() const {
-        return !_hfidps.empty();
-    }
+    virtual bool hasIdpWithHumanFlowsSupport() const = 0;
 
     // Returns the number of identity providers with human flows support.
-    size_t numOfIdpsWithHumanFlowsSupport() const {
-        return _hfidps.size();
-    }
+    virtual size_t numOfIdpsWithHumanFlowsSupport() const = 0;
 
     // Returns a JWKManager instance for a given issuer.
-    std::shared_ptr<crypto::JWKManager> getJWKManager(const std::string& issuer) const;
-
-private:
-    // All configured identity providers.
-    const std::vector<OidcIdentityProviderConfig>& _idps;
-
-    // Subset of identity providers that support human login flows.
-    std::ranges::subrange<decltype(_idps.begin())> _hfidps;
-
-    // JWK managers per issuer.
-    std::unordered_map<std::string, std::shared_ptr<crypto::JWKManager>> _jwkManagers;
-
-    // Anchors for periodic background jobs per identity provider.
-    std::vector<PeriodicJobAnchor> _jobs;
+    virtual std::shared_ptr<crypto::JWKManager> getJWKManager(const std::string& issuer) const = 0;
 };
 
 }  // namespace mongo
