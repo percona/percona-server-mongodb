@@ -89,20 +89,27 @@ export class OIDCIdPMock {
         // The '/device/authorize' is used by the device authorization flow.
         // The tests are re-using this flow to test OIDC authentication.
         // The '/token' endpoint is used by both flows.
-        this.assert_http_request("POST", "/device/authorize");
+
+        let auth_search = "/device/authorize"
+        if (client_id) {
+            auth_search += ".*client_id=" + client_id + ".*";
+        }
+
+        if (scopes) {
+            let scopes_search = ".*scope=.*";
+            for (const scope of scopes) {
+                scopes_search += scope + ".*";
+            }
+            auth_search += scopes_search;
+        }
+
+        this.assert_http_request("POST", auth_search);
+
         let token_search = "/token";
         if (client_id) {
             token_search += ".*client_id=" + client_id + ".*";
         }
 
-        if (scopes) {
-            let scopes_search = ".*scope=";
-            for (const scope of scopes) {
-                scopes_search += scope + ".*";
-            }
-            // TODO: Uncomment when implemented on the server side.
-            // token_search += scopes_search;
-        }
         this.assert_http_request("POST", token_search);
     }
 
