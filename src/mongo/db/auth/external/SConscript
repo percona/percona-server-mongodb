@@ -33,3 +33,14 @@ env.Library(
         'sasl2',
     ],
 )
+
+
+env.CppUnitTest(
+    target='sasl_oidc_test',
+    source=[
+        'sasl_oidc_server_mechanism_test.cpp',
+    ],
+    LIBDEPS=[
+        'externalsaslauth',
+    ],
+)

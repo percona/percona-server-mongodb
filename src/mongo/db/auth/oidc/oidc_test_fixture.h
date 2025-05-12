@@ -35,6 +35,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/crypto/jwks_fetcher_factory.h"
 #include "mongo/db/auth/oidc/match_pattern.h"
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/util/periodic_runner.h"
@@ -69,9 +70,9 @@ public:
 template <typename T>
 class SetFieldWithValue : public SetField {
 public:
-    explicit SetFieldWithValue(T value) : _value(value) {}
+    explicit SetFieldWithValue(const T& value) : _value(value) {}
 
-    T getValue() const {
+    const T& getValue() const {
         return _value;
     }
 
@@ -94,6 +95,28 @@ struct SetSupportsHumanFlows : public SetFieldWithValue<bool> {
 
     void set(OidcIdentityProviderConfig& config) override {
         config.setSupportsHumanFlows(getValue());
+    }
+};
+
+// Setter for the 'clientId' field
+struct SetClientId : public SetFieldWithValue<std::string> {
+    using SetFieldWithValue::SetFieldWithValue;
+
+    void set(OidcIdentityProviderConfig& config) override {
+        config.setClientId(StringData{getValue()});
+    }
+};
+
+// Setter for the 'requestScopes' field
+struct SetRequestScopes : public SetFieldWithValue<std::vector<std::string>> {
+    using SetFieldWithValue::SetFieldWithValue;
+
+    void set(OidcIdentityProviderConfig& config) override {
+        std::vector<StringData> scopes;
+        for (const auto& scope : getValue()) {
+            scopes.emplace_back(scope);
+        }
+        config.setRequestScopes(scopes);
     }
 };
 
@@ -214,6 +237,55 @@ public:
 
 private:
     mutable std::vector<std::string> _issuers;
+};
+
+// Mock for OidcIdentityProvidersRegistry to control the behavior of the registry
+class OidcIdentityProvidersRegistryMock : public OidcIdentityProvidersRegistry {
+public:
+    void setIdp(const OidcIdentityProviderConfig& config) {
+        _config = config;
+    }
+
+    void setNumOfIdpsWithHumanFlowsSupport(size_t numOfIdpsWithHumanFlowsSupport) {
+        _numOfIdpsWithHumanFlowsSupport = numOfIdpsWithHumanFlowsSupport;
+    }
+
+    void setJWKManager(std::shared_ptr<crypto::JWKManager> jwkManager) {
+        _jwkManager = std::move(jwkManager);
+    }
+
+    boost::optional<const OidcIdentityProviderConfig&> getIdp(
+        const std::string& issuer, const std::vector<std::string>& audience) const override {
+        return _config.map(
+            [](const OidcIdentityProviderConfig& cfg) -> const OidcIdentityProviderConfig& {
+                return cfg;
+            });
+    }
+
+    boost::optional<const OidcIdentityProviderConfig&> getIdpForPrincipalName(
+        boost::optional<std::string_view> principalName) const override {
+        return _config.map(
+            [](const OidcIdentityProviderConfig& cfg) -> const OidcIdentityProviderConfig& {
+                return cfg;
+            });
+    }
+
+    bool hasIdpWithHumanFlowsSupport() const override {
+        return _numOfIdpsWithHumanFlowsSupport > 0;
+    }
+
+    size_t numOfIdpsWithHumanFlowsSupport() const override {
+        return _numOfIdpsWithHumanFlowsSupport;
+    }
+
+    std::shared_ptr<crypto::JWKManager> getJWKManager(const std::string& issuer) const override {
+        return _jwkManager;
+    }
+
+protected:
+    boost::optional<OidcIdentityProviderConfig> _config;
+    size_t _numOfIdpsWithHumanFlowsSupport{0};
+    std::shared_ptr<crypto::JWKManager> _jwkManager{nullptr};
 };
 
 }  // namespace mongo
