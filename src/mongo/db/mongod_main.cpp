@@ -73,7 +73,7 @@
 #include "mongo/db/auth/auth_op_observer.h"
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_logger.h"
-#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry_impl.h"
 #include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_catalog.h"
 #include "mongo/db/catalog/collection_impl.h"
