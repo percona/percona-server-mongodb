@@ -129,6 +129,10 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
     // a client ID exists for the identity providers supporting human flows.
     invariant(idp->getClientId().has_value());
     response.setClientId(*idp->getClientId());
+
+    // add optional 'requestScopes' field to the response
+    response.setRequestScopes(idp->getRequestScopes());
+
     BSONObj b{response.toBSON()};
     return std::tuple{false, std::string{b.objdata(), static_cast<std::size_t>(b.objsize())}};
 }
