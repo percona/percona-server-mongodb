@@ -32,7 +32,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include <memory>
 #include <vector>
 
-#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry_impl.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/auth/oidc/oidc_test_fixture.h"
 #include "mongo/db/service_context.h"
@@ -64,7 +64,7 @@ class OidcIdentityProvidersRegistryTest : public unittest::Test {
 protected:
     std::unique_ptr<OidcIdentityProvidersRegistry> create_registry(
         const std::vector<OidcIdentityProviderConfig>& configs) {
-        return std::make_unique<OidcIdentityProvidersRegistry>(
+        return std::make_unique<OidcIdentityProvidersRegistryImpl>(
             &_periodicRunnerMock, _jwksFetcherFactoryMock, configs);
     }
 
@@ -84,7 +84,7 @@ DEATH_TEST_REGEX(OidcIdentityProvidersRegistryTest, Invariant_PeriodicRunner, "I
     JWKSFetcherFactoryMock jwksFetcherFactoryMock;
     std::vector<OidcIdentityProviderConfig> config{};
 
-    OidcIdentityProvidersRegistry registry(nullptr, jwksFetcherFactoryMock, config);
+    OidcIdentityProvidersRegistryImpl registry(nullptr, jwksFetcherFactoryMock, config);
 }
 
 // Test for setting and getting the OIDC identity providers registry with a service context.
