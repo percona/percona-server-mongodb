@@ -47,6 +47,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/sasl_mechanism_registry.h"
 #include "mongo/db/auth/user.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/service_context.h"
 
 
 namespace mongo {
