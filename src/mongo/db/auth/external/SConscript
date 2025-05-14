@@ -41,6 +41,7 @@ env.CppUnitTest(
         'sasl_oidc_server_mechanism_test.cpp',
     ],
     LIBDEPS=[
+        '$BUILD_DIR/mongo/db/auth/oidc/oidc',
         'externalsaslauth',
     ],
 )

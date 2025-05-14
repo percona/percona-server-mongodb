@@ -2794,7 +2794,7 @@ env.Library(
         'audit_impl' if has_option('audit') else [],
         'audit_options' if has_option('audit') else [],
         'auth/auth_op_observer',
-        'auth/oidc/oidc_server_parameters',
+        'auth/oidc/oidc',
         'catalog/catalog_helpers',
         'catalog/catalog_impl',
         'catalog/collection_crud',
