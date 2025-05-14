@@ -16,7 +16,11 @@ env.Library(
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/crypto/jwt',
         '$BUILD_DIR/mongo/db/server_base',
+        '$BUILD_DIR/mongo/db/service_context',
         '$BUILD_DIR/mongo/util/options_parser/options_parser',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/util/periodic_runner',
     ],
 )
 
@@ -26,6 +30,7 @@ env.CppUnitTest(
         'oidc_identity_providers_registry_test.cpp',
     ],
     LIBDEPS=[
+        '$BUILD_DIR/mongo/util/periodic_runner',
         'oidc',
     ],
 )

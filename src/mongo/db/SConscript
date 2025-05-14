@@ -2507,7 +2507,7 @@ env.Library(
         '$BUILD_DIR/mongo/util/signal_handlers',
         '$BUILD_DIR/mongo/watchdog/watchdog_mongod',
         'auth/auth_op_observer',
-        'auth/oidc/oidc_server_parameters',
+        'auth/oidc/oidc',
         'catalog/catalog_helpers',
         'catalog/catalog_impl',
         'catalog/health_log',
