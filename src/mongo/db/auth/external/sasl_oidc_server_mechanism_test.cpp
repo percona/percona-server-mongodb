@@ -34,6 +34,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 
 #include "mongo/db/auth/oidc/oidc_test_fixture.h"
+#include "mongo/db/service_context.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/framework.h"
 
