@@ -9,7 +9,7 @@ include:
   - filename: evergreen/system_perf/shared_tasks.yml
     module: dsi
   - filename: evergreen/system_perf/6.0/genny_tasks.yml
-    module: genny
+    module: dsi
 
 ## Parameters for parameterized builds (see https://github.com/evergreen-ci/evergreen/wiki/Parameterized-Builds)
 parameters:
@@ -33,7 +33,6 @@ variables:
     - dsi
     - genny
     - workloads
-    - linkbench
     - linkbench2
     - tsbs
     - mongo-perf
@@ -68,11 +67,6 @@ modules:
   - name: workloads
     owner: 10gen
     repo: workloads
-    prefix: ${workdir}/src
-    branch: master
-  - name: linkbench
-    owner: 10gen
-    repo: linkbench
     prefix: ${workdir}/src
     branch: master
   - name: linkbench2
