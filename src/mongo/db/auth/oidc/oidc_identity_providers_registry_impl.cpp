@@ -64,16 +64,12 @@ OidcIdentityProvidersRegistryImpl::OidcIdentityProvidersRegistryImpl(
                                      std::make_shared<crypto::JWKManager>(
                                          jwksFetcherFactory.makeJWKSFetcher(idp.getIssuer())));
 
-        // Skip the periodic job creation if the issuer is already present in the map or the
-        // JWKSPollSecs is not configured.
-        if (!res.second || idp.getJWKSPollSecs() <= 0) {
+        // Skip the periodic job creation if the issuer is already present in the map.
+        if (!res.second) {
             continue;
         }
 
-
-        // Create and start a periodic job which polls the JWKs from the issuer.
-        const auto period = Milliseconds{Seconds(idp.getJWKSPollSecs())};
-        auto job = [issuer = res.first->first, jwkManager = res.first->second](Client* client) {
+        auto loadKeys = [issuer = res.first->first, jwkManager = res.first->second](Client*) {
             Status status = jwkManager->loadKeys();
             if (!status.isOK()) {
                 LOGV2_WARNING(29140,
@@ -83,9 +79,18 @@ OidcIdentityProvidersRegistryImpl::OidcIdentityProvidersRegistryImpl(
             }
         };
 
+        // If JWKSPollSecs is not configured, skip the periodic job creation but load the keys once.
+        if (idp.getJWKSPollSecs() <= 0) {
+            loadKeys(nullptr);
+            continue;
+        }
+
+        // Create and start a periodic job which polls the JWKs from the issuer.
+        const auto period = Milliseconds{Seconds(idp.getJWKSPollSecs())};
+
         _jobs.emplace_back(periodicRunner->makeJob(
             PeriodicRunner::PeriodicJob(fmt::format("JWKSPollJob[{}]", idp.getIssuer()),
-                                        std::move(job),
+                                        std::move(loadKeys),
                                         period,
                                         /* isKillableByStepdown = */ false)));
         _jobs.back().start();
