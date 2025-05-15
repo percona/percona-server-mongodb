@@ -39,6 +39,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/framework.h"
+#include "mongo/util/base64.h"
 
 
 namespace mongo {
@@ -66,6 +67,12 @@ protected:
         const std::vector<OidcIdentityProviderConfig>& configs) {
         return std::make_unique<OidcIdentityProvidersRegistryImpl>(
             &_periodicRunnerMock, _jwksFetcherFactoryMock, configs);
+    }
+
+    // Creates a sample JWK with a given key ID (kid).
+    BSONObj create_jwk(const std::string& kid) {
+        return BSON("kty" << "RSA" << "kid" << kid << "e" << "AQAB" << "n"
+                          << base64::encode(std::string("X", 256)));
     }
 
     PeriodicRunnerMock _periodicRunnerMock;
@@ -529,6 +536,48 @@ TEST_F(OidcIdentityProvidersRegistryTest, JWKSPollSecs_JobsStarted) {
 
     ASSERT_EQ(_periodicRunnerMock.jobs[1]->getPeriod(), Milliseconds(Seconds(2)));
     ASSERT_TRUE(_periodicRunnerMock.jobs[1]->isStarted());
+}
+
+// Test for fetching JWKs on initialization if JWKSPollSecs is set to 0
+TEST_F(OidcIdentityProvidersRegistryTest, JWKSFetchedOnInit) {
+    const auto issuer1 = "https://issuer1";
+    const auto issuer2 = "https://issuer2";
+
+    std::vector configs{create_config(issuer1, "prefix", "audience1", SetJWKSPollSecs(0)),
+                        create_config(issuer2, "prefix", "audience2", SetJWKSPollSecs(0))};
+
+    const auto jwk1 = create_jwk("kid1");
+    const auto jwk2 = create_jwk("kid2");
+    const auto jwk3 = create_jwk("kid3");
+
+    _jwksFetcherFactoryMock.setJWKSet(issuer1, crypto::JWKSet{{jwk1}});
+    _jwksFetcherFactoryMock.setJWKSet(issuer2, crypto::JWKSet{{jwk2, jwk3}});
+
+    auto registry = create_registry(configs);
+
+    // expect no jobs created ...
+    ASSERT_EQ(_periodicRunnerMock.jobs.size(), 0);
+
+    // .. but expect JWKs fetched on init
+    ASSERT_EQ(_jwksFetcherFactoryMock.getFetchCount(issuer1), 1);
+    ASSERT_EQ(_jwksFetcherFactoryMock.getFetchCount(issuer2), 1);
+
+    // expect valid JWKs are cached in the JWKManager
+    const auto& jwks1 = registry->getJWKManager(issuer1)->getKeys();
+    ASSERT_EQ(jwks1.size(), 1);
+    ASSERT_TRUE(jwks1.contains("kid1"));
+    ASSERT_BSONOBJ_EQ(jwks1.at("kid1"), jwk1);
+
+    const auto& jwks2 = registry->getJWKManager(issuer2)->getKeys();
+    ASSERT_EQ(jwks2.size(), 2);
+    ASSERT_TRUE(jwks2.contains("kid2"));
+    ASSERT_BSONOBJ_EQ(jwks2.at("kid2"), jwk2);
+    ASSERT_TRUE(jwks2.contains("kid3"));
+    ASSERT_BSONOBJ_EQ(jwks2.at("kid3"), jwk3);
+
+    // expect keys were not fetched when getting the keys
+    ASSERT_EQ(_jwksFetcherFactoryMock.getFetchCount(issuer1), 1);
+    ASSERT_EQ(_jwksFetcherFactoryMock.getFetchCount(issuer2), 1);
 }
 
 }  // namespace

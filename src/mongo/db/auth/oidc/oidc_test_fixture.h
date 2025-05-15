@@ -209,20 +209,57 @@ public:
     std::vector<std::shared_ptr<ControllableJobMock>> jobs;
 };
 
-// Mock for JWKSFetcherFactory to control the creation of JWKSFetcher instances
+// Mock for JWKSFetcherFactory to control the creation of JWKSFetcher instances.
+// The makeJWKSFetcher returns an unique_ptr to a JWKSFetcher instance so it's
+// not safe to keep a reference/pointer to it after the call. That is why the
+// JWKSFetcheMock takes a reference to the JWKSFetcherFactoryMock instance and redirects
+// all calls to the fetch method to the factory mock. This allows us to control the returned value
+// without having to keep a reference to the JWKSFetcher instance.
 struct JWKSFetcherFactoryMock : public JWKSFetcherFactory {
     class JWKSFetcherMock : public crypto::JWKSFetcher {
     public:
+        explicit JWKSFetcherMock(const JWKSFetcherFactoryMock& factoryMock, std::string issuer)
+            : _factoryMock(factoryMock), _issuer(issuer) {}
+
         crypto::JWKSet fetch() override {
-            FAIL("JWKSFetcherMock::fetch() is not implemented");
-            return {};
+
+            return _factoryMock.fetch(_issuer);
         }
+
+    private:
+        const JWKSFetcherFactoryMock& _factoryMock;
+        std::string _issuer;
     };
 
 public:
     std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer) const override {
         _issuers.emplace_back(issuer);
-        return std::make_unique<JWKSFetcherMock>();
+        return std::make_unique<JWKSFetcherMock>(*this, issuer.toString());
+    }
+
+    // Mocked fetch method to return a JWKSet for the given issuer
+    crypto::JWKSet fetch(const std::string& issuer) const {
+        // this will throw an exception which should be caught by the JWKManager.
+        uassert(ErrorCodes::KeyNotFound,
+                str::stream() << "No JWK for issuer " << issuer,
+                _jwkSets.contains(issuer));
+
+        auto &jwkPair = _jwkSets.at(issuer);
+        jwkPair.second++;
+        return jwkPair.first;
+    }
+
+    std::size_t getFetchCount(const std::string& issuer) const {
+        uassert(ErrorCodes::KeyNotFound,
+                str::stream() << "No JWK for issuer " << issuer,
+                _jwkSets.contains(issuer));
+
+        return _jwkSets.at(issuer).second;
+    }
+
+    // Sets the JWKSet for the given issuer to be returned by the fetch method
+    void setJWKSet(const std::string& issuer, const crypto::JWKSet& jwkSet) {
+        _jwkSets[issuer] = std::make_pair(jwkSet, 0);
     }
 
     // Returns true if a fetcher was created for the given issuer
@@ -237,6 +274,7 @@ public:
 
 private:
     mutable std::vector<std::string> _issuers;
+    mutable std::unordered_map<std::string, std::pair<crypto::JWKSet, std::size_t>> _jwkSets;
 };
 
 // Mock for OidcIdentityProvidersRegistry to control the behavior of the registry
