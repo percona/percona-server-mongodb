@@ -2666,6 +2666,7 @@ env.Library(
         'audit_commands' if has_option('audit') else [],
         'auth/auth_op_observer',
         'auth/authserver',
+        'auth/oidc/oidc_commands',
         'bson/dotted_path_support',
         'catalog/catalog_impl',
         'catalog/collection_options',
