@@ -40,47 +40,24 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-class SaslOidcServerMechanismTest : public unittest::Test {
-public:
-    SaslOidcServerMechanismTest()
-        : _serviceContext(std::make_unique<ServiceContext>()),
-          _client(_serviceContext->getService()->makeClient("SaslOidcServerMechanismTestClient")),
-          _operationContext(_serviceContext->makeOperationContext(_client.get())) {}
-
-    void setUp() override {
-        OidcIdentityProvidersRegistry::set(_serviceContext.get(),
-                                           std::make_unique<OidcIdentityProvidersRegistryMock>());
-    }
-
-    void tearDown() override {
-        OidcIdentityProvidersRegistry::set(_serviceContext.get(), nullptr);
-    }
-
+class SaslOidcServerMechanismTest : public OidcTestFixture {
 protected:
     // Runs the step and transforms the result to BSONObj.
     StatusWith<BSONObj> runStep(const BSONObj& input) {
         StringData bsonData(input.objdata(), input.objsize());
-        auto result = _mech.step(_operationContext.get(), bsonData);
+        auto result = _mech.step(operationContext(), bsonData);
         if (!result.isOK()) {
             return result.getStatus();
         }
         return BSONObj(result.getValue().data()).getOwned();
     }
 
-    OidcIdentityProvidersRegistryMock& registryMock() {
-        return static_cast<OidcIdentityProvidersRegistryMock&>(
-            OidcIdentityProvidersRegistry::get(_serviceContext.get()));
-    }
-
     SaslOidcServerMechanism _mech{"admin"};
-    std::unique_ptr<ServiceContext> _serviceContext;
-    ServiceContext::UniqueClient _client;
-    ServiceContext::UniqueOperationContext _operationContext;
 };
 
 // Test for proper handling input BSON object parsing error.
 TEST_F(SaslOidcServerMechanismTest, invalid_input) {
-    auto result = _mech.step(_operationContext.get(), "");
+    auto result = _mech.step(operationContext(), "");
     ASSERT_FALSE(result.isOK());
     ASSERT_EQ(result.getStatus().code(), ErrorCodes::InvalidBSON);
 }

@@ -152,4 +152,12 @@ std::shared_ptr<crypto::JWKManager> OidcIdentityProvidersRegistryImpl::getJWKMan
     return {};
 }
 
+void OidcIdentityProvidersRegistryImpl::visitJWKManagers(JWKManagerVisitor visitor) const {
+    invariant(visitor);
+
+    for (const auto& [issuer, manager] : _jwkManagers) {
+        visitor(issuer, manager);
+    }
+}
+
 }  // namespace mongo

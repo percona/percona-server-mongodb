@@ -74,6 +74,12 @@ public:
 
     // Returns a JWKManager instance for a given issuer.
     virtual std::shared_ptr<crypto::JWKManager> getJWKManager(const std::string& issuer) const = 0;
+
+    using JWKManagerVisitor =
+        std::function<void(const std::string& issuer, std::shared_ptr<crypto::JWKManager> manager)>;
+
+    // Visits all JWK managers in the registry and applies the visitor function to each.
+    virtual void visitJWKManagers(JWKManagerVisitor visitor) const = 0;
 };
 
 }  // namespace mongo
