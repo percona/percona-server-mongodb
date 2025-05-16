@@ -3267,6 +3267,7 @@ mongo_cc_library(
         "//src/mongo/db/admission:queues_server_status_section",
         "//src/mongo/db/auth:auth_op_observer",
         "//src/mongo/db/auth:authserver",
+        "//src/mongo/db/auth/oidc:oidc_commands",
         "//src/mongo/db/catalog:catalog_impl",
         "//src/mongo/db/catalog:collection_options",
         "//src/mongo/db/catalog:document_validation",

@@ -38,6 +38,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/unittest/assert.h"
+#include "mongo/util/base64.h"
 #include "mongo/util/periodic_runner.h"
 
 namespace mongo {
@@ -209,6 +210,12 @@ public:
     std::vector<std::shared_ptr<ControllableJobMock>> jobs;
 };
 
+// Creates a sample JWK with a given key ID (kid).
+static inline BSONObj create_sample_jwk(const std::string& kid) {
+    return BSON("kty" << "RSA" << "kid" << kid << "e" << "AQAB" << "n"
+                      << base64::encode(std::string("X", 256)));
+}
+
 // Mock for JWKSFetcherFactory to control the creation of JWKSFetcher instances.
 // The makeJWKSFetcher returns an unique_ptr to a JWKSFetcher instance so it's
 // not safe to keep a reference/pointer to it after the call. That is why the
@@ -244,7 +251,7 @@ public:
                 str::stream() << "No JWK for issuer " << issuer,
                 _jwkSets.contains(issuer));
 
-        auto &jwkPair = _jwkSets.at(issuer);
+        auto& jwkPair = _jwkSets.at(issuer);
         jwkPair.second++;
         return jwkPair.first;
     }
@@ -288,8 +295,8 @@ public:
         _numOfIdpsWithHumanFlowsSupport = numOfIdpsWithHumanFlowsSupport;
     }
 
-    void setJWKManager(std::shared_ptr<crypto::JWKManager> jwkManager) {
-        _jwkManager = std::move(jwkManager);
+    void setJWKManager(const std::string& issuer, std::shared_ptr<crypto::JWKManager> jwkManager) {
+        _jwkManagers.emplace(make_pair(issuer, std::move(jwkManager)));
     }
 
     boost::optional<const OidcIdentityProviderConfig&> getIdp(
@@ -317,13 +324,64 @@ public:
     }
 
     std::shared_ptr<crypto::JWKManager> getJWKManager(const std::string& issuer) const override {
-        return _jwkManager;
+        if (_jwkManagers.contains(issuer)) {
+            return _jwkManagers.at(issuer);
+        }
+        return nullptr;
+    }
+
+    void visitJWKManagers(JWKManagerVisitor visitor) const override {
+        invariant(visitor);
+        for (const auto& [issuer, jwkManager] : _jwkManagers) {
+            visitor(issuer, jwkManager);
+        }
     }
 
 protected:
     boost::optional<OidcIdentityProviderConfig> _config;
     size_t _numOfIdpsWithHumanFlowsSupport{0};
-    std::shared_ptr<crypto::JWKManager> _jwkManager{nullptr};
+    // NOTE: Maintain alphabetical order, some tests can rely on it.
+    std::map<std::string, std::shared_ptr<crypto::JWKManager>> _jwkManagers;
+};
+
+class OidcTestFixture : public unittest::Test {
+public:
+    OidcTestFixture()
+        : _serviceContext(ServiceContext::make()),
+          _client(_serviceContext->getService()->makeClient("OidcTestFixtureClient")),
+          _operationContext(_serviceContext->makeOperationContext(_client.get())) {}
+
+    void setUp() override {
+        OidcIdentityProvidersRegistry::set(_serviceContext.get(),
+                                           std::make_unique<OidcIdentityProvidersRegistryMock>());
+    }
+
+    void tearDown() override {
+        OidcIdentityProvidersRegistry::set(_serviceContext.get(), nullptr);
+    }
+
+protected:
+    OidcIdentityProvidersRegistryMock& registryMock() {
+        return static_cast<OidcIdentityProvidersRegistryMock&>(
+            OidcIdentityProvidersRegistry::get(_serviceContext.get()));
+    }
+
+    OperationContext* operationContext() {
+        return _operationContext.get();
+    }
+
+    ServiceContext* serviceContext() {
+        return _serviceContext.get();
+    }
+
+    Client* client() {
+        return _client.get();
+    }
+
+private:
+    ServiceContext::UniqueServiceContext _serviceContext;
+    ServiceContext::UniqueClient _client;
+    ServiceContext::UniqueOperationContext _operationContext;
 };
 
 }  // namespace mongo
