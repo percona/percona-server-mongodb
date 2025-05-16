@@ -313,7 +313,6 @@ public:
     }
 };
 
-
 /**
  * Helper class for DocumentSources which reference a foreign collection.
  */
