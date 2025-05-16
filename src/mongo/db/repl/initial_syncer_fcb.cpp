@@ -158,6 +158,11 @@ constexpr StringData kDBPathFieldName = "dbpath"_sd;
 constexpr StringData kFileNameFieldName = "filename"_sd;
 constexpr StringData kFileSizeFieldName = "fileSize"_sd;
 
+// denylist duration for temporary issues
+constexpr Seconds kDenylistTemporary{5};
+// denylist duration for persistent issues
+constexpr Seconds kDenylistPersistent{60};
+
 // Used to reset the oldest timestamp during initial sync to a non-null timestamp.
 const Timestamp kTimestampOne(0, 1);
 
@@ -183,6 +188,15 @@ std::string getPathRelativeTo(const std::string& path, const std::string& basePa
 
     std::replace(result.begin(), result.end(), '\\', '/');
     return result;
+}
+
+/**
+ * Parse OpTime from BSONObj cotaining 'ts' and 't' fields.
+ */
+OpTime parseOpTimeFromBSON(const BSONObj& obj) {
+    auto status = OpTime::parseFromOplogEntry(obj);
+    uassertStatusOKWithContext(status, "Failed to parse OpTime from BSON");
+    return status.getValue();
 }
 }  // namespace
 
@@ -348,7 +362,6 @@ void InitialSyncerFCB::_cancelRemainingWork_inlock() {
     _cancelHandle_inlock(_fetchBackupCursorHandle);
     _cancelHandle_inlock(_transferFileHandle);
     _cancelHandle_inlock(_currentHandle);
-    _cancelHandle_inlock(_getLastRollbackIdHandle);
 
     if (_sharedData) {
         // We actually hold the required lock, but the lock object itself is not passed through.
@@ -830,7 +843,15 @@ void InitialSyncerFCB::_rollbackCheckerResetCallback(
     // schedule $backupCursor on the sync source
     status = _scheduleWorkAndSaveHandle_inlock(
         [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
-            _fetchBackupCursorCallback(args, onCompletionGuard);
+            const int extensionsUsed = 0;
+            _fetchBackupCursorCallback(args, extensionsUsed, onCompletionGuard, [] {
+                AggregateCommandRequest aggRequest(
+                    NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin),
+                    {BSON("$backupCursor" << BSONObj())});
+                // We must set a writeConcern on internal commands.
+                aggRequest.setWriteConcern(WriteConcernOptions());
+                return aggRequest.toBSON(BSONObj());
+            });
         },
         &_fetchBackupCursorHandle,
         "_fetchBackupCursorCallback");
@@ -1307,7 +1328,7 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                                       "Invalid sync source",
                                       "error"_attr = "directoryperdb mismatch");
                         result = _invalidSyncSource_inlock(
-                            syncSource, Seconds(60), "directoryperdb mismatch");
+                            syncSource, kDenylistPersistent, "directoryperdb mismatch");
                         return;
                     }
                     bool dirForIndexes =
@@ -1316,8 +1337,10 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                         LOGV2_WARNING(128450,
                                       "Invalid sync source",
                                       "error"_attr = "wiredTigerDirectoryForIndexes mismatch");
-                        result = _invalidSyncSource_inlock(
-                            syncSource, Seconds(60), "wiredTigerDirectoryForIndexes mismatch");
+                        result =
+                            _invalidSyncSource_inlock(syncSource,
+                                                      kDenylistPersistent,
+                                                      "wiredTigerDirectoryForIndexes mismatch");
                         return;
                     }
                 });
@@ -1408,7 +1431,7 @@ Status InitialSyncerFCB::_moveFiles(const boost::filesystem::path& sourceDir,
 
         return Status::OK();
     } catch (const fs::filesystem_error& e) {
-        return Status(ErrorCodes::UnknownError, e.what());
+        return {ErrorCodes::UnknownError, e.what()};
     }
 }
 
@@ -1516,8 +1539,10 @@ Status InitialSyncerFCB::_killBackupCursor_inlock() {
 // ShardMergeRecipientService::Instance::_openBackupCursor
 void InitialSyncerFCB::_fetchBackupCursorCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    const int extensionsUsed,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
-    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+    std::function<BSONObj()> createRequestObj) noexcept try {
     stdx::lock_guard<Latch> lock(_mutex);
     auto status = _checkForShutdownAndConvertStatus_inlock(
         callbackArgs, "error executing backup cusrsor on the sync source");
@@ -1526,14 +1551,8 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
         return;
     }
 
-    const auto aggregateCommandRequestObj = [] {
-        AggregateCommandRequest aggRequest(
-            NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin),
-            {BSON("$backupCursor" << BSONObj())});
-        // We must set a writeConcern on internal commands.
-        aggRequest.setWriteConcern(WriteConcernOptions());
-        return aggRequest.toBSON(BSONObj());
-    }();
+    // empty _remoteFiles before each batch received from $backupCursor/$backupCursorExtend
+    _remoteFiles.clear();
 
     LOGV2_DEBUG(128407, 1, "Opening backup cursor on sync source", "syncSource"_attr = _syncSource);
 
@@ -1552,9 +1571,7 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
                     auto checkpointTimestamp = metadata["checkpointTimestamp"].timestamp();
                     _backupId = UUID(uassertStatusOK(UUID::parse(metadata[kBackupIdFieldName])));
                     _remoteDBPath = metadata[kDBPathFieldName].String();
-                    auto status = OpTime::parseFromOplogEntry(metadata["oplogEnd"].Obj());
-                    invariant(status.isOK());
-                    _oplogEnd = status.getValue();
+                    _oplogEnd = parseOpTimeFromBSON(metadata["oplogEnd"].Obj());
                     _backupCursorInfo = std::make_unique<BackupCursorInfo>(
                         data.cursorId, data.nss, checkpointTimestamp);
 
@@ -1563,8 +1580,6 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
                                "backupCursorId"_attr = data.cursorId,
                                "remoteDBPath"_attr = _remoteDBPath,
                                "backupCursorCheckpointTimestamp"_attr = checkpointTimestamp);
-                    // empty _remoteFiles on new sync attempt start
-                    _remoteFiles.clear();
                 } else {
                     auto fileName = doc[kFileNameFieldName].String();
                     auto fileSize = doc[kFileSizeFieldName].numberLong();
@@ -1599,9 +1614,12 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
             if (fetchStatus->get().code() == 50886) {
                 *fetchStatus = _invalidSyncSource_inlock(
                     _syncSource,
-                    Seconds{5},
+                    kDenylistTemporary,
                     str::stream() << "Error fetching backup cursor entries: " << ex.reason());
             }
+        } catch (...) {
+            LOGV2_ERROR(128451, "Exception while fetching backup cursor entries");
+            *fetchStatus = exceptionToStatus();
         }
     };
 
@@ -1609,7 +1627,7 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
         *_attemptExec,
         _syncSource,
         DatabaseName::kAdmin.toString(),
-        aggregateCommandRequestObj,
+        createRequestObj(),
         fetcherCallback,
         // ReadPreferenceSetting::secondaryPreferredMetadata(),
         ReadPreferenceSetting(ReadPreference::PrimaryPreferred).toContainingBSON(),
@@ -1627,7 +1645,7 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
 
     _backupCursorFetcher->onCompletion()
         .thenRunOn(**_attemptExec)
-        .then([this, fetchStatus, onCompletionGuard, &lock] {
+        .then([this, fetchStatus, extensionsUsed, onCompletionGuard, &lock] {
             if (!*fetchStatus) {
                 // the callback was never invoked
                 uasserted(128411, "Internal error running cursor callback in command");
@@ -1644,8 +1662,9 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
 
             // schedule file transfer callback
             status = _scheduleWorkAndSaveHandle_inlock(
-                [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
-                    _transferFileCallback(args, 0lu, onCompletionGuard);
+                [this, extensionsUsed, onCompletionGuard](
+                    const executor::TaskExecutor::CallbackArgs& args) {
+                    _transferFileCallback(args, 0LU, extensionsUsed, onCompletionGuard);
                 },
                 &_transferFileHandle,
                 str::stream() << "_transferFileCallback-" << 0);
@@ -1666,6 +1685,7 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
 void InitialSyncerFCB::_transferFileCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     std::size_t fileIdx,
+    const int extensionsUsed,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
     // stdx::lock_guard<Latch> lock(_mutex);
@@ -1714,24 +1734,18 @@ void InitialSyncerFCB::_transferFileCallback(
         auto nextFileIdx = fileIdx + 1;
         if (nextFileIdx < _remoteFiles.size()) {
             // schedule next file cloning
-            auto status = _scheduleWorkAndSaveHandle_inlock(
-                [this, nextFileIdx, onCompletionGuard](
+            status = _scheduleWorkAndSaveHandle_inlock(
+                [this, nextFileIdx, extensionsUsed, onCompletionGuard](
                     const executor::TaskExecutor::CallbackArgs& args) {
-                    _transferFileCallback(args, nextFileIdx, onCompletionGuard);
+                    _transferFileCallback(args, nextFileIdx, extensionsUsed, onCompletionGuard);
                 },
                 &_transferFileHandle,
-                str::stream() << "_transferFileCallback-" << nextFileIdx);
+                str::stream() << "_transferFileCallback-" << nextFileIdx << "-" << extensionsUsed);
             if (!status.isOK()) {
                 onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
                 return;
             }
         } else {
-            // all files are cloned - close backup cursor
-            auto status = _killBackupCursor_inlock();
-            if (!status.isOK()) {
-                onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
-                return;
-            }
             if (MONGO_unlikely(initialSyncHangAfterCloningFiles.shouldFail())) {
                 // This could have been done with a scheduleWorkAt but this is used only by JS tests
                 // where we run with multiple threads so it's fine to spin on this thread. This log
@@ -1746,18 +1760,125 @@ void InitialSyncerFCB::_transferFileCallback(
                 }
                 lock.lock();
             }
-            // schedule next task
-            status = _scheduleWorkAndSaveHandle_inlock(
-                [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
-                    _switchToDownloadedCallback(args, onCompletionGuard);
-                },
-                &_currentHandle,
-                "_switchToDownloadedCallback");
+            LOGV2_DEBUG(128452, 1, "Finished cloning files from backup cursor");
+            // finished cloning files from the current batch returned by
+            // $backupCursor/$backupCursorExtend
+            // update _lastApplied to match current on disk state
+            _lastApplied.opTime = _oplogEnd;
+            _lastApplied.wallTime = Date_t::fromDurationSinceEpoch(Seconds{_oplogEnd.getSecs()});
+            // at this point we need to check if last applied is in correct range to decide if
+            // we need to extend backup cursor. But before that we need to retrieve current last
+            // applied optime from the sync source. To do that we schedule replSetGetStatus command
+            executor::RemoteCommandRequest replSetGetStatusRequest(
+                _syncSource, "admin", BSON("replSetGetStatus" << 1), nullptr);
+            auto scheduleResult =
+                (*_attemptExec)
+                    ->scheduleRemoteCommand(
+                        replSetGetStatusRequest,
+                        [this, extensionsUsed, onCompletionGuard](
+                            const executor::TaskExecutor::RemoteCommandCallbackArgs& args) {
+                            _compareLastAppliedCallback(args, extensionsUsed, onCompletionGuard);
+                        });
+            status = scheduleResult.getStatus();
             if (!status.isOK()) {
                 onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
                 return;
             }
+            _currentHandle = scheduleResult.getValue();
         }
+    }
+} catch (const DBException&) {
+    // Report exception as an initial syncer failure.
+    stdx::unique_lock<Latch> lock(_mutex);
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
+}
+
+void InitialSyncerFCB::_compareLastAppliedCallback(
+    const executor::TaskExecutor::RemoteCommandCallbackArgs& callbackArgs,
+    const int extensionsUsed,
+    // NOLINTNEXTLINE(*-unnecessary-value-param)
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    stdx::unique_lock<Latch> lock(_mutex);
+    auto status = _checkForShutdownAndConvertStatus_inlock(
+        callbackArgs.response.status, "error executing replSetGetStatus on the sync source");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    auto appliedOpTime =
+        parseOpTimeFromBSON(callbackArgs.response.data["optimes"]["appliedOpTime"].Obj());
+    auto lastAppliedTS = appliedOpTime.getTimestamp();
+    LOGV2_DEBUG(128456,
+                1,
+                "Comparing last applied timestamps",
+                "local"_attr = _lastApplied.opTime.getSecs(),
+                "remote"_attr = lastAppliedTS.getSecs());
+    if (_lastApplied.opTime.getSecs() + fileBasedInitialSyncMaxLagSec >= lastAppliedTS.getSecs()) {
+        // The lag is OK, we can conclude the backup cursor loop
+        // file cloning is completed - close backup cursor
+        LOGV2_DEBUG(128453, 1, "The lag is acceptable. Switching to downloaded files");
+        auto status = _killBackupCursor_inlock();
+        if (!status.isOK()) {
+            onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+            return;
+        }
+        // schedule next task
+        status = _scheduleWorkAndSaveHandle_inlock(
+            [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+                _switchToDownloadedCallback(args, onCompletionGuard);
+            },
+            &_currentHandle,
+            "_switchToDownloadedCallback");
+        if (!status.isOK()) {
+            onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        }
+        return;
+    }
+    // The lag is too big, we need to extend the backup cursor
+    if (!(extensionsUsed < fileBasedInitialSyncMaxCyclesWithoutProgress)) {
+        LOGV2_DEBUG(128454, 1, "The lag is too big and no backup cursor extensions left");
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(
+            lock,
+            _invalidSyncSource_inlock(_syncSource,
+                                      kDenylistTemporary,
+                                      str::stream()
+                                          << "No backup cursor extensions left. Node is still "
+                                             "behind sync source more than the allowed lag: "
+                                          << _lastApplied.opTime.getSecs() << " + "
+                                          << fileBasedInitialSyncMaxLagSec << " < "
+                                          << lastAppliedTS.getSecs()));
+        return;
+    }
+
+    LOGV2_DEBUG(128455, 1, "The lag is too big, extending backup cursor");
+    // appliedOpTime is the new _oplogEnd value. We set it here manually because $backupCursorExtend
+    // does not return metadata
+    _oplogEnd = appliedOpTime;
+    // execute $backupCursorExtend to the lastAppliedTS moment
+    status = _scheduleWorkAndSaveHandle_inlock(
+        [this, extensionsUsed, onCompletionGuard, lastAppliedTS](
+            const executor::TaskExecutor::CallbackArgs& args) {
+            _fetchBackupCursorCallback(
+                args,
+                extensionsUsed + 1,
+                onCompletionGuard,
+                [backupId = _backupId, ts = lastAppliedTS] {
+                    AggregateCommandRequest aggRequest(
+                        NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin),
+                        {BSON("$backupCursorExtend" << BSON(
+                                  "backupId"
+                                  << backupId << "timestamp"
+                                  << ts))});  // We must set a writeConcern on internal commands.
+                    aggRequest.setWriteConcern(WriteConcernOptions());
+                    return aggRequest.toBSON(BSONObj());
+                });
+        },
+        &_fetchBackupCursorHandle,
+        "_fetchBackupCursorCallback(extend)");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
     }
 } catch (const DBException&) {
     // Report exception as an initial syncer failure.
@@ -1813,8 +1934,9 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     auto* consistencyMarkers = _replicationProcess->getConsistencyMarkers();
     consistencyMarkers->setMinValid(opCtx.get(),
                                     OpTime{kTimestampOne, repl::OpTime::kUninitializedTerm});
-    // TODO: when extend backup cursor is implemented use the last opTime retrieved from the sync
-    // source
+    // _oplogEnd gets its first value from the metadata returned by $backupCursor
+    // The code around $backupCursorExtend sets _oplogEnd to the appliedOpTime value returned by
+    // replSetGetStatus
     consistencyMarkers->setOplogTruncateAfterPoint(opCtx.get(), _oplogEnd.getTimestamp());
     // clear and reset the initalSyncId
     consistencyMarkers->clearInitialSyncId(opCtx.get());
@@ -2001,10 +2123,6 @@ void InitialSyncerFCB::_finalizeAndCompleteCallback(
         opCtx->getServiceContext()->getStorageEngine()->setJournalListener(journalListener);
     }
 
-    // TODO: set value of _lastApplied or provide another instance of OpTimeAndWallTime
-    // TODO: fix this temporary solution
-    _lastApplied.opTime = _oplogEnd;
-    _lastApplied.wallTime = Date_t::fromMillisSinceEpoch(_oplogEnd.getSecs() * 1000);
     // Successfully complete initial sync
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, _lastApplied);
 } catch (const DBException&) {

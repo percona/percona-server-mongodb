@@ -273,55 +273,45 @@ private:
      *         |
      *         |
      *         V
-     *   _lastOplogEntryFetcherCallbackForDefaultBeginFetchingOpTime() [removed]
+     *   _fetchBackupCursorCallback()<---------------+
+     *         |                                     |
+     *         |                                     |
+     *         |<-------+                            |
+     *         |        |                            |
+     *         |        | (more files to transfer)   |
+     *         |        |                            |
+     *         V        |                            | (lag is too big)
+     *   _transferFileCallback()                     | (execute $backupCursorExtend)
+     *         |                                     |
+     *         |                                     |
+     *         | (all files transferred)             |
+     *         |                                     |
+     *         |                                     |
+     *         V                                     |
+     *    _compareLastAppliedCallback()--------------+
+     *         |
+     *         |
+     *         | (the lag is acceptable)
      *         |
      *         |
      *         V
-     *   _getBeginFetchingOpTimeCallback() [removed]
+     *    _switchToDownloadedCallback()
      *         |
      *         |
      *         V
-     *    _lastOplogEntryFetcherCallbackForBeginApplyingTimestamp() [removed]
+     *    _executeRecovery()
      *         |
      *         |
      *         V
-     *    _fcvFetcherCallback()
+     *    _switchToDummyToDBPathCallback()
      *         |
-     *         |
-     *         +------------------------------+
-     *         |                              |
-     *         |                              |
-     *         V                              V
-     *    _oplogFetcherCallback[removed]  _allDatabaseClonerCallback [removed]
-     *         |                              |
-     *         |                              |
-     *         |                              V
-     *         |                          _lastOplogEntryFetcherCallbackForStopTimestamp() [removed]
-     *         |                              |       |
-     *         |                              |       |
-     *         |            (no ops to apply) |       | (have ops to apply)
-     *         |                              |       |
-     *         |                              |       V
-     *         |                              |   _getNextApplierBatchCallback() [removed]
-     *         |                              |       |                       ^
-     *         |                              |       |                       |
-     *         |                              |       |             (end ts not reached)
-     *         |                              |       |                       |
-     *         |                              |       V                       |
-     *         |                              |   _multiApplierCallback()-----+ [removed]
-     *         |                              |       |
-     *         |                              |       |
-     *         |                        (reached end timestamp)
-     *         |                              |       |
-     *         |                              V       V
-     *         |                _rollbackCheckerCheckForRollbackCallback() [removed]
-     *         |                              |
-     *         |                              |
-     *         +------------------------------+
-     *         |
-     *         |
-     *         V
-     *    _finishInitialSyncAttempt()
+     *         |                                     to _startInitialSyncAttemptCallback()
+     *         V                                            ^
+     *    _finalizeAndCompleteCallback()                    |
+     *         |                                            | (if attempt failed)
+     *         |                                            | (and we have retries left)
+     *         V                                            |
+     *    _finishInitialSyncAttempt()-----------------------+
      *         |
      *         |
      *         V
@@ -361,14 +351,29 @@ private:
      * Callback to execute backup cursor on the sync source
      */
     void _fetchBackupCursorCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
-                                    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+                                    const int extensionsUsed,
+                                    std::shared_ptr<OnCompletionGuard> onCompletionGuard,
+                                    std::function<BSONObj()> createRequestObj) noexcept;
 
     /**
      * Callback to transfer file from the sync source
      */
     void _transferFileCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
                                std::size_t fileIdx,
+                               const int extensionsUsed,
                                std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+
+    /**
+     * Callback to handle result of replSetGetStatus command.
+     *
+     * extracts optimes.appliedOpTime from those results and compares it with our retried optime
+     * executes $backupCursoExtend if necessary and if max cycles is not exhausted
+     * otherwise closes backup cursor and schedules _switchToDownloadedCallback
+     */
+    void _compareLastAppliedCallback(
+        const executor::TaskExecutor::RemoteCommandCallbackArgs& callbackArgs,
+        const int extensionsUsed,
+        std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**
      * Switch to downloaded files and do some cleanup of the 'local' db
@@ -551,6 +556,10 @@ private:
     std::vector<BackupFile> _remoteFiles;                              // TODO:
     UUID _backupId;                                                    // TODO:
     std::string _remoteDBPath;                                         // TODO:
+
+    // This is set in two places:
+    // - to the 'oplogEnd' field from the backup cursor metadata when it is received
+    // - to the last applied optime used as the 'timestamp' parameter in $backupCursorExtend
     OpTime _oplogEnd;                                                  // TODO:
     const std::string _cfgDBPath;                                      // TODO:
     std::unique_ptr<BackupCursorInfo> _backupCursorInfo;               // TODO:
@@ -584,9 +593,6 @@ private:
     // Handle returned from RollbackChecker::reset().
     RollbackChecker::CallbackHandle _getBaseRollbackIdHandle;  // (M)
 
-    // Handle returned from RollbackChecker::checkForRollback().
-    RollbackChecker::CallbackHandle _getLastRollbackIdHandle;  // (M)
-
     // The operation, if any, currently being retried because of a network error.
     InitialSyncSharedData::RetryableOperation _retryingOperation;  // (M)
 
@@ -598,6 +604,12 @@ private:
     HostAndPort _syncSource;                               // (M)
     std::unique_ptr<DBClientConnection> _client;           // (M)
     OpTime _lastFetched;                                   // (MX)
+
+    // The last applied optime and wall clock time.
+    // Updated with the value from the _oplogEnd when we finish cloning batch of files returned by
+    // $backupCursor/$backupCursorExtend. Thus it is initially set to the 'oplogEnd' value returned
+    // by the backup cursor and then updated to the last applied optime which was used as the
+    // 'timestamp' parameter to each $backupCursorExtend invokation.
     OpTimeAndWallTime _lastApplied;                        // (MX)
 
     // Used to signal changes in _state.
