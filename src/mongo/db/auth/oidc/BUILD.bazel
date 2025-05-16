@@ -34,3 +34,15 @@ mongo_cc_library(
         "//src/mongo/util/options_parser"
     ],
 )
+
+mongo_cc_library(
+    name = "oidc_commands",
+    srcs = [
+        "oidc_commands.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:commands",
+        "//src/mongo/db/commands:test_commands_enabled",
+        "oidc",
+    ],
+)
