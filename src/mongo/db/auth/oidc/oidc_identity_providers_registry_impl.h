@@ -90,6 +90,8 @@ public:
 
     std::shared_ptr<crypto::JWKManager> getJWKManager(const std::string& issuer) const override;
 
+    void visitJWKManagers(JWKManagerVisitor visitor) const override;
+
 private:
     // All configured identity providers.
     const std::vector<OidcIdentityProviderConfig>& _idps;

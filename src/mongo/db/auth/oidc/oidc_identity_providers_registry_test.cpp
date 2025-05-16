@@ -39,7 +39,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/framework.h"
-#include "mongo/util/base64.h"
 
 
 namespace mongo {
@@ -67,12 +66,6 @@ protected:
         const std::vector<OidcIdentityProviderConfig>& configs) {
         return std::make_unique<OidcIdentityProvidersRegistryImpl>(
             &_periodicRunnerMock, _jwksFetcherFactoryMock, configs);
-    }
-
-    // Creates a sample JWK with a given key ID (kid).
-    BSONObj create_jwk(const std::string& kid) {
-        return BSON("kty" << "RSA" << "kid" << kid << "e" << "AQAB" << "n"
-                          << base64::encode(std::string("X", 256)));
     }
 
     PeriodicRunnerMock _periodicRunnerMock;
@@ -546,9 +539,9 @@ TEST_F(OidcIdentityProvidersRegistryTest, JWKSFetchedOnInit) {
     std::vector configs{create_config(issuer1, "prefix", "audience1", SetJWKSPollSecs(0)),
                         create_config(issuer2, "prefix", "audience2", SetJWKSPollSecs(0))};
 
-    const auto jwk1 = create_jwk("kid1");
-    const auto jwk2 = create_jwk("kid2");
-    const auto jwk3 = create_jwk("kid3");
+    const auto jwk1 = create_sample_jwk("kid1");
+    const auto jwk2 = create_sample_jwk("kid2");
+    const auto jwk3 = create_sample_jwk("kid3");
 
     _jwksFetcherFactoryMock.setJWKSet(issuer1, crypto::JWKSet{{jwk1}});
     _jwksFetcherFactoryMock.setJWKSet(issuer2, crypto::JWKSet{{jwk2, jwk3}});
@@ -578,6 +571,31 @@ TEST_F(OidcIdentityProvidersRegistryTest, JWKSFetchedOnInit) {
     // expect keys were not fetched when getting the keys
     ASSERT_EQ(_jwksFetcherFactoryMock.getFetchCount(issuer1), 1);
     ASSERT_EQ(_jwksFetcherFactoryMock.getFetchCount(issuer2), 1);
+}
+
+// Test for visiting all JWKManagers in the registry
+TEST_F(OidcIdentityProvidersRegistryTest, VisitAllJWKManagers) {
+    std::vector configs{
+        create_config("https://issuer1", "prefix", "audience1"),
+        create_config("https://issuer1", "prefix", "audience2"),  // same issuer
+        create_config("https://issuer2", "prefix", "audience3"),
+        create_config("https://issuer3", "prefix", "audience4"),
+    };
+
+    auto registry = create_registry(configs);
+
+    std::set<std::string> visitedIssuers;
+    registry->visitJWKManagers([&visitedIssuers](const auto& issuer, const auto& manager) {
+        ASSERT_FALSE(visitedIssuers.contains(issuer));
+        ASSERT_NE(manager, nullptr);
+
+        visitedIssuers.insert(issuer);
+    });
+
+    ASSERT_TRUE(visitedIssuers.contains("https://issuer1"));
+    ASSERT_TRUE(visitedIssuers.contains("https://issuer2"));
+    ASSERT_TRUE(visitedIssuers.contains("https://issuer3"));
+    ASSERT_EQ(visitedIssuers.size(), 3);
 }
 
 }  // namespace
