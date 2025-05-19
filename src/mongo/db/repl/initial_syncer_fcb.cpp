@@ -1309,9 +1309,53 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
 
     StatusWith<HostAndPort> result = syncSource;
 
+    // Check if storage engine on the sync source is wiredTiger.
+    executor::RemoteCommandRequest serverStatusRequest(
+        syncSource, "admin", BSON("serverStatus" << 1), nullptr);
+    auto scheduleResult =
+        (*_attemptExec)
+            ->scheduleRemoteCommand(
+                serverStatusRequest,
+                [this, &syncSource, &result](
+                    const executor::TaskExecutor::RemoteCommandCallbackArgs& args) {
+                    if (!args.response.isOK()) {
+                        LOGV2_WARNING(128457,
+                                      "serverStatus command task failed",
+                                      "error"_attr = redact(args.response.status));
+                        result = Status(ErrorCodes::InvalidSyncSource,
+                                        str::stream()
+                                            << "serverStatus command failed on sync source, error: "
+                                            << args.response.status.toString());
+                        return;
+                    }
+                    // validate storage engine
+                    auto storageEngineName =
+                        args.response.data["storageEngine"].Obj().getStringField("name");
+                    if (storageEngineName != "wiredTiger") {
+                        LOGV2_WARNING(128458,
+                                      "Invalid sync source",
+                                      "error"_attr = "storage engine mismatch");
+                        result = _invalidSyncSource_inlock(
+                            syncSource, kDenylistPersistent, "storage engine mismatch");
+                        return;
+                    }
+                });
+    if (!scheduleResult.isOK()) {
+        return scheduleResult.getStatus().withContext(
+            str::stream() << "Failed to schedule serverStatus command to sync source: "
+                          << syncSource.toString());
+    }
+    // Block until the command is executed.
+    (*_attemptExec)->wait(scheduleResult.getValue());
+
+    if (!result.isOK()) {
+        return result;
+    }
+
+    // Check directoryperdb and wiredTigerDirectoryForIndexes via getParameter command.
     executor::RemoteCommandRequest getParameterRequest(
         syncSource, "admin", BSON("getParameter" << "*"), nullptr);
-    auto scheduleResult =
+    scheduleResult =
         (*_attemptExec)
             ->scheduleRemoteCommand(
                 getParameterRequest,
