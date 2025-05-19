@@ -33,6 +33,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include <fmt/format.h>
 
+#include "mongo/bson/bson_time_support.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/crypto/jws_validated_token.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
@@ -43,10 +44,31 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_attr.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/duration.h"
+#include "mongo/util/time_support.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
 namespace mongo {
+namespace {
+constexpr const char* kIatFieldName = "iat";
+constexpr const char* kAuthTimeFieldName = "auth_time";
+
+boost::optional<Date_t> tokenGetPastDate(const crypto::JWSValidatedToken& token,
+                                         const StringData& fieldName) {
+    if (auto elem{token.getBodyBSON().getField(fieldName)}; elem.ok()) {
+        Date_t d{parseDateFromDurationSinceEpoch<Seconds>(elem)};
+        // The value is copied from the `JWSValidatedToken::validate` method
+        // (please @see the `kNotBeforeSkewMax` variable there)
+        constexpr Seconds kMaxClockSkew{60};
+        uassert(ErrorCodes::BadValue,
+                fmt::format("`{}` is in the future", fieldName),
+                d <= Date_t::now() + kMaxClockSkew);
+        return d;
+    }
+    return {};
+}
+}  // namespace
 
 StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(OperationContext* opCtx,
                                                                             StringData input) {
@@ -120,6 +142,11 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
             fmt::format("No identity provider found for principal name `{}`", *principalName)};
     }
 
+    // Save principal name to compare it with that received in an access token at the step 2
+    if (principalName) {
+        _principalName = *principalName;
+    }
+
     // Reply with the 'issuer' and 'clientId' fields of the chosen IdP.
     auth::OIDCMechanismServerStep1 response;
     response.setIssuer(idp->getIssuer());
@@ -167,27 +194,18 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step2(
     // Validate the token's signature, as well as 'exp' and 'nbf' claims.
     const crypto::JWSValidatedToken token{jwkManager.get(), std::string{request.getJWT()}};
 
-    const auto principalNameField = token.getBodyBSON().getField(idp->getPrincipalName());
-    // Check if the configured claim for principalName exists and is a string.
-    uassert(ErrorCodes::BadValue,
-            fmt::format("{} '{}' claim is missing",
-                        OidcIdentityProviderConfig::kPrincipalNameFieldName,
-                        idp->getPrincipalName()),
-            principalNameField.ok());
-
-    uassert(ErrorCodes::BadValue,
-            fmt::format("{} '{}' claim format is not string",
-                        OidcIdentityProviderConfig::kPrincipalNameFieldName,
-                        idp->getPrincipalName()),
-            principalNameField.type() == BSONType::String);
-
-    std::string authNamePrefix{idp->getAuthNamePrefix()};
-
-    // Store _principalName to return it in UserRequest for authorization manager.
-    _principalName = authNamePrefix + "/" + principalNameField.String();
+    processPrincipalName(*idp, token);
 
     // Store _expirationTime for authorization manager.
     _expirationTime = token.getBody().getExpiration();
+
+    boost::optional<Date_t> authTime{tokenGetPastDate(token, kAuthTimeFieldName)};
+    boost::optional<Date_t> iat{tokenGetPastDate(token, kIatFieldName)};
+    if (authTime && iat) {
+        uassert(ErrorCodes::BadValue,
+                fmt::format("`{}` is more recent than `{}`", kAuthTimeFieldName, kIatFieldName),
+                *authTime <= *iat);
+    }
 
     processAuthorizationClaim(*idp, token);
 
@@ -197,6 +215,36 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step2(
     return std::tuple{true, std::string{}};
 } catch (const DBException& e) {
     return e.toStatus().withContext("Invalid JWT");
+}
+
+void SaslOidcServerMechanism::processPrincipalName(const OidcIdentityProviderConfig& idp,
+                                                   const crypto::JWSValidatedToken& token) {
+    const auto principalNameField = token.getBodyBSON().getField(idp.getPrincipalName());
+    // Check if the configured claim for principalName exists and is a string.
+    uassert(ErrorCodes::BadValue,
+            fmt::format("{} '{}' claim is missing",
+                        OidcIdentityProviderConfig::kPrincipalNameFieldName,
+                        idp.getPrincipalName()),
+            principalNameField.ok());
+
+    uassert(ErrorCodes::BadValue,
+            fmt::format("{} '{}' claim format is not string",
+                        OidcIdentityProviderConfig::kPrincipalNameFieldName,
+                        idp.getPrincipalName()),
+            principalNameField.type() == BSONType::String);
+
+    // If the incoming SASL-step-1 request contained a principal name, verify that name equals to
+    // what `mongod` sees in the token.
+    std::string principalName = principalNameField.String();
+    if (!_principalName.empty()) {
+        uassert(ErrorCodes::BadValue,
+                fmt::format("principal names at SASL step 1 (`{}`) and step 2 (`{}`) are not equal",
+                            _principalName,
+                            principalName),
+                _principalName == principalName);
+    }
+    // Store _principalName to return it in UserRequest for authorization manager
+    _principalName = idp.getAuthNamePrefix() + "/" + principalName;
 }
 
 void SaslOidcServerMechanism::processAuthorizationClaim(const OidcIdentityProviderConfig& idp,
