@@ -1035,6 +1035,13 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
             durationCount<Milliseconds>(_sharedData->getTotalTimeUnreachable(sdLock));
     }
 
+    // Remove temporary directories created by the initial syncer.
+    {
+        boost::filesystem::path cfgDBPath(_cfgDBPath);
+        boost::system::error_code ec;
+        boost::filesystem::remove_all(cfgDBPath / ".initialsync", ec);
+    }
+
     if (MONGO_unlikely(failAndHangInitialSync.shouldFail())) {
         LOGV2(128441, "failAndHangInitialSync fail point enabled");
         failAndHangInitialSync.pauseWhileSet();
