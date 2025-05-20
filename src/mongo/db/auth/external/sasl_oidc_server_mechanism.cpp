@@ -136,11 +136,11 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
 
     // Choose the IdP configuration for a given principal name.
     auto idp = oidcIdPRegistry.getIdpForPrincipalName(principalName);
-    if (!idp.has_value()) {
-        return Status{
-            ErrorCodes::BadValue,
-            fmt::format("No identity provider found for principal name `{}`", *principalName)};
-    }
+    uassert(ErrorCodes::BadValue,
+            (principalName
+                 ? fmt::format("No identity provider found for principal name `{}`", *principalName)
+                 : "No identity provider found for unspecified principal name"),
+            idp.has_value());
 
     // Save principal name to compare it with that received in an access token at the step 2
     if (principalName) {
