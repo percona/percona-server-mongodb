@@ -47,7 +47,7 @@ const oidcProvider = {
     test.create_user("alpha/bravo", [{role: "readWrite", db: "test_db"}]);
 
     let conn = test.create_conn();
-    // The `mongo` client initiates a SASL conversation (step 1) with `mognod` providiing principal
+    // The `mongo` client initiates a SASL conversation (step 1) with `mongod` providing principal
     // name "bravo", which is remembered by `mongod`, and gets identity provider URL in response.
     // Upon calling the URL, the `mongo` client gets an access token with principal name "charlie"
     // (please see `idp_config.token.payload.sub` value) from the identity provider. When `mongo`
