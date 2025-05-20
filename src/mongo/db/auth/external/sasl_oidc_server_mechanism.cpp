@@ -55,7 +55,7 @@ constexpr const char* kIatFieldName = "iat";
 constexpr const char* kAuthTimeFieldName = "auth_time";
 
 boost::optional<Date_t> tokenGetPastDate(const crypto::JWSValidatedToken& token,
-                                         const StringData& fieldName) {
+                                         StringData fieldName) {
     if (auto elem{token.getBodyBSON().getField(fieldName)}; elem.ok()) {
         Date_t d{parseDateFromDurationSinceEpoch<Seconds>(elem)};
         // The value is copied from the `JWSValidatedToken::validate` method
