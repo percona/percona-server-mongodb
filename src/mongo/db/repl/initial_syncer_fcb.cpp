@@ -1309,10 +1309,67 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
 
     StatusWith<HostAndPort> result = syncSource;
 
+    // Check if sync source supports FCBIS.
+    executor::RemoteCommandRequest buildInfoRequest(
+        syncSource, "admin", BSON("buildInfo" << 1), nullptr);
+    auto scheduleResult =
+        (*_attemptExec)
+            ->scheduleRemoteCommand(
+                buildInfoRequest,
+                [this, &syncSource, &result](
+                    const executor::TaskExecutor::RemoteCommandCallbackArgs& args) {
+                    if (!args.response.isOK()) {
+                        LOGV2_WARNING(128459,
+                                      "buildInfo command task failed",
+                                      "error"_attr = redact(args.response.status));
+                        result = Status(ErrorCodes::InvalidSyncSource,
+                                        str::stream()
+                                            << "buildInfo command failed on sync source, error: "
+                                            << args.response.status.toString());
+                        return;
+                    }
+                    // check build info
+                    bool fcbisSupported = false;
+                    if (args.response.data.hasField("psmdbVersion")) {
+                        if (auto proFeatures = args.response.data.getField("proFeatures");
+                            !proFeatures.eoo()) {
+                            for (auto&& feature : proFeatures.Obj()) {
+                                if (feature.String() == "FCBIS") {
+                                    fcbisSupported = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (!fcbisSupported) {
+                        LOGV2_WARNING(
+                            128460,
+                            "Invalid sync source",
+                            "error"_attr =
+                                "sync source does not support file copy-based initial sync");
+                        result = _invalidSyncSource_inlock(
+                            syncSource,
+                            kDenylistPersistent,
+                            "sync source does not support file copy-based initial sync");
+                        return;
+                    }
+                });
+    if (!scheduleResult.isOK()) {
+        return scheduleResult.getStatus().withContext(
+            str::stream() << "Failed to schedule buildInfo command to sync source: "
+                          << syncSource.toString());
+    }
+    // Block until the command is executed.
+    (*_attemptExec)->wait(scheduleResult.getValue());
+
+    if (!result.isOK()) {
+        return result;
+    }
+
     // Check if storage engine on the sync source is wiredTiger.
     executor::RemoteCommandRequest serverStatusRequest(
         syncSource, "admin", BSON("serverStatus" << 1), nullptr);
-    auto scheduleResult =
+    scheduleResult =
         (*_attemptExec)
             ->scheduleRemoteCommand(
                 serverStatusRequest,
