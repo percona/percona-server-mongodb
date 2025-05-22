@@ -1,5 +1,7 @@
 import { OIDCIdPMock } from 'jstests/oidc/lib/oidc_idp_mock.js';
 
+Random.setRandomSeed();
+
 /**
  * Helper function to check if the expected log matches the actual log.
  *
@@ -66,6 +68,17 @@ export class OIDCFixture {
         this.admin_conn = null;
         this.admin = null;
         this.last_log_date = new Date();
+        this.last_audit_log_date = new Date();
+        this.audit_path = null;
+    }
+
+    /**
+     * Allocate a unique audit path for the audit log.
+     *
+     * @returns {string} - The allocated audit path.
+     */
+    static allocate_audit_path() {
+        return MongoRunner.dataPath + "audit_log_" + Random.rand().toString() + ".json";
     }
 
     /**
@@ -79,18 +92,31 @@ export class OIDCFixture {
     }
 
     /**
-     * 
+     * Create the options object for the MongoDB server.
+     *
      * @param {object} oidcProviders - The OIDC providers configuration object for mongod.
+     * @param {string} auditPath - The path to the audit log file (optional).
+     *                            If not provided, audit logging will be disabled.
      * @returns {object} - The options object for the MongoDB server.
      */
-    static create_options(oidcProviders) {
-        return {
+    static create_options(oidcProviders, auditPath = null) {
+        let config = {
             auth: "",
             setParameter: {
                 authenticationMechanisms: "SCRAM-SHA-256,MONGODB-OIDC",
                 oidcIdentityProviders: JSON.stringify(oidcProviders),
             }
         };
+
+        if (auditPath) {
+            config = Object.merge(config, {
+                auditDestination: "file",
+                auditFormat: "JSON",
+                auditPath: auditPath,
+            });
+        }
+
+        return config;
     }
 
     /**
@@ -148,17 +174,24 @@ export class OIDCFixture {
      * - creates an admin user with root privileges,
      * - sets the OIDCIdPAuthCallback to handle authentication callbacks.
      *
+     * @param {boolean} with_audit - If true, enables audit logging.
+     * 
      * NOTE: The SCRAM-SHA-256 mechanism is specified to allow admin authentication.
      *       The admin session is created so that it is possible to run admin commands
      *       on the server (e.g. getLog). It can also be used to create roles for the user.
      */
-    setup() {
+    setup(with_audit = false) {
         print("OIDCFixture.setup")
-        var options = OIDCFixture.create_options(this.oidc_providers);
+
+        if (with_audit) {
+            this.audit_path = OIDCFixture.allocate_audit_path();
+        }
+
         for (const idp_url in this.idps) {
             this.idps[idp_url].start();
         }
 
+        const options = OIDCFixture.create_options(this.oidc_providers, this.audit_path);
         this.admin_conn = MongoRunner.runMongod(options);
         this.admin = this.admin_conn.getDB("admin");
         assert.commandWorked(this.admin.runCommand(
@@ -194,7 +227,8 @@ export class OIDCFixture {
     }
 
     /**
-     * Check if the expected log exists in the global log.
+     * Check if the expected log exists in the provided array with logs with respect to the
+     * last processed date.
      *
      * This function searches the global log for a specific log entry that matches the expected log.
      * It check if all fields from the expectedLog object exist in the log entry.
@@ -208,28 +242,78 @@ export class OIDCFixture {
      * }
      * This will check if there is a log entry with the message "Successfully authenticated" and
      * the attribute "mechanism" set to "MONGODB-OIDC" and "user" set to "user1".
+     * @param {object[]} logs - Array of log objects to search in.
      * @param {object} expectedLog - The expected log object to check for.
-     * @returns {boolean} - Returns true if the expected log exists, false otherwise.
+     * @param {Date} lastDate - The date of the last processed log entry.
+     * @param {function} getDate - Function to extract the date from the log entry.
+     * @returns {object} - Returns pair including a boolean which indicates if the expected log exists,
+     * and the date of found element.
      */
-    checkLogExists(expectedLog) {
-        const log =
-            assert.commandWorked(this.admin.runCommand({ getLog: "global" })).log;
-
-        return log.some(element => {
-            const logJson = JSON.parse(element);
-            const logDate = new Date(logJson["t"]["$date"]);
-            if (logDate <= this.last_log_date) {
+    static checkLogExistsWithDate(logs, expectedLog, lastDate, getDate) {
+        const res = logs.find(element => {
+            const logDate = getDate(element);
+            if (logDate <= lastDate) {
                 // Ignore logs not newer than the last log date
                 return false;
             }
-            var found = checkExpectedLog(expectedLog, logJson);
+            const found = checkExpectedLog(expectedLog, element);
             if (found) {
-                print("OIDCFixture.checkLogExists: found: ", JSON.stringify(logJson));
-                this.last_log_date = logDate;
+                print("OIDCFixture.checkLogExists: found: ", JSON.stringify(element));
+                lastDate = logDate;
             }
 
             return found;
-        })
+        });
+
+        return { res, lastDate };
+    }
+
+    /**
+     * Check if the expected log exists in the global log.
+     *
+     * @param {object} expectedLog - The expected log object to check for.
+     * @returns True if the expected log exists, false otherwise.
+     */
+    checkLogExists(expectedLog) {
+        const logs =
+            assert.commandWorked(this.admin.runCommand({ getLog: "global" })).log.map(element => JSON.parse(element));
+
+        const result = OIDCFixture.checkLogExistsWithDate(logs, expectedLog, this.last_log_date, element => {
+            new Date(element["t"]["$date"]);
+        });
+
+        if (result.res) {
+            this.last_log_date = result.lastDate;
+        }
+
+        return result.res;
+    }
+
+    /**
+     * Check if the expected log exists in the audit log.
+     *
+     * @param {object} expectedLog - The expected log object to check for.
+     * @returns True if the expected log exists, false otherwise.
+     */
+    checkAuditLogExists(expectedLog) {
+        if (!this.audit_path) {
+            return false;
+        }
+
+        let auditLogs = [];
+        cat(this.audit_path).split('\n').filter(line => line.length > 0).forEach(line => {
+            const logJson = parseJsonCanonical(line);
+            auditLogs.push(logJson);
+        });
+
+        const result = OIDCFixture.checkLogExistsWithDate(auditLogs, expectedLog, this.last_audit_log_date, element => {
+            new Date(element["ts"]);
+        });
+
+        if (result.res) {
+            this.last_audit_log_date = result.lastDate;
+        }
+        return result.res;
     }
 
     /**

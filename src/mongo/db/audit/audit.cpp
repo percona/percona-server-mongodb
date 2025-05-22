@@ -745,9 +745,12 @@ namespace audit {
             return;
         }
 
-        const BSONObj params = BSON("user" << event.getUser() << "db" << event.getDatabase()
-                                           << "mechanism" << event.getMechanism());
-        _auditEvent(client, "authenticate", params, event.getResult(), false);
+        BSONObjBuilder params;
+        params << "user" << event.getUser().getName();
+        params << "db" << toString(event.getUser().getDatabaseName());
+        params << "mechanism" << event.getMechanism();
+        event.appendExtraInfo(&params);
+        _auditEvent(client, "authenticate", params.done(), event.getResult(), false);
     }
 
     void logCommandAuthzCheck(Client* client,
