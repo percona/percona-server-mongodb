@@ -188,7 +188,14 @@ void paramDeserialize(OidcIdentityProvidersServerParameter& param, const BSONArr
     for (std::size_t i{0u}; const BSONElement& elem : arr) {
         IDLParserContext ctx{str::stream() << kParameterName << "[" << i++ << "]"};
         ctx.checkAndAssertType(elem, mongo::Object);
-        param._data.push_back(OidcIdentityProviderConfig::parse(ctx, elem.Obj()));
+        auto config{OidcIdentityProviderConfig::parse(ctx, elem.Obj())};
+
+        // The default value for array fields is not supported by IDL,
+        // so the default value is set here manually.
+        if (!config.getLogClaims().has_value()) {
+            config.setLogClaims(std::vector<StringData>{"iss", "sub"});
+        }
+        param._data.push_back(std::move(config));
     }
     validate(param);
 }
