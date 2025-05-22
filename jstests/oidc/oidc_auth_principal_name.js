@@ -36,7 +36,7 @@ var oidcProviderBase = {
 
     var conn = test.create_conn();
 
-    test.auth(conn, "user");
+    assert(test.auth(conn, "custom_username"), "Failed to authenticate");
     // verify user is authenticated with no roles
     test.assert_authenticated(conn, "test/custom_username", [{ role: "readWrite", db: "test_db" }]);
 
@@ -62,7 +62,7 @@ var oidcProviderBase = {
 
     var conn = test.create_conn();
 
-    test.auth(conn, "user");
+    assert(test.auth(conn, "custom_username"), "Failed to authenticate");
     // verify user is authenticated with correct roles
     test.assert_authenticated(conn, "test/custom_username", expectedRoles);
 
@@ -82,7 +82,7 @@ var oidcProviderBase = {
 
     var conn = test.create_conn();
 
-    test.auth(conn, "user");
+    assert(test.auth(conn, "user"), "Failed to authenticate");
     // verify user is authenticated with correct roles
     test.assert_authenticated(conn, "test/user", [{ role: "readWrite", db: "test_db" }]);
 
