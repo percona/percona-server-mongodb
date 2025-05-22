@@ -76,6 +76,9 @@ structs:
         optional: true  # conditional
       logClaims:
         type: array<string>
+        # The IDL Parser does not support default values for arrays.
+        # This field has a default value which is set in paramDeserialize
+        # function in oidc_server_parameters.cpp.
         optional: true
       JWKSPollSecs:
         type: int

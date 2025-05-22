@@ -40,8 +40,8 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
-#include "mongo/db/auth/oidc_protocol_gen.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
+#include "mongo/db/auth/oidc_protocol_gen.h"
 #include "mongo/db/auth/role_name.h"
 #include "mongo/db/auth/sasl_mechanism_policies.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
@@ -75,6 +75,8 @@ public:
 
     boost::optional<Date_t> getExpirationTime() const final;
 
+    void appendExtraInfo(BSONObjBuilder* builder) const final;
+
 private:
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
                                                        StringData input) final;
@@ -88,9 +90,12 @@ private:
     void processAuthorizationClaim(const OidcIdentityProviderConfig& idp,
                                    const crypto::JWSValidatedToken& token);
 
+    void processLogClaims(const OidcIdentityProviderConfig& idp,
+                          const crypto::JWSValidatedToken& token);
     unsigned int _step{0};
     boost::optional<std::set<RoleName>> _roles;
     Date_t _expirationTime;
+    BSONObj _claimsObj;
 };
 
 class OidcServerFactory final : public MakeServerFactory<SaslOidcServerMechanism> {
