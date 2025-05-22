@@ -120,8 +120,8 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
                       "None of configured identity providers support human flows"};
     }
 
-    auto principalName =
-        request.getPrincipalName().map([](const auto& str) -> std::string_view { return std::string_view{str}; });
+    auto principalName = request.getPrincipalName().map(
+        [](const auto& str) -> std::string_view { return std::string_view{str}; });
 
     LOGV2(77012, "OIDC step 1", "principalName"_attr = principalName.value_or("none"));
 
@@ -208,6 +208,7 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step2(
     }
 
     processAuthorizationClaim(*idp, token);
+    processLogClaims(*idp, token);
 
     LOGV2(77012, "OIDC step 2", "principalName"_attr = _principalName, "roles"_attr = _roles);
 
@@ -266,7 +267,7 @@ void SaslOidcServerMechanism::processAuthorizationClaim(const OidcIdentityProvid
             fmt::format("{} '{}' is missing",
                         OidcIdentityProviderConfig::kAuthorizationClaimFieldName,
                         *idp.getAuthorizationClaim()),
-                        authClaim.ok());
+            authClaim.ok());
 
     // The '_roles' is an optional set. Constructing an empty set if 'useAuthorizationClaim'
     // is true is essential to distinguish between 'useAuthorizationClaim=false' and
@@ -302,12 +303,30 @@ void SaslOidcServerMechanism::processAuthorizationClaim(const OidcIdentityProvid
     }
 }
 
+void SaslOidcServerMechanism::processLogClaims(const OidcIdentityProviderConfig& idp,
+                                               const crypto::JWSValidatedToken& token) {
+    BSONObjBuilder builder;
+
+    for (const auto& claimName : idp.getLogClaims().value_or(std::vector<StringData>{})) {
+        const auto claimField = token.getBodyBSON().getField(claimName);
+        if (claimField.ok()) {
+            builder.appendAs(claimField, claimName);
+        }
+    }
+
+    _claimsObj = builder.obj();
+}
+
 UserRequest SaslOidcServerMechanism::getUserRequest() const {
     return UserRequest{UserName{getPrincipalName(), getAuthenticationDatabase()}, _roles};
 }
 
 boost::optional<Date_t> SaslOidcServerMechanism::getExpirationTime() const {
     return _expirationTime;
+}
+
+void SaslOidcServerMechanism::appendExtraInfo(BSONObjBuilder* builder) const {
+    builder->append("claims", _claimsObj);
 }
 
 namespace {
