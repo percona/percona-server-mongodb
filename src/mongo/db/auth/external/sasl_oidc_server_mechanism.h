@@ -82,6 +82,8 @@ private:
     StatusWith<std::tuple<bool, std::string>> step2(ServiceContext* serviceContext,
                                                     const auth::OIDCMechanismClientStep2& request);
 
+    void processPrincipalName(const OidcIdentityProviderConfig& idp,
+                              const crypto::JWSValidatedToken& token);
     void processAuthorizationClaim(const OidcIdentityProviderConfig& idp,
                                    const crypto::JWSValidatedToken& token);
 
