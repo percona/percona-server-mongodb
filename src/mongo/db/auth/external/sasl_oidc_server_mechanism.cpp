@@ -278,7 +278,14 @@ void SaslOidcServerMechanism::processAuthorizationClaim(const OidcIdentityProvid
     std::string authNamePrefix{idp.getAuthNamePrefix()};
 
     auto addRole = [&roles = this->_roles, &authNamePrefix](const std::string& claim) {
-        roles->emplace(authNamePrefix + "/" + claim, "admin");
+        // Handle absolute path to group names in the claim.
+        // If the claim starts with '/', it is an absolute path and we just append it to the prefix,
+        // otherwise we prepend '/' to the claim.
+        auto join = [](const std::string& prefix, const std::string& claim) {
+            return prefix + (claim.starts_with('/') ? claim : "/" + claim);
+        };
+
+        roles->emplace(join(authNamePrefix, claim), "admin");
     };
 
     switch (authClaim.type()) {
