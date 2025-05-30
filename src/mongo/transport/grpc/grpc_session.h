@@ -116,8 +116,12 @@ public:
             (*_cleanupCallback)(*this);
     }
 
-    const HostAndPort& remote() const {
+    const HostAndPort& remote() const override {
         return _remote;
+    }
+
+    const HostAndPort& local() const override {
+        return _local;
     }
 
     StatusWith<Message> sourceMessage() noexcept override {
@@ -201,8 +205,18 @@ public:
      * For ingress sessions, we do not distinguish between load-balanced and non-load-balanced
      * streams. Egress sessions never originate from load-balancers.
      */
-    bool isFromLoadBalancer() const final {
+    bool isConnectedToLoadBalancerPort() const final {
         return false;
+    }
+
+    bool isLoadBalancerPeer() const final {
+        return false;
+    }
+
+    void setisLoadBalancerPeer(bool helloHasLoadBalancedOption) final {
+        tassert(ErrorCodes::OperationFailed,
+                "Unable to set loadBalancer option on GRPC connection",
+                !helloHasLoadBalancedOption);
     }
 
     /**
@@ -312,6 +326,7 @@ private:
     TransportLayer* const _tl;
 
     const HostAndPort _remote;
+    HostAndPort _local;
     RestrictionEnvironment _restrictionEnvironment;
 
     boost::optional<std::function<void(const GRPCSession&)>> _cleanupCallback;

@@ -209,7 +209,7 @@
         "name": "Organization: github"
       },
       "name": "c-ares",
-      "version": "1.19.1",
+      "version": "1.27.0",
       "licenses": [
         {
           "license": {
@@ -217,7 +217,7 @@
           }
         }
       ],
-      "purl": "pkg:github/c-ares/c-ares@cares-1_19_1",
+      "purl": "pkg:github/c-ares/c-ares@cares-1_27_0",
       "properties": [
         {
           "name": "internal:team_responsible",
@@ -954,7 +954,7 @@
         "name": "Organization: debian"
       },
       "name": "Mozilla Firefox",
-      "version": "115.19.0esr",
+      "version": "128.10.0esr",
       "licenses": [
         {
           "license": {
@@ -962,7 +962,7 @@
           }
         }
       ],
-      "purl": "pkg:deb/debian/firefox-esr@115.19.0esr-1",
+      "purl": "pkg:deb/debian/firefox-esr@128.10.0esr-1",
       "properties": [
         {
           "name": "internal:team_responsible",

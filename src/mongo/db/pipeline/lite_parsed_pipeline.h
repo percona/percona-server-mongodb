@@ -67,10 +67,12 @@ public:
     LiteParsedPipeline(const AggregateCommandRequest& request)
         : LiteParsedPipeline(request.getNamespace(), request.getPipeline()) {}
 
-    LiteParsedPipeline(const NamespaceString& nss, const std::vector<BSONObj>& pipelineStages) {
+    LiteParsedPipeline(const NamespaceString& nss,
+                       const std::vector<BSONObj>& pipelineStages,
+                       const LiteParserOptions& options = LiteParserOptions{}) {
         _stageSpecs.reserve(pipelineStages.size());
         for (auto&& rawStage : pipelineStages) {
-            _stageSpecs.push_back(LiteParsedDocumentSource::parse(nss, rawStage));
+            _stageSpecs.push_back(LiteParsedDocumentSource::parse(nss, rawStage, options));
         }
     }
 
@@ -132,6 +134,14 @@ public:
      */
     bool startsWithQueue() const {
         return !_stageSpecs.empty() && _stageSpecs.front()->startsWithQueue();
+    }
+
+    /**
+     * Returns true if the pipeline begins with a stage that generates its own data and should run
+     * once.
+     */
+    bool generatesOwnDataOnce() const {
+        return !_stageSpecs.empty() && _stageSpecs.front()->generatesOwnDataOnce();
     }
 
     /**

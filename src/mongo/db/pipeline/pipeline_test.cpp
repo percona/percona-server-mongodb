@@ -97,7 +97,9 @@
 namespace mongo {
 namespace {
 
-const NamespaceString kTestNss = NamespaceString::createNamespaceString_forTest("a.collection");
+const StringData kDBName = "test";
+const NamespaceString kTestNss =
+    NamespaceString::createNamespaceString_forTest(kDBName, "collection");
 const NamespaceString kAdminCollectionlessNss =
     NamespaceString::createNamespaceString_forTest("admin.$cmd.aggregate");
 const auto kExplain = SerializationOptions{
@@ -189,8 +191,9 @@ void assertPipelineOptimizesAndSerializesTo(std::string inputPipeJson,
     // For $graphLookup and $lookup, we have to populate the resolvedNamespaces so that the
     // operations will be able to have a resolved view definition.
     NamespaceString lookupCollNs =
-        NamespaceString::createNamespaceString_forTest("a", "lookupColl");
-    NamespaceString unionCollNs = NamespaceString::createNamespaceString_forTest("b", "unionColl");
+        NamespaceString::createNamespaceString_forTest(kDBName, "lookupColl");
+    NamespaceString unionCollNs =
+        NamespaceString::createNamespaceString_forTest(kDBName, "unionColl");
     ctx->setResolvedNamespace(lookupCollNs, {lookupCollNs, std::vector<BSONObj>{}});
     ctx->setResolvedNamespace(unionCollNs, {unionCollNs, std::vector<BSONObj>{}});
 
@@ -3806,6 +3809,70 @@ TEST(PipelineOptimizationTest, MergeUnwindPipelineWithSortLimitPipelinePlacesLim
     assertTwoPipelinesOptimizeAndMergeTo(inputPipe1, inputPipe2, outputPipe);
 }
 
+TEST(PipelineOptimizationTest, internalListCollectionsAbsorbsMatchOnDb) {
+    std::string inputPipe =
+        "["
+        " {$_internalListCollections: {}},"
+        " {$match: {db: 'testDb', a: 10}}"
+        "]";
+    std::string outputPipe =
+        "["
+        " {$_internalListCollections: {match: {db: {$eq: 'testDb'}}}},"
+        " {$match: {a: {$eq: 10}}}"
+        "]";
+    std::string serializedPipe =
+        "["
+        " {$_internalListCollections: {}},"
+        " {$match: {db: {$eq: 'testDb'}}},"
+        " {$match: {a: {$eq: 10}}}"
+        "]";
+    assertPipelineOptimizesAndSerializesTo(
+        inputPipe, outputPipe, serializedPipe, kAdminCollectionlessNss);
+}
+
+TEST(PipelineOptimizationTest, internalListCollectionsAbsorbsSeveralMatchesOnDb) {
+    std::string inputPipe =
+        "["
+        " {$_internalListCollections: {}},"
+        " {$match: {db: {$gt: 0}}},"
+        " {$match: {a: 10}},"
+        " {$match: {db: {$ne: 5}}}"
+        "]";
+    std::string outputPipe =
+        "["
+        " {$_internalListCollections: {match: {$and: [{db: {$gt: 0}}, {db: {$not: {$eq: "
+        "5}}}]}}},"
+        " {$match: {a: {$eq: 10}}}"
+        "]";
+    std::string serializedPipe =
+        "["
+        " {$_internalListCollections: {}},"
+        " {$match: {$and: [{db: {$gt: 0}}, {db: {$not: {$eq: 5}}}]}},"
+        " {$match: {a: {$eq: 10}}}"
+        "]";
+    assertPipelineOptimizesAndSerializesTo(
+        inputPipe, outputPipe, serializedPipe, kAdminCollectionlessNss);
+}
+
+TEST(PipelineOptimizationTest, internalAllCollectionStatsDoesNotAbsorbMatchNotOnDb) {
+    std::string inputPipe =
+        "["
+        " {$_internalListCollections: {}},"
+        " {$match: {a: 10}}"
+        "]";
+    std::string outputPipe =
+        "["
+        " {$_internalListCollections: {}},"
+        " {$match: {a: {$eq: 10}}}"
+        "]";
+    std::string serializedPipe =
+        "["
+        " {$_internalListCollections: {}},"
+        " {$match: {a: 10}}"
+        "]";
+    assertPipelineOptimizesAndSerializesTo(
+        inputPipe, outputPipe, serializedPipe, kAdminCollectionlessNss);
+}
 }  // namespace Local
 
 namespace Sharded {
@@ -3835,7 +3902,7 @@ class PipelineOptimizations : public ShardServerTestFixtureWithCatalogCacheMock 
 public:
     // Allows tests to override the default resolvedNamespaces.
     virtual NamespaceString getLookupCollNs() {
-        return NamespaceString::createNamespaceString_forTest("a", "lookupColl");
+        return NamespaceString::createNamespaceString_forTest(kDBName, "lookupColl");
     }
 
     BSONObj pipelineFromJsonArray(const std::string& array) {
@@ -4226,7 +4293,7 @@ public:
         const Timestamp timestamp{1, 1};
 
         auto rt = RoutingTableHistory::makeNew(
-            NamespaceString::createNamespaceString_forTest("a", "outColl"),
+            NamespaceString::createNamespaceString_forTest(kDBName, "outColl"),
             uuid,
             KeyPattern{BSON("_id" << 1)},
             unsplittable,
@@ -4240,15 +4307,15 @@ public:
             {ChunkType{uuid, range, ChunkVersion({epoch, timestamp}, {1, 0}), kMyShardName}});
 
         getCatalogCacheMock()->setCollectionReturnValue(
-            NamespaceString::createNamespaceString_forTest("a.outColl"),
+            NamespaceString::createNamespaceString_forTest(kDBName, "outColl"),
             CollectionRoutingInfo{ChunkManager{kMyShardName,
                                                DatabaseVersion{UUID::gen(), timestamp},
                                                makeStandaloneRoutingTableHistory(std::move(rt)),
                                                timestamp},
                                   boost::none});
 
-        static const std::string kSentPipeJson =
-            "[{$merge: {into: {db: 'a', coll: 'outColl'}, on: '_id', "
+        static const std::string kSentPipeJson = "[{$merge: {into: {db: '" + kDBName +
+            "', coll: 'outColl'}, on: '_id', "
             "whenMatched: 'merge', whenNotMatched: 'insert'}}]";
 
         std::string shardPipeJson = unsplittable ? "[]" : kSentPipeJson;
@@ -4264,7 +4331,7 @@ public:
 
 TEST_F(PipelineOptimizationsShardMerger, Out) {
     const Timestamp timestamp{1, 1};
-    const auto nss = NamespaceString::createNamespaceString_forTest("a", "outColl");
+    const auto nss = NamespaceString::createNamespaceString_forTest(kDBName, "outColl");
 
     getCatalogCacheMock()->setCollectionReturnValue(
         nss,
@@ -4273,14 +4340,14 @@ TEST_F(PipelineOptimizationsShardMerger, Out) {
 
     doTest("[{$out: 'outColl'}]" /*inputPipeJson*/,
            "[]" /*shardPipeJson*/,
-           "[{$out: {coll: 'outColl', db: 'a'}}]" /*mergePipeJson*/,
+           "[{$out: {coll: 'outColl', db: '" + kDBName + "'}}]" /*mergePipeJson*/,
            kMyShardName /* mergeShardId */);
 };
 
 TEST_F(PipelineOptimizationsShardMerger, MergeWithUntrackedCollection) {
     const Timestamp timestamp{1, 1};
     getCatalogCacheMock()->setCollectionReturnValue(
-        NamespaceString::createNamespaceString_forTest("a.outColl"),
+        NamespaceString::createNamespaceString_forTest(kDBName, "outColl"),
         CollectionRoutingInfo{
             ChunkManager{kMyShardName,
                          DatabaseVersion{UUID::gen(), timestamp},
@@ -4289,8 +4356,9 @@ TEST_F(PipelineOptimizationsShardMerger, MergeWithUntrackedCollection) {
             boost::none});
     doTest("[{$merge: 'outColl'}]" /*inputPipeJson*/,
            "[]" /*shardPipeJson*/,
-           "[{$merge: {into: {db: 'a', coll: 'outColl'}, on: '_id', "
-           "whenMatched: 'merge', whenNotMatched: 'insert'}}]" /*mergePipeJson*/,
+           "[{$merge: {into: {db: '" + kDBName +
+               "', coll: 'outColl'}, on: '_id', "
+               "whenMatched: 'merge', whenNotMatched: 'insert'}}]" /*mergePipeJson*/,
            kMyShardName /*needsSpecificShardMerger*/);
 };
 

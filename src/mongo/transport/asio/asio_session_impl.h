@@ -72,7 +72,35 @@ public:
         return _remote;
     }
 
+    const HostAndPort& local() const override {
+        return _local;
+    }
+
+    const HostAndPort& getSourceRemoteEndpoint() const override {
+        if (_proxiedSrcEndpoint) {
+            return _proxiedSrcEndpoint.value();
+        }
+
+        return remote();
+    }
+
+    boost::optional<const HostAndPort&> getProxiedDstEndpoint() const override {
+        if (_proxiedDstEndpoint) {
+            return _proxiedDstEndpoint.value();
+        }
+
+        return boost::none;
+    }
+
     const SockAddr& remoteAddr() const {
+        return _remoteAddr;
+    }
+
+    const SockAddr& getProxiedSrcRemoteAddr() const {
+        if (_proxiedSrcRemoteAddr) {
+            return *_proxiedSrcRemoteAddr;
+        }
+
         return _remoteAddr;
     }
 
@@ -106,10 +134,14 @@ public:
 
     bool isConnected() override;
 
-    bool isFromLoadBalancer() const override;
+    bool isConnectedToLoadBalancerPort() const override;
+
+    bool isLoadBalancerPeer() const override;
+
+    void setisLoadBalancerPeer(bool helloHasLoadBalancedOption) override;
 
     bool bindsToOperationState() const override {
-        return isFromLoadBalancer();
+        return isLoadBalancerPeer();
     }
 
     bool isFromRouterPort() const override {
@@ -288,9 +320,20 @@ protected:
 
     AsioTransportLayer* const _tl;
     bool _isIngressSession;
-    bool _isFromLoadBalancer = false;
-    boost::optional<SockAddr> _proxiedSrcEndpoint;
-    boost::optional<SockAddr> _proxiedDstEndpoint;
+
+    /**
+     * We have a distinction here. A load balancer port can accept connections that are
+     * either attempting to connect to a load balancer or as a normal targeted connection.
+     * The bools below describe if 1/ the connection is connecting to the load balancer port,
+     * and 2/ the connection is a load balancer type connection. We only find out if the
+     * connection is a LoadBalancerConnection if the hello command parses {loadBalancer: 1}.
+     */
+    bool _isConnectedToLoadBalancerPort = false;
+    bool _isLoadBalancerPeer = false;
+    boost::optional<HostAndPort> _proxiedSrcEndpoint;
+    boost::optional<HostAndPort> _proxiedDstEndpoint;
+
+    boost::optional<SockAddr> _proxiedSrcRemoteAddr;
 
     AsyncOperationState _asyncOpState;
 

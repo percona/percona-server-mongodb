@@ -88,6 +88,7 @@ struct ScanCallbacks {
 class ScanStageState {
 public:
     ScanStageState(UUID inCollUuid,
+                   DatabaseName dbName,
                    boost::optional<value::SlotId> inRecordSlot,
                    boost::optional<value::SlotId> inRecordIdSlot,
                    boost::optional<value::SlotId> inSnapshotIdSlot,
@@ -102,8 +103,10 @@ public:
                    boost::optional<value::SlotId> inMaxRecordIdSlot,
                    bool inForward,
                    ScanCallbacks inScanCallbacks,
-                   bool inUseRandomCursor)
+                   bool inUseRandomCursor,
+                   bool inTolerateKeyNotFound)
         : collUuid(inCollUuid),
+          dbName(dbName),
           recordSlot(inRecordSlot),
           recordIdSlot(inRecordIdSlot),
           snapshotIdSlot(inSnapshotIdSlot),
@@ -118,7 +121,8 @@ public:
           maxRecordIdSlot(inMaxRecordIdSlot),
           forward(inForward),
           scanCallbacks(inScanCallbacks),
-          useRandomCursor(inUseRandomCursor) {
+          useRandomCursor(inUseRandomCursor),
+          tolerateKeyNotFound(inTolerateKeyNotFound) {
         invariant(scanFieldNames.size() == scanFieldSlots.size());
     }
 
@@ -127,6 +131,7 @@ public:
     }
 
     const UUID collUuid;
+    const DatabaseName dbName;
 
     const boost::optional<value::SlotId> recordSlot;
     const boost::optional<value::SlotId> recordIdSlot;
@@ -152,6 +157,10 @@ public:
 
     // Used to return a random sample of the collection.
     const bool useRandomCursor;
+
+    // If false, resuming will raise KeyNotFound if RecordId doesn't exist. If true, seeks to next
+    // valid RecordId.
+    const bool tolerateKeyNotFound;
 };  // class ScanStageState
 
 /**
@@ -201,6 +210,7 @@ public:
      * Regular constructor. Initializes static '_state' managed by a shared_ptr.
      */
     ScanStage(UUID collUuid,
+              DatabaseName dbName,
               boost::optional<value::SlotId> recordSlot,
               boost::optional<value::SlotId> recordIdSlot,
               boost::optional<value::SlotId> snapshotIdSlot,
@@ -222,7 +232,8 @@ public:
               bool useRandomCursor = false,
               bool participateInTrialRunTracking = true,
               bool includeScanStartRecordId = true,
-              bool includeScanEndRecordId = true);
+              bool includeScanEndRecordId = true,
+              bool tolerateKeyNotFound = false);
 
     /**
      * Constructor for clone(). Copies '_state' shared_ptr.
@@ -318,6 +329,9 @@ private:
     // the scan from. '_seekRecordId' is the RecordId value, initialized from the slot at runtime.
     value::SlotAccessor* _seekRecordIdAccessor{nullptr};
     RecordId _seekRecordId;
+    // Used when resuming scan with '_seekRecordIdAccessor'. If true, raise a KeyNotFound error,
+    // otherwise, seek to next valid RecordId.
+    bool _tolerateKeyNotFound;
 
     // Only for clustered collection scans, holds the minimum record ID of the scan, if applicable.
     value::SlotAccessor* _minRecordIdAccessor{nullptr};
@@ -382,6 +396,7 @@ class ParallelScanStage final : public PlanStage {
 
 public:
     ParallelScanStage(UUID collUuid,
+                      DatabaseName dbName,
                       boost::optional<value::SlotId> recordSlot,
                       boost::optional<value::SlotId> recordIdSlot,
                       boost::optional<value::SlotId> snapshotIdSlot,
@@ -398,6 +413,7 @@ public:
 
     ParallelScanStage(const std::shared_ptr<ParallelState>& state,
                       UUID collUuid,
+                      DatabaseName dbName,
                       boost::optional<value::SlotId> recordSlot,
                       boost::optional<value::SlotId> recordIdSlot,
                       boost::optional<value::SlotId> snapshotIdSlot,
@@ -445,6 +461,7 @@ private:
     const std::shared_ptr<ParallelState> _state;
 
     const UUID _collUuid;
+    const DatabaseName _dbName;
 
     const boost::optional<value::SlotId> _recordSlot;
     const boost::optional<value::SlotId> _recordIdSlot;
