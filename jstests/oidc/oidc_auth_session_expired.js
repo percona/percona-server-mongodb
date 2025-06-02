@@ -1,8 +1,8 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
-var idp_config = {
+const idp_config = {
     token: {
         expires_in_seconds: 2,
         payload: {
@@ -15,7 +15,7 @@ var idp_config = {
     },
 };
 
-var oidcProvider = {
+const oidcProvider = {
     issuer: issuer_url,
     clientId: "clientId",
     audience: "audience",
@@ -23,26 +23,32 @@ var oidcProvider = {
     authorizationClaim: "claim"
 };
 
-var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-test.setup();
+function test_not_authenticated_after_token_expires(clusterClass) {
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
 
-test.create_role("test/group", [{ role: "readWrite", db: "test_db" }]);
+    test.create_role("test/group", [{role: "readWrite", db: "test_db"}]);
 
-var conn = test.create_conn();
+    var conn = test.create_conn();
 
-assert(test.auth(conn, "user"), "Failed to authenticate");
-test.assert_authenticated(conn, "test/user", [
-    "test/group",
-    { role: "readWrite", db: "test_db" },
-]);
+    assert(test.auth(conn, "user"), "Failed to authenticate");
+    test.assert_authenticated(conn, "test/user", [
+        "test/group",
+        {role: "readWrite", db: "test_db"},
+    ]);
 
-// Wait for the token to expire.
-// The token expires in 1 second but wait for a bit longer to ensure that the token is expired
-sleep(2200);
+    // Wait for the token to expire.
+    // The token expires in 1 second but wait for a bit longer to ensure that the token is expired
+    sleep(2200);
 
-// Verify that the user is no longer authenticated
-test.assert_not_authenticated(conn);
+    // Verify that the user is no longer authenticated
+    test.assert_not_authenticated(conn);
 
-test.logout(conn);
+    test.logout(conn);
 
-test.teardown();
+    test.teardown();
+}
+
+test_not_authenticated_after_token_expires(StandaloneMongod);
+test_not_authenticated_after_token_expires(ShardedCluster);

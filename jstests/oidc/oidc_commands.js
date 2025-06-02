@@ -1,9 +1,8 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
-var oidcProvider =
-{
+const oidcProvider = {
     issuer: issuer_url,
     clientId: "clientId",
     audience: "audience",
@@ -11,7 +10,7 @@ var oidcProvider =
     useAuthorizationClaim: false,
 };
 
-var idp_config = {
+const idp_config = {
     number_of_jwks: 3,
     token: [
         {
@@ -41,15 +40,7 @@ var idp_config = {
     ]
 };
 
-var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-test.setup();
-
-test.create_user("test/user", [{ role: "readWrite", db: "test_db" }]);
-test.create_user("test/admin", [{ role: "root", db: "admin" }]);
-
-const commands = assert.commandWorked(test.admin.runCommand({ listCommands: 1 }), "listCommands should work").commands;
-
-const verifyCommand = (name, command) => {
+const verifyCommand = (test, name, command) => {
     // verify basic command properties
     assert(command, `${name} command should exist`);
     assert(command.help, `${name} command should have help`);
@@ -75,8 +66,24 @@ const verifyCommand = (name, command) => {
     assert.commandWorked(adminConn.getDB("admin").runCommand(runCommandParam), `${name} command should work`);
 };
 
-// check all the OIDC related commands
-verifyCommand("oidcListKeys", commands.oidcListKeys);
-verifyCommand("oidcRefreshKeys", commands.oidcRefreshKeys);
+function test_oidc_commands_work_only_if_user_has_sufficient_privileges(clusterClass) {
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
 
-test.teardown();
+    test.create_user("test/user", [{role: "readWrite", db: "test_db"}]);
+    test.create_user("test/admin", [{role: "root", db: "admin"}]);
+
+    const commands =
+        assert.commandWorked(test.admin.runCommand({listCommands: 1}), "listCommands should work")
+            .commands;
+
+    // check all the OIDC related commands
+    verifyCommand(test, "oidcListKeys", commands.oidcListKeys);
+    verifyCommand(test, "oidcRefreshKeys", commands.oidcRefreshKeys);
+
+    test.teardown();
+}
+
+test_oidc_commands_work_only_if_user_has_sufficient_privileges(StandaloneMongod);
+test_oidc_commands_work_only_if_user_has_sufficient_privileges(ShardedCluster);
