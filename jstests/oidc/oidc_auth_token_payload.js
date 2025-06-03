@@ -1,14 +1,6 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
-var idp_config_base = {
-    token: {
-        payload: {}
-    }
-};
-
-var oidcProvider =
-{
-    issuer: "",
+const oidcProviderBase = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
@@ -19,7 +11,7 @@ const variants = [
     {
         // Empty payload
         payload: {},
-        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.aud' is missing but a required field",
+        expectedError: "parsing failed: BSON field 'JWT.aud' is missing but a required field",
     },
     {
         // Missing 'sub'
@@ -30,7 +22,7 @@ const variants = [
                 "group2",
             ],
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.sub' is missing but a required field",
+        expectedError: "parsing failed: BSON field 'JWT.sub' is missing but a required field",
     },
     {
         // Missing 'aud'
@@ -41,7 +33,7 @@ const variants = [
                 "group2",
             ],
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.aud' is missing but a required field",
+        expectedError: "parsing failed: BSON field 'JWT.aud' is missing but a required field",
     },
     {
         // Missing 'claim'
@@ -49,7 +41,7 @@ const variants = [
             sub: "user",
             aud: "audience",
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim' is missing",
+        expectedError: "authorizationClaim 'claim' is missing",
     },
     {
         // Missing 'iss'
@@ -62,7 +54,7 @@ const variants = [
                 "group2",
             ],
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.iss' is missing but a required field",
+        expectedError: "parsing failed: BSON field 'JWT.iss' is missing but a required field",
     },
     {
         // Missing 'exp'
@@ -75,7 +67,7 @@ const variants = [
                 "group2",
             ],
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.exp' is missing but a required field",
+        expectedError: "parsing failed: BSON field 'JWT.exp' is missing but a required field",
     },
     {
         // Invalid type of claim
@@ -86,7 +78,7 @@ const variants = [
                 some_field: "group1",
             },
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: authorizationClaim `claim` is neither a string nor an array of strings",
+        expectedError: "authorizationClaim `claim` is neither a string nor an array of strings",
     },
     {
         // Invalid type of sub
@@ -95,7 +87,8 @@ const variants = [
             aud: "audience",
             claim: "group",
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: BSON field 'JWT.sub' is the wrong type 'array', expected type 'string'",
+        expectedError:
+            "parsing failed: BSON field 'JWT.sub' is the wrong type 'array', expected type 'string'",
     },
     {
         // Expired token
@@ -105,7 +98,7 @@ const variants = [
             exp: Math.floor(Date.now() / 1000) - 1000,
             claim: "group",
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: Token is expired",
+        expectedError: "Token is expired",
     },
     {
         // Not yet valid token
@@ -115,19 +108,18 @@ const variants = [
             nbf: Math.floor(Date.now() / 1000) + 1000,
             claim: "group",
         },
-        expectedError: "BadValue: Invalid JWT :: caused by :: Token not yet valid",
+        expectedError: "Token not yet valid",
     },
 ];
 
-for (const variant of variants) {
+function test_auth_fails(clusterClass, tokenPayload, expectedError) {
     const issuer_url = OIDCFixture.allocate_issuer_url();
+    const oidcProvider = Object.assign({issuer: issuer_url}, oidcProviderBase);
+    const idp_config = {token: {payload: tokenPayload}};
 
-    oidcProvider.issuer = issuer_url;
-    var idp_config = idp_config_base;
-    idp_config.token.payload = variant.payload;
-
-    var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-    test.setup();
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
 
     var conn = test.create_conn();
 
@@ -137,15 +129,20 @@ for (const variant of variants) {
         msg: "Failed to authenticate",
         attr: {
             mechanism: "MONGODB-OIDC",
-            error: variant.expectedError,
+            error: "BadValue: Invalid JWT :: caused by :: " + expectedError,
         }
     };
 
-    assert(test.checkLogExists(expectedLog), "Expected log not found for variant " + tojson(variant));
+    assert(test.checkLogExists(expectedLog), "Expected log not found: " + tojson(expectedLog));
 
-    assert(!res, "Authentication should fail for variant " + tojson(variant));
+    assert(!res, "Authentication should fail for token payload " + tojson(tokenPayload));
 
     test.teardown();
 
     test = null;
+}
+
+for (const variant of variants) {
+    test_auth_fails(StandaloneMongod, variant.payload, variant.expectedError);
+    test_auth_fails(ShardedCluster, variant.payload, variant.expectedError);
 }

@@ -815,6 +815,7 @@ mongo_cc_library(
         # please add that library here, as a private library dependency.
         "//src/mongo/db:audit",
         "//src/mongo/db/auth:authserver",
+        "//src/mongo/db/auth/oidc:oidc_commands",
         "//src/mongo/db/commands:server_status_core",
         "//src/mongo/db/commands:server_status_servers",
         "//src/mongo/db:dbdirectclient",
@@ -938,6 +939,7 @@ mongo_cc_library(
         "//src/mongo/client:remote_command_targeter",
         "//src/mongo/db:audit",
         "//src/mongo/db/auth:authserver",
+        "//src/mongo/db/auth/oidc:oidc",
         "//src/mongo/db:change_stream_options_manager",
         "//src/mongo/db:change_streams_cluster_parameter",
         "//src/mongo/db/commands:profile_common",

@@ -31,9 +31,9 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/audit_interface.h"
 #include "mongo/db/auth/authorization_session_for_test.h"
-#include "mongo/db/auth/authz_manager_external_state_mock.h"
 #include "mongo/db/auth/authz_session_external_state_mock.h"
 #include "mongo/db/auth/oidc/oidc_test_fixture.h"
+#include "mongo/transport/transport_layer_mock.h"
 #include "mongo/unittest/framework.h"
 
 namespace mongo {
@@ -43,16 +43,14 @@ namespace {
 class OidcCommandsTest : public OidcTestFixture {
 public:
     OidcCommandsTest(const std::string& name)
-        : _authzManager(std::make_unique<AuthorizationManagerImpl>(
-              serviceContext()->getService(), std::make_unique<AuthzManagerExternalStateMock>())),
-          _dbName(DatabaseName::createDatabaseName_forTest(boost::none, "admin")) {
+        : _dbName(DatabaseName::createDatabaseName_forTest(boost::none, "admin")) {
+
 
         // setup authz session mock
         AuthorizationSession::set(
             client(),
             std::make_unique<AuthorizationSessionForTest>(
-                std::make_unique<AuthzSessionExternalStateMock>(_authzManager.get()),
-                AuthorizationSessionImpl::InstallMockForTestingOrAuthImpl{}));
+                std::make_unique<AuthzSessionExternalStateMock>(client()), client()));
 
         // required when logout is called
         audit::AuditInterface::set(serviceContext(), std::make_unique<audit::AuditNoOp>());
@@ -94,7 +92,7 @@ protected:
     // the invariant inside authz session's destructor will fail.
     void logout() {
         const std::string reason = "TestReason";
-        authzSession()->logoutAllDatabases(client(), reason);
+        authzSession()->logoutAllDatabases(reason);
     }
 
     // Test for basic command properties.
@@ -126,7 +124,6 @@ protected:
     }
 
 private:
-    std::unique_ptr<AuthorizationManagerImpl> _authzManager;
     DatabaseName _dbName;
     BasicCommand* _cmd;
 };
