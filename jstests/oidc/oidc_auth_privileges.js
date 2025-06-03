@@ -1,8 +1,8 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
-var idp_config = {
+const idp_config = {
     token: {
         payload: {
             aud: "audience",
@@ -93,40 +93,33 @@ const expectedPrivileges = [
     },
 ];
 
-{
+function test_roles_and_privileges_with_auth_claim(
+    clusterClass, should_create_roles, expected_roles, expected_privileges) {
     var test = new OIDCFixture({
         oidcProviders: [oidcProviderWithClaim], idps: [{ url: issuer_url, config: idp_config }]
     });
-
-    test.setup();
-
+    test.setup(clusterClass);
+    if (should_create_roles) {
+        // Create a role that inherits from built-in roles on test_db1 and test_db2.
+        // When the user authenticates, the role associated with the claim should inherit
+        // these roles and appropriate privileges.
+        test.create_role("test/group", roles);
+    }
     var conn = test.create_conn();
 
-    // Authenticate and expect no privileges because no roles are created.
     assert(test.auth(conn, "user"), "Failed to authenticate");
-    test.assert_authenticated(conn, "test/user", ["test/group"], []);
-    test.logout(conn);
-
-    // Create a role that inherits from built-in roles on test_db1 and test_db2.
-    // When the user authenticates, the role associated with the claim should inherit
-    // these roles and appropriate privileges.
-    test.create_role("test/group", roles);
-
-    // Authenticate and expect privileges to be granted.
-    assert(test.auth(conn, "user"), "Failed to authenticate");
-    test.assert_authenticated(conn, "test/user", expectedRolesWithClaim, expectedPrivileges);
+    test.assert_authenticated(conn, "test/user", expected_roles, expected_privileges);
 
     test.logout(conn);
-
     test.teardown();
 }
 
-{
+function test_roles_and_privileges_without_auth_claim(clusterClass) {
     var test = new OIDCFixture({
         oidcProviders: [oidcProviderNoClaim], idps: [{ url: issuer_url, config: idp_config }]
     });
 
-    test.setup();
+    test.setup(clusterClass);
 
     // Create user with roles.
     test.create_user("test/user", roles);
@@ -141,3 +134,14 @@ const expectedPrivileges = [
 
     test.teardown();
 }
+
+test_roles_and_privileges_with_auth_claim(StandaloneMongod, false, ["test/group"], []);
+test_roles_and_privileges_with_auth_claim(ShardedCluster, false, ["test/group"], []);
+
+test_roles_and_privileges_with_auth_claim(
+    StandaloneMongod, true, expectedRolesWithClaim, expectedPrivileges);
+test_roles_and_privileges_with_auth_claim(
+    ShardedCluster, true, expectedRolesWithClaim, expectedPrivileges);
+
+test_roles_and_privileges_without_auth_claim(StandaloneMongod);
+test_roles_and_privileges_without_auth_claim(ShardedCluster);

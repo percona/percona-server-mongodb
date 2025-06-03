@@ -1,4 +1,4 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 // BQAAAAAA is base64 encoded [05 00 00 00 00 00] which is an empty BSON object
 const EmptyBSONPayload = new BinData(0, "BQAAAAAA");
@@ -14,11 +14,11 @@ function hexToPrintableString(hex) {
     return result;
 }
 
-{
+function test_no_principal_name_is_not_ok_if_multiple_identity_providers(clusterClass) {
     // Test that when multiple identity providers are configured, the server rejects the request
     // with no principal name in saslStart command (payload is empty BSON object).
     // The error message should indicate that a principal name is required to choose an identity provider.
-    var oidcProviders = [
+    const oidcProviders = [
         {
             issuer: OIDCFixture.allocate_issuer_url(),
             clientId: "clientId1",
@@ -38,7 +38,7 @@ function hexToPrintableString(hex) {
     ];
 
     var test = new OIDCFixture({ oidcProviders: oidcProviders });
-    test.setup();
+    test.setup(clusterClass);
 
     const res = test.admin.getSiblingDB('$external').runCommand(
         {
@@ -52,10 +52,10 @@ function hexToPrintableString(hex) {
     test.teardown();
 }
 
-{
+function test_no_principal_name_is_ok_if_single_identity_provider(clusterClass) {
     // Test that when a single identity provider is configured, the server accepts the request
     // with no principal name in saslStart command (payload is empty BSON object).
-    var oidcProvider = {
+    const oidcProvider = {
         issuer: OIDCFixture.allocate_issuer_url(),
         clientId: "clientId1",
         audience: "audience1",
@@ -65,7 +65,7 @@ function hexToPrintableString(hex) {
     };
 
     var test = new OIDCFixture({ oidcProviders: [oidcProvider] });
-    test.setup();
+    test.setup(clusterClass);
 
     const res = test.admin.getSiblingDB('$external').runCommand(
         {
@@ -90,3 +90,9 @@ function hexToPrintableString(hex) {
 
     test.teardown();
 }
+
+test_no_principal_name_is_not_ok_if_multiple_identity_providers(StandaloneMongod);
+test_no_principal_name_is_ok_if_single_identity_provider(StandaloneMongod);
+
+test_no_principal_name_is_not_ok_if_multiple_identity_providers(ShardedCluster);
+test_no_principal_name_is_ok_if_single_identity_provider(ShardedCluster);

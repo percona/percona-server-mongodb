@@ -1,10 +1,11 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
-var idp_config = {
+const idp_config = {
     token: [
-        { // The first token will be created with jwk generated on init
+        {
+            // The first token will be created with jwk generated on init
             generate_jwks: false,
             payload: {
                 aud: "audience",
@@ -12,7 +13,8 @@ var idp_config = {
                 claim: "group",
             }
         },
-        { // The second token will be created with the same jwk
+        {
+            // The second token will be created with the same jwk
             generate_jwks: false,
             payload: {
                 aud: "audience",
@@ -49,38 +51,48 @@ var oidcProvider = {
     authorizationClaim: "claim"
 };
 
-var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-test.setup();
-test.create_role("test/group", [{ role: "readWrite", db: "test_db" }]);
-const expectedRoles = ["test/group", { role: "readWrite", db: "test_db" }];
+/**
+ * Check that MongoDB fetches new JSON Web Key Set (jwks) when it sees a token
+ * with previously unknown key identifier (kid).
+ */
+function test_new_kid_triggers_jwks_fetching(clusterClass) {
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
+    test.create_role("test/group", [{role: "readWrite", db: "test_db"}]);
+    const expectedRoles = ["test/group", {role: "readWrite", db: "test_db"}];
 
-// First authentication, expect fetching jwks
-var conn = test.create_conn();
-var idp = test.get_idp(issuer_url);
-assert(test.auth(conn, "user"), "Failed to authenticate");
-idp.assert_http_request("GET", "/keys");
-test.assert_authenticated(conn, "test/user", expectedRoles);
-test.logout(conn);
+    // First authentication, expect fetching jwks
+    var conn = test.create_conn();
+    var idp = test.get_idp(issuer_url);
+    assert(test.auth(conn, "user"), "Failed to authenticate");
+    idp.assert_http_request("GET", "/keys");
+    test.assert_authenticated(conn, "test/user", expectedRoles);
+    test.logout(conn);
 
-// Second authentication with the same kid, expect no fetching jwks
-idp.clear_output();
-assert(test.auth(conn, "user"), "Failed to authenticate");
-idp.assert_no_http_request("GET", "/keys");
-test.assert_authenticated(conn, "test/user", expectedRoles);
-test.logout(conn);
+    // Second authentication with the same kid, expect no fetching jwks
+    idp.clear_output();
+    assert(test.auth(conn, "user"), "Failed to authenticate");
+    idp.assert_no_http_request("GET", "/keys");
+    test.assert_authenticated(conn, "test/user", expectedRoles);
+    test.logout(conn);
 
-// Third authentication with a new kid, expect fetching jwks
-idp.clear_output();
-assert(test.auth(conn, "user"), "Failed to authenticate");
-idp.assert_http_request("GET", "/keys");
-test.assert_authenticated(conn, "test/user", expectedRoles);
-test.logout(conn);
+    // Third authentication with a new kid, expect fetching jwks
+    idp.clear_output();
+    assert(test.auth(conn, "user"), "Failed to authenticate");
+    idp.assert_http_request("GET", "/keys");
+    test.assert_authenticated(conn, "test/user", expectedRoles);
+    test.logout(conn);
 
-// Fourth authentication with the same kid, expect no fetching jwks
-idp.clear_output();
-assert(test.auth(conn, "user"), "Failed to authenticate");
-idp.assert_no_http_request("GET", "/keys");
-test.assert_authenticated(conn, "test/user", expectedRoles);
-test.logout(conn);
+    // Fourth authentication with the same kid, expect no fetching jwks
+    idp.clear_output();
+    assert(test.auth(conn, "user"), "Failed to authenticate");
+    idp.assert_no_http_request("GET", "/keys");
+    test.assert_authenticated(conn, "test/user", expectedRoles);
+    test.logout(conn);
 
-test.teardown();
+    test.teardown();
+}
+
+test_new_kid_triggers_jwks_fetching(StandaloneMongod);
+test_new_kid_triggers_jwks_fetching(ShardedCluster);
