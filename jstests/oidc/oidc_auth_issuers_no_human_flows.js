@@ -1,9 +1,9 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer1_url = OIDCFixture.allocate_issuer_url();
 const issuer2_url = OIDCFixture.allocate_issuer_url();
 
-var idp1_config = {
+const idp1_config = {
     token: {
         expires_in_seconds: 2,
         payload: {
@@ -17,7 +17,7 @@ var idp1_config = {
     },
 };
 
-var idp2_config = {
+const idp2_config = {
     token: {
         expires_in_seconds: 2,
         payload: {
@@ -31,7 +31,7 @@ var idp2_config = {
     },
 };
 
-var oidcProviders = [
+const oidcProviders = [
     {
         issuer: issuer1_url,
         clientId: "clientId1",
@@ -52,14 +52,6 @@ var oidcProviders = [
     }
 ];
 
-var test = new OIDCFixture({
-    oidcProviders,
-    idps: [
-        { url: issuer1_url, config: idp1_config },
-        { url: issuer2_url, config: idp2_config }
-    ]
-});
-
 const expectedLog = {
     id: 5286307,
     msg: "Failed to authenticate",
@@ -68,14 +60,23 @@ const expectedLog = {
     }
 };
 
-test.setup();
+function test_auth_fails(clusterClass, expectedLog) {
+    var test = new OIDCFixture({
+        oidcProviders,
+        idps: [{url: issuer1_url, config: idp1_config}, {url: issuer2_url, config: idp2_config}]
+    });
+    test.setup(clusterClass);
 
-var conn = test.create_conn();
+    var conn = test.create_conn();
 
-assert(!test.auth(conn, "user1"), "Authentication should fail");
-assert(test.checkLogExists(expectedLog), "Expected log not found");
+    assert(!test.auth(conn, "user1"), "Authentication should fail");
+    assert(test.checkLogExists(expectedLog), "Expected log not found");
 
-assert(!test.auth(conn, "user2"), "Authentication should fail");
-assert(test.checkLogExists(expectedLog), "Expected log not found");
+    assert(!test.auth(conn, "user2"), "Authentication should fail");
+    assert(test.checkLogExists(expectedLog), "Expected log not found");
 
-test.teardown();
+    test.teardown();
+}
+
+test_auth_fails(StandaloneMongod, expectedLog);
+test_auth_fails(ShardedCluster, expectedLog);

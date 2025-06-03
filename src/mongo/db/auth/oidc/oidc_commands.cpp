@@ -124,7 +124,7 @@ private:
     }
 };
 
-MONGO_REGISTER_COMMAND(OidcListKeys).forShard();
+MONGO_REGISTER_COMMAND(OidcListKeys).forShard().forRouter();
 
 class OidcRefreshKeys : public OidcKeysCommand<ActionType::oidcRefreshKeys> {
 public:
@@ -186,6 +186,6 @@ private:
     }
 };
 
-MONGO_REGISTER_COMMAND(OidcRefreshKeys).forShard();
+MONGO_REGISTER_COMMAND(OidcRefreshKeys).forShard().forRouter();
 
 }  // namespace mongo
