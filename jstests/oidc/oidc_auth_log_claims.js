@@ -1,8 +1,8 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
-var idp_config = {
+const idp_config = {
     token: {
         payload: {
             aud: "audience",
@@ -65,15 +65,16 @@ const variants = [
     },
 ];
 
-for (const variant of variants) {
+function test_claims_are_logged(clusterClass, configuredLogClaims, expectedLogClaims) {
     let oidcProvider = Object.assign({}, oidcProviderBase);
 
-    if (variant.logClaims) {
-        oidcProvider.logClaims = variant.logClaims;
+    if (configuredLogClaims) {
+        oidcProvider.logClaims = configuredLogClaims;
     }
 
-    var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-    test.setup(true);
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass, /* with_audit = */ true);
 
     test.create_role("test/group", [{ role: "readWrite", db: "test_db" }]);
 
@@ -89,7 +90,7 @@ for (const variant of variants) {
     const expectedLog = {
         atype: "authenticate",
         param: {
-            claims: variant.expectedLogClaims,
+            claims: expectedLogClaims,
         }
     };
 
@@ -99,13 +100,20 @@ for (const variant of variants) {
     assert(auditLog, "No audit log for successful authentication");
 
     const loggedClaims = Object.keys(auditLog.param.claims);
-    const expectedClaims = Object.keys(variant.expectedLogClaims);
+    const expectedClaims = Object.keys(expectedLogClaims);
 
     assert(loggedClaims.length <= expectedClaims.length, "Too many claims in the audit log");
 
     for (const claim of loggedClaims) {
-        assert(JSON.stringify(variant.expectedLogClaims[claim]) === JSON.stringify(auditLog.param.claims[claim]), `Claim ${claim} does not match`);
+        assert(JSON.stringify(expectedLogClaims[claim]) ===
+                   JSON.stringify(auditLog.param.claims[claim]),
+               `Claim ${claim} does not match`);
     }
 
     test.teardown();
+}
+
+for (const variant of variants) {
+    test_claims_are_logged(StandaloneMongod, variant.logClaims, variant.expectedLogClaims);
+    test_claims_are_logged(ShardedCluster, variant.logClaims, variant.expectedLogClaims);
 }

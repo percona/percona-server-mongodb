@@ -1,8 +1,8 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
-var idp_config = {
+const idp_config = {
     token: {
         payload: {
             aud: "audience",
@@ -16,7 +16,7 @@ var idp_config = {
     },
 };
 
-var oidcProviderBase = {
+const oidcProviderBase = {
     issuer: issuer_url,
     clientId: "clientId",
     audience: "audience",
@@ -25,13 +25,12 @@ var oidcProviderBase = {
     authorizationClaim: "claim",
 };
 
-{
-    var oidcProvider = oidcProviderBase;
-    // don't use claims
-    oidcProvider.useAuthorizationClaim = false;
+function test_auth_succeeds_with_custom_principal_name_and_auth_claim_disabled(clusterClass) {
+    // don't use auth claims
+    const oidcProvider = Object.assign(oidcProviderBase, {useAuthorizationClaim: false});
 
     var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-    test.setup();
+    test.setup(clusterClass);
     test.create_user("test/custom_username", [{ role: "readWrite", db: "test_db" }]);
 
     var conn = test.create_conn();
@@ -43,13 +42,13 @@ var oidcProviderBase = {
     test.teardown();
 }
 
-{
-    var oidcProvider = oidcProviderBase;
-    // use claims
-    oidcProvider.useAuthorizationClaim = true;
+function test_auth_succeeds_with_custom_principal_name_and_auth_claim_enabled(clusterClass) {
+    // use auth claims
+    const oidcProvider = Object.assign(oidcProviderBase, {useAuthorizationClaim: true});
 
-    var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-    test.setup();
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
     test.create_role("test/group1", [{ role: "readWrite", db: "test_db1" }]);
     test.create_role("test/group2", [{ role: "read", db: "test_db2" }]);
 
@@ -69,15 +68,15 @@ var oidcProviderBase = {
     test.teardown();
 }
 
-{
-    var oidcProvider = oidcProviderBase;
-    // no claims
-    oidcProvider.useAuthorizationClaim = false;
-    // set default value
-    oidcProvider.principalName = "sub";
+function test_auth_succeeds_with_default_principal_name_and_auth_claim_disabled(clusterClass) {
+    // set default principal value
+    // don't use auth claims
+    const oidcProvider =
+        Object.assign(oidcProviderBase, {principalName: "sub", useAuthorizationClaim: false});
 
-    var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-    test.setup();
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
     test.create_user("test/user", [{ role: "readWrite", db: "test_db" }]);
 
     var conn = test.create_conn();
@@ -89,18 +88,31 @@ var oidcProviderBase = {
     test.teardown();
 }
 
-{
-    var oidcProvider = oidcProviderBase;
-    // use claims
-    oidcProvider.useAuthorizationClaim = false;
-    oidcProvider.principalName = "some_other_custom_claim";
+function test_auth_fails_with_missing_principla_name_claim(clusterClass) {
+    // use auth claims
+    const oidcProvider = Object.assign(
+        oidcProviderBase, {principalName: "some_other_custom_claim", useAuthorizationClaim: true});
 
-    var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-    test.setup();
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
 
     var conn = test.create_conn();
 
-    assert(!test.auth(conn, "user"), "Authentication should fail due to missing claim for principalName");
+    assert(!test.auth(conn, "user"),
+           "Authentication should fail due to missing claim for principalName");
 
     test.teardown();
 }
+
+test_auth_succeeds_with_custom_principal_name_and_auth_claim_disabled(StandaloneMongod);
+test_auth_succeeds_with_custom_principal_name_and_auth_claim_disabled(ShardedCluster);
+
+test_auth_succeeds_with_custom_principal_name_and_auth_claim_enabled(StandaloneMongod);
+test_auth_succeeds_with_custom_principal_name_and_auth_claim_enabled(ShardedCluster);
+
+test_auth_succeeds_with_default_principal_name_and_auth_claim_disabled(StandaloneMongod);
+test_auth_succeeds_with_default_principal_name_and_auth_claim_disabled(ShardedCluster);
+
+test_auth_fails_with_missing_principla_name_claim(StandaloneMongod);
+test_auth_fails_with_missing_principla_name_claim(ShardedCluster);

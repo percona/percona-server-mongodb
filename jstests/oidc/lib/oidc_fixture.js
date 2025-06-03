@@ -37,6 +37,129 @@ function checkExpectedLog(expectedLog, element) {
 }
 
 /**
+ * Creates a common part of the configuration for `StandaloneMongod` and
+ * `ShardedCluster`
+ *
+ * @param {array<object>} oidcProviders Identity provider configurations.
+ * @param {string} auditLogPath Path to audit log file; default is `null`, which means audit
+ *     log is disabled.
+ *
+ * @returns {object} Common part of the configuration.
+ */
+function _createCommonConfig(oidcProviders, auditLogPath = null) {
+    let config = {
+        setParameter: {
+            authenticationMechanisms: "SCRAM-SHA-256,MONGODB-OIDC",
+            oidcIdentityProviders: JSON.stringify(oidcProviders),
+        }
+    };
+    if (auditLogPath) {
+        config = Object.merge(config, {
+            auditDestination: "file",
+            auditFormat: "JSON",
+            auditPath: auditLogPath,
+        });
+    }
+    return config;
+}
+
+/**
+ * Encapsulates a standalone `mongod` against which the tests are done.
+ */
+export class StandaloneMongod {
+    /**
+     * Creates and starts a standalone `mongod`.
+     *
+     * @param {array<object>} oidcProviders Identity provider configurations.
+     * @param {string} auditLogPath Path to audit log file; default is `null`, which means audit
+     *     log is disabled.
+     */
+    constructor(oidcProviders, auditLogPath = null) {
+        this.conn = MongoRunner.runMongod(
+            Object.merge({auth: ""}, _createCommonConfig(oidcProviders, auditLogPath)));
+    }
+
+    /**
+     * Returns a client connection to the `mongod`.
+     */
+    connection() {
+        return this.conn;
+    }
+
+    /**
+     * Stops the `mongod`.
+     */
+    teardown() {
+        MongoRunner.stopMongod(this.conn);
+    }
+
+    /**
+     * Creates a class instance to be used for testing initialization failures.
+     *
+     * @param {array<object>} oidcProviders Identity provider configurations.
+     * @returns {StandaloneMongod} An instance of a class; the function is not supposed to return.
+     */
+    static createForFailingInitializationTest(oidcProviders) {
+        return new StandaloneMongod(oidcProviders);
+    }
+}
+
+/**
+ * Encapsulates a sharded cluster against which the tests are done.
+ */
+export class ShardedCluster {
+    /**
+     * Creates and starts a sharded cluster.
+     *
+     * @param {array<object>} oidcProviders Identity provider configurations.
+     * @param {string} auditLogPath Path to audit log file; default is `null`, which means audit
+     *     log is disabled.
+     * @param {boolean} shouldFailInit Set to `true` if construction is expected to fail; defaut
+     *     is `false`.
+     */
+    constructor(oidcProviders, auditLogPath = null, shouldFailInit = false) {
+        const config = {
+            shouldFailInit: shouldFailInit,
+            shards: 1,
+            mongos: 1,
+            config: 1,
+            other: {
+                keyFile: 'jstests/libs/key1',
+                configOptions: {auth: ""},
+                shardOptions: {auth: ""},
+                mongosOptions: _createCommonConfig(oidcProviders, auditLogPath),
+            }
+        };
+        this.shardingTest = new ShardingTest(config);
+        this.conn = this.shardingTest.s;
+    }
+
+    /**
+     * Returns a client connection to the `mongos` of the cluster.
+     */
+    connection() {
+        return this.conn;
+    }
+
+    /**
+     * Stops the shareded cluster.
+     */
+    teardown() {
+        this.shardingTest.stop();
+    }
+
+    /**
+     * Creates a class instance to be used for testing initialization failures.
+     *
+     * @param {array<object>} oidcProviders Identity provider configurations.
+     * @returns {ShardedCluster} Instance of a class; the function is not supposed to return.
+     */
+    static createForFailingInitializationTest(oidcProviders) {
+        return new StandaloneMongod(oidcProviders, null, true);
+    }
+}
+
+/**
  * OIDCFixture class
  *
  * This class is used to set up and manage the OIDC fixture for testing.
@@ -65,6 +188,7 @@ export class OIDCFixture {
         }
 
         this.oidc_providers = oidcProviders;
+        this.cluster = null;
         this.admin_conn = null;
         this.admin = null;
         this.last_log_date = new Date();
@@ -89,34 +213,6 @@ export class OIDCFixture {
      */
     static allocate_issuer_url(issuer_name = "issuer") {
         return "https://localhost:" + allocatePort() + "/" + issuer_name;
-    }
-
-    /**
-     * Create the options object for the MongoDB server.
-     *
-     * @param {object} oidcProviders - The OIDC providers configuration object for mongod.
-     * @param {string} auditPath - The path to the audit log file (optional).
-     *                            If not provided, audit logging will be disabled.
-     * @returns {object} - The options object for the MongoDB server.
-     */
-    static create_options(oidcProviders, auditPath = null) {
-        let config = {
-            auth: "",
-            setParameter: {
-                authenticationMechanisms: "SCRAM-SHA-256,MONGODB-OIDC",
-                oidcIdentityProviders: JSON.stringify(oidcProviders),
-            }
-        };
-
-        if (auditPath) {
-            config = Object.merge(config, {
-                auditDestination: "file",
-                auditFormat: "JSON",
-                auditPath: auditPath,
-            });
-        }
-
-        return config;
     }
 
     /**
@@ -174,13 +270,16 @@ export class OIDCFixture {
      * - creates an admin user with root privileges,
      * - sets the OIDCIdPAuthCallback to handle authentication callbacks.
      *
+     * @param {class} clusterClass A class that encapsulates the MongoDB "cluster", against which
+     *     the testing is going to be done. Allowed values: `StandaloneMongod` (default),
+     *     `ShardedCluster`.
      * @param {boolean} with_audit - If true, enables audit logging.
-     * 
+     *
      * NOTE: The SCRAM-SHA-256 mechanism is specified to allow admin authentication.
      *       The admin session is created so that it is possible to run admin commands
      *       on the server (e.g. getLog). It can also be used to create roles for the user.
      */
-    setup(with_audit = false) {
+    setup(clusterClass = StandaloneMongod, with_audit = false) {
         print("OIDCFixture.setup")
 
         if (with_audit) {
@@ -191,8 +290,8 @@ export class OIDCFixture {
             this.idps[idp_url].start();
         }
 
-        const options = OIDCFixture.create_options(this.oidc_providers, this.audit_path);
-        this.admin_conn = MongoRunner.runMongod(options);
+        this.cluster = new clusterClass(this.oidc_providers, this.audit_path);
+        this.admin_conn = this.cluster.connection();
         this.admin = this.admin_conn.getDB("admin");
         assert.commandWorked(this.admin.runCommand(
             { createUser: "admin", pwd: "admin", roles: [{ role: "root", db: "admin" }] }));
@@ -215,11 +314,11 @@ export class OIDCFixture {
     /**
      * Teardown the OIDC fixture.
      *
-     * This function stops the MongoDB server and all the registered IdP mocks.
+     * This function stops the MongoDB cluster and all the registered IdP mocks.
      */
     teardown() {
-        print("OIDCFixture.teardown stopMongod")
-        MongoRunner.stopMongod(this.admin_conn);
+        print("OIDCFixture.teardown stop the cluster");
+        this.cluster.teardown();
         for (const idp_url in this.idps) {
             print("OIDCFixture.teardown stop IdP " + idp_url);
             this.idps[idp_url].stop();
@@ -531,18 +630,22 @@ export class OIDCFixture {
     }
 
     /**
-     * Assert that the mongod process fails with the provided OIDC providers configuration.
-     * The mongod output is checked against the provided regular expression.
-     * 
-     * @param {object} oidcProviders The OIDC providers configuration object for mongod.
-     * @param {string} match The regular expression to match against the mongod output.
+     * Assert that the "cluster" (specifically `mongod` or `mongos` process) initialization fails
+     * with the specified OIDC providers configuration. The `mongod`/`mongos` output is checked
+     * against the provided regular expression.
+     *
+     * @param {class} clusterClass A class that encapsulates the MongoDB "cluster", against which
+     *     the testing is going to be done. Allowed values: `StandaloneMongod` (default),
+     *     `ShardedCluster`.
+     * @param {array<object>} oidcProviders Identity provider configurations for `mongod`/`mongos`.
+     * @param {string} match The regular expression to match against the `mongod`/`mongos` output.
      */
-    static assert_mongod_fails_with(oidcProviders, match) {
+    static assertClusterInitializationFailsWith(clusterClass, oidcProviders, match) {
         clearRawMongoProgramOutput();
-        var options = this.create_options(oidcProviders);
         try {
-            var conn = MongoRunner.runMongod(options);
-            assert(!conn, "mongod should fail with options: " + JSON.stringify(oidcProviders))
+            assert(!clusterClass.createForFailingInitializationTest(oidcProviders),
+                   "cluster initialization should fail with options: " +
+                       JSON.stringify(oidcProviders));
         } catch (e) {
             // ignore
         }

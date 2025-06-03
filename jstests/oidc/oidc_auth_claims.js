@@ -1,8 +1,8 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
-var idp_config = {
+const idp_config = {
     token: [
         {
             payload: {
@@ -38,7 +38,7 @@ var idp_config = {
     ]
 };
 
-var oidcProvider = {
+const oidcProvider = {
     issuer: issuer_url,
     clientId: "clientId",
     audience: "audience",
@@ -46,41 +46,43 @@ var oidcProvider = {
     authorizationClaim: "claim"
 };
 
-var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-test.setup();
+function test_granted_roles_match_claims(clusterClass) {
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
 
-test.create_role("test/group1", [{ role: "readWrite", db: "test_db1" }]);
-test.create_role("test/group2", [{ role: "read", db: "test_db2" }]);
-test.create_role("test/group3", [{ role: "dbAdmin", db: "test_db3" }]);
-test.create_role("test/group4", [{ role: "dbOwner", db: "test_db4" }]);
+    test.create_role("test/group1", [{role: "readWrite", db: "test_db1"}]);
+    test.create_role("test/group2", [{role: "read", db: "test_db2"}]);
+    test.create_role("test/group3", [{role: "dbAdmin", db: "test_db3"}]);
+    test.create_role("test/group4", [{role: "dbOwner", db: "test_db4"}]);
 
-var conn = test.create_conn();
+    var conn = test.create_conn();
 
-assert(test.auth(conn, "user"), "Failed to authenticate");
-test.assert_authenticated(conn, "test/user", [
-    "test/group1",
-    "test/group2",
-    { role: "readWrite", db: "test_db1" },
-    { role: "read", db: "test_db2" },
-]);
-test.logout(conn);
+    assert(test.auth(conn, "user"), "Failed to authenticate");
+    test.assert_authenticated(conn, "test/user", [
+        "test/group1",
+        "test/group2",
+        {role: "readWrite", db: "test_db1"},
+        {role: "read", db: "test_db2"},
+    ]);
+    test.logout(conn);
 
-test.auth(conn, "user");
-test.assert_authenticated(conn, "test/user", []); // empty claim
-test.logout(conn);
+    test.auth(conn, "user");
+    test.assert_authenticated(conn, "test/user", []);  // empty claim
+    test.logout(conn);
 
-test.auth(conn, "user");
-test.assert_authenticated(conn, "test/user", [
-    "test/group3",
-    { role: "dbAdmin", db: "test_db3" }
-]);
-test.logout(conn);
+    test.auth(conn, "user");
+    test.assert_authenticated(
+        conn, "test/user", ["test/group3", {role: "dbAdmin", db: "test_db3"}]);
+    test.logout(conn);
 
-test.auth(conn, "user");
-test.assert_authenticated(conn, "test/user", [
-    "test/group4",
-    { role: "dbOwner", db: "test_db4" }
-]);
-test.logout(conn);
+    test.auth(conn, "user");
+    test.assert_authenticated(
+        conn, "test/user", ["test/group4", {role: "dbOwner", db: "test_db4"}]);
+    test.logout(conn);
 
-test.teardown();
+    test.teardown();
+}
+
+test_granted_roles_match_claims(StandaloneMongod);
+test_granted_roles_match_claims(ShardedCluster);
