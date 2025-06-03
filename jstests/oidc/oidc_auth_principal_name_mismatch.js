@@ -1,4 +1,4 @@
-import {OIDCFixture} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -10,7 +10,7 @@ const oidcProvider = {
     useAuthorizationClaim: false,
 };
 
-{
+function assert_auth_succeeds_if_principal_names_match_at_sasl_conversation_steps(clusterClass) {
     const idp_config = {
         token: {
             payload: {
@@ -22,7 +22,7 @@ const oidcProvider = {
 
     let test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
-    test.setup();
+    test.setup(clusterClass);
     test.create_user("alpha/bravo", [{role: "readWrite", db: "test_db"}]);
 
     let conn = test.create_conn();
@@ -31,7 +31,9 @@ const oidcProvider = {
 
     test.teardown();
 }
-{
+
+function assert_auth_fails_if_principal_names_do_not_match_at_sasl_conversation_steps(
+    clusterClass) {
     const idp_config = {
         token: {
             payload: {
@@ -43,7 +45,7 @@ const oidcProvider = {
 
     let test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
-    test.setup();
+    test.setup(clusterClass);
     test.create_user("alpha/bravo", [{role: "readWrite", db: "test_db"}]);
 
     let conn = test.create_conn();
@@ -68,3 +70,9 @@ const oidcProvider = {
 
     test.teardown();
 }
+
+assert_auth_succeeds_if_principal_names_match_at_sasl_conversation_steps(StandaloneMongod);
+assert_auth_succeeds_if_principal_names_match_at_sasl_conversation_steps(ShardedCluster);
+
+assert_auth_fails_if_principal_names_do_not_match_at_sasl_conversation_steps(StandaloneMongod);
+assert_auth_fails_if_principal_names_do_not_match_at_sasl_conversation_steps(ShardedCluster);

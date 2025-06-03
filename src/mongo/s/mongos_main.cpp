@@ -61,11 +61,12 @@
 #include "mongo/client/replica_set_monitor.h"
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/db/audit.h"
-#include "mongo/db/audit_interface.h"
 #include "mongo/db/audit/audit_flusher.h"
 #include "mongo/db/audit/audit_options.h"
+#include "mongo/db/audit_interface.h"
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/authorization_manager_factory.h"
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/user_cache_invalidator_job.h"
 #include "mongo/db/change_stream_options_manager.h"
 #include "mongo/db/client.h"
@@ -955,6 +956,8 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
 #endif
 
     PeriodicTask::startRunningPeriodicTasks();
+
+    initializeOidcIdentityProvidersRegistry(serviceContext);
 
     Status status =
         process_health::FaultManager::get(serviceContext)->startPeriodicHealthChecks().getNoThrow();

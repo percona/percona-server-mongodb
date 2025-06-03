@@ -10,6 +10,11 @@ env.CppUnitTest(
     ],
     LIBDEPS=[
         "$BUILD_DIR/mongo/crypto/jwt",
+        # TODO: remove dependencies, currently required by externalsaslauth
+        "$BUILD_DIR/mongo/db/audit/audit_options",
+        "$BUILD_DIR/mongo/db/mongod_main",
+        "$BUILD_DIR/mongo/db/mongod_options_init",
+        "$BUILD_DIR/mongo/db/serverinit",
         "externalsaslauth",
     ],
 )

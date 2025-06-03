@@ -1,8 +1,8 @@
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
-var idp_config = {
+const idp_config = {
     token: {
         payload: {
             aud: "audience",
@@ -15,7 +15,7 @@ var idp_config = {
     },
 };
 
-var oidcProvider = {
+const oidcProvider = {
     issuer: issuer_url,
     clientId: "clientId",
     audience: "audience",
@@ -40,18 +40,25 @@ const create_access_token = (test) => {
     test.assert_authenticated(conn, "test/user", expectedRoles);
 
     return access_token;
+};
+
+function test_auth_succeeds(clusterClass) {
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    test.setup(clusterClass);
+    test.create_role("test/group1", [{role: "readWrite", db: "test_db1"}]);
+    test.create_role("test/group2", [{role: "read", db: "test_db2"}]);
+
+    var access_token = create_access_token(test);
+
+    var conn = test.create_conn();
+
+    assert(conn.auth({mechanism: 'MONGODB-OIDC', oidcAccessToken: access_token}),
+           "Failed to authenticate with token");
+    test.assert_authenticated(conn, "test/user", expectedRoles);
+
+    test.teardown();
 }
 
-var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
-test.setup();
-test.create_role("test/group1", [{ role: "readWrite", db: "test_db1" }]);
-test.create_role("test/group2", [{ role: "read", db: "test_db2" }]);
-
-var access_token = create_access_token(test);
-
-var conn = test.create_conn();
-
-assert(conn.auth({ mechanism: 'MONGODB-OIDC', oidcAccessToken: access_token }), "Failed to authenticate with token");
-test.assert_authenticated(conn, "test/user", expectedRoles);
-
-test.teardown();
+test_auth_succeeds(StandaloneMongod);
+test_auth_succeeds(ShardedCluster);
