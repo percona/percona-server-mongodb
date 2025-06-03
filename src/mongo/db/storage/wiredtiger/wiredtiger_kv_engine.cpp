@@ -1280,7 +1280,7 @@ Status WiredTigerKVEngine::repairIdent(OperationContext* opCtx, StringData ident
     if (isEphemeral()) {
         return Status::OK();
     }
-    _ensureIdentPath(ident);
+    auto ensuredIdent = _ensureIdentPath(ident);
     return _salvageIfNeeded(opCtx, uri.c_str());
 }
 
@@ -2866,7 +2866,6 @@ Status WiredTigerKVEngine::createRecordStore(OperationContext* opCtx,
                                              StringData ident,
                                              const CollectionOptions& options,
                                              KeyFormat keyFormat) {
-    _ensureIdentPath(ident);
     WiredTigerSession session(_conn);
 
     StatusWith<std::string> result =
@@ -2900,6 +2899,7 @@ Status WiredTigerKVEngine::createRecordStore(OperationContext* opCtx,
                 logAttrs(nss),
                 "uri"_attr = uri,
                 "config"_attr = config);
+    auto ensuredIdent = _ensureIdentPath(ident);
     return wtRCToStatus(s->create(s, uri.c_str(), config.c_str()), s);
 }
 
@@ -2907,7 +2907,6 @@ Status WiredTigerKVEngine::importRecordStore(OperationContext* opCtx,
                                              StringData ident,
                                              const BSONObj& storageMetadata,
                                              const ImportOptions& importOptions) {
-    _ensureIdentPath(ident);
     WiredTigerSession session(_conn);
 
     if (MONGO_unlikely(WTWriteConflictExceptionForImportCollection.shouldFail())) {
@@ -2931,6 +2930,7 @@ Status WiredTigerKVEngine::importRecordStore(OperationContext* opCtx,
                 "uri"_attr = uri,
                 "config"_attr = config);
 
+    auto ensuredIdent = _ensureIdentPath(ident);
     return wtRCToStatus(s->create(s, uri.c_str(), config.c_str()), s);
 }
 
@@ -3081,7 +3081,6 @@ Status WiredTigerKVEngine::createSortedDataInterface(OperationContext* opCtx,
                                                      const CollectionOptions& collOptions,
                                                      StringData ident,
                                                      const IndexDescriptor* desc) {
-    _ensureIdentPath(ident);
 
     std::string collIndexOptions;
 
@@ -3112,6 +3111,7 @@ Status WiredTigerKVEngine::createSortedDataInterface(OperationContext* opCtx,
         "collection_uuid"_attr = collOptions.uuid,
         "ident"_attr = ident,
         "config"_attr = config);
+    auto ensuredIdent = _ensureIdentPath(ident);
     return WiredTigerIndex::create(opCtx, _uri(ident), config);
 }
 
@@ -3119,7 +3119,6 @@ Status WiredTigerKVEngine::importSortedDataInterface(OperationContext* opCtx,
                                                      StringData ident,
                                                      const BSONObj& storageMetadata,
                                                      const ImportOptions& importOptions) {
-    _ensureIdentPath(ident);
 
     if (MONGO_unlikely(WTWriteConflictExceptionForImportIndex.shouldFail())) {
         LOGV2(6177301,
@@ -3139,6 +3138,7 @@ Status WiredTigerKVEngine::importSortedDataInterface(OperationContext* opCtx,
                 "WiredTigerKVEngine::importSortedDataInterface",
                 "ident"_attr = ident,
                 "config"_attr = config);
+    auto ensuredIdent = _ensureIdentPath(ident);
     return WiredTigerIndex::create(opCtx, _uri(ident), config);
 }
 
@@ -3188,7 +3188,6 @@ Status WiredTigerKVEngine::createColumnStore(OperationContext* opCtx,
                                              const CollectionOptions& collOptions,
                                              StringData ident,
                                              const IndexDescriptor* desc) {
-    _ensureIdentPath(ident);
     invariant(desc->getIndexType() == IndexType::INDEX_COLUMN);
 
     StatusWith<std::string> result = WiredTigerColumnStore::generateCreateString(
@@ -3205,6 +3204,7 @@ Status WiredTigerKVEngine::createColumnStore(OperationContext* opCtx,
                 "collection_uuid"_attr = collOptions.uuid,
                 "ident"_attr = ident,
                 "config"_attr = config);
+    auto ensuredIdent = _ensureIdentPath(ident);
     return WiredTigerColumnStore::create(opCtx, _uri(ident), config);
 }
 
@@ -3221,7 +3221,6 @@ std::unique_ptr<ColumnStore> WiredTigerKVEngine::getColumnStore(
 std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(OperationContext* opCtx,
                                                                           StringData ident,
                                                                           KeyFormat keyFormat) {
-    _ensureIdentPath(ident);
     WiredTigerSession wtSession(_conn);
 
     // We don't log writes to temporary record stores.
@@ -3245,7 +3244,11 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(Operat
                 "WiredTigerKVEngine::makeTemporaryRecordStore",
                 "uri"_attr = uri,
                 "config"_attr = config);
-    uassertStatusOK(wtRCToStatus(session->create(session, uri.c_str(), config.c_str()), session));
+    {
+        auto ensuredIdent = _ensureIdentPath(ident);
+        uassertStatusOK(
+            wtRCToStatus(session->create(session, uri.c_str(), config.c_str()), session));
+    }
 
     WiredTigerRecordStore::Params params;
     params.nss = NamespaceString("");
@@ -3345,6 +3348,8 @@ Status WiredTigerKVEngine::dropIdent(RecoveryUnit* ru,
     if (DurableCatalog::isCollectionIdent(ident)) {
         _sizeStorer->remove(uri);
     }
+
+    _removeIdentDirectoryIfEmpty(ident);
 
     if (onDrop) {
         onDrop();
@@ -3596,10 +3601,14 @@ int WiredTigerKVEngine::reconfigure(const char* str) {
     return _conn->reconfigure(_conn, str);
 }
 
-void WiredTigerKVEngine::_ensureIdentPath(StringData ident) {
-    size_t start = 0;
-    size_t idx;
-    while ((idx = ident.find('/', start)) != string::npos) {
+stdx::unique_lock<Latch> WiredTigerKVEngine::_ensureIdentPath(StringData ident) {
+    size_t idx = ident.find('/');
+    if (idx == string::npos) {
+        // If there is no directory for this ident, we don't need to take the lock.
+        return {};
+    }
+    stdx::unique_lock<Latch> directoryModifyLock(_directoryModificationMutex);
+    do {
         StringData dir = ident.substr(0, idx);
 
         boost::filesystem::path subdir = _path;
@@ -3617,9 +3626,41 @@ void WiredTigerKVEngine::_ensureIdentPath(StringData ident) {
                 throw;
             }
         }
+        idx = ident.find('/', idx + 1);
+    } while (idx != string::npos);
+    return directoryModifyLock;
+}
 
-        start = idx + 1;
+bool WiredTigerKVEngine::_removeIdentDirectoryIfEmpty(StringData ident, size_t startPos) {
+    size_t separatorPos = ident.find('/', startPos);
+    if (separatorPos == string::npos) {
+        return true;
     }
+    if (!_removeIdentDirectoryIfEmpty(ident, separatorPos + 1)) {
+        return false;
+    }
+    boost::filesystem::path subdir = _path;
+    subdir /= ident.substr(0, separatorPos).toString();
+    stdx::unique_lock<Mutex> directoryModifyLock(_directoryModificationMutex);
+    if (!boost::filesystem::exists(subdir)) {
+        return true;
+    }
+    if (!boost::filesystem::is_empty(subdir)) {
+        return false;
+    }
+    boost::system::error_code ec;
+    boost::filesystem::remove(subdir, ec);
+    if (!ec) {
+        LOGV2(4888200, "Removed empty ident directory", "path"_attr = subdir.string());
+        return true;
+    }
+    // Failing to clean up an empty directory, whilst not ideal, is not a real problem.
+    LOGV2_DEBUG(4888201,
+                1,
+                "Failed to remove empty ident directory",
+                "path"_attr = subdir.string(),
+                "error"_attr = ec.message());
+    return false;
 }
 
 void WiredTigerKVEngine::setJournalListener(JournalListener* jl) {

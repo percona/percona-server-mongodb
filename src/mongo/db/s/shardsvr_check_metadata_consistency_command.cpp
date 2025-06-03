@@ -49,6 +49,12 @@
 namespace mongo {
 namespace {
 
+MONGO_FAIL_POINT_DEFINE(hangShardCheckMetadataBeforeDDLLock);
+MONGO_FAIL_POINT_DEFINE(tripwireShardCheckMetadataAfterDDLLock);
+
+MONGO_FAIL_POINT_DEFINE(hangShardCheckMetadataBeforeEstablishCursors);
+MONGO_FAIL_POINT_DEFINE(tripwireShardCheckMetadataAfterEstablishCursors);
+
 /*
  * Retrieve from config server the list of databases for which this shard is primary for.
  */
@@ -67,8 +73,20 @@ std::vector<DatabaseType> getDatabasesThisShardIsPrimaryFor(OperationContext* op
     std::vector<DatabaseType> databases;
     databases.reserve(rawDatabases.size());
     for (auto&& rawDb : rawDatabases) {
-        databases.emplace_back(
-            DatabaseType::parseOwned(IDLParserContext("DatabaseType"), std::move(rawDb)));
+        auto db = DatabaseType::parseOwned(IDLParserContext("DatabaseType"), std::move(rawDb));
+        if (db.getName() == DatabaseName::kAdmin.db()) {
+            // TODO (SERVER-101175): Convert this into a new metadata inconsistency.
+            // The 'admin' database should not be explicitly assigned a primary shard. It may exist
+            // in the global catalog due to upgrade from an older MongoDB version.
+            LOGV2_INFO(
+                9866400,
+                "Found internal 'admin' database registered in the global catalog during the "
+                "execution of checkMetadataConsistency command. Skipping consistency check for "
+                "this database.",
+                "dbMetadata"_attr = db);
+            continue;
+        }
+        databases.emplace_back(std::move(db));
     }
     if (thisShardId == ShardId::kConfigServerId) {
         // Config database
@@ -250,8 +268,12 @@ public:
             // Take a DDL lock on the database
             static constexpr StringData kLockReason{"checkMetadataConsistency"_sd};
             auto ddlLockManager = DDLLockManager::get(opCtx);
+            hangShardCheckMetadataBeforeDDLLock.pauseWhileSet();
             const auto dbDDLLock = ddlLockManager->lock(
                 opCtx, nss.db(), kLockReason, DDLLockManager::kDefaultLockTimeout);
+            tassert(9504001,
+                    "Expected interrupt before tripwireShardCheckMetadataAfterDDLLock",
+                    !tripwireShardCheckMetadataAfterDDLLock.shouldFail());
 
             {
                 Lock::DBLock dbLock(opCtx, nss.dbName(), MODE_IS);
@@ -260,14 +282,19 @@ public:
                 scopedDss->assertIsPrimaryShardForDb(opCtx);
             }
 
-            return establishCursors(opCtx,
-                                    Grid::get(opCtx)->getExecutorPool()->getFixedExecutor(),
-                                    nss,
-                                    ReadPreferenceSetting(ReadPreference::PrimaryOnly),
-                                    requests,
-                                    false /* allowPartialResults */,
-                                    Shard::RetryPolicy::kIdempotentOrCursorInvalidated,
-                                    {shardOpKey, configOpKey});
+            hangShardCheckMetadataBeforeEstablishCursors.pauseWhileSet();
+            auto cursors = establishCursors(opCtx,
+                                            Grid::get(opCtx)->getExecutorPool()->getFixedExecutor(),
+                                            nss,
+                                            ReadPreferenceSetting(ReadPreference::PrimaryOnly),
+                                            requests,
+                                            false /* allowPartialResults */,
+                                            Shard::RetryPolicy::kIdempotentOrCursorInvalidated,
+                                            {shardOpKey, configOpKey});
+            tassert(9504004,
+                    "Expected interrupt before tripwireShardCheckMetadataAfterEstablishCursors",
+                    !tripwireShardCheckMetadataAfterEstablishCursors.shouldFail());
+            return cursors;
         }
 
         CursorInitialReply _mergeCursors(OperationContext* opCtx,

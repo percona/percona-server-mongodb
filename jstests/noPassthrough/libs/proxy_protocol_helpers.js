@@ -41,10 +41,11 @@ const emptyMessageTest = (ingressPort, egressPort, node, isRouter) => {
     // Connecting to the default port still succeeds within a reasonable time limit.
     connectAndHello(node.port, isRouter);
 
+    assert(checkProgram(pid).alive);
+
     // A connection with no data will timeout.
     timeoutEmptyConnection(ingressPort, egressPort, isRouter);
 
-    assert(checkProgram(pid).alive);
     stopMongoProgramByPid(pid);
 };
 
