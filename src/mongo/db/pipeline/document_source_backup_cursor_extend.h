@@ -47,7 +47,8 @@ public:
         using LiteParsedDocumentSource::LiteParsedDocumentSource;
 
         static std::unique_ptr<LiteParsed> parse(const NamespaceString& nss,
-                                                 const BSONElement& spec);
+                                                 const BSONElement& spec,
+                                                 const LiteParserOptions& options);
 
         stdx::unordered_set<NamespaceString> getInvolvedNamespaces() const final {
             return stdx::unordered_set<NamespaceString>();
