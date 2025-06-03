@@ -65,7 +65,7 @@ function test_auth_fails(clusterClass, expectedLog) {
         oidcProviders,
         idps: [{url: issuer1_url, config: idp1_config}, {url: issuer2_url, config: idp2_config}]
     });
-    test.setup();
+    test.setup(clusterClass);
 
     var conn = test.create_conn();
 

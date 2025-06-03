@@ -55,7 +55,7 @@ function test_auth_fails(clusterClass, faults, expectedError) {
 
     var test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
-    test.setup();
+    test.setup(clusterClass);
     var conn = test.create_conn();
 
     var idp = test.get_idp(issuer_url);

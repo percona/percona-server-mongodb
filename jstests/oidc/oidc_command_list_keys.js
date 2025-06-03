@@ -68,7 +68,7 @@ const verifyAllKeys = (test, count1, count2, count3) => {
 
 function test_list_keys_returns_all_keys(clusterClass) {
     var test = new OIDCFixture({oidcProviders: oidcProviders, idps: idps});
-    test.setup();
+    test.setup(clusterClass);
 
     verifyAllKeys(test, 3, 2, 1);
 

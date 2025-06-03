@@ -45,7 +45,7 @@ const create_access_token = (test) => {
 function test_auth_succeeds(clusterClass) {
     var test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
-    test.setup();
+    test.setup(clusterClass);
     test.create_role("test/group1", [{role: "readWrite", db: "test_db1"}]);
     test.create_role("test/group2", [{role: "read", db: "test_db2"}]);
 

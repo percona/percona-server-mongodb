@@ -30,7 +30,7 @@ const oidcProvider = {
 function test_request_to_idp_includes_scopes(clusterClass) {
     var test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
-    test.setup();
+    test.setup(clusterClass);
 
     test.create_role("test/group", [{role: "readWrite", db: "test_db"}]);
     var idp = test.get_idp(issuer_url)

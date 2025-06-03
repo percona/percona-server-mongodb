@@ -71,7 +71,7 @@ const verifyAllKeys = (test, count1, count2, count3) => {
 
 function test_referesh_keys_triggers_key_fetching(clusterClass) {
     var test = new OIDCFixture({oidcProviders: oidcProviders, idps: []});
-    test.setup();
+    test.setup(clusterClass);
 
     sleep(1000);
 

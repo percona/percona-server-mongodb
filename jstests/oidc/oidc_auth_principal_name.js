@@ -76,7 +76,7 @@ function test_auth_succeeds_with_default_principal_name_and_auth_claim_disabled(
 
     var test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
-    test.setup();
+    test.setup(clusterClass);
     test.create_user("test/user", [{ role: "readWrite", db: "test_db" }]);
 
     var conn = test.create_conn();
