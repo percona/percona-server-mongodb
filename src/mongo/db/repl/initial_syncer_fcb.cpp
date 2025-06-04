@@ -53,6 +53,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/timestamp.h"
 #include "mongo/client/dbclient_cursor.h"
 #include "mongo/client/fetcher.h"
+#include "mongo/client/read_preference.h"
 #include "mongo/client/remote_command_retry_scheduler.h"
 #include "mongo/db/catalog/catalog_control.h"
 #include "mongo/db/client.h"
@@ -108,6 +109,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/destructor_guard.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/future.h"
+#include "mongo/util/interruptible.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 #include "mongo/util/time_support.h"
@@ -1461,6 +1463,89 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
     }
     // Block until the command is executed.
     (*_attemptExec)->wait(scheduleResult.getValue());
+
+    if (!result.isOK()) {
+        return result;
+    }
+
+    // Check FCV on the sync source.
+    BSONObjBuilder queryBob;
+    queryBob.append("find", NamespaceString::kServerConfigurationNamespace.coll());
+    auto filterBob = BSONObjBuilder(queryBob.subobjStart("filter"));
+    filterBob.append("_id", multiversion::kParameterName);
+    filterBob.done();
+    // readConcern is mandatory for commands on internalClient connections.
+    auto readConcernBob = BSONObjBuilder(queryBob.subobjStart("readConcern"));
+    readConcernBob.append("level", "local");
+    readConcernBob.done();
+
+    Fetcher fcvFetcher{
+        *_attemptExec,
+        syncSource,
+        NamespaceString::kServerConfigurationNamespace.dbName(),
+        queryBob.obj(),
+        [this, &syncSource, &result](const StatusWith<mongo::Fetcher::QueryResponse>& response,
+                                     mongo::Fetcher::NextAction*,
+                                     mongo::BSONObjBuilder*) {
+            auto status = _checkForShutdownAndConvertStatus_inlock(
+                response.getStatus(),
+                "error while fetching the remote feature compatibility version");
+            if (!status.isOK()) {
+                LOGV2_WARNING(
+                    128461, "FCV fetcher task failed", "error"_attr = redact(response.getStatus()));
+                result = status;
+                return;
+            }
+
+            const auto docs = response.getValue().documents;
+            if (docs.size() > 1) {
+                result = Status(ErrorCodes::TooManyMatchingDocuments,
+                                str::stream() << "Expected to receive one feature compatibility "
+                                                 "version document, but received: "
+                                              << docs.size() << ". First: " << redact(docs.front())
+                                              << ". Last: " << redact(docs.back()));
+                return;
+            }
+            const auto hasDoc = docs.begin() != docs.end();
+            if (!hasDoc) {
+                result = Status(ErrorCodes::IncompatibleServerVersion,
+                                "Sync source had no feature compatibility version document");
+                return;
+            }
+
+            auto fcvParseSW = FeatureCompatibilityVersionParser::parse(docs.front());
+            if (!fcvParseSW.isOK()) {
+                result = fcvParseSW.getStatus();
+                return;
+            }
+
+            auto version = fcvParseSW.getValue();
+            if (serverGlobalParams.featureCompatibility.acquireFCVSnapshot()
+                    .isUpgradingOrDowngrading(version)) {
+                result = _invalidSyncSource_inlock(
+                    syncSource,
+                    kDenylistPersistent,
+                    str::stream() << "Sync source had unsafe feature compatibility version: "
+                                  << multiversion::toString(version));
+                return;
+            }
+        },
+        ReadPreferenceSetting::secondaryPreferredMetadata(),
+        RemoteCommandRequest::kNoTimeout,
+        RemoteCommandRequest::kNoTimeout,
+        RemoteCommandRetryScheduler::makeRetryPolicy<ErrorCategory::RetriableError>(
+            numInitialSyncOplogFindAttempts.load(), executor::RemoteCommandRequest::kNoTimeout)};
+    if (auto scheduleStatus = fcvFetcher.schedule(); !scheduleStatus.isOK()) {
+        return scheduleStatus.withContext(
+            str::stream()
+            << "Failed to schedule feature compatibility version fetcher to sync source: "
+            << syncSource.toString());
+    }
+    if (auto joinStatus = fcvFetcher.join(Interruptible::notInterruptible()); !joinStatus.isOK()) {
+        return joinStatus.withContext(
+            str::stream() << "Failed to join feature compatibility version fetcher to sync source: "
+                          << syncSource.toString());
+    }
 
     return result;
 }
