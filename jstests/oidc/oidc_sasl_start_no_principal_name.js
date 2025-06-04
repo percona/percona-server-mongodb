@@ -39,6 +39,7 @@ function test_no_principal_name_is_not_ok_if_multiple_identity_providers(cluster
 
     var test = new OIDCFixture({ oidcProviders: oidcProviders });
     test.setup(clusterClass);
+    sleep(100);
 
     const res = test.admin.getSiblingDB('$external').runCommand(
         {
@@ -66,6 +67,7 @@ function test_no_principal_name_is_ok_if_single_identity_provider(clusterClass) 
 
     var test = new OIDCFixture({ oidcProviders: [oidcProvider] });
     test.setup(clusterClass);
+    sleep(100);
 
     const res = test.admin.getSiblingDB('$external').runCommand(
         {

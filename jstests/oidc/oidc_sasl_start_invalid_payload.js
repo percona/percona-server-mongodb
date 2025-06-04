@@ -16,6 +16,7 @@ const oidcProvider = {
 function test_sasl_step_1_fails_if_invalid_payload(clusterClass) {
     var test = new OIDCFixture({oidcProviders: [oidcProvider]});
     test.setup(clusterClass);
+    sleep(100);
 
     const res = test.admin.getSiblingDB('$external').runCommand({
         saslStart: 1,
