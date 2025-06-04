@@ -59,12 +59,13 @@ export class OIDCIdPMock {
      *
      * @param {string} method HTTP method (e.g., GET, POST).
      * @param {string} path Path relative to issuer_url (e.g.: /token, /keys).
+     * @param {number} [timeout=1000] Timeout in milliseconds to wait for the request to be logged.
      */
-    assert_http_request(method, path) {
+    assert_http_request(method, path, timeout = 1000) {
         const request_msg = method + " " + this.issuer_url + path;
         assert.soon(function () {
             return rawMongoProgramOutput().search(request_msg) !== -1;
-        }, "Request not found: " + request_msg, 1000);
+        }, "Request not found: " + request_msg, timeout, 100);
     }
 
     /**
