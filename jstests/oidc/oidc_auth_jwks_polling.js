@@ -1,8 +1,10 @@
 import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
-const pollingIntervalSecs = 1;
-const sleepTimeMargin = 0.1  // 10%
-const sleepTime = pollingIntervalSecs * 1000 * (1 + sleepTimeMargin);
+const pollingIntervalSecs = 3;
+const sleepMargin = 0.1  // 10%
+const sleepTime = pollingIntervalSecs * 1000;
+const sleepTimeMargin = sleepMargin * sleepTime;
+
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -32,22 +34,26 @@ function test_jwks_fetched_with_polling_interval(clusterClass) {
     test.setup(clusterClass);
     test.create_user("test/user", [{role: "readWrite", db: "test_db"}]);
 
+    var conn = test.create_conn();
+    idp.clear_output();
     // Wait for periodic job to fetch the JWKs
-    sleep(sleepTime);
-    idp.assert_http_request("GET", "/keys");
+    // Wait up to 'sleepTime' for the request in order to sync with the polling interval.
+    idp.assert_http_request("GET", "/keys", sleepTime + sleepTimeMargin);
+
+    // Allow some time for the JWKs to be fetched and cached
+    sleep(100);
 
     // Verify that the JWKs are cached and not fetched again when authenticating
     idp.clear_output();
-    var conn = test.create_conn();
     assert(test.auth(conn, "user"), "Failed to authenticate");
-    test.assert_authenticated(conn, "test/user", [{role: "readWrite", db: "test_db"}]);
     idp.assert_no_http_request("GET", "/keys");
+    test.assert_authenticated(conn, "test/user", [{role: "readWrite", db: "test_db"}]);
     test.logout(conn);
 
     // Verify that the JWKs are fetched again after the polling interval
     idp.clear_output();
     sleep(sleepTime);
-    idp.assert_http_request("GET", "/keys");
+    idp.assert_http_request("GET", "/keys", sleepTimeMargin);
 
     // Stop the IdP and verify that an error is logged when trying to fetch JWKs
     idp.clear_output();
@@ -72,7 +78,7 @@ function test_jwks_fetched_with_polling_interval(clusterClass) {
     idp.clear_output();
     idp.start();
     sleep(sleepTime);
-    idp.assert_http_request("GET", "/keys");
+    idp.assert_http_request("GET", "/keys", sleepTimeMargin);
 
     test.teardown();
 }
