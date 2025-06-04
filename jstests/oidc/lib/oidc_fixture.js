@@ -660,6 +660,9 @@ export class OIDCFixture {
      * @param {string} match The regular expression to match against the mongod output.
      */
     static assert_mongod_output_match(match) {
-        assert(rawMongoProgramOutput(match), `mongod output does not match: '${match}':\n` + rawMongoProgramOutput(match));
+        assert.soon(function() {
+            return rawMongoProgramOutput(match),
+                   `mongod output does not match: '${match}':\n` + rawMongoProgramOutput(match)
+        });
     }
 }
