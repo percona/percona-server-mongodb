@@ -550,6 +550,20 @@ fcbis = rule(
     build_setting = config.bool(flag = True),
 )
 
+# --------------------------------------
+# OIDC
+# --------------------------------------
+
+oidc_provider = provider(
+    doc = """Enable OIDC (OpenID Connect)""",
+    fields = ["enabled"],
+)
+
+oidc = rule(
+    implementation = lambda ctx: oidc_provider(enabled = ctx.build_setting_value),
+    build_setting = config.bool(flag = True),
+)
+
 # =========
 # thin_lto
 # =========

@@ -72,6 +72,7 @@ build --flag_alias=audit=//bazel/config:audit
 build --flag_alias=full_featured=//bazel/config:full-featured
 build --flag_alias=enable_fipsmode=//bazel/config:enable-fipsmode
 build --flag_alias=enable_fcbis=//bazel/config:enable-fcbis
+build --flag_alias=enable_oidc=//bazel/config:enable-oidc
 build --flag_alias=js_engine=//bazel/config:js_engine
 build --flag_alias=use_sasl_client=//bazel/config:use_sasl_client
 build --flag_alias=enterprise_feature_all=//bazel/config:enterprise_feature_all

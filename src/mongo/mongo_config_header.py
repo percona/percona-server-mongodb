@@ -459,6 +459,7 @@ def get_config_header_substs():
         ("@percona_audit_enabled@", "PERCONA_AUDIT_ENABLED"),
         ("@percona_fipsmode_enabled@", "PERCONA_FIPSMODE_ENABLED"),
         ("@percona_fcbis_enabled@", "PERCONA_FCBIS_ENABLED"),
+        ("@percona_oidc_enabled@", "PERCONA_OIDC_ENABLED"),
         (
             "@mongo_config_have_basic_stringbuf_str_rvalue@",
             "MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE",

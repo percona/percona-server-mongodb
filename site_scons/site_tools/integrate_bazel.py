@@ -1009,6 +1009,7 @@ def generate(env: SCons.Environment.Environment) -> None:
         f'--full_featured={env.GetOption("full-featured") is not None}',
         f'--enable_fipsmode={env.GetOption("enable-fipsmode") is not None}',
         f'--enable_fcbis={env.GetOption("enable-fcbis") is not None}',
+        f'--enable_oidc={env.GetOption("enable-oidc") is not None}',
         f'--js_engine={env.GetOption("js-engine")}',
         f'--use_sasl_client={env.GetOption("use-sasl-client") is not None}',
         "--define",

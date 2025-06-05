@@ -7,6 +7,7 @@ Import(
         "have_sasl_lib",
         "has_option",
         "http_client",
+        "has_feature_option",
         "inmemory",
         "version_extra",
         "version_parts",
