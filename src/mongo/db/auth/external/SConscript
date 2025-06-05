@@ -4,7 +4,6 @@ Import("get_option")
 
 env = env.Clone()
 
-env.InjectThirdParty(libraries=['jwt-cpp'])
 env.Library(
     target='externalsaslauth',
     source=[
