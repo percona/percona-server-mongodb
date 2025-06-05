@@ -37,7 +37,6 @@ a notice will be included in
 | [immer]                    | BSL-1.0                                                        | d98a68c + changes                                  |                      |                ✗                |
 | [Intel Decimal FP Library] | BSD-3-Clause                                                   | 2.0 Update 1                                       |                      |                ✗                |
 | [JSON-Schema-Test-Suite]   | MIT                                                            | 728066f9c5                                         |                      |                                 |
-| [jwt-cpp]                  | MIT                                                            | 0.7.1                                              |                      |                ✗                |
 | [libstemmer]               | BSD-3-Clause                                                   | Unknown                                            |          ✗           |                ✗                |
 | [librdkafka]               | BSD-2-Clause                                                   | 2.0.2                                              |                      |                                 |
 | [libmongocrypt]            | Apache-2.0                                                     | 1.8.4                                              |          ✗           |                ✗                |
@@ -83,7 +82,6 @@ a notice will be included in
 [immer]: https://github.com/arximboldi/immer
 [Intel Decimal FP Library]: https://software.intel.com/en-us/articles/intel-decimal-floating-point-math-library
 [JSON-Schema-Test-Suite]: https://github.com/json-schema-org/JSON-Schema-Test-Suite
-[jwt-cpp]: https://github.com/Thalhammer/jwt-cpp
 [libstemmer]: https://github.com/snowballstem/snowball
 [librdkafka]: https://github.com/confluentinc/librdkafka
 [libmongocrypt]: https://github.com/mongodb/libmongocrypt
