@@ -16,6 +16,7 @@ load(
     "dwarf_version",
     "fcbis",
     "fipsmode",
+    "oidc",
     "fsan",
     "full_featured",
     "gcov",
@@ -1952,6 +1953,29 @@ config_setting(
     name = "fcbis_disabled",
     flag_values = {
         "//bazel/config:enable-fcbis": "False",
+    },
+)
+
+# --------------------------------------
+# OIDC
+# --------------------------------------
+
+oidc(
+    name = "enable-oidc",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "oidc_enabled",
+    flag_values = {
+        "//bazel/config:enable-oidc": "True",
+    },
+)
+
+config_setting(
+    name = "oidc_disabled",
+    flag_values = {
+        "//bazel/config:enable-oidc": "False",
     },
 )
 

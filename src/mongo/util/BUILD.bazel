@@ -798,6 +798,10 @@ generate_config_header(
         "//bazel/config:fcbis_enabled": {"fcbis_enabled": "1"},
         "//conditions:default": {},
     }) | select({
+        "//bazel/config:full_featured_enabled": {"oidc_enabled": "1"},
+        "//bazel/config:oidc_enabled": {"oidc_enabled": "1"},
+        "//conditions:default": {},
+    }) | select({
         "//bazel/config:build_enterprise_enabled": {"build_enterprise_enabled": "1"},
         "//conditions:default": {},
     }),

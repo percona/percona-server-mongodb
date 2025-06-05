@@ -255,6 +255,8 @@ def generate_config_header(
         psmdb_pro_features.append("FIPSMode")
     if "fcbis_enabled" in extra_definitions_dict:
         psmdb_pro_features.append("FCBIS")
+    if "oidc_enabled" in extra_definitions_dict:
+        psmdb_pro_features.append("OIDC")
     psmdb_pro_feature_list = ",\n".join(['"{0}"_sd'.format(x) for x in psmdb_pro_features])
 
     replacements = {
