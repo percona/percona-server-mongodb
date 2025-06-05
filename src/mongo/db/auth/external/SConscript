@@ -1,6 +1,7 @@
 # -*- mode: python -*-
 Import("env")
 Import("get_option")
+Import("has_feature_option")
 
 env = env.Clone()
 
@@ -11,7 +12,7 @@ env.Library(
         'cyrus_sasl_server_session.cpp',
         'external_sasl_authentication_session.cpp',
         'gssapi_server_mechanism.cpp',
-        'sasl_oidc_server_mechanism.cpp',
+        'sasl_oidc_server_mechanism.cpp' if has_feature_option('enable-oidc') else [],
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/auth/saslauth',
@@ -19,8 +20,8 @@ env.Library(
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/client/sasl_aws_common' if get_option('ssl') == 'on' else [],
         '$BUILD_DIR/mongo/crypto/jwt',
-        '$BUILD_DIR/mongo/db/auth/oidc/oidc',
-        '$BUILD_DIR/mongo/db/auth/oidc_protocol_messages',
+        '$BUILD_DIR/mongo/db/auth/oidc/oidc' if has_feature_option('enable-oidc') else [],
+        '$BUILD_DIR/mongo/db/auth/oidc_protocol_messages' if has_feature_option('enable-oidc') else [],
         '$BUILD_DIR/mongo/db/ldap/ldapmanager',
         '$BUILD_DIR/mongo/db/ldap_options',
         '$BUILD_DIR/mongo/db/service_context',
@@ -33,14 +34,14 @@ env.Library(
     ],
 )
 
-
-env.CppUnitTest(
-    target='sasl_oidc_test',
-    source=[
-        'sasl_oidc_server_mechanism_test.cpp',
-    ],
-    LIBDEPS=[
-        '$BUILD_DIR/mongo/db/auth/oidc/oidc',
-        'externalsaslauth',
-    ],
-)
+if has_feature_option('enable-oidc'):
+    env.CppUnitTest(
+        target='sasl_oidc_test',
+        source=[
+            'sasl_oidc_server_mechanism_test.cpp',
+        ],
+        LIBDEPS=[
+            '$BUILD_DIR/mongo/db/auth/oidc/oidc',
+            'externalsaslauth',
+        ],
+    )
