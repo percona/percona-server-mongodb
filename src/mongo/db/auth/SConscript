@@ -2,6 +2,7 @@
 
 Import([
     'env',
+    'has_feature_option'
     'has_option',
 ])
 
@@ -10,12 +11,21 @@ env = env.Clone()
 env.SConscript(
     dirs=[
         'external',
-        'oidc',
     ],
     exports=[
         'env',
     ],
 )
+
+if has_feature_option('enable-oidc'):
+    env.SConscript(
+        dirs=[
+            'oidc',
+        ],
+        exports=[
+            'env',
+        ],
+    )
 
 env.Library(
     target='security_token',

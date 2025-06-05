@@ -94,6 +94,9 @@ def has_option(name):
     # if the value is falsish (empty string, None, etc.), coerce to False.
     return True if optval == () else bool(optval)
 
+# Returns true if a given option is set or if the 'full-featured' option is set.
+def has_feature_option(name):
+    return has_option(name) or has_option('full-featured')
 
 def use_system_version_of_library(name):
     return has_option('use-system-all') or has_option('use-system-' + name)
@@ -292,6 +295,12 @@ add_option(
 add_option(
     'enable-fipsmode',
     help='Enable tls.FIPSMode configuration option',
+    nargs=0,
+)
+
+add_option(
+    'enable-oidc',
+    help='Enable OpenID Connect authentication support',
     nargs=0,
 )
 
@@ -2791,9 +2800,13 @@ env['PSMDB_PRO_FEATURES'] = []
 if has_option('audit'):
     env.Append( CPPDEFINES=[ 'PERCONA_AUDIT_ENABLED' ] )
 
-if has_option('enable-fipsmode') or has_option('full-featured'):
+if has_feature_option('enable-fipsmode'):
     env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
     env['PSMDB_PRO_FEATURES'].append('FIPSMode')
+
+if has_feature_option('enable-oidc'):
+    env.SetConfigHeaderDefine("PERCONA_OIDC_ENABLED")
+    env['PSMDB_PRO_FEATURES'].append('OIDC')
 
 env.Tool('forceincludes')
 
@@ -6589,6 +6602,7 @@ Export([
     'endian',
     'get_option',
     'has_option',
+    'has_feature_option',
     'http_client',
     'inmemory',
     'jsEngine',
