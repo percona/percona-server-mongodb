@@ -44,7 +44,6 @@ a notice will be included in
 | [Intel Decimal Floating-Point Math Library]          | BSD-3-Clause                                                                                        | v2.0 U1                    |                      | ✗                               |
 | [jbeder/yaml-cpp]                                    | MIT                                                                                                 | 0.6.3                      |                      | ✗                               |
 | [JSON-Schema-Test-Suite]                             | Unknown License                                                                                     | Unknown                    |                      |                                 |
-| [jwt-cpp]                  | MIT                                                            | 0.7.1                                              |                      |                ✗                |
 | [libmongocrypt]                                      | Apache-2.0                                                                                          | 1.8.4                      | ✗                    | ✗                               |
 | [librdkafka - the Apache Kafka C/C++ client library] | BSD-3-Clause, Xmlproc License, ISC, MIT, Public Domain, Zlib, BSD-2-Clause, Andreas Stolcke License | 2.0.2                      |                      | ✗                               |
 | [LibTomCrypt]                                        | WTFPL, Public Domain                                                                                | 1.18.2                     | ✗                    | ✗                               |
@@ -81,7 +80,6 @@ a notice will be included in
 [ICU for C/C++ (ICU4C)]: http://site.icu-project.org/download/
 [Intel Decimal Floating-Point Math Library]: https://software.intel.com/en-us/articles/intel-decimal-floating-point-math-library
 [JSON-Schema-Test-Suite]: https://github.com/json-schema-org/JSON-Schema-Test-Suite
-[jwt-cpp]: https://github.com/Thalhammer/jwt-cpp
 [LibTomCrypt]: https://github.com/libtom/libtomcrypt/releases
 [MongoDB C Driver]: https://github.com/mongodb/mongo-c-driver
 [Mozilla Firefox]: https://www.mozilla.org/en-US/security/known-vulnerabilities/firefox-esr

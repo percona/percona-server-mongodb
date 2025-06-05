@@ -83,17 +83,6 @@ env.BazelLibrary(
     ],
 )
 
-env.BazelLibrary(
-    target='boost_json',
-    source=[
-        'libs/json/src/src.cpp',
-    ],
-    LIBDEPS=[
-        '$BUILD_DIR/mongo/util/boost_assert_shim',
-        'boost_system',
-    ],
-)
-
 boost_thread_source = dict(
     posix=['libs/thread/src/pthread/once.cpp', 'libs/thread/src/pthread/thread.cpp'],
     windows=[
