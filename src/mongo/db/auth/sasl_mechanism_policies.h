@@ -114,6 +114,7 @@ struct GSSAPIPolicy {
     }
 };
 
+#ifdef PERCONA_OIDC_ENABLED
 struct OidcPolicy {
     static constexpr StringData getName() {
         return "MONGODB-OIDC"_sd;
@@ -128,6 +129,6 @@ struct OidcPolicy {
         return false;
     }
 };
-
+#endif
 
 }  // namespace mongo
