@@ -182,7 +182,7 @@ get_sources(){
     # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
     # Use rhel93 selector for all builds, no fix by this time(20.01.2025)
 #    if [ x"$ARCH" = "xaarch64" ]; then
-        sed -i '/Arch:[[:space:]]*ArchArm64/s/ArchArm64/ArchAarch64/' release/platform/platform.go || exit 1
+        sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || exit 1
 #    fi
 
     cd ${WORKDIR}
