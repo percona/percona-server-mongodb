@@ -75,8 +75,10 @@
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/authorization_manager_factory.h"
 #include "mongo/db/auth/user_cache_invalidator_job.h"
+#ifdef PERCONA_OIDC_ENABLED
 #include "mongo/db/auth/oidc/oidc_server_parameters_logger.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
+#endif
 #include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_catalog.h"
 #include "mongo/db/catalog/collection_impl.h"
@@ -1189,6 +1191,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         audit::logStartupOptions(Client::getCurrent(), serverGlobalParams.parsedOpts);
     }
 
+#ifdef PERCONA_OIDC_ENABLED
     OidcServerParameterLogger::log();
 
     // Cannot use ServiceContext::ConstructorActionRegisterer to construct the
@@ -1203,6 +1206,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     // To ensure proper initialization of the registry, use a global initializer
     // function to construct the registry and register it with the ServiceContext.
     initializeOidcIdentityProvidersRegistry(serviceContext);
+#endif
 
     // MessageServer::run will return when exit code closes its socket and we don't need the
     // operation context anymore

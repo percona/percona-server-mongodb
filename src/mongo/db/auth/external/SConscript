@@ -1,20 +1,22 @@
 # -*- mode: python -*-
 Import("env")
+Import("has_feature_option")
 
 env = env.Clone()
 
-env.CppUnitTest(
-    target="sasl_oidc_test",
-    source=[
-        "sasl_oidc_server_mechanism_test.cpp",
-    ],
-    LIBDEPS=[
-        "$BUILD_DIR/mongo/crypto/jwt",
-        # TODO: remove dependencies, currently required by externalsaslauth
-        "$BUILD_DIR/mongo/db/audit/audit_options",
-        "$BUILD_DIR/mongo/db/mongod_main",
-        "$BUILD_DIR/mongo/db/mongod_options_init",
-        "$BUILD_DIR/mongo/db/serverinit",
-        "externalsaslauth",
-    ],
-)
+if has_feature_option("enable-oidc"):
+    env.CppUnitTest(
+        target="sasl_oidc_test",
+        source=[
+            "sasl_oidc_server_mechanism_test.cpp",
+        ],
+        LIBDEPS=[
+            "$BUILD_DIR/mongo/crypto/jwt",
+            # TODO: remove dependencies, currently required by externalsaslauth
+            "$BUILD_DIR/mongo/db/audit/audit_options",
+            "$BUILD_DIR/mongo/db/mongod_main",
+            "$BUILD_DIR/mongo/db/mongod_options_init",
+            "$BUILD_DIR/mongo/db/serverinit",
+            "externalsaslauth",
+        ],
+    )

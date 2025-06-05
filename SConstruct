@@ -92,6 +92,9 @@ def has_option(name):
     # if the value is falsish (empty string, None, etc.), coerce to False.
     return True if optval == () else bool(optval)
 
+# Returns true if a given option is set or if the 'full-featured' option is set.
+def has_feature_option(name):
+    return has_option(name) or has_option('full-featured')
 
 def use_system_version_of_library(name):
     # Disabled during Bazel migration
@@ -316,6 +319,12 @@ add_option(
 add_option(
     "enable-fcbis",
     help="Enable file copy-based initial sync",
+    nargs=0,
+)
+
+add_option(
+    "enable-oidc",
+    help="Enable OpenID Connect authentication support",
     nargs=0,
 )
 
@@ -2851,11 +2860,14 @@ env["PSMDB_PRO_FEATURES"] = []
 if has_option("audit"):
     env.Append(CPPDEFINES=["PERCONA_AUDIT_ENABLED"])
 
-if has_option("enable-fipsmode") or has_option("full-featured"):
+if has_feature_option("enable-fipsmode"):
     env["PSMDB_PRO_FEATURES"].append("FIPSMode")
 
-if has_option("enable-fcbis") or has_option("full-featured"):
+if has_feature_option("enable-fcbis"):
     env["PSMDB_PRO_FEATURES"].append("FCBIS")
+
+if has_feature_option('enable-oidc'):
+    env['PSMDB_PRO_FEATURES'].append('OIDC')
 
 env.Tool("forceincludes")
 
@@ -6389,6 +6401,7 @@ Export(
         "get_option",
         "have_sasl_lib",
         "has_option",
+        "has_feature_option",
         "http_client",
         "inmemory",
         "jsEngine",

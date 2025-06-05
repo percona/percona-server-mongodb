@@ -1891,6 +1891,29 @@ config_setting(
 )
 
 # --------------------------------------
+# OIDC
+# --------------------------------------
+
+fcbis(
+    name = "enable-oidc",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "oidc_enabled",
+    flag_values = {
+        "//bazel/config:enable-oidc": "True",
+    },
+)
+
+config_setting(
+    name = "oidc_disabled",
+    flag_values = {
+        "//bazel/config:enable-oidc": "False",
+    },
+)
+
+# --------------------------------------
 # thin_lto
 # --------------------------------------
 
