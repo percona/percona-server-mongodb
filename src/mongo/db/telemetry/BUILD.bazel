@@ -22,9 +22,22 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/db:server_base",
-        "//src/mongo/db:service_context",
+    "//src/mongo/db:service_context",
+        "//src/mongo/db:ldap_options",
+        "//src/mongo/db/auth:sasl_options",
         "//src/mongo/util:background_job",
-    ],
+    ] + select({
+        "//bazel/config:oidc_enabled": [
+            "//src/mongo/db/auth/oidc:oidc",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:full_featured_enabled": [
+            "//src/mongo/db/auth/oidc:oidc",
+        ],
+        "//conditions:default": [],
+    }),
+    
 )
 
 mongo_cc_library(
