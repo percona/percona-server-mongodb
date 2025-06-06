@@ -98,6 +98,13 @@ protected:
     static constexpr StringData kConfigSvr = "config_svr"_sd;
     static constexpr StringData kUptime = "uptime"_sd;
     static constexpr StringData kSource = "source"_sd;
+    static constexpr StringData kOIDCEnabled = "oidc_enabled"_sd;
+    static constexpr StringData kLDAPEnabled = "ldap_enabled"_sd;
+    static constexpr StringData kLDAPAuthorizationEnabled = "ldap_authorization_enabled"_sd;
+    static constexpr StringData kLDAPSaslAuthenticationEnabled =
+        "ldap_sasl_authentication_enabled"_sd;
+    static constexpr StringData kKerberosAuthenticationEnabled = "kerberos_enabled"_sd;
+    static constexpr StringData kX509AuthenticationEnabled = "x509_enabled"_sd;
 
     // instance id stored in kTelemetryFileName
     OID _instid;
