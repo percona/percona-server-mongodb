@@ -47,6 +47,11 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/auth/sasl_options.h"
+#include "mongo/db/ldap_options.h"
+#ifdef PERCONA_OIDC_ENABLED
+#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
+#endif
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
 #include "mongo/db/telemetry/telemetry_path.h"
 #include "mongo/logv2/log.h"
@@ -98,6 +103,45 @@ void stopTelemetryThread_inlock(ServiceContext* serviceContext) {
         telemetryThread->shutdown();
         TelemetryThreadBase::set(serviceContext, {});
     }
+}
+
+bool isOIDCEnabled() {
+#ifdef PERCONA_OIDC_ENABLED
+    const auto config =
+        ServerParameterSet::getNodeParameterSet()
+            ->getIfExists<OidcIdentityProvidersServerParameter>("oidcIdentityProviders");
+    if (config) {
+        return !config->_data.empty();
+    }
+#endif
+
+    return false;
+}
+
+bool isLDAPAuthorizationEnabled() {
+    return !ldapGlobalParams.ldapQueryTemplate->empty();
+}
+
+bool isLDAPEnabled() {
+    return !ldapGlobalParams.ldapServers->empty();
+}
+
+bool isAuthenticationMechanismEnabled(const std::string& mechanismName) {
+    return std::find(saslGlobalParams.authenticationMechanisms.begin(),
+                     saslGlobalParams.authenticationMechanisms.end(),
+                     mechanismName) != saslGlobalParams.authenticationMechanisms.end();
+}
+
+bool isLDAPSaslAuthenticationEnabled() {
+    return isAuthenticationMechanismEnabled("PLAIN");
+}
+
+bool isKerberosAuthenticationEnabled() {
+    return isAuthenticationMechanismEnabled("GSSAPI");
+}
+
+bool isX509AuthenticationEnabled() {
+    return isAuthenticationMechanismEnabled("MONGODB-X509");
 }
 
 }  // namespace
@@ -233,6 +277,13 @@ Status TelemetryThreadBase::_initParameters(ServiceContext* serviceContext) try 
     if (_dbid.isSet()) {
         pfx.append(kDbInternalId, _dbid.toString());
     }
+
+    pfx.append(kOIDCEnabled, boolName(isOIDCEnabled()));
+    pfx.append(kLDAPEnabled, boolName(isLDAPEnabled()));
+    pfx.append(kLDAPAuthorizationEnabled, boolName(isLDAPAuthorizationEnabled()));
+    pfx.append(kLDAPSaslAuthenticationEnabled, boolName(isLDAPSaslAuthenticationEnabled()));
+    pfx.append(kKerberosAuthenticationEnabled, boolName(isKerberosAuthenticationEnabled()));
+    pfx.append(kX509AuthenticationEnabled, boolName(isX509AuthenticationEnabled()));
 
     _prefix = pfx.obj();
 
