@@ -301,10 +301,17 @@ public:
                     {POLLNVAL, "POLLNVAL"}
                 };
                 if (shouldLog(MONGO_LOGV2_DEFAULT_COMPONENT, logv2::LogSeverity::Debug(2))) {
-                    for (auto const& f: flags) {
-                        for (auto const& fd: fds) {
+                    for (auto const& fd : fds) {
+                        if (fd.revents == 0) {
+                            continue;
+                        }
+                        for (auto const& f : flags) {
                             if (fd.revents & f.v) {
-                              LOGV2_DEBUG(29065, 2, "poll(): {event} event registered for {fd}", "event"_attr = f.name, "fd"_attr = fd.fd);
+                                LOGV2_DEBUG(29065,
+                                            2,
+                                            "poll(): {event} event registered for {fd}",
+                                            "event"_attr = f.name,
+                                            "fd"_attr = fd.fd);
                             }
                         }
                     }
@@ -332,8 +339,21 @@ public:
             if(it == _poll_fds.end()) {
                 it = _poll_fds.insert({fd, {ldap, true, false}}).first;
                 changed = true;
+            } else if (it->second.conn != ldap) {
+                // we have some connection corresponding to provided fd
+                // we observed such connections in failed state (see PSMDB-1712)
+                // let's replace it with the new one
+                // we are going to overwrite it->second.conn with ldap
+                // if it is borrowed then it will be unbind in return_ldap_connection()
+                // otherwise close it here
+                if (!it->second.borrowed) {
+                    it->second.close();
+                }
+                it->second.conn = ldap;
+                it->second.borrowed = true;
+                it->second.failed = false;
+                changed = true;
             }
-            invariant(!it->second.failed);
         }
         if (changed) {
             _condvar.notify_one();
@@ -390,6 +410,7 @@ public:
         });
         if (it == _poll_fds.end()) {
             // for this connection there was no cb_add call
+            // or it was removed from _poll_fds by start_poll()'s logic
             // unbind it here
             ldap_unbind_ext(ldap, nullptr, nullptr);
             return;
