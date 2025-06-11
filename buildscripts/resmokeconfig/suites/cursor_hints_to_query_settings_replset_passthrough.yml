@@ -7,9 +7,6 @@ selector:
     - jstests/aggregation/**/*.js
     - jstests/core/**/*.js
   exclude_files:
-    # TODO SERVER-86996 Apply QuerySettings for queries involving timeseries collections.
-    - jstests/core/timeseries/**/*.js
-
     # Query settings do not force indexes, and therefore empty filter will result in collection scans.
     - jstests/core/index/geo/geo6.js
     - jstests/core/index/index_check6.js
@@ -21,6 +18,10 @@ selector:
     - jstests/core/query/index_deduplication.js
     - jstests/core/query/internal_hash_eq/lookup_using_hash_key.js
     - jstests/core/return_key.js
+    - jstests/core/timeseries/timeseries_index_collation.js
+    - jstests/core/timeseries/timeseries_internal_bounded_sort_compound.js
+    - jstests/core/timeseries/timeseries_metric_index_compound.js
+    - jstests/core/timeseries/timeseries_special_indexes_metadata.js
 
     # Test which asserts on the number of execution metrics. The additional commands emitted by
     # this suite might cause the test to fail.
@@ -45,13 +46,12 @@ selector:
     - jstests/core/index/indext.js
     - jstests/core/index/sparse_index_internal_expr.js
     - jstests/core/query/exists/existsa.js
+    - jstests/core/timeseries/timeseries_index_partial.js
+    - jstests/core/timeseries/timeseries_sparse_index.js
     # Similar to the above, column store and timeseries indexes cannot be forced using query settings.
     - jstests/core/columnstore/columnstore_index_correctness.js
 
     - jstests/core/query/query_settings/**/*.js
-
-    # TODO: SERVER-91874 The test below fails due to unclosed by the test suite cursors.
-    - jstests/core/administrative/current_op/currentop_find.js
   exclude_with_any_tags:
     - assumes_standalone_mongod
     - requires_profiling

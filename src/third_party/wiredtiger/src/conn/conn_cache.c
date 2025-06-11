@@ -158,6 +158,9 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "eviction.evict_sample_inmem", &cval));
     conn->evict_sample_inmem = cval.val != 0;
 
+    WT_RET(__wt_config_gets(session, cfg, "eviction.legacy_page_visit_strategy", &cval));
+    conn->evict_legacy_page_visit_strategy = cval.val != 0;
+
     /* Retrieve the wait time and convert from milliseconds */
     WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
     cache->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
@@ -320,6 +323,8 @@ __wti_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, cache_overhead, cache->overhead_pct);
 
     WT_STAT_SET(session, stats, cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
+    WT_STAT_SET(session, stats, cache_bytes_dirty_leaf, __wt_cache_dirty_leaf_inuse(cache));
+    WT_STAT_SET(session, stats, cache_bytes_dirty_internal, __wt_cache_dirty_intl_inuse(cache));
     WT_STAT_SET(session, stats, cache_bytes_dirty_total,
       __wt_cache_bytes_plus_overhead(cache, __wt_atomic_load64(&cache->bytes_dirty_total)));
     WT_STAT_SET(session, stats, cache_bytes_hs,

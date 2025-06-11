@@ -27,7 +27,6 @@
  *    it in the license file.
  */
 
-
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/node_hash_map.h>
 #include <absl/container/node_hash_set.h>
@@ -68,6 +67,7 @@
 #include "mongo/db/api_parameters.h"
 #include "mongo/db/basic_types.h"
 #include "mongo/db/bson/dotted_path_support.h"
+#include "mongo/db/curop_failpoint_helpers.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/feature_compatibility_version_documentation.h"
@@ -96,6 +96,7 @@
 #include "mongo/util/base64.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
+#include "mongo/util/elapsed_tracker.h"
 #include "mongo/util/errno_util.h"
 #include "mongo/util/pcre.h"
 #include "mongo/util/pcre_util.h"
@@ -117,6 +118,8 @@ using std::pair;
 using std::string;
 using std::vector;
 
+MONGO_FAIL_POINT_DEFINE(mapReduceFilterPauseBeforeLoop);
+
 Value ExpressionConstant::serializeConstant(const SerializationOptions& opts,
                                             Value val,
                                             bool wrapRepresentativeValue) {
@@ -137,6 +140,33 @@ Value ExpressionConstant::serializeConstant(const SerializationOptions& opts,
 
     return opts.serializeLiteral(val);
 }
+
+namespace {
+
+void mapReduceFilterWaitBeforeLoop(OperationContext* opCtx) {
+    CurOpFailpointHelpers::waitWhileFailPointEnabled(
+        &mapReduceFilterPauseBeforeLoop, opCtx, "mapReduceFilterPauseBeforeLoop", []() {
+            LOGV2(9006800, "waiting due to 'mapReduceFilterPauseBeforeLoop' failpoint");
+        });
+}
+
+std::function<void()> getExpressionInterruptChecker(OperationContext* opCtx) {
+    if (opCtx) {
+        ElapsedTracker et(opCtx->getServiceContext()->getFastClockSource(),
+                          internalQueryExpressionInterruptIterations.load(),
+                          Milliseconds{internalQueryExpressionInterruptPeriodMS.load()});
+        return [=]() mutable {
+            if (MONGO_unlikely(et.intervalHasElapsed())) {
+                opCtx->checkForInterrupt();
+            }
+        };
+    } else {
+        return []() {
+        };
+    }
+}
+
+}  // namespace
 
 /* --------------------------- Expression ------------------------------ */
 
@@ -1054,10 +1084,9 @@ intrusive_ptr<Expression> ExpressionCompare::parse(ExpressionContext* const expC
                                                    BSONElement bsonExpr,
                                                    const VariablesParseState& vps,
                                                    CmpOp op) {
-    intrusive_ptr<ExpressionCompare> expr = new ExpressionCompare(expCtx, op);
     ExpressionVector args = parseArguments(expCtx, bsonExpr, vps);
-    expr->validateArguments(args);
-    expr->_children = std::move(args);
+    intrusive_ptr<ExpressionCompare> expr = new ExpressionCompare(expCtx, op, std::move(args));
+    expr->validateChildren();
     return expr;
 }
 
@@ -1196,12 +1225,14 @@ boost::intrusive_ptr<Expression> ExpressionCond::create(ExpressionContext* const
                                                         boost::intrusive_ptr<Expression> ifExp,
                                                         boost::intrusive_ptr<Expression> elseExpr,
                                                         boost::intrusive_ptr<Expression> thenExpr) {
-    intrusive_ptr<ExpressionCond> ret = new ExpressionCond(expCtx);
-    ret->_children.resize(3);
+    ExpressionVector children;
+    children.resize(3);
+    children[0] = ifExp;
+    children[1] = elseExpr;
+    children[2] = thenExpr;
 
-    ret->_children[0] = ifExp;
-    ret->_children[1] = elseExpr;
-    ret->_children[2] = thenExpr;
+    intrusive_ptr<ExpressionCond> ret = new ExpressionCond(expCtx, std::move(children));
+
     return ret;
 }
 
@@ -1213,26 +1244,28 @@ intrusive_ptr<Expression> ExpressionCond::parse(ExpressionContext* const expCtx,
     }
     MONGO_verify(expr.fieldNameStringData() == "$cond");
 
-    intrusive_ptr<ExpressionCond> ret = new ExpressionCond(expCtx);
-    ret->_children.resize(3);
+    ExpressionVector children;
+    children.resize(3);
 
     const BSONObj args = expr.embeddedObject();
     BSONForEach(arg, args) {
         if (arg.fieldNameStringData() == "if") {
-            ret->_children[0] = parseOperand(expCtx, arg, vps);
+            children[0] = parseOperand(expCtx, arg, vps);
         } else if (arg.fieldNameStringData() == "then") {
-            ret->_children[1] = parseOperand(expCtx, arg, vps);
+            children[1] = parseOperand(expCtx, arg, vps);
         } else if (arg.fieldNameStringData() == "else") {
-            ret->_children[2] = parseOperand(expCtx, arg, vps);
+            children[2] = parseOperand(expCtx, arg, vps);
         } else {
             uasserted(17083,
                       str::stream() << "Unrecognized parameter to $cond: " << arg.fieldName());
         }
     }
 
-    uassert(17080, "Missing 'if' parameter to $cond", ret->_children[0]);
-    uassert(17081, "Missing 'then' parameter to $cond", ret->_children[1]);
-    uassert(17082, "Missing 'else' parameter to $cond", ret->_children[2]);
+    uassert(17080, "Missing 'if' parameter to $cond", children[0]);
+    uassert(17081, "Missing 'then' parameter to $cond", children[1]);
+    uassert(17082, "Missing 'else' parameter to $cond", children[2]);
+
+    intrusive_ptr<ExpressionCond> ret = new ExpressionCond(expCtx, std::move(children));
 
     return ret;
 }
@@ -2818,14 +2851,15 @@ intrusive_ptr<Expression> ExpressionFilter::optimize() {
 
 Value ExpressionFilter::serialize(const SerializationOptions& options) const {
     if (_limit) {
-        return Value(DOC(
-            "$filter" << DOC("input" << _children[_kInput]->serialize(options) << "as" << _varName
-                                     << "cond" << _children[_kCond]->serialize(options) << "limit"
-                                     << (_children[*_limit])->serialize(options))));
+        return Value(
+            DOC("$filter" << DOC("input" << _children[_kInput]->serialize(options) << "as"
+                                         << options.serializeIdentifier(_varName) << "cond"
+                                         << _children[_kCond]->serialize(options) << "limit"
+                                         << (_children[*_limit])->serialize(options))));
     }
-    return Value(
-        DOC("$filter" << DOC("input" << _children[_kInput]->serialize(options) << "as" << _varName
-                                     << "cond" << _children[_kCond]->serialize(options))));
+    return Value(DOC("$filter" << DOC("input" << _children[_kInput]->serialize(options) << "as"
+                                              << options.serializeIdentifier(_varName) << "cond"
+                                              << _children[_kCond]->serialize(options))));
 }
 
 Value ExpressionFilter::evaluate(const Document& root, Variables* variables) const {
@@ -2873,9 +2907,13 @@ Value ExpressionFilter::evaluate(const Document& root, Variables* variables) con
         }
     }
 
+    auto checkForInterrupt = getExpressionInterruptChecker(getExpressionContext()->opCtx);
+    mapReduceFilterWaitBeforeLoop(getExpressionContext()->opCtx);
+
     vector<Value> output;
     output.reserve(approximateOutputSize);
     for (const auto& elem : input) {
+        checkForInterrupt();
         variables->setValue(_varId, elem);
 
         if (_children[_kCond]->evaluate(root, variables).coerceToBool()) {
@@ -3102,9 +3140,9 @@ intrusive_ptr<Expression> ExpressionMap::optimize() {
 }
 
 Value ExpressionMap::serialize(const SerializationOptions& options) const {
-    return Value(
-        DOC("$map" << DOC("input" << _children[_kInput]->serialize(options) << "as" << _varName
-                                  << "in" << _children[_kEach]->serialize(options))));
+    return Value(DOC("$map" << DOC("input" << _children[_kInput]->serialize(options) << "as"
+                                           << options.serializeIdentifier(_varName) << "in"
+                                           << _children[_kEach]->serialize(options))));
 }
 
 Value ExpressionMap::evaluate(const Document& root, Variables* variables) const {
@@ -3122,9 +3160,15 @@ Value ExpressionMap::evaluate(const Document& root, Variables* variables) const 
     if (input.empty())
         return inputVal;
 
+    auto checkForInterrupt = getExpressionInterruptChecker(getExpressionContext()->opCtx);
+    mapReduceFilterWaitBeforeLoop(getExpressionContext()->opCtx);
+
+    size_t memUsed = 0;
     vector<Value> output;
     output.reserve(input.size());
+    const size_t memLimit = internalQueryMaxMapFilterReduceBytes.load();
     for (size_t i = 0; i < input.size(); i++) {
+        checkForInterrupt();
         variables->setValue(_varId, input[i]);
 
         Value toInsert = _children[_kEach]->evaluate(root, variables);
@@ -3132,6 +3176,11 @@ Value ExpressionMap::evaluate(const Document& root, Variables* variables) const 
             toInsert = Value(BSONNULL);  // can't insert missing values into array
 
         output.push_back(toInsert);
+        memUsed += toInsert.getApproximateSize();
+        if (MONGO_unlikely(memUsed > memLimit)) {
+            uasserted(ErrorCodes::ExceededMemoryLimit,
+                      "$map would use too much memory and cannot spill");
+        }
     }
 
     return Value(std::move(output));
@@ -3498,10 +3547,10 @@ const char* ExpressionMultiply::getOpName() const {
 
 /* ----------------------- ExpressionIfNull ---------------------------- */
 
-void ExpressionIfNull::validateArguments(const ExpressionVector& args) const {
+void ExpressionIfNull::validateChildren() const {
     uassert(1257300,
-            str::stream() << "$ifNull needs at least two arguments, had: " << args.size(),
-            args.size() >= 2);
+            str::stream() << "$ifNull needs at least two arguments, had: " << _children.size(),
+            _children.size() >= 2);
 }
 
 Value ExpressionIfNull::evaluate(const Document& root, Variables* variables) const {
@@ -4691,13 +4740,23 @@ Value ExpressionReduce::evaluate(const Document& root, Variables* variables) con
                           << inputVal.toString(),
             inputVal.isArray());
 
+    auto checkForInterrupt = getExpressionInterruptChecker(getExpressionContext()->opCtx);
+    mapReduceFilterWaitBeforeLoop(getExpressionContext()->opCtx);
+
+    size_t memLimit = internalQueryMaxMapFilterReduceBytes.load();
     Value accumulatedValue = _children[_kInitial]->evaluate(root, variables);
 
     for (auto&& elem : inputVal.getArray()) {
+        checkForInterrupt();
+
         variables->setValue(_thisVar, elem);
         variables->setValue(_valueVar, accumulatedValue);
 
         accumulatedValue = _children[_kIn]->evaluate(root, variables);
+        if (MONGO_unlikely(accumulatedValue.getApproximateSize() > memLimit)) {
+            uasserted(ErrorCodes::ExceededMemoryLimit,
+                      "$reduce would use too much memory and cannot spill");
+        }
     }
 
     return accumulatedValue;
@@ -5055,10 +5114,10 @@ const char* ExpressionSetDifference::getOpName() const {
 
 /* ----------------------- ExpressionSetEquals ---------------------------- */
 
-void ExpressionSetEquals::validateArguments(const ExpressionVector& args) const {
+void ExpressionSetEquals::validateChildren() const {
     uassert(17045,
-            str::stream() << "$setEquals needs at least two arguments had: " << args.size(),
-            args.size() >= 2);
+            str::stream() << "$setEquals needs at least two arguments had: " << _children.size(),
+            _children.size() >= 2);
 }
 
 namespace {

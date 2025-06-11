@@ -5,9 +5,7 @@
  *   # We need persistence as we temporarily restart nodes as standalones.
  *   requires_persistence,
  *   assumes_against_mongod_not_mongos,
- *   # snapshotRead:false behavior has been removed in 6.2
- *   requires_fcv_62,
- *   featureFlagSecondaryIndexChecksInDbCheck,
+ *   requires_fcv_80,
  * ]
  */
 
@@ -35,16 +33,15 @@ replSet.initiate();
 replSet.awaitSecondaryNodes();
 
 logEveryBatch(replSet);
-
-let dbName = "dbCheck-test";
-let collName = "dbcheck-collection";
+const dbName = "dbCheck-test";
+const collName = "dbcheck-collection";
+const primary = replSet.getPrimary();
+const primaryDb = primary.getDB(dbName);
 
 // Name for a collection which takes multiple batches to check and which shouldn't be modified
 // by any of the tests.
 const multiBatchSimpleCollName = "dbcheck-simple-collection";
 const multiBatchSimpleCollSize = 10000;
-replSet.getPrimary().getDB(dbName)[multiBatchSimpleCollName].insertMany(
-    [...Array(10000).keys()].map(x => ({_id: x})), {ordered: false});
 
 // Check that everything in the health log shows a successful and complete check with no found
 // inconsistencies.
@@ -193,10 +190,6 @@ function concurrentTestConsistent() {
 
     forEachNonArbiterSecondary(replSet, secondary => checkLogAllConsistent(secondary, true));
 }
-
-simpleTestConsistent();
-simpleTestNonSnapshot();
-concurrentTestConsistent();
 
 // Test the various other parameters.
 function testDbCheckParameters() {
@@ -361,10 +354,29 @@ function testDbCheckParameters() {
 
         query = {"operation": "dbCheckBatch", "data.count": 1};
         checkHealthLog(healthlog, query, nDocs);
+        coll.drop();
     }
 }
 
-testDbCheckParameters();
+function runMultiBatchTests(collOpts) {
+    jsTestLog("Running multi batch tests with collection options: " + tojson(collOpts));
+    clearHealthLog(replSet);
+    assert.commandWorked(primaryDb.createCollection(multiBatchSimpleCollName, collOpts));
+    primaryDb[multiBatchSimpleCollName].insertMany([...Array(10000).keys()].map(x => ({_id: x})),
+                                                   {ordered: false});
+
+    simpleTestConsistent();
+    simpleTestNonSnapshot();
+    concurrentTestConsistent();
+    testDbCheckParameters();
+    primaryDb[multiBatchSimpleCollName].drop();
+}
+
+[{},
+ {clusteredIndex: {key: {_id: 1}, unique: true}}]
+    .forEach(collOpts => {
+        runMultiBatchTests(collOpts);
+    });
 
 // Now, test some unusual cases where the command should fail.
 function testErrorOnNonexistent() {
@@ -398,7 +410,7 @@ testErrorOnSecondary();
 testErrorOnUnreplicated();
 
 // Just add an extra document, and test that it catches it.
-function simpleTestCatchesExtra() {
+function simpleTestCatchesExtra(collOpts) {
     {
         const primary = replSet.getPrimary();
         const db = primary.getDB(dbName);
@@ -406,7 +418,7 @@ function simpleTestCatchesExtra() {
         clearHealthLog(replSet);
 
         // Create the collection on the primary.
-        db.createCollection(collName, {validationLevel: "off"});
+        db.createCollection(collName, collOpts);
     }
 
     replSet.awaitReplication();
@@ -431,6 +443,10 @@ function simpleTestCatchesExtra() {
                   JSON.stringify(errors.toArray()));
 }
 
-simpleTestCatchesExtra();
+[{validationLevel: "off"},
+ {validationLevel: "off", clusteredIndex: {key: {_id: 1}, unique: true}}]
+    .forEach(collOpts => {
+        simpleTestCatchesExtra(collOpts);
+    });
 
 replSet.stopSet();

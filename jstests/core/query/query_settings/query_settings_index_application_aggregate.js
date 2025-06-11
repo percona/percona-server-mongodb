@@ -21,6 +21,8 @@ import {QuerySettingsIndexHintsTests} from "jstests/libs/query_settings_index_hi
 import {QuerySettingsUtils} from "jstests/libs/query_settings_utils.js";
 import {checkSbeRestrictedOrFullyEnabled} from "jstests/libs/sbe_util.js";
 
+const isTimeseriesTestSuite = TestData.isTimeseriesTestSuite || false;
+
 const coll = assertDropAndRecreateCollection(db, jsTestName());
 const viewName = "identityView";
 assertDropCollection(db, viewName);
@@ -64,7 +66,8 @@ function testAggregateQuerySettingsApplicationWithoutSecondaryCollections(collOr
     const qsutils = new QuerySettingsUtils(db, collOrViewName);
     const qstests = new QuerySettingsIndexHintsTests(qsutils);
 
-    setIndexes(coll, [qstests.indexA, qstests.indexB, qstests.indexAB]);
+    // Set indexes on collection 'coll'.
+    setIndexes(coll, qstests.allIndexes);
 
     // Ensure that query settings cluster parameter is empty.
     qsutils.assertQueryShapeConfiguration([]);
@@ -88,8 +91,8 @@ function testAggregateQuerySettingsApplicationWithLookupEquiJoin(
     const qstests = new QuerySettingsIndexHintsTests(qsutils);
 
     // Set indexes on both collections.
-    setIndexes(coll, [qstests.indexA, qstests.indexB, qstests.indexAB]);
-    setIndexes(secondaryColl, [qstests.indexA, qstests.indexB, qstests.indexAB]);
+    setIndexes(coll, qstests.allIndexes);
+    setIndexes(secondaryColl, qstests.allIndexes);
 
     // Ensure that query settings cluster parameter is empty.
     qsutils.assertQueryShapeConfiguration([]);
@@ -112,10 +115,14 @@ function testAggregateQuerySettingsApplicationWithLookupEquiJoin(
 
     // Ensure query settings index application for 'mainNs', 'secondaryNs' and both.
     qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
-    qstests.assertQuerySettingsLookupJoinIndexApplication(
-        aggregateCmd, secondaryNs, isSecondaryCollAView);
-    qstests.assertQuerySettingsIndexAndLookupJoinApplications(
-        aggregateCmd, mainNs, secondaryNs, isSecondaryCollAView);
+    // TODO SERVER-95352 Investigate why some time series queries cannot be answered using only
+    // indexes with Query Settings.
+    if (!isTimeseriesTestSuite) {
+        qstests.assertQuerySettingsLookupJoinIndexApplication(
+            aggregateCmd, secondaryNs, isSecondaryCollAView);
+        qstests.assertQuerySettingsIndexAndLookupJoinApplications(
+            aggregateCmd, mainNs, secondaryNs, isSecondaryCollAView);
+    }
 
     if (!isSecondaryCollAView) {
         qstests.testAggregateQuerySettingsNaturalHintEquiJoinStrategy(
@@ -150,8 +157,8 @@ function testAggregateQuerySettingsApplicationWithMerge(collOrViewName, outputCo
     const qsutils = new QuerySettingsUtils(db, collOrViewName);
     const qstests = new QuerySettingsIndexHintsTests(qsutils);
 
-    // Set indexes on both collections.
-    setIndexes(coll, [qstests.indexA, qstests.indexB, qstests.indexAB]);
+    // Set indexes on collection 'coll'.
+    setIndexes(coll, qstests.allIndexes);
 
     // Ensure that query settings cluster parameter is empty.
     qsutils.assertQueryShapeConfiguration([]);
@@ -185,8 +192,8 @@ function testAggregateQuerySettingsApplicationWithLookupPipeline(collOrViewName,
     const qstests = new QuerySettingsIndexHintsTests(qsutils);
 
     // Set indexes on both collections.
-    setIndexes(coll, [qstests.indexA, qstests.indexB, qstests.indexAB]);
-    setIndexes(secondaryColl, [qstests.indexA, qstests.indexB, qstests.indexAB]);
+    setIndexes(coll, qstests.allIndexes);
+    setIndexes(secondaryColl, qstests.allIndexes);
 
     // Ensure that query settings cluster parameter is empty.
     qsutils.assertQueryShapeConfiguration([]);
@@ -207,10 +214,13 @@ function testAggregateQuerySettingsApplicationWithLookupPipeline(collOrViewName,
 
     // Ensure query settings index application for 'mainNs', 'secondaryNs' and both.
     qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
-    qstests.assertQuerySettingsLookupPipelineIndexApplication(aggregateCmd, secondaryNs);
-    qstests.assertQuerySettingsIndexAndLookupPipelineApplications(
-        aggregateCmd, mainNs, secondaryNs);
-
+    // TODO SERVER-95352 Investigate why some time series queries cannot be answered using only
+    // indexes with Query Settings.
+    if (!isTimeseriesTestSuite) {
+        qstests.assertQuerySettingsLookupPipelineIndexApplication(aggregateCmd, secondaryNs);
+        qstests.assertQuerySettingsIndexAndLookupPipelineApplications(
+            aggregateCmd, mainNs, secondaryNs);
+    }
     // Ensure query settings ignore cursor hints when being set on main collection.
     qstests.assertQuerySettingsIgnoreCursorHints(aggregateCmd, mainNs);
 
@@ -231,8 +241,8 @@ function testAggregateQuerySettingsApplicationWithGraphLookup(collOrViewName,
     const qstests = new QuerySettingsIndexHintsTests(qsutils);
 
     // Set indexes on both collections.
-    setIndexes(coll, [qstests.indexA, qstests.indexB, qstests.indexAB]);
-    setIndexes(secondaryColl, [qstests.indexA, qstests.indexB, qstests.indexAB]);
+    setIndexes(coll, qstests.allIndexes);
+    setIndexes(secondaryColl, qstests.allIndexes);
 
     // Ensure that query settings cluster parameter is empty.
     qsutils.assertQueryShapeConfiguration([]);
@@ -257,8 +267,12 @@ function testAggregateQuerySettingsApplicationWithGraphLookup(collOrViewName,
     // Ensure query settings index application for 'mainNs'.
     // TODO SERVER-88561: Ensure query settings index application for 'secondaryNs' after
     // 'indexesUsed' is added to the 'explain' command output for the $graphLookup operation.
-    qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
-    qstests.assertGraphLookupQuerySettingsInCache(aggregateCmd, secondaryNs);
+    // TODO SERVER-95352 Investigate why some time series queries cannot be answered using only
+    // indexes with Query Settings.
+    if (!isTimeseriesTestSuite) {
+        qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
+        qstests.assertGraphLookupQuerySettingsInCache(aggregateCmd, secondaryNs);
+    }
 }
 
 function testAggregateQuerySettingsApplicationWithUnionWithPipeline(collOrViewName,
@@ -267,8 +281,8 @@ function testAggregateQuerySettingsApplicationWithUnionWithPipeline(collOrViewNa
     const qstests = new QuerySettingsIndexHintsTests(qsutils);
 
     // Set indexes on both collections.
-    setIndexes(coll, [qstests.indexA, qstests.indexB, qstests.indexAB]);
-    setIndexes(secondaryColl, [qstests.indexA, qstests.indexB, qstests.indexAB]);
+    setIndexes(coll, qstests.allIndexes);
+    setIndexes(secondaryColl, qstests.allIndexes);
 
     // Ensure that query settings cluster parameter is empty.
     qsutils.assertQueryShapeConfiguration([]);
@@ -282,8 +296,12 @@ function testAggregateQuerySettingsApplicationWithUnionWithPipeline(collOrViewNa
 
     // Ensure query settings index application for 'mainNs', 'secondaryNs' and both.
     qstests.assertQuerySettingsIndexApplication(aggregateCmd, mainNs);
-    qstests.assertQuerySettingsIndexApplication(aggregateCmd, secondaryNs);
-    qstests.assertQuerySettingsIndexApplications(aggregateCmd, mainNs, secondaryNs);
+    // TODO SERVER-95352 Investigate why some time series queries cannot be answered using only
+    // indexes with Query Settings.
+    if (!isTimeseriesTestSuite) {
+        qstests.assertQuerySettingsIndexApplication(aggregateCmd, secondaryNs);
+        qstests.assertQuerySettingsIndexApplications(aggregateCmd, mainNs, secondaryNs);
+    }
 
     // Ensure query settings ignore cursor hints when being set on main collection.
     qstests.assertQuerySettingsIgnoreCursorHints(aggregateCmd, mainNs);
@@ -303,8 +321,8 @@ function testAggregateQuerySettingsApplicationWithUnionWithPipeline(collOrViewNa
 // collections.
 function instantiateTestCases(...testCases) {
     for (const testCase of testCases) {
-        testCase(coll.getName(), secondaryColl.getName(), false);
-        testCase(viewName, secondaryColl.getName(), false);
+        testCase(coll.getName(), secondaryColl.getName(), isTimeseriesTestSuite);
+        testCase(viewName, secondaryColl.getName(), isTimeseriesTestSuite);
         testCase(coll.getName(), secondaryViewName, true);
         testCase(viewName, secondaryViewName, true);
     }
@@ -314,8 +332,8 @@ function instantiateTestCases(...testCases) {
 // secondary collection.
 function instantiateTestCasesNoSecondaryView(...testCases) {
     for (const testCase of testCases) {
-        testCase(coll.getName(), secondaryColl.getName(), false);
-        testCase(viewName, secondaryColl.getName(), false);
+        testCase(coll.getName(), secondaryColl.getName(), isTimeseriesTestSuite);
+        testCase(viewName, secondaryColl.getName(), isTimeseriesTestSuite);
     }
 }
 

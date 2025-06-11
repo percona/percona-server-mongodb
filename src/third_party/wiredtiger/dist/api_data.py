@@ -561,7 +561,7 @@ connection_runtime_config = [
             ''', choices=['none', 'reclaim_space']),
         Config('wait', '300', r'''
             seconds to wait between each checkpoint cleanup''',
-            min='60', max='100000'),
+            min='1', max='100000'),
         ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
@@ -652,6 +652,10 @@ connection_runtime_config = [
                 If no in-memory ref is found on the root page, attempt to locate a random 
                 in-memory page by examining all entries on the root page.''',
                 type='boolean'),
+            Config('legacy_page_visit_strategy', 'false', r'''
+                Use legacy page visit strategy for eviction. Using this option is highly discouraged
+                as it will re-introduce the bug described in WT-9121.''',
+                type='boolean'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
@@ -730,6 +734,24 @@ connection_runtime_config = [
         the number of milliseconds to wait for a resource to drain before timing out in diagnostic
         mode. Default will wait for 4 minutes, 0 will wait forever''',
         min=0),
+    Config('heuristic_controls', '', r'''
+        control the behavior of various optimizations. This is primarily used as a mechanism for
+        rolling out changes to internal heuristics while providing a mechanism for quickly
+        reverting to prior behavior in the field''',
+        type='category', subconfig=[
+            Config('checkpoint_cleanup_obsolete_tw_pages_dirty_max', '100', r'''
+                maximum number of obsolete time window pages that can be marked as dirty per btree
+                in a single checkpoint by the checkpoint cleanup''',
+                min=0, max=100000),
+            Config('eviction_obsolete_tw_pages_dirty_max', '100', r'''
+                maximum number of obsolete time window pages that can be marked dirty per btree in a
+                single checkpoint by the eviction threads''',
+                min=0, max=100000),
+            Config('obsolete_tw_btree_max', '100', r'''
+                maximum number of btrees that can be checked for obsolete time window cleanup in a
+                single checkpoint''',
+                min=0, max=500000),
+        ]),
     Config('history_store', '', r'''
         history store configuration options''',
         type='category', subconfig=[
@@ -788,6 +810,16 @@ connection_runtime_config = [
                 the name of a directory into which operation tracking files are written. The
                 directory must already exist. If the value is not an absolute path, the path
                 is relative to the database home (see @ref absolute_path for more information)'''),
+        ]),
+    Config('rollback_to_stable', '', r'''
+        rollback tables to an earlier point in time, discarding all updates to checkpoint durable
+        tables that have durable times more recent than the current global stable timestamp''',
+        type='category', subconfig=[
+            Config('threads', 4, r'''
+                maximum number of threads WiredTiger will start to help RTS. Each
+                RTS worker thread uses a session from the configured WT_RTS_MAX_WORKERS''',
+                min=0,
+                max=10),    # !!! Must match WT_RTS_MAX_WORKERS
         ]),
     Config('shared_cache', '', r'''
         shared cache configuration options. A database should configure either a cache_size
@@ -2047,8 +2079,9 @@ methods = {
         type='boolean'),
     Config('threads', '4', r'''
         maximum number of threads WiredTiger will start to help RTS. Each
-        RTS worker thread uses a session from the configured session_max''',
-        min=0, max=10),
+        RTS worker thread uses a session from the configured WT_RTS_MAX_WORKERS''',
+        min=0, 
+        max=10),     # !!! Must match WT_RTS_MAX_WORKERS
 ]),
 
 'WT_SESSION.reconfigure' : Method(session_config),

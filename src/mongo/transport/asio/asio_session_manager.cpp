@@ -101,7 +101,8 @@ void AsioSessionManager::appendStats(BSONObjBuilder* bob) const {
     // some sessions would have used the non-threaded ServiceExecutorFixed.
     // Currently all sessions are threaded, so this number is redundant.
     appendInt("threaded", sessionCount);
-    if (!serverGlobalParams.maxConnsOverride.empty()) {
+    auto maxConnsOverride = serverGlobalParams.maxConnsOverride.makeSnapshot();
+    if (maxConnsOverride && !maxConnsOverride->empty()) {
         appendInt("limitExempt", serviceExecutorStats.limitExempt.load());
     }
 
@@ -116,17 +117,39 @@ void AsioSessionManager::appendStats(BSONObjBuilder* bob) const {
     bob->append("loadBalanced", _loadBalancedConnections.get());
 }
 
+void AsioSessionManager::incrementLBConnections() {
+    _loadBalancedConnections.increment();
+}
+
+void AsioSessionManager::decrementLBConnections() {
+    _loadBalancedConnections.decrement();
+}
+
+/**
+ * In practice, we will never pass "isLoadBalancerPeer" on connect,
+ * because the client hasn't performed a "hello: {loadBalancer: true} yet.
+ *
+ * This increment does happen in CommonAsioSession::setisLoadBalancerPeer()
+ * in response to a hello command with a truthful loadBalancer option.
+ * This increment will then be balanced in the destructor further below.
+ *
+ * load_balancer_support::handleHello bridges the mongos hello with the
+ * setIsLoadBalancerPeer() function.
+ *
+ * Keep this phantom increment here as a natural bookend to the decrement
+ * in the destructor.
+ */
 void AsioSessionManager::onClientConnect(Client* client) {
     auto session = client->session();
-    if (session && session->isFromLoadBalancer()) {
-        _loadBalancedConnections.increment();
+    if (session && session->isLoadBalancerPeer()) {
+        incrementLBConnections();
     }
 }
 
 void AsioSessionManager::onClientDisconnect(Client* client) {
     auto session = client->session();
-    if (session && session->isFromLoadBalancer()) {
-        _loadBalancedConnections.decrement();
+    if (session && session->isLoadBalancerPeer()) {
+        decrementLBConnections();
     }
 }
 

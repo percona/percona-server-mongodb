@@ -139,6 +139,7 @@ namespace {
 MONGO_FAIL_POINT_DEFINE(analyzeShardKeyPauseBeforeCalculatingKeyCharacteristicsMetrics);
 MONGO_FAIL_POINT_DEFINE(analyzeShardKeyPauseBeforeCalculatingReadWriteDistributionMetrics);
 MONGO_FAIL_POINT_DEFINE(analyzeShardKeyPauseBeforeCalculatingCollStatsMetrics);
+MONGO_FAIL_POINT_DEFINE(analyzeShardKeyHangInClusterAggregate);
 
 constexpr StringData kIndexKeyFieldName = "key"_sd;
 constexpr StringData kDocFieldName = "doc"_sd;
@@ -372,8 +373,12 @@ void runClusterAggregate(OperationContext* opCtx,
         }();
     }
 
-    StringMap<ExpressionContext::ResolvedNamespace> resolvedNamespaces;
-    resolvedNamespaces[nss.coll()] = {nss, std::vector<BSONObj>{}};
+    if (MONGO_unlikely(analyzeShardKeyHangInClusterAggregate.shouldFail())) {
+        analyzeShardKeyHangInClusterAggregate.pauseWhileSet();
+    }
+
+    ResolvedNamespaceMap resolvedNamespaces;
+    resolvedNamespaces[nss] = {nss, std::vector<BSONObj>{}};
 
     auto pi = std::make_shared<ShardServerProcessInterface>(
         Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor());

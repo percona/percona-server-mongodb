@@ -52,14 +52,10 @@ Compartment::Compartment(Zone* zone, bool invisibleToDebugger)
 
 void Compartment::checkObjectWrappersAfterMovingGC() {
   for (ObjectWrapperEnum e(this); !e.empty(); e.popFront()) {
-    // Assert that the postbarriers have worked and that nothing is left in the
-    // wrapper map that points into the nursery, and that the hash table entries
-    // are discoverable.
     auto key = e.front().key();
-    CheckGCThingAfterMovingGC(key.get());
-
-    auto ptr = crossCompartmentObjectWrappers.lookup(key);
-    MOZ_RELEASE_ASSERT(ptr.found() && &*ptr == &e.front());
+    CheckGCThingAfterMovingGC(key.get());  // Keys may be in a different zone.
+    CheckGCThingAfterMovingGC(e.front().value().unbarrieredGet(), zone());
+    CheckTableEntryAfterMovingGC(crossCompartmentObjectWrappers, e, key);
   }
 }
 
@@ -301,6 +297,12 @@ bool Compartment::getOrCreateWrapper(JSContext* cx, HandleObject existing,
   // for a gray object.
   ExposeObjectToActiveJS(obj);
 
+  // If we're wrapping an object which emulates undefined then the runtime fuse
+  // should already have been popped.
+  MOZ_ASSERT_IF(
+      obj->getClass()->emulatesUndefined(),
+      !cx->runtime()->hasSeenObjectEmulateUndefinedFuse.ref().intact());
+
   // Create a new wrapper for the object.
   auto wrap = cx->runtime()->wrapObjectCallbacks->wrap;
   RootedObject wrapper(cx, wrap(cx, existing, obj));
@@ -468,13 +470,18 @@ bool Compartment::wrap(JSContext* cx, MutableHandle<GCVector<Value>> vec) {
 
 static inline bool ShouldTraceWrapper(JSObject* wrapper,
                                       Compartment::EdgeSelector whichEdges) {
-  if (whichEdges == Compartment::AllEdges) {
-    return true;
+  switch (whichEdges) {
+    case Compartment::AllEdges:
+      return true;
+    case Compartment::NonGrayEdges:
+      return !wrapper->isMarkedGray();
+    case Compartment::GrayEdges:
+      return wrapper->isMarkedGray();
+    case Compartment::BlackEdges:
+      return wrapper->isMarkedBlack();
+    default:
+      MOZ_CRASH("Unexpected EdgeSelector value");
   }
-
-  bool isGray = wrapper->isMarkedGray();
-  return (whichEdges == Compartment::NonGrayEdges && !isGray) ||
-         (whichEdges == Compartment::GrayEdges && isGray);
 }
 
 void Compartment::traceWrapperTargetsInCollectedZones(JSTracer* trc,

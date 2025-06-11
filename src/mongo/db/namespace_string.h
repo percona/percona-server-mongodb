@@ -65,12 +65,14 @@ namespace mongo {
 class NamespaceString : private DatabaseName {
 public:
     constexpr static size_t MaxNSCollectionLenFCV42 = 120U;
-    constexpr static size_t MaxNsCollectionLen = 255;
+    constexpr static size_t MaxUserNsCollectionLen = 255;
+    constexpr static size_t MaxInternalNsCollectionLen = 511;
 
     // The maximum namespace length of sharded collections is less than that of unsharded ones since
     // the namespace of the cached chunks metadata, local to each shard, is composed by the
     // namespace of the related sharded collection (i.e., config.cache.chunks.<ns>).
-    constexpr static size_t MaxNsShardedCollectionLen = 235;  // 255 - len(ChunkType::ShardNSPrefix)
+    constexpr static size_t MaxUserNsShardedCollectionLen =
+        235;  // 255 - len(ChunkType::ShardNSPrefix)
 
     // Reserved system namespaces
 
@@ -307,14 +309,6 @@ public:
      * Constructs the command NamespaceString, "<dbName>.$cmd".
      */
     static NamespaceString makeCommandNamespace(const DatabaseName& dbName);
-
-    /**
-     * Constructs a dummy NamespaceString, "<tenantId>.config.dummy.namespace", to be used where a
-     * placeholder NamespaceString is needed. It must be acceptable for tenantId to be empty, so we
-     * use "config" as the db.
-     */
-    static NamespaceString makeDummyNamespace(const boost::optional<TenantId>& tenantId);
-
 
     boost::optional<TenantId> tenantId() const {
         if (!hasTenantId()) {

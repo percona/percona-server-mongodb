@@ -1,5 +1,9 @@
 /**
  * Tests the skipApplyingDbCheckBatchOnSecondary parameter.
+ *
+ * @tags: [
+ *   requires_fcv_80
+ * ]
  */
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {

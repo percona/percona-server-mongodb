@@ -145,12 +145,13 @@ std::unique_ptr<Pipeline, PipelineDeleter> MongosProcessInterface::preparePipeli
 }
 
 std::unique_ptr<Pipeline, PipelineDeleter> MongosProcessInterface::preparePipelineForExecution(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const AggregateCommandRequest& aggRequest,
     Pipeline* pipeline,
-    const boost::intrusive_ptr<ExpressionContext>& expCtx,
     boost::optional<BSONObj> shardCursorsSortSpec,
     ShardTargetingPolicy shardTargetingPolicy,
-    boost::optional<BSONObj> readConcern) {
+    boost::optional<BSONObj> readConcern,
+    bool shouldUseCollectionDefaultCollator) {
     // On mongos we can't have local cursors.
     tassert(7393502,
             "shardTargetingPolicy cannot be kNotAllowed on mongos",
@@ -180,7 +181,7 @@ BSONObj MongosProcessInterface::preparePipelineAndExplain(Pipeline* ownedPipelin
 boost::optional<Document> MongosProcessInterface::lookupSingleDocument(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const NamespaceString& nss,
-    UUID collectionUUID,
+    boost::optional<UUID> collectionUUID,
     const Document& filter,
     boost::optional<BSONObj> readConcern) {
     auto foreignExpCtx = expCtx->copyWith(nss, collectionUUID);
@@ -283,6 +284,18 @@ boost::optional<Document> MongosProcessInterface::lookupSingleDocumentLocally(
     const NamespaceString& nss,
     const Document& documentKey) {
     MONGO_UNREACHABLE_TASSERT(6148001);
+}
+
+std::vector<DatabaseName> MongosProcessInterface::getAllDatabases(
+    OperationContext* opCtx, boost::optional<TenantId> tenantId) {
+    return _getAllDatabasesOnAShardedCluster(opCtx, tenantId);
+}
+
+std::vector<BSONObj> MongosProcessInterface::runListCollections(OperationContext* opCtx,
+                                                                const DatabaseName& db,
+                                                                bool addPrimaryShard) {
+    return _runListCollectionsCommandOnAShardedCluster(
+        opCtx, NamespaceStringUtil::deserialize(db, ""), addPrimaryShard);
 }
 
 BSONObj MongosProcessInterface::_reportCurrentOpForClient(

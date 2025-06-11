@@ -429,6 +429,10 @@ public:
         void explain(OperationContext* opCtx,
                      ExplainOptions::Verbosity verbosity,
                      rpc::ReplyBuilderInterface* replyBuilder) override {
+            // We want to start the query planning timer right after parsing. In the explain code
+            // path, we have already parsed the FindCommandRequest, so start timing here.
+            CurOp::get(opCtx)->beginQueryPlanningTimer();
+
             // Acquire locks. The RAII object is optional, because in the case of a view, the locks
             // need to be released.
             // TODO SERVER-79175: Make nicer. We need to instantiate the AutoStatsTracker before the
@@ -465,8 +469,11 @@ public:
             const auto& collectionPtr = collectionOrView->getCollectionPtr();
             if (!collectionOrView->isView()) {
                 const bool isClusteredCollection = collectionPtr && collectionPtr->isClustered();
-                uassertStatusOK(query_request_helper::validateResumeAfter(
-                    opCtx, _cmdRequest->getResumeAfter(), isClusteredCollection));
+                uassertStatusOK(
+                    query_request_helper::validateResumeInput(opCtx,
+                                                              _cmdRequest->getResumeAfter(),
+                                                              _cmdRequest->getStartAt(),
+                                                              isClusteredCollection));
             }
             auto expCtx = makeExpressionContext(opCtx, *_cmdRequest, collectionPtr, verbosity);
             auto parsedRequest = uassertStatusOK(parsed_find_command::parse(
@@ -559,11 +566,12 @@ public:
                 // We're rerunning the same invocation, so we have to parse again
                 _cmdRequest = _parseCmdObjectToFindCommandRequest(opCtx, _request);
             }
+            // Start the query planning timer right after parsing.
+            CurOp::get(opCtx)->beginQueryPlanningTimer();
+
             _rewriteFLEPayloads(opCtx);
             auto respSc =
                 SerializationContext::stateCommandReply(_cmdRequest->getSerializationContext());
-
-            CurOp::get(opCtx)->beginQueryPlanningTimer();
 
             // Only allow speculative majority for internal commands that specify the correct flag.
             uassert(ErrorCodes::ReadConcernMajorityNotEnabled,
@@ -748,12 +756,15 @@ public:
                 }
             }
 
-            // Views use the aggregation system and the $_resumeAfter parameter is not allowed. A
-            // more descriptive error will be raised later, but we want to validate this parameter
-            // before beginning the operation.
+            // Views use the aggregation system and the $_resumeAfter/ $_startAt parameter is not
+            // allowed. A more descriptive error will be raised later, but we want to validate this
+            // parameter before beginning the operation.
             if (!collectionOrView->isView()) {
-                uassertStatusOK(query_request_helper::validateResumeAfter(
-                    opCtx, _cmdRequest->getResumeAfter(), isClusteredCollection));
+                uassertStatusOK(
+                    query_request_helper::validateResumeInput(opCtx,
+                                                              _cmdRequest->getResumeAfter(),
+                                                              _cmdRequest->getStartAt(),
+                                                              isClusteredCollection));
             }
 
             auto cq = parseQueryAndBeginOperation(
@@ -858,7 +869,7 @@ public:
                               "Plan executor error during find command",
                               "error"_attr = exception.toStatus(),
                               "stats"_attr = redact(stats),
-                              "cmd"_attr = cmdObj);
+                              "cmd"_attr = redact(cmdObj));
 
                 exception.addContext(str::stream() << "Executor error during find command: "
                                                    << nss.toStringForErrorMsg());

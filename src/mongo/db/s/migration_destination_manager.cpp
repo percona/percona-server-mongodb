@@ -614,13 +614,13 @@ Status MigrationDestinationManager::start(OperationContext* opCtx,
     invariant(!_migrateThreadFinishedPromise);
     _migrateThreadFinishedPromise = std::make_unique<SharedPromise<State>>();
 
+    // Reset the cancellationSource at the start of every migration to avoid accumulating memory.
+    auto newCancellationSource = CancellationSource();
+    std::swap(_cancellationSource, newCancellationSource);
+
     _sessionMigration = std::make_unique<SessionCatalogMigrationDestination>(
         _nss, _fromShard, *_sessionId, _cancellationSource.token());
     ShardingStatistics::get(opCtx).countRecipientMoveChunkStarted.addAndFetch(1);
-    // (Ignore FCV check): This feature flag doesn't have any upgrade/downgrade concerns.
-    if (mongo::feature_flags::gConcurrencyInChunkMigration.isEnabledAndIgnoreFCVUnsafe())
-        ShardingStatistics::get(opCtx).chunkMigrationConcurrencyCnt.store(
-            chunkMigrationConcurrency.load());
 
     _migrateThreadHandle = stdx::thread([this, cancellationToken = _cancellationSource.token()]() {
         _migrateThread(cancellationToken);

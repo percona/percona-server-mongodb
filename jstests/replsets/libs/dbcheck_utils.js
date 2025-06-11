@@ -5,54 +5,130 @@ import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 
 export const defaultSnapshotSize = 1000;
+const infoBatchQuery = {
+    "severity": "info",
+    "operation": "dbCheckBatch",
+    "data.dbCheckParameters": {$exists: true}
+};
+const inconsistentBatchQuery = {
+    "severity": "error",
+    "msg": "dbCheck batch inconsistent",
+    "data.dbCheckParameters": {$exists: true}
+};
 export const logQueries = {
-    allErrorsOrWarningsQuery: {$or: [{"severity": "warning"}, {"severity": "error"}]},
+    allErrorsOrWarningsQuery: {
+        $or: [{"severity": "warning"}, {"severity": "error"}],
+        "data.dbCheckParameters": {$exists: true}
+    },
     recordNotFoundQuery: {
         "severity": "error",
         "msg": "found extra index key entry without corresponding document",
-        "data.context.indexSpec": {$exists: true}
+        "data.context.indexSpec": {$exists: true},
+        "data.dbCheckParameters": {$exists: true}
     },
     missingIndexKeysQuery: {
         "severity": "error",
         "msg": "Document has missing index keys",
         "data.context.missingIndexKeys": {$exists: true},
+        "data.dbCheckParameters": {$exists: true}
     },
     recordDoesNotMatchQuery: {
         "severity": "error",
         "msg":
             "found index key entry with corresponding document/keystring set that does not contain the expected key string",
-        "data.context.indexSpec": {$exists: true}
+        "data.context.indexSpec": {$exists: true},
+        "data.dbCheckParameters": {$exists: true}
     },
     collNotFoundWarningQuery: {
         severity: "warning",
-        "msg": "abandoning dbCheck extra index keys check because collection no longer exists"
+        "msg": "abandoning dbCheck extra index keys check because collection no longer exists",
+        "data.dbCheckParameters": {$exists: true}
     },
     indexNotFoundWarningQuery: {
         severity: "warning",
-        "msg": "abandoning dbCheck extra index keys check because index no longer exists"
+        "msg": "abandoning dbCheck extra index keys check because index no longer exists",
+        "data.dbCheckParameters": {$exists: true}
     },
     duringInitialSyncQuery:
         {severity: "warning", "msg": "cannot execute dbcheck due to ongoing initial sync"},
     duringStableRecovery:
         {severity: "warning", "msg": "cannot execute dbcheck due to ongoing stable recovering"},
-    errorQuery: {"severity": "error"},
-    warningQuery: {"severity": "warning"},
-    infoOrErrorQuery:
-        {$or: [{"severity": "info", "operation": "dbCheckBatch"}, {"severity": "error"}]},
-    infoBatchQuery: {"severity": "info", "operation": "dbCheckBatch"},
-    inconsistentBatchQuery: {"severity": "error", "msg": "dbCheck batch inconsistent"},
+    errorQuery: {"severity": "error", "data.dbCheckParameters": {$exists: true}},
+    warningQuery: {"severity": "warning", "data.dbCheckParameters": {$exists: true}},
+    infoOrErrorQuery: {
+        $or: [
+            {
+                "severity": "info",
+                "operation": "dbCheckBatch",
+                "data.dbCheckParameters": {$exists: true}
+            },
+            {"severity": "error", "data.dbCheckParameters": {$exists: true}}
+        ]
+    },
+    infoBatchQuery: infoBatchQuery,
+    inconsistentBatchQuery: inconsistentBatchQuery,
+    allBatchesQuery: {
+        $or: [
+            infoBatchQuery,
+            inconsistentBatchQuery,
+        ]
+    },
     startStopQuery: {
         $or: [
             {"operation": "dbCheckStart", "severity": "info"},
             {"operation": "dbCheckStop", "severity": "info"}
         ]
     },
-    writeConcernErrorQuery: {severity: "error", "msg": "dbCheck failed waiting for writeConcern"},
+    writeConcernErrorQuery: {
+        severity: "error",
+        "msg": "dbCheck failed waiting for writeConcern",
+        "data.dbCheckParameters": {$exists: true}
+    },
     skipApplyingBatchOnSecondaryQuery: {
         severity: "warning",
         "msg":
             "skipping applying dbcheck batch because the 'skipApplyingDbCheckBatchOnSecondary' parameter is on",
-    }
+        "data.dbCheckParameters": {$exists: true}
+    },
+    secondaryBatchTimeoutReachedQuery: {
+        severity: "error",
+        "data.dbCheckParameters": {$exists: true},
+        "msg":
+            "Secondary ending batch early because it reached dbCheckSecondaryBatchMaxTimeMs limit",
+    },
+    tooManyDbChecksInQueue: {
+        severity: "error",
+        "msg": "too many dbcheck runs in queue",
+        "data.dbCheckParameters": {$exists: true}
+    },
+    primarySteppedDown: {
+        severity: "warning",
+        "msg": "abandoning dbCheck batch due to stepdown",
+    },
+    missingIdIndex: {
+        severity: "error",
+        operation: "dbCheckBatch",
+        "data.error": "IndexNotFound: dbCheck needs _id index",
+    },
+    extraIndexKeyAtEndOfSecondary: {
+        severity: "error",
+        msg:
+            "dbcheck batch inconsistent: at least one index key was found on the secondary but not the primary.",
+        "data.dbCheckParameters": {$exists: true}
+    },
+    checkIdIndexOnClusteredCollectionWarningQuery: {
+        severity: "warning",
+        "msg":
+            "skipping dbCheck extra index keys check on the _id index because the target collection is a clustered collection that doesn't have an _id index",
+        "data.dbCheckParameters": {$exists: true},
+        "data.error":
+            "DbCheckAttemptOnClusteredCollectionIdIndex: Clustered collection doesn't have an _id index.",
+    },
+    indexKeyOrderViolationQuery: {
+        severity: "error",
+        operation: "dbCheckBatch",
+        "data.error": {$regex: /^IndexKeyOrderViolation.*/},
+    },
 };
 
 // Apply function on all secondary nodes except arbiters.
@@ -125,9 +201,11 @@ export const awaitDbCheckCompletion =
     };
 
 // Clear health log and insert nDocs documents.
-export const resetAndInsert = (replSet, db, collName, nDocs, docSuffix = null) => {
+export const resetAndInsert = (replSet, db, collName, nDocs, docSuffix = null, collOpts = {}) => {
     db[collName].drop();
     clearHealthLog(replSet);
+
+    assert.commandWorked(db.createCollection(collName, collOpts));
 
     if (docSuffix) {
         assert.commandWorked(db[collName].insertMany(
@@ -142,28 +220,33 @@ export const resetAndInsert = (replSet, db, collName, nDocs, docSuffix = null) =
 };
 
 // Clear health log and insert nDocs documents with two fields `a` and `b`.
-export const resetAndInsertTwoFields = (replSet, db, collName, nDocs, docSuffix = null) => {
-    db[collName].drop();
-    clearHealthLog(replSet);
+export const resetAndInsertTwoFields =
+    (replSet, db, collName, nDocs, docSuffix = null, collOpts = {}) => {
+        db[collName].drop();
+        clearHealthLog(replSet);
 
-    if (docSuffix) {
-        assert.commandWorked(db[collName].insertMany(
-            [...Array(nDocs).keys()].map(
-                x => ({a: x.toString() + docSuffix, b: x.toString() + docSuffix})),
-            {ordered: false}));
-    } else {
-        assert.commandWorked(db[collName].insertMany(
-            [...Array(nDocs).keys()].map(x => ({a: x, b: x})), {ordered: false}));
-    }
+        assert.commandWorked(db.createCollection(collName, collOpts));
 
-    replSet.awaitReplication();
-    assert.eq(db.getCollection(collName).find({}).count(), nDocs);
-};
+        if (docSuffix) {
+            assert.commandWorked(db[collName].insertMany(
+                [...Array(nDocs).keys()].map(
+                    x => ({a: x.toString() + docSuffix, b: x.toString() + docSuffix})),
+                {ordered: false}));
+        } else {
+            assert.commandWorked(db[collName].insertMany(
+                [...Array(nDocs).keys()].map(x => ({a: x, b: x})), {ordered: false}));
+        }
+
+        replSet.awaitReplication();
+        assert.eq(db.getCollection(collName).find({}).count(), nDocs);
+    };
 
 // Clear health log and insert nDocs documents with identical 'a' field
-export const resetAndInsertIdentical = (replSet, db, collName, nDocs) => {
+export const resetAndInsertIdentical = (replSet, db, collName, nDocs, collOpts = {}) => {
     db[collName].drop();
     clearHealthLog(replSet);
+
+    assert.commandWorked(db.createCollection(collName, collOpts));
 
     assert.commandWorked(db[collName].insertMany(
         [...Array(nDocs).keys()].map(x => ({_id: x, a: 0.1})), {ordered: false}));
@@ -173,50 +256,55 @@ export const resetAndInsertIdentical = (replSet, db, collName, nDocs) => {
 };
 
 // Insert numDocs documents with missing index keys for testing.
-export const insertDocsWithMissingIndexKeys =
-    (replSet, dbName, collName, doc, numDocs = 1, doPrimary = true, doSecondary = true) => {
-        const primaryDb = replSet.getPrimary().getDB(dbName);
-        const secondaryDb = replSet.getSecondary().getDB(dbName);
+export const insertDocsWithMissingIndexKeys = (replSet,
+                                               dbName,
+                                               collName,
+                                               doc,
+                                               numDocs = 1,
+                                               doPrimary = true,
+                                               doSecondary = true,
+                                               collOpts = {}) => {
+    const primaryDb = replSet.getPrimary().getDB(dbName);
+    const secondaryDb = replSet.getSecondary().getDB(dbName);
 
-        assert.commandWorked(primaryDb.createCollection(collName));
+    assert.commandWorked(primaryDb.createCollection(collName, collOpts));
 
-        // Create an index for every key in the document.
-        let index = {};
-        for (let key in doc) {
-            index[key] = 1;
-            assert.commandWorked(primaryDb[collName].createIndex(index));
-            index = {};
-        }
-        replSet.awaitReplication();
+    // Create an index for every key in the document.
+    let index = {};
+    for (let key in doc) {
+        index[key] = 1;
+        assert.commandWorked(primaryDb[collName].createIndex(index));
+        index = {};
+    }
+    replSet.awaitReplication();
 
-        // dbCheck requires the _id index to iterate through documents in a batch.
-        let skipIndexNewRecordsExceptIdPrimary;
-        let skipIndexNewRecordsExceptIdSecondary;
-        if (doPrimary) {
-            skipIndexNewRecordsExceptIdPrimary =
-                configureFailPoint(primaryDb, "skipIndexNewRecords", {skipIdIndex: false});
-        }
-        if (doSecondary) {
-            skipIndexNewRecordsExceptIdSecondary =
-                configureFailPoint(secondaryDb, "skipIndexNewRecords", {skipIdIndex: false});
-        }
-        for (let i = 0; i < numDocs; i++) {
-            assert.commandWorked(primaryDb[collName].insert(doc));
-        }
-        replSet.awaitReplication();
-        if (doPrimary) {
-            skipIndexNewRecordsExceptIdPrimary.off();
-        }
-        if (doSecondary) {
-            skipIndexNewRecordsExceptIdSecondary.off();
-        }
+    // dbCheck requires the _id index to iterate through documents in a batch.
+    let skipIndexNewRecordsExceptIdPrimary;
+    let skipIndexNewRecordsExceptIdSecondary;
+    if (doPrimary) {
+        skipIndexNewRecordsExceptIdPrimary =
+            configureFailPoint(primaryDb, "skipIndexNewRecords", {skipIdIndex: false});
+    }
+    if (doSecondary) {
+        skipIndexNewRecordsExceptIdSecondary =
+            configureFailPoint(secondaryDb, "skipIndexNewRecords", {skipIdIndex: false});
+    }
+    for (let i = 0; i < numDocs; i++) {
+        assert.commandWorked(primaryDb[collName].insert(doc));
+    }
+    replSet.awaitReplication();
+    if (doPrimary) {
+        skipIndexNewRecordsExceptIdPrimary.off();
+    }
+    if (doSecondary) {
+        skipIndexNewRecordsExceptIdSecondary.off();
+    }
 
-        // Verify that index has been replicated to all nodes, including _id index.
-        forEachNonArbiterNode(replSet, function(node) {
-            assert.eq(Object.keys(doc).length + 1,
-                      node.getDB(dbName)[collName].getIndexes().length);
-        });
-    };
+    // Verify that index has been replicated to all nodes, including _id index.
+    forEachNonArbiterNode(replSet, function(node) {
+        assert.eq(Object.keys(doc).length + 1, node.getDB(dbName)[collName].getIndexes().length);
+    });
+};
 
 // Run dbCheck with given parameters and potentially wait for completion.
 export const runDbCheck = (replSet,
@@ -243,43 +331,54 @@ export const runDbCheck = (replSet,
 };
 
 export const checkHealthLog = (healthlog, query, numExpected, timeout = 60 * 1000) => {
-    let query_count;
+    let queryCount;
     assert.soon(
         function() {
-            query_count = healthlog.find(query).count();
-            if (query_count != numExpected) {
-                jsTestLog("health log query returned " + query_count + " entries, expected " +
+            queryCount = healthlog.find(query).count();
+            if (queryCount != numExpected) {
+                jsTestLog("health log query returned " + queryCount + " entries, expected " +
                           numExpected + "  query: " + tojson(query) +
                           " found: " + tojson(healthlog.find(query).toArray()));
             }
-            return query_count == numExpected;
+            return queryCount == numExpected;
         },
-        "health log query returned " + query_count + " entries, expected " + numExpected +
-            "  query: " + tojson(query) + " found: " + tojson(healthlog.find(query).toArray()) +
+        "health log query returned " + healthlog.find(query).count() + " entries, expected " +
+            numExpected + "  query: " + tojson(query) +
+            " found: " + tojson(healthlog.find(query).toArray()) +
             " HealthLog: " + tojson(healthlog.find().toArray()),
         timeout);
 };
 
 // Temporarily restart the secondary as a standalone, inject an inconsistency and
 // restart it back as a secondary.
-export const injectInconsistencyOnSecondary = (replSet, dbName, cmd, noCleanData = true) => {
-    const secondaryConn = replSet.getSecondary();
-    const secondaryNodeId = replSet.getNodeId(secondaryConn);
-    replSet.stop(secondaryNodeId, {forRestart: true /* preserve dbPath */});
+export const injectInconsistencyOnSecondary =
+    (replSet, dbName, cmd, withMissingIndexKeys = false, noCleanData = true) => {
+        const secondaryConn = replSet.getSecondary();
+        const secondaryNodeId = replSet.getNodeId(secondaryConn);
+        replSet.stop(secondaryNodeId, {forRestart: true /* preserve dbPath */});
 
-    const standaloneConn = MongoRunner.runMongod({
-        dbpath: secondaryConn.dbpath,
-        noCleanData: noCleanData,
-    });
+        const standaloneConn = MongoRunner.runMongod({
+            dbpath: secondaryConn.dbpath,
+            noCleanData: noCleanData,
+        });
 
-    const standaloneDB = standaloneConn.getDB(dbName);
-    assert.commandWorked(standaloneDB.runCommand(cmd));
+        const standaloneDB = standaloneConn.getDB(dbName);
+        let failpoint;
+        if (withMissingIndexKeys) {
+            failpoint =
+                configureFailPoint(standaloneDB, "skipIndexNewRecords", {skipIdIndex: false});
+        }
+        assert.commandWorked(standaloneDB.runCommand(cmd));
 
-    // Shut down the secondary and restart it as a member of the replica set.
-    MongoRunner.stopMongod(standaloneConn);
-    replSet.start(secondaryNodeId, {}, true /*restart*/);
-    replSet.awaitNodesAgreeOnPrimaryNoAuth();
-};
+        if (withMissingIndexKeys) {
+            failpoint.off();
+        }
+
+        // Shut down the secondary and restart it as a member of the replica set.
+        MongoRunner.stopMongod(standaloneConn);
+        replSet.start(secondaryNodeId, {}, true /*restart*/);
+        replSet.awaitNodesAgreeOnPrimaryNoAuth();
+    };
 
 // Returns a list of all collections in a given database excluding views.
 function listCollectionsWithoutViews(database) {
@@ -313,79 +412,89 @@ const collNamesIgnoredFromDBCheck = [
 
 // Run dbCheck for all collections in the database with given parameters and potentially wait for
 // completion.
-export const runDbCheckForDatabase =
-    (replSet, db, awaitCompletion = false, awaitCompletionTimeoutMs = null) => {
-        const secondaryIndexCheckEnabled =
-            checkSecondaryIndexChecksInDbCheckFeatureFlagEnabled(replSet.getPrimary());
-        let collDbCheckParameters = {};
-        if (secondaryIndexCheckEnabled) {
-            collDbCheckParameters = {validateMode: "dataConsistencyAndMissingIndexKeysCheck"};
+export const runDbCheckForDatabase = (replSet,
+                                      db,
+                                      awaitCompletion = false,
+                                      awaitCompletionTimeoutMs = null,
+                                      dbCheckParameters = {}) => {
+    const secondaryIndexCheckEnabled =
+        checkSecondaryIndexChecksInDbCheckFeatureFlagEnabled(replSet.getPrimary());
+    let collDbCheckParameters = dbCheckParameters;
+    if (secondaryIndexCheckEnabled) {
+        collDbCheckParameters = {
+            ...dbCheckParameters,
+            validateMode: "dataConsistencyAndMissingIndexKeysCheck"
+        };
+    }
+
+    const allowedErrorCodes = [
+        ErrorCodes.NamespaceNotFound /* collection got dropped. */,
+        ErrorCodes.CommandNotSupportedOnView /* collection got dropped and a view
+                                                got created with the same name. */
+        ,
+        40619 /* collection is not replicated error. */,
+        // Some tests adds an invalid view, resulting in a failure of the 'dbcheck'
+        // operation with an 'InvalidViewDefinition' error.
+        ErrorCodes.InvalidViewDefinition,
+        // Might hit stale shardVersion response from shard config while racing with
+        // 'dropCollection' command.
+        ErrorCodes.StaleConfig,
+        // This code internally retries within dbCheck, but it may still fail if retries are
+        // exhausted.
+        ErrorCodes.ObjectIsBusy,
+        // TODO (SERVER-93173): listIndexes on tests which drop and recreate using different casing
+        // might fail due to attempting to create the database with only casing difference.
+        ErrorCodes.DatabaseDifferCase,
+    ];
+
+    listCollectionsWithoutViews(db).map(c => c.name).forEach(collName => {
+        if (collNamesIgnoredFromDBCheck.includes(collName)) {
+            jsTestLog("dbCheck (" + tojson(collDbCheckParameters) + ") is skipped on ns: " +
+                      db.getName() + "." + collName + " for RS: " + replSet.getURL());
+            return;
         }
 
-        const allowedErrorCodes = [
-            ErrorCodes.NamespaceNotFound /* collection got dropped. */,
-            ErrorCodes.CommandNotSupportedOnView /* collection got dropped and a view
-                                                    got created with the same name. */
-            ,
-            40619 /* collection is not replicated error. */,
-            // Some tests adds an invalid view, resulting in a failure of the 'dbcheck'
-            // operation with an 'InvalidViewDefinition' error.
-            ErrorCodes.InvalidViewDefinition,
-            // Might hit stale shardVersion response from shard config while racing with
-            // 'dropCollection' command.
-            ErrorCodes.StaleConfig,
-            // TODO (SERVER-79850): Internally handle this within dbCheck.
-            ErrorCodes.ObjectIsBusy,
-        ];
+        jsTestLog("dbCheck (" + tojson(collDbCheckParameters) + ") is starting on ns: " +
+                  db.getName() + "." + collName + " for RS: " + replSet.getURL());
+        runDbCheck(replSet,
+                   db,
+                   collName,
+                   collDbCheckParameters /* parameters */,
+                   true /* awaitCompletion */,
+                   false /* waitForHealthLogDbCheckStop */,
+                   allowedErrorCodes);
+        jsTestLog("dbCheck (" + tojson(collDbCheckParameters) + ") is done on ns: " + db.getName() +
+                  "." + collName + " for RS: " + replSet.getURL());
 
-        listCollectionsWithoutViews(db).map(c => c.name).forEach(collName => {
-            if (collNamesIgnoredFromDBCheck.includes(collName)) {
-                jsTestLog("dbCheck (" + tojson(collDbCheckParameters) + ") is skipped on ns: " +
-                          db.getName() + "." + collName + " for RS: " + replSet.getURL());
-                return;
-            }
+        if (!secondaryIndexCheckEnabled) {
+            return;
+        }
 
-            jsTestLog("dbCheck (" + tojson(collDbCheckParameters) + ") is starting on ns: " +
+        getIndexNames(db, collName, allowedErrorCodes).forEach(indexName => {
+            let extraIndexDbCheckParameters = {
+                ...dbCheckParameters,
+                validateMode: "extraIndexKeysCheck",
+                secondaryIndex: indexName
+            };
+            jsTestLog("dbCheck (" + tojson(extraIndexDbCheckParameters) + ") is starting on ns: " +
                       db.getName() + "." + collName + " for RS: " + replSet.getURL());
             runDbCheck(replSet,
                        db,
                        collName,
-                       collDbCheckParameters /* parameters */,
-                       false /* awaitCompletion */,
+                       extraIndexDbCheckParameters /* parameters */,
+                       true /* awaitCompletion */,
                        false /* waitForHealthLogDbCheckStop */,
                        allowedErrorCodes);
-            jsTestLog("dbCheck (" + tojson(collDbCheckParameters) + ") is done on ns: " +
+            jsTestLog("dbCheck (" + tojson(extraIndexDbCheckParameters) + ") is done on ns: " +
                       db.getName() + "." + collName + " for RS: " + replSet.getURL());
-
-            if (!secondaryIndexCheckEnabled) {
-                return;
-            }
-
-            getIndexNames(db, collName, allowedErrorCodes).forEach(indexName => {
-                let extraIndexDbCheckParameters = {
-                    validateMode: "extraIndexKeysCheck",
-                    secondaryIndex: indexName
-                };
-                jsTestLog("dbCheck (" + tojson(extraIndexDbCheckParameters) +
-                          ") is starting on ns: " + db.getName() + "." + collName +
-                          " for RS: " + replSet.getURL());
-                runDbCheck(replSet,
-                           db,
-                           collName,
-                           extraIndexDbCheckParameters /* parameters */,
-                           false /* awaitCompletion */,
-                           false /* waitForHealthLogDbCheckStop */,
-                           allowedErrorCodes);
-                jsTestLog("dbCheck (" + tojson(extraIndexDbCheckParameters) + ") is done on ns: " +
-                          db.getName() + "." + collName + " for RS: " + replSet.getURL());
-            });
         });
+    });
 
-        if (awaitCompletion) {
-            awaitDbCheckCompletion(
-                replSet, db, false /*waitForHealthLogDbCheckStop*/, awaitCompletionTimeoutMs);
-        }
-    };
+    if (awaitCompletion) {
+        awaitDbCheckCompletion(
+            replSet, db, false /*waitForHealthLogDbCheckStop*/, awaitCompletionTimeoutMs);
+    }
+};
 
 // Assert no errors/warnings (i.e., found inconsistencies). Tolerate
 // SnapshotTooOld errors, as they can occur if the primary is slow enough processing a
@@ -402,10 +511,7 @@ export const assertForDbCheckErrors =
         }
 
         const healthlog = node.getDB('local').system.healthlog;
-        // Regex matching strings that start without "SnapshotTooOld"
-        // const regexStringWithoutSnapTooOld = /^((?!^SnapshotTooOld).)*$/;
-        // TODO (SERVER-79850): Handle ObjectIsBusy within dbCheck and replace the regex with the
-        // commented-out above regex.
+        // Regex matching strings that start without "SnapshotTooOld" or "ObjectIsBusy".
         const regexString = /^((?!^(SnapshotTooOld|ObjectIsBusy)).)*$/;
 
         // healthlog is a capped collection, truncation during scan might cause cursor
@@ -424,6 +530,7 @@ export const assertForDbCheckErrors =
                         errorsFound.push(err);
                         jsTestLog(tojson(err));
                     }
+                    jsTestLog("Full HealthLog: " + tojson(healthlog.find().toArray()));
                     assert(false, errMsg);
                 }
                 return true;
@@ -480,8 +587,10 @@ export function resetSnapshotSize(rst) {
 
 // Verifies that the healthlog contains entries that span the entire range that dbCheck should run
 // against.
+// TODO SERVER-92609: Currently this only works for extra index keys check. We should standardize
+// this for collection check as well.
 export function assertCompleteCoverage(
-    healthlog, nDocs, docSuffix, start, end, inconsistentBatch = false) {
+    healthlog, nDocs, indexName, docSuffix, start = null, end = null) {
     // For non-empty docSuffix like 'aaa' for instance, if we insert over 10 docs, the lexicographic
     // sorting order would be '0aaa', '1aaa', '10aaa', instead of increasing numerical order. Skip
     // these checks as we have test coverage without needing to account for these specific cases.
@@ -498,16 +607,13 @@ export function assertCompleteCoverage(
         return batchBoundary.substring(0, batchBoundary.indexOf(docSuffix));
     };
 
-    let query = logQueries.infoBatchQuery;
-    if (inconsistentBatch) {
-        query = {"severity": "error", "msg": "dbCheck batch inconsistent"};
-    }
+    const query = logQueries.allBatchesQuery;
 
     const batches = healthlog.find(query).toArray();
-    let expectedBatchStart = start === null ? 0 : start;
+    let expectedBatchStart = start === null ? MinKey : start;
     let batchEnd = "";
     for (let batch of batches) {
-        let batchStart = batch.data.batchStart.a;
+        let batchStart = batch.data.batchStart[indexName];
         if (docSuffix) {
             batchStart = truncateDocSuffix(batchStart, docSuffix);
         }
@@ -515,7 +621,7 @@ export function assertCompleteCoverage(
         // Verify that the batch start is correct.
         assert.eq(expectedBatchStart, batchStart);
         // Set our next expected batch start to the next value after the end of this batch.
-        batchEnd = batch.data.batchEnd.a;
+        batchEnd = batch.data.batchEnd[indexName];
         if (docSuffix) {
             batchEnd = truncateDocSuffix(batchEnd, docSuffix);
         }
@@ -524,8 +630,7 @@ export function assertCompleteCoverage(
 
     if (end === null) {
         // User did not issue a custom range, assert that we checked all documents.
-        // TODO (SERVER-86323): Fix this behavior and ensure maxKey is logged.
-        assert.eq(nDocs - 1, batchEnd);
+        assert.eq(MaxKey, batchEnd);
     } else {
         // User issued a custom end, but we do not know if the documents in the collection actually
         // ended at that range. Verify that we have hit either the end of the collection, or we

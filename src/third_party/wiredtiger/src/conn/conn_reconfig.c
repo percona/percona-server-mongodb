@@ -413,6 +413,7 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wti_capacity_server_create(session, cfg));
     WT_ERR(__wti_checkpoint_server_create(session, cfg));
     WT_ERR(__wti_debug_mode_config(session, cfg));
+    WT_ERR(__wti_heuristic_controls_config(session, cfg));
     WT_ERR(__wti_extra_diagnostics_config(session, cfg));
     WT_ERR(__wt_hs_config(session, cfg));
     WT_ERR(__wti_logmgr_reconfig(session, cfg));
@@ -423,6 +424,7 @@ __wti_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wti_timing_stress_config(session, cfg));
     WT_ERR(__wti_json_config(session, cfg, true));
     WT_ERR(__wt_verbose_config(session, cfg, true));
+    WT_ERR(__wt_rollback_to_stable_reconfig(session, cfg));
 
     /* Third, merge everything together, creating a new connection state. */
     WT_ERR(__wt_config_merge(session, cfg, NULL, &p));

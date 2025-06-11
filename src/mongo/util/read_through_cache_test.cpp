@@ -27,16 +27,16 @@
  *    it in the license file.
  */
 
+#include <cstddef>
+#include <string>
+
 #include <absl/container/node_hash_map.h>
 #include <boost/move/utility_core.hpp>
 #include <boost/none.hpp>
-#include <boost/smart_ptr.hpp>
-#include <cstddef>
-#include <fmt/format.h>
-#include <list>
-#include <string>
-
 #include <boost/optional/optional.hpp>
+#include <boost/smart_ptr.hpp>
+#include <fmt/format.h>
+
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/timestamp.h"
@@ -448,6 +448,30 @@ TEST_F(ReadThroughCacheTest, CausalConsistencyWithLookupArgs) {
         cache.acquire(_opCtx, "TestKey", CacheCausalConsistency::kLatestKnown, kName, 2).isValid());
 }
 
+TEST_F(ReadThroughCacheTest, TimeMonotonicityViolation) {
+    boost::optional<CausallyConsistentCache::LookupResult> nextToReturn;
+
+    CacheWithThreadPool<CausallyConsistentCache> cache(
+        getService(),
+        1,
+        [&](OperationContext*,
+            const std::string& key,
+            const CausallyConsistentCache::ValueHandle&,
+            const Timestamp& timeInStore) {
+            ASSERT_EQ("TestKey", key);
+            return CausallyConsistentCache::LookupResult(std::move(*nextToReturn));
+        });
+
+    nextToReturn.emplace(CachedValue(1), Timestamp(100));
+    ASSERT_EQ(1, cache.acquire(_opCtx, "TestKey", CacheCausalConsistency::kLatestKnown)->counter);
+
+    cache.advanceTimeInStore("TestKey", Timestamp(120));
+    nextToReturn.emplace(CachedValue(2), Timestamp(110));
+    ASSERT_THROWS_CODE(cache.acquire(_opCtx, "TestKey", CacheCausalConsistency::kLatestKnown),
+                       DBException,
+                       ErrorCodes::ReadThroughCacheTimeMonotonicityViolation);
+}
+
 /**
  * Fixture for tests, which need to control the creation/destruction of their operation contexts.
  */
@@ -483,8 +507,9 @@ TEST_F(ReadThroughCacheAsyncTest, SuccessfulInProgressLookupForNotCausallyConsis
     ASSERT(inProgress.valid(WithLock::withoutLock()));
     ASSERT(res.v);
     ASSERT_EQ(500, res.v->counter);
-    auto promisesToSet = inProgress.getPromisesLessThanOrEqualToTime(WithLock::withoutLock(),
-                                                                     CacheNotCausallyConsistent());
+
+    auto [promisesToSet, timeOfOldestPromise] = inProgress.getPromisesLessThanOrEqualToTime(
+        WithLock::withoutLock(), CacheNotCausallyConsistent());
     ASSERT_EQ(1U, promisesToSet.size());
     promisesToSet.front()->emplaceValue(std::move(*res.v));
 
@@ -878,6 +903,55 @@ TEST_F(ReadThroughCacheAsyncTest, CacheSizeZero) {
                                        return CausallyConsistentCache::LookupResult(
                                            CachedValue(100 * nextValue), Timestamp(nextValue));
                                    }));
+}
+
+TEST_F(ReadThroughCacheAsyncTest, EnqueuedRequestLeveragesTheResultOfAnEarlierLookup) {
+    MockThreadPool threadPool;
+    boost::optional<CausallyConsistentCache::LookupResult> nextToReturn;
+    boost::optional<int> valueFetchedByPreviousRequest;
+
+    CausallyConsistentCache cache(getService(),
+                                  threadPool,
+                                  1,
+                                  [&](OperationContext*,
+                                      const std::string&,
+                                      const CausallyConsistentCache::ValueHandle& cachedValue,
+                                      const Timestamp&) {
+                                      if (valueFetchedByPreviousRequest.has_value()) {
+                                          ASSERT_EQ(cachedValue->counter,
+                                                    *valueFetchedByPreviousRequest);
+                                      } else {
+                                          ASSERT(!cachedValue);
+                                      }
+                                      return std::move(*nextToReturn);
+                                  });
+    // Issue two requests, advancing the time in store so that each of them will require a "remote
+    // lookup".
+    ASSERT(cache.advanceTimeInStore("TestKey", Timestamp(100)));
+    auto futureAtTS100 = cache.acquireAsync("TestKey", CacheCausalConsistency::kLatestKnown);
+    ASSERT(!futureAtTS100.isReady());
+
+    ASSERT(cache.advanceTimeInStore("TestKey", Timestamp(200)));
+    auto futureAtTS200 = cache.acquireAsync("TestKey", CacheCausalConsistency::kLatestKnown);
+    ASSERT(!futureAtTS100.isReady());
+    ASSERT(!futureAtTS200.isReady());
+
+    // Serve the first request - and verify that the received result only unblocks one future (with
+    // an already stale value).
+    nextToReturn.emplace(CachedValue(100), Timestamp(100));
+    valueFetchedByPreviousRequest = boost::none;
+    threadPool.runMostRecentTask();
+    ASSERT_EQ(100, futureAtTS100.get()->counter);
+    ASSERT(!futureAtTS100.get().isValid());
+    ASSERT(!futureAtTS200.isReady());
+
+    // Serve the second request - and verify that the cache's lookupFn receives the value retrieved
+    // by the first one to compute an "incremental remote lookup".
+    nextToReturn.emplace(CachedValue(200), Timestamp(200));
+    valueFetchedByPreviousRequest.emplace(100);
+    threadPool.runMostRecentTask();
+    ASSERT_EQ(200, futureAtTS200.get()->counter);
+    ASSERT(futureAtTS200.get().isValid());
 }
 
 }  // namespace

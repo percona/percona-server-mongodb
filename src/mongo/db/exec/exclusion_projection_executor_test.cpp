@@ -407,8 +407,8 @@ TEST(ExclusionProjectionExecutionTest, ShouldAddMetaExpressionsToDependencies) {
                                                             "i: {$meta: 'recordId'}, "
                                                             "j: {$meta: 'indexKey'}, "
                                                             "k: {$meta: 'sortKey'}, "
-                                                            "l: {$meta: 'searchScoreDetails'}}, "
-                                                            "m: {$meta: 'vectorSearchScore'}"));
+                                                            "l: {$meta: 'searchScoreDetails'}, "
+                                                            "m: {$meta: 'vectorSearchScore'}}"));
 
     DepsTracker deps;
     exclusion->addDependencies(&deps);
@@ -594,7 +594,7 @@ TEST(ExclusionProjectionExecutionTest, ShouldExtractPartOfProjectOnRootField) {
 
 TEST(ExclusionProjectionExecutionTest, ShouldExtractPartOfProjectOnSubfields) {
     auto exclusion =
-        makeExclusionProjectionWithDefaultPolicies(fromjson("{'x.y': 0, 'x.z': 0, 'c.d': 0}}"));
+        makeExclusionProjectionWithDefaultPolicies(fromjson("{'x.y': 0, 'x.z': 0, 'c.d': 0}"));
 
     auto [extractedProj, allExtracted] = exclusion->extractProjectOnFieldAndRename("x", "w");
 

@@ -64,7 +64,7 @@ struct DbCheckCollectionInfo {
  * For organizing the results of batches for collection-level db check.
  */
 struct DbCheckCollectionBatchStats {
-    boost::optional<UUID> batchId;
+    boost::optional<UUID> batchId = boost::none;
     int64_t nDocs;
     int64_t nCount;
     int64_t nBytes;
@@ -72,27 +72,36 @@ struct DbCheckCollectionBatchStats {
     std::string md5;
     repl::OpTime time;
     bool logToHealthLog;
-    boost::optional<Timestamp> readTimestamp;
+    boost::optional<Timestamp> readTimestamp = boost::none;
 };
 
 /**
  * For organizing the results of batches for extra index keys check.
  */
 struct DbCheckExtraIndexKeysBatchStats {
-    boost::optional<UUID> batchId;
+    boost::optional<UUID> batchId = boost::none;
     int64_t nKeys;
     int64_t nBytes;
 
     // These keystrings should have the recordId appended at the end, since WiredTiger will always
     // append the recordId when returning a keystring from the index cursor.
-    key_string::Value firstKeyCheckedWithRecordId;
+    // batchStartWithRecordId and batchEndWithRecordId may be $minKey and $maxKey respectively if
+    // the user did not specify a start and/or end for the dbcheck run.
+    key_string::Value batchStartWithRecordId;
     key_string::Value lastKeyCheckedWithRecordId;
     key_string::Value nextKeyToBeCheckedWithRecordId;
+    key_string::Value batchEndWithRecordId;
+
+    // BSON representations of the first and last keystrings of this batch. Updated alongside the
+    // respective updates for WithRecordId.
+    BSONObj batchStartBsonWithoutRecordId = BSONObj();
+    BSONObj lastBsonCheckedWithoutRecordId = BSONObj();
+    BSONObj batchEndBsonWithoutRecordId = BSONObj();
 
     std::string md5;
     repl::OpTime time;
     bool logToHealthLog;
-    boost::optional<Timestamp> readTimestamp;
+    boost::optional<Timestamp> readTimestamp = boost::none;
 
     Date_t deadline;
 
@@ -103,12 +112,10 @@ struct DbCheckExtraIndexKeysBatchStats {
     // tracking rate limiting.
     int64_t nHasherKeys;
     int64_t nHasherBytes;
+    int64_t nHasherConsecutiveIdenticalKeysAtEnd;
 
-    BSONObj keyPattern;
-    BSONObj firstBson;
-    BSONObj lastBson;
-    BSONObj indexSpec;
-
+    BSONObj keyPattern = BSONObj();
+    BSONObj indexSpec = BSONObj();
 
     bool finishedIndexBatch;
     bool finishedIndexCheck;
@@ -180,7 +187,7 @@ public:
     /**
      * Runs dbCheck on the collection specified in the DbCheckCollectionInfo struct.
      */
-    void doCollection(OperationContext* opCtx);
+    void doCollection(OperationContext* opCtx) noexcept;
 
 private:
     /**
@@ -195,6 +202,21 @@ private:
      * Runs the secondary extra index keys check
      */
     void _extraIndexKeysCheck(OperationContext* opCtx);
+
+    /**
+     * Returns if we should internally retry the data consistency check.
+     */
+    bool _shouldRetryDataConsistencyCheck(OperationContext* opCtx,
+                                          Status status,
+                                          int numRetries) const;
+
+    /**
+     * Returns if we should internally retry the extra index keys checks.
+     */
+    bool _shouldRetryExtraKeysCheck(OperationContext* opCtx,
+                                    Status status,
+                                    DbCheckExtraIndexKeysBatchStats* batchStats,
+                                    int numRetries) const;
 
     /**
      * Entry point for hashing portion of extra index key check.
@@ -285,10 +307,41 @@ private:
     /**
      * Acquire the required locks for dbcheck to run on the given namespace.
      */
-    std::unique_ptr<DbCheckAcquisition> _acquireDBCheckLocks(OperationContext* opCtx,
-                                                             const NamespaceString& nss);
+    StatusWith<std::unique_ptr<DbCheckAcquisition>> _acquireDBCheckLocks(
+        OperationContext* opCtx, const NamespaceString& nss);
 
-    std::pair<bool, boost::optional<UUID>> _shouldLogBatch(DbCheckOplogBatch& batch);
+    StatusWith<const IndexDescriptor*> _acquireIndex(OperationContext* opCtx,
+                                                     const CollectionPtr& collection,
+                                                     StringData indexName);
+
+    std::pair<bool, boost::optional<UUID>> _shouldLogOplogBatch(DbCheckOplogBatch& batch);
+
+    void _updateBatchStartForBatchStats(DbCheckExtraIndexKeysBatchStats* batchStats,
+                                        key_string::Value batchStartWithRecordId,
+                                        const SortedDataIndexAccessMethod* iam) const;
+
+    void _updateBatchStartForBatchStats(DbCheckExtraIndexKeysBatchStats* batchStats,
+                                        BSONObj batchStartBsonWithoutRecordId,
+                                        const SortedDataIndexAccessMethod* iam) const;
+
+    void _updateLastKeyCheckedForBatchStats(DbCheckExtraIndexKeysBatchStats* batchStats,
+                                            key_string::Value lastKeyCheckedWithRecordId,
+                                            const SortedDataIndexAccessMethod* iam) const;
+
+    void _updateLastKeyCheckedForBatchStats(DbCheckExtraIndexKeysBatchStats* batchStats,
+                                            BSONObj lastBsonCheckedWithRecordId,
+                                            const SortedDataIndexAccessMethod* iam) const;
+
+    void _updateBatchEndForBatchStats(DbCheckExtraIndexKeysBatchStats* batchStats,
+                                      key_string::Value batchEndWithRecordId,
+                                      const SortedDataIndexAccessMethod* iam) const;
+
+    void _updateBatchEndForBatchStats(DbCheckExtraIndexKeysBatchStats* batchStats,
+                                      BSONObj batchEndBsonWithoutRecordId,
+                                      const SortedDataIndexAccessMethod* iam) const;
+
+    void _appendContextForLoggingExtraKeysCheck(DbCheckExtraIndexKeysBatchStats* batchStats,
+                                                BSONObjBuilder* builder) const;
 
     DbCheckCollectionInfo _info;
 

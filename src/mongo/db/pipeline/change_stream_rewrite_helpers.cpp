@@ -38,7 +38,6 @@
 #include <cstddef>
 #include <fmt/format.h>
 #include <functional>
-#include <map>
 #include <ostream>
 #include <utility>
 #include <vector>
@@ -66,7 +65,6 @@
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/field_path.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/intrusive_counter.h"
 #include "mongo/util/str.h"
 #include "mongo/util/string_map.h"
 
@@ -347,14 +345,19 @@ boost::intrusive_ptr<Expression> exprRewriteDocumentKey(
     auto deletePath = cloneWithSubstitution(expr, {{"documentKey", "o"}})
                           ->getFieldPathWithoutCurrentPrefix()
                           .fullPathWithPrefix();
-    opCases.push_back(fromjson("{case: {$eq: ['$op', 'd']}, then: '" + deletePath + "'}"));
+    auto deleteFilter = BSON("case" << BSON("$eq" << BSON_ARRAY("$op"
+                                                                << "d"))
+                                    << "then" << deletePath);
+    opCases.push_back(std::move(deleteFilter));
 
     // Cases for 'insert', 'update' and 'replace'.
     auto insertUpdateAndReplacePath = cloneWithSubstitution(expr, {{"documentKey", "o2"}})
                                           ->getFieldPathWithoutCurrentPrefix()
                                           .fullPathWithPrefix();
-    opCases.push_back(
-        fromjson("{case: {$in: ['$op', ['i', 'u']]}, then: '" + insertUpdateAndReplacePath + "'}"));
+    auto insertFilter = BSON("case" << BSON("$in" << BSON_ARRAY("$op" << BSON_ARRAY("i"
+                                                                                    << "u")))
+                                    << "then" << insertUpdateAndReplacePath);
+    opCases.push_back(std::move(insertFilter));
 
     // The default case, if nothing matches.
     auto defaultCase = ExpressionConstant::create(expCtx.get(), Value())->serialize();
@@ -803,56 +806,72 @@ std::unique_ptr<MatchExpression> matchRewriteGenericNamespace(
                 // instead write an $expr to extract the dbName or collName from the oplog field,
                 // and apply the unmodified regex directly to it. First get a reference to the
                 // relevant field in the oplog entry.
-                const std::string exprFieldRef = "'$" +
-                    (fieldName == "db" ? nsField : (!nsFieldIsCmdNs ? nsField : *collNameField)) +
-                    "'";
+                const std::string exprFieldRef = "$" +
+                    (fieldName == "db" ? nsField : (!nsFieldIsCmdNs ? nsField : *collNameField));
 
                 // Wrap the field in an expression to return MISSING if the field is not a string,
                 // since this expression may execute on CRUD oplog entries with clashing fieldnames.
                 // We will make this available to other expressions as the variable '$$oplogField'.
-                std::string exprOplogField = str::stream()
-                    << "{$cond: {if: {$eq: [{$type: " << exprFieldRef
-                    << "}, 'string']}, then: " << exprFieldRef << ", else: '$$REMOVE'}}";
+                BSONObj exprOplogField = BSON(
+                    "$cond" << BSON(
+                        "if" << BSON("$eq" << BSON_ARRAY(BSON("$type" << exprFieldRef) << "string"))
+                             << "then" << exprFieldRef << "else"
+                             << "$$REMOVE"));
 
                 // Now create an expression to extract the db or coll name from the oplog entry.
-                std::string exprDbOrCollName = [&]() -> std::string {
+                BSONObj exprDbOrCollName = [&]() -> BSONObj {
                     // If the query is on 'coll' and we have a collName field, use it as-is.
                     if (fieldName == "coll" && collNameField) {
-                        return "'$$oplogField'";
+                        return BSON(""
+                                    << "$$oplogField");
                     }
 
                     // Otherwise, we need to split apart a full ns string. Find the separator.
                     // Return 0 if input is null in order to prevent throwing in $substrBytes.
-                    std::string exprDotPos =
-                        "{$ifNull: [{$indexOfBytes: ['$$oplogField', '.']}, 0]}";
+                    BSONObj exprDotPos = BSON(
+                        "$ifNull" << BSON_ARRAY(BSON("$indexOfBytes" << BSON_ARRAY("$$oplogField"
+                                                                                   << "."))
+                                                << 0));
 
                     // If the query is on 'db', return everything up to the separator.
                     if (fieldName == "db") {
-                        return "{$substrBytes: ['$$oplogField', 0, " + exprDotPos + "]}";
+                        return BSON("$substrBytes"
+                                    << BSON_ARRAY("$$oplogField" << 0 << exprDotPos));
                     }
 
                     // Otherwise, the query is on 'coll'. Return everything from (separator + 1)
                     // to the end of the string.
-                    return str::stream() << "{$substrBytes: ['$$oplogField', {$add: [1, "
-                                         << exprDotPos << "]}, -1]}";
+                    return BSON(
+                        "$substrBytes" << BSON_ARRAY(
+                            "$$oplogField" << BSON("$add" << BSON_ARRAY(1 << exprDotPos)) << -1));
                 }();
 
                 // Convert the MatchExpression $regex into a $regexMatch on the corresponding field.
                 // Backslashes must be escaped to ensure they retain their special behavior.
-                const auto regex =
-                    boost::replace_all_copy(std::string(nsElem.regex()), R"(\)", R"(\\)");
-                const std::string exprRegexMatch = str::stream()
-                    << "{$regexMatch: {input: " << exprDbOrCollName << ", regex: '" << regex
-                    << "', options: '" << nsElem.regexFlags() << "'}}";
+                const auto regex = std::string(nsElem.regex());
+
+                BSONObj exprRegexMatch = [&]() {
+                    // This is needed because 'value' can be either a BSONObj or a BSONElement, and
+                    // the '<<' concatenation operator behaves differently for both.
+                    auto buildRegexMatch = [&](const auto& value) {
+                        return BSON("$regexMatch"
+                                    << BSON("input" << value << "regex" << regex << "options"
+                                                    << nsElem.regexFlags()));
+                    };
+                    if (exprDbOrCollName.firstElement().type() == BSONType::String) {
+                        return buildRegexMatch(exprDbOrCollName.firstElement());
+                    }
+                    return buildRegexMatch(exprDbOrCollName);
+                }();
 
                 // Finally, wrap the regex in a $let which defines the '$$oplogField' variable.
-                const std::string exprRewrittenPredicate = str::stream()
-                    << "{$let: {vars: {oplogField: " << exprOplogField
-                    << "}, in: " << exprRegexMatch << "}}";
+                BSONObj exprRewrittenPredicate =
+                    BSON("$let" << BSON("vars" << BSON("oplogField" << exprOplogField) << "in"
+                                               << exprRegexMatch));
 
                 // Return a new ExprMatchExpression with the rewritten $regexMatch.
                 return std::make_unique<ExprMatchExpression>(
-                    BSON("" << fromjson(exprRewrittenPredicate)).firstElement(), expCtx);
+                    BSON("" << exprRewrittenPredicate).firstElement(), expCtx);
             }
             default:
                 break;

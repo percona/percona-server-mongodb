@@ -19,6 +19,8 @@ import {
 import {QuerySettingsIndexHintsTests} from "jstests/libs/query_settings_index_hints_tests.js";
 import {QuerySettingsUtils} from "jstests/libs/query_settings_utils.js";
 
+const isTimeseriesTestSuite = TestData.isTimeseriesTestSuite || false;
+
 // Create the collection, because some sharding passthrough suites are failing when explain
 // command is issued on the nonexistent database and collection.
 const coll = assertDropAndRecreateCollection(db, jsTestName());
@@ -94,7 +96,7 @@ function testDistinctQuerySettingsApplication(collOrViewName) {
     // This query has the key that doesn't match any provided index which guarantees that there
     // would be no DISTINCT_SCAN plan and the query planner will fall back to the `find`. In case
     // multiplanner is involved it is expected that the query will end up in query plan cache.
-    setIndexes(coll, [qstests.indexA, qstests.indexB, qstests.indexAB]);
+    setIndexes(coll, qstests.allIndexes);
 
     const querySettingsDistinctQuery = qsutils.makeDistinctQueryInstance({
         key: 'c',
@@ -128,7 +130,10 @@ function testDistinctWithDistinctScanQuerySettingsApplication(collOrViewName) {
 
 testDistinctQuerySettingsApplication(coll.getName());
 testDistinctQuerySettingsApplication(viewName);
-testDistinctWithDistinctScanQuerySettingsApplication(coll.getName());
+// TODO: SERVER-87741: Make distinct command on views use DISTINCT_SCAN.
+if (!isTimeseriesTestSuite) {
+    testDistinctWithDistinctScanQuerySettingsApplication(coll.getName());
+}
 
 // TODO: SERVER-87741: Make distinct command on views use DISTINCT_SCAN.
 // testDistinctWithDistinctScanQuerySettingsApplication(viewName);

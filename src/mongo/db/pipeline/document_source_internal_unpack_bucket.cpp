@@ -711,6 +711,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
                 uassert(5346503,
                         "include or exclude field element must be a single-element field path",
                         field.find('.') == std::string::npos);
+                // TODO SERVER-98589: Remove when BSON field name type is implemented.
+                uassert(9568705,
+                        "include or exclude field element must not contain an embedded null byte",
+                        field.find('\0') == std::string::npos);
                 bucketSpec.addIncludeExcludeField(field);
             }
             bucketSpec.setBehavior(fieldName == kInclude ? BucketSpec::Behavior::kInclude
@@ -725,7 +729,12 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
             uassert(5346504,
                     str::stream() << "timeField field must be a string, got: " << elem.type(),
                     elem.type() == BSONType::String);
-            bucketSpec.setTimeField(elem.str());
+            auto timeField = elem.str();
+            // TODO SERVER-98589: Remove when BSON field name type is implemented.
+            uassert(9568701,
+                    str::stream() << "timeField must not contain an embedded null byte",
+                    timeField.find('\0') == std::string::npos);
+            bucketSpec.setTimeField(std::move(timeField));
             hasTimeField = true;
         } else if (fieldName == timeseries::kMetaFieldName) {
             uassert(5346505,
@@ -735,6 +744,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
             uassert(5545700,
                     str::stream() << "metaField field must be a single-element field path",
                     metaField.find('.') == std::string::npos);
+            // TODO SERVER-98589: Remove when BSON field name type is implemented.
+            uassert(9568702,
+                    str::stream() << "metaField field must not contain an embedded null byte",
+                    metaField.find('\0') == std::string::npos);
             bucketSpec.setMetaField(std::move(metaField));
         } else if (fieldName == kBucketMaxSpanSeconds) {
             uassert(5510600,
@@ -762,6 +775,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
                 uassert(5509902,
                         "computedMetaProjFields field element must be a single-element field path",
                         field.find('.') == std::string::npos);
+                // TODO SERVER-98589: Remove when BSON field name type is implemented.
+                uassert(9568706,
+                        "computedMetaProjFields field must not contain an embedded null byte",
+                        field.find('\0') == std::string::npos);
                 bucketSpec.addComputedMetaProjFields(field);
             }
         } else if (fieldName == kIncludeMinTimeAsMetadata) {
@@ -846,10 +863,15 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
         auto fieldName = elem.fieldNameStringData();
         // We only expose "timeField" and "metaField" as parameters in $_unpackBucket.
         if (fieldName == timeseries::kTimeFieldName) {
+            auto timeField = elem.str();
             uassert(5612401,
                     str::stream() << "timeField field must be a string, got: " << elem.type(),
                     elem.type() == BSONType::String);
-            bucketSpec.setTimeField(elem.str());
+            // TODO SERVER-98589: Remove when BSON field name type is implemented.
+            uassert(9568703,
+                    str::stream() << "timeField must not contain an embedded null byte",
+                    timeField.find('\0') == std::string::npos);
+            bucketSpec.setTimeField(std::move(timeField));
             hasTimeField = true;
         } else if (fieldName == timeseries::kMetaFieldName) {
             uassert(5612402,
@@ -859,6 +881,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
             uassert(5612403,
                     str::stream() << "metaField field must be a single-element field path",
                     metaField.find('.') == std::string::npos);
+            // TODO SERVER-98589: Remove when BSON field name type is implemented.
+            uassert(9568704,
+                    str::stream() << "metaField field must not contain an embedded null byte",
+                    metaField.find('\0') == std::string::npos);
             bucketSpec.setMetaField(std::move(metaField));
         } else if (fieldName == kAssumeNoMixedSchemaData) {
             uassert(6067203,
@@ -895,10 +921,7 @@ void DocumentSourceInternalUnpackBucket::serializeToArray(std::vector<Value>& ar
     for (auto&& field : spec.fieldSet()) {
         fields.emplace_back(opts.serializeFieldPathFromString(field));
     }
-    if (((_bucketUnpacker.includeMetaField() &&
-          _bucketUnpacker.behavior() == BucketSpec::Behavior::kInclude) ||
-         (!_bucketUnpacker.includeMetaField() &&
-          _bucketUnpacker.behavior() == BucketSpec::Behavior::kExclude && spec.metaField())) &&
+    if (_bucketUnpacker.removedMetaFieldFromFieldSet() &&
         std::find(spec.computedMetaProjFields().cbegin(),
                   spec.computedMetaProjFields().cend(),
                   *spec.metaField()) == spec.computedMetaProjFields().cend())
@@ -1149,8 +1172,9 @@ void DocumentSourceInternalUnpackBucket::internalizeProject(const BSONObj& proje
 
 std::pair<BSONObj, bool> DocumentSourceInternalUnpackBucket::extractOrBuildProjectToInternalize(
     Pipeline::SourceContainer::iterator itr, Pipeline::SourceContainer* container) const {
-    if (std::next(itr) == container->end() || !_bucketUnpacker.bucketSpec().fieldSet().empty()) {
-        // There is no project to internalize or there are already fields being included/excluded.
+    if (std::next(itr) == container->end() || _bucketUnpacker.hasIncludeExcludeFields()) {
+        // There is no project to internalize or there are already fields being included/excluded,
+        // which means we've already internalized a project.
         return {BSONObj{}, false};
     }
 
@@ -1789,12 +1813,16 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
                 // and return a pointer to the preceding stage.
                 auto sortForReorder = createMetadataSortForReorder(*sortPtr);
 
-                // If the original sort had a limit that did not come from the limit value that we
-                // just added above, we will not preserve that limit in the swapped sort. Instead we
-                // will add a $limit to the end of the pipeline to keep the number of expected
-                // results.
+                // If the original sort had a limit, pushing the $sort stage before the unpack
+                // stage will not preserve that limit. To truly limit the number of documents,
+                // we need to add an additional limit after the unpack stage.
                 if (auto limit = sortPtr->getLimit(); limit && *limit != 0) {
-                    container->push_back(DocumentSourceLimit::create(pExpCtx, *limit));
+                    // Current iterator is at $_internalUnpackBucket which is followed by $sort. We
+                    // are pushing $limit after $sort.
+                    auto limitPos = itr;
+                    std::advance(limitPos, 2);
+                    _triedLimitPushDownLocally = true;
+                    container->insert(limitPos, DocumentSourceLimit::create(pExpCtx, *limit));
                 }
 
                 // Reorder sort and current doc.
@@ -1895,11 +1923,11 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
     // necessary.
     // If _eventFilter is true, a match was present which may impact the number of
     // documents we return from limit, hence we don't want to push limit.
-    // If _triedLimitPushDown is true, we have already done a limit push down and don't want to
-    // push again to avoid an infinite loop.
-    if (!_eventFilter && !_triedLimitPushDown) {
+    // If _triedLimitPushDownLocally is true, we have already done a limit push down and don't want
+    // to push again to avoid an infinite loop.
+    if (!_eventFilter && !_triedLimitPushDownLocally) {
         if (auto limitPtr = dynamic_cast<DocumentSourceLimit*>(std::next(itr)->get()); limitPtr) {
-            _triedLimitPushDown = true;
+            _triedLimitPushDownLocally = true;
             container->insert(itr, DocumentSourceLimit::create(getContext(), limitPtr->getLimit()));
             return container->begin();
         }
@@ -1919,7 +1947,7 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
     // also invalidate the control block summaries. The optimizations below this check may assume
     // that the bucket fields and the control block is still valid.
     //
-    bool hasAlreadyAbsorbedProjectSpec = !_bucketUnpacker.bucketSpec().fieldSet().empty() ||
+    bool hasAlreadyAbsorbedProjectSpec = _bucketUnpacker.hasIncludeExcludeFields() ||
         !_bucketUnpacker.bucketSpec().computedMetaProjFields().empty();
 
     {
@@ -1945,9 +1973,9 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
     }
 
     // Attempt to optimize last-point type queries.
-    if (!hasAlreadyAbsorbedProjectSpec && !_triedLastpointRewrite && !_eventFilter &&
+    if (!hasAlreadyAbsorbedProjectSpec && !_triedLastpointRewriteLocally && !_eventFilter &&
         optimizeLastpoint(itr, container)) {
-        _triedLastpointRewrite = true;
+        _triedLastpointRewriteLocally = true;
         // If we are able to rewrite the aggregation, give the resulting pipeline a chance to
         // perform further optimizations.
         return container->begin();
@@ -2040,10 +2068,10 @@ Pipeline::SourceContainer::iterator DocumentSourceInternalUnpackBucket::doOptimi
 
     // Attempt to build a $project based on dependency analysis or extract one from the pipeline. We
     // can internalize the result so we can handle projections during unpacking.
-    if (!_triedInternalizeProject) {
+    if (!_triedInternalizeProjectLocally) {
         if (auto [project, isInclusion] = extractOrBuildProjectToInternalize(itr, container);
             !project.isEmpty()) {
-            _triedInternalizeProject = true;
+            _triedInternalizeProjectLocally = true;
             internalizeProject(project, isInclusion);
 
             // We may have removed a $project after this stage, so we try to optimize this stage

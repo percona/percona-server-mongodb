@@ -1,6 +1,9 @@
 # -*- mode: python -*-
 
-Import("env")
+Import([
+    'env',
+    'has_option',
+])
 
 env = env.Clone()
 
@@ -22,5 +25,8 @@ env.Library(
         '$BUILD_DIR/mongo/db/vector_clock',
         '$BUILD_DIR/mongo/rpc/command_status',
         '$BUILD_DIR/mongo/s/common_s',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
     ],
 )

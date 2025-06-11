@@ -193,6 +193,9 @@ std::unique_ptr<FindCommandRequest> createFindCommand(
         if (aggRequest->getResumeAfter()) {
             findCommand->setResumeAfter(*aggRequest->getResumeAfter());
         }
+        if (aggRequest->getStartAt()) {
+            findCommand->setStartAt(*aggRequest->getStartAt());
+        }
     }
 
     // The collation on the ExpressionContext has been resolved to either the user-specified
@@ -673,7 +676,8 @@ PipelineD::BuildQueryExecutorResult PipelineD::buildInnerQueryExecutor(
     const MultipleCollectionAccessor& collections,
     const NamespaceString& nss,
     const AggregateCommandRequest* aggRequest,
-    Pipeline* pipeline) {
+    Pipeline* pipeline,
+    ExecShardFilterPolicy shardFilterPolicy) {
     auto expCtx = pipeline->getContext();
 
     // We will be modifying the source vector as we go.
@@ -714,7 +718,8 @@ PipelineD::BuildQueryExecutorResult PipelineD::buildInnerQueryExecutor(
                search_helpers::isSearchMetaPipeline(pipeline)) {
         return buildInnerQueryExecutorSearch(collections, nss, aggRequest, pipeline);
     } else {
-        return buildInnerQueryExecutorGeneric(collections, nss, aggRequest, pipeline);
+        return buildInnerQueryExecutorGeneric(
+            collections, nss, aggRequest, pipeline, shardFilterPolicy);
     }
 }
 
@@ -735,10 +740,11 @@ void PipelineD::buildAndAttachInnerQueryExecutorToPipeline(
     const MultipleCollectionAccessor& collections,
     const NamespaceString& nss,
     const AggregateCommandRequest* aggRequest,
-    Pipeline* pipeline) {
+    Pipeline* pipeline,
+    ExecShardFilterPolicy shardFilterPolicy) {
 
     auto [executor, callback, additionalExec] =
-        buildInnerQueryExecutor(collections, nss, aggRequest, pipeline);
+        buildInnerQueryExecutor(collections, nss, aggRequest, pipeline, shardFilterPolicy);
     tassert(7856010, "Unexpected additional executors", additionalExec.empty());
     attachInnerQueryExecutorToPipeline(collections, callback, std::move(executor), pipeline);
 }
@@ -1215,7 +1221,8 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> prepareExecutor
     bool* shouldProduceEmptyDocs,
     bool timeseriesBoundedSortOptimization,
     std::size_t plannerOpts = QueryPlannerParams::DEFAULT,
-    boost::optional<TraversalPreference> traversalPreference = boost::none) {
+    boost::optional<TraversalPreference> traversalPreference = boost::none,
+    ExecShardFilterPolicy shardFilterPolicy = AutomaticShardFiltering{}) {
     // See if could use DISTINCT_SCAN with the pipeline (SERVER-9507 & SERVER-84347).
     auto swExecOrCq = tryPrepareDistinctExecutor(expCtx,
                                                  collections,
@@ -1274,7 +1281,8 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> prepareExecutor
                                     pipeline,
                                     expCtx->needsMerge,
                                     unavailableMetadata,
-                                    std::move(traversalPreference));
+                                    std::move(traversalPreference),
+                                    shardFilterPolicy);
 
     // While constructing the executor, some stages might have been lowered from the 'pipeline' into
     // the executor, so we need to recheck whether the executor's layer can still produce an empty
@@ -1585,7 +1593,8 @@ PipelineD::BuildQueryExecutorResult PipelineD::buildInnerQueryExecutorGeneric(
     const MultipleCollectionAccessor& collections,
     const NamespaceString& nss,
     const AggregateCommandRequest* aggRequest,
-    Pipeline* pipeline) {
+    Pipeline* pipeline,
+    ExecShardFilterPolicy shardFilterPolicy) {
     // Make a last effort to optimize pipeline stages before potentially detaching them to be
     // pushed down into the query executor.
     pipeline->optimizePipeline();
@@ -1685,7 +1694,8 @@ PipelineD::BuildQueryExecutorResult PipelineD::buildInnerQueryExecutorGeneric(
                                                 &shouldProduceEmptyDocs,
                                                 timeseriesBoundedSortOptimization,
                                                 plannerOpts,
-                                                std::move(traversalPreference)));
+                                                std::move(traversalPreference),
+                                                shardFilterPolicy));
 
     // If this is a query on a time-series collection then it may be eligible for a post-planning
     // sort optimization. We check eligibility and perform the rewrite here.

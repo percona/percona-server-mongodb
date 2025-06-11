@@ -62,7 +62,7 @@ constexpr StringData kByteOffset = "byteOffset"_sd;
 
 // We only link this file into mongod so this stage doesn't exist in mongos
 REGISTER_INTERNAL_DOCUMENT_SOURCE(_backupFile,
-                                  DocumentSourceBackupFile::LiteParsed::parse,
+                                  LiteParsedDocumentSourceInternal::parse,
                                   DocumentSourceBackupFile::createFromBson,
                                   true);
 }  // namespace

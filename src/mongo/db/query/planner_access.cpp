@@ -552,13 +552,29 @@ void QueryPlannerAccess::simplifyFilter(std::unique_ptr<MatchExpression>& expr,
     }
 }
 
+boost::optional<ResumeScanPoint> getResumePoint(const BSONObj& resumeAfterObj,
+                                                const BSONObj& startAtObj) {
+    tassert(9049501,
+            "Cannot set both $_startAt and $_resumeAfter",
+            resumeAfterObj.isEmpty() || startAtObj.isEmpty());
+    if (!resumeAfterObj.isEmpty()) {
+        BSONElement recordIdElem = resumeAfterObj["$recordId"];
+        return ResumeScanPoint{RecordId::deserializeToken(recordIdElem),
+                               false /* tolerateKeyNotFound */};
+    } else if (!startAtObj.isEmpty()) {
+        BSONElement recordIdElem = startAtObj["$recordId"];
+        return ResumeScanPoint{RecordId::deserializeToken(recordIdElem),
+                               true /* tolerateKeyNotFound */};
+    }
+    return boost::none;
+}
+
 std::unique_ptr<QuerySolutionNode> QueryPlannerAccess::makeCollectionScan(
     const CanonicalQuery& query,
     bool tailable,
     const QueryPlannerParams& params,
     int direction,
     const MatchExpression* root) {
-
     // The following are expensive to look up, so only do it once for each.
     const mongo::NamespaceString nss = query.nss();
     const bool isOplog = nss.isOplog();
@@ -589,12 +605,9 @@ std::unique_ptr<QuerySolutionNode> QueryPlannerAccess::makeCollectionScan(
         csn->requestResumeToken = !csn->shouldTrackLatestOplogTimestamp;
     }
 
-    // Extract and assign the RecordId from the 'resumeAfter' token, if present.
-    const BSONObj& resumeAfterObj = query.getFindCommandRequest().getResumeAfter();
-    if (!resumeAfterObj.isEmpty()) {
-        BSONElement recordIdElem = resumeAfterObj["$recordId"];
-        csn->resumeAfterRecordId = RecordId::deserializeToken(recordIdElem);
-    }
+    // Extract and set the resumeScanPoint from the 'resumeAfter' or 'startAt' token, if present.
+    csn->resumeScanPoint = getResumePoint(query.getFindCommandRequest().getResumeAfter(),
+                                          query.getFindCommandRequest().getStartAt());
 
     const bool assertMinTsHasNotFallenOffOplog = params.mainCollectionInfo.options &
         QueryPlannerParams::ASSERT_MIN_TS_HAS_NOT_FALLEN_OFF_OPLOG;
@@ -612,8 +625,8 @@ std::unique_ptr<QuerySolutionNode> QueryPlannerAccess::makeCollectionScan(
         };
 
         // Optimizes the start and end location parameters for a collection scan for an oplog
-        // collection. Not compatible with $_resumeAfter so we do not optimize in that case.
-        if (resumeAfterObj.isEmpty()) {
+        // collection. Not compatible with resumeScanPoint, so we do not optimize in that case.
+        if (!csn->resumeScanPoint) {
             auto [minTs, maxTs] = extractTsRange(root);
             if (minTs) {
                 assignRecordIdFromTimestamp(*minTs, &csn->minRecord);
@@ -657,7 +670,7 @@ std::unique_ptr<QuerySolutionNode> QueryPlannerAccess::makeCollectionScan(
     const bool canSimplifyFilter = csn->hasCompatibleCollation;
     std::set<const MatchExpression*> redundantExprs;
 
-    if (csn->isClustered && !csn->resumeAfterRecordId) {
+    if (csn->isClustered && !csn->resumeScanPoint) {
         // This is a clustered collection. Attempt to perform an efficient, bounded collection scan
         // via minRecord and maxRecord if applicable. During this process, we will check if the
         // query is guaranteed to exclude values of the cluster key which are affected by collation.
@@ -1067,36 +1080,48 @@ void QueryPlannerAccess::finishTextNode(QuerySolutionNode* node, const IndexEntr
     // We can't create a text stage if there aren't EQ predicates on its prefix terms.  So
     // if we've made it this far, we should have collected the prefix predicates in the
     // filter.
-    invariant(nullptr != tn->filter.get());
+    tassert(9751500, "unexpected empty filter in the given text node", tn->filter);
     MatchExpression* textFilterMe = tn->filter.get();
 
     BSONObjBuilder prefixBob;
 
     if (MatchExpression::AND != textFilterMe->matchType()) {
         // Only one prefix term.
-        invariant(1u == tn->numPrefixFields);
+        tassert(9751501,
+                str::stream() << "expected a single prefix term in the given text node, but got "
+                              << tn->numPrefixFields,
+                1u == tn->numPrefixFields);
         // Sanity check: must be an EQ.
-        invariant(MatchExpression::EQ == textFilterMe->matchType());
+        tassert(9751502,
+                str::stream() << "expected 'EQ' match type in the given text node, but got "
+                              << textFilterMe->matchType(),
+                MatchExpression::EQ == textFilterMe->matchType());
 
         EqualityMatchExpression* eqExpr = static_cast<EqualityMatchExpression*>(textFilterMe);
         prefixBob.append(eqExpr->getData());
         tn->filter.reset();
     } else {
-        invariant(MatchExpression::AND == textFilterMe->matchType());
+        tassert(9751503,
+                str::stream() << "expected 'AND' match type in the given text node, but got "
+                              << textFilterMe->matchType(),
+                MatchExpression::AND == textFilterMe->matchType());
 
         // Indexed by the keyPattern position index assignment.  We want to add
         // prefixes in order but we must order them first.
         vector<std::unique_ptr<MatchExpression>> prefixExprs(tn->numPrefixFields);
 
         AndMatchExpression* amExpr = static_cast<AndMatchExpression*>(textFilterMe);
-        invariant(amExpr->numChildren() >= tn->numPrefixFields);
+        tassert(9751504,
+                str::stream() << "'AND' expression children count " << amExpr->numChildren()
+                              << " is less than prefix term count " << tn->numPrefixFields,
+                amExpr->numChildren() >= tn->numPrefixFields);
 
         // Look through the AND children.  The prefix children we want to
         // stash in prefixExprs.
         size_t curChild = 0;
         while (curChild < amExpr->numChildren()) {
             IndexTag* ixtag = checked_cast<IndexTag*>(amExpr->getChild(curChild)->getTag());
-            invariant(nullptr != ixtag);
+            tassert(9751505, "expected non-null index tag", nullptr != ixtag);
             // Skip this child if it's not part of a prefix, or if we've already assigned a
             // predicate to this prefix position.
             if (ixtag->pos >= tn->numPrefixFields || prefixExprs[ixtag->pos] != nullptr) {
@@ -1111,8 +1136,13 @@ void QueryPlannerAccess::finishTextNode(QuerySolutionNode* node, const IndexEntr
         // Go through the prefix equalities in order and create an index prefix out of them.
         for (size_t i = 0; i < prefixExprs.size(); ++i) {
             auto prefixMe = prefixExprs[i].get();
-            invariant(nullptr != prefixMe);
-            invariant(MatchExpression::EQ == prefixMe->matchType());
+            tassert(9751506,
+                    "unexpected empty prefix term in the given text node",
+                    nullptr != prefixMe);
+            tassert(9751507,
+                    str::stream() << "expected 'EQ' match type in all prefix terms, but got "
+                                  << prefixMe->matchType(),
+                    MatchExpression::EQ == prefixMe->matchType());
             EqualityMatchExpression* eqExpr = static_cast<EqualityMatchExpression*>(prefixMe);
             prefixBob.append(eqExpr->getData());
         }

@@ -132,7 +132,7 @@ commands:
                 - privilege: # $changeStream
                     resource_pattern: any_normal
                     action_type: find
-                - privilege: # $changeStream
+                - privilege: # $changeStream, $_internalListCollections
                     resource_pattern: cluster
                     action_type: internal
                 - privilege: # $collstats
@@ -198,7 +198,15 @@ commands:
                 - privilege: # $listSearchIndexes
                     agg_stage: listSearchIndexes
                     resource_pattern: database
-                    action_type: listSearchIndexes
+                    action_type: listSearchIndexes 
+                - privilege: # $listClusterCatalog
+                    agg_stage: listClusterCatalog
+                    resource_pattern: cluster
+                    action_type: listClusterCatalog
+                - privilege: # $listClusterCatalog
+                    agg_stage: listClusterCatalog
+                    resource_pattern: database
+                    action_type: listCollections
         # Note that the 'CursorInitialReply' is not the only response that an aggregate command
         # could return. With 'explain' or 'exchange', the response would not include the fields in
         # 'CursorInitialReply'. But using 'explain' or 'exchange' is unstable, but otherwise the
@@ -253,7 +261,7 @@ commands:
               description: "Query settings for the given query"
               type: QuerySettings
               optional: true
-              stability: unstable
+              stability: internal
             writeConcern:
                 description: "A document that expresses the write concern to use with the $out or $merge stage."
                 type: WriteConcern
@@ -345,11 +353,21 @@ commands:
             $_resumeAfter:
                 description: "Internal usage only. If present, the collection scan will seek to the
                 exact RecordId, or return KeyNotFound if it does not exist. Must only be set on
-                forward collection scans. This field cannot be used in conjunction with 'min' or 'max'."
+                forward collection scans. This field cannot be used in conjunction with 'min', 'max',
+                or '$_startAt', and is not valid on views, or on mongos."
                 cpp_name: resumeAfter
                 type: object_owned
                 optional: true
                 stability: unstable
+            $_startAt:
+                description: "Internal usage only. If present, the collection scan will seek to the
+                exact RecordId, or the next available RecordId if it does not exist. Must only be set
+                on forward collection scans. This field cannot be used in conjunction with 'min',
+                'max', or '$_resumeAfter', and is not valid on views, or on mongos."
+                cpp_name: startAt
+                type: object_owned
+                optional: true
+                stability: internal
             includeQueryStatsMetrics:
                 description: "Determines whether or not to include query stats metrics in the response."
                 type: optionalBool

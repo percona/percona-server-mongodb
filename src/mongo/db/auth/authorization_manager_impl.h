@@ -70,7 +70,7 @@ namespace mongo {
 /**
  * Contains server/cluster-wide information about Authorization.
  */
-class AuthorizationManagerImpl final : public AuthorizationManager {
+class AuthorizationManagerImpl : public AuthorizationManager {
 public:
     struct InstallMockForTestingOrAuthImpl {
         explicit InstallMockForTestingOrAuthImpl() = default;
@@ -178,8 +178,8 @@ private:
     bool _startupAuthSchemaValidation{true};
 
     // True if access control enforcement is enabled in this AuthorizationManager. Changes to its
-    // value are synchronized, as some unit tests reset its value after initalization time.
-    AtomicWord<bool> _authEnabled{false};
+    // value are not synchronized, so it should only be set once, at initalization time.
+    bool _authEnabled{false};
 
     // A cache of whether there are any users set up for the cluster.
     AtomicWord<bool> _privilegeDocsExist{false};

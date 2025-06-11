@@ -27,6 +27,7 @@ selector:
   - jstests/core/list_namespaces_invalidation.js
   - jstests/core/write/bulk/bulk_write.js
   - jstests/core/write/bulk/bulk_write_non_transaction.js
+  - jstests/core/query/json_schema_validate_empty_path.js
   # Sparse indexes.
   - jstests/core/query/distinct/distinct_hint.js
   - jstests/core/query/query_hash_stability.js
@@ -80,7 +81,6 @@ selector:
   - jstests/core/query/or/orf.js
   - jstests/core/query/plan_cache/plan_cache_clear.js
   - jstests/core/query/plan_cache/plan_cache_list_plans.js
-  - jstests/core/query/query_settings/*
   - jstests/core/query/regex/regex.js
   - jstests/core/query/regex/regex3.js
   - jstests/core/query/regex/regex4.js
@@ -97,6 +97,10 @@ selector:
   - jstests/core/write/find_and_modify/find_and_modify_pipeline_update.js
   - jstests/core/write/update/update_hint.js
   - jstests/core/write/update/update_pipeline_shell_helpers.js
+  # Ignore because index filters are applied directly to collections, not views (or TS).
+  - jstests/core/query/query_settings/query_settings_and_index_filters.js
+  # Ignore because the find command is rewritten for TS collections before reaching the failpoint.
+  - jstests/core/query/query_settings/query_shape_hash_in_current_op.js
   # Incompatible with the update option manipulation from the override.
   - jstests/core/write/verify_update_mods.js
   # Sort takes much more memory for the time-series version.
@@ -147,6 +151,7 @@ selector:
   - jstests/core/slice1.js # $slice
   - jstests/core/write/collection_truncate.js # emptycapped
   - jstests/core/write/find_and_modify/find_and_modify_server6865.js # $elemMatch
+  - jstests/core/query/plan_cache/elem_match_index_diff_types.js # $elemMatch
   # Time-series collections are views which don't support map-reduce
   - jstests/core/commands_namespace_parsing.js
   - jstests/core/constructors.js
@@ -188,6 +193,8 @@ selector:
   - jstests/core/server9547.js # max
   - jstests/core/single_batch.js # singleBatch
   - jstests/core/testminmax.js # min
+  - jstests/core/query/query_settings/query_settings_reject_application_bypass.js
+  - jstests/core/query/query_settings/query_settings_plan_cache.js
   # Different field ordering.
   - jstests/core/query/basica.js
   - jstests/core/query/group_lookup_with_canonical_query_prefix.js
@@ -214,6 +221,7 @@ selector:
   - jstests/core/query/type/null_undefined.js
   - jstests/core/query/type/type_array.js
   - jstests/core/write/update/update_numeric_field_name.js
+  - jstests/core/query/array/array_index_and_nonIndex_consistent.js
   # Time-series collections have different indexes from regular collections.
   - jstests/core/query/array/arrayfind4.js
   - jstests/core/query/array/arrayfind9.js
@@ -284,6 +292,9 @@ executor:
   config:
     shell_options:
       eval: globalThis.testingReplication = true;; await import("jstests/libs/override_methods/implicit_timeseries_collections.js");
+      global_vars:
+        TestData:
+          isTimeseriesTestSuite: true
   hooks:
   - class: ValidateCollections
   - class: CleanEveryN

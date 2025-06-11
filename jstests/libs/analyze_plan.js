@@ -130,6 +130,15 @@ export function getWinningSBEPlan(queryPlanner) {
  * This helper function can be used for any optimizer.
  */
 export function getWinningPlanFromExplain(explain, isSBEPlan = false) {
+    let getWinningSBEPlan = (queryPlanner) => queryPlanner.winningPlan.slotBasedPlan;
+
+    // The 'queryPlan' format is used when the SBE engine is turned on. If this field is present,
+    // it will hold a serialized winning plan, otherwise it will be stored in the 'winningPlan'
+    // field itself.
+    let getWinningPlan = (queryPlanner) => queryPlanner.winningPlan.hasOwnProperty("queryPlan")
+        ? queryPlanner.winningPlan.queryPlan
+        : queryPlanner.winningPlan;
+
     if ("shards" in explain) {
         for (const shardName in explain.shards) {
             let queryPlanner = getQueryPlanner(explain.shards[shardName]);
@@ -149,7 +158,10 @@ export function getWinningPlanFromExplain(explain, isSBEPlan = false) {
         }
     }
 
-    let queryPlanner = getQueryPlanner(explain);
+    let queryPlanner = explain;
+    if (explain.hasOwnProperty("queryPlanner") || explain.hasOwnProperty("stages")) {
+        queryPlanner = getQueryPlanner(explain);
+    }
     return isSBEPlan ? getWinningSBEPlan(queryPlanner) : getWinningPlan(queryPlanner);
 }
 
@@ -207,6 +219,173 @@ export function getCachedPlan(cachedPlan) {
     // will hold a serialized cached plan, otherwise it will be stored in the 'cachedPlan' field
     // itself.
     return cachedPlan.hasOwnProperty("queryPlan") ? cachedPlan.queryPlan : cachedPlan;
+}
+
+function isPlainObject(value) {
+    return value && typeof (value) == "object" && value.constructor === Object;
+}
+
+/**
+ * Flattens the given plan by turning it into an array of stages/children. It excludes fields which
+ * might differ in the explain across multiple executions of the same query.
+ */
+export function flattenPlan(plan) {
+    const results = [];
+
+    if (!isPlainObject(plan)) {
+        return results;
+    }
+
+    const childFields = [
+        "inputStage",
+        "inputStages",
+        "thenStage",
+        "elseStage",
+        "outerStage",
+        "stages",
+        "innerStage",
+        "child",
+        "leftChild",
+        "rightChild"
+    ];
+
+    // Expand this array if you find new fields which are inconsistent across different test runs.
+    const ignoreFields = ["isCached", "indexVersion", "filter", "planNodeId"];
+
+    // Iterates over the plan while ignoring the `ignoreFields`, to create flattened stages whenever
+    // `childFields` are encountered.
+    const stack = [["root", {...plan}]];
+    while (stack.length > 0) {
+        const [_, next] = stack.pop();
+        ignoreFields.forEach(field => delete next[field]);
+
+        for (const childField of childFields) {
+            if (childField in next) {
+                const child = next[childField];
+                delete next[childField];
+                if (Array.isArray(child)) {
+                    for (let i = 0; i < child.length; i++) {
+                        stack.push([childField, child[i]]);
+                    }
+                } else {
+                    stack.push([childField, child]);
+                }
+            }
+        }
+
+        results.push(next);
+    }
+
+    return results;
+}
+
+/**
+ * Returns an object containing the winning plan and an array of rejected plans for the given
+ * queryPlanner. Each of those plans is returned in its flattened form.
+ */
+export function formatQueryPlanner(queryPlanner) {
+    return {
+        winningPlan: flattenPlan(getWinningPlan(queryPlanner)),
+        rejectedPlans: queryPlanner.rejectedPlans.map(flattenPlan),
+    };
+}
+
+/**
+ * Formats the given pipeline, which must be an array of stage objects. Returns an array of
+ * formatted stages. It excludes fields which might differ in the explain across multiple executions
+ * of the same query.
+ */
+export function formatPipeline(pipeline) {
+    const results = [];
+
+    // Pipeline must be an array of objects
+    if (!pipeline || !Array.isArray(pipeline) || !pipeline.every(isPlainObject)) {
+        return results;
+    }
+
+    // Expand this array if you find new fields which are inconsistent across different test runs.
+    const ignoreFields = ["lsid"];
+
+    for (const stage of pipeline) {
+        const keys = Object.keys(stage).filter(key => key.startsWith("$"));
+        if (keys.length !== 1) {
+            throw Error("This is not a stage: " + tojson(stage));
+        }
+
+        const stageName = keys[0];
+        if (stageName == "$cursor") {
+            const queryPlanner = stage[stageName].queryPlanner;
+            results.push({[stageName]: formatQueryPlanner(queryPlanner)});
+        } else {
+            const stageCopy = {...stage[stageName]};
+            ignoreFields.forEach(field => delete stageCopy[field]);
+            // Don't keep any fields that are on the same level as the stage name
+            results.push({[stageName]: stageCopy});
+        }
+    }
+
+    return results;
+}
+
+/**
+ * Helper function to only add `field` to `dest` if it is present in `src`. A lambda can be passed
+ * to transform the field value when it is added to `dest`.
+ */
+function addIfPresent(field, src, dest, lambda = i => i) {
+    if (src && dest && field in src) {
+        dest[field] = lambda(src[field]);
+    }
+}
+
+/**
+ * If queryPlanner contains an array of shards, this returns both the merger part and shards
+ * part. Both are flattened.
+ */
+function invertShards(queryPlanner) {
+    const winningPlan = queryPlanner.winningPlan;
+    const shards = winningPlan.shards;
+    if (!Array.isArray(shards)) {
+        throw Error("Expected shards field to be array, got: " + tojson(shards));
+    }
+
+    const topStage = {...winningPlan};
+    delete topStage.shards;
+
+    const res = {mergerPart: flattenPlan(topStage), shardsPart: {}};
+    shards.forEach(shard => res.shardsPart[shard.shardName] = formatQueryPlanner(shard));
+
+    return res;
+}
+
+/**
+ * Returns a formatted version of the explain, excluding fields which might differ in the explain
+ * across multiple executions of the same query (e.g. caching information or UUIDs).
+ */
+export function formatExplainRoot(explain) {
+    let res = {};
+    if (!isPlainObject(explain)) {
+        return res;
+    }
+
+    addIfPresent("mergeType", explain, res);
+    if ("splitPipeline" in explain) {
+        addIfPresent("mergerPart", explain.splitPipeline, res, formatPipeline);
+        addIfPresent("shardsPart", explain.splitPipeline, res, formatPipeline);
+    }
+
+    if ("shards" in explain) {
+        for (const [shardName, shardExplain] of Object.entries(explain["shards"])) {
+            res[shardName] = formatPipeline(shardExplain.stages);
+        }
+    } else if ("queryPlanner" in explain && "shards" in explain.queryPlanner.winningPlan) {
+        res = {...res, ...invertShards(explain.queryPlanner)};
+    } else if ("queryPlanner" in explain) {
+        res = {...res, ...formatQueryPlanner(explain.queryPlanner)};
+    } else if ("stages" in explain) {
+        res.stages = formatPipeline(explain.stages);
+    }
+
+    return res;
 }
 
 /**
@@ -985,13 +1164,12 @@ export function getPlanCacheKeyFromExplain(explain) {
 }
 
 /**
- * Get the 'planCacheShapeHash' from 'object'.
+ * Get the 'queryHash' from 'object'.
  */
 export function getPlanCacheShapeHashFromObject(object) {
-    // TODO SERVER 93305: Remove deprecated 'queryHash' usages.
-    const planCacheShapeHash = object.planCacheShapeHash || object.queryHash;
-    assert.neq(planCacheShapeHash, undefined);
-    return planCacheShapeHash;
+    const queryHash = object.queryHash;
+    assert.neq(queryHash, undefined);
+    return queryHash;
 }
 
 /**
@@ -1177,7 +1355,7 @@ export function getNumberOfColumnScans(explain) {
 export function isIxscanMultikey(winningPlan) {
     // SERVER-77719: Update to expected this method to allow also use with CQF optimizer.
     let ixscanStage = getPlanStage(winningPlan, "IXSCAN");
-    return ixscanStage.isMultiKey;
+    return ixscanStage && ixscanStage.isMultiKey;
 }
 
 /**

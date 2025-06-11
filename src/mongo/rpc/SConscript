@@ -140,6 +140,8 @@ env.Library(
         'metadata_impersonated_user',
     ],
     source=[
+        'metadata/audit_client_attrs.cpp',
+        'metadata/audit_client_attrs.idl',
         'metadata/impersonated_user_metadata.cpp',
     ],
     LIBDEPS=[
@@ -150,6 +152,7 @@ env.Library(
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/auth/auth',
         '$BUILD_DIR/mongo/db/server_options',
+        '$BUILD_DIR/mongo/util/net/network',
     ],
 )
 

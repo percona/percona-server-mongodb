@@ -117,7 +117,7 @@ namespace {
 // This fail point allows collections to be given malformed validator. A malformed validator
 // will not (and cannot) be enforced but it will be persisted.
 MONGO_FAIL_POINT_DEFINE(allowSettingMalformedCollectionValidators);
-
+MONGO_FAIL_POINT_DEFINE(timeseriesBucketingParametersChangedInputValue);
 MONGO_FAIL_POINT_DEFINE(skipCappedDeletes);
 
 Status checkValidatorCanBeUsedOnNs(const BSONObj& validator,
@@ -354,8 +354,9 @@ CollectionImpl::CollectionImpl(OperationContext* opCtx,
       _uuid(metadata->options.uuid.value()),
       _shared(
           std::make_shared<SharedState>(opCtx, this, std::move(recordStore), metadata->options)),
-      _metadata(std::move(metadata)),
-      _indexCatalog(std::make_unique<IndexCatalogImpl>()) {}
+      _indexCatalog(std::make_unique<IndexCatalogImpl>()) {
+    _setMetadata(std::move(metadata));
+}
 
 CollectionImpl::~CollectionImpl() = default;
 
@@ -513,6 +514,34 @@ void CollectionImpl::_initCommon(OperationContext* opCtx) {
                               logAttrs(_ns),
                               "validatorStatus"_attr = _validator.getStatus());
     }
+}
+
+void CollectionImpl::_setMetadata(
+    std::shared_ptr<BSONCollectionCatalogEntry::MetaData>&& metadata) {
+    if (metadata->options.timeseries) {
+        // If present, reuse the storageEngine options to work around the issue described in
+        // SERVER-91194.
+        boost::optional<bool> optBackwardsCompatiblesMayHaveMixedSchemaDataFlag =
+            getFlagFromStorageEngineBson(
+                metadata->options.storageEngine,
+                backwards_compatible_collection_options::kTimeseriesBucketsMayHaveMixedSchemaData);
+        if (optBackwardsCompatiblesMayHaveMixedSchemaDataFlag.has_value()) {
+            metadata->timeseriesBucketsMayHaveMixedSchemaData =
+                *optBackwardsCompatiblesMayHaveMixedSchemaDataFlag;
+        }
+
+        // If present, reuse storageEngine options to work around the issue described in
+        // SERVER-91193
+        boost::optional<bool> optBackwardsCompatibleParametersHaveChangedFlag =
+            getFlagFromStorageEngineBson(
+                metadata->options.storageEngine,
+                backwards_compatible_collection_options::kTimeseriesBucketingParametersHaveChanged);
+        if (optBackwardsCompatibleParametersHaveChangedFlag.has_value()) {
+            metadata->timeseriesBucketingParametersHaveChanged =
+                *optBackwardsCompatibleParametersHaveChangedFlag;
+        }
+    }
+    _metadata = std::move(metadata);
 }
 
 bool CollectionImpl::isInitialized() const {
@@ -815,22 +844,18 @@ boost::optional<bool> CollectionImpl::getTimeseriesBucketsMayHaveMixedSchemaData
     if (!getTimeseriesOptions()) {
         return boost::none;
     }
-
-    // If present, reuse storageEngine options to work around the issue described in SERVER-91194
-    boost::optional<bool> optBackwardsCompatibleFlag = getFlagFromStorageEngineBson(
-        _metadata->options.storageEngine,
-        backwards_compatible_collection_options::kTimeseriesBucketsMayHaveMixedSchemaData);
-    if (optBackwardsCompatibleFlag) {
-        return *optBackwardsCompatibleFlag;
-    }
-
-    // Else, fallback to legacy parameter
     return _metadata->timeseriesBucketsMayHaveMixedSchemaData;
 }
 
 boost::optional<bool> CollectionImpl::timeseriesBucketingParametersHaveChanged() const {
     if (!getTimeseriesOptions()) {
         return boost::none;
+    }
+
+    if (auto sfp = timeseriesBucketingParametersChangedInputValue.scoped();
+        MONGO_unlikely(sfp.isActive())) {
+        const auto& data = sfp.getData();
+        return data["value"].Bool();
     }
 
     if (!feature_flags::gTSBucketingParametersUnchanged.isEnabled(
@@ -841,15 +866,7 @@ boost::optional<bool> CollectionImpl::timeseriesBucketingParametersHaveChanged()
         return true;
     }
 
-    // If present, reuse storageEngine options to work around the issue described in SERVER-91193
-    boost::optional<bool> optBackwardsCompatibleFlag = getFlagFromStorageEngineBson(
-        _metadata->options.storageEngine,
-        backwards_compatible_collection_options::kTimeseriesBucketingParametersHaveChanged);
-    if (optBackwardsCompatibleFlag) {
-        return *optBackwardsCompatibleFlag;
-    }
-
-    // Else, fallback to legacy parameter
+    // Else, fallback to legacy parameter.
     return _metadata->timeseriesBucketingParametersHaveChanged;
 }
 
@@ -1961,7 +1978,7 @@ bool CollectionImpl::isIndexReady(StringData indexName) const {
 void CollectionImpl::replaceMetadata(OperationContext* opCtx,
                                      std::shared_ptr<BSONCollectionCatalogEntry::MetaData> md) {
     DurableCatalog::get(opCtx)->putMetaData(opCtx, getCatalogId(), *md);
-    _metadata = std::move(md);
+    _setMetadata(std::move(md));
 }
 
 bool CollectionImpl::isMetadataEqual(const BSONObj& otherMetadata) const {

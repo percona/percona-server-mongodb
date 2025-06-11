@@ -784,19 +784,6 @@ private:
             });
         }
 
-        if (gFeatureFlagDisallowBucketCollectionWithoutTimeseriesOptions
-                .isEnabledOnTargetFCVButDisabledOnOriginalFCV(requestedVersion, originalVersion)) {
-            collValidationFunctions.emplace_back([](const Collection* collection) {
-                uassert(ErrorCodes::CannotUpgrade,
-                        fmt::format("Bucket collection '{}' does not have timeseries options, "
-                                    "which is not allowed in new FCV version. Please rename or "
-                                    "drop this collection before upgrading FCV.",
-                                    collection->ns().toStringForErrorMsg()),
-                        !collection->ns().isTimeseriesBucketsCollection() ||
-                            collection->getTimeseriesOptions());
-            });
-        }
-
         for (const auto& dbName : DatabaseHolder::get(opCtx)->getNames()) {
             Lock::DBLock dbLock(opCtx, dbName, MODE_IS);
             catalog::forEachCollectionFromDb(

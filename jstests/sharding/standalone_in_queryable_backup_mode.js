@@ -10,14 +10,6 @@
  * ]
  */
 
-// This test shuts down a shard.
-TestData.skipCheckingUUIDsConsistentAcrossCluster = true;
-TestData.skipCheckingIndexesConsistentAcrossCluster = true;
-TestData.skipCheckDBHashes = true;
-TestData.skipCheckOrphans = true;
-TestData.skipCheckShardFilteringMetadata = true;
-TestData.skipCheckMetadataConsistency = true;
-
 (function() {
 'use strict';
 
@@ -48,12 +40,20 @@ jsTest.log("Going to hold the stable timestamp of the secondary node at " +
            tojson(recoveryTimestamp));
 // Hold back the recovery timestamp before doing another write so we have some oplog entries to
 // apply when restart in queryableBackupMode with recoverToOplogTimestamp.
-assert.commandWorked(st.rs0.getSecondary().getDB('admin').adminCommand({
+const secondary = st.rs0.getSecondary();
+assert.commandWorked(secondary.getDB('admin').adminCommand({
     "configureFailPoint": 'holdStableTimestampAtSpecificTimestamp',
     "mode": 'alwaysOn',
     "data": {"timestamp": recoveryTimestamp}
 }));
 
+// Generate an oplog entry corresponding to the critical section of a sharded collection drop,
+// which will be processed in the ShardServerOpObserver.
+jsTest.log("Going to insert into the sharded collection and drop it afterwards");
+st.s.getDB(kDbName)[kShardedCollName].insert({age: 10});
+st.s.getDB(kDbName)[kShardedCollName].drop();
+
+// Apply CRUD operations
 jsTest.log("Going to apply some CRUD operations over sharded and unsharded collections");
 function applyCRUDOnColl(coll) {
     coll.insert({age: 42});
@@ -70,9 +70,12 @@ st.rs0.awaitReplication();
 jsTest.log("Going to stop the secondary node of the shard");
 const operationTime =
     assert.commandWorked(st.rs0.getPrimary().getDB(kDbName).runCommand({ping: 1})).operationTime;
-const secondaryPort = st.rs0.getSecondary().port;
-const secondaryDbPath = st.rs0.getSecondary().dbpath;
-MongoRunner.stopMongod(st.rs0.getSecondary());
+const secondaryPort = secondary.port;
+const secondaryDbPath = secondary.dbpath;
+// Remove the secondary from the cluster since we will restart it in queryable backup mode later.
+const secondaryId = st.rs0.getNodeId(secondary);
+st.rs0.remove(secondaryId);
+st.rs0.reInitiate();
 
 jsTest.log(
     "Going to start a mongod process with --shardsvr, --queryableBackupMode and recoverToOplogTimestamp");

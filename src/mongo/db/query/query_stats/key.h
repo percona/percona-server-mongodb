@@ -49,7 +49,6 @@
 #include "mongo/db/collection_type.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/query/query_shape/shape_helpers.h"

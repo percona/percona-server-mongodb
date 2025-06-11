@@ -80,15 +80,24 @@ export function copyBackupCursorFiles(
     return copyThread;
 }
 
+export function copyBackupCursorFilesForIncremental(
+    backupCursor, namespacesToSkip, dbpath, destinationDirectory) {
+    // Remove any existing journal files from previous incremental backups.
+    resetDbpath(destinationDirectory + "/journal");
+
+    return copyBackupCursorExtendFiles(
+        backupCursor, namespacesToSkip, dbpath, destinationDirectory, /*async=*/ true);
+}
+
 export function copyBackupCursorExtendFiles(
     cursor, namespacesToSkip, dbpath, destinationDirectory, async, fileCopiedCallback) {
     let files = _cursorToFiles(cursor, namespacesToSkip, fileCopiedCallback);
     let copyThread;
     if (async) {
-        copyThread = new Thread(_copyFiles, files, dbpath, destinationDirectory, _copyFileHelper);
+        copyThread = new Thread(_copyFiles, files, dbpath, destinationDirectory, copyFileHelper);
         copyThread.start();
     } else {
-        _copyFiles(files, dbpath, destinationDirectory, _copyFileHelper);
+        _copyFiles(files, dbpath, destinationDirectory, copyFileHelper);
     }
 
     // TODO(SERVER-13455): Replace `journal/` with the configurable journal path.
@@ -140,7 +149,7 @@ export function _copyFiles(files, dbpath, destinationDirectory, copyFileHelper) 
     });
 }
 
-export function _copyFileHelper(file, sourceDbPath, destinationDirectory) {
+export function copyFileHelper(file, sourceDbPath, destinationDirectory) {
     let absoluteFilePath = file.filename;
 
     // Ensure the dbpath ends with an OS appropriate slash.
@@ -204,274 +213,33 @@ export function _copyFileHelper(file, sourceDbPath, destinationDirectory) {
     };
 }
 
-// Magic restore utility class
+/**
+ * Helper function to ensure the namespace and UUID fields are correctly populated in files we are
+ * backing up.
+ */
+export function checkBackup(backupCursor) {
+    // Print the metadata document.
+    assert(backupCursor.hasNext());
+    jsTestLog(backupCursor.next());
 
-// This class implements helpers for testing the magic restore proces. It maintains the state of the
-// backup cursor and handles writing objects to named pipes and running magic restore on a single
-// node. It exposes some of this state so that individual tests can make specific assertions as
-// needed.
+    while (backupCursor.hasNext()) {
+        let doc = backupCursor.next();
 
-export class MagicRestoreUtils {
-    constructor({backupSource, pipeDir, insertHigherTermOplogEntry, backupDbPathSuffix}) {
-        this.backupSource = backupSource;
-        this.pipeDir = pipeDir;
-        this.backupDbPath =
-            pipeDir + "/backup" + (backupDbPathSuffix != undefined ? backupDbPathSuffix : "");
+        jsTestLog("File for backup: " + tojson(doc));
 
-        // isPit is set when we receive the restoreConfiguration.
-        this.isPit = false;
-        this.insertHigherTermOplogEntry = insertHigherTermOplogEntry;
-        // Default high term value.
-        this.restoreToHigherTermThan = 100;
-
-        // These fields are set during the restore process.
-        this.backupCursor = undefined;
-        this.checkpointTimestamp = undefined;
-        this.pointInTimeTimestamp = undefined;
-    }
-
-    /**
-     * Helper function that returns the checkpoint timestamp from the backup cursor. Used in tests
-     * that need this timestamp to make assertions about data before and after the backup time.
-     */
-    getCheckpointTimestamp() {
-        return this.checkpointTimestamp;
-    }
-
-    /**
-     * Helper function that returns the dbpath for the backup. Used to start a regular node after
-     * magic restore completes.
-     */
-    getBackupDbPath() {
-        return this.backupDbPath;
-    }
-
-    /**
-     * Takes a checkpoint and opens the backup cursor on the source.
-     */
-    takeCheckpointAndOpenBackup() {
-        // Take the initial checkpoint.
-        assert.commandWorked(this.backupSource.adminCommand({fsync: 1}));
-
-        resetDbpath(this.backupDbPath);
-        // TODO(SERVER-13455): Replace `journal/` with the configurable journal path.
-        mkdir(this.backupDbPath + "/journal");
-
-        // Open a backup cursor on the checkpoint.
-        this.backupCursor = openBackupCursor(this.backupSource.getDB("admin"));
-        // Print the backup metadata document.
-        assert(this.backupCursor.hasNext());
-        const {metadata} = this.backupCursor.next();
-        jsTestLog("Backup cursor metadata document: " + tojson(metadata));
-        this.checkpointTimestamp = metadata.checkpointTimestamp;
-    }
-
-    /**
-     * Copies data files from the source dbpath to the backup dbpath. Closes the backup cursor.
-     */
-    copyFilesAndCloseBackup() {
-        while (this.backupCursor.hasNext()) {
-            const doc = this.backupCursor.next();
-            jsTestLog("Copying for backup: " + tojson(doc));
-            _copyFileHelper({filename: doc.filename, fileSize: doc.fileSize},
-                            this.backupSource.dbpath,
-                            this.backupDbPath);
-        }
-        this.backupCursor.close();
-    }
-
-    /**
-     * Helper function that generates the magic restore named pipe path for testing. 'pipeDir'
-     * is the directory in the filesystem in which we create the named pipe.
-     */
-    static _generateMagicRestorePipePath(pipeDir) {
-        const pipeName = "magic_restore_named_pipe";
-        // On Windows, the pipe path prefix is ignored. "//./pipe/" is the required path start of
-        // all named pipes on Windows.
-        const pipePath = _isWindows() ? "//./pipe/" + pipeName : `${pipeDir}/tmp/${pipeName}`;
-        if (!_isWindows() && !fileExists(pipeDir + "/tmp/")) {
-            assert(mkdir(pipeDir + "/tmp/").created);
-        }
-        return {pipeName, pipePath};
-    }
-
-    /**
-     * Helper function that writes an array of JavaScript objects into a named pipe. 'objs' will be
-     * serialized into BSON and written into the named pipe path generated by
-     * '_generateMagicRestorePipePath'. The function is static as it is used in passthrough testing
-     * as well.
-     */
-    static writeObjsToMagicRestorePipe(pipeDir, objs, persistPipe = false) {
-        const {pipeName, pipePath} = MagicRestoreUtils._generateMagicRestorePipePath(pipeDir);
-        _writeTestPipeObjects(pipeName, objs.length, objs, pipeDir + "/tmp/", persistPipe);
-        // Creating the named pipe is async, so we should wait until the file exists.
-        assert.soon(() => fileExists(pipePath));
-    }
-
-    /**
-     * Helper function that starts a magic restore node on the 'backupDbPath'. Waits for the process
-     * to exit cleanly. The function is static as it is used in passthrough testing as well.
-     */
-    static runMagicRestoreNode(pipeDir, backupDbPath, options = {}) {
-        const {pipePath} = MagicRestoreUtils._generateMagicRestorePipePath(pipeDir);
-        // Magic restore will exit the mongod process cleanly. 'runMongod' may acquire a connection
-        // to mongod before it exits, and so we wait for the process to exit in the 'assert.soon'
-        // below. If mongod exits before we acquire a connection, 'conn' will be null. In this case,
-        // if mongod exits with non-zero exit code, the runner will throw a StopError.
-        const conn = MongoRunner.runMongod({
-            dbpath: backupDbPath,
-            noCleanData: true,
-            magicRestore: "",
-            env: {namedPipeInput: pipePath},
-            ...options
-        });
-        if (conn) {
-            assert.soon(() => {
-                const res = checkProgram(conn.pid);
-                return !res.alive && res.exitCode == MongoRunner.EXIT_CLEAN;
-            }, "Expected magic restore to exit mongod cleanly");
-        }
-    }
-
-    /**
-     * Retrieves all oplog entries that occurred after the checkpoint timestamp on the source node.
-     * Returns an object with the timestamp of the last oplog entry, as well as the oplog
-     * entry array
-     */
-    getEntriesAfterBackup(sourceNode) {
-        let oplog = sourceNode.getDB("local").getCollection('oplog.rs');
-        const entriesAfterBackup =
-            oplog.find({ts: {$gt: this.checkpointTimestamp}}).sort({ts: 1}).toArray();
-        return {
-            lastOplogEntryTs: entriesAfterBackup[entriesAfterBackup.length - 1].ts,
-            entriesAfterBackup
-        };
-    }
-
-    /**
-     * Performs a find on the oplog for the given name space and asserts that the expected number of
-     * entries exists. Optionally takes an op type to filter.
-     */
-    assertOplogCountForNamespace(node, ns, expectedNumEntries, op) {
-        let findObj = {ns: ns};
-        if (op) {
-            findObj.op = op;
-        }
-        const entries =
-            node.getDB("local").getCollection('oplog.rs').find(findObj).sort({ts: -1}).toArray();
-        assert.eq(entries.length, expectedNumEntries);
-    }
-
-    /**
-     * Adds the 'restoreToHigherTermThan' field to the restore configuration if this instance is
-     * testing the higher term no-op behavior.
-     */
-    appendRestoreToHigherTermThanIfNeeded(restoreConfiguration) {
-        if (this.insertHigherTermOplogEntry) {
-            restoreConfiguration.restoreToHigherTermThan = NumberLong(this.restoreToHigherTermThan);
-        }
-        return restoreConfiguration;
-    }
-
-    /**
-     * Combines writing objects to the named pipe and running magic restore.
-     */
-    writeObjsAndRunMagicRestore(restoreConfiguration, entriesAfterBackup, options) {
-        this.pointInTimeTimestamp = restoreConfiguration.pointInTimeTimestamp;
-        if (this.pointInTimeTimestamp) {
-            assert(entriesAfterBackup.length > 0);
-            this.isPit = true;
-        }
-        MagicRestoreUtils.writeObjsToMagicRestorePipe(
-            this.pipeDir, [restoreConfiguration, ...entriesAfterBackup]);
-        MagicRestoreUtils.runMagicRestoreNode(this.pipeDir, this.backupDbPath, options);
-    }
-
-    /**
-     * Asserts that two config arguments are equal. If we are testing higher term behavior in the
-     * test, modifies the expected term on the source config.
-     */
-    assertConfigIsCorrect(srcConfig, dstConfig) {
-        // If we passed in a value for the 'restoreToHigherTermThan' field in the restore config, a
-        // no-op oplog entry was inserted in the oplog with that term value + 100. On startup, the
-        // replica set node sets its term to this value. A new election occurred when the replica
-        // set restarted, so we must also increment the term by 1 regardless of if we passed in a
-        // higher term value.
-        const expectedTerm = this.insertHigherTermOplogEntry ? this.restoreToHigherTermThan + 101
-                                                             : srcConfig.term + 1;
-        srcConfig.term = expectedTerm;
-        assert.eq(srcConfig, dstConfig);
-    }
-
-    /**
-     * Asserts that the stable checkpoint timestamp on the restored node is as expected. For a
-     * non-PIT restore, the timestamp should be equal to the checkpoint timestamp from the backup
-     * cursor. For a PIT restore, it should be equal to the top of the oplog. For any restore that
-     * inserts a no-op oplog entry with a higher term, the stable checkpoint timestamp should be
-     * equal to the timestamp of that entry.
-     */
-    assertStableCheckpointIsCorrectAfterRestore(restoreNode) {
-        let lastStableCheckpointTs =
-            this.isPit ? this.pointInTimeTimestamp : this.checkpointTimestamp;
-        if (this.insertHigherTermOplogEntry) {
-            const oplog = restoreNode.getDB("local").getCollection('oplog.rs');
-            const incrementTermEntry =
-                oplog.findOne({op: "n", "o.msg": "restore incrementing term"});
-            assert(incrementTermEntry);
-            assert.eq(incrementTermEntry.t, this.restoreToHigherTermThan + 100);
-            // If we've inserted a no-op oplog entry with a higher term during magic restore, we'll
-            // have updated the stable timestamp.
-            lastStableCheckpointTs = incrementTermEntry.ts;
-        }
-
-        // Ensure that the last stable checkpoint is as expected. As the timestamp is greater than
-        // 0, this means the magic restore took a stable checkpoint on shutdown.
-        const {lastStableRecoveryTimestamp} =
-            assert.commandWorked(restoreNode.adminCommand({replSetGetStatus: 1}));
-        assert(timestampCmp(lastStableRecoveryTimestamp, lastStableCheckpointTs) == 0);
-    }
-
-    /**
-     * Assert that the minvalid document has been set correctly in magic restore.
-     */
-    assertMinValidIsCorrect(restoreNode) {
-        const minValid = restoreNode.getCollection('local.replset.minvalid').findOne();
-        assert.eq(minValid,
-                  {_id: ObjectId("000000000000000000000000"), t: -1, ts: Timestamp(0, 1)});
-    }
-
-    /**
-     * Assert that a restored node cannot complete a snapshot read at a timestamp earlier than the
-     * last stable checkpoint timestamp.
-     */
-    assertCannotDoSnapshotRead(restoreNode, expectedNumDocs) {
-        const {lastStableRecoveryTimestamp} =
-            assert.commandWorked(restoreNode.adminCommand({replSetGetStatus: 1}));
-        // A restored node will not preserve any history. The oldest timestamp should be set to the
-        // stable timestamp at the end of a non-PIT restore.
-        let res = restoreNode.getDB("db").runCommand({
-            find: "coll",
-            readConcern: {
-                level: "snapshot",
-                atClusterTime: Timestamp(lastStableRecoveryTimestamp.getTime() - 1,
-                                         lastStableRecoveryTimestamp.getInc())
+        if (!doc.required) {
+            assert.neq(doc.ns, "");
+            assert.neq(doc.uuid, "");
+        } else {
+            let pathsep = _isWindows() ? '\\' : '/';
+            let stem = doc.filename.substr(doc.filename.lastIndexOf(pathsep) + 1);
+            // Denylisting internal files that don't need to have ns/uuid set. Denylisting known
+            // patterns will help catch subtle API changes if new filename patterns are added that
+            // don't generate ns/uuid.
+            if (!stem.startsWith("size") && !stem.startsWith("Wired") && !stem.startsWith("_")) {
+                assert.neq(doc.ns, "");
+                assert.neq(doc.uuid, "");
             }
-        });
-        assert.commandFailedWithCode(res, ErrorCodes.SnapshotTooOld);
-
-        // A snapshot read at the last stable timestamp should succeed.
-        res = restoreNode.getDB("db").runCommand({
-            find: "coll",
-            readConcern: {level: "snapshot", atClusterTime: lastStableRecoveryTimestamp}
-        });
-        assert.commandWorked(res);
-        assert.eq(res.cursor.firstBatch.length, expectedNumDocs);
-    }
-
-    /**
-     * Get the UUID for a given collection.
-     */
-    getCollUuid(node, dbName, collName) {
-        return node.getDB(dbName).getCollectionInfos({name: collName})[0].info.uuid;
+        }
     }
 }

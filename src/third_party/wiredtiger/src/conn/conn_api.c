@@ -1455,8 +1455,19 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    char config_buf[16];
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
+
+    /*
+     * In the absence of an API configuration, utilize the RTS worker thread settings defined at the
+     * connection level.
+     */
+    if ((config == NULL || *config == '\0') && conn->rts->cfg_threads_num != 0) {
+        WT_RET(
+          __wt_snprintf(config_buf, sizeof(config_buf), "threads=%u", conn->rts->cfg_threads_num));
+        config = config_buf;
+    }
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
     WT_STAT_CONN_INCR(session, txn_rts);
@@ -2256,6 +2267,32 @@ __wti_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
+ * __wti_heuristic_controls_config --
+ *     Set heuristic_controls configuration.
+ */
+int
+__wti_heuristic_controls_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_config_gets(
+      session, cfg, "heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max", &cval));
+    conn->heuristic_controls.checkpoint_cleanup_obsolete_tw_pages_dirty_max = (uint32_t)cval.val;
+
+    WT_RET(__wt_config_gets(
+      session, cfg, "heuristic_controls.eviction_obsolete_tw_pages_dirty_max", &cval));
+    conn->heuristic_controls.eviction_obsolete_tw_pages_dirty_max = (uint32_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "heuristic_controls.obsolete_tw_btree_max", &cval));
+    conn->heuristic_controls.obsolete_tw_btree_max = (uint32_t)cval.val;
+
+    return (0);
+}
+
+/*
  * __wti_json_config --
  *     Set JSON output configuration.
  */
@@ -2655,6 +2692,8 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
 
     WT_RET(__wt_config_gets(session, cfg, "lsm_manager.worker_thread_max", &cval));
     v += cval.val;
+
+    v += WT_RTS_MAX_WORKERS;
 
     WT_RET(__wt_config_gets(session, cfg, "session_max", &cval));
     v += cval.val;
@@ -3156,6 +3195,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * is set up.
      */
     WT_ERR(__wti_debug_mode_config(session, cfg));
+
+    /* Parse the heuristic_controls configuration. */
+    WT_ERR(__wti_heuristic_controls_config(session, cfg));
 
     /*
      * Load the extensions after initialization completes; extensions expect everything else to be

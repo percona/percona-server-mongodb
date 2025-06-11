@@ -48,7 +48,7 @@ class AggregationContextFixture : public ServiceContextTest {
 public:
     AggregationContextFixture()
         : AggregationContextFixture(NamespaceString::createNamespaceString_forTest(
-              boost::none, "unittests", "pipeline_test")) {}
+              boost::none, "test", "pipeline_test")) {}
 
     AggregationContextFixture(NamespaceString nss) {
         _opCtx = makeOperationContext();
@@ -103,6 +103,19 @@ public:
         std::vector<Value> serialized;
         docSource.serializeToArray(serialized, options);
         return serialized;
+    }
+
+    void makePipelineOptimizeAssertNoRewrites(
+        boost::intrusive_ptr<mongo::ExpressionContextForTest> expCtx,
+        std::vector<BSONObj> expectedStages) {
+        auto optimizedPipeline = Pipeline::parse(expectedStages, expCtx);
+        optimizedPipeline->optimizePipeline();
+        auto optimizedSerialized = optimizedPipeline->serializeToBson();
+
+        ASSERT_EQ(expectedStages.size(), optimizedSerialized.size());
+        for (size_t i = 0; i < expectedStages.size(); i++) {
+            ASSERT_BSONOBJ_EQ(expectedStages[i], optimizedSerialized[i]);
+        }
     }
 
 private:

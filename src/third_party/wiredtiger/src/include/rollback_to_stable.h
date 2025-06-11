@@ -31,6 +31,7 @@
 #define WT_RTS_VERB_TAG_INSERT_LIST_UPDATE_ABORT "[INSERT_LIST_UPDATE_ABORT] "
 #define WT_RTS_VERB_TAG_KEY_CLEAR_REMOVE "[KEY_CLEAR_REMOVE] "
 #define WT_RTS_VERB_TAG_KEY_REMOVED "[KEY_REMOVED] "
+#define WT_RTS_VERB_TAG_NO_STABLE "[NO_STABLE] "
 #define WT_RTS_VERB_TAG_ONDISK_ABORT_CHECK "[ONDISK_ABORT_CHECK] "
 #define WT_RTS_VERB_TAG_ONDISK_ABORT_TW "[ONDISK_ABORT_TW] "
 #define WT_RTS_VERB_TAG_ONDISK_KEY_ROLLBACK "[ONDISK_KEY_ROLLBACK] "
@@ -84,6 +85,7 @@
             WT_STAT_CONN_DATA_INCR(session, stat##_dryrun); \
     } while (0)
 
+#define WT_RTS_MAX_WORKERS 10
 /*
  * WT_RTS_WORK_UNIT --
  *  RTS thread operating work unit.
@@ -107,6 +109,9 @@ struct __wt_rollback_to_stable {
     /* RTS thread information. */
     WT_THREAD_GROUP thread_group;
     uint32_t threads_num;
+
+    /* The configuration of RTS worker threads at the connection level. */
+    uint32_t cfg_threads_num;
 
     /* Locked: RTS system work queue. */
     TAILQ_HEAD(__wt_rts_qh, __wt_rts_work_unit) rtsqh;

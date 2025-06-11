@@ -346,6 +346,14 @@ server_parameters:
         default: false
         redact: false
 
+    skipOplogSampling:
+        description: Tells the server whether or not to skip oplog sampling.
+        set_at: startup
+        cpp_vartype: bool
+        cpp_varname: skipOplogSampling
+        default: false
+        redact: false
+
     maxSyncSourceLagSecs:
         description: ''
         set_at: startup
@@ -864,6 +872,19 @@ server_parameters:
         default: false
         redact: false
 
+    dbCheckSecondaryBatchMaxTimeMs:
+        description: >-
+            The maximum amount of time for a dbcheck batch to run on a secondary.
+            Once the time limit is hit the secondary will stop running the batch.
+        set_at: [ startup, runtime ]
+        cpp_vartype: AtomicWord<int>
+        cpp_varname: dbCheckSecondaryBatchMaxTimeMs
+        default: 5000
+        validator:
+            gte: 1
+            lte: 50000
+        redact: false
+
     dbCheckMaxInternalRetries:
         description: >-
             The maximum number of internal retries that dbCheck will run on a batch.
@@ -898,7 +919,8 @@ feature_flags:
     featureFlagSecondaryIndexChecksInDbCheck:
         description: When enabled, dbCheck runs document and secondary index consistency checks in addition to replica set data consistency checks.
         cpp_varname: feature_flags::gSecondaryIndexChecksInDbCheck
-        default: false
+        default: true
+        version: 8.0
         shouldBeFCVGated: true
 
     featureFlagReduceMajorityWriteLatency:

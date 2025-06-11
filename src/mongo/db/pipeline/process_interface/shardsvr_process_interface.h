@@ -107,7 +107,7 @@ public:
     boost::optional<Document> lookupSingleDocument(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const NamespaceString& nss,
-        UUID collectionUUID,
+        boost::optional<UUID> collectionUUID,
         const Document& documentKey,
         boost::optional<BSONObj> readConcern) final;
 
@@ -169,12 +169,13 @@ public:
         boost::optional<BSONObj> readConcern = boost::none) final;
 
     std::unique_ptr<Pipeline, PipelineDeleter> preparePipelineForExecution(
+        const boost::intrusive_ptr<mongo::ExpressionContext>& expCtx,
         const AggregateCommandRequest& aggRequest,
         Pipeline* pipeline,
-        const boost::intrusive_ptr<ExpressionContext>& expCtx,
         boost::optional<BSONObj> shardCursorsSortSpec = boost::none,
         ShardTargetingPolicy shardTargetingPolicy = ShardTargetingPolicy::kAllowed,
-        boost::optional<BSONObj> readConcern = boost::none) final;
+        boost::optional<BSONObj> readConcern = boost::none,
+        bool shouldUseCollectionDefaultCollator = false) final;
 
     std::unique_ptr<ScopedExpectUnshardedCollection> expectUnshardedCollectionInScope(
         OperationContext* opCtx,
@@ -192,6 +193,13 @@ public:
                             const WriteConcernOptions& wc,
                             boost::optional<OID> targetEpoch) final;
 
+    std::vector<DatabaseName> getAllDatabases(OperationContext* opCtx,
+                                              boost::optional<TenantId> tenantId) final;
+
+    std::vector<BSONObj> runListCollections(OperationContext* opCtx,
+                                            const DatabaseName& db,
+                                            bool addPrimaryShard) final;
+
 protected:
     /**
      * Utility to share a common collection creation implementation.
@@ -204,12 +212,6 @@ protected:
 private:
     boost::optional<TimeseriesOptions> _getTimeseriesOptions(OperationContext* opCtx,
                                                              const NamespaceString& ns) final;
-
-    /**
-     * Utility to run a 'listCollections' command on the primary. This is used to confirm different
-     * collection properties, such as collection options and if the collection exists.
-     */
-    BSONObj _runListCollectionsCommand(OperationContext* opCtx, const NamespaceString& nss);
 };
 
 }  // namespace mongo

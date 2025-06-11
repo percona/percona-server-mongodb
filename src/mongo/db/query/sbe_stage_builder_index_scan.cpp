@@ -357,6 +357,7 @@ generateOptimizedMultiIntervalIndexScan(StageBuilderState& state,
         : boost::none;
 
     auto stage = sbe::makeS<sbe::SimpleIndexScanStage>(collection->uuid(),
+                                                       collection->ns().dbName(),
                                                        indexName,
                                                        forward,
                                                        indexKeySlot,
@@ -446,6 +447,7 @@ generateGenericMultiIntervalIndexScan(StageBuilderState& state,
 
     std::unique_ptr<sbe::PlanStage> stage =
         std::make_unique<sbe::GenericIndexScanStage>(collection->uuid(),
+                                                     collection->ns().dbName(),
                                                      indexName,
                                                      std::move(params),
                                                      indexKeySlot,
@@ -653,6 +655,7 @@ std::tuple<std::unique_ptr<sbe::PlanStage>, PlanStageSlots> generateSingleInterv
     // exclusive boundaries), and produce a single field recordIdSlot that can be used to
     // position into the collection.
     auto stage = sbe::makeS<sbe::SimpleIndexScanStage>(collection->uuid(),
+                                                       collection->ns().dbName(),
                                                        indexName,
                                                        forward,
                                                        indexKeySlot,
@@ -841,8 +844,8 @@ IndexIntervals makeIntervalsFromIndexBounds(const IndexBounds& bounds,
         LOGV2_DEBUG(4742906,
                     5,
                     "Generated interval [lowKey, highKey]",
-                    "lowKey"_attr = lowKey,
-                    "highKey"_attr = highKey);
+                    "lowKey"_attr = redact(lowKey),
+                    "highKey"_attr = redact(highKey));
         result.push_back(makeKeyStringPair(
             lowKey, lowKeyInclusive, highKey, highKeyInclusive, version, ordering, forward));
     }

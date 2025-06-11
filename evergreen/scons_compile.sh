@@ -130,6 +130,39 @@ if [ -n "${build_patch_id}" ]; then
   echo "Could not skip ${task_name} compile, compiling as normal"
 fi
 
+# --build-mongot is a compile flag used by the evergreen build variants that run end-to-end search
+# suites, as it downloads the necessary mongot binary.
+if [ "${build_mongot}" = "true" ]; then
+  # Checking that this is not a downstream patch on mongod created by mongot's patch trigger.
+  # In the case that it's not, download latest (eg HEAD of 10gen/mongot) or the
+  # release (eg currently running in production on Atlas) mongot binary.
+  if [[ -z ${linux_x86_64_mongot_localdev_binary+x} && -z ${linux_aarch64_mongot_localdev_binary+x} && -z ${macos_x86_64_mongot_localdev_binary+x} ]]; then
+    if [ "${download_mongot_release}" = "true" ]; then
+      extra_args="$extra_args --build-mongot=release"
+    else
+      extra_args="$extra_args --build-mongot=latest"
+    fi
+  else
+    # This is a downstream patch, which means there is a patched mongot binary we need to install.
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+      arch=$(uname -i)
+      if [[ $arch == x86_64* ]]; then
+        extra_args="$extra_args --patch-build-mongot-url=${linux_x86_64_mongot_localdev_binary}"
+      elif [[ $arch == aarch64* ]]; then
+        extra_args="$extra_args --patch-build-mongot-url=${linux_aarch64_mongot_localdev_binary}"
+      else
+        echo "mongot-localdev does not support ${arch}"
+        exit 1
+      fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+      extra_args="$extra_args --patch-build-mongot-url=${macos_x86_64_mongot_localdev_binary}"
+    else
+      echo "mongot-localdev does not support ${OSTYPE}"
+      exit 1
+    fi
+  fi
+fi
+
 set -o pipefail
 
 # Bind mount a new tmp directory to the real /tmp to circumvent "out of disk space" errors on ARM LTO compiles

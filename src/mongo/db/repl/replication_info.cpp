@@ -418,6 +418,11 @@ public:
         auto cmd = HelloCommand::parse(
             IDLParserContext("hello", apiStrict, vts, dbName.tenantId(), sc), cmdObj);
 
+        if (cmd.getLoadBalanced().value_or(false)) {
+            LOGV2(1010780,
+                  "Client declared load balancer support. This is not supported on mongod.");
+        }
+
         shardWaitInHello.execute(
             [&](const BSONObj& customArgs) { _handleHelloFailPoint(customArgs, opCtx, cmdObj); });
 

@@ -32,6 +32,7 @@
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/curop.h"
+#include "mongo/db/s/operation_sharding_state.h"
 #include "mongo/db/s/sharding_api_d_params_gen.h"
 #include "mongo/db/s/sharding_statistics.h"
 #include "mongo/logv2/log.h"
@@ -55,6 +56,11 @@ void checkDirectShardOperationAllowed(OperationContext* opCtx, const NamespaceSt
     // each shard. The direct shard connection check still applies to the sharding metadata
     // collection namespaces because those collections exist on a single, particular shard.
     if ((nss.isDbOnly() && nss.dbName().isInternalDb()) || nss.isShardLocalNamespace()) {
+        return;
+    }
+    // Skip direct shard connection checks for commands which explicitly request skipping these
+    // checks. There should be very few cases in which this is true.
+    if (OperationShardingState::get(opCtx).shouldSkipDirectConnectionChecks()) {
         return;
     }
     const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
@@ -82,6 +88,9 @@ void checkDirectShardOperationAllowed(OperationContext* opCtx, const NamespaceSt
 
             if (!directShardOperationsAllowed) {
                 ShardingStatistics::get(opCtx).unauthorizedDirectShardOperations.addAndFetch(1);
+                static constexpr char errorMsg[] =
+                    "You are connecting to a sharded cluster improperly by connecting directly to "
+                    "a shard. Please connect to the cluster via a router (mongos).";
                 if (feature_flags::gFailOnDirectShardOperations.isEnabled(fcvSnapshot) &&
                     clusterHasTwoOrMoreShards) {
                     // Atlas log ingestion requires a strict upper bound on the number of logs per
@@ -91,15 +100,14 @@ void checkDirectShardOperationAllowed(OperationContext* opCtx, const NamespaceSt
                     if (severity == logv2::LogSeverity::Warning()) {
                         LOGV2_DEBUG(8679600,
                                     logv2::LogSeverity::Error().toInt(),
-                                    "You are connecting to a sharded cluster improperly by "
-                                    "connecting directly to a shard. Please connect to the cluster "
-                                    "via a router (mongos).",
+                                    errorMsg,
+                                    logAttrs(nss),
                                     "command"_attr = CurOp::get(opCtx)->getCommand()->getName());
                     }
-                    uasserted(
-                        ErrorCodes::Unauthorized,
-                        "You are connecting to a sharded cluster improperly by connecting directly "
-                        "to a shard. Please connect to the cluster via a router (mongos).");
+                    uasserted(ErrorCodes::Unauthorized,
+                              str::stream() << errorMsg << " Command: "
+                                            << CurOp::get(opCtx)->getCommand()->getName()
+                                            << ", Namespace: " << nss.toStringForErrorMsg());
                 } else if (feature_flags::gCheckForDirectShardOperations.isEnabled(fcvSnapshot) ||
                            (!clusterHasTwoOrMoreShards &&
                             directConnectionChecksWithSingleShard.load())) {
@@ -107,12 +115,11 @@ void checkDirectShardOperationAllowed(OperationContext* opCtx, const NamespaceSt
                     // hour. To abide by this, we log the lower verbosity messages with a different
                     // log ID to prevent log ingestion from picking them up.
                     const auto severity = ShardingState::get(opCtx)->directConnectionLogSeverity();
-                    LOGV2_DEBUG(
-                        severity == logv2::LogSeverity::Warning() ? 7553700 : 8993900,
-                        severity.toInt(),
-                        "You are connecting to a sharded cluster improperly by connecting directly "
-                        "to a shard. Please connect to the cluster via a router (mongos).",
-                        "command"_attr = CurOp::get(opCtx)->getCommand()->getName());
+                    LOGV2_DEBUG(severity == logv2::LogSeverity::Warning() ? 7553700 : 8993900,
+                                severity.toInt(),
+                                errorMsg,
+                                logAttrs(nss),
+                                "command"_attr = CurOp::get(opCtx)->getCommand()->getName());
                 }
             }
         }

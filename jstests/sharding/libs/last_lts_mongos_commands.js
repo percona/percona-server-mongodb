@@ -11,22 +11,19 @@ export const commandsRemovedFromMongosSinceLastLTS = [
 // listCommands output of a last LTS version mongos. We will allow these commands to have a test
 // defined without always existing on the mongos being used.
 export const commandsAddedToMongosSinceLastLTS = [
-    "_clusterQueryWithoutShardKey",
-    "_clusterWriteWithoutShardKey",
     "abortMoveCollection",
     "abortUnshardCollection",
     "cleanupStructuredEncryptionData",
     "cpuload",
     "createUnsplittableCollection",
     "getDatabaseVersion",
-    "fsyncUnlock",
     "lockInfo",
     "moveCollection",
     "setQuerySettings",
     "removeQuerySettings",
     "unshardCollection",
+    "untrackUnshardedCollection",
     "changePrimary",
     "autoSplitVector",
-    "transitionFromDedicatedConfigServer",
     "rotateFTDC",
 ];

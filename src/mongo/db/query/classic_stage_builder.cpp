@@ -114,7 +114,7 @@ std::unique_ptr<PlanStage> ClassicStageBuilder::build(const QuerySolutionNode* r
             params.minRecord = csn->minRecord;
             params.maxRecord = csn->maxRecord;
             params.requestResumeToken = csn->requestResumeToken;
-            params.resumeAfterRecordId = csn->resumeAfterRecordId;
+            params.resumeScanPoint = csn->resumeScanPoint;
             params.stopApplyingFilterAfterFirstMatch = csn->stopApplyingFilterAfterFirstMatch;
             params.boundInclusion = csn->boundInclusion;
             params.lowPriority = csn->lowPriority;
@@ -467,7 +467,8 @@ std::unique_ptr<PlanStage> ClassicStageBuilder::build(const QuerySolutionNode* r
         case STAGE_UNWIND:
         case STAGE_SEARCH:
         case STAGE_WINDOW: {
-            LOGV2_WARNING(4615604, "Can't build exec tree for node", "node"_attr = *root);
+            LOGV2_WARNING(
+                4615604, "Can't build exec tree for node", "node"_attr = redact(root->toString()));
         }
     }
 

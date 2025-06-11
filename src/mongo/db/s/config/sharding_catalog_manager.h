@@ -348,8 +348,8 @@ public:
     commitMergeAllChunksOnShard(OperationContext* opCtx,
                                 const NamespaceString& nss,
                                 const ShardId& shardId,
-                                int maxNumberOfChunksToMerge = INT_MAX);
-
+                                int maxNumberOfChunksToMerge = INT_MAX,
+                                int maxTimeProcessingChunksMS = INT_MAX);
 
     /**
      * Updates metadata in config.chunks collection to show the given chunk in its new shard.
@@ -514,7 +514,8 @@ public:
                                       const NamespaceString& nss,
                                       boost::optional<int32_t> chunkSizeMB,
                                       boost::optional<bool> defragmentCollection,
-                                      boost::optional<bool> enableAutoMerger);
+                                      boost::optional<bool> enableAutoMerger,
+                                      boost::optional<bool> enableBalancing);
 
     /**
      * Updates the bucketing parameters of a time-series collection. Also bumps the placement

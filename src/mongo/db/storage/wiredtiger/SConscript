@@ -1,6 +1,9 @@
 # -*- mode: python -*-
-Import("env")
-Import("wiredtiger")
+Import([
+    'env',
+    'has_option',
+    'wiredtiger',
+])
 
 if not wiredtiger:
     Return()
@@ -86,6 +89,7 @@ wtEnv.Library(
         'storage_wiredtiger_customization_hooks',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/catalog/health_log_interface',
         '$BUILD_DIR/mongo/db/commands/server_status_core',
         '$BUILD_DIR/mongo/db/concurrency/exception_util',

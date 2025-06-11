@@ -26,7 +26,7 @@ a notice will be included in
 | [ASIO]                     | BSL-1.0                                                        | 1.12.2                                             |                      |                ✗                |
 | [benchmark]                | Apache-2.0                                                     | 1.5.2                                              |                      |                                 |
 | [Boost]                    | BSL-1.0                                                        | 1.79.0                                             |                      |                ✗                |
-| [c-ares]                   | MIT                                                            | 1.19.1                                             |                      |                ✗                |
+| [c-ares]                   | MIT                                                            | 1.27.0                                             |                      |                ✗                |
 | [CRoaring]                 | Apache-2.0/ MIT                                                | 2.1.2.1                                            |                      |                ✗                |
 | [Cyrus SASL]               | BSD-Attribution-HPND-disclaimer                                | 2.1.28                                             |       unknown        |                                 |
 | [double-conversion]        | BSD 3-Clause                                                   | bf4607277fa7133825cb7899015374917cd06b8f           |                      |                ✗                |
@@ -42,7 +42,7 @@ a notice will be included in
 | [libmongocrypt]            | Apache-2.0                                                     | 1.8.4                                              |          ✗           |                ✗                |
 | [linenoise]                | BSD-3-Clause                                                   | 6cdc775 + changes                                  |                      |                ✗                |
 | [mongo-c-driver]           | Apache-2.0                                                     | 1.27.6                                             |          ✗           |                ✗                |
-| [MozJS]                    | MPL-2.0                                                        | ESR 115.7                                          |                      |                ✗                |
+| [Mozilla Firefox]          | MPL-2.0                                                        | 128.10.0esr                                        |       unknown        |                ✗                |
 | [MurmurHash3]              | Public Domain                                                  | a6bd3ce + changes                                  |          ✗           |                ✗                |
 | [ocspbuilder]              | MIT                                                            | 0.10.2                                             |                      |                                 |
 | [ocspresponder]            | Apache-2.0                                                     | 0.5.0                                              |                      |                                 |
@@ -58,7 +58,7 @@ a notice will be included in
 | [timelib]                  | MIT                                                            | 2022.10                                            |                      |                ✗                |
 | [TomCrypt]                 | Public Domain                                                  | 1.18.2                                             |          ✗           |                ✗                |
 | [Unicode]                  | Unicode-DFS-2015                                               | 8.0.0                                              |          ✗           |                ✗                |
-| [libunwind]                | MIT                                                            | 1.6.2 + changes                                    |                      |                ✗                |
+| [libunwind/libunwind]      | MIT                                                            | v1.8.1                                             |                      |                ✗                |
 | [lz4]                      | BSD-2-Clause                                                   | 1.9.3                                              |                      |                ✗                |
 | [Valgrind]                 | BSD-4-Clause<sup>\[<a href="#note_vg" id="ref_vg">1</a>]</sup> | 3.17.0                                             |                      |                ✗                |
 | [wiredtiger]               |                                                                | <sup>\[<a href="#note_wt" id="ref_wt">2</a>]</sup> |          ✗           |                ✗                |
@@ -88,7 +88,7 @@ a notice will be included in
 [linenoise]: https://github.com/antirez/linenoise
 [lz4]: https://github.com/lz4/lz4
 [mongo-c-driver]: https://github.com/mongodb/mongo-c-driver
-[MozJS]: https://www.mozilla.org/en-US/security/known-vulnerabilities/firefox-esr
+[Mozilla Firefox]: https://www.mozilla.org/en-US/security/known-vulnerabilities/firefox-esr
 [MurmurHash3]: https://github.com/aappleby/smhasher/blob/a6bd3ce/
 [ocspbuilder]: https://github.com/wbond/ocspbuilder
 [ocspresponder]: https://github.com/threema-ch/ocspresponder

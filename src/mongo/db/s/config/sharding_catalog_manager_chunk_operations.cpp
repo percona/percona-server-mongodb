@@ -77,6 +77,7 @@
 #include "mongo/db/repl/repl_client_info.h"
 #include "mongo/db/resource_yielder.h"
 #include "mongo/db/s/config/sharding_catalog_manager.h"
+#include "mongo/db/s/sharding_config_server_parameters_gen.h"
 #include "mongo/db/s/sharding_logging.h"
 #include "mongo/db/s/sharding_util.h"
 #include "mongo/db/session/logical_session_id.h"
@@ -137,6 +138,7 @@ namespace {
 MONGO_FAIL_POINT_DEFINE(migrationCommitVersionError);
 MONGO_FAIL_POINT_DEFINE(migrateCommitInvalidChunkQuery);
 MONGO_FAIL_POINT_DEFINE(skipExpiringOldChunkHistory);
+MONGO_FAIL_POINT_DEFINE(hangMergeAllChunksUntilReachingTimeout);
 
 const WriteConcernOptions kNoWaitWriteConcern(1, WriteConcernOptions::SyncMode::UNSET, Seconds(0));
 
@@ -1196,7 +1198,8 @@ StatusWith<std::pair<ShardingCatalogManager::ShardAndCollectionPlacementVersions
 ShardingCatalogManager::commitMergeAllChunksOnShard(OperationContext* opCtx,
                                                     const NamespaceString& nss,
                                                     const ShardId& shardId,
-                                                    int maxNumberOfChunksToMerge) {
+                                                    int maxNumberOfChunksToMerge,
+                                                    int maxTimeProcessingChunksMS) {
     // Mark opCtx as interruptible to ensure that all reads and writes to the metadata collections
     // under the exclusive _kChunkOpLock happen on the same term.
     opCtx->setAlwaysInterruptAtStepDownOrUp_UNSAFE();
@@ -1208,7 +1211,17 @@ ShardingCatalogManager::commitMergeAllChunksOnShard(OperationContext* opCtx,
     const int MAX_RETRIES = 5;
     int nRetries = 0;
 
+    // Store the 'min' field of the first mergeable chunk found. This is to speed up the processing
+    // of the chunks for the succeeding retries.
+    boost::optional<BSONObj> firstMergeableChunkMin;
+
     while (nRetries < MAX_RETRIES) {
+        Timer tElapsed;
+
+        if (MONGO_unlikely(hangMergeAllChunksUntilReachingTimeout.shouldFail())) {
+            sleepFor(Milliseconds(maxTimeProcessingChunksMS + 1));
+        }
+
         // 1. Retrieve the collection entry and the initial version.
         const auto [coll, originalVersion] =
             uassertStatusOK(getCollectionAndVersion(opCtx, _localConfigShard.get(), nss));
@@ -1226,31 +1239,38 @@ ShardingCatalogManager::commitMergeAllChunksOnShard(OperationContext* opCtx,
         // A chunk is mergeable when the following conditions are honored:
         // - Non-jumbo
         // - The last migration occurred before the current history window
-        const auto oldestTimestampSupportedForHistory =
-            getOldestTimestampSupportedForSnapshotHistory(opCtx);
+        DBDirectClient client{opCtx};
 
-        // TODO SERVER-78701 scan cursor rather than getting the whole vector of chunks
-        const auto chunksBelongingToShard =
-            uassertStatusOK(_localConfigShard->exhaustiveFindOnConfig(
-                                opCtx,
-                                ReadPreferenceSetting{ReadPreference::PrimaryOnly},
-                                repl::ReadConcernLevel::kLocalReadConcern,
-                                ChunkType::ConfigNS,
-                                BSON(ChunkType::collectionUUID
-                                     << collUuid << ChunkType::shard(shardId.toString())
-                                     << ChunkType::onCurrentShardSince
-                                     << BSON("$lt" << oldestTimestampSupportedForHistory)
-                                     << ChunkType::jumbo << BSON("$ne" << true)),
-                                BSON(ChunkType::min << 1) /* sort */,
-                                boost::none /* limit */))
-                .docs;
+        const auto chunksBelongingToShardCursor{client.find(std::invoke([&] {
+            FindCommandRequest chunksFindRequest{NamespaceString::kConfigsvrChunksNamespace};
+            chunksFindRequest.setFilter(std::invoke([&]() {
+                BSONObjBuilder filterBuilder;
+                filterBuilder << ChunkType::collectionUUID << collUuid;
+                filterBuilder << ChunkType::shard(shardId.toString());
+                if (firstMergeableChunkMin) {
+                    filterBuilder << ChunkType::min.query("$gte", *firstMergeableChunkMin);
+                    firstMergeableChunkMin = boost::none;
+                }
+                filterBuilder << ChunkType::onCurrentShardSince.lt(
+                    getOldestTimestampSupportedForSnapshotHistory(opCtx));
+                filterBuilder << ChunkType::jumbo.ne(true);
+                return filterBuilder.obj();
+            }));
+            chunksFindRequest.setSort(BSON(ChunkType::min << 1));
+            return chunksFindRequest;
+        }))};
+
+        tassert(ErrorCodes::OperationFailed,
+                str::stream() << "Failed to establish a cursor for reading "
+                              << nss.toStringForErrorMsg() << " from local storage",
+                chunksBelongingToShardCursor);
 
         // 3. Prepare the data for the merge.
 
         // Track the total and per-range number of merged chunks
         std::pair<int, std::vector<size_t>> numMergedChunks;
 
-        const auto newChunks = [&]() -> std::shared_ptr<std::vector<ChunkType>> {
+        const auto newChunks = std::invoke([&]() -> std::shared_ptr<std::vector<ChunkType>> {
             auto newChunks = std::make_shared<std::vector<ChunkType>>();
             const Timestamp minValidTimestamp = Timestamp(0, 1);
 
@@ -1262,24 +1282,29 @@ ShardingCatalogManager::commitMergeAllChunksOnShard(OperationContext* opCtx,
             auto processRange = [&]() {
                 if (nChunksInRange > 1) {
                     newVersion.incMinor();
-                    ChunkType newChunk(collUuid, {rangeMin, rangeMax}, newVersion, shardId);
+                    ChunkType newChunk(
+                        collUuid, {rangeMin.getOwned(), rangeMax.copy()}, newVersion, shardId);
                     newChunk.setOnCurrentShardSince(rangeOnCurrentShardSince);
                     newChunk.setHistory({ChunkHistory{rangeOnCurrentShardSince, shardId}});
                     numMergedChunks.first += nChunksInRange;
                     numMergedChunks.second.push_back(nChunksInRange);
                     newChunks->push_back(std::move(newChunk));
+                    if (!firstMergeableChunkMin) {
+                        firstMergeableChunkMin = newChunks->at(0).getMin().copy();
+                    }
                 }
                 nChunksInRange = 0;
                 rangeOnCurrentShardSince = minValidTimestamp;
             };
 
-            DBDirectClient zonesClient{opCtx};
-            FindCommandRequest zonesFindRequest{TagsType::ConfigNS};
-            zonesFindRequest.setSort(BSON(TagsType::min << 1));
-            zonesFindRequest.setFilter(BSON(TagsType::ns(
-                NamespaceStringUtil::serialize(nss, SerializationContext::stateDefault()))));
-            zonesFindRequest.setProjection(BSON(TagsType::min << 1 << TagsType::max << 1));
-            const auto zonesCursor{zonesClient.find(std::move(zonesFindRequest))};
+            const auto zonesCursor{client.find(std::invoke([&nss]() {
+                FindCommandRequest zonesFindRequest{TagsType::ConfigNS};
+                zonesFindRequest.setSort(BSON(TagsType::min << 1));
+                zonesFindRequest.setFilter(BSON(TagsType::ns(
+                    NamespaceStringUtil::serialize(nss, SerializationContext::stateDefault()))));
+                zonesFindRequest.setProjection(BSON(TagsType::min << 1 << TagsType::max << 1));
+                return zonesFindRequest;
+            }))};
 
             // Initialize bounds lower than any zone [(), Minkey) so that it can be later advanced
             boost::optional<ChunkRange> currentZone = ChunkRange(BSONObj(), keyPattern.globalMin());
@@ -1317,7 +1342,9 @@ ShardingCatalogManager::commitMergeAllChunksOnShard(OperationContext* opCtx,
                 return zoneChanged;
             };
 
-            for (const auto& chunkDoc : chunksBelongingToShard) {
+            while (chunksBelongingToShardCursor->more()) {
+                const auto chunkDoc = chunksBelongingToShardCursor->nextSafe();
+
                 const auto& chunkMin = chunkDoc.getObjectField(ChunkType::min());
                 const auto& chunkMax = chunkDoc.getObjectField(ChunkType::max());
                 const Timestamp chunkOnCurrentShardSince = [&]() {
@@ -1333,23 +1360,37 @@ ShardingCatalogManager::commitMergeAllChunksOnShard(OperationContext* opCtx,
                 }
 
                 if (nChunksInRange == 0) {
-                    rangeMin = chunkMin;
+                    rangeMin = chunkMin.getOwned();
                 }
-                rangeMax = chunkMax;
+                rangeMax = chunkMax.getOwned();
 
                 if (chunkOnCurrentShardSince > rangeOnCurrentShardSince) {
                     rangeOnCurrentShardSince = chunkOnCurrentShardSince;
                 }
                 nChunksInRange++;
 
-                if (numMergedChunks.first + nChunksInRange == maxNumberOfChunksToMerge) {
+                // Stop looking for additional mergeable chunks if `maxNumberOfChunksToMerge` is
+                // reached.
+                if (numMergedChunks.first + nChunksInRange >= maxNumberOfChunksToMerge) {
+                    break;
+                }
+
+                // Stop looking for additional mergeable chunks if the `maxTimeProcessingChunksMS`
+                // is exceeded. The main reason of this timeout is to reduce the likelihood of
+                // failing on commit because of a concurrent migration.
+                //
+                // Note that we'll only timeout if we've already found mergeable chunks, otherwise
+                // we'll continue looking. Although it'll be more likely to fail on commit due to a
+                // concurrent migration, we'll increase the success rate for the next retry due to
+                // knowing the `firstMergeableChunkMin`.
+                if (!newChunks->empty() && tElapsed.millis() > maxTimeProcessingChunksMS) {
                     break;
                 }
             }
             processRange();
 
             return newChunks;
-        }();
+        });
 
         // If there is no mergeable chunk for the given shard, return success.
         if (newChunks->empty()) {

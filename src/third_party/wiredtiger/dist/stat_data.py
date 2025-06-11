@@ -688,6 +688,7 @@ conn_stats = [
     SessionOpStat('session_table_alter_trigger_checkpoint', 'table alter triggering checkpoint calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_conflicting_checkpoint', 'table compact conflicted with checkpoint', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_dhandle_success', 'table compact dhandle successful calls', 'no_scale'),
+    SessionOpStat('session_table_compact_eviction', 'table compact pulled into eviction', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_fail', 'table compact failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_fail_cache_pressure', 'table compact failed calls due to cache pressure', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_passes', 'table compact passes', 'no_scale'),
@@ -698,6 +699,7 @@ conn_stats = [
     SessionOpStat('session_table_create_fail', 'table create failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_fail', 'table create with import failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_create_import_repair', 'table create with import repair calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_import_success', 'table create with import successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
@@ -983,6 +985,8 @@ conn_dsrc_stats = [
     # Cache and eviction statistics
     ##########################################
     CacheStat('cache_bytes_dirty', 'tracked dirty bytes in the cache', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_dirty_internal', 'tracked dirty internal page bytes in the cache', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_dirty_leaf', 'tracked dirty leaf page bytes in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_dirty_total', 'bytes dirty in the cache cumulative', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
@@ -1003,6 +1007,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_clean', 'unmodified pages evicted'),
     CacheStat('cache_eviction_deepen', 'page split during eviction deepened the tree'),
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
+    CacheStat('cache_eviction_dirty_obsolete_tw', 'pages dirtied due to obsolete time window by eviction'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
     CacheStat('cache_eviction_random_sample_inmem_root', 'locate a random in-mem ref by examining all entries on the root page'),
@@ -1062,6 +1067,9 @@ conn_dsrc_stats = [
     # Checkpoint statistics
     ##########################################
     CheckpointStat('checkpoint_cleanup_pages_evict', 'pages added for eviction during checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_obsolete_tw', 'pages dirtied due to obsolete time window by checkpoint cleanup'),
+    CheckpointStat('checkpoint_cleanup_pages_read_obsolete_tw', 'pages read into cache during checkpoint cleanup due to obsolete time window'),
+    CheckpointStat('checkpoint_cleanup_pages_read_reclaim_space', 'pages read into cache during checkpoint cleanup (reclaim_space)'),
     CheckpointStat('checkpoint_cleanup_pages_removed', 'pages removed during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_visited', 'pages visited during checkpoint cleanup'),
     CheckpointStat('checkpoint_cleanup_pages_walk_skipped', 'pages skipped during checkpoint cleanup tree walk'),

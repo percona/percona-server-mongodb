@@ -30,12 +30,14 @@
 
 #include "mongo/transport/asio/asio_session_impl.h"
 
+#include "mongo/base/checked_cast.h"
 #include "mongo/config.h"
 #include "mongo/db/commands/server_status_metric.h"
 #include "mongo/db/connection_health_metrics_parameter_gen.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/logv2/log.h"
+#include "mongo/transport/asio/asio_session_manager.h"
 #include "mongo/transport/asio/asio_utils.h"
 #include "mongo/transport/proxy_protocol_header_parser.h"
 #include "mongo/transport/session_util.h"
@@ -52,7 +54,9 @@ MONGO_FAIL_POINT_DEFINE(asioTransportLayerShortOpportunisticReadWrite);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayerSessionPauseBeforeSetSocketOption);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeOpportunisticRead);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeAddSession);
-MONGO_FAIL_POINT_DEFINE(clientIsFromLoadBalancer);
+MONGO_FAIL_POINT_DEFINE(clientIsConnectedToLoadBalancerPort);
+MONGO_FAIL_POINT_DEFINE(clientIsLoadBalancedPeer);
+MONGO_FAIL_POINT_DEFINE(asioTransportLayer1sProxyTimeout);
 
 namespace {
 
@@ -113,6 +117,36 @@ Status makeCanceledStatus() {
     return {ErrorCodes::CallbackCanceled, "Operation was canceled"};
 }
 
+template <typename OpType, typename Stream, typename MutableBufferSequence>
+size_t doOperation(OpType op, Stream& stream, MutableBufferSequence buffers, std::error_code& ec) {
+    size_t bytesTransferred = 0;
+    do {
+        const size_t size = op(stream, buffers, ec);
+        // Account for bytes transferred during the latest operation.
+        bytesTransferred += size;
+        buffers += size;
+    } while (ec == asio::error::interrupted);
+    return bytesTransferred;
+}
+
+template <typename Stream, typename MutableBufferSequence>
+size_t readFromStream(Stream& stream, MutableBufferSequence buffers, std::error_code& ec) {
+    return doOperation(
+        [](auto& stream, auto& buffers, auto& ec) { return asio::read(stream, buffers, ec); },
+        stream,
+        std::move(buffers),
+        ec);
+}
+
+template <typename Stream, typename MutableBufferSequence>
+size_t writeToStream(Stream& stream, MutableBufferSequence buffers, std::error_code& ec) {
+    return doOperation(
+        [](auto& stream, auto& buffers, auto& ec) { return asio::write(stream, buffers, ec); },
+        stream,
+        std::move(buffers),
+        ec);
+}
+
 auto& totalIngressTLSConnections =  //
     *MetricBuilder<Counter64>("network.totalIngressTLSConnections");
 auto& totalIngressTLSHandshakeTimeMillis =  //
@@ -160,7 +194,7 @@ CommonAsioSession::CommonAsioSession(
     try {
         _local = HostAndPort(_localAddr.toString(true));
         if (tl->loadBalancerPort()) {
-            _isFromLoadBalancer = _local.port() == *tl->loadBalancerPort();
+            _isConnectedToLoadBalancerPort = _local.port() == *tl->loadBalancerPort();
         }
     } catch (...) {
         LOGV2_DEBUG(9079002,
@@ -195,8 +229,33 @@ CommonAsioSession::CommonAsioSession(
 #endif
 }
 
-bool CommonAsioSession::isFromLoadBalancer() const {
-    return MONGO_unlikely(clientIsFromLoadBalancer.shouldFail()) || _isFromLoadBalancer;
+bool CommonAsioSession::isConnectedToLoadBalancerPort() const {
+    return MONGO_unlikely(clientIsConnectedToLoadBalancerPort.shouldFail()) ||
+        _isConnectedToLoadBalancerPort;
+}
+
+bool CommonAsioSession::isLoadBalancerPeer() const {
+    return MONGO_unlikely(clientIsLoadBalancedPeer.shouldFail()) || _isLoadBalancerPeer;
+}
+
+void CommonAsioSession::setisLoadBalancerPeer(bool helloHasLoadBalancedOption) {
+    tassert(ErrorCodes::BadValue,
+            "Client claimed to be from a loadBalancer, but is not on load balancer port",
+            isConnectedToLoadBalancerPort() || !helloHasLoadBalancedOption);
+
+    if (_isLoadBalancerPeer == helloHasLoadBalancedOption) {
+        return;
+    }
+    _isLoadBalancerPeer = helloHasLoadBalancedOption;
+
+    auto sessionManager = getSessionManager();
+    if (auto asioSessionManager = checked_pointer_cast<AsioSessionManager>(sessionManager)) {
+        if (helloHasLoadBalancedOption) {
+            asioSessionManager->incrementLBConnections();
+        } else {
+            asioSessionManager->decrementLBConnections();
+        }
+    }
 }
 
 void CommonAsioSession::end() {
@@ -426,15 +485,27 @@ auto CommonAsioSession::getSocket() -> GenericSocket& {
 ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHandle& reactor) {
     invariant(_isIngressSession);
     invariant(reactor);
+    const Backoff kExponentialBackoff(Milliseconds(2), Milliseconds::max());
+    const Seconds proxyHeaderTimeout =
+        MONGO_unlikely(asioTransportLayer1sProxyTimeout.shouldFail()) ? Seconds(1) : Seconds(120);
+    const Date_t deadline = reactor->now() + proxyHeaderTimeout;
+
     auto buffer = std::make_shared<std::array<char, kProxyProtocolHeaderSizeUpperBound>>();
     return AsyncTry([this, buffer] {
                const auto bytesRead = peekASIOStream(
                    _socket, asio::buffer(buffer->data(), kProxyProtocolHeaderSizeUpperBound));
                return transport::parseProxyProtocolHeader(StringData(buffer->data(), bytesRead));
            })
-        .until([](StatusWith<boost::optional<ParserResults>> sw) {
+        .until([deadline, proxyHeaderTimeout, reactor](
+                   StatusWith<boost::optional<ParserResults>> sw) {
+            uassert(10382800,
+                    fmt::format("Did not receive proxy protocol header within the time limit: {}",
+                                proxyHeaderTimeout.toString()),
+                    reactor->now() < deadline);
+
             return !sw.isOK() || sw.getValue();
         })
+        .withBackoffBetweenIterations(kExponentialBackoff)
         .on(reactor, CancellationToken::uncancelable())
         .then([this, buffer](const boost::optional<ParserResults>& results) mutable {
             invariant(results);
@@ -442,9 +513,15 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
             // There may not be any endpoints if this connection is directly
             // from the proxy itself or the information isn't available.
             if (results->endpoints) {
-                _proxiedSrcEndpoint = results->endpoints->sourceAddress;
-                _proxiedDstEndpoint = results->endpoints->destinationAddress;
+                _proxiedSrcRemoteAddr = results->endpoints->sourceAddress;
+                _proxiedSrcEndpoint =
+                    HostAndPort(_proxiedSrcRemoteAddr->getAddr(), _proxiedSrcRemoteAddr->getPort());
+
+                const auto& dstEndpointAddr = results->endpoints->destinationAddress;
+                _proxiedDstEndpoint =
+                    HostAndPort(dstEndpointAddr.getAddr(), dstEndpointAddr.getPort());
             } else {
+                _proxiedSrcRemoteAddr = {};
                 _proxiedSrcEndpoint = {};
                 _proxiedDstEndpoint = {};
             }
@@ -586,17 +663,13 @@ Future<void> CommonAsioSession::opportunisticRead(Stream& stream,
             localBuffer = asio::mutable_buffer(buffers.data(), 1);
         }
 
-        do {
-            size = asio::read(stream, localBuffer, ec);
-        } while (ec == asio::error::interrupted);  // retry syscall EINTR
+        size = readFromStream(stream, localBuffer, ec);
 
         if (!ec && buffers.size() > 1) {
             ec = asio::error::would_block;
         }
     } else {
-        do {
-            size = asio::read(stream, buffers, ec);
-        } while (ec == asio::error::interrupted);  // retry syscall EINTR
+        size = readFromStream(stream, buffers, ec);
     }
 
     if (((ec == asio::error::would_block) || (ec == asio::error::try_again)) &&
@@ -652,16 +725,12 @@ Future<void> CommonAsioSession::opportunisticWrite(Stream& stream,
             localBuffer = asio::const_buffer(buffers.data(), 1);
         }
 
-        do {
-            size = asio::write(stream, localBuffer, ec);
-        } while (ec == asio::error::interrupted);  // retry syscall EINTR
+        size = writeToStream(stream, localBuffer, ec);
         if (!ec && buffers.size() > 1) {
             ec = asio::error::would_block;
         }
     } else {
-        do {
-            size = asio::write(stream, buffers, ec);
-        } while (ec == asio::error::interrupted);  // retry syscall EINTR
+        size = writeToStream(stream, buffers, ec);
     }
 
     if (((ec == asio::error::would_block) || (ec == asio::error::try_again)) &&
@@ -717,6 +786,15 @@ Future<bool> CommonAsioSession::maybeHandshakeSSLForIngress(const MutableBufferS
     if (checkForHTTPRequest(buffer)) {
         return Future<bool>::makeReady(false);
     }
+
+    if (maybeProxyProtocolHeader(
+            StringData(asio::buffer_cast<const char*>(buffer), asio::buffer_size(buffer)))) {
+        // Protocol requirements mean that neither raw mongorpc nor TLS client hello will look like
+        // Proxy.
+        return Future<bool>::makeReady(
+            Status(ErrorCodes::OperationFailed, "ProxyProtocol message detected on mongorpc port"));
+    }
+
     // This logic was taken from the old mongo/util/net/sock.cpp.
     //
     // It lets us run both TLS and unencrypted mongo over the same port.
@@ -837,7 +915,8 @@ Future<Message> CommonAsioSession::sendHTTPResponse(const BatonHandle& baton) {
 
 bool CommonAsioSession::shouldOverrideMaxConns(
     const std::vector<std::variant<CIDR, std::string>>& exemptions) const {
-    return transport::util::shouldOverrideMaxConns(remoteAddr(), localAddr(), exemptions);
+    return transport::util::shouldOverrideMaxConns(
+        getProxiedSrcRemoteAddr(), localAddr(), exemptions);
 }
 
 }  // namespace mongo::transport

@@ -1,7 +1,10 @@
 # -*- mode: python -*-
 
-Import("env")
-Import("get_option")
+Import([
+    'env',
+    'has_option',
+    'get_option',
+])
 
 env = env.Clone()
 
@@ -15,6 +18,7 @@ env.Library(
         'sharding_expressions.cpp',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/catalog/index_key_validate',
         '$BUILD_DIR/mongo/db/commands',
         '$BUILD_DIR/mongo/db/fts/base_fts',
@@ -110,6 +114,7 @@ env.Library(
         'cluster_transition_from_dedicated_config_server_cmd.cpp',
         'cluster_transition_to_dedicated_config_server_cmd.cpp',
         'cluster_unshard_collection_cmd.cpp',
+        'cluster_untrack_unsplittable_collection.cpp',
         'cluster_validate_cmd.cpp',
         'cluster_validate_db_metadata_cmd.cpp',
         'cluster_whats_my_uri_cmd.cpp',
@@ -261,6 +266,7 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/audit',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/auth/address_restriction',
         '$BUILD_DIR/mongo/db/auth/auth',
         '$BUILD_DIR/mongo/db/auth/auth_checks',

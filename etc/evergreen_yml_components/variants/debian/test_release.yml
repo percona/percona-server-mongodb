@@ -42,8 +42,14 @@ buildvariants:
   - name: test_packages
     distros:
     - ubuntu2204-large
-  - name: .development_critical !.incompatible_community !.incompatible_debian !.incompatible_oscrypto
-  - name: .release_critical !.incompatible_community !.incompatible_debian !.incompatible_oscrypto
+  - name: .development_critical !.requires_large_host !.incompatible_community !.incompatible_debian !.incompatible_oscrypto
+  - name: .development_critical .requires_large_host !.incompatible_community !.incompatible_debian !.incompatible_oscrypto
+    distros:
+    - debian12-large
+  - name: .release_critical !.requires_large_host !.incompatible_community !.incompatible_debian !.incompatible_oscrypto
+  - name: .release_critical .requires_large_host !.incompatible_community !.incompatible_debian !.incompatible_oscrypto
+    distros:
+    - debian12-large
 
 - name: enterprise-debian12-64
   display_name: Enterprise Debian 12
@@ -76,8 +82,6 @@ buildvariants:
     repo_edition: enterprise
     scons_cache_scope: shared
     large_distro_name: debian12-large
-    # TODO SERVER-64479 remove external_auth_jobs_max once resolved
-    external_auth_jobs_max: 1
     compile_variant: enterprise-debian12-64
   tasks:
   - name: compile_test_and_package_serial_no_unittests_TG
@@ -86,5 +90,11 @@ buildvariants:
   - name: test_packages
     distros:
     - ubuntu2204-large
-  - name: .development_critical !.incompatible_debian !.incompatible_oscrypto
-  - name: .release_critical !.incompatible_debian !.incompatible_oscrypto
+  - name: .development_critical !.requires_large_host !.incompatible_debian !.incompatible_oscrypto
+  - name: .development_critical .requires_large_host !.incompatible_debian !.incompatible_oscrypto
+    distros:
+    - debian12-large
+  - name: .release_critical !.requires_large_host !.incompatible_debian !.incompatible_oscrypto
+  - name: .release_critical .requires_large_host !.incompatible_debian !.incompatible_oscrypto
+    distros:
+    - debian12-large

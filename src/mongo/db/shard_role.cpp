@@ -71,6 +71,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_attr.h"
 #include "mongo/logv2/log_component.h"
+#include "mongo/logv2/log_severity_suppressor.h"
 #include "mongo/logv2/redaction.h"
 #include "mongo/s/shard_version.h"
 #include "mongo/s/stale_exception.h"
@@ -155,8 +156,10 @@ void validateResolvedCollectionByUUID(OperationContext* opCtx,
 }
 
 /**
- * Takes the input acquisitions, populates the NSS and returns a vector sorted by NSS, suitable for
- * locking them in NSS order.
+ * Takes the input acquisitions, populates the NSS and returns a vector sorted by the ResourceId of
+ * the target collection, suitable for locking them in order. This is necessary to prevent deadlocks
+ * due to ordering with strong locks. We do not care for the ordering of the databases as the
+ * canonical ordering is for target collections only.
  */
 ResolvedNamespaceOrViewAcquisitionRequests resolveNamespaceOrViewAcquisitionRequests(
     OperationContext* opCtx,
@@ -225,9 +228,11 @@ ResolvedNamespaceOrViewAcquisitionRequests resolveNamespaceOrViewAcquisitionRequ
         return resolvedAcquisitionRequests;
     }
 
+    // Sort them in ascending ResourceId order since that is the canonical lock ordering used across
+    // the server.
     std::sort(resolvedAcquisitionRequests.begin(),
               resolvedAcquisitionRequests.end(),
-              [](auto& lhs, auto& rhs) { return lhs.resourceId > rhs.resourceId; });
+              [](auto& lhs, auto& rhs) { return lhs.resourceId < rhs.resourceId; });
     return resolvedAcquisitionRequests;
 }
 
@@ -1078,9 +1083,11 @@ ResolvedNamespaceOrViewAcquisitionRequests generateSortedAcquisitionRequests(
         return resolvedAcquisitionRequests;
     }
 
+    // Sort them in ascending ResourceId order since that is the canonical lock ordering used across
+    // the server.
     std::sort(resolvedAcquisitionRequests.begin(),
               resolvedAcquisitionRequests.end(),
-              [](auto& lhs, auto& rhs) { return lhs.resourceId > rhs.resourceId; });
+              [](auto& lhs, auto& rhs) { return lhs.resourceId < rhs.resourceId; });
     return resolvedAcquisitionRequests;
 }
 
@@ -1832,6 +1839,16 @@ void shard_role_details::checkShardingAndLocalCatalogCollectionUUIDMatch(
                     collectionPtr ? collectionPtr->uuid().toString() : ""));
         } else {
             // TODO: SERVER-88476: reintroduce tassert here similar to the uassert above.
+            static logv2::SeveritySuppressor logSeverity{
+                Minutes{1}, logv2::LogSeverity::Warning(), logv2::LogSeverity::Debug(5)};
+            auto clusterUuidString = shardingCollectionDescription.getUUID().toString();
+            auto localUuidString = collectionPtr ? collectionPtr->uuid().toString() : "";
+            LOGV2_DEBUG(9087200,
+                        logSeverity().toInt(),
+                        "Sharding catalog and local catalog collection uuid do not match",
+                        "nss"_attr = nss.toStringForErrorMsg(),
+                        "sharding uuid"_attr = clusterUuidString,
+                        "local uuid"_attr = localUuidString);
         }
     }
 }

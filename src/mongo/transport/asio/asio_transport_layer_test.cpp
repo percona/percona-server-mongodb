@@ -29,6 +29,7 @@
 
 #include "mongo/transport/asio/asio_transport_layer.h"
 
+#include <csignal>
 #include <exception>
 #include <fstream>
 #include <queue>
@@ -919,18 +920,32 @@ TEST_F(AsioTransportLayerWithServiceContextTest, ShutdownDuringSSLHandshake) {
 #endif  // _WIN32
 #endif  // MONGO_CONFIG_SSL
 
-class AsioTransportLayerWithRouterPortTest : public ServiceContextTest {
+class AsioTransportLayerWithRouterLoadBalancerPortsTest : public ServiceContextTest {
 public:
     // We opted to use static ports for simplicity. If this results in test failures due to busy
     // ports, we may change the fixture, as well as the underlying transport layer, to dynamically
     // choose the listening ports.
     static constexpr auto kMainPort = 22000;
     static constexpr auto kRouterPort = 22001;
+    static constexpr auto kLoadBalancerPort = 22002;
+
+    // The local IP address reported should be 127.0.0.1 regardless of port.
+    static constexpr auto kLocalIP = "127.0.0.1"_sd;
+
+    // We report arbitrary values in the proxy protocol header that will be sent when connecting to
+    // the loadBalancerPort.
+    static constexpr auto kSourceRemoteIP = "10.122.9.63"_sd;
+    static constexpr auto kProxyIP = "54.225.237.121"_sd;
+    static constexpr auto kSourceRemotePort = 1000;
+    static constexpr auto kProxyPort = 3000;
+    inline static const std::string kProxyProtocolHeader = "PROXY TCP4 {} {} {} {}\r\n"_format(
+        kSourceRemoteIP, kProxyIP, kSourceRemotePort, kProxyPort);
 
     void setUp() override {
         auto options = defaultTLAOptions();
         options.port = kMainPort;
         options.routerPort = kRouterPort;
+        options.loadBalancerPort = kLoadBalancerPort;
         _fixture = std::make_unique<TestFixture>(options);
     }
 
@@ -946,20 +961,68 @@ public:
         return _fixture->tla().connect(remote, ConnectSSLMode::kDisableSSL, Seconds{10}, {});
     }
 
-    void doDifferentiatesConnectionsCase(bool useRouterPort) {
+    void doDifferentiatesConnectionsCase(int port) {
         auto onStartSession = std::make_shared<Notification<void>>();
         sessionManager().setOnStartSession([&](test::SessionThread& st) {
-            ASSERT_EQ(st.session()->isFromRouterPort(), useRouterPort);
-
             auto client =
                 getServiceContext()->getService()->makeClient("RouterPortTest", st.session());
-            ASSERT_EQ(client->isRouterClient(), useRouterPort);
+
+            // The local HostAndPort on the session should be 127.0.0.1:{port}.
+            ASSERT_EQ(st.session()->local().host(), kLocalIP);
+            ASSERT_EQ(st.session()->local().port(), port);
+            ASSERT_TRUE(st.session()->local().isLocalHost());
+
+            switch (port) {
+                case kRouterPort: {
+                    ASSERT_TRUE(st.session()->isFromRouterPort());
+                    ASSERT_FALSE(st.session()->isConnectedToLoadBalancerPort());
+                    ASSERT_FALSE(st.session()->getProxiedDstEndpoint());
+                    ASSERT_TRUE(client->isRouterClient());
+                    break;
+                }
+                case kLoadBalancerPort: {
+                    ASSERT_FALSE(st.session()->isFromRouterPort());
+                    ASSERT_TRUE(st.session()->isConnectedToLoadBalancerPort());
+                    ASSERT_FALSE(client->isRouterClient());
+                    ASSERT_EQ(st.session()->getSourceRemoteEndpoint().host(), kSourceRemoteIP);
+                    ASSERT_EQ(st.session()->getSourceRemoteEndpoint().port(), kSourceRemotePort);
+                    ASSERT_EQ(st.session()->getProxiedDstEndpoint()->host(), kProxyIP);
+                    ASSERT_EQ(st.session()->getProxiedDstEndpoint()->port(), kProxyPort);
+                    break;
+                }
+                case kMainPort: {
+                    ASSERT_FALSE(st.session()->isFromRouterPort());
+                    ASSERT_FALSE(st.session()->isConnectedToLoadBalancerPort());
+                    ASSERT_FALSE(st.session()->getProxiedDstEndpoint());
+                    ASSERT_FALSE(client->isRouterClient());
+                    break;
+                }
+            };
 
             onStartSession->set();
         });
-        HostAndPort target{testHostName(), useRouterPort ? kRouterPort : kMainPort};
-        auto conn = connect(target);
-        ASSERT_OK(conn) << " target={}"_format(target);
+
+        switch (port) {
+            case kMainPort:
+            case kRouterPort: {
+                // Use the TestFixture to connect to the TransportLayer. Session establishment
+                // should occur immediately after the socket is opened and connected to.
+                HostAndPort target{testHostName(), port};
+                auto conn = connect(target);
+                ASSERT_OK(conn) << " target={}"_format(target);
+                break;
+            }
+            case kLoadBalancerPort: {
+                // Use a SyncClient to connect to the TransportLayer. After the connection is made,
+                // the TransportLayer will expect the proxy protocol header in raw bytes in order to
+                // establish the session and parse the supplied endpoints. SyncClient makes this
+                // possible.
+                SyncClient client(_fixture->tla().loadBalancerPort().value());
+                auto ec = client.write(kProxyProtocolHeader.data(), kProxyProtocolHeader.size());
+                ASSERT_FALSE(ec) << errorMessage(ec);
+            }
+        };
+
         onStartSession->get();
     }
 
@@ -971,19 +1034,24 @@ private:
     std::unique_ptr<TestFixture> _fixture;
 };
 
-TEST_F(AsioTransportLayerWithRouterPortTest, ListensOnBothPorts) {
-    for (auto port : {kRouterPort, kMainPort}) {
+TEST_F(AsioTransportLayerWithRouterLoadBalancerPortsTest, ListensOnAllPorts) {
+    for (auto port : {kRouterPort, kMainPort, kLoadBalancerPort}) {
         HostAndPort remote(testHostName(), port);
         ASSERT_OK(connect(remote).getStatus()) << "Unable to connect to " << remote;
     }
 }
 
-TEST_F(AsioTransportLayerWithRouterPortTest, DifferentiatesConnectionsMainPort) {
-    doDifferentiatesConnectionsCase(false);
+TEST_F(AsioTransportLayerWithRouterLoadBalancerPortsTest, DifferentiatesConnectionsMainPort) {
+    doDifferentiatesConnectionsCase(kMainPort);
 }
 
-TEST_F(AsioTransportLayerWithRouterPortTest, DifferentiatesConnectionsRouterPort) {
-    doDifferentiatesConnectionsCase(true);
+TEST_F(AsioTransportLayerWithRouterLoadBalancerPortsTest, DifferentiatesConnectionsRouterPort) {
+    doDifferentiatesConnectionsCase(kRouterPort);
+}
+
+TEST_F(AsioTransportLayerWithRouterLoadBalancerPortsTest,
+       DifferentiatesConnectionsLoadBalancerPort) {
+    doDifferentiatesConnectionsCase(kLoadBalancerPort);
 }
 
 #ifdef __linux__
@@ -1695,6 +1763,62 @@ TEST_F(EgressAsioNetworkingBatonTest, AsyncOpsMakeProgressWhenSessionAddedToDeta
     // `asyncOpMutex`) and is blocked by `fp`. Once we return from this function, that thread is
     // unblocked and will run `Baton::addSession` on a detached baton.
     opCtx.reset();
+}
+
+extern "C" void noopSignalHandler(int signalNum, siginfo_t*, void*) {}
+
+class NetworkOperationTest : public AsioNetworkingBatonTest {
+public:
+    void setUp() override {
+        AsioNetworkingBatonTest::setUp();
+
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sigemptyset(&sa.sa_mask);
+        sa.sa_sigaction = noopSignalHandler;
+        sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+        invariant(sigaction(SIGRTMIN, &sa, _oldHandler) == 0);
+    }
+
+    void tearDown() override {
+        invariant(sigaction(SIGRTMIN, _oldHandler, nullptr) == 0);
+        AsioNetworkingBatonTest::tearDown();
+    }
+
+private:
+    struct sigaction* _oldHandler;
+};
+
+/**
+ * Creates a connection and interrupts the server side while it awaits the second half of a message.
+ * The expected behavior for the server thread is to continue picking up data from the wire after
+ * receiving the interruption.
+ */
+TEST_F(NetworkOperationTest, InterruptDuringRead) {
+    connection().wait();
+
+    auto pf = makePromiseFuture<Message>();
+    test::JoinThread serverThread([&] { pf.promise.setFrom(client().session()->sourceMessage()); });
+
+    auto msg = [] {
+        OpMsgRequest request;
+        request.body = BSON("ping" << 1 << "$db"
+                                   << "admin");
+        auto msg = request.serialize();
+        msg.header().setResponseToMsgId(0);
+        return msg;
+    }();
+
+    const auto kChunkSize = msg.size() / 2;
+    connection().socket().send(msg.buf(), kChunkSize, "sending the first batch");
+    // Wait before signaling to make it more likely for the server thread to be waiting for the next
+    // batch while receiving the interruption signal.
+    sleepFor(Milliseconds(10));
+    pthread_kill(serverThread.native_handle(), SIGRTMIN);
+    connection().socket().send(msg.buf() + kChunkSize, msg.size() - kChunkSize, "sending the rest");
+
+    auto received = pf.future.get();
+    ASSERT_EQ(received.opMsgDebugString(), msg.opMsgDebugString());
 }
 
 #endif  // __linux__

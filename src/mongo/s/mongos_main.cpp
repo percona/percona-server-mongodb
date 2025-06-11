@@ -80,6 +80,8 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/process_health/fault_manager.h"
 #include "mongo/db/query/query_settings/query_settings_manager.h"
+#include "mongo/db/query/query_settings/query_settings_utils.h"
+#include "mongo/db/query/search/search_task_executors.h"
 #include "mongo/db/read_write_concern_defaults.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
@@ -497,7 +499,8 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
             }
             FailPoint* hangBeforeInterruptfailPoint =
                 globalFailPointRegistry().find("hangBeforeCheckingMongosShutdownInterrupt");
-            if (hangBeforeInterruptfailPoint) {
+            if (MONGO_unlikely(hangBeforeInterruptfailPoint &&
+                               hangBeforeInterruptfailPoint->shouldFail())) {
                 hangBeforeInterruptfailPoint->setMode(FailPoint::Mode::off);
                 sleepsecs(3);
             }
@@ -628,11 +631,10 @@ Status initializeSharding(
     // List of hooks which will be called by the ShardRegistry when it discovers a shard has been
     // removed.
     std::vector<ShardRegistry::ShardRemovalHook> shardRemovalHooks = {
-        // Invalidate appropriate entries in the catalog cache when a shard is removed. It's safe to
-        // capture the catalog cache pointer since the Grid (and therefore CatalogCache and
-        // ShardRegistry) are never destroyed.
+        // It's safe to capture the CatalogCache pointer since the Grid (and therefore CatalogCache
+        // and ShardRegistry) are never destroyed.
         [catCache = catalogCache.get()](const ShardId& removedShard) {
-            catCache->invalidateEntriesThatReferenceShard(removedShard);
+            catCache->advanceTimeInStoreForEntriesThatReferenceShard(removedShard);
         }};
 
     if (!mongosGlobalParams.configdbs) {
@@ -846,13 +848,16 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
 
     ReadWriteConcernDefaults::create(serviceContext, readWriteConcernDefaultsCacheLookupMongoS);
     ChangeStreamOptionsManager::create(serviceContext);
-    query_settings::QuerySettingsManager::create(serviceContext, [](OperationContext* opCtx) {
-        // QuerySettingsManager modifies a cluster-wide parameter and thus a refresh of the
-        // parameter after that modification should observe results of preceeding writes.
-        const bool kEnsureReadYourWritesConsistency = true;
-        uassertStatusOK(ClusterServerParameterRefresher::get(opCtx)->refreshParameters(
-            opCtx, kEnsureReadYourWritesConsistency));
-    });
+    query_settings::QuerySettingsManager::create(
+        serviceContext,
+        [](OperationContext* opCtx) {
+            // QuerySettingsManager modifies a cluster-wide parameter and thus a refresh of the
+            // parameter after that modification should observe results of preceeding writes.
+            const bool kEnsureReadYourWritesConsistency = true;
+            uassertStatusOK(ClusterServerParameterRefresher::get(opCtx)->refreshParameters(
+                opCtx, kEnsureReadYourWritesConsistency));
+        },
+        query_settings::utils::sanitizeQuerySettingsHints);
 
     auto opCtxHolder = tc->makeOperationContext();
     auto const opCtx = opCtxHolder.get();

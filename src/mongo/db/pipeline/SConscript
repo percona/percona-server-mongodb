@@ -1,7 +1,10 @@
 # -*- mode: python -*-
 
-Import('env')
-Import("get_option")
+Import([
+    'env',
+    'get_option',
+    'has_option',
+])
 
 env = env.Clone()
 
@@ -44,6 +47,9 @@ env.Library(
         '$BUILD_DIR/mongo/db/query_expressions',
         'aggregation_request_helper',
         'pipeline',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
     ],
 )
 
@@ -152,6 +158,7 @@ env.Library(
         'field_path',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/exec/sort_executor',
         '$BUILD_DIR/mongo/db/index/index_access_method',
         '$BUILD_DIR/mongo/idl/idl_parser',
@@ -169,6 +176,9 @@ env.Library(
         '$BUILD_DIR/mongo/db/exec/document_value/document_value',
         '$BUILD_DIR/mongo/db/query_expressions',
         'field_path',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
     ],
 )
 
@@ -324,6 +334,7 @@ pipelineEnv.Library(
         'document_source_internal_compute_geo_near_distance.cpp',
         'document_source_internal_convert_bucket_index_stats.cpp',
         'document_source_internal_inhibit_optimization.cpp',
+        'document_source_internal_list_collections.cpp',
         'document_source_internal_projection.cpp',
         'document_source_internal_replace_root.cpp',
         'document_source_internal_shard_filter.cpp',
@@ -334,6 +345,7 @@ pipelineEnv.Library(
         'document_source_limit.cpp',
         'document_source_list_cached_and_active_users.cpp',
         'document_source_list_catalog.cpp',
+        'document_source_list_cluster_catalog.cpp',
         'document_source_list_local_sessions.cpp',
         'document_source_list_sampled_queries.cpp',
         'document_source_list_sessions.cpp',
@@ -447,6 +459,7 @@ pipelineEnv.Library(
         'lite_parsed_document_source',
     ],
     LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/catalog/collection_catalog',
         '$BUILD_DIR/mongo/db/commands/fsync_locked',
         '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
@@ -460,6 +473,7 @@ pipelineEnv.Library(
         '$BUILD_DIR/mongo/db/query/search/mongot_options',
         '$BUILD_DIR/mongo/db/query/search/search_index_common',
         '$BUILD_DIR/mongo/db/query/search/search_index_process_interface',
+        '$BUILD_DIR/mongo/db/query/spill_util',
         '$BUILD_DIR/mongo/db/repl/image_collection_entry',
         '$BUILD_DIR/mongo/db/shard_role_api',
         '$BUILD_DIR/mongo/db/sorter/sorter_base',
@@ -560,6 +574,7 @@ env.Library(
         'document_source_internal_all_collection_stats.idl',
         'document_source_internal_apply_oplog_update.idl',
         'document_source_internal_projection.idl',
+        'document_source_list_cluster_catalog.idl',
         'document_source_list_sampled_queries.idl',
         'document_source_list_sessions.idl',
         'document_source_merge.idl',
@@ -652,6 +667,7 @@ env.Benchmark(
         'abt/abt_translate_pipeline_bm.cpp',
     ],
     LIBDEPS=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/auth/authmocks',
         '$BUILD_DIR/mongo/db/bonsai_query_bm_fixture',
         '$BUILD_DIR/mongo/db/pipeline/abt_translation',
@@ -802,6 +818,7 @@ env.CppUnitTest(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/auth/authmocks',
         '$BUILD_DIR/mongo/db/change_stream_options',
         '$BUILD_DIR/mongo/db/change_stream_options_manager',
@@ -921,6 +938,7 @@ env.Benchmark(
         'expression_bm.cpp',
     ],
     LIBDEPS=[
+        '$BUILD_DIR/mongo/db/audit_impl' if has_option('audit') else [],
         '$BUILD_DIR/mongo/db/query/query_test_service_context',
         '$BUILD_DIR/mongo/db/query_expressions',
         '$BUILD_DIR/mongo/db/service_context_non_d',

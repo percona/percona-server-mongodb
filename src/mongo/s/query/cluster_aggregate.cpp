@@ -119,9 +119,9 @@ Rarely _samplerAccumulatorJs, _samplerFunctionJs;
 // mongod. Note that this function must be called before forwarding an aggregation command on an
 // unsharded collection, in order to verify that the involved namespaces are allowed to be sharded.
 auto resolveInvolvedNamespaces(const stdx::unordered_set<NamespaceString>& involvedNamespaces) {
-    StringMap<ExpressionContext::ResolvedNamespace> resolvedNamespaces;
+    ResolvedNamespaceMap resolvedNamespaces;
     for (auto&& nss : involvedNamespaces) {
-        resolvedNamespaces.try_emplace(nss.coll(), nss, std::vector<BSONObj>{});
+        resolvedNamespaces.try_emplace(nss, nss, std::vector<BSONObj>{});
     }
     return resolvedNamespaces;
 }
@@ -135,7 +135,7 @@ boost::intrusive_ptr<ExpressionContext> makeExpressionContext(
     const boost::optional<CollectionRoutingInfo>& cri,
     BSONObj collationObj,
     boost::optional<UUID> uuid,
-    StringMap<ExpressionContext::ResolvedNamespace> resolvedNamespaces,
+    ResolvedNamespaceMap resolvedNamespaces,
     bool hasChangeStream) {
 
     std::unique_ptr<CollatorInterface> collation;
@@ -424,7 +424,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
             !request.getNeedsMerge() && !request.getFromMongos());
     uassert(ErrorCodes::BadValue,
             "Aggregate queries on mongoS may not request or provide a resume token",
-            !request.getRequestResumeToken() && !request.getResumeAfter());
+            !request.getRequestResumeToken() && !request.getResumeAfter() && !request.getStartAt());
 
     const auto isSharded = [](OperationContext* opCtx, const NamespaceString& nss) {
         auto criSW = getCollectionRoutingInfoForTxnCmd(opCtx, nss);
@@ -445,11 +445,11 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
     auto hasChangeStream = liteParsedPipeline.hasChangeStream();
     const auto& involvedNamespaces = liteParsedPipeline.getInvolvedNamespaces();
     auto shouldDoFLERewrite = ::mongo::shouldDoFLERewrite(request);
-    auto startsWithQueue = liteParsedPipeline.startsWithQueue();
+    auto generatesOwnDataOnce = liteParsedPipeline.generatesOwnDataOnce();
     auto requiresCollationForParsingUnshardedAggregate =
         liteParsedPipeline.requiresCollationForParsingUnshardedAggregate();
     auto pipelineDataSource = hasChangeStream ? PipelineDataSource::kChangeStream
-        : startsWithQueue                     ? PipelineDataSource::kQueue
+        : generatesOwnDataOnce                ? PipelineDataSource::kGeneratesOwnDataOnce
                                               : PipelineDataSource::kNormal;
 
     // If the routing table is not already taken by the higher level, fill it now.
@@ -481,7 +481,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
 
         if (executionNsRoutingInfoStatus.isOK()) {
             cri = executionNsRoutingInfoStatus.getValue();
-        } else if (!((hasChangeStream || startsWithQueue) &&
+        } else if (!((hasChangeStream || generatesOwnDataOnce) &&
                      executionNsRoutingInfoStatus == ErrorCodes::NamespaceNotFound)) {
             // To achieve parity with mongod-style responses, parse and validate the query
             // even though the namespace is not found.

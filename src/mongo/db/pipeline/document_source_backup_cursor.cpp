@@ -58,7 +58,9 @@ REGISTER_DOCUMENT_SOURCE(backupCursor,
 using boost::intrusive_ptr;
 
 std::unique_ptr<DocumentSourceBackupCursor::LiteParsed>
-DocumentSourceBackupCursor::LiteParsed::parse(const NamespaceString& nss, const BSONElement& spec) {
+DocumentSourceBackupCursor::LiteParsed::parse(const NamespaceString& nss,
+                                              const BSONElement& spec,
+                                              const LiteParserOptions& options) {
 
     return std::make_unique<DocumentSourceBackupCursor::LiteParsed>(spec.fieldName());
 }

@@ -87,12 +87,13 @@ public:
         boost::optional<BSONObj> readConcern = boost::none) override;
 
     std::unique_ptr<Pipeline, PipelineDeleter> preparePipelineForExecution(
+        const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const AggregateCommandRequest& aggRequest,
         Pipeline* pipeline,
-        const boost::intrusive_ptr<ExpressionContext>& expCtx,
         boost::optional<BSONObj> shardCursorsSortSpec = boost::none,
         ShardTargetingPolicy shardTargetingPolicy = ShardTargetingPolicy::kAllowed,
-        boost::optional<BSONObj> readConcern = boost::none) override;
+        boost::optional<BSONObj> readConcern = boost::none,
+        bool shouldUseCollectionDefaultCollator = false) override;
 
     BSONObj preparePipelineAndExplain(Pipeline* ownedPipeline,
                                       ExplainOptions::Verbosity verbosity) override;
@@ -110,13 +111,20 @@ public:
         uasserted(51020, "unexpected request to consult sharding catalog on non-shardsvr");
     }
 
+    std::vector<DatabaseName> getAllDatabases(OperationContext* opCtx,
+                                              boost::optional<TenantId> tenantId) final;
+
+    std::vector<BSONObj> runListCollections(OperationContext* opCtx,
+                                            const DatabaseName& db,
+                                            bool addPrimaryShard) final;
+
     std::vector<FieldPath> collectDocumentKeyFieldsActingAsRouter(
         OperationContext*, const NamespaceString&) const final;
 
     boost::optional<Document> lookupSingleDocument(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const NamespaceString& nss,
-        UUID collectionUUID,
+        boost::optional<UUID> collectionUUID,
         const Document& documentKey,
         boost::optional<BSONObj> readConcern) final;
 

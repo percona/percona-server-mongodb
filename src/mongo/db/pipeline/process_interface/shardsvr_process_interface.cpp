@@ -176,7 +176,7 @@ void ShardServerProcessInterface::checkRoutingInfoEpochOrThrow(
 boost::optional<Document> ShardServerProcessInterface::lookupSingleDocument(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const NamespaceString& nss,
-    UUID collectionUUID,
+    boost::optional<UUID> collectionUUID,
     const Document& documentKey,
     boost::optional<BSONObj> readConcern) {
     // We only want to retrieve the one document that corresponds to 'documentKey', so we
@@ -185,7 +185,12 @@ boost::optional<Document> ShardServerProcessInterface::lookupSingleDocument(
     opts.shardTargetingPolicy = ShardTargetingPolicy::kForceTargetingWithSimpleCollation;
     opts.readConcern = std::move(readConcern);
 
-    return doLookupSingleDocument(expCtx, nss, collectionUUID, documentKey, std::move(opts));
+    // Do not inherit the collator from 'expCtx', but rather use the target collection default
+    // collator. This is relevant in case of attaching a cursor for local read.
+    opts.useCollectionDefaultCollator = true;
+
+    return doLookupSingleDocument(
+        expCtx, nss, std::move(collectionUUID), documentKey, std::move(opts));
 }
 
 Status ShardServerProcessInterface::insert(
@@ -287,62 +292,18 @@ void ShardServerProcessInterface::renameIfOptionsAndIndexesHaveNotChanged(
                  });
 }
 
-BSONObj ShardServerProcessInterface::_runListCollectionsCommand(OperationContext* opCtx,
-                                                                const NamespaceString& nss) {
-    sharding::router::DBPrimaryRouter router(opCtx->getServiceContext(), nss.dbName());
-    return router.route(
-        opCtx,
-        "ShardServerProcessInterface::runListCollectionsCommand",
-        [&](OperationContext* opCtx, const CachedDatabaseInfo& cdb) {
-            const BSONObj filterObj = BSON("name" << nss.coll());
-            const BSONObj cmdObj = BSON("listCollections" << 1 << "filter" << filterObj);
-
-            const auto shard = uassertStatusOK(
-                Grid::get(opCtx)->shardRegistry()->getShard(opCtx, cdb->getPrimary()));
-            Shard::QueryResponse resultCollections;
-
-            try {
-                resultCollections = uassertStatusOK(shard->runExhaustiveCursorCommand(
-                    opCtx,
-                    ReadPreferenceSetting(ReadPreference::PrimaryOnly),
-                    nss.dbName(),
-                    appendDbVersionIfPresent(cmdObj, cdb),
-                    Milliseconds(-1)));
-            } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>&) {
-                return BSONObj{};
-            }
-
-            if (resultCollections.docs.empty()) {
-                return BSONObj{};
-            }
-            for (const BSONObj& bsonObj : resultCollections.docs) {
-                // Return the entire 'listCollections' response for the first element which matches
-                // on name.
-                const BSONElement nameElement = bsonObj["name"];
-                if (!nameElement || nameElement.valueStringDataSafe() != nss.coll()) {
-                    continue;
-                }
-
-                return bsonObj.getOwned();
-
-                tassert(5983900,
-                        str::stream()
-                            << "Expected at most one collection with the name "
-                            << nss.toStringForErrorMsg() << ": " << resultCollections.docs.size(),
-                        resultCollections.docs.size() <= 1);
-            }
-
-            return BSONObj{};
-        });
-};
-
 BSONObj ShardServerProcessInterface::getCollectionOptions(OperationContext* opCtx,
                                                           const NamespaceString& nss) {
     if (nss.isNamespaceAlwaysUntracked()) {
         return getCollectionOptionsLocally(opCtx, nss);
     };
 
-    BSONObj listCollectionsResult = _runListCollectionsCommand(opCtx, nss);
+    const auto response = _runListCollectionsCommandOnAShardedCluster(opCtx, nss);
+    if (response.empty()) {
+        return BSONObj{};
+    }
+
+    BSONObj listCollectionsResult = response[0].getOwned();
     const BSONElement optionsElement = listCollectionsResult["options"];
     if (optionsElement) {
         auto optionObj = optionsElement.Obj();
@@ -366,10 +327,11 @@ query_shape::CollectionType ShardServerProcessInterface::getCollectionType(
         return getCollectionTypeLocally(opCtx, nss);
     };
 
-    BSONObj listCollectionsResult = _runListCollectionsCommand(opCtx, nss);
-    if (listCollectionsResult.isEmpty()) {
+    const auto response = _runListCollectionsCommandOnAShardedCluster(opCtx, nss);
+    if (response.empty()) {
         return query_shape::CollectionType::kNonExistent;
     }
+    const BSONObj& listCollectionsResult = response[0];
 
     const StringData typeString = listCollectionsResult["type"].valueStringDataSafe();
     tassert(9072002,
@@ -406,6 +368,18 @@ std::list<BSONObj> ShardServerProcessInterface::getIndexSpecs(OperationContext* 
             return {std::make_move_iterator(indexes.begin()),
                     std::make_move_iterator(indexes.end())};
         });
+}
+
+std::vector<DatabaseName> ShardServerProcessInterface::getAllDatabases(
+    OperationContext* opCtx, boost::optional<TenantId> tenantId) {
+    return _getAllDatabasesOnAShardedCluster(opCtx, tenantId);
+}
+
+std::vector<BSONObj> ShardServerProcessInterface::runListCollections(OperationContext* opCtx,
+                                                                     const DatabaseName& db,
+                                                                     bool addPrimaryShard) {
+    return _runListCollectionsCommandOnAShardedCluster(
+        opCtx, NamespaceStringUtil::deserialize(db, ""), addPrimaryShard);
 }
 
 void ShardServerProcessInterface::_createCollectionCommon(OperationContext* opCtx,
@@ -636,12 +610,13 @@ std::unique_ptr<Pipeline, PipelineDeleter> ShardServerProcessInterface::prepareP
 }
 
 std::unique_ptr<Pipeline, PipelineDeleter> ShardServerProcessInterface::preparePipelineForExecution(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const AggregateCommandRequest& aggRequest,
     Pipeline* pipeline,
-    const boost::intrusive_ptr<ExpressionContext>& expCtx,
     boost::optional<BSONObj> shardCursorsSortSpec,
     ShardTargetingPolicy shardTargetingPolicy,
-    boost::optional<BSONObj> readConcern) {
+    boost::optional<BSONObj> readConcern,
+    bool shouldUseCollectionDefaultCollator) {
     std::unique_ptr<Pipeline, PipelineDeleter> targetPipeline(pipeline,
                                                               PipelineDeleter(expCtx->opCtx));
     return sharded_agg_helpers::targetShardsAndAddMergeCursors(
@@ -649,7 +624,8 @@ std::unique_ptr<Pipeline, PipelineDeleter> ShardServerProcessInterface::prepareP
         std::make_pair(aggRequest, std::move(targetPipeline)),
         shardCursorsSortSpec,
         shardTargetingPolicy,
-        std::move(readConcern));
+        std::move(readConcern),
+        shouldUseCollectionDefaultCollator);
 }
 
 std::unique_ptr<MongoProcessInterface::ScopedExpectUnshardedCollection>

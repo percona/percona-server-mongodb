@@ -62,6 +62,9 @@ TEST_F(InternalUnpackBucketSortReorderTest, OptimizeForMetaSort) {
     ASSERT_EQ(2, serialized.size());
     ASSERT_BSONOBJ_EQ(fromjson("{ $sort: {'meta.a': 1, 'meta.b': -1} }"), serialized[0]);
     ASSERT_BSONOBJ_EQ(unpackSpecObj, serialized[1]);
+
+    // Optimize the optimized pipeline again. We do not expect anymore rewrites to happen.
+    makePipelineOptimizeAssertNoRewrites(getExpCtx(), serialized);
 }
 
 TEST_F(InternalUnpackBucketSortReorderTest, OptimizeForMetaSortNegative) {
@@ -79,6 +82,9 @@ TEST_F(InternalUnpackBucketSortReorderTest, OptimizeForMetaSortNegative) {
     ASSERT_EQ(2, serialized.size());
     ASSERT_BSONOBJ_EQ(unpackSpecObj, serialized[0]);
     ASSERT_BSONOBJ_EQ(fromjson("{$sort: {'meta1.a': 1, 'unrelated': -1}}"), serialized[1]);
+
+    // Optimize the optimized pipeline again. We do not expect anymore rewrites to happen.
+    makePipelineOptimizeAssertNoRewrites(getExpCtx(), serialized);
 }
 
 TEST_F(InternalUnpackBucketSortReorderTest, OptimizeForMetaSortLimit) {
@@ -111,6 +117,72 @@ TEST_F(InternalUnpackBucketSortReorderTest, OptimizeForMetaSortLimit) {
     // additional stage. The container from pipeline->getSources(), on the other hand, preserves the
     // original pipeline with limit absorbed into sort. Therefore, there should only be 4 stages
     ASSERT_EQ(4, container.size());
+
+    // Optimize the optimized pipeline again. We do not expect anymore rewrites to happen.
+    makePipelineOptimizeAssertNoRewrites(getExpCtx(), serialized);
+}
+
+TEST_F(InternalUnpackBucketSortReorderTest, OptimizeForMetaSortSkipLimit) {
+    auto unpackSpecObj = fromjson(
+        "{$_internalUnpackBucket: { exclude: [], timeField: 'foo', metaField: 'meta1', "
+        "bucketMaxSpanSeconds: 3600}}");
+    auto projectSpecObj = fromjson("{$project: {'t': '$meta1.a'}}");
+    auto sortSpecObj = fromjson("{$sort: {'meta1.a': 1}}");
+    auto skipSpecObj = fromjson("{$skip: 1}");
+    auto limitSpecObj = fromjson("{$limit: 2}");
+
+    auto pipeline = Pipeline::parse(
+        makeVector(unpackSpecObj, projectSpecObj, sortSpecObj, skipSpecObj, limitSpecObj),
+        getExpCtx());
+    pipeline->optimizePipeline();
+
+    auto serialized = pipeline->serializeToBson();
+    auto container = pipeline->getSources();
+
+    ASSERT_EQ(5, serialized.size());
+    ASSERT_BSONOBJ_EQ(fromjson("{$addFields: {t:'$meta.a'}}"), serialized[0]);
+    ASSERT_BSONOBJ_EQ(fromjson("{$sort: {'meta.a': 1}}"), serialized[1]);
+    ASSERT_BSONOBJ_EQ(
+        fromjson("{$_internalUnpackBucket: {include:['_id', 't'], timeField: 'foo', metaField: "
+                 "'meta1', bucketMaxSpanSeconds: 3600, computedMetaProjFields: ['t'] } }"),
+        serialized[2]);
+    ASSERT_BSONOBJ_EQ(fromjson("{$limit: 3}"), serialized[3]);
+    ASSERT_BSONOBJ_EQ(fromjson("{$skip: 1}"), serialized[4]);
+}
+
+TEST_F(InternalUnpackBucketSortReorderTest, OptimizeForMetaLimitSortSkipLimit) {
+    auto unpackSpecObj = fromjson(
+        "{$_internalUnpackBucket: { exclude: [], timeField: 'foo', metaField: 'meta1', "
+        "bucketMaxSpanSeconds: 3600}}");
+    auto projectSpecObj = fromjson("{$project: {'t': '$meta1.a'}}");
+    auto sortSpecObj = fromjson("{$sort: {'meta1.a': 1}}");
+    auto skipSpecObj = fromjson("{$skip: 1}");
+    auto limitTwoSpecObj = fromjson("{$limit: 2}");
+    auto limitFourSpecObj = fromjson("{$limit: 4}");
+
+    auto pipeline = Pipeline::parse(makeVector(unpackSpecObj,
+                                               projectSpecObj,
+                                               limitFourSpecObj,
+                                               sortSpecObj,
+                                               skipSpecObj,
+                                               limitTwoSpecObj),
+                                    getExpCtx());
+    pipeline->optimizePipeline();
+
+    auto serialized = pipeline->serializeToBson();
+    auto container = pipeline->getSources();
+
+    ASSERT_EQ(7, serialized.size());
+    ASSERT_BSONOBJ_EQ(fromjson("{$addFields: {t:'$meta.a'}}"), serialized[0]);
+    ASSERT_BSONOBJ_EQ(fromjson("{$limit: 4}"), serialized[1]);
+    ASSERT_BSONOBJ_EQ(
+        fromjson("{$_internalUnpackBucket: {include:['_id', 't'], timeField: 'foo', metaField: "
+                 "'meta1', bucketMaxSpanSeconds: 3600, computedMetaProjFields: ['t'] } }"),
+        serialized[2]);
+    ASSERT_BSONOBJ_EQ(fromjson("{$limit: 4}"), serialized[3]);
+    ASSERT_BSONOBJ_EQ(fromjson("{$sort: {'meta1.a': 1}}"), serialized[4]);
+    ASSERT_BSONOBJ_EQ(fromjson("{$limit: 3}"), serialized[5]);
+    ASSERT_BSONOBJ_EQ(fromjson("{$skip: 1}"), serialized[6]);
 }
 
 }  // namespace

@@ -233,12 +233,13 @@ public:
     }
 
     std::unique_ptr<Pipeline, PipelineDeleter> preparePipelineForExecution(
+        const boost::intrusive_ptr<mongo::ExpressionContext>& expCtx,
         const AggregateCommandRequest& aggRequest,
         Pipeline* pipeline,
-        const boost::intrusive_ptr<ExpressionContext>& expCtx,
         boost::optional<BSONObj> shardCursorsSortSpec = boost::none,
         ShardTargetingPolicy shardTargetingPolicy = ShardTargetingPolicy::kAllowed,
-        boost::optional<BSONObj> readConcern = boost::none) override {
+        boost::optional<BSONObj> readConcern = boost::none,
+        bool shouldUseCollectionDefaultCollator = false) override {
         MONGO_UNREACHABLE;
     }
 
@@ -249,7 +250,9 @@ public:
 
     std::unique_ptr<Pipeline, PipelineDeleter> attachCursorSourceToPipelineForLocalRead(
         Pipeline* pipeline,
-        boost::optional<const AggregateCommandRequest&> aggRequest = boost::none) override {
+        boost::optional<const AggregateCommandRequest&> aggRequest = boost::none,
+        bool shouldUseCollectionDefaultCollator = false,
+        ExecShardFilterPolicy shardFilterPolicy = AutomaticShardFiltering{}) override {
         MONGO_UNREACHABLE;
     }
 
@@ -287,7 +290,7 @@ public:
     boost::optional<Document> lookupSingleDocument(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const NamespaceString& nss,
-        UUID collectionUUID,
+        boost::optional<UUID> collectionUUID,
         const Document& documentKey,
         boost::optional<BSONObj> readConcern) override {
         MONGO_UNREACHABLE;
@@ -340,6 +343,17 @@ public:
                                       const NamespaceString&,
                                       ChunkVersion) const override {
         uasserted(51019, "Unexpected check of routing table");
+    }
+
+    std::vector<DatabaseName> getAllDatabases(OperationContext* opCtx,
+                                              boost::optional<TenantId> tenantId) override {
+        MONGO_UNREACHABLE_TASSERT(9525801);
+    }
+
+    std::vector<BSONObj> runListCollections(OperationContext* opCtx,
+                                            const DatabaseName& db,
+                                            bool addPrimaryShard) override {
+        MONGO_UNREACHABLE_TASSERT(9525802);
     }
 
     std::pair<std::set<FieldPath>, boost::optional<ChunkVersion>>

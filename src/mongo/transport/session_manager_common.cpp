@@ -37,6 +37,7 @@
 
 #include "mongo/db/auth/restriction_environment.h"
 #include "mongo/db/multitenancy_gen.h"
+#include "mongo/db/server_options.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/mutex.h"
@@ -52,19 +53,35 @@
 namespace mongo::transport {
 namespace {
 
+thread_local decltype(ServerGlobalParams::maxConnsOverride)::Snapshot maxConnsOverride;
+
 /** Some diagnostic data that we will want to log about a Client after its death. */
 struct ClientSummary {
     explicit ClientSummary(const Client* c)
-        : uuid(c->getUUID()), remote(c->session()->remote()), id(c->session()->id()) {}
+        : uuid(c->getUUID()),
+          remote(c->session()->remote()),
+          sourceClient(c->session()->getSourceRemoteEndpoint()),
+          id(c->session()->id()),
+          isLoadBalanced(c->session()->isConnectedToLoadBalancerPort()) {}
 
-    friend auto logAttrs(const ClientSummary& m) {
-        return logv2::multipleAttrs(
-            "remote"_attr = m.remote, "uuid"_attr = m.uuid, "connectionId"_attr = m.id);
+    friend logv2::DynamicAttributes logAttrs(const ClientSummary& m) {
+        logv2::DynamicAttributes attrs;
+        attrs.add("remote", m.remote);
+        attrs.add("isLoadBalanced", m.isLoadBalanced);
+        if (m.isLoadBalanced) {
+            attrs.add("sourceClient", m.sourceClient);
+        }
+        attrs.add("uuid", m.uuid);
+        attrs.add("connectionId", m.id);
+
+        return attrs;
     }
 
     UUID uuid;
     HostAndPort remote;
+    HostAndPort sourceClient;
     SessionId id;
+    bool isLoadBalanced;
 };
 
 bool quiet() {
@@ -237,8 +254,9 @@ void SessionManagerCommon::startSession(std::shared_ptr<Session> session) {
     invariant(session);
     IngressHandshakeMetrics::get(*session).onSessionStarted(_svcCtx->getTickSource());
 
+    serverGlobalParams.maxConnsOverride.refreshSnapshot(maxConnsOverride);
     const bool isPrivilegedSession =
-        session->shouldOverrideMaxConns(serverGlobalParams.maxConnsOverride);
+        maxConnsOverride && session->shouldOverrideMaxConns(*maxConnsOverride);
     const bool verbose = !quiet();
 
     auto service = _svcCtx->getService();
@@ -257,10 +275,10 @@ void SessionManagerCommon::startSession(std::shared_ptr<Session> session) {
         if (sync.size() >= _maxOpenSessions && !isPrivilegedSession) {
             _sessions->incrementRejected();
             if (verbose) {
+                ClientSummary cs(client);
                 LOGV2(22942,
                       "Connection refused because there are too many open connections",
-                      "remote"_attr = session->remote(),
-                      "connectionCount"_attr = sync.size());
+                      logv2::DynamicAttributes{logAttrs(cs), "connectionCount"_attr = sync.size()});
             }
             session->end();
             return;
@@ -273,8 +291,8 @@ void SessionManagerCommon::startSession(std::shared_ptr<Session> session) {
         if (verbose) {
             LOGV2(22943,
                   "Connection accepted",
-                  logAttrs(iter->second.summary),
-                  "connectionCount"_attr = sync.size());
+                  logv2::DynamicAttributes{logAttrs(iter->second.summary),
+                                           "connectionCount"_attr = sync.size()});
         }
     }
 
@@ -376,7 +394,9 @@ void SessionManagerCommon::endSessionByClient(Client* client) {
     iter->second.workflow->terminate();
     sync.erase(iter);
     if (!quiet()) {
-        LOGV2(22944, "Connection ended", logAttrs(summary), "connectionCount"_attr = sync.size());
+        LOGV2(22944,
+              "Connection ended",
+              logv2::DynamicAttributes{logAttrs(summary), "connectionCount"_attr = sync.size()});
     }
 }
 

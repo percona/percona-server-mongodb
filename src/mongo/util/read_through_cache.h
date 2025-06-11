@@ -320,8 +320,11 @@ public:
 
         ul.unlock();
 
-        _doLookupWhileNotValid(Key(key), Status(ErrorCodes::Error(461540), "")).getAsync([](auto) {
-        });
+        // The initial (kick-off) status is failed, but its value is ignored because the
+        // InProgressLookup for 'key' that was just installed has _valid = false. This means the
+        // first round will ignore this status completely and will kick-off the lookup function.
+        const Status kKickOffStatus{ErrorCodes::Error(461540), ""};
+        _doLookupWhileNotValid(Key(key), kKickOffStatus).getAsync([](auto) {});
 
         return sharedFutureToReturn;
     }
@@ -604,16 +607,22 @@ private:
             // 'invalidate'. Place the value on the cache and return the necessary promises to
             // signal (those which are waiting for time < time at the store).
             auto& result = sw.getValue();
-            const auto timeOfOldestPromise = inProgressLookup.getTimeOldestPromise(ul);
-            auto promisesToSet = inProgressLookup.getPromisesLessThanOrEqualToTime(ul, result.t);
-            tassert(6493100,
-                    str::stream() << "Time monotonicity violation: lookup time "
-                                  << result.t.toString()
-                                  << " which is less than the earliest expected timeInStore "
-                                  << timeOfOldestPromise.toString() << ".",
-                    !promisesToSet.empty());
 
-            auto valueHandleToSet = [&] {
+            auto [promisesToSet, timeOfOldestPromise] =
+                inProgressLookup.getPromisesLessThanOrEqualToTime(ul, result.t);
+            if (promisesToSet.empty()) {
+                return std::make_tuple(
+                    inProgressLookup.getAllPromisesOnError(ul),
+                    StatusWith<ValueHandle>{Status(
+                        ErrorCodes::ReadThroughCacheTimeMonotonicityViolation,
+                        str::stream()
+                            << "Time monotonicity violation: lookup time " << result.t.toString()
+                            << " which is less than the earliest expected timeInStore "
+                            << timeOfOldestPromise.toString() << ".")},
+                    false);
+            }
+
+            auto valueHandleToSetFn = [&] {
                 if (result.v) {
                     ValueHandle valueHandle(
                         _cache.insertOrAssignAndGet(key, {std::move(*result.v), _now()}, result.t));
@@ -627,15 +636,28 @@ private:
 
                 _cache.invalidate(key);
                 return ValueHandle();
-            }();
+            };
 
-            return std::make_tuple(std::move(promisesToSet),
-                                   StatusWith<ValueHandle>(std::move(valueHandleToSet)),
-                                   !inProgressLookup.empty(ul));
+            return std::make_tuple(
+                std::move(promisesToSet),
+                [&]() -> StatusWith<ValueHandle> {
+                    try {
+                        return valueHandleToSetFn();
+                    } catch (const DBException& ex) {
+                        return ex.toStatus();
+                    }
+                }(),
+                !inProgressLookup.empty(ul));
         }();
 
-        if (!mustDoAnotherLoop)
+        if (!mustDoAnotherLoop) {
             _inProgressLookups.erase(it);
+        } else if (result.isOK()) {
+            // The fetched value can not satisfy all the enqueued refresh requests over the nss, but
+            // it can still be leveraged as a base version to perform the lookups that are still
+            // pending, optimizing the delta between the cached value and the remote one.
+            inProgressLookup.updateCachedValue(ul, ValueHandle(result.getValue()));
+        }
         ul.unlock();
 
         // The only reason this loop pops the values as it goes and std::moves into the last value
@@ -770,8 +792,10 @@ public:
         return _valid;
     }
 
-    std::vector<std::unique_ptr<SharedPromise<ValueHandle>>> getAllPromisesOnError(WithLock) {
-        std::vector<std::unique_ptr<SharedPromise<ValueHandle>>> ret;
+    using VectorOfPromises = std::vector<std::unique_ptr<SharedPromise<ValueHandle>>>;
+
+    VectorOfPromises getAllPromisesOnError(WithLock) {
+        VectorOfPromises ret;
         for (auto it = _outstanding.begin(); it != _outstanding.end();) {
             ret.emplace_back(std::move(it->second));
             it = _outstanding.erase(it);
@@ -779,27 +803,20 @@ public:
         return ret;
     }
 
-    /**
-     * Returns the time associated to the oldest promise. This function will invariant if there are
-     * no promises.
-     */
-    Time getTimeOldestPromise(WithLock) const {
+    std::pair<VectorOfPromises, Time> getPromisesLessThanOrEqualToTime(WithLock, Time time) {
         invariant(_valid);
-        invariant(!_outstanding.empty());
-        return _outstanding.begin()->first;
-    }
+        auto it = _outstanding.begin();
+        invariant(it != _outstanding.end());
+        Time timeOfOldestPromise = it->first;
 
-    std::vector<std::unique_ptr<SharedPromise<ValueHandle>>> getPromisesLessThanOrEqualToTime(
-        WithLock, Time time) {
-        invariant(_valid);
-        std::vector<std::unique_ptr<SharedPromise<ValueHandle>>> ret;
-        for (auto it = _outstanding.begin(); it != _outstanding.end();) {
+        VectorOfPromises ret;
+        while (it != _outstanding.end()) {
             if (it->first > time)
                 break;
             ret.emplace_back(std::move(it->second));
             it = _outstanding.erase(it);
         }
-        return ret;
+        return std::make_pair(std::move(ret), std::move(timeOfOldestPromise));
     }
 
     bool empty(WithLock) const {
@@ -816,6 +833,10 @@ public:
         _valid = false;
         if (_cancelToken)
             _cancelToken->tryCancel();
+    }
+
+    void updateCachedValue(WithLock, ValueHandle cachedValue) {
+        _cachedValue = std::move(cachedValue);
     }
 
 private:

@@ -120,6 +120,10 @@ MONGO_FAIL_POINT_DEFINE(throwWCEDuringTxnCollCreate);
 MONGO_FAIL_POINT_DEFINE(hangBeforeLoggingCreateCollection);
 MONGO_FAIL_POINT_DEFINE(hangAndFailAfterCreateCollectionReservesOpTime);
 MONGO_FAIL_POINT_DEFINE(openCreateCollectionWindowFp);
+// Allows creating a buckets NS without timeseries options, as could ocurr on FCV 7.x and earlier,
+// for example due to SERVER-87678, or due to a drop concurrent to direct inserts on the buckets NS.
+MONGO_FAIL_POINT_DEFINE(skipCreateTimeseriesBucketsWithoutOptionsCheck);
+MONGO_FAIL_POINT_DEFINE(hangAfterTimeseriesBucketsWithoutOptionsCheck);
 
 // When active, a column index will be created for all new collections. This is used for the column
 // index JS test passthrough suite. Other passthroughs work by overriding javascript methods on the
@@ -942,14 +946,17 @@ Status DatabaseImpl::userCreateNS(OperationContext* opCtx,
         return swCollator.getStatus();
     }
 
-    if (gFeatureFlagDisallowBucketCollectionWithoutTimeseriesOptions
+    if (opCtx->isEnforcingConstraints() &&
+        gFeatureFlagDisallowBucketCollectionWithoutTimeseriesOptions
             .isEnabledUseLastLTSFCVWhenUninitialized(
                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
-        nss.isTimeseriesBucketsCollection() && !collectionOptions.timeseries) {
+        nss.isTimeseriesBucketsCollection() && !collectionOptions.timeseries &&
+        !MONGO_unlikely(skipCreateTimeseriesBucketsWithoutOptionsCheck.shouldFail())) {
         return Status(ErrorCodes::IllegalOperation,
                       "Creation of a timeseries bucket collection without timeseries "
                       "options is not allowed");
     }
+    hangAfterTimeseriesBucketsWithoutOptionsCheck.pauseWhileSet();
 
     if (!collectionOptions.validator.isEmpty()) {
         boost::intrusive_ptr<ExpressionContext> expCtx(

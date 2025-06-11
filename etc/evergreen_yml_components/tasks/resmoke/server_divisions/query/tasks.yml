@@ -181,6 +181,7 @@ tasks:
       num_tasks: 20
       resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
       npm_command: agg-fuzzer
+      jstestfuzz_vars: --numPipelines=3000
       run_no_feature_flag_tests: "true"
 
 - <<: *task_template
@@ -247,7 +248,7 @@ tasks:
       # integration, please update this comment and/or move numPipelines to a yaml arg here.
       num_files: 70
       num_tasks: 20
-      jstestfuzz_vars: --diffTestingMode timeseries --numPipelines=1000
+      jstestfuzz_vars: --diffTestingMode timeseries --numPipelines=750
       npm_command: agg-fuzzer
       suite: generational_fuzzer
       resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
@@ -269,7 +270,7 @@ tasks:
       # integration, please update this comment and/or move numPipelines to a yaml arg here.
       num_files: 70
       num_tasks: 20
-      jstestfuzz_vars: --diffTestingMode blockprocessing --numPipelines=1000
+      jstestfuzz_vars: --diffTestingMode blockprocessing --numPipelines=750
       npm_command: agg-fuzzer
       suite: generational_fuzzer
       resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
@@ -285,7 +286,7 @@ tasks:
       <<: *jstestfuzz_config_vars
       num_files: 20
       num_tasks: 20
-      jstestfuzz_vars: --diffTestingMode wildcard
+      jstestfuzz_vars: --diffTestingMode wildcard --numPipelines=3000
       npm_command: agg-fuzzer
       suite: generational_fuzzer
       resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
@@ -646,6 +647,27 @@ tasks:
       resmoke_jobs_max: 1
 
 - <<: *task_template
+  name: search_end_to_end_sharded_cluster
+  tags: ["assigned_to_jira_team_server_query_integration", "experimental", "incompatible_windows"]
+  commands:
+    - func: "do setup"
+    - func: "get mongot version"
+    - func: "run tests"
+      vars:
+        resmoke_jobs_max: 1
+
+- <<: *task_template
+  name: search_end_to_end_single_node
+  tags:
+    ["assigned_to_jira_team_server_query_integration", "experimental", "incompatible_windows"]
+  commands:
+    - func: "do setup"
+    - func: "get mongot version"
+    - func: "run tests"
+      vars:
+        resmoke_jobs_max: 1
+
+- <<: *task_template
   name: search_ssl
   tags: ["assigned_to_jira_team_server_query_execution", "release_critical", "incompatible_community", "incompatible_mac", "incompatible_windows", "incompatible_ppc", "incompatible_s390x"]
   commands:
@@ -685,8 +707,8 @@ tasks:
   - func: "generate resmoke tasks"
     vars:
       <<: *jstestfuzz_config_vars
-      num_files: 20
-      num_tasks: 20
+      num_files: 10
+      num_tasks: 40
       jstestfuzz_vars: --useEsModules
       npm_command: update-fuzzer
       resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
@@ -716,8 +738,8 @@ tasks:
   - func: "generate resmoke tasks"
     vars:
       <<: *jstestfuzz_config_vars
-      num_files: 20
-      num_tasks: 20
+      num_files: 10
+      num_tasks: 40
       jstestfuzz_vars: --useEsModules
       npm_command: update-fuzzer
       resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
@@ -731,8 +753,8 @@ tasks:
   - func: "generate resmoke tasks"
     vars:
       <<: *jstestfuzz_config_vars
-      num_files: 20
-      num_tasks: 20
+      num_files: 10
+      num_tasks: 40
       jstestfuzz_vars: --diffTestingMode timeseries --useEsModules
       npm_command: update-fuzzer
       suite: generational_fuzzer
@@ -776,7 +798,7 @@ tasks:
       <<: *jstestfuzz_config_vars
       num_files: 20
       num_tasks: 20
-      jstestfuzz_vars: --diffTestingMode optimization
+      jstestfuzz_vars: --diffTestingMode optimization --numPipelines 3000
       suite: generational_fuzzer
       resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
       npm_command: agg-fuzzer
@@ -942,6 +964,15 @@ tasks:
   - func: "run tests"
     vars:
       suite: query_golden_classic
+
+- <<: *task_template
+  name: query_golden_sharding
+  tags: ["assigned_to_jira_team_server_query_optimization", "default"]
+  commands:
+    - func: "do setup"
+    - func: "run tests"
+      vars:
+        suite: query_golden_sharding
 
 ################################################
 #           Query Integration tasks            #

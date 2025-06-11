@@ -126,6 +126,7 @@
 #include "mongo/db/logical_time_validator.h"
 #include "mongo/db/mirror_maestro.h"
 #include "mongo/db/mongod_options.h"
+#include "mongo/db/mongod_options_general_gen.h"
 #include "mongo/db/mongod_options_storage_gen.h"
 #include "mongo/db/multitenancy_gen.h"
 #include "mongo/db/namespace_string.h"
@@ -146,6 +147,7 @@
 #include "mongo/db/pipeline/process_interface/replica_set_node_process_interface.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/query/query_settings/query_settings_manager.h"
+#include "mongo/db/query/query_settings/query_settings_utils.h"
 #include "mongo/db/query/stats/stats_cache_loader_impl.h"
 #include "mongo/db/query/stats/stats_catalog.h"
 #include "mongo/db/read_write_concern_defaults.h"
@@ -201,6 +203,8 @@
 #include "mongo/db/s/sharding_initialization_mongod.h"
 #include "mongo/db/s/sharding_ready.h"
 #include "mongo/db/s/transaction_coordinator_service.h"
+#include "mongo/db/server_feature_flags_gen.h"
+#include "mongo/db/server_lifecycle_monitor.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/serverless/shard_split_donor_op_observer.h"
 #include "mongo/db/serverless/shard_split_donor_service.h"
@@ -335,7 +339,7 @@ const ntservice::NtServiceDefaultStrings defaultServiceStrings = {
 
 auto makeTransportLayer(ServiceContext* svcCtx) {
     boost::optional<int> routerPort;
-    boost::optional<int> loadBalancerPort;
+    boost::optional<int> proxyPort;
 
     if (serverGlobalParams.routerPort) {
         routerPort = serverGlobalParams.routerPort;
@@ -348,8 +352,28 @@ auto makeTransportLayer(ServiceContext* svcCtx) {
         // TODO SERVER-78730: add support for load-balanced connections.
     }
 
+    // (Ignore FCV check): The proxy port needs to be open before the FCV is set.
+    if (gFeatureFlagMongodProxyProcolSupport.isEnabledAndIgnoreFCVUnsafe()) {
+        if (serverGlobalParams.proxyPort) {
+            proxyPort = *serverGlobalParams.proxyPort;
+            if (*proxyPort == serverGlobalParams.port) {
+                LOGV2_ERROR(9967800,
+                            "The proxy port must be different from the public listening port.",
+                            "port"_attr = serverGlobalParams.port);
+                quickExit(ExitCode::badOptions);
+            }
+
+            if (routerPort && *proxyPort == *routerPort) {
+                LOGV2_ERROR(9967801,
+                            "The proxy port must be different from the public router port.",
+                            "port"_attr = *routerPort);
+                quickExit(ExitCode::badOptions);
+            }
+        }
+    }
+
     return transport::TransportLayerManagerImpl::createWithConfig(
-        &serverGlobalParams, svcCtx, std::move(loadBalancerPort), std::move(routerPort));
+        &serverGlobalParams, svcCtx, std::move(proxyPort), std::move(routerPort));
 }
 
 void logStartup(OperationContext* opCtx) {
@@ -550,10 +574,12 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
         serviceContext->setPeriodicRunner(std::move(runner));
     }
 
-    // When starting the server with --queryableBackupMode or --recoverFromOplogAsStandalone, we are
-    // in read-only mode and don't allow user-originating operations to perform writes
+    // When starting the server with --queryableBackupMode, --recoverFromOplogAsStandalone or
+    // --magicRestore, we are in read-only mode and don't allow user-originating operations to
+    // perform writes
     if (storageGlobalParams.queryableBackupMode ||
-        repl::ReplSettings::shouldRecoverFromOplogAsStandalone()) {
+        repl::ReplSettings::shouldRecoverFromOplogAsStandalone() ||
+        storageGlobalParams.magicRestore) {
         serviceContext->disallowUserWrites();
     }
 
@@ -913,6 +939,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
                               << "startupRecoveryForRestore at the same time",
                 !repl::startupRecoveryForRestore);
 
+        // This uassert will also cover if we are running magic restore.
         uassert(ErrorCodes::BadValue,
                 str::stream() << "Cannot use queryableBackupMode in a replica set",
                 !replCoord->getSettings().isReplSet());
@@ -1235,14 +1262,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
         exitCleanly(ExitCode::clean);
     }
 
-    if (storageGlobalParams.magicRestore) {
-        TimeElapsedBuilderScopedTimer scopedTimer(
-            serviceContext->getFastClockSource(), "Magic restore", &startupTimeElapsedBuilder);
-        if (getMagicRestoreMain() == nullptr) {
-            LOGV2_FATAL_NOTRACE(7180701, "--magicRestore cannot be used with a community build");
-        }
-        return getMagicRestoreMain()(serviceContext);
-    }
+    globalServerLifecycleMonitor().onFinishingStartup();
 
     logStartupStats.dismiss();
     logMongodStartupTimeElapsedStatistics(serviceContext,
@@ -2249,7 +2269,8 @@ int mongod_main(int argc, char* argv[]) {
         ChangeStreamChangeCollectionManager::create(service);
     }
 
-    query_settings::QuerySettingsManager::create(service, {});
+    query_settings::QuerySettingsManager::create(
+        service, {}, query_settings::utils::sanitizeQuerySettingsHints);
 
 #if defined(_WIN32)
     if (ntservice::shouldStartService()) {

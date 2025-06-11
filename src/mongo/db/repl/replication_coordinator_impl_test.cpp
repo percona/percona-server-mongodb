@@ -96,6 +96,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/scopeguard.h"
+#include "mongo/util/signal_handlers.h"
 #include "mongo/util/time_support.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
@@ -151,62 +152,6 @@ std::shared_ptr<const repl::HelloResponse> awaitHelloWithNewOpCtx(
     auto newClient = getGlobalServiceContext()->getService()->makeClient("awaitIsHello");
     auto newOpCtx = newClient->makeOperationContext();
     return replCoord->awaitHelloResponse(newOpCtx.get(), horizonParams, topologyVersion, deadline);
-}
-
-TEST_F(ReplCoordTest, LeaseIsntStaleIfConfigHasntChanged) {
-    auto rsConfig = ReplicationCoordinatorImpl::SharedReplSetConfig();
-    auto lease = rsConfig.renew();
-    ASSERT_FALSE(rsConfig.isStale(lease));
-    lease = rsConfig.renew();
-    ASSERT_FALSE(rsConfig.isStale(lease));
-}
-
-TEST_F(ReplCoordTest, LeaseIsStaleIfConfigHasChanged) {
-    auto rsConfig = ReplicationCoordinatorImpl::SharedReplSetConfig();
-    auto lease = rsConfig.renew();
-    rsConfig.setConfig(std::make_shared<ReplSetConfig>(ReplSetConfig()));
-    ASSERT_TRUE(rsConfig.isStale(lease));
-}
-
-TEST_F(ReplCoordTest, LeaseRenewDoesntChangeVersionIfConfigHasntChanged) {
-    auto rsConfig = ReplicationCoordinatorImpl::SharedReplSetConfig();
-    auto lease = rsConfig.renew();
-    ASSERT_EQUALS(1, lease.version);
-    lease = rsConfig.renew();
-    ASSERT_EQUALS(1, lease.version);
-}
-
-TEST_F(ReplCoordTest, LeaseRenewChangesVersionIfConfigHasChanged) {
-    auto rsConfig = ReplicationCoordinatorImpl::SharedReplSetConfig();
-    auto lease = rsConfig.renew();
-    ASSERT_EQUALS(1, lease.version);
-    rsConfig.setConfig(std::make_shared<ReplSetConfig>(ReplSetConfig()));
-    ASSERT_EQUALS(1, lease.version);
-    lease = rsConfig.renew();
-    ASSERT_EQUALS(2, lease.version);
-}
-
-TEST_F(ReplCoordTest, LeaseRenewChangesConfigIfConfigHasChanged) {
-    auto oldConfigObj = BSON("_id"
-                             << "myOldSet"
-                             << "version" << 1 << "protocolVersion" << 1 << "members"
-                             << BSON_ARRAY(BSON("_id" << 0 << "host"
-                                                      << "h1:1")));
-    ReplSetConfig oldConfig = assertMakeRSConfig(oldConfigObj);
-    auto rsConfig = ReplicationCoordinatorImpl::SharedReplSetConfig();
-    rsConfig.setConfig(std::make_shared<ReplSetConfig>(oldConfig));
-    auto lease = rsConfig.renew();
-    ASSERT_EQUALS(oldConfig.getReplicaSetId(), lease.config->getReplicaSetId());
-    auto newConfigObj = BSON("_id"
-                             << "myNewSet"
-                             << "version" << 1 << "protocolVersion" << 1 << "members"
-                             << BSON_ARRAY(BSON("_id" << 0 << "host"
-                                                      << "h1:1")));
-    ReplSetConfig newConfig = assertMakeRSConfig(oldConfigObj);
-    rsConfig.setConfig(std::make_shared<ReplSetConfig>(newConfig));
-    ASSERT_EQUALS(oldConfig.getReplicaSetId(), lease.config->getReplicaSetId());
-    lease = rsConfig.renew();
-    ASSERT_EQUALS(newConfig.getReplicaSetId(), lease.config->getReplicaSetId());
 }
 
 TEST_F(ReplCoordTest, IsWritablePrimaryFalseDuringStepdown) {
@@ -2100,6 +2045,87 @@ TEST_F(StepDownTest, StepDownFailureRestoresDrainState) {
     ASSERT_TRUE(getReplCoord()->getMemberState().primary());
     Lock::GlobalLock lock(opCtx.get(), MODE_IX);
     ASSERT_TRUE(getReplCoord()->canAcceptWritesForDatabase(opCtx.get(), DatabaseName::kAdmin));
+}
+
+DEATH_TEST_REGEX_F(StepDownTest, StepDownHangsCantGetRSTL, "5675600.*lockRep") {
+    // TODO SERVER-99671 Get rid of this once the unittest framework handles it automatically.
+    startSignalProcessingThread();
+
+    const auto repl = getReplCoord();
+
+    OpTimeWithTermOne opTime1(100, 1);
+
+    replCoordSetMyLastWrittenAndAppliedAndDurableOpTime(opTime1, Date_t() + Seconds(100));
+
+    // Secondaries caught up.
+    ASSERT_OK(repl->setLastAppliedOptime_forTest(1, 1, opTime1));
+    ASSERT_OK(repl->setLastAppliedOptime_forTest(1, 2, opTime1));
+
+    simulateSuccessfulV1Election();
+    // Wait only one simulated second for RSTL.
+    fassertOnLockTimeoutForStepUpDown.store(1);
+
+    // Grab the RSTL
+    const auto opCtx = makeOperationContext();
+    ReplicationStateTransitionLockGuard transitionGuard(opCtx.get(), MODE_IX);
+
+    // Step down in another thread
+    stdx::thread stepDownThread([&] {
+        Client::setCurrent(getService()->makeClient("StepDownHangsCantGetRSTL"));
+        auto alternativeOpCtx = cc().makeOperationContext();
+        // This should crash.
+        getReplCoord()->updateTerm(alternativeOpCtx.get(), getReplCoord()->getTerm() + 1).ignore();
+    });
+
+    while (1) {
+        // Advance the simulated clock really fast.
+        checked_cast<ClockSourceMock*>(getServiceContext()->getPreciseClockSource())
+            ->advance(Milliseconds(100));
+        sleepFor(Milliseconds(1));
+    }
+}
+
+DEATH_TEST_F(StepDownTest, StepDownHangsCantGetRSTLTooManyLocks, "\"id\":9222300") {
+    // TODO SERVER-99671 Get rid of this once the unittest framework handles it automatically.
+    startSignalProcessingThread();
+
+    const auto repl = getReplCoord();
+
+    OpTimeWithTermOne opTime1(100, 1);
+
+    replCoordSetMyLastWrittenAndAppliedAndDurableOpTime(opTime1, Date_t() + Seconds(100));
+
+    // Secondaries caught up.
+    ASSERT_OK(repl->setLastAppliedOptime_forTest(1, 1, opTime1));
+    ASSERT_OK(repl->setLastAppliedOptime_forTest(1, 2, opTime1));
+
+    simulateSuccessfulV1Election();
+    // Wait only one simulated second for RSTL.
+    fassertOnLockTimeoutForStepUpDown.store(1);
+
+    // Grab the RSTL
+    const auto opCtx = makeOperationContext();
+    ReplicationStateTransitionLockGuard transitionGuard(opCtx.get(), MODE_IX);
+
+    std::vector<Lock::CollectionLock> locks;
+    // Make lock manager dump fail by putting in an obnoxiously large debuginfo string.
+    shard_role_details::getLocker(opCtx.get())
+        ->setDebugInfo(std::string(BSONObjMaxInternalSize - 5, 'a'));
+
+    // Step down in another thread
+    stdx::thread stepDownThread([&] {
+        Client::setCurrent(getService()->makeClient("StepDownHangsCantGetRSTL"));
+        auto alternativeOpCtx = cc().makeOperationContext();
+        // This should crash.
+        getReplCoord()->updateTerm(alternativeOpCtx.get(), getReplCoord()->getTerm() + 1).ignore();
+    });
+
+    while (1) {
+        // Advance the simulated clock really fast.
+        checked_cast<ClockSourceMock*>(getServiceContext()->getPreciseClockSource())
+            ->advance(Milliseconds(100));
+        sleepFor(Milliseconds(1));
+    }
 }
 
 class StepDownTestWithUnelectableNode : public StepDownTest {
