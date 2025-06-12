@@ -76,7 +76,6 @@
 #include "mongo/db/auth/authorization_manager_factory.h"
 #include "mongo/db/auth/user_cache_invalidator_job.h"
 #ifdef PERCONA_OIDC_ENABLED
-#include "mongo/db/auth/oidc/oidc_server_parameters_logger.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #endif
 #include "mongo/db/catalog/collection.h"
@@ -1192,8 +1191,6 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     }
 
 #ifdef PERCONA_OIDC_ENABLED
-    OidcServerParameterLogger::log();
-
     // Cannot use ServiceContext::ConstructorActionRegisterer to construct the
     // OidcIdentityProvidersRegistry because the PeriodicRunner is not yet initialized
     // when the initializer runs.

@@ -16,13 +16,11 @@ mongo_cc_library(
         "oidc_identity_providers_registry.cpp",
         "oidc_identity_providers_registry_impl.cpp",
         "oidc_server_parameters.cpp",
-        "oidc_server_parameters_logger.cpp",
         "oidc_server_parameters_gen",
     ],
     hdrs = [
         "oidc_identity_providers_registry.h",
         "oidc_identity_providers_registry_impl.h",
-        "oidc_server_parameters_logger.h",
         "match_pattern.h",
         "//src/mongo/crypto:jwks_fetcher_factory.h",
     ],
