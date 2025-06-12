@@ -33,7 +33,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/pipeline/document_source_backup_file.h"
 
 #include <array>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -44,7 +43,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/exec/document_value/document.h"
-#include "mongo/db/namespace_string.h"
+#include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/intrusive_counter.h"
 #include "mongo/util/str.h"
@@ -68,12 +67,6 @@ REGISTER_INTERNAL_DOCUMENT_SOURCE(_backupFile,
 }  // namespace
 
 using boost::intrusive_ptr;
-
-std::unique_ptr<DocumentSourceBackupFile::LiteParsed> DocumentSourceBackupFile::LiteParsed::parse(
-    const NamespaceString& nss, const BSONElement& spec) {
-
-    return std::make_unique<DocumentSourceBackupFile::LiteParsed>(spec.fieldName());
-}
 
 const char* DocumentSourceBackupFile::getSourceName() const {
     return kStageName.rawData();

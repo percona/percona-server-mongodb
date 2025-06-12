@@ -33,18 +33,14 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include <array>
 #include <fstream>
-#include <memory>
 #include <set>
 #include <string>
 
-#include <boost/optional/optional.hpp>
+#include <boost/optional.hpp>
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
-#include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/document_source.h"
-#include "mongo/db/pipeline/lite_parsed_document_source.h"
-#include "mongo/stdx/unordered_set.h"
 #include "mongo/util/uuid.h"
 
 namespace mongo {
@@ -52,32 +48,6 @@ namespace mongo {
 class DocumentSourceBackupFile final : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$_backupFile"_sd;
-
-    class LiteParsed final : public LiteParsedDocumentSource {
-    public:
-        using LiteParsedDocumentSource::LiteParsedDocumentSource;
-
-        static std::unique_ptr<LiteParsed> parse(const NamespaceString& nss,
-                                                 const BSONElement& spec);
-
-        stdx::unordered_set<NamespaceString> getInvolvedNamespaces() const final {
-            return {};
-        }
-
-        PrivilegeVector requiredPrivileges(
-            [[maybe_unused]] bool isMongos,
-            [[maybe_unused]] bool bypassDocumentValidation) const final {
-            return {Privilege(ResourcePattern::forClusterResource(boost::none), ActionType::fsync)};
-        }
-
-        bool isInitialSource() const final {
-            return true;
-        }
-
-        void assertSupportsMultiDocumentTransaction() const final {
-            transactionNotSupported(kStageName);
-        }
-    };
 
     /**
      * Parses a $_backupFile stage from 'spec'.
