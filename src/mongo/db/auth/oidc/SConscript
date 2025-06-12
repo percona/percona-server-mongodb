@@ -10,7 +10,6 @@ env.Library(
         'oidc_identity_providers_registry_impl.cpp',
         'oidc_server_parameters.cpp',
         'oidc_server_parameters.idl',
-        'oidc_server_parameters_logger.cpp',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
