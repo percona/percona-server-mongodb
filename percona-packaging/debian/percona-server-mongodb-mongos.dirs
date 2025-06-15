@@ -1,1 +1,4 @@
 usr/bin
+var/log/mongos
+var/run
+etc
