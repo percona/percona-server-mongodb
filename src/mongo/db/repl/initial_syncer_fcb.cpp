@@ -363,6 +363,7 @@ void InitialSyncerFCB::_cancelRemainingWork_inlock() {
     _cancelHandle_inlock(_getBaseRollbackIdHandle);
     _cancelHandle_inlock(_fetchBackupCursorHandle);
     _cancelHandle_inlock(_transferFileHandle);
+    _cancelHandle_inlock(_keepAliveHandle);
     _cancelHandle_inlock(_currentHandle);
 
     if (_sharedData) {
@@ -1453,6 +1454,10 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                                                       "wiredTigerDirectoryForIndexes mismatch");
                         return;
                     }
+                    // And BTW, get cursorTimeoutMillis, to fine tune the backup cursor's keep alive
+                    // code
+                    _keepAliveInterval =
+                        Milliseconds{args.response.data.getIntField("cursorTimeoutMillis") / 2};
                 });
     if (!scheduleResult.isOK()) {
         return scheduleResult.getStatus().withContext(
@@ -1701,7 +1706,13 @@ Status InitialSyncerFCB::_switchStorageLocation(
 }
 
 Status InitialSyncerFCB::_killBackupCursor_inlock() {
-    const auto* info = _backupCursorInfo.get();
+    // Cancel scheduled keep alive call
+    _cancelHandle_inlock(_keepAliveHandle);
+
+    // Kill the backup cursor by sending a killCursors command to the sync source.
+    decltype(_backupCursorInfo) backupCursorInfo;
+    std::swap(_backupCursorInfo, backupCursorInfo);
+    const auto* info = backupCursorInfo.get();
     invariant(info);
     executor::RemoteCommandRequest killCursorsRequest(
         _syncSource,
@@ -1853,6 +1864,20 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
                     "Internal error: no file names collected from sync source",
                     !_remoteFiles.empty());
 
+            // Start keep alive loop for the backup cursor
+            auto when = (*_attemptExec)->now() + _keepAliveInterval;
+            status = _scheduleWorkAtAndSaveHandle_inlock(
+                when,
+                [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+                    _keepAliveCallback(args, onCompletionGuard);
+                },
+                &_keepAliveHandle,
+                "_keepAliveCallback");
+            if (!status.isOK()) {
+                onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+                return;
+            }
+
             // schedule file transfer callback
             status = _scheduleWorkAndSaveHandle_inlock(
                 [this, extensionsUsed, onCompletionGuard](
@@ -1871,6 +1896,85 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
 } catch (const DBException&) {
     // Report exception as an initial syncer failure.
     stdx::unique_lock<Latch> lock(_mutex);
+    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
+}
+
+void InitialSyncerFCB::_keepAliveCallback(
+    const executor::TaskExecutor::CallbackArgs& callbackArgs,
+    // NOLINTNEXTLINE(*-unnecessary-value-param)
+    std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
+    stdx::lock_guard<Latch> lock(_mutex);
+    auto status =
+        _checkForShutdownAndConvertStatus_inlock(callbackArgs, "error keeping backup cursor alive");
+    if (status.code() == ErrorCodes::CallbackCanceled) {
+        // If the initial syncer is shutting down or keep alive handle was cancelled, we should stop
+        // keeping the backup cursor alive. Just return.
+        LOGV2_DEBUG(128462, 1, "Stop keeping backup cursor alive because it was cancelled");
+        return;
+    }
+    if (!status.isOK()) {
+        LOGV2_WARNING(128463, "Unexpected error in _keepAliveCallback", "error"_attr = status);
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    const auto* info = _backupCursorInfo.get();
+    invariant(info);
+    executor::RemoteCommandRequest getMoreRequest(
+        _syncSource,
+        info->nss.db().toString(),
+        BSON("getMore" << info->cursorId << "collection" << info->nss.coll().toString()),
+        nullptr);
+    getMoreRequest.options.fireAndForget = true;
+
+    auto scheduleResult =
+        (*_attemptExec)
+            ->scheduleRemoteCommand(
+                getMoreRequest,
+                [this,
+                 onCompletionGuard](const executor::TaskExecutor::RemoteCommandCallbackArgs& args) {
+                    stdx::lock_guard<Latch> lock(_mutex);
+                    // If backup cursor was killed in the meantime then there is no need to check
+                    // getMore's result nor reschedule it
+                    if (!_backupCursorInfo) {
+                        LOGV2_DEBUG(
+                            128464, 1, "Stop keeping backup cursor alive because it was killed");
+                        return;
+                    }
+
+                    if (!args.response.isOK()) {
+                        onCompletionGuard->setResultAndCancelRemainingWork_inlock(
+                            lock,
+                            args.response.status.withContext(
+                                "error executing getMore to keep backup cursor alive"));
+                        return;
+                    }
+
+                    // If the command was successful, reschedule the keep alive.
+                    auto when = (*_attemptExec)->now() + _keepAliveInterval;
+                    auto status = _scheduleWorkAtAndSaveHandle_inlock(
+                        when,
+                        [this,
+                         onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
+                            _keepAliveCallback(args, onCompletionGuard);
+                        },
+                        &_keepAliveHandle,
+                        "_keepAliveCallback");
+                    if (!status.isOK()) {
+                        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+                        return;
+                    }
+                });
+    if (!scheduleResult.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(
+            lock,
+            scheduleResult.getStatus().withContext(
+                "Failed to schedule getMore to keep backup cursor alive"));
+        return;
+    }
+} catch (const DBException&) {
+    // Report exception as an initial syncer failure.
+    stdx::lock_guard<Latch> lock(_mutex);
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
 
@@ -1915,7 +2019,9 @@ void InitialSyncerFCB::_transferFileCallback(
                                         &syncSourceConn,
                                         _storage,
                                         _writerPool);
+    lock.unlock();
     auto cloneStatus = currentBackupFileCloner->run();
+    lock.lock();
     if (!cloneStatus.isOK()) {
         LOGV2_WARNING(128412,
                       "Failed to clone file",

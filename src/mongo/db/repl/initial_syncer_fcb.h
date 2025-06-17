@@ -356,6 +356,12 @@ private:
                                     std::function<BSONObj()> createRequestObj) noexcept;
 
     /**
+     * Callback to execute getMore on the backup cursor to keep it alive
+     */
+    void _keepAliveCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
+                            std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
+
+    /**
      * Callback to transfer file from the sync source
      */
     void _transferFileCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
@@ -583,6 +589,9 @@ private:
     // Handle to currently scheduled _transferFileCallback() task.
     executor::TaskExecutor::CallbackHandle _transferFileHandle;  // (M)
 
+    // Handle to currently scheduled _keepAliveCallback() task.
+    executor::TaskExecutor::CallbackHandle _keepAliveHandle;  // (M)
+
     // Handle to currently scheduled  task (one of several tasks in the file move/dbpath change
     // sequence).
     executor::TaskExecutor::CallbackHandle _currentHandle;  // (M)
@@ -638,6 +647,10 @@ private:
     // Conditional variable to wait for end of storage change
     stdx::condition_variable _inStorageChangeCondition;  // (M)
     bool _inStorageChange = false;                       // (M)
+
+    // Keep alive interval is set to half of "cursorTimeoutMillis" parameter received from the sync
+    // source.
+    Milliseconds _keepAliveInterval;  // (M)
 };
 
 }  // namespace repl
