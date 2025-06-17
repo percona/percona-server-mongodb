@@ -108,6 +108,8 @@ struct ShellGlobalParams {
     bool gRPC = false;
     boost::optional<std::string> gRPCAuthToken;
 #endif
+
+    bool httpClientEnableLocalhostException{false};
 };
 
 extern ShellGlobalParams shellGlobalParams;

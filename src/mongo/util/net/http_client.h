@@ -162,6 +162,22 @@ public:
      */
     static BSONObj getServerStatus();
 
+    /**
+     * @brief Enables localhost exception.
+     *
+     * After the call to the function, each new invokation of `endpointIsSecure` treats URLs with
+     * the plain HTTP scheme and the `localhost` host as secure ones.
+     *
+     * @note Intended to be called exclusively in the old `mongo` shell for testing purposes only.
+
+     * @note The same effect can be achieved by calling `setTestCommandsEnabled(true)`.
+     * However, unlike enabling test commands, this function has no any other side effects, which
+     * can be undesirable or even dangerous in the old `mongo` shell.
+     */
+    static void enableLocalhostException() noexcept { _localhostExceptionEnabled = true; }
+
+    static bool localhostExceptionEnabled() noexcept { return _localhostExceptionEnabled; }
+
 protected:
     Seconds _timeout = kTotalRequestTimeout;
     Seconds _connectTimeout = kConnectionTimeout;
@@ -175,6 +191,8 @@ private:
                 reply.code == 200);
         return std::move(reply.body);
     }
+
+    static inline bool _localhostExceptionEnabled{false};
 };
 
 /**
