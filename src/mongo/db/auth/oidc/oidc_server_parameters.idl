@@ -88,6 +88,9 @@ structs:
       supportsHumanFlows:
         type: bool
         default: true
+      serverCAFile:
+        type: string
+        default: '""'
 
 server_parameters:
   oidcIdentityProviders:
