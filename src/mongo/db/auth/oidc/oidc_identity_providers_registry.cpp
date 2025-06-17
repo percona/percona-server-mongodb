@@ -56,8 +56,10 @@ const std::vector<OidcIdentityProviderConfig>& getIdPConfigs() {
 }
 
 struct JWKSFetcherFactoryImpl : public JWKSFetcherFactory {
-    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer) const override {
-        return std::make_unique<crypto::JWKSFetcherImpl>(SystemClockSource::get(), issuer);
+    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer,
+                                                         StringData caFilePath) const override {
+        return std::make_unique<crypto::JWKSFetcherImpl>(
+            SystemClockSource::get(), issuer, caFilePath);
     }
 };
 }  // namespace

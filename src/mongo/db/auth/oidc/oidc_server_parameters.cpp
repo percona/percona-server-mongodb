@@ -85,6 +85,50 @@ str::stream errorMsgHeader(const R& indexes) {
     return s;
 }
 
+template <typename ValueType>
+requires std::equality_comparable<ValueType> && std::copyable<ValueType>
+class ConfigCommonValueVerifier {
+public:
+    ConfigCommonValueVerifier(const StringData& fieldName) : _fiedlName(fieldName) {}
+
+    /// @brief Adds a value to the internal storage for further verification.
+    ///
+    /// @param issuer issuer for which the value is added
+    /// @param index index of the issuer in the OIDC identity providers' array
+    /// @param value value
+    void addValue(StringData issuer, std::size_t index, const ValueType& value) {
+        auto& info = _infos[issuer];
+        info.indexes.push_back(index);
+        info.isValueCommon = info.isValueCommon && (!info.value || *info.value == value);
+        info.value = value;
+    }
+
+    /// @brief For each issuer, verifies whether all its occurrences share the common value.
+    ///
+    /// @throws DBException if there is more than one distinct value among all the occurrences of
+    ///     a particular issuer
+    void verifyAllIssuerOccurrencesShareCommonValue() const {
+        for (const auto& [issuer, info] : _infos) {
+            uassert(77708,
+                    errorMsgHeader(info.indexes)
+                        << "`" << _fiedlName << "` values are different for the same `issuer` (`"
+                        << issuer << "`). `" << _fiedlName << "` should be the same for each "
+                        << "configuration that shares an `issuer`.",
+                    info.isValueCommon);
+        }
+    }
+
+private:
+    struct ValueInfo {
+        std::vector<std::size_t> indexes;
+        boost::optional<ValueType> value;
+        bool isValueCommon{true};
+    };
+
+    StringData _fiedlName;
+    std::map<StringData, ValueInfo> _infos;
+};
+
 void validate(const OidcIdentityProviderConfig& conf, std::size_t index) {
     static constexpr std::string_view kLegalChars{
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"};
@@ -121,7 +165,10 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
     // `audience` values.
     std::map<IssuerAudiencePair, std::vector<std::size_t>> equalAudienceIndexes;
 
-    std::map<StringData, JWKSPollSecsIndexes> jwksPollSecsMap;
+    ConfigCommonValueVerifier<std::int32_t> pollSecsVerifier{
+        OidcIdentityProviderConfig::kJWKSPollSecsFieldName};
+    ConfigCommonValueVerifier<StringData> caFileVerifier{
+        OidcIdentityProviderConfig::kServerCAFileFieldName};
 
     for (std::size_t i{0u}; i < param._data.size(); ++i) {
         const auto& conf{param._data[i]};
@@ -134,15 +181,8 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
         }
         equalAudienceIndexes[{conf.getIssuer(), conf.getAudience()}].push_back(i);
 
-        auto it = jwksPollSecsMap.find(conf.getIssuer());
-        if (it == jwksPollSecsMap.end()) {
-            jwksPollSecsMap[conf.getIssuer()] = {conf.getJWKSPollSecs(), 0, {i}};
-        } else {
-            it->second.indexes.push_back(i);
-            if (it->second.jwksPollSecs != conf.getJWKSPollSecs()) {
-                it->second.differentValuesCount++;
-            }
-        }
+        pollSecsVerifier.addValue(conf.getIssuer(), i, conf.getJWKSPollSecs());
+        caFileVerifier.addValue(conf.getIssuer(), i, conf.getServerCAFile());
     }
 
     for (std::size_t i{0u}; i < matchPatternIndexes.size(); ++i) {
@@ -173,15 +213,8 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
                     << "configuration that shares an `issuer`.",
                 indexes.size() < 2);
     }
-
-    for (const auto& [issuer, valuePair] : jwksPollSecsMap) {
-        uassert(77708,
-                errorMsgHeader(valuePair.indexes)
-                    << "`jwksPollSecs` values are different for the same `issuer` (`" << issuer
-                    << "`). `jwksPollSecs` should be the same for each "
-                    << "configuration that shares an `issuer`.",
-                valuePair.differentValuesCount == 0);
-    }
+    pollSecsVerifier.verifyAllIssuerOccurrencesShareCommonValue();
+    caFileVerifier.verifyAllIssuerOccurrencesShareCommonValue();
 }
 
 void paramDeserialize(OidcIdentityProvidersServerParameter& param, const BSONArray& arr) {
