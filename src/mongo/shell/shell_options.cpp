@@ -47,6 +47,8 @@
 #include "mongo/shell/shell_utils.h"
 #include "mongo/transport/message_compressor_options_client_gen.h"
 #include "mongo/transport/message_compressor_registry.h"
+#include "mongo/util/assert_util.h"
+#include "mongo/util/net/http_client.h"
 #include "mongo/util/net/socket_utils.h"
 #include "mongo/util/options_parser/startup_options.h"
 #include "mongo/util/str.h"
@@ -69,6 +71,7 @@ const std::set<std::string> kSetShellParameterAllowlist = {
     "disabledSecureAllocatorDomains",
     "featureFlagFLE2Range",
     "featureFlagFLE2ProtocolVersion2",
+    "httpClientEnableLocalhostException",
     "newLineAfterPasswordPromptForTest",
     "ocspClientHttpTimeoutSecs",
     "ocspEnabled",
@@ -332,6 +335,10 @@ Status storeMongoShellOptions(const moe::Environment& params,
                             << "Bad value for parameter '" << name << "': " << status.reason()};
             }
         }
+    }
+
+    if (shellGlobalParams.httpClientEnableLocalhostException) {
+        HttpClient::enableLocalhostException();
     }
 
     return Status::OK();

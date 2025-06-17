@@ -62,7 +62,8 @@ Status HttpClient::endpointIsSecure(StringData url) {
         return url.empty() || url[0] == '/';
     }();
 
-    if (url.startsWith("https://") || (isAcceptableLocalhost && getTestCommandsEnabled())) {
+    if (url.startsWith("https://") ||
+        (isAcceptableLocalhost && (getTestCommandsEnabled() || localhostExceptionEnabled()))) {
         return Status::OK();
     }
     return Status(ErrorCodes::IllegalOperation, "Endpoint is not HTTPS");
