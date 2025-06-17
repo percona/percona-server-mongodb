@@ -51,10 +51,13 @@ namespace mongo::crypto {
 
 JWKSet JWKSFetcherImpl::fetch() {
     try {
-        auto makeHTTPClient = []() {
+        auto makeHTTPClient = [this]() {
             auto httpClient = HttpClient::createWithoutConnectionPool();
             httpClient->setHeaders({"Accept: */*"});
             httpClient->allowInsecureHTTP(getTestCommandsEnabled());
+            if (!this->_caFilePath.empty()) {
+                httpClient->setCAFile(this->_caFilePath);
+            }
             return httpClient;
         };
 
