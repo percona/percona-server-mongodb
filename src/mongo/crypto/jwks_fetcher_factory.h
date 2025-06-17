@@ -40,7 +40,8 @@ namespace mongo {
 class JWKSFetcherFactory {
 public:
     virtual ~JWKSFetcherFactory() = default;
-    virtual std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer) const = 0;
+    virtual std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer,
+                                                                 StringData caFilePath) const = 0;
 };
 
 

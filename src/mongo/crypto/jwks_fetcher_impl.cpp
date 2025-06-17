@@ -52,15 +52,21 @@
 
 namespace mongo::crypto {
 
-JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer)
-    : _issuer(issuer), _clock(clock), _lastSuccessfulFetch(Date_t::min()) {}
+JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath)
+    : _issuer(issuer),
+      _clock(clock),
+      _lastSuccessfulFetch(Date_t::min()),
+      _caFilePath(caFilePath) {}
 
 JWKSet JWKSFetcherImpl::fetch() {
     try {
-        auto makeHTTPClient = []() {
+        auto makeHTTPClient = [this]() {
             auto httpClient = HttpClient::createWithoutConnectionPool();
             httpClient->setHeaders({"Accept: */*"});
             httpClient->allowInsecureHTTP(getTestCommandsEnabled());
+            if (!this->_caFilePath.empty()) {
+                httpClient->setCAFile(this->_caFilePath);
+            }
             return httpClient;
         };
 
