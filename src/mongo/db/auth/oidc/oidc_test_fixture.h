@@ -239,9 +239,14 @@ struct JWKSFetcherFactoryMock : public JWKSFetcherFactory {
     };
 
 public:
-    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer) const override {
+    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer,
+                                                         StringData caFilePath) const override {
+        (void)caFilePath;
         _issuers.emplace_back(issuer);
         return std::make_unique<JWKSFetcherMock>(*this, issuer.toString());
+    }
+    std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer) const {
+        return makeJWKSFetcher(issuer, {});
     }
 
     // Mocked fetch method to return a JWKSet for the given issuer
