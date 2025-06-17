@@ -59,10 +59,10 @@ OidcIdentityProvidersRegistryImpl::OidcIdentityProvidersRegistryImpl(
 
     for (const auto& idp : _idps) {
         // create a JWKManager instance for each issuer
-        auto res =
-            _jwkManagers.try_emplace(idp.getIssuer().toString(),
-                                     std::make_shared<crypto::JWKManager>(
-                                         jwksFetcherFactory.makeJWKSFetcher(idp.getIssuer())));
+        auto res = _jwkManagers.try_emplace(
+            idp.getIssuer().toString(),
+            std::make_shared<crypto::JWKManager>(
+                jwksFetcherFactory.makeJWKSFetcher(idp.getIssuer(), idp.getServerCAFile())));
 
         // Skip the periodic job creation if the issuer is already present in the map.
         if (!res.second) {
