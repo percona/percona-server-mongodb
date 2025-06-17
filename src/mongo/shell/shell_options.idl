@@ -224,3 +224,10 @@ configs:
     default: 0
     validator: {gte: 0}
 
+server_parameters:
+  httpClientEnableLocalhostException:
+    description: Treat plain HTTP URLs with the `localhost` host as secure ones
+    set_at: startup
+    cpp_varname: shellGlobalParams.httpClientEnableLocalhostException
+    default: false
+    redact: false
