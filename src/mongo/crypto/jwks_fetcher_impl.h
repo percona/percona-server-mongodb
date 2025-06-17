@@ -46,7 +46,7 @@ namespace crypto {
  */
 class JWKSFetcherImpl : public JWKSFetcher {
 public:
-    JWKSFetcherImpl(ClockSource* clock, StringData issuer);
+    JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath = {});
 
     JWKSet fetch() override;
     bool quiesce() const override;
@@ -55,6 +55,7 @@ protected:
     std::string _issuer;
     ClockSource* _clock;
     synchronized_value<Date_t> _lastSuccessfulFetch;
+    std::string _caFilePath;
 };
 
 }  // namespace crypto
