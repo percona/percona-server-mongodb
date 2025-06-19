@@ -813,7 +813,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cert",
         type=str,
-        required=True,
         metavar="<path>",
         help="certificate file for HTTPS",
     )
@@ -827,8 +826,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "issuer_url",
         nargs="?",
-        default="https://localhost:8443/issuer",
-        help="issuer URL [default: https://localhost:8443/issuer]",
+        default="http://localhost:8080/issuer",
+        help="issuer URL [default: http://localhost:8080/issuer]",
     )
 
     return parser
@@ -844,8 +843,6 @@ def parse_url(url: str) -> Tuple[str, int, str]:
     """
     parsed_url = urlparse(url)
 
-    if parsed_url.scheme != "https":
-        fatal("Only HTTPS is supported")
     if parsed_url.port is None:
         fatal(f"Port is required in url: {url}")
     if parsed_url.hostname is None:
@@ -889,10 +886,12 @@ def run_server(args, idp: IdPMock):
     """
 
     # Create the server and wrap it with SSL
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ssl_context.load_cert_chain(certfile=args.cert)
     server = http.server.HTTPServer(idp.addr(), idp.create_handler)
-    server.socket = ssl_context.wrap_socket(server.socket, server_side=True)
+
+    if args.cert:
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.load_cert_chain(certfile=args.cert)
+        server.socket = ssl_context.wrap_socket(server.socket, server_side=True)
 
     def signal_handler(signum, _):
         logger.info(f"Signal {signum} received, shutting down")
@@ -951,7 +950,11 @@ def create_idp_config(args, config: Dict) -> Dict:
 def main():
     parser = build_parser()
     args = parser.parse_args()
-    logger.debug(f"Certificate: {args.cert}")
+    if args.cert:
+        logger.debug(f"Certificate: {args.cert}")
+        if not args.issuer_url.startswith("https://"):
+            raise ValueError(("A certificate is provided but the `issuer_url` "
+                              "is not HTTPS"));
 
     config = parse_args(args)
     idp_config = create_idp_config(args, config)

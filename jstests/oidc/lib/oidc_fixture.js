@@ -185,7 +185,7 @@ export class OIDCFixture {
                 assert(idp_config.url, "Missing idp_config.url");
                 assert(idp_config.config, "Missing idp_config.config");
 
-                this.create_idp(idp_config.url, idp_config.config);
+                this.create_idp(idp_config.url, idp_config.config, idp_config.cert);
             }
         }
 
@@ -211,10 +211,11 @@ export class OIDCFixture {
      * Allocate a unique issuer URL.
      *
      * @param {string} issuer_name - The name of the issuer (default: "issuer").
+     * @param {boolean} secure - Whether to generate an HTTPS or HTTP URL.
      * @returns {string} - The allocated issuer URL.
      */
-    static allocate_issuer_url(issuer_name = "issuer") {
-        return "https://localhost:" + allocatePort() + "/" + issuer_name;
+    static allocate_issuer_url(issuer_name = "issuer", secure = false) {
+        return "http" + (secure ? "s" : "") + "://localhost:" + allocatePort() + "/" + issuer_name;
     }
 
     /**
@@ -224,13 +225,14 @@ export class OIDCFixture {
      * @param {object} config The configuration object for the IdP mock.
      * @returns {object} The created IdP mock.
      */
-    create_idp(issuer_url, config) {
+    create_idp(issuer_url, config, cert) {
         assert(typeof issuer_url === "string", "idp_config.url must be a string");
         assert(typeof config === "object", "idp_config.config must be an object");
         print("OIDCFixture.create_idp " + issuer_url);
         var idp = new OIDCIdPMock({
             issuer_url: issuer_url,
-            config: config
+            config: config,
+            cert: cert,
         });
         this.idps[issuer_url] = idp;
 
