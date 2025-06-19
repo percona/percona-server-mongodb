@@ -1,4 +1,3 @@
-// @tags: [oidc_idp_mock_cert_not_required]
 import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 // Function to check if the OIDC feature is included in the build info's 'proFeatures' field.
