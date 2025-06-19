@@ -8,14 +8,23 @@ export class OIDCIdPMock {
     /**
      * Constructor for the OIDC IDP mock server.
      *
-     * @param {string} issuer_url The issuer URL for the OIDC IDP mock server on which it should start.
+     * @param {string} issuer_url The issuer URL for the OIDC IDP mock server on which it should
+     *     start.
      * @param {Object} config The configuration object for the OIDC IDP mock server.
+     * @param {string} cert The path the a PEM file with the private key and certificate for
+     *     the IdP mock. Optional. If passed, the mock uses HTTPS rather than plain HTTP for
+     *     network communication. Implies `ussuer_url` has the `https` scheme.
      */
-    constructor({ issuer_url, config }) {
+    constructor({issuer_url, config, cert}) {
         this.python = getPython3Binary();
         this.issuer_url = issuer_url;
         this.config = config;
+        this.cert = cert;
         this.pid = null;
+
+        if (this.cert && !this.issuer_url.startsWith("https://")) {
+            throw new Error("A certificate is provided but the `issuer_url` is not HTTPS");
+        }
     }
 
     /**
@@ -25,16 +34,11 @@ export class OIDCIdPMock {
      * It waits for the server to start and be ready to accept requests.
      */
     start() {
-        const args = [
-            this.python,
-            OIDC_IDP_MOCK_PATH,
-            "--verbose",
-            "--cert",
-            OIDC_IDP_MOCK_CERT,
-            "--config-json",
-            JSON.stringify(this.config),
-            this.issuer_url
-        ];
+        let args = [this.python, OIDC_IDP_MOCK_PATH, "--verbose"];
+        if (this.cert) {
+            args.push("--cert", this.cert);
+        }
+        args.push("--config-json", JSON.stringify(this.config), this.issuer_url);
 
         clearRawMongoProgramOutput();
 
