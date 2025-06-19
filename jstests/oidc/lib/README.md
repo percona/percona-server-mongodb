@@ -15,28 +15,18 @@ This directory contains a test fixture and an IdP mock for testing authenticatio
 ## Suite
 
 The **OIDC** suite is defined in the [oidc.yml](../../../buildscripts/resmokeconfig/suites/oidc.yml) file.
+A typical test starts the OIDC identity provider (IdP) mock and Percona Server
+for MongoDB (as a standalone `mongod` or a sharded cluster) and then checks
+various conditions. Both the IdP mock and Percona Server for MongoDB are started
+via the test fixture. In all the tests except one, the network communication
+between Percona Server for MongoDB and the IdP mock goes over plain HTTP. The
+`mongodb_idp_https_conversation.js` test specifically checks the encrypted
+communication using HTTPS.
 
-The [Identity Provider Server Mock](#idp-server-mock) starts an **HTTPS** server with a [self-signed certificate](./ca_oidc_idp.pem). The `mongo shell` and `mongod` must trust this certificate, and currently, it is required to install the [certificate](./ca_oidc_idp.crt) system-wide.
-
-To prevent test failures when the certificate is not installed, all tests in the suite are ignored by default unless they are tagged with `oidc_idp_mock_cert_not_required`:
-
-``` js
-// @tags: [oidc_idp_mock_cert_not_required]
-```
-
-Running all tests in this suite is possible by using the `tagFile` option with `resmoke`:
-
-``` sh
-./buildscripts/resmoke.py --suite=oidc --tagFile etc/oidc_idp_mock_cert_installed.yml
-```
-
-The provided [tag file](../../../etc/oidc_idp_mock_cert_installed.yml) adds the `oidc_idp_mock_cert_installed` tag to all tests within this suite, thus enabling their execution.
-
-Installing the certificate depends on the operating system. For example, on **Ubuntu 24.04**, it can be done with the following commands:
+The following command is an example of running all tests in this suite:
 
 ``` sh
-sudo cp jstests/oidc/lib/ca_oidc_idp.crt /usr/local/share/ca-certificates/
-sudo update-ca-certificates
+./buildscripts/resmoke.py --suite=oidc [<other_resmoke_options>]
 ```
 
 ## IdP Server Mock
@@ -49,12 +39,13 @@ usage: oidc_idp_mock.py [-h] [-v] --cert <path> [--config-json {<json>}] [issuer
 OIDC Identity Provider Mock
 
 positional arguments:
-  issuer_url            issuer URL [default: https://localhost:8443/issuer]
+  issuer_url            issuer URL [default: http://localhost:8080/issuer]
 
 options:
   -h, --help            show this help message and exit
   -v, --verbose         enable verbose logging
-  --cert <path>         certificate file for HTTPS
+  --cert <path>         certificate file for HTTPS, if provided, also requires
+                        `issuer_url` with the HTTPS scheme
   --config-json {<json>}
                         configuration JSON
 ```
