@@ -1,4 +1,3 @@
-// @tags: [oidc_idp_mock_cert_not_required]
 import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const issuer = OIDCFixture.allocate_issuer_url();
@@ -161,7 +160,7 @@ const variants = [
     {
         expected_error: "BadValue: Bad value for parameter.*oidcIdentityProviders.*: In " +
             "`oidcIdentityProviders.1.`, `oidcIdentityProviders.3.`, `oidcIdentityProviders.4.`: " +
-            "`jwksPollSecs` values are different for the same `issuer` .*`jwksPollSecs` should " +
+            "`JWKSPollSecs` values are different for the same `issuer` .*`JWKSPollSecs` should " +
             "be the same for each configuration that shares an `issuer`",
         config: [
             {
