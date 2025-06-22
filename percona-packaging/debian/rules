@@ -61,7 +61,7 @@ compile-mongo-tools:
         export GOBINPATH="/usr/local/go/bin"
 	cd $(PSMSRC)/../src/github.com/mongodb/mongo-tools; \
         sed -i '14d' buildscript/build.go; \
-        sed -i '209,217d' buildscript/build.go; \
+        sed -i '199,207d' buildscript/build.go; \
         sed -i "s:versionStr,:\"$(PSMDB_TOOLS_REVISION)\",:" buildscript/build.go; \
         sed -i "s:gitCommit):\"$(PSMDB_TOOLS_COMMIT_HASH)\"):" buildscript/build.go; \
         ./make build;
