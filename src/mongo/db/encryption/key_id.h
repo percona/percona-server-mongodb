@@ -268,7 +268,7 @@ public:
 
     /// @brief The present configured key identifier, if any.
     ///
-    /// Is is read from the storage engine metadata, specifically form the
+    /// It is read from the storage engine metadata, specifically from the
     /// storage engine encryption options.
     std::unique_ptr<KeyId> configured;
 
