@@ -2631,6 +2631,7 @@ env.Library(
         "dbdirectclient",
         "dbhelpers",
         "default_max_time_ms_cluster_parameter",
+	"encryption/encryption_status",
         "exec/working_set",
         "feature_compatibility_version_metrics",
         "ftdc/ftdc_mongod",
