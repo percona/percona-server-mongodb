@@ -161,9 +161,22 @@ void KeyFilePath::serialize(BSONObjBuilder* b) const {
     b->append("encryptionKeyFilePath", _path);
 }
 
+void KeyFilePath::serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const {
+    // NOTE: not adding '_path' due to security concerns
+    b->append(fieldName, "local");
+}
+
 void VaultSecretId::serialize(BSONObjBuilder* b) const {
     BSONObjBuilder sb = b->subobjStart("vaultSecretIdentifier");
     _serializeImpl(&sb);
+    sb.done();
+}
+
+void VaultSecretId::serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const {
+    BSONObjBuilder sb = b->subobjStart(fieldName);
+    BSONObjBuilder ssb = sb.subobjStart("vault");
+    _serializeImpl(&ssb);
+    ssb.done();
     sb.done();
 }
 
@@ -177,6 +190,14 @@ void VaultSecretId::_serializeImpl(BSONObjBuilder* b) const {
 
 void KmipKeyId::serialize(BSONObjBuilder* b) const {
     b->append("kmipKeyIdentifier", _keyId);
+}
+
+void KmipKeyId::serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const {
+    BSONObjBuilder sb = b->subobjStart(StringData{fieldName});
+    BSONObjBuilder ssb = sb.subobjStart("kmip");
+    ssb.append("keyId", _keyId);
+    ssb.done();
+    sb.done();
 }
 
 void KeyFilePath::accept(KeyIdConstVisitor& v) const {

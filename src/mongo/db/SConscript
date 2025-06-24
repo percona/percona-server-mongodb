@@ -2393,6 +2393,7 @@ env.Library(
         'curop_metrics',
         'dbdirectclient',
         'dbhelpers',
+        'encryption/encryption_status',
         'exec/working_set',
         'feature_compatibility_version_metrics',
         'ftdc/ftdc_mongod',
