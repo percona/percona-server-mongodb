@@ -26,6 +26,30 @@ const oidcProvider = {
     JWKSPollSecs: pollingIntervalSecs,
 };
 
+function test_jwks_polling_failure_is_logged(clusterClass) {
+    let test = new OIDCFixture({oidcProviders: [oidcProvider], idps: []});
+    test.setup(clusterClass);
+    // note: no IdP has been started
+
+    sleep(sleepTime + sleepTimeMargin);
+    const expectedLog = {
+        id: 29140,
+        msg: "Failed to load JWKs from issuer",
+        attr: {
+            issuer: issuer_url,
+            error: {
+                code: 96,
+                codeName: "OperationFailed",
+                errmsg: "Failed loading keys from " + issuer_url + " :: caused by :: " +
+                    "Bad HTTP response from API server: Couldn't connect to server",
+            }
+        }
+    };
+    assert(test.checkLogExists(expectedLog), "Expected log not found");
+
+    test.teardown();
+}
+
 function test_jwks_fetched_with_polling_interval(clusterClass) {
     var test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
@@ -82,6 +106,9 @@ function test_jwks_fetched_with_polling_interval(clusterClass) {
 
     test.teardown();
 }
+
+test_jwks_polling_failure_is_logged(StandaloneMongod);
+test_jwks_polling_failure_is_logged(ShardedCluster);
 
 test_jwks_fetched_with_polling_interval(StandaloneMongod);
 test_jwks_fetched_with_polling_interval(ShardedCluster);
