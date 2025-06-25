@@ -109,7 +109,7 @@ public:
     ///     a particular issuer
     void verifyAllIssuerOccurrencesShareCommonValue() const {
         for (const auto& [issuer, info] : _infos) {
-            uassert(77708,
+            uassert(ErrorCodes::BadValue,
                     errorMsgHeader(info.indexes)
                         << "`" << _fiedlName << "` values are different for the same `issuer` (`"
                         << issuer << "`). `" << _fiedlName << "` should be the same for each "
@@ -134,20 +134,20 @@ void validate(const OidcIdentityProviderConfig& conf, std::size_t index) {
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"};
     auto authNamePrefix{static_cast<std::string_view>(conf.getAuthNamePrefix())};
     if (auto pos{authNamePrefix.find_first_not_of(kLegalChars)}; pos != std::string_view::npos) {
-        uasserted(77702,
+        uasserted(ErrorCodes::BadValue,
                   errorMsgHeader(std::views::single(index))
                       << "`" << OidcIdentityProviderConfig::kAuthNamePrefixFieldName
                       << "` contains illegal char `" << authNamePrefix[pos]
                       << "`. Only [a-zA-Z0-9_-] are allowed.");
     }
-    uassert(77703,
+    uassert(ErrorCodes::BadValue,
             errorMsgHeader(std::views::single(index))
                 << "`" << OidcIdentityProviderConfig::kClientIdFieldName << "` must present if `"
                 << OidcIdentityProviderConfig::kSupportsHumanFlowsFieldName
                 << "` is `true`, which is the default.",
             conf.getSupportsHumanFlows() ? static_cast<bool>(conf.getClientId()) : true);
     uassert(
-        77704,
+        ErrorCodes::BadValue,
         errorMsgHeader(std::views::single(index))
             << "`" << OidcIdentityProviderConfig::kAuthorizationClaimFieldName
             << "` must present if `" << OidcIdentityProviderConfig::kUseAuthorizationClaimFieldName
@@ -186,7 +186,7 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
     }
 
     for (std::size_t i{0u}; i < matchPatternIndexes.size(); ++i) {
-        uassert(77705,
+        uassert(ErrorCodes::BadValue,
                 errorMsgHeader(std::views::iota(i, matchPatternIndexes[i]))
                     << "configurations without the `matchPattern` field "
                     << "must be listed after those with the `matchPattern` field",
@@ -197,7 +197,7 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
         std::ranges::set_difference(humanFlowsIndexes,
                                     matchPatternIndexes,
                                     std::back_inserter(humanFlowsNoMatchPatternIndexes));
-        uassert(77706,
+        uassert(ErrorCodes::BadValue,
                 errorMsgHeader(humanFlowsNoMatchPatternIndexes)
                     << "`supportsHumanFlows` enabled but there is no `matchPattern`. "
                     << "If more that one configuration has `supportsHumanFlow` enabled, "
@@ -205,7 +205,7 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
                 humanFlowsNoMatchPatternIndexes.empty());
     }
     for (const auto& [issAud, indexes] : equalAudienceIndexes) {
-        uassert(77707,
+        uassert(ErrorCodes::BadValue,
                 errorMsgHeader(indexes)
                     << "`issuer` values are equal (`" << issAud.issuer
                     << "`) and `audience` values are also eqaul (`" << issAud.audience

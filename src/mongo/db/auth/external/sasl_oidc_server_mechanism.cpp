@@ -41,13 +41,9 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc_protocol_gen.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
 #include "mongo/db/server_parameter.h"
-#include "mongo/logv2/log.h"
-#include "mongo/logv2/log_attr.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/time_support.h"
-
-#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
 namespace mongo {
 namespace {
@@ -122,8 +118,6 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
 
     auto principalName = request.getPrincipalName().map(
         [](const auto& str) -> std::string_view { return std::string_view{str}; });
-
-    LOGV2(77012, "OIDC step 1", "principalName"_attr = principalName.value_or("none"));
 
     // If there are more than one IdP with human flows support, the client must provide a principal
     // name to choose a specific IdP. If there is only one IdP with human flows support, the client
@@ -209,8 +203,6 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step2(
 
     processAuthorizationClaim(*idp, token);
     processLogClaims(*idp, token);
-
-    LOGV2(77012, "OIDC step 2", "principalName"_attr = _principalName, "roles"_attr = _roles);
 
     // authentication succeeded
     return std::tuple{true, std::string{}};
