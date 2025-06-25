@@ -29,6 +29,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
+#include "mongo/bson/bsonmisc.h"
 #include "mongo/db/audit_interface.h"
 #include "mongo/db/auth/authorization_session_for_test.h"
 #include "mongo/db/auth/authz_session_external_state_mock.h"
@@ -72,12 +73,9 @@ protected:
     }
 
     // wrapepr for running the command, returns the status with optional BSON result
-    StatusWith<boost::optional<BSONObj>> runCmd() try {
+    StatusWith<BSONObj> runCmd() try {
         BSONObjBuilder result;
-        if (!cmd().run(operationContext(), _dbName, createCmdObj(), result)) {
-            return boost::none;
-        }
-
+        cmd().run(operationContext(), _dbName, createCmdObj(), result);
         return result.obj();
     } catch (const DBException& e) {
         return e.toStatus();
@@ -164,14 +162,9 @@ TEST_F(OidcRefreshKeysTest, AuthorizationPositive) {
 
 // Test for the oidcListKeys command with no JWK managers.
 TEST_F(OidcListKeysTest, Run_NoJWKManagers) {
-    const auto status = runCmd();
-    ASSERT_OK(status);
-
-    const auto result = status.getValue();
-    ASSERT_TRUE(result.has_value());
-
-    const auto& keySets = result->getField("keySets");
-    ASSERT_TRUE(keySets.ok());
+    const auto result = runCmd();
+    ASSERT_OK(result);
+    const auto& keySets = result.getValue().getField("keySets");
     ASSERT_EQ(keySets.type(), BSONType::Object);
     ASSERT_TRUE(keySets.Obj().isEmpty());
 }
@@ -205,15 +198,13 @@ TEST_F(OidcListKeysTest, Run) {
     registryMock().setJWKManager(issuer2, jwkManager2);
 
     // Run the oidcListKeys command
-    const auto status = runCmd();
-    ASSERT_OK(status);
-
-    const auto result = status.getValue();
+    const auto result = runCmd();
+    ASSERT_OK(result);
 
     // Check the format of the result
 
     // Check if the keySets field exists.
-    const auto& keySets = result->getField("keySets");
+    const auto& keySets = result.getValue().getField("keySets");
     ASSERT_TRUE(keySets.ok());
     ASSERT_EQ(keySets.type(), BSONType::Object);
 
@@ -279,7 +270,31 @@ TEST_F(OidcRefreshKeysTest, Run_OneJwkManager_Failed) {
         issuer,
         std::make_shared<crypto::JWKManager>(jwksFetcherFactoryMock.makeJWKSFetcher(issuer)));
 
-    ASSERT_NOT_OK(runCmd());
+    const StatusWith<BSONObj> result{runCmd()};
+    // the command finishes successfully but returns an error
+    ASSERT_OK(result);
+
+    const BSONElement okField{result.getValue().getField("ok")};
+    ASSERT_EQ(okField.type(), BSONType::NumberInt);
+    ASSERT_EQ(okField.numberInt(), 0);
+
+    const BSONElement errmsgField{result.getValue().getField("errmsg")};
+    ASSERT_EQ(errmsgField.type(), BSONType::String);
+    ASSERT_EQ(errmsgField.str(), "Failed to load a JWKS from one or more IdPs");
+
+    const BSONElement failuresField{result.getValue().getField("failures")};
+    ASSERT_EQ(failuresField.type(), BSONType::Array);
+    std::vector<BSONElement> failures{failuresField.Array()};
+    ASSERT_EQ(failures.size(), 1);
+    ASSERT_EQ(failures[0].type(), BSONType::Object);
+
+    const BSONObj expectedFailure{
+        BSON("issuer" << issuer << "error"
+                      << BSON("code" << 211 << "codeName" << "KeyNotFound" << "errmsg"
+                                     << std::string("No JWK for issuer ") + issuer))};
+    const BSONObj::ComparisonRulesSet rules{BSONObj::ComparatorInterface::kConsiderFieldName |
+                                            BSONObj::ComparatorInterface::kIgnoreFieldOrder};
+    ASSERT_EQ(failures[0].Obj().woCompare(expectedFailure, {}, rules), 0);
 }
 
 // Test for oidcRefreshKeys command with multiple JWK managers:
@@ -308,9 +323,42 @@ TEST_F(OidcRefreshKeysTest, Run_MultipleJwkManagers_Failed) {
     // set the JWKSet for the last issuer
     jwksFetcherFactoryMock.setJWKSet(issuer3, crypto::JWKSet{{create_sample_jwk("kid")}});
 
-    ASSERT_NOT_OK(runCmd());
+    const StatusWith<BSONObj> result{runCmd()};
+    // the command finishes successfully but returns an error
+    ASSERT_OK(result);
 
-    // first two JWK fetchers failed, the last one should succed once
+    const BSONElement okField{result.getValue().getField("ok")};
+    ASSERT_EQ(okField.type(), BSONType::NumberInt);
+    ASSERT_EQ(okField.numberInt(), 0);
+
+    const BSONElement errmsgField{result.getValue().getField("errmsg")};
+    ASSERT_EQ(errmsgField.type(), BSONType::String);
+    ASSERT_EQ(errmsgField.str(), "Failed to load a JWKS from one or more IdPs");
+
+    // the first two JWK fetchers failed
+    const BSONElement failuresField{result.getValue().getField("failures")};
+    ASSERT_EQ(failuresField.type(), BSONType::Array);
+    std::vector<BSONElement> failures{failuresField.Array()};
+    ASSERT_EQ(failures.size(), 2);
+    ASSERT_EQ(failures[0].type(), BSONType::Object);
+    ASSERT_EQ(failures[1].type(), BSONType::Object);
+
+    auto expectedFailure = [](const std::string issuer) {
+        return BSON("issuer" << issuer << "error"
+                             << BSON("code" << 211 << "codeName" << "KeyNotFound" << "errmsg"
+                                            << std::string("No JWK for issuer ") + issuer));
+    };
+    auto failureEq = [](const BSONObj& lhs, const BSONObj& rhs) {
+        const BSONObj::ComparisonRulesSet rules{BSONObj::ComparatorInterface::kConsiderFieldName |
+                                                BSONObj::ComparatorInterface::kIgnoreFieldOrder};
+        return lhs.woCompare(rhs, {}, rules) == 0;
+    };
+    ASSERT_TRUE(failureEq(failures[0].Obj(), expectedFailure(issuer1)) &&
+                    failureEq(failures[1].Obj(), expectedFailure(issuer2)) ||
+                failureEq(failures[0].Obj(), expectedFailure(issuer2)) &&
+                    failureEq(failures[1].Obj(), expectedFailure(issuer1)));
+
+    // the third JWK fetcher succeded once
     ASSERT_EQ(jwksFetcherFactoryMock.getFetchCount(issuer3), 1);
 }
 
