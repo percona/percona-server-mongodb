@@ -29,6 +29,10 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include <fmt/format.h>
 
 #include "mongo/db/auth/action_type.h"
@@ -39,7 +43,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/commands.h"
 #include "mongo/logv2/log.h"
 
-#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 
 namespace mongo {
 
@@ -126,49 +130,61 @@ private:
 
 MONGO_REGISTER_COMMAND(OidcListKeys).forShard().forRouter();
 
+namespace {
+class JWKSRefreshingFailureContainer {
+public:
+    bool empty() const noexcept {
+        return _failures.empty();
+    }
+
+    void append(std::string issuer, Status status) {
+        _failures.emplace_back(std::move(issuer), std::move(status));
+    }
+
+    void serialize(BSONObjBuilder* bob) const;
+
+private:
+    std::vector<std::pair<std::string, Status>> _failures;
+
+    static constexpr auto kErrorFieldName = "error"_sd;
+    static constexpr auto kFailuresFieldName = "failures"_sd;
+    static constexpr auto kIssuerFieldName = "issuer"_sd;
+};
+
+void JWKSRefreshingFailureContainer::serialize(BSONObjBuilder* bob) const {
+    BSONArrayBuilder failureArrayBuilder{bob->subarrayStart(kFailuresFieldName)};
+    for (const auto& [issuer, status] : _failures) {
+        BSONObjBuilder failureBuilder{failureArrayBuilder.subobjStart()};
+        failureBuilder.append(kIssuerFieldName, issuer);
+        BSONObjBuilder statusBuilder{failureBuilder.subobjStart(kErrorFieldName)};
+        status.serialize(&statusBuilder);
+        statusBuilder.doneFast();
+        failureBuilder.doneFast();
+    }
+    failureArrayBuilder.doneFast();
+}
+}  // namespace
+
+
 class OidcRefreshKeys : public OidcKeysCommand<ActionType::oidcRefreshKeys> {
 public:
     explicit OidcRefreshKeys() : OidcKeysCommand("oidcRefreshKeys") {}
 
 private:
-    // Combines multiple Status objects into a single Status.
-    // The input vector must contain only non-OK statuses.
-    Status combineStatuses(const std::vector<Status>& statuses) {
-        if (statuses.empty()) {
-            return Status::OK();
-        }
-
-        if (statuses.size() == 1) {
-            return statuses[0];
-        }
-
-        StringBuilder combinedMessage;
-        combinedMessage << "Multiple errors occurred while refreshing:\n";
-        for (const auto& status : statuses) {
-            invariant(!status.isOK());
-            combinedMessage << status.toString() << "\n";
-        }
-
-        return Status(ErrorCodes::OperationFailed, combinedMessage.str());
-    }
-
     bool run(OperationContext* opCtx,
              const DatabaseName&,
              const BSONObj&,
-             BSONObjBuilder&) override {
+             BSONObjBuilder& bob) override {
 
         const auto& registry = OidcIdentityProvidersRegistry::get(opCtx->getServiceContext());
 
         // Load keys for all JWK managers even if some of them fail.
-        // At the end, combine all failures into a single Status in order to
+        // At the end, combine all failures into a single object in order to
         // report all errors at once instead of stopping at the first one.
-        std::vector<Status> statuses;
-        registry.visitJWKManagers([&statuses](const auto& issuer, auto manager) {
-            auto status = manager->loadKeys();
-            if (!status.isOK()) {
-                statuses.emplace_back(status.withContext(
-                    fmt::format("Failed to refresh keys for IdP: '{}'", issuer)));
-
+        JWKSRefreshingFailureContainer failures;
+        registry.visitJWKManagers([&failures](const auto& issuer, auto manager) {
+            if (Status status = manager->loadKeys(); !status.isOK()) {
+                failures.append(issuer, status);
                 LOGV2_WARNING(29141,
                               "Failed to refresh keys for IdP",
                               "issuer"_attr = issuer,
@@ -176,9 +192,13 @@ private:
             }
         });
 
-        uassertStatusOK(combineStatuses(statuses));
-
-        return true;
+        if (failures.empty()) {
+            return true;
+        }
+        bob.append("ok", 0);
+        bob.append("errmsg", "Failed to load a JWKS from one or more IdPs");
+        failures.serialize(&bob);
+        return false;
     }
 
     std::string help() const override {

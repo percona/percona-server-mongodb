@@ -56,6 +56,7 @@ const expectedLog = {
     id: 5286307,
     msg: "Failed to authenticate",
     attr: {
+        mechanism: "MONGODB-OIDC",
         error: "BadValue: None of configured identity providers support human flows"
     }
 };

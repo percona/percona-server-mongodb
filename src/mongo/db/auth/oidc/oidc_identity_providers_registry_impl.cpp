@@ -39,7 +39,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/assert_util_core.h"
 #include "mongo/util/periodic_runner.h"
 
-#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kControl
 
 namespace mongo {
 
