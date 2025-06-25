@@ -373,9 +373,14 @@ export class OIDCFixture {
      * Check if the expected log exists in the global log.
      *
      * @param {object} expectedLog - The expected log object to check for.
+     * @param {boolean} advanceLogCutOffTimePoint - whether the function should also advance the log
+     *     cut-off time point to the time point of the expected log entry if the latter is found.
+     *     Default is `true`. Note: log entries older than the cut-off time point are not considered
+     *     at the subsequent calls of the function.
+     *
      * @returns True if the expected log exists, false otherwise.
      */
-    checkLogExists(expectedLog) {
+    checkLogExists(expectedLog, advanceLogCutOffTimePoint = true) {
         const logs =
             assert.commandWorked(this.admin.runCommand({ getLog: "global" })).log.map(element => JSON.parse(element));
 
@@ -383,7 +388,7 @@ export class OIDCFixture {
             new Date(element["t"]["$date"]);
         });
 
-        if (result.res) {
+        if (result.res && advanceLogCutOffTimePoint) {
             this.last_log_date = result.lastDate;
         }
 
