@@ -39,8 +39,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/assert_util_core.h"
 #include "mongo/util/system_clock_source.h"
 
-#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
-
 namespace mongo {
 
 namespace {
