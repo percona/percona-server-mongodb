@@ -69,6 +69,52 @@ const verifyAllKeys = (test, count1, count2, count3) => {
     verifyKeys(keys, issuer_url3, count3);
 };
 
+function expectedFailure(issuer_url) {
+    return {
+        issuer: issuer_url,
+        error: {
+            code: 96,
+            codeName: "OperationFailed",
+            errmsg: "Failed loading keys from " + issuer_url + " :: caused by :: " +
+                "Bad HTTP response from API server: Couldn't connect to server",
+        }
+    };
+}
+
+function expectedFailureLogEntry(issuer_url) {
+    return {id: 29141, msg: "Failed to refresh keys for IdP", attr: expectedFailure(issuer_url)};
+}
+
+function test_refresh_keys_response_and_log_on_failure(clusterClass) {
+    var test = new OIDCFixture({oidcProviders: oidcProviders, idps: []});
+    test.setup(clusterClass);
+    // note: no IdP has been started
+
+    const resp = test.admin.runCommand({oidcRefreshKeys: 1});
+    assert.eq(resp.ok, 0);
+    assert.eq(resp.errmsg, "Failed to load a JWKS from one or more IdPs");
+    assert.sameMembers(
+        resp.failures || [],
+        [expectedFailure(issuer_url1), expectedFailure(issuer_url2), expectedFailure(issuer_url3)]);
+    // note: in the case of a sharded cluster, the `resp` object contains additional
+    // sharding-related properties
+
+    assert(test.checkLogExists(expectedFailureLogEntry(issuer_url1),
+                               /* advanceLogCutOffTimePoint = */ false),
+           "Expected log not found for issuer_url1");
+    assert(test.checkLogExists(expectedFailureLogEntry(issuer_url2),
+                               /* advanceLogCutOffTimePoint = */ false),
+           "Expected log not found for issuer_url2");
+    assert(test.checkLogExists(expectedFailureLogEntry(issuer_url3),
+                               /* advanceLogCutOffTimePoint = */ false),
+           "Expected log not found for issuer_url3");
+
+    // no keys should be present
+    verifyAllKeys(test, 0, 0, 0);
+
+    test.teardown();
+}
+
 function test_referesh_keys_triggers_key_fetching(clusterClass) {
     var test = new OIDCFixture({oidcProviders: oidcProviders, idps: []});
     test.setup(clusterClass);
@@ -120,6 +166,9 @@ function test_referesh_keys_triggers_key_fetching(clusterClass) {
 
     test.teardown();
 }
+
+test_refresh_keys_response_and_log_on_failure(StandaloneMongod);
+test_refresh_keys_response_and_log_on_failure(ShardedCluster);
 
 test_referesh_keys_triggers_key_fetching(StandaloneMongod);
 test_referesh_keys_triggers_key_fetching(ShardedCluster);
