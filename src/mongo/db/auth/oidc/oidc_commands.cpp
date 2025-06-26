@@ -63,8 +63,8 @@ private:
 
         auto authzSess = AuthorizationSession::get(opCtx->getClient());
 
-        if (!authzSess->isAuthorizedForActionsOnResource(
-                ResourcePattern::forClusterResource(dbName.tenantId()), RequiredAction)) {
+        if (!authzSess->isAuthorizedForActionsOnResource(ResourcePattern::forClusterResource(),
+                                                         RequiredAction)) {
             return Status(ErrorCodes::Unauthorized,
                           fmt::format("not authorized to execute command {}", cmdObj.toString()));
         }
@@ -126,9 +126,7 @@ private:
     std::string help() const override {
         return "List the JWKs for the IdPs configured on this node";
     }
-};
-
-MONGO_REGISTER_COMMAND(OidcListKeys).forShard().forRouter();
+} cmdOidcListKeys;
 
 namespace {
 class JWKSRefreshingFailureContainer {
@@ -204,8 +202,5 @@ private:
     std::string help() const override {
         return "Refresh the JWKs for the IdPs configured on this node";
     }
-};
-
-MONGO_REGISTER_COMMAND(OidcRefreshKeys).forShard().forRouter();
-
+} cmdOidcRefreshKeys;
 }  // namespace mongo

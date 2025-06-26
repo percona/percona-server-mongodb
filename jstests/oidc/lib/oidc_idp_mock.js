@@ -1,4 +1,4 @@
-import { getPython3Binary } from "jstests/libs/python.js";
+load('jstests/libs/python.js');
 
 const OIDC_IDP_MOCK_CERT = "jstests/oidc/lib/ca_oidc_idp.pem";
 const OIDC_IDP_MOCK_PATH = "jstests/oidc/lib/oidc_idp_mock.py";

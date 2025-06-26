@@ -68,10 +68,10 @@ boost::optional<Date_t> tokenGetPastDate(const crypto::JWSValidatedToken& token,
 
 StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(OperationContext* opCtx,
                                                                             StringData input) {
-    if (Status s{validateBSON(input.data(), input.size())}; !s.isOK()) {
+    if (Status s = validateBSON(input.rawData(), input.size()); !s.isOK()) {
         return s;
     }
-    BSONObj inputBson{input.data()};
+    BSONObj inputBson(input.rawData());
     // Both `OIDCMechanismClientStep1` and `OIDCMechanismClientStep2` are
     // parsed in the non-strict mode, meaning unknown fields are allowed and
     // ignored (@see the `src/mongo/db/auth/oidc_protocol.idl` file).
@@ -116,8 +116,9 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
                       "None of configured identity providers support human flows"};
     }
 
-    auto principalName = request.getPrincipalName().map(
-        [](const auto& str) -> std::string_view { return std::string_view{str}; });
+    auto principalName = request.getPrincipalName().map([](const auto& str) -> std::string_view {
+        return std::string_view(str.rawData(), str.size());
+    });
 
     // If there are more than one IdP with human flows support, the client must provide a principal
     // name to choose a specific IdP. If there is only one IdP with human flows support, the client
