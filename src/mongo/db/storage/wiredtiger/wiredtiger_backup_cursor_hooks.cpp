@@ -172,8 +172,10 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
         auto oplogEntry = fassertNoTrace(50918, repl::OplogEntry::parse(firstEntry));
         oplogStart = oplogEntry.getOpTime();
         uassert(50917,
-                str::stream() << "Oplog rolled over while establishing the backup cursor.",
-                oplogStart < oplogEnd);
+                str::stream() << "Oplog rolled over while establishing the backup cursor."
+                              << " oplogStart: " << oplogStart.toString()
+                              << " oplogEnd: " << oplogEnd.toString(),
+                oplogStart <= oplogEnd);
     }
 
     std::deque<BackupBlock> eseBackupBlocks;
