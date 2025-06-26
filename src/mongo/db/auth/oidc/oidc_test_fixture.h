@@ -37,6 +37,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/match_pattern.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
+#include "mongo/db/concurrency/locker_noop_client_observer.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/util/base64.h"
 #include "mongo/util/periodic_runner.h"
@@ -168,7 +169,7 @@ class PeriodicRunnerMock : public PeriodicRunner {
 
         void stop() override {}
 
-        Milliseconds getPeriod() const override {
+        Milliseconds getPeriod() override {
             return _job.interval;
         }
 
@@ -352,8 +353,8 @@ protected:
 class OidcTestFixture : public unittest::Test {
 public:
     OidcTestFixture()
-        : _serviceContext(std::make_unique<ServiceContext>()),
-          _client(_serviceContext->getService()->makeClient("OidcTestFixtureClient")),
+        : _serviceContext(createServiceContext()),
+          _client(_serviceContext->makeClient("OidcTestFixtureClient")),
           _operationContext(_serviceContext->makeOperationContext(_client.get())) {}
 
     void setUp() override {
@@ -384,6 +385,15 @@ protected:
     }
 
 private:
+    std::unique_ptr<ServiceContext> createServiceContext() {
+        auto ctx = std::make_unique<ServiceContext>();
+        // `ServiceContext::makeOperationContext` calls observers on the
+        // freshily created `OperationContext` and then check the latter has
+        // a `Locker` assigned to it.
+        ctx->registerClientObserver(std::make_unique<LockerNoopClientObserver>());
+        return ctx;
+    }
+
     std::unique_ptr<ServiceContext> _serviceContext;
     ServiceContext::UniqueClient _client;
     ServiceContext::UniqueOperationContext _operationContext;

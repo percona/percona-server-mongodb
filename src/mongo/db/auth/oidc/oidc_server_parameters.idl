@@ -43,7 +43,6 @@ types:
     cpp_type: "mongo::MatchPattern"
     serializer: "mongo::MatchPattern::toString"
     deserializer: "mongo::MatchPattern::fromString"
-    is_view: false
 
 structs:
   OidcIdentityProviderConfig:

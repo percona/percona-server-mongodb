@@ -132,7 +132,8 @@ private:
 void validate(const OidcIdentityProviderConfig& conf, std::size_t index) {
     static constexpr std::string_view kLegalChars{
         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"};
-    auto authNamePrefix{static_cast<std::string_view>(conf.getAuthNamePrefix())};
+    const StringData confAuthNamePrefix(conf.getAuthNamePrefix());
+    const std::string_view authNamePrefix(confAuthNamePrefix.rawData(), confAuthNamePrefix.size());
     if (auto pos{authNamePrefix.find_first_not_of(kLegalChars)}; pos != std::string_view::npos) {
         uasserted(ErrorCodes::BadValue,
                   errorMsgHeader(std::views::single(index))
@@ -218,10 +219,10 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
 }
 
 void paramDeserialize(OidcIdentityProvidersServerParameter& param, const BSONArray& arr) {
-    for (std::size_t i{0u}; const BSONElement& elem : arr) {
-        IDLParserContext ctx{str::stream() << kParameterName << "[" << i++ << "]"};
+    for (std::size_t i = 0u; const BSONElement& elem : arr) {
+        IDLParserContext ctx(str::stream() << kParameterName << "[" << i++ << "]");
         ctx.checkAndAssertType(elem, mongo::Object);
-        auto config{OidcIdentityProviderConfig::parse(ctx, elem.Obj())};
+        auto config(OidcIdentityProviderConfig::parse(ctx, elem.Obj()));
 
         // The default value for array fields is not supported by IDL,
         // so the default value is set here manually.
@@ -238,9 +239,9 @@ void OidcIdentityProvidersServerParameter::append(OperationContext*,
                                                   BSONObjBuilder* b,
                                                   StringData name,
                                                   const boost::optional<TenantId>&) {
-    BSONArrayBuilder configArrayBuilder{b->subarrayStart(name)};
+    BSONArrayBuilder configArrayBuilder(b->subarrayStart(name));
     for (const auto& config : _data) {
-        BSONObjBuilder configBuilder{configArrayBuilder.subobjStart()};
+        BSONObjBuilder configBuilder(configArrayBuilder.subobjStart());
         config.serialize(&configBuilder);
         configBuilder.doneFast();
     }
@@ -249,7 +250,7 @@ void OidcIdentityProvidersServerParameter::append(OperationContext*,
 
 Status OidcIdentityProvidersServerParameter::set(const BSONElement& elem,
                                                  const boost::optional<TenantId>&) try {
-    IDLParserContext ctx{kParameterName};
+    IDLParserContext ctx(kParameterName);
     ctx.checkAndAssertType(elem, mongo::Array);
     paramDeserialize(*this, BSONArray(elem.Obj()));
     return Status::OK();
@@ -262,7 +263,7 @@ Status OidcIdentityProvidersServerParameter::setFromString(StringData str,
     uassert(ErrorCodes::TypeMismatch,
             str::stream() << "`" << kParameterName << "` is not an array serialized to a string",
             isArray(str));
-    paramDeserialize(*this, BSONArray{fromjson(str)});
+    paramDeserialize(*this, BSONArray(fromjson(str)));
     return Status::OK();
 } catch (const DBException& e) {
     return e.toStatus();

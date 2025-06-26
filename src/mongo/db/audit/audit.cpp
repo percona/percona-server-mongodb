@@ -746,8 +746,8 @@ namespace audit {
         }
 
         BSONObjBuilder params;
-        params << "user" << event.getUser().getName();
-        params << "db" << toString(event.getUser().getDatabaseName());
+        params << "user" << event.getUser();
+        params << "db" << event.getDatabase();
         params << "mechanism" << event.getMechanism();
         event.appendExtraInfo(&params);
         _auditEvent(client, "authenticate", params.done(), event.getResult(), false);

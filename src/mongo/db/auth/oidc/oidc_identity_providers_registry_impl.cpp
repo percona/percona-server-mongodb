@@ -88,11 +88,8 @@ OidcIdentityProvidersRegistryImpl::OidcIdentityProvidersRegistryImpl(
         // Create and start a periodic job which polls the JWKs from the issuer.
         const auto period = Milliseconds{Seconds(idp.getJWKSPollSecs())};
 
-        _jobs.emplace_back(periodicRunner->makeJob(
-            PeriodicRunner::PeriodicJob(fmt::format("JWKSPollJob[{}]", idp.getIssuer()),
-                                        std::move(loadKeys),
-                                        period,
-                                        /* isKillableByStepdown = */ false)));
+        _jobs.emplace_back(periodicRunner->makeJob(PeriodicRunner::PeriodicJob(
+            fmt::format("JWKSPollJob[{}]", idp.getIssuer()), std::move(loadKeys), period)));
         _jobs.back().start();
     }
 }
@@ -104,8 +101,10 @@ boost::optional<const OidcIdentityProviderConfig&> OidcIdentityProvidersRegistry
     // configuration and if the audience is in the list of given audiences.
     std::unordered_set<std::string_view> audienceSet{audience.begin(), audience.end()};
     auto idp{std::ranges::find_if(_idps, [&](const auto& idp) {
-        return std::string_view{idp.getIssuer()} == issuer &&
-            audienceSet.contains(std::string_view{idp.getAudience()});
+        const StringData idpIssuer = idp.getIssuer();
+        const StringData idpAudience = idp.getAudience();
+        return std::string_view(idpIssuer.rawData(), idpIssuer.size()) == issuer &&
+            audienceSet.contains(std::string_view(idpAudience.rawData(), idpAudience.size()));
     })};
 
     if (idp != _idps.end()) {

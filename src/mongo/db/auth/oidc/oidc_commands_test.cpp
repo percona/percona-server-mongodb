@@ -30,7 +30,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include "mongo/bson/bsonmisc.h"
-#include "mongo/db/audit_interface.h"
+#include "mongo/db/audit.h"
 #include "mongo/db/auth/authorization_session_for_test.h"
 #include "mongo/db/auth/authz_manager_external_state_mock.h"
 #include "mongo/db/auth/authz_session_external_state_mock.h"
@@ -45,8 +45,8 @@ class OidcCommandsTest : public OidcTestFixture {
 public:
     OidcCommandsTest(const std::string& name)
         : _authzManager(std::make_unique<AuthorizationManagerImpl>(
-              serviceContext()->getService(), std::make_unique<AuthzManagerExternalStateMock>())),
-          _dbName(DatabaseName::createDatabaseName_forTest(boost::none, "admin")) {
+              serviceContext(), std::make_unique<AuthzManagerExternalStateMock>())),
+          _dbName(boost::none, "admin") {
 
         // setup authz session mock
         AuthorizationSession::set(
@@ -55,12 +55,8 @@ public:
                 std::make_unique<AuthzSessionExternalStateMock>(_authzManager.get()),
                 AuthorizationSessionImpl::InstallMockForTestingOrAuthImpl{}));
 
-        // required when logout is called
-        audit::AuditInterface::set(serviceContext(), std::make_unique<audit::AuditNoOp>());
-
         // find the registered command to be tested by name
-        _cmd = dynamic_cast<BasicCommand*>(
-            getCommandRegistry(serviceContext()->getService())->findCommand(name));
+        _cmd = dynamic_cast<BasicCommand*>(globalCommandRegistry()->findCommand(name));
         invariant(_cmd);
     }
 
@@ -356,10 +352,10 @@ TEST_F(OidcRefreshKeysTest, Run_MultipleJwkManagers_Failed) {
                                                 BSONObj::ComparatorInterface::kIgnoreFieldOrder};
         return lhs.woCompare(rhs, {}, rules) == 0;
     };
-    ASSERT_TRUE(failureEq(failures[0].Obj(), expectedFailure(issuer1)) &&
-                    failureEq(failures[1].Obj(), expectedFailure(issuer2)) ||
-                failureEq(failures[0].Obj(), expectedFailure(issuer2)) &&
-                    failureEq(failures[1].Obj(), expectedFailure(issuer1)));
+    ASSERT_TRUE((failureEq(failures[0].Obj(), expectedFailure(issuer1)) &&
+                 failureEq(failures[1].Obj(), expectedFailure(issuer2))) ||
+                (failureEq(failures[0].Obj(), expectedFailure(issuer2)) &&
+                 failureEq(failures[1].Obj(), expectedFailure(issuer1))));
 
     // the third JWK fetcher succeded once
     ASSERT_EQ(jwksFetcherFactoryMock.getFetchCount(issuer3), 1);

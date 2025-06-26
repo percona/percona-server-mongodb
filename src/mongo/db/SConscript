@@ -2377,7 +2377,6 @@ env.Library(
         'audit_commands' if has_option('audit') else [],
         'auth/auth_op_observer',
         'auth/authmongod',
-        'auth/authserver',
         'auth/oidc/oidc_commands' if has_feature_option('enable-oidc') else [],
         'bson/dotted_path_support',
         'catalog/catalog_impl',

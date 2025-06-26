@@ -48,7 +48,7 @@ public:
     }
 
     static MatchPattern fromString(const StringData& source) {
-        return MatchPattern{std::string_view{source}};
+        return MatchPattern(std::string_view(source.rawData(), source.size()));
     }
 
     const std::string& toString() const noexcept {
