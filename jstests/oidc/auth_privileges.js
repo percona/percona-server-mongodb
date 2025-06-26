@@ -44,7 +44,6 @@ const expectedRolesNoClaim = roles;
 
 const readWriteActions = [
     "changeStream",
-    "cleanupStructuredEncryptionData",
     "collStats",
     "compactStructuredEncryptionData",
     "convertToCapped",
