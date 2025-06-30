@@ -14,6 +14,7 @@ var configFileBasic = basePath + '/libs/config_files/audit_config_basic.yaml';
 var configFileEmpty = basePath + '/libs/config_files/audit_config_empty.yaml';
 var configFileDestinationEmpty = basePath + '/libs/config_files/audit_config_destination_empty.yaml';
 
+var auditConfigPath = 'audit_config_test.json';
 var defaultNameJson = 'auditLog.json'
 var defaultNameBson = 'auditLog.bson'
 var logPath = getDBPath() + '/server.log'
@@ -27,6 +28,7 @@ auditTest(
     },
     { config: configFile }
 );
+removeFile(auditConfigPath);
 
 auditTest(
     'auditConfigDeprecated',
@@ -35,6 +37,7 @@ auditTest(
     },
     { config: configFileDeprecated }
 );
+removeFile(auditConfigPath);
 
 // Default path for audit log:
 // format: JSON
