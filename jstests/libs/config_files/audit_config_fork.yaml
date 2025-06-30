@@ -1,5 +1,0 @@
-auditLog:
-  destination: file
-  path: "auditLog.json"
-processManagement:
-  fork: true
