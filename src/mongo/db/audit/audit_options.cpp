@@ -121,6 +121,23 @@ namespace mongo {
             return boost::filesystem::absolute(p, serverGlobalParams.cwd).native();
         };
 
+        auto isWritable = [](const std::string& path) -> bool {
+            // Check if the file is writable by trying to open it for appending.
+            const bool exists = boost::filesystem::exists(path);
+            std::ofstream testFile(path.c_str(), std::ios_base::app);
+            const bool writable = testFile.is_open();
+            if (writable) {
+                testFile.close();
+
+                if (!exists) {
+                    // If the file didn't exist, remove it
+                    boost::filesystem::remove(path);
+                }
+            }
+
+            return writable;
+        };
+
         if (!auditOptions.path.empty()) {
             auditOptions.path = getAbsolutePath(auditOptions.path);
         } else {
@@ -137,8 +154,7 @@ namespace mongo {
             auditOptions.path = getAbsolutePath(base / defaultFilePath);
         }
 
-        std::ofstream auditFile(auditOptions.path.c_str(), std::ios_base::app);
-        if (!auditFile) {
+        if (!isWritable(auditOptions.path)) {
             return Status(ErrorCodes::BadValue,
                           "Could not open a file for writing at the given auditPath: " +
                               auditOptions.path);
