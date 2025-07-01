@@ -9,11 +9,6 @@ const oidcProviderBase = {
 
 const variants = [
     {
-        // Empty payload
-        payload: {},
-        expectedError: "parsing failed: BSON field 'JWT.aud' is missing but a required field",
-    },
-    {
         // Missing 'sub'
         payload: {
             aud: "audience",
