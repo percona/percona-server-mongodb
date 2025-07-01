@@ -33,7 +33,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/auth/authprivilege',
         '$BUILD_DIR/mongo/db/commands',
         '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
-        '$BUILD_DIR/mongo/util/namespace_string_database_name_util',
+        '$BUILD_DIR/mongo/db/server_base',
         'oidc',
     ],
 )
@@ -46,6 +46,7 @@ env.CppUnitTest(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/audit',
+        '$BUILD_DIR/mongo/db/audit_interface',
         '$BUILD_DIR/mongo/db/auth/auth_impl_internal',
         '$BUILD_DIR/mongo/db/auth/authmocks',
         '$BUILD_DIR/mongo/db/auth/authorization_session_test_fixture',

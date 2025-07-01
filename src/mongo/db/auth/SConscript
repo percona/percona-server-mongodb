@@ -2,7 +2,7 @@
 
 Import([
     'env',
-    'has_feature_option'
+    'has_feature_option',
     'has_option',
 ])
 
