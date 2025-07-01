@@ -135,7 +135,7 @@ TEST_F(ValidateAuditOptionsTestFixture, DestinationFile_FormatBSON_DefaultPath) 
     ASSERT_OK(storeAuditOptions(env));
     ASSERT_OK(validateAuditOptions());
     ASSERT_EQ(auditOptions.path, getCwd() / kDefaultPathBson);
-    ASSERT_TRUE(fs::exists(kDefaultPathBson));
+    ASSERT_FALSE(fs::exists(kDefaultPathBson));
 }
 
 // Test JSON format with default path
@@ -147,7 +147,7 @@ TEST_F(ValidateAuditOptionsTestFixture, DestinationFile_FormatJSON_DefaultPath) 
     ASSERT_OK(storeAuditOptions(env));
     ASSERT_OK(validateAuditOptions());
     ASSERT_EQ(auditOptions.path, getCwd() / kDefaultPathJson);
-    ASSERT_TRUE(fs::exists(kDefaultPathJson));
+    ASSERT_FALSE(fs::exists(kDefaultPathJson));
 }
 
 // Test BSON format with default path derived from log path
@@ -163,7 +163,7 @@ TEST_F(ValidateAuditOptionsTestFixture, DestinationFile_FormatBSON_DefaultPathFr
     ASSERT_OK(storeAuditOptions(env));
     ASSERT_OK(validateAuditOptions());
     ASSERT_EQ(auditOptions.path, tmpDirPath / kDefaultPathBson);
-    ASSERT_TRUE(fs::exists(tmpDirPath / kDefaultPathBson));
+    ASSERT_FALSE(fs::exists(tmpDirPath / kDefaultPathBson));
 }
 
 // Test JSON format with default path derived from log path
@@ -179,7 +179,7 @@ TEST_F(ValidateAuditOptionsTestFixture, DestinationFile_FormatJSON_DefaultPathFr
     ASSERT_OK(storeAuditOptions(env));
     ASSERT_OK(validateAuditOptions());
     ASSERT_EQ(auditOptions.path, tmpDirPath / kDefaultPathJson);
-    ASSERT_TRUE(fs::exists(tmpDirPath / kDefaultPathJson));
+    ASSERT_FALSE(fs::exists(tmpDirPath / kDefaultPathJson));
 }
 
 // Test custom path for audit log file
@@ -193,7 +193,7 @@ TEST_F(ValidateAuditOptionsTestFixture, DestinationFile_CustomPath) {
     ASSERT_OK(storeAuditOptions(env));
     ASSERT_OK(validateAuditOptions());
     ASSERT_EQ(auditOptions.path, getCwd() / path);
-    ASSERT_TRUE(fs::exists(path));
+    ASSERT_FALSE(fs::exists(path));
 }
 
 // Test custom path when the directory does not exist
@@ -228,7 +228,7 @@ TEST_F(ValidateAuditOptionsTestFixture, DestinationFile_CustomPath_Fork) {
     ASSERT_OK(storeAuditOptions(env));
     ASSERT_OK(validateAuditOptions());
     ASSERT_EQ(auditOptions.path, cwd / path);
-    ASSERT_TRUE(fs::exists(cwd / path));
+    ASSERT_FALSE(fs::exists(cwd / path));
 }
 
 // Test file is not created if destination is console
