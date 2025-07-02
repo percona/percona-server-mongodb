@@ -179,7 +179,13 @@ Debian/Ubuntu
 
       .. code:: sh   
 
-      cd aws-sdk-cpp && git checkout 1.9.379 && git submodule update --init --recursive
+         cd aws-sdk-cpp && git checkout 1.9.379 && git submodule update --init --recursive
+
+   -  Apply a patch to fix build failure with libcurl >= 7.87.0
+
+      .. code:: sh
+
+         curl -L https://github.com/aws/aws-sdk-cpp/commit/0fba9f908d7ddc30aceab69b939f997330a44bb3.patch | git apply
 
    -  It is recommended to keep build files outside the SDK directory.
       Create a build directory and navigate to it
