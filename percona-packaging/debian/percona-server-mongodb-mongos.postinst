@@ -10,8 +10,22 @@ if [ -f /usr/share/debconf/confmodule ]; then
   . /usr/share/debconf/confmodule
 fi
 
+case "$1" in
+    configure)
+      setfacl -m u:mongos:rwx,g:mongos:rx /var/log/mongo
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
 if [ -d /usr/local/percona/telemetry ]; then
-    install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/psmdbs
+    install -d -m 2775 -o mongos -g percona-telemetry /usr/local/percona/telemetry/psmdbs
 fi
 
 exit 0

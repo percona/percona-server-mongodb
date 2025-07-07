@@ -3,10 +3,10 @@
 #
 # see: dh_installdeb(1)
 
-# create a mongodb group and user
+# create a mongos group and user
 
-if ! getent passwd mongod >/dev/null 2>&1; then
-  adduser --system --group mongod
+if ! getent passwd mongos >/dev/null 2>&1; then
+  adduser --system --group mongos
 fi
 
 #DEBHELPER#
