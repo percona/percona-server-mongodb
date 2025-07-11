@@ -95,6 +95,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
+#include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/idl/idl_parser.h"
@@ -571,6 +572,12 @@ void InitialSyncerFCB::_tearDown_inlock(OperationContext* opCtx,
     }
     ServerlessOperationLockRegistry::recoverLocks(opCtx);
     reconstructPreparedTransactions(opCtx, repl::OplogApplication::Mode::kInitialSync);
+
+    // The storage engine is created with dummy callback for oldest active timestamp, so we need
+    // to set it here (on server startup it is set in _initAndListen)
+    // Without this callback, the oplog is never truncated
+    opCtx->getServiceContext()->getStorageEngine()->setOldestActiveTransactionTimestampCallback(
+        TransactionParticipant::getOldestActiveTimestamp);
 
     _replicationProcess->getConsistencyMarkers()->setInitialSyncIdIfNotSet(opCtx);
 
