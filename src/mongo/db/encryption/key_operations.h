@@ -296,7 +296,7 @@ public:
     /// identified in the encryption parameters, if any.
     ///
     /// @returns pointer to the read operation or `nullptr` if the encryption
-    /// parameters doen't specify a key identifier
+    /// parameters don't specify a key identifier
     virtual std::unique_ptr<ReadKey> createProvidedRead() const = 0;
 
     /// @brief Creates the read operation which would retrieve
@@ -328,7 +328,7 @@ public:
     /// @returns pointer to the save operation
     virtual std::unique_ptr<SaveKey> createSave(const KeyId* configured) const = 0;
 
-    /// @brief Creates the operation for retrieving the stae of an encryption
+    /// @brief Creates the operation for retrieving the state of an encryption
     /// key.
     ///
     /// @param keyId the identifier of the key whose state needs retrieving
