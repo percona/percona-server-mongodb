@@ -1926,7 +1926,10 @@ void InitialSyncerFCB::_keepAliveCallback(
     }
 
     const auto* info = _backupCursorInfo.get();
-    invariant(info);
+    if (!info) {
+        LOGV2_DEBUG(128465, 1, "Stop keeping backup cursor alive because it was killed");
+        return;
+    }
     executor::RemoteCommandRequest getMoreRequest(
         _syncSource,
         info->nss.db().toString(),
