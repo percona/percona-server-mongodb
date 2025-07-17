@@ -68,6 +68,7 @@
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/dbtests/dbtests.h"
 #include "mongo/idl/server_parameter_test_util.h"
+#include "mongo/logv2/log_util.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/temp_dir.h"
 
@@ -78,7 +79,9 @@ using boost::intrusive_ptr;
 using std::string;
 using std::vector;
 
-const NamespaceString kTestNss = NamespaceString::createNamespaceString_forTest("a.collection");
+const StringData kDBName = "test";
+const NamespaceString kTestNss =
+    NamespaceString::createNamespaceString_forTest(kDBName, "collection");
 const NamespaceString kAdminCollectionlessNss =
     NamespaceString::createNamespaceString_forTest("admin.$cmd.aggregate");
 const auto kExplain = SerializationOptions{
@@ -170,8 +173,9 @@ void assertPipelineOptimizesAndSerializesTo(std::string inputPipeJson,
     // For $graphLookup and $lookup, we have to populate the resolvedNamespaces so that the
     // operations will be able to have a resolved view definition.
     NamespaceString lookupCollNs =
-        NamespaceString::createNamespaceString_forTest("a", "lookupColl");
-    NamespaceString unionCollNs = NamespaceString::createNamespaceString_forTest("b", "unionColl");
+        NamespaceString::createNamespaceString_forTest(kDBName, "lookupColl");
+    NamespaceString unionCollNs =
+        NamespaceString::createNamespaceString_forTest(kDBName, "unionColl");
     ctx->setResolvedNamespace(lookupCollNs, {lookupCollNs, std::vector<BSONObj>{}});
     ctx->setResolvedNamespace(unionCollNs, {unionCollNs, std::vector<BSONObj>{}});
 
@@ -3771,6 +3775,36 @@ TEST(PipelineOptimizationTest, MergeUnwindPipelineWithSortLimitPipelinePlacesLim
     assertTwoPipelinesOptimizeAndMergeTo(inputPipe1, inputPipe2, outputPipe);
 }
 
+TEST(PipelineOptimizationTest, SerializationForLogging) {
+    std::vector<BSONObj> pipeVec = {fromjson("{$match: {'a.c': {$eq: 5}}}"),
+                                    fromjson("{$project: {_id: true}}")};
+
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    AggregateCommandRequest request(kTestNss, pipeVec);
+    boost::intrusive_ptr<ExpressionContextForTest> ctx =
+        new ExpressionContextForTest(opCtx.get(), request);
+    auto pipeline = Pipeline::parse(pipeVec, ctx);
+
+    Value unredacted = Value(pipeline->serializeToBson());
+    Value redacted = Value(std::vector<BSONObj>{fromjson("{$match: {'a.c': {$eq: '###'}}}"),
+                                                fromjson("{$project: {_id: '###'}}")});
+
+    // With log redaction enabled, all serialization for logging should produce 'redacted'.
+    logv2::setShouldRedactLogs(true);
+    ASSERT_VALUE_EQ(Value(pipeline->serializeForLogging()), redacted);
+    ASSERT_VALUE_EQ(Value(Pipeline::serializePipelineForLogging(pipeVec)), redacted);
+    ASSERT_VALUE_EQ(Value(Pipeline::serializeContainerForLogging(pipeline->getSources())),
+                    redacted);
+
+    // With log redaction disabled, we should get the input pipeline back.
+    logv2::setShouldRedactLogs(false);
+    ASSERT_VALUE_EQ(Value(pipeline->serializeForLogging()), unredacted);
+    ASSERT_VALUE_EQ(Value(Pipeline::serializePipelineForLogging(pipeVec)), unredacted);
+    ASSERT_VALUE_EQ(Value(Pipeline::serializeContainerForLogging(pipeline->getSources())),
+                    unredacted);
+}
+
 }  // namespace Local
 
 namespace Sharded {
@@ -3784,7 +3818,7 @@ public:
 
     // Allows tests to override the default resolvedNamespaces.
     virtual NamespaceString getLookupCollNs() {
-        return NamespaceString::createNamespaceString_forTest("a", "lookupColl");
+        return NamespaceString::createNamespaceString_forTest(kDBName, "lookupColl");
     }
 
     BSONObj pipelineFromJsonArray(const string& array) {
@@ -4363,7 +4397,7 @@ class Out : public ShardMergerBase {
         return "[]";
     }
     string mergePipeJson() {
-        return "[{$out: {coll: 'outColl', db: 'a'}}]";
+        return "[{$out: {coll: 'outColl', db: '" + kDBName + "'}}]";
     }
 };
 
@@ -4378,8 +4412,9 @@ class MergeWithUnshardedCollection : public ShardMergerBase {
         return "[]";
     }
     string mergePipeJson() {
-        return "[{$merge: {into: {db: 'a', coll: 'outColl'}, on: '_id', "
-               "whenMatched: 'merge', whenNotMatched: 'insert'}}]";
+        return "[{$merge: {into: {db: '" + kDBName +
+            "', coll: 'outColl'}, on: '_id', "
+            "whenMatched: 'merge', whenNotMatched: 'insert'}}]";
     }
 };
 
@@ -4405,8 +4440,9 @@ class MergeWithShardedCollection : public ShardMergerBase {
         return "[{$merge: 'outColl'}]";
     }
     string shardPipeJson() {
-        return "[{$merge: {into: {db: 'a', coll: 'outColl'}, on: '_id', "
-               "whenMatched: 'merge', whenNotMatched: 'insert'}}]";
+        return "[{$merge: {into: {db: '" + kDBName +
+            "', coll: 'outColl'}, on: '_id', "
+            "whenMatched: 'merge', whenNotMatched: 'insert'}}]";
     }
     string mergePipeJson() {
         return "[]";

@@ -49,7 +49,7 @@ namespace {
 using std::unique_ptr;
 
 static const NamespaceString foreignNss =
-    NamespaceString::createNamespaceString_forTest("testdb.foreigncoll");
+    NamespaceString::createNamespaceString_forTest("test.foreigncoll");
 
 unittest::GoldenTestConfig goldenTestConfig{"src/mongo/db/test_output/query"};
 
@@ -179,6 +179,7 @@ protected:
                                                    isCountLike,
                                                    needsMerge));
         cq->setSbeCompatible(true);
+        cq->parameterize();
         const auto key = canonical_query_encoder::encodeSBE(*cq);
         gctx.outStream() << key << std::endl;
     }

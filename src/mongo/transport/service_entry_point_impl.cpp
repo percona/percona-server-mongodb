@@ -87,16 +87,30 @@ bool quiet() {
 /** Some diagnostic data that we will want to log about a Client after its death. */
 struct ClientSummary {
     explicit ClientSummary(const Client* c)
-        : uuid{c->getUUID()}, remote{c->session()->remote()}, id{c->session()->id()} {}
+        : uuid(c->getUUID()),
+          remote(c->session()->remote()),
+          sourceClient(c->session()->getSourceRemoteEndpoint()),
+          id(c->session()->id()),
+          isLoadBalanced(c->session()->isConnectedToLoadBalancerPort()) {}
 
-    friend auto logAttrs(const ClientSummary& m) {
-        return logv2::multipleAttrs(
-            "remote"_attr = m.remote, "uuid"_attr = m.uuid, "connectionId"_attr = m.id);
+    friend logv2::DynamicAttributes logAttrs(const ClientSummary& m) {
+        logv2::DynamicAttributes attrs;
+        attrs.add("remote", m.remote);
+        attrs.add("isLoadBalanced", m.isLoadBalanced);
+        if (m.isLoadBalanced) {
+            attrs.add("sourceClient", m.sourceClient);
+        }
+        attrs.add("uuid", m.uuid);
+        attrs.add("connectionId", m.id);
+
+        return attrs;
     }
 
     UUID uuid;
     HostAndPort remote;
+    HostAndPort sourceClient;
     transport::SessionId id;
+    bool isLoadBalanced;
 };
 }  // namespace
 
@@ -106,7 +120,7 @@ bool shouldOverrideMaxConns(const std::shared_ptr<transport::Session>& session,
         return false;
 
     boost::optional<CIDR> remoteCIDR;
-    if (const auto& ra = session->remoteAddr(); ra.isValid() && ra.isIP())
+    if (const auto& ra = session->getProxiedSrcRemoteAddr(); ra.isValid() && ra.isIP())
         remoteCIDR = uassertStatusOK(CIDR::parse(ra.getAddr()));
 
 #ifndef _WIN32
@@ -316,10 +330,11 @@ void ServiceEntryPointImpl::startSession(std::shared_ptr<transport::Session> ses
             // an atomic increment is not necessary here.
             _rejectedSessions++;
             if (!quiet()) {
-                LOGV2(22942,
-                      "Connection refused because there are too many open connections",
-                      "remote"_attr = session->remote(),
-                      "connectionCount"_attr = sync.size());
+                ClientSummary cs(clientPtr);
+                logv2::DynamicAttributes attrs = logAttrs(cs);
+                attrs.add("connectionCount", sync.size());
+                LOGV2(
+                    22942, "Connection refused because there are too many open connections", attrs);
             }
             return;
         }
@@ -329,10 +344,9 @@ void ServiceEntryPointImpl::startSession(std::shared_ptr<transport::Session> ses
         workflow = transport::SessionWorkflow::make(std::move(client));
         auto iter = sync.insert(workflow);
         if (!quiet()) {
-            LOGV2(22943,
-                  "Connection accepted",
-                  logAttrs(iter->second.summary),
-                  "connectionCount"_attr = sync.size());
+            logv2::DynamicAttributes attrs = logAttrs(iter->second.summary);
+            attrs.add("connectionCount", sync.size());
+            LOGV2(22943, "Connection accepted", attrs);
         }
     }
 
@@ -350,8 +364,10 @@ void ServiceEntryPointImpl::onClientDisconnect(Client* client) {
     auto iter = sync.find(client);
     auto summary = iter->second.summary;
     sync.erase(iter);
+    logv2::DynamicAttributes attrs = logAttrs(summary);
+    attrs.add("connectionCount", sync.size());
     if (!quiet()) {
-        LOGV2(22944, "Connection ended", logAttrs(summary), "connectionCount"_attr = sync.size());
+        LOGV2(22944, "Connection ended", attrs);
     }
 }
 

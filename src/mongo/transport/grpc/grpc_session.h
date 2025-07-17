@@ -94,8 +94,18 @@ public:
      * For ingress sessions, we do not distinguish between load-balanced and non-load-balanced
      * streams. Egress sessions never originate from load-balancers.
      */
-    bool isFromLoadBalancer() const final {
+    bool isConnectedToLoadBalancerPort() const final {
         return false;
+    }
+
+    bool isLoadBalancerPeer() const final {
+        return false;
+    }
+
+    void setisLoadBalancerPeer(OperationContext* opCtx, bool helloHasLoadBalancedOption) final {
+        tassert(ErrorCodes::OperationFailed,
+                "Unable to set loadBalancer option on GRPC connection",
+                !helloHasLoadBalancedOption);
     }
 
     /**
@@ -131,9 +141,12 @@ public:
     }
 #endif
 
-    // TODO SERVER-71100: remove `local()`, `remoteAddr()`, and `localAddr()`.
-    const HostAndPort& local() const final {
-        MONGO_UNIMPLEMENTED;
+    const HostAndPort& remote() const override {
+        return _remote;
+    }
+
+    const HostAndPort& local() const override {
+        return _local;
     }
 
     const SockAddr& remoteAddr() const final {
@@ -144,10 +157,16 @@ public:
         MONGO_UNIMPLEMENTED;
     }
 
+    const SockAddr& getProxiedSrcRemoteAddr() const final {
+        MONGO_UNIMPLEMENTED;
+    }
+
 private:
     // TODO SERVER-74020: replace this with `GRPCTransportLayer`.
     TransportLayer* const _tl;
 
+    const HostAndPort _remote;
+    HostAndPort _local;
     synchronized_value<boost::optional<Status>> _terminationStatus;
 };
 

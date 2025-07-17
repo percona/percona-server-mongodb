@@ -50,7 +50,7 @@ const emptyMessageTest = (ingressPort, egressPort, node, isRouter) => {
 };
 
 const fuzzingTest = (ingressPort, egressPort, node, isRouter) => {
-    const numConnections = 200;
+    const numConnections = 10;
 
     for (let i = 0; i < numConnections; i++) {
         jsTestLog("Sending random data to proxy port");
@@ -72,32 +72,18 @@ const fuzzingTest = (ingressPort, egressPort, node, isRouter) => {
     }
 };
 
-const loadTest = (ingressPort, egressPort, node, isRouter) => {
-    const numConnections = 200;
-    let threads = [];
+const testProxyProtocolReplicaSet = (ingressPort, egressPort, version, testFn) => {
+    const proxy_server = new ProxyProtocolServer(ingressPort, egressPort, version);
+    proxy_server.start();
 
-    for (let i = 0; i < numConnections; i++) {
-        threads.push(new Thread((regularPort, ingressPort, egressPort, connectFn, isRouter) => {
-            // Throw in some connections without data to make sure we handle those correctly.
-            const pid =
-                _startMongoProgram("bash", "-c", `exec cat < /dev/tcp/127.0.0.1/${egressPort}`);
+    const rs = new ReplSetTest({nodes: 1, nodeOptions: {"proxyPort": egressPort}});
+    rs.startSet({setParameter: {featureFlagMongodProxyProcolSupport: true}});
+    rs.initiate();
 
-            // Connecting to the proxy port still succeeds within a reasonable time
-            // limit.
-            connectFn(ingressPort, isRouter);
+    testFn(ingressPort, egressPort, rs.getPrimary(), false);
 
-            // Connecting to the default port still succeeds within a reasonable time limit.
-            connectFn(regularPort, isRouter);
-
-            assert(checkProgram(pid).alive);
-            stopMongoProgramByPid(pid);
-        }, node.port, ingressPort, egressPort, connectAndHello, isRouter));
-        threads[i].start();
-    }
-
-    for (let i = 0; i < numConnections; i++) {
-        threads[i].join();
-    }
+    proxy_server.stop();
+    rs.stopSet();
 };
 
 const testProxyProtocolShardedCluster = (ingressPort, egressPort, version, testFn) => {

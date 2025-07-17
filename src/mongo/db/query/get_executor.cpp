@@ -749,22 +749,6 @@ public:
      */
     virtual const CollectionPtr& getMainCollection() const = 0;
 
-    /**
-     * When the instance of this class goes out of scope the trials for multiplanner are completed.
-     */
-    virtual ~PrepareExecutionHelper() {
-        if (_opCtx) {
-            if (auto curOp = CurOp::get(_opCtx)) {
-
-                LOGV2_DEBUG(8276400,
-                            4,
-                            "Stopping the planningTime timer",
-                            "query"_attr = redact(_queryStringForDebugLog));
-                curOp->stopQueryPlanningTimer();
-            }
-        }
-    }
-
     StatusWith<std::unique_ptr<ResultType>> prepare() {
         const auto& mainColl = getMainCollection();
 
@@ -1544,6 +1528,8 @@ attemptToGetSlotBasedExecutor(
     // SBE-compatible query using SBE, even if the query uses features that are not on in SBE by
     // default. Either way, try to construct an SBE plan executor.
     if (canUseRegularSbe || sbeFull) {
+        canonicalQuery->parameterize();
+
         // Create the SBE prepare execution helper and initialize the params for the planner. If
         // planning results in any 'QuerySolution' which cannot be handled by the SBE stage builder,
         // then we will fall back to the classic engine.
@@ -1680,6 +1666,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
         plannerParams.options |= QueryPlannerParams::INCLUDE_SHARD_FILTER;
     }
 
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
+
     return getExecutor(opCtx,
                        collections,
                        std::move(canonicalQuery),
@@ -1814,6 +1805,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorDele
 
     std::unique_ptr<WorkingSet> ws = std::make_unique<WorkingSet>();
     const auto policy = parsedDelete->yieldPolicy();
+
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
 
     if (!collection) {
         // Treat collections that do not exist as empty collections. Return a PlanExecutor which
@@ -2028,6 +2024,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorUpda
 
     std::unique_ptr<WorkingSet> ws = std::make_unique<WorkingSet>();
     UpdateStageParams updateStageParams(request, driver, opDebug, std::move(documentCounter));
+
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
 
     // If the collection doesn't exist, then return a PlanExecutor for a no-op EOF plan. We have
     // should have already enforced upstream that in this case either the upsert flag is false, or
@@ -2412,6 +2413,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorCoun
 
     const auto skip = request.getSkip().value_or(0);
     const auto limit = request.getLimit().value_or(0);
+
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
 
     if (!collection) {
         // Treat collections that do not exist as empty collections. Note that the explain reporting
@@ -2915,6 +2921,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorDist
     auto expCtx = parsedDistinct->getQuery()->getExpCtx();
     OperationContext* opCtx = expCtx->opCtx;
     const auto yieldPolicy = PlanYieldPolicy::YieldPolicy::YIELD_AUTO;
+
+    ON_BLOCK_EXIT([&] {
+        // Stop the query planning timer once we have an execution plan.
+        CurOp::get(opCtx)->stopQueryPlanningTimer();
+    });
 
     if (!collection) {
         // Treat collections that do not exist as empty collections.

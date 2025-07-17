@@ -52,6 +52,8 @@ MONGO_FAIL_POINT_DEFINE(asioTransportLayerSessionPauseBeforeSetSocketOption);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeOpportunisticRead);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayerBlockBeforeAddSession);
 MONGO_FAIL_POINT_DEFINE(asioTransportLayer1sProxyTimeout);
+MONGO_FAIL_POINT_DEFINE(clientIsConnectedToLoadBalancerPort);
+MONGO_FAIL_POINT_DEFINE(clientIsLoadBalancedPeer);
 
 namespace {
 
@@ -181,7 +183,7 @@ CommonAsioSession::CommonAsioSession(
     try {
         _local = HostAndPort(_localAddr.toString(true));
         if (tl->loadBalancerPort()) {
-            _isFromLoadBalancer = _local.port() == *tl->loadBalancerPort();
+            _isConnectedToLoadBalancerPort = _local.port() == *tl->loadBalancerPort();
         }
     } catch (...) {
         LOGV2_DEBUG(9079002,
@@ -217,6 +219,34 @@ CommonAsioSession::CommonAsioSession(
     throw;
 } catch (const asio::system_error&) {
     throw;
+}
+
+bool CommonAsioSession::isConnectedToLoadBalancerPort() const {
+    return MONGO_unlikely(clientIsConnectedToLoadBalancerPort.shouldFail()) ||
+        _isConnectedToLoadBalancerPort;
+}
+
+bool CommonAsioSession::isLoadBalancerPeer() const {
+    return MONGO_unlikely(clientIsLoadBalancedPeer.shouldFail()) || _isLoadBalancerPeer;
+}
+
+void CommonAsioSession::setisLoadBalancerPeer(OperationContext* opCtx,
+                                              bool helloHasLoadBalancedOption) {
+    tassert(ErrorCodes::BadValue,
+            "Client claimed to be from a loadBalancer, but is not on load balancer port",
+            isConnectedToLoadBalancerPort() || !helloHasLoadBalancedOption);
+
+    if (_isLoadBalancerPeer == helloHasLoadBalancedOption) {
+        return;
+    }
+    _isLoadBalancerPeer = helloHasLoadBalancedOption;
+
+    auto sep = opCtx->getServiceContext()->getServiceEntryPoint();
+    if (helloHasLoadBalancedOption) {
+        sep->incrementLBConnections();
+    } else {
+        sep->decrementLBConnections();
+    }
 }
 
 void CommonAsioSession::end() {
@@ -481,9 +511,15 @@ ExecutorFuture<void> CommonAsioSession::parseProxyProtocolHeader(const ReactorHa
             // There may not be any endpoints if this connection is directly
             // from the proxy itself or the information isn't available.
             if (results->endpoints) {
-                _proxiedSrcEndpoint = results->endpoints->sourceAddress;
-                _proxiedDstEndpoint = results->endpoints->destinationAddress;
+                _proxiedSrcRemoteAddr = results->endpoints->sourceAddress;
+                _proxiedSrcEndpoint =
+                    HostAndPort(_proxiedSrcRemoteAddr->getAddr(), _proxiedSrcRemoteAddr->getPort());
+
+                const auto& dstEndpointAddr = results->endpoints->destinationAddress;
+                _proxiedDstEndpoint =
+                    HostAndPort(dstEndpointAddr.getAddr(), dstEndpointAddr.getPort());
             } else {
+                _proxiedSrcRemoteAddr = {};
                 _proxiedSrcEndpoint = {};
                 _proxiedDstEndpoint = {};
             }
@@ -749,6 +785,15 @@ Future<bool> CommonAsioSession::maybeHandshakeSSLForIngress(const MutableBufferS
     if (checkForHTTPRequest(buffer)) {
         return Future<bool>::makeReady(false);
     }
+
+    if (maybeProxyProtocolHeader(
+            StringData(asio::buffer_cast<const char*>(buffer), asio::buffer_size(buffer)))) {
+        // Protocol requirements mean that neither raw mongorpc nor TLS client hello will look like
+        // Proxy.
+        return Future<bool>::makeReady(
+            Status(ErrorCodes::OperationFailed, "ProxyProtocol message detected on mongorpc port"));
+    }
+
     // This logic was taken from the old mongo/util/net/sock.cpp.
     //
     // It lets us run both TLS and unencrypted mongo over the same port.

@@ -25,6 +25,8 @@ last-continuous:
     ticket: SERVER-95869
   - test_file: jstests/change_streams/change_streams_dynamic_match_expressions.js
     ticket: SERVER-100345
+  - test_file: jstests/aggregation/accumulators/group_doing_merge.js
+    ticket: SERVER-99616
   - test_file: jstests/aggregation/bugs/lookup_using_hashed_index.js
     ticket: SERVER-92668
   - test_file: jstests/replsets/dbcheck_skip_applying_batch_on_secondary_parameter.js
@@ -543,6 +545,10 @@ last-continuous:
     ticket: SERVER-91784
   - test_file: jstests/core/query/plan_cache/match_or_duplicate_predicate_plan_cache.js
     ticket: SERVER-92603
+  - test_file: jstests/noPassthrough/explain_optimization_stats.js
+    ticket: SERVER-92476
+  - test_file: jstests/noPassthrough/profile_planning_time_stats.js
+    ticket: SERVER-92476
   - test_file: jstests/core/index/geo/negated_geo_queries.js
     ticket: SERVER-92193
   - test_file: jstests/core/ddl/collmod.js
@@ -603,6 +609,10 @@ last-continuous:
     ticket: SERVER-95807
   - test_file: jstests/core/query/json_schema_validate_empty_path.js
     ticket: SERVER-97254
+  - test_file: jstests/change_streams/ddl_view_events.js
+    ticket: SERVER-94731
+  - test_file: jstests/sharding/sharded_data_distribution.js
+    ticket: SERVER-92419
   suites: null
 last-lts:
   all:
@@ -610,6 +620,8 @@ last-lts:
     ticket: SERVER-95869
   - test_file: jstests/change_streams/change_streams_dynamic_match_expressions.js
     ticket: SERVER-100345
+  - test_file: jstests/aggregation/accumulators/group_doing_merge.js
+    ticket: SERVER-99616
   - test_file: jstests/aggregation/bugs/lookup_using_hashed_index.js
     ticket: SERVER-92668
   - test_file: jstests/replsets/dbcheck_skip_applying_batch_on_secondary_parameter.js
@@ -1208,6 +1220,10 @@ last-lts:
     ticket: SERVER-92292
   - test_file: jstests/core/sparse_index_supports_ne_null.js
     ticket: SERVER-37164
+  - test_file: jstests/noPassthrough/explain_optimization_stats.js
+    ticket: SERVER-92476
+  - test_file: jstests/noPassthrough/profile_planning_time_stats.js
+    ticket: SERVER-92476
   - test_file: jstests/core/timeseries/timeseries_insert_mixed_schema_bucket.js
     ticket: SERVER-93099
   - test_file: jstests/core/timeseries/timeseries_update_mixed_schema_bucket.js
@@ -1256,4 +1272,8 @@ last-lts:
     ticket: SERVER-95807
   - test_file: jstests/core/query/json_schema_validate_empty_path.js
     ticket: SERVER-97254
+  - test_file: jstests/change_streams/ddl_view_events.js
+    ticket: SERVER-94731
+  - test_file: jstests/sharding/sharded_data_distribution.js
+    ticket: SERVER-92419
   suites: null

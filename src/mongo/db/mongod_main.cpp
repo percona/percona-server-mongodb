@@ -99,6 +99,7 @@
 #include "mongo/db/logical_time_validator.h"
 #include "mongo/db/mirror_maestro.h"
 #include "mongo/db/mongod_options.h"
+#include "mongo/db/mongod_options_general_gen.h"
 #include "mongo/db/mongod_options_storage_gen.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/op_observer/fcv_op_observer.h"
@@ -158,6 +159,7 @@
 #include "mongo/db/s/sharding_initialization_mongod.h"
 #include "mongo/db/s/sharding_state_recovery.h"
 #include "mongo/db/s/transaction_coordinator_service.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/serverless/shard_split_donor_op_observer.h"
 #include "mongo/db/serverless/shard_split_donor_service.h"
@@ -274,6 +276,26 @@ MONGO_FAIL_POINT_DEFINE(hangBeforeShutdown);
 const ntservice::NtServiceDefaultStrings defaultServiceStrings = {
     L"MongoDB", L"MongoDB", L"MongoDB Server"};
 #endif
+
+auto makeTransportLayer(ServiceContext* svcCtx) {
+    boost::optional<int> proxyPort;
+
+    // (Ignore FCV check): The proxy port needs to be open before the FCV is set.
+    if (gFeatureFlagMongodProxyProcolSupport.isEnabledAndIgnoreFCVUnsafe()) {
+        if (serverGlobalParams.proxyPort) {
+            proxyPort = *serverGlobalParams.proxyPort;
+            if (*proxyPort == serverGlobalParams.port) {
+                LOGV2_ERROR(9967800,
+                            "The proxy port must be different from the public listening port.",
+                            "port"_attr = serverGlobalParams.port);
+                quickExit(ExitCode::badOptions);
+            }
+        }
+    }
+
+    return transport::TransportLayerManager::createWithConfig(
+        &serverGlobalParams, svcCtx, std::move(proxyPort));
+}
 
 void logStartup(OperationContext* opCtx) {
     BSONObjBuilder toLog;
@@ -501,10 +523,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
         TimeElapsedBuilderScopedTimer scopedTimer(serviceContext->getFastClockSource(),
                                                   "Transport layer setup",
                                                   &startupTimeElapsedBuilder);
-        auto tl =
-            transport::TransportLayerManager::createWithConfig(&serverGlobalParams, serviceContext);
-        auto res = tl->setup();
-        if (!res.isOK()) {
+        auto tl = makeTransportLayer(serviceContext);
+        if (auto res = tl->setup(); !res.isOK()) {
             LOGV2_ERROR(20568,
                         "Error setting up listener: {error}",
                         "Error setting up listener",

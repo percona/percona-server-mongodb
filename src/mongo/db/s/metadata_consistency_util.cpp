@@ -32,6 +32,7 @@
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/catalog/collection_catalog.h"
 #include "mongo/db/cursor_manager.h"
+#include "mongo/db/dbdirectclient.h"
 #include "mongo/db/exec/queued_data_stage.h"
 #include "mongo/db/exec/working_set.h"
 #include "mongo/db/metadata_consistency_types_gen.h"
@@ -42,6 +43,7 @@
 #include "mongo/db/s/shard_key_index_util.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/logv2/log.h"
+#include "mongo/s/grid.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
@@ -53,6 +55,21 @@ namespace {
 MONGO_FAIL_POINT_DEFINE(insertFakeInconsistencies);
 
 /*
+ * Returns the number of documents in the local collection.
+ *
+ * TODO SERVER-24266: get rid of the `getNumDocs` function and simply rely on `numRecords`.
+ */
+long long getNumDocs(OperationContext* opCtx, const Collection* localColl) {
+    // Since users are advised to delete empty misplaced collections, rely on isEmpty
+    // that is safe because the implementation guards against SERVER-24266.
+    if (AutoGetCollection ac(opCtx, localColl->ns(), MODE_IS); ac->isEmpty(opCtx)) {
+        return 0;
+    }
+    DBDirectClient client(opCtx);
+    return client.count(localColl->ns());
+}
+
+/*
  * Emit a warning log containing information about the given inconsistency
  */
 void logMetadataInconsistency(const MetadataInconsistencyItem& inconsistencyItem) {
@@ -62,6 +79,31 @@ void logMetadataInconsistency(const MetadataInconsistencyItem& inconsistencyItem
     LOGV2_WARNING(7514800,
                   "Detected sharding metadata inconsistency",
                   "inconsistency"_attr = inconsistencyItem);
+}
+
+void _checkCappedAndShardedCollectionInconsistency(
+    OperationContext* opCtx,
+    const ShardId& shardId,
+    const CollectionPtr& localColl,
+    std::vector<MetadataInconsistencyItem>& inconsistencies) {
+    const NamespaceString& nss = localColl->ns();
+    const BSONObj& shardOptions = BSON("capped" << true);
+    // The collection on the global catalog do not have capped options, therefore it is assumed to
+    // be false by default.
+    const BSONObj& configOptions = BSON("capped" << false);
+    constexpr StringData kShardsFieldName = "shards"_sd;
+    constexpr StringData kOptionsFieldName = "options"_sd;
+    const auto configShardId = Grid::get(opCtx)->shardRegistry()->getConfigShard()->getId();
+
+    if (localColl->isCapped()) {
+        inconsistencies.emplace_back(metadata_consistency_util::makeInconsistency(
+            MetadataInconsistencyTypeEnum::kCollectionOptionsMismatch,
+            CollectionOptionsMismatchDetails{
+                nss,
+                {BSON(kOptionsFieldName << shardOptions << kShardsFieldName << BSON_ARRAY(shardId)),
+                 BSON(kOptionsFieldName << configOptions << kShardsFieldName
+                                        << BSON_ARRAY(configShardId))}}));
+    }
 }
 
 void _checkShardKeyIndexInconsistencies(OperationContext* opCtx,
@@ -169,7 +211,7 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> makeQueuedPlanExecutor(
         for (int i = 0; i < numInconsistencies; i++) {
             inconsistencies.emplace_back(makeInconsistency(
                 MetadataInconsistencyTypeEnum::kCollectionUUIDMismatch,
-                CollectionUUIDMismatchDetails{nss, ShardId{"shard"}, UUID::gen(), UUID::gen()}));
+                CollectionUUIDMismatchDetails{nss, ShardId{"shard"}, UUID::gen(), UUID::gen(), 0}));
         }
     });
 
@@ -277,8 +319,11 @@ std::vector<MetadataInconsistencyItem> checkCollectionMetadataInconsistencies(
             if (UUID != localUUID) {
                 inconsistencies.emplace_back(makeInconsistency(
                     MetadataInconsistencyTypeEnum::kCollectionUUIDMismatch,
-                    CollectionUUIDMismatchDetails{localNss, shardId, localUUID, UUID}));
+                    CollectionUUIDMismatchDetails{
+                        localNss, shardId, localUUID, UUID, getNumDocs(opCtx, localColl.get())}));
             } else {
+                _checkCappedAndShardedCollectionInconsistency(
+                    opCtx, shardId, localColl, inconsistencies);
                 _checkShardKeyIndexInconsistencies(opCtx,
                                                    nss,
                                                    shardId,
@@ -296,9 +341,10 @@ std::vector<MetadataInconsistencyItem> checkCollectionMetadataInconsistencies(
             // TODO SERVER-59957 use function introduced in this ticket to decide if a namesapce
             // should be ignored and stop using isNamepsaceAlwaysUnsharded().
             if (!nss.isNamespaceAlwaysUnsharded() && shardId != primaryShardId) {
-                inconsistencies.emplace_back(
-                    makeInconsistency(MetadataInconsistencyTypeEnum::kMisplacedCollection,
-                                      MisplacedCollectionDetails{localNss, shardId, localUUID}));
+                inconsistencies.emplace_back(makeInconsistency(
+                    MetadataInconsistencyTypeEnum::kMisplacedCollection,
+                    MisplacedCollectionDetails{
+                        localNss, shardId, localUUID, getNumDocs(opCtx, localColl.get())}));
             }
             itLocalCollections++;
         }
@@ -312,9 +358,12 @@ std::vector<MetadataInconsistencyItem> checkCollectionMetadataInconsistencies(
             // TODO SERVER-59957 use function introduced in this ticket to decide if a namesapce
             // should be ignored and stop using isNamepsaceAlwaysUnsharded().
             if (!localColl->ns().isNamespaceAlwaysUnsharded()) {
-                inconsistencies.emplace_back(makeInconsistency(
-                    MetadataInconsistencyTypeEnum::kMisplacedCollection,
-                    MisplacedCollectionDetails{localColl->ns(), shardId, localColl->uuid()}));
+                inconsistencies.emplace_back(
+                    makeInconsistency(MetadataInconsistencyTypeEnum::kMisplacedCollection,
+                                      MisplacedCollectionDetails{localColl->ns(),
+                                                                 shardId,
+                                                                 localColl->uuid(),
+                                                                 getNumDocs(opCtx, localColl)}));
             }
             itLocalCollections++;
         }

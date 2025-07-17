@@ -4038,8 +4038,10 @@ Status ReplicationCoordinatorImpl::_doReplSetReconfig(OperationContext* opCtx,
 
     if (!force && !skipSafetyChecks && !MONGO_unlikely(omitConfigQuorumCheck.shouldFail())) {
         LOGV2(4509600, "Executing quorum check for reconfig");
-        status =
-            checkQuorumForReconfig(_replExecutor.get(), newConfig, myIndex, _topCoord->getTerm());
+        lk.lock();
+        auto term = _topCoord->getTerm();
+        lk.unlock();
+        status = checkQuorumForReconfig(_replExecutor.get(), newConfig, myIndex, term);
         if (!status.isOK()) {
             LOGV2_ERROR(21421,
                         "replSetReconfig failed; {error}",
@@ -5962,16 +5964,13 @@ void _handleBeforeFetchingConfig(const BSONObj& customArgs,
 
 Status ReplicationCoordinatorImpl::processHeartbeatV1(const ReplSetHeartbeatArgsV1& args,
                                                       ReplSetHeartbeatResponse* response) {
-    {
-        stdx::lock_guard<Latch> lock(_mutex);
-        if (_rsConfigState == kConfigPreStart || _rsConfigState == kConfigStartingUp) {
-            return Status(ErrorCodes::NotYetInitialized,
-                          "Received heartbeat while still initializing replication system");
-        }
+    stdx::lock_guard<Latch> lk(_mutex);
+    if (_rsConfigState == kConfigPreStart || _rsConfigState == kConfigStartingUp) {
+        return Status(ErrorCodes::NotYetInitialized,
+                      "Received heartbeat while still initializing replication system");
     }
 
     Status result(ErrorCodes::InternalError, "didn't set status in prepareHeartbeatResponse");
-    stdx::lock_guard<Latch> lk(_mutex);
 
     std::string replSetName = [&]() {
         if (!_settings.isServerless()) {
