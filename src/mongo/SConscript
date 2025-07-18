@@ -78,6 +78,7 @@ config_header_substs = (
     ('@mongo_config_grpc@', 'MONGO_CONFIG_GRPC'),
     ('@mongo_config_have_basic_stringbuf_str_rvalue@', 'MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE'),
     ('@percona_fipsmode_enabled@', 'PERCONA_FIPSMODE_ENABLED'),
+    ('@percona_fcbis_enabled@', 'PERCONA_FCBIS_ENABLED'),
 )
 
 
