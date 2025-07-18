@@ -2440,40 +2440,6 @@ void InitialSyncerFCB::_finalizeAndCompleteCallback(
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
 
-// template
-// void InitialSyncerFCB::_(const executor::TaskExecutor::CallbackArgs& callbackArgs,
-//                         // NOLINTNEXTLINE(*-unnecessary-value-param)
-//                         std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
-//    stdx::lock_guard<Latch> lock(_mutex);
-//    auto status = _checkForShutdownAndConvertStatus_inlock(callbackArgs, "error message");
-//    if (!status.isOK()) {
-//        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
-//        return;
-//    }
-//
-//    // schedule next task
-//    status = _scheduleWorkAndSaveHandle_inlock(
-//        [this, onCompletionGuard](const executor::TaskExecutor::CallbackArgs& args) {
-//            _nextTaskCallback(args, onCompletionGuard);
-//        },
-//        &_currentHandle,
-//        "task name");
-//    if (!status.isOK()) {
-//        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
-//        return;
-//    }
-//} catch (const DBException&) {
-//    // Report exception as an initial syncer failure.
-//    stdx::unique_lock<Latch> lock(_mutex);
-//    onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
-//}
-
-// debugging template
-//            onCompletionGuard->setResultAndCancelRemainingWork_inlock(
-//                lock,
-//                {ErrorCodes::NotImplemented,
-//                 "All files cloned; cancel FCBIS for debugging reason"});
-
 
 std::string InitialSyncerFCB::Stats::toString() const {
     return toBSON().toString();
