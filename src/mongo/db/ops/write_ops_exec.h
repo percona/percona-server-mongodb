@@ -109,8 +109,10 @@ void recordUpdateResultInOpDebug(const UpdateResult& updateResult, OpDebug* opDe
  * Returns true if an update failure due to a given DuplicateKey error is eligible for retry.
  * Requires that parsedUpdate.hasParsedQuery() is true.
  */
-bool shouldRetryDuplicateKeyException(const ParsedUpdate& parsedUpdate,
-                                      const DuplicateKeyErrorInfo& errorInfo);
+bool shouldRetryDuplicateKeyException(OperationContext* opCtx,
+                                      const ParsedUpdate& parsedUpdate,
+                                      const DuplicateKeyErrorInfo& errorInfo,
+                                      int retryAttempts);
 
 }  // namespace write_ops_exec
 }  // namespace mongo

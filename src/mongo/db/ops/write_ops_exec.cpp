@@ -1049,8 +1049,8 @@ static SingleWriteResult performSingleUpdateOpWithDupKeyRetry(
                 uassertStatusOK(parsedUpdate.parseQueryToCQ());
             }
 
-            if (!shouldRetryDuplicateKeyException(parsedUpdate,
-                                                  *ex.extraInfo<DuplicateKeyErrorInfo>())) {
+            if (!shouldRetryDuplicateKeyException(
+                    opCtx, parsedUpdate, *ex.extraInfo<DuplicateKeyErrorInfo>(), numAttempts)) {
                 throw;
             }
 
@@ -1581,14 +1581,38 @@ bool matchContainsOnlyAndedEqualityNodes(const MatchExpression& root) {
 }
 }  // namespace
 
-bool shouldRetryDuplicateKeyException(const ParsedUpdate& parsedUpdate,
-                                      const DuplicateKeyErrorInfo& errorInfo) {
+bool shouldRetryDuplicateKeyException(OperationContext* opCtx,
+                                      const ParsedUpdate& parsedUpdate,
+                                      const DuplicateKeyErrorInfo& errorInfo,
+                                      int retryAttempts) {
     invariant(parsedUpdate.hasParsedQuery());
 
     const auto updateRequest = parsedUpdate.getRequest();
 
     // In order to be retryable, the update must be an upsert with multi:false.
     if (!updateRequest->isUpsert() || updateRequest->isMulti()) {
+        return false;
+    }
+
+    // In multi document transactions, there is an outer WriteUnitOfWork and inner WriteUnitOfWork.
+    // The inner WriteUnitOfWork exists per-document. Aborting the inner one necessitates aborting
+    // the outer one. Otherwise, retrying the inner one will read the writes of the
+    // previously-aborted inner WriteUnitOfWork.
+    if (opCtx->inMultiDocumentTransaction()) {
+        return false;
+    }
+
+    // There was a bug where an upsert sending a document into a partial/sparse unique index would
+    // retry indefinitely. To avoid this, cap the number of retries.
+    int upsertMaxRetryAttemptsOnDuplicateKeyError =
+        write_ops::gUpsertMaxRetryAttemptsOnDuplicateKeyError.load();
+    if (retryAttempts > upsertMaxRetryAttemptsOnDuplicateKeyError) {
+        LOGV2(9552300,
+              "Upsert hit max number of retries on duplicate key exception, as determined by "
+              "server parameter upsertMaxRetryAttemptsOnDuplicateKeyError. No further retry will "
+              "be attempted for this query.",
+              "upsertMaxRetryAttemptsOnDuplicateKeyError"_attr =
+                  upsertMaxRetryAttemptsOnDuplicateKeyError);
         return false;
     }
 
