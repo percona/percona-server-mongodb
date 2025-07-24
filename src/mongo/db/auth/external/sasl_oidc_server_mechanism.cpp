@@ -317,7 +317,10 @@ void SaslOidcServerMechanism::processLogClaims(const OidcIdentityProviderConfig&
 }
 
 UserRequest SaslOidcServerMechanism::getUserRequest() const {
-    return UserRequest{UserName{getPrincipalName(), getAuthenticationDatabase()}, _roles};
+    UserRequest req{UserName{getPrincipalName(), getAuthenticationDatabase()}, _roles};
+    req.mechanismData = std::string(UserRequest::MechanismDataOIDC);
+    req.reacquireRoles = _roles;
+    return req;
 }
 
 boost::optional<Date_t> SaslOidcServerMechanism::getExpirationTime() const {
