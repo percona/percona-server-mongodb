@@ -51,6 +51,8 @@ namespace mongo {
  * This type is hashable and may be used as a key describing requests
  */
 struct UserRequest {
+    static constexpr auto MechanismDataOIDC = "OIDC"_sd;
+
     UserRequest(UserName name, boost::optional<std::set<RoleName>> roles)
         : name(std::move(name)), roles(std::move(roles)) {}
 
@@ -78,10 +80,24 @@ struct UserRequest {
         return equalityLens() != key.equalityLens();
     }
 
+    UserRequest cloneForReacquire() const {
+        UserRequest clonedRequest{*this};
+        if (clonedRequest.mechanismData == MechanismDataOIDC) {
+            clonedRequest.roles = reacquireRoles;
+        } else {
+            // For all other mechanisms, we do not want to reacquire roles.
+            clonedRequest.roles = boost::none;
+        }
+        return clonedRequest;
+    }
+
     // The name of the requested user
     UserName name;
     // Any authorization grants which should override and be used in favor of roles acquisition.
     boost::optional<std::set<RoleName>> roles;
+
+    // Any authorization grants which shall be used during User reacquisition.
+    boost::optional<std::set<RoleName>> reacquireRoles;
 
     // Mechanism specific metadata which may be used during User acquisition.
     std::string mechanismData;
