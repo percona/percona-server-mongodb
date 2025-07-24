@@ -540,8 +540,7 @@ StatusWith<UserHandle> AuthorizationManagerImpl::reacquireUser(OperationContext*
     // necessary now to preserve the mechanismData from the original UserRequest while eliminating
     // the roles. If the roles aren't reset to none, it will cause LDAP acquisition to be bypassed
     // in favor of reusing the ones from before.
-    UserRequest requestWithoutRoles(user->getUserRequest());
-    requestWithoutRoles.roles = boost::none;
+    UserRequest requestWithoutRoles = user->getUserRequest().cloneForReacquire();
     auto swUserHandle = acquireUser(opCtx, requestWithoutRoles);
     if (!swUserHandle.isOK()) {
         return swUserHandle.getStatus();
@@ -614,7 +613,7 @@ Status AuthorizationManagerImpl::refreshExternalUsers(OperationContext* opCtx) {
     // insertOrAssign if they differ.
     bool isRefreshed{false};
     for (const auto& cachedUser : cachedUsers) {
-        UserRequest request(cachedUser->getName(), boost::none);
+        UserRequest request = cachedUser->getUserRequest().cloneForReacquire();
         auto storedUserStatus = _externalState->getUserObject(
             opCtx, request, CurOp::get(opCtx)->getUserAcquisitionStats());
         if (!storedUserStatus.isOK()) {
