@@ -54,8 +54,8 @@ function initAuditLogDir() {
     mkdir(auditLogDir);
 }
 
-// Runs the test for given audit log file name and format.
-function runTest(fileName, format) {
+// Runs the test for a given audit log file name and format with logRotate=rename option (default).
+function runTestRename(fileName, format) {
     const auditPath = auditLogDir + '/' + fileName;
     const config = {
         auditDestination: 'file',
@@ -97,5 +97,41 @@ function runTest(fileName, format) {
     }
 }
 
-runTest('auditFileName.json', 'JSON');
-runTest('auditFileName.bson', 'BSON');
+// Runs the test for a given audit log file name and format with logRotate=reopen option.
+function runTestReopen(fileName, format) {
+    const auditPath = auditLogDir + '/' + fileName;
+    const config = {
+        auditDestination: 'file',
+        auditPath: auditPath,
+        auditFormat: format,
+        logRotate: 'reopen',
+        logappend: "",
+    };
+
+    // Ensure the audit log directory is clean before starting the test
+    initAuditLogDir();
+    assert.eq(getFiles(fileName).length, 0, "Expected no audit log files initially");
+
+    // 1st run: expect 1 file to be created.
+    runAndStopMongod(config);
+    assert.eq(countFiles(fileName), 1, "Expected 1 audit log file after starting 1st mongod");
+    const firstFileContent = cat(getFiles(fileName)[0]);
+
+    // 2nd run: expect 1 file to be reopened, not rotated.
+    runAndStopMongod(config);
+    assert.eq(countFiles(fileName), 1, "Expected 1 audit log files after starting 2nd mongod");
+    const rotatedFiles = getRotatedFiles(fileName);
+    assert.eq(rotatedFiles.length, 0, "Expected no rotated audit log file after");
+
+    // expect the file to be reopened in append mode
+    const secondFileContent = cat(getCurrentFile(fileName));
+    assert(
+        secondFileContent.startsWith(firstFileContent),
+        "Expected second file content to start with first file content (file reopened in append mode)");
+}
+
+runTestRename('auditFileName.json', 'JSON');
+runTestRename('auditFileName.bson', 'BSON');
+
+runTestReopen('auditFileName.json', 'JSON');
+runTestReopen('auditFileName.bson', 'BSON');
