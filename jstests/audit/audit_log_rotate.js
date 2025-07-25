@@ -64,3 +64,44 @@ auditTest(
     // Need to enable the logging manager by passing `logpath'
     { logpath: logDir + '/server.log' }
 );
+
+auditTest(
+    'logRotateReopen',
+    function(m) {
+        var auditOptions = m.adminCommand({ auditGetOptions: 1 });
+        var auditPath = auditOptions.path;
+        assert.eq(true, auditPath == logDir + '/auditLog.json',
+                  "test assumption failure: auditPath is not logDir + auditLog.json? " +
+                  auditPath);
+
+        // Remove the audit log that got rotated on startup
+        getRotatedLogFilePaths(auditPath).forEach(function (f) { removeFile(f) });
+
+        const beforeCmd = Date.now();
+        // This should generate a few new audit log entries on ns 'test.foo'
+        testDB = m.getDB(testDBName);
+        assert.commandWorked(testDB.createCollection('foo'));
+        assert(testDB.getCollection('foo').drop());
+
+        const beforeLoad = Date.now();
+        // There should be something in the audit log since we created 'test.foo'
+        assert.neq(0, getAuditEventsCollection(m, testDBName).count({
+            ts: withinInterval(beforeCmd, beforeLoad)}),
+                   "no audit events before rotate.");
+
+        // // Rotate the server log. The audit log rotates with it.
+        // // Once rotated, the audit log should be empty.
+        assert.commandWorked(m.getDB('admin').runCommand({ logRotate: 1 }));
+        // There should be still audit log entries from before the rotate
+        assert.neq(0, getAuditEventsCollection(m, testDBName).count({
+            ts: withinInterval(beforeCmd, beforeLoad)}),
+                   "no audit events before rotate.");
+
+        // Verify that the audit log has not been renamed.
+        var rotatedLogPaths = getRotatedLogFilePaths(auditPath);
+        assert.eq(0, rotatedLogPaths.length,
+                  "expected no rotated log file after reopen: " + rotatedLogPaths);
+    },
+    // Need to enable the logging manager by passing `logpath'
+    { logpath: logDir + '/server.log', logappend: "", logRotate: "reopen" }
+);
