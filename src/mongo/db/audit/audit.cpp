@@ -170,7 +170,7 @@ namespace audit {
             : WritableAuditLog(filter),
               _file(new Sink),
               _fileName(file) {
-            _file->open(file.c_str(), std::ios_base::out | std::ios_base::app | std::ios_base::binary);
+            _file->open(file.c_str(), kFileOpenMode);
         }
 
         virtual ~FileAuditLog() {
@@ -181,6 +181,8 @@ namespace audit {
         }
 
     protected:
+        static constexpr auto kFileOpenMode =
+            std::ios_base::out | std::ios_base::app | std::ios_base::binary;
         // Creates specific Adapter instance for FileAuditLog::append()
         // and passess ownership to caller
         virtual AuditLogFormatAdapter *createAdapter(const BSONObj &obj) const = 0;
@@ -240,7 +242,7 @@ namespace audit {
 
             // Open a new file, with the same name as the original.
             _file.reset(new Sink);
-            _file->open(_fileName.c_str());
+            _file->open(_fileName.c_str(), kFileOpenMode);
 
             return Status::OK();
         }
@@ -517,7 +519,7 @@ namespace audit {
 
             // Rotate the audit log if it already exists.
             if (needRotate) {
-                return logv2::rotateLogs(true, logv2::kAuditLogTag, {});
+                return logv2::rotateLogs(serverGlobalParams.logRenameOnRotate, logv2::kAuditLogTag, {});
             }
         }
         return Status::OK();
