@@ -219,19 +219,47 @@ protected:
         if (rename) {
             // Rename the current file
             // Note: we append a timestamp to the file name.
-            std::string s = _fileName + renameSuffix;
-            int r = std::rename(_fileName.c_str(), s.c_str());
-            if (r != 0) {
-                auto ec = lastSystemError();
-                if (onMinorError) {
-                    onMinorError(
-                        {ErrorCodes::FileRenameFailed,
-                         "Failed to rename {} to {}: {}"_format(_fileName, s, errorMessage(ec))});
+            std::string targetName = _fileName + renameSuffix;
+
+            // Check if the target file already exists.
+            auto targetExists = [&targetName]() -> StatusWith<bool> {
+                try {
+                    return boost::filesystem::exists(targetName);
+                } catch (const boost::exception&) {
+                    return exceptionToStatus();
                 }
-                LOGV2_ERROR(29016,
-                            "Could not rotate audit log, but continuing normally "
-                            "(error desc: {err_desc})",
-                            "err_desc"_attr = errorMessage(ec));
+            }();
+
+            if (!targetExists.isOK()) {
+                // If cannot determine whether the target file exists,
+                // report a minor error and skip renaming.
+                if (onMinorError) {
+                    onMinorError({ErrorCodes::FileRenameFailed,
+                                  "Cannot verify whether destination already exists: {}"_format(
+                                      targetName)});
+                }
+            } else if (targetExists.getValue()) {
+                // If the target file already exists,
+                // report a minor error and skip renaming.
+                if (onMinorError) {
+                    onMinorError({ErrorCodes::FileRenameFailed,
+                                  "Target already exists during audit log rotation."
+                                  "target={}, file={}"_format(targetName, _fileName)});
+                }
+            } else {
+                int r = std::rename(_fileName.c_str(), targetName.c_str());
+                if (r != 0) {
+                    auto ec = lastSystemError();
+                    if (onMinorError) {
+                        onMinorError({ErrorCodes::FileRenameFailed,
+                                      "Failed to rename {} to {}: {}"_format(
+                                          _fileName, targetName, errorMessage(ec))});
+                    }
+                    LOGV2_ERROR(29016,
+                                "Could not rotate audit log, but continuing normally "
+                                "(error desc: {err_desc})",
+                                "err_desc"_attr = errorMessage(ec));
+                }
             }
         }
 
@@ -502,7 +530,14 @@ Status initialize() {
 
         // Rotate the audit log if it already exists.
         if (needRotate) {
-            return logv2::rotateLogs(serverGlobalParams.logRenameOnRotate, logv2::kAuditLogTag, {});
+            logv2::LogRotateErrorAppender minorErrors;
+            uassertStatusOK(
+                logv2::rotateLogs(serverGlobalParams.logRenameOnRotate,
+                                  logv2::kAuditLogTag,
+                                  [&minorErrors](Status err) { minorErrors.append(err); }));
+            if (auto status = minorErrors.getCombinedStatus(); !status.isOK()) {
+                LOGV2_ERROR(29139, "Log rotation failed", "error"_attr = status);
+            }
         }
     }
     return Status::OK();
