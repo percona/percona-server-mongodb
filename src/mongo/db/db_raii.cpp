@@ -786,9 +786,12 @@ inline CatalogStateForNamespace acquireCatalogStateForNamespace(
         // namespace (or the oplog), then we should retry the setup after resetting the read source
         // here using the resolved namespace. This only needs to be done once.
         if (nsOrUUID.isUUID() && !collection->ns().isReplicated() && !needsRetry) {
+            // We take a copy of the namespace since abandoning the snapshot could lead to the
+            // collection instance being deleted.
+            const auto ns = collection->ns();
             shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
             [[maybe_unused]] bool shouldReadAtLastApplied =
-                SnapshotHelper::changeReadSourceIfNeeded(opCtx, collection->ns());
+                SnapshotHelper::changeReadSourceIfNeeded(opCtx, ns);
             needsRetry = true;
             continue;
         }
@@ -804,7 +807,18 @@ inline CatalogStateForNamespace acquireCatalogStateForNamespace(
 }  // namespace
 
 const Collection* AutoGetCollectionForReadLockFree::_restoreFromYield(OperationContext* opCtx,
-                                                                      UUID uuid) {
+                                                                      boost::optional<UUID> optUuid,
+                                                                      bool hasSecondaryNamespaces) {
+
+    if (!optUuid) {
+        tassert(9233200,
+                "Restoring a non existent namespace in the presence of requested secondary "
+                "namespaces in a lock-free context",
+                !hasSecondaryNamespaces);
+        return nullptr;
+    }
+
+    const auto& uuid = *optUuid;
     auto nsOrUUID = NamespaceStringOrUUID(_resolvedDbName, uuid);
     auto& readConcernArgs = repl::ReadConcernArgs::get(opCtx);
 
@@ -888,7 +902,7 @@ AutoGetCollectionForReadLockFree::AutoGetCollectionForReadLockFree(
         // Nested operations should never yield as we don't yield when the global lock is held
         // recursively. But this is not known when we create the Query plan for this sub operation.
         // Pretend that we are yieldable but don't allow yield to actually be called.
-        _collectionPtr.makeYieldable(opCtx, [](OperationContext*, UUID) {
+        _collectionPtr.makeYieldable(opCtx, [](OperationContext*, boost::optional<UUID>) {
             MONGO_UNREACHABLE;
             return nullptr;
         });
@@ -909,8 +923,12 @@ AutoGetCollectionForReadLockFree::AutoGetCollectionForReadLockFree(
         _collectionPtr = CollectionPtr(catalogStateForNamespace.collection);
 
         _collectionPtr.makeYieldable(
-            opCtx, [this](OperationContext* opCtx, UUID uuid) -> const Collection* {
-                return _restoreFromYield(opCtx, std::move(uuid));
+            opCtx,
+            [this,
+             hasSecondaryNamespaces = (std::distance(_options._secondaryNssOrUUIDsBegin,
+                                                     _options._secondaryNssOrUUIDsEnd) > 0)](
+                OperationContext* opCtx, boost::optional<UUID> uuid) -> const Collection* {
+                return _restoreFromYield(opCtx, std::move(uuid), hasSecondaryNamespaces);
             });
     }
 

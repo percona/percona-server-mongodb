@@ -39,7 +39,7 @@ namespace mongo::timeseries::bucket_catalog {
  * 8.0: WRITING-27079
  */
 namespace {
-static constexpr uint64_t kExpectedOpenBucketSize = 880;
+static constexpr uint64_t kExpectedOpenBucketSize = 896;
 static constexpr uint64_t kExpectedArchivedBucketSize = 52;
 static constexpr uint64_t kExpectedSchemaSizePerElement = 110;
 static constexpr uint64_t kExpectedMinMaxSizePerElement = 216;
@@ -47,7 +47,7 @@ static constexpr uint64_t kExpectedBSONColumnBuilderPerElement = 552;
 }  // namespace
 
 #if !defined(MONGO_CONFIG_DEBUG_BUILD) && !defined(_MSC_VER) && !defined(__APPLE__) && \
-    !__has_feature(address_sanitizer)
+    !__has_feature(address_sanitizer) && !defined(__s390x__)
 TEST(TimeseriesSizingConstants, OpenBucket) {
     TrackingContexts contexts;
     TrackingContext registryContext;

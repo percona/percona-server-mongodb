@@ -42,7 +42,7 @@ a notice will be included in
 | [libmongocrypt]            | Apache-2.0                                                     | 1.8.4                                              |          ✗           |                ✗                |
 | [linenoise]                | BSD-3-Clause                                                   | 6cdc775 + changes                                  |                      |                ✗                |
 | [mongo-c-driver]           | Apache-2.0                                                     | 1.27.6                                             |          ✗           |                ✗                |
-| [Mozilla Firefox]          | MPL-2.0                                                        | 128.10.0esr                                        |       unknown        |                ✗                |
+| [Mozilla Firefox]          | MPL-2.0                                                        | 128.11.0esr                                        |       unknown        |                ✗                |
 | [MurmurHash3]              | Public Domain                                                  | a6bd3ce + changes                                  |          ✗           |                ✗                |
 | [ocspbuilder]              | MIT                                                            | 0.10.2                                             |                      |                                 |
 | [ocspresponder]            | Apache-2.0                                                     | 0.5.0                                              |                      |                                 |
@@ -52,7 +52,7 @@ a notice will be included in
 | [S2]                       | Apache-2.0                                                     | c872048da5d1 + changes                             |          ✗           |                ✗                |
 | [SafeInt]                  | MIT                                                            | 3.0.26                                             |                      |                                 |
 | [schemastore.org]          | Apache-2.0                                                     | 6847cfc3a1                                         |                      |                                 |
-| [scons]                    | MIT                                                            | 3.1.2                                              |                      |                                 |
+| [scons]                    | MIT                                                            | 4.9.1                                              |                      |                                 |
 | [Snappy]                   | BSD-3-Clause                                                   | 1.1.10                                             |          ✗           |                ✗                |
 | [TCMalloc]                 | Apache-2.0                                                     | 093ba93 + changes                                  |                      |                ✗                |
 | [timelib]                  | MIT                                                            | 2022.10                                            |                      |                ✗                |

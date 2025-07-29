@@ -227,9 +227,8 @@ std::vector<Document> CommonMongodProcessInterface::getIndexStats(OperationConte
         return indexStats;
     }
 
-    const auto& indexStatsMap =
-        CollectionIndexUsageTrackerDecoration::get(collection.getCollection().get())
-            .getUsageStats();
+    const auto& collPtr = collection.getCollection();
+    const auto& indexStatsMap = CollectionQueryInfo::getUsageStats(collPtr);
     for (auto&& indexStatsMapIter : indexStatsMap) {
         auto indexName = indexStatsMapIter.first;
         auto stats = indexStatsMapIter.second;
@@ -433,9 +432,8 @@ Status CommonMongodProcessInterface::appendQueryExecStats(OperationContext* opCt
     bool redactForQE =
         collection->getCollectionOptions().encryptedFieldConfig || nss.isFLE2StateCollection();
     if (!redactForQE) {
-        auto collectionScanStats =
-            CollectionIndexUsageTrackerDecoration::get(collection.getCollection().get())
-                .getCollectionScanStats();
+        const auto& collPtr = collection.getCollection();
+        auto collectionScanStats = CollectionQueryInfo::getCollectionScanStats(collPtr);
 
         dassert(collectionScanStats.collectionScans <=
                 static_cast<unsigned long long>(std::numeric_limits<long long>::max()));
@@ -486,6 +484,13 @@ BSONObj CommonMongodProcessInterface::getCollectionOptionsLocally(OperationConte
 BSONObj CommonMongodProcessInterface::getCollectionOptions(OperationContext* opCtx,
                                                            const NamespaceString& nss) {
     return getCollectionOptionsLocally(opCtx, nss);
+}
+
+UUID CommonMongodProcessInterface::fetchCollectionUUIDFromPrimary(OperationContext* opCtx,
+                                                                  const NamespaceString& nss) {
+    BSONObj options = getCollectionOptions(opCtx, nss);
+    auto uuid = UUID::parse(options["uuid"_sd]);
+    return uassertStatusOK(uuid);
 }
 
 query_shape::CollectionType CommonMongodProcessInterface::getCollectionTypeLocally(
@@ -641,13 +646,14 @@ boost::optional<Document> CommonMongodProcessInterface::doLookupSingleDocument(
         pipeline = Pipeline::makePipeline(
             aggRequest, foreignExpCtx, boost::none /* shardCursorsSortSpec */, opts);
     } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>& ex) {
-        LOGV2_DEBUG(6726700, 1, "Namespace not found while looking up document", "error"_attr = ex);
+        LOGV2_DEBUG(
+            6726700, 1, "Namespace not found while looking up document", "error"_attr = redact(ex));
         return boost::none;
     } catch (const ExceptionFor<ErrorCodes::CollectionUUIDMismatch>& ex) {
         LOGV2_DEBUG(9597600,
                     1,
                     "Target collection UUID is different from the expected UUID",
-                    "error"_attr = ex);
+                    "error"_attr = redact(ex));
         return boost::none;
     }
 

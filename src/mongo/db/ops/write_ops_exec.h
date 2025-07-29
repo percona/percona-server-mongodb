@@ -237,9 +237,11 @@ void recordUpdateResultInOpDebug(const UpdateResult& updateResult, OpDebug* opDe
 /**
  * Returns true if an update failure due to a given DuplicateKey error is eligible for retry.
  */
-bool shouldRetryDuplicateKeyException(const UpdateRequest& updateRequest,
+bool shouldRetryDuplicateKeyException(OperationContext* opCtx,
+                                      const UpdateRequest& updateRequest,
                                       const CanonicalQuery& cq,
-                                      const DuplicateKeyErrorInfo& errorInfo);
+                                      const DuplicateKeyErrorInfo& errorInfo,
+                                      int retryAttempts);
 
 /**
  * Returns an InsertCommandReply if the timeseries writes succeeded.

@@ -155,6 +155,24 @@ WriteOpState WriteOp::getWriteState() const {
     return _state;
 }
 
+StringData WriteOp::getWriteStateAsString() const {
+    switch (_state) {
+        case WriteOpState_Ready:
+            return "Ready";
+        case WriteOpState_Pending:
+            return "Pending";
+        case WriteOpState_Deferred:
+            return "Deferred";
+        case WriteOpState_Completed:
+            return "Completed";
+        case WriteOpState_NoOp:
+            return "NoOp";
+        case WriteOpState_Error:
+            return "Error";
+    };
+    MONGO_UNREACHABLE;
+}
+
 const write_ops::WriteError& WriteOp::getOpError() const {
     dassert(_state == WriteOpState_Error);
     return *_error;
@@ -393,7 +411,7 @@ void WriteOp::_noteWriteWithoutShardKeyWithIdBatchResponseWithSingleWrite(
                 LOGV2_DEBUG(8083900,
                             4,
                             "Ignoring write without shard key with id child op error.",
-                            "error"_attr = childOp.error->serialize());
+                            "error"_attr = redact(childOp.error->serialize()));
                 childOp.state = WriteOpState_Completed;
                 childOp.error = boost::none;
             }

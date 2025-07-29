@@ -471,6 +471,13 @@ public:
         virtual void debugString(StringBuilder* builder) const = 0;
         virtual TagData* clone() const = 0;
         virtual Type getType() const = 0;
+
+        template <typename H>
+        friend H AbslHashValue(H state, const TagData& tagData) {
+            tagData.hash(absl::HashState::Create(&state));
+            return state;
+        }
+        virtual void hash(absl::HashState state) const = 0;
     };
 
     /**
@@ -516,7 +523,7 @@ public:
      * It is expected that most callers want to set 'includePath' to true to get a correct
      * serialization. Internally, we may set this to false if we have a situation where an outer
      * expression serializes a path and we don't want to repeat the path in the inner expression.
-
+     *
      * For example in {a: {$elemMatch: {$eq: 2}}} the "a" is serialized by the $elemMatch, and
      * should not be serialized by the EQ child.
      * The $elemMatch will serialize {a: {$elemMatch: <recurse>}} and the EQ will serialize just
