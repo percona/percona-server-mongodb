@@ -11,10 +11,10 @@ load(basePath + '/audit/_audit_helpers.js');
 var configFile = basePath + '/libs/config_files/audit_config.yaml';
 var configFileDeprecated = basePath + '/libs/config_files/audit_config_deprecated.yaml';
 var configFileBasic = basePath + '/libs/config_files/audit_config_basic.yaml';
-var configFileFork = basePath + '/libs/config_files/audit_config_fork.yaml';
 var configFileEmpty = basePath + '/libs/config_files/audit_config_empty.yaml';
 var configFileDestinationEmpty = basePath + '/libs/config_files/audit_config_destination_empty.yaml';
 
+var auditConfigPath = 'audit_config_test.json';
 var defaultNameJson = 'auditLog.json'
 var defaultNameBson = 'auditLog.bson'
 var logPath = getDBPath() + '/server.log'
@@ -28,6 +28,7 @@ auditTest(
     },
     { config: configFile }
 );
+removeFile(auditConfigPath);
 
 auditTest(
     'auditConfigDeprecated',
@@ -36,6 +37,7 @@ auditTest(
     },
     { config: configFileDeprecated }
 );
+removeFile(auditConfigPath);
 
 // Default path for audit log:
 // format: JSON
@@ -88,18 +90,6 @@ auditTest(
     { config: configFileBasic, auditFormat: 'BSON', logpath: logPath }
 )
 removeFile(defaultPathBson)
-
-// Test for creating audit log with relative path when forking.
-removeFile(defaultNameJson)
-auditTest(
-    'relativeAuditPathWhenForking',
-    function(m, restartServer) {
-        assert.eq(fileExists(defaultNameJson), true);
-    },
-    { config: configFileFork, logpath: logPath}
-)
-
-removeFile(defaultNameJson)
 
 // Destination: console
 // Expect no file created

@@ -4,6 +4,7 @@ Import([
     "env",
     "get_option",
     "has_option",
+    "has_feature_option",
     "inmemory",
     "version_extra",
     "version_parts",
@@ -61,6 +62,18 @@ env.SConscript(
     ],
     exports=[
         'env',
+    ],
+)
+
+env.Library(
+    target='server_parameter_insert_max_batch_size',
+    source=[
+        'server_parameter_insert_max_batch_size.cpp',
+    ],
+    LIBDEPS_PRIVATE=[
+        'repl/repl_server_parameters',
+        'server_base',
+        'storage/storage_options',
     ],
 )
 
@@ -2654,6 +2667,7 @@ env.Library(
         'audit_commands' if has_option('audit') else [],
         'auth/auth_op_observer',
         'auth/authserver',
+        'auth/oidc/oidc_commands' if has_feature_option('enable-oidc') else [],
         'bson/dotted_path_support',
         'catalog/catalog_impl',
         'catalog/collection_options',
@@ -2670,6 +2684,7 @@ env.Library(
         'dbdirectclient',
         'dbhelpers',
         'default_max_time_ms_cluster_parameter',
+        'encryption/encryption_status',
         'exec/working_set',
         'feature_compatibility_version_metrics',
         'ftdc/ftdc_mongod',
@@ -2781,6 +2796,7 @@ env.Library(
         'audit_impl' if has_option('audit') else [],
         'audit_options' if has_option('audit') else [],
         'auth/auth_op_observer',
+        'auth/oidc/oidc' if has_feature_option('enable-oidc') else [],
         'catalog/catalog_helpers',
         'catalog/catalog_impl',
         'catalog/collection_crud',
@@ -3018,6 +3034,7 @@ if wiredtiger:
             'record_id_test.cpp',
             'resource_yielder_test.cpp',
             'server_options_test.cpp',
+            'server_parameter_insert_max_batch_size_test.cpp',
             'service_liaison_mock.cpp',
             'session/internal_session_pool_test.cpp',
             'session/internal_transactions_reap_service_test.cpp',
@@ -3108,6 +3125,7 @@ if wiredtiger:
             's/shard_server_test_fixture',
             'server_base',
             'server_options_servers',
+            'server_parameter_insert_max_batch_size',
             'session/logical_session_cache_impl',
             'session/logical_session_id_helpers',
             'session/session_catalog_mongod',

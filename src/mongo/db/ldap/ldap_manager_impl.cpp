@@ -148,14 +148,19 @@ namespace mongo {
 struct LDAPConnInfo {
     LDAP* conn = nullptr;
     bool borrowed = false;
-    bool failed = false;
 
     void close() {
         invariant(!borrowed);
         if (conn) {
             ldap_unbind_ext(conn, nullptr, nullptr);
             conn = nullptr;
-            failed = false;
+        }
+    }
+
+    // close if it is not borrowed
+    void safe_close() {
+        if (!borrowed) {
+            close();
         }
     }
 };
@@ -219,7 +224,7 @@ static LDAP* create_connection(void* connect_cb_arg = nullptr,
 
 class LDAPManagerImpl::ConnectionPoller : public BackgroundJob {
 public:
-    explicit ConnectionPoller(LDAPManagerImpl* manager) : _manager(manager) {}
+    explicit ConnectionPoller() = default;
 
     virtual std::string name() const override {
         return "LDAPConnectionPoller";
@@ -238,28 +243,14 @@ public:
                 _condvar.wait(lock, [this] { return !_poll_fds.empty() || _shuttingDown.load(); });
 
                 fds.reserve(_poll_fds.size());
-                std::vector<int> to_erase;
                 for (auto& fd : _poll_fds) {
                     if (fd.first < 0)
                         continue;
-                    if (fd.second.failed) {
-                        if (!fd.second.borrowed) {
-                            fd.second.close();
-                            to_erase.push_back(fd.first);
-                        }
-                        continue;
-                    }
                     pollfd pfd;
                     pfd.events = POLLPRI | POLLRDHUP;
                     pfd.revents = 0;
                     pfd.fd = fd.first;
                     fds.push_back(pfd);
-                }
-                for (auto id : to_erase) {
-                    _poll_fds.erase(id);
-                }
-                if (!to_erase.empty()) {
-                    _condvar_pool.notify_all();
                 }
             }
             // if there are no descriptors that means server is shutting down
@@ -267,6 +258,7 @@ public:
             if (fds.empty())
                 continue;
 
+            bool notify_condvar_pool = false;
             static const int poll_timeout = 1000; // milliseconds
             int poll_ret = poll(fds.data(), fds.size(), poll_timeout);
             if (poll_ret != 0) {
@@ -280,14 +272,15 @@ public:
                 case EINVAL: errname = "EINVAL"; break;
                 case ENOMEM: errname = "ENOMEM"; break;
                 }
-                LOGV2_DEBUG(29064, 2, "poll() error name", "errname"_attr = errname);
+                LOGV2_WARNING(29064, "poll() error name", "errname"_attr = errname);
                 //restart all LDAP connections... but why?
                 {
                     stdx::unique_lock<Latch> lock{_mutex};
                     for (auto& fd : _poll_fds) {
-                        fd.second.failed = true;
+                        fd.second.safe_close();
                     }
-                    //_manager->needReinit();
+                    _poll_fds.clear();
+                    notify_condvar_pool = true;
                 }
             } else if (poll_ret > 0) {
                 static struct {
@@ -303,24 +296,38 @@ public:
                     {POLLNVAL, "POLLNVAL"}
                 };
                 if (shouldLog(MONGO_LOGV2_DEFAULT_COMPONENT, logv2::LogSeverity::Debug(2))) {
-                    for (auto const& f: flags) {
-                        for (auto const& fd: fds) {
+                    for (auto const& fd : fds) {
+                        if (fd.revents == 0) {
+                            continue;
+                        }
+                        for (auto const& f : flags) {
                             if (fd.revents & f.v) {
-                              LOGV2_DEBUG(29065, 2, "poll(): {event} event registered for {fd}", "event"_attr = f.name, "fd"_attr = fd.fd);
+                                LOGV2_DEBUG(29065,
+                                            2,
+                                            "poll(): {event} event registered for {fd}",
+                                            "event"_attr = f.name,
+                                            "fd"_attr = fd.fd);
                             }
                         }
                     }
                 }
+                stdx::unique_lock<Latch> lock{_mutex};
                 for (auto const& fd: fds) {
                     if (fd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
-                        // need to restart LDAP connection
-                        stdx::unique_lock<Latch> lock{_mutex};
-                        // cannot close (unbind) connection here because it might be in use
-                        // (borrowed). So just mark it as failed for later recycling
-                        _poll_fds[fd.fd].failed = true;
-                        //_manager->needReinit();
+                        auto it = _poll_fds.find(fd.fd);
+                        if (MONGO_unlikely(it == _poll_fds.end())) {
+                            LOGV2_WARNING(
+                                171200, "poll(): no connection found for fd", "fd"_attr = fd.fd);
+                            continue;
+                        }
+                        it->second.safe_close();
+                        _poll_fds.erase(it);
+                        notify_condvar_pool = true;
                     }
                 }
+            }
+            if (notify_condvar_pool) {
+                _condvar_pool.notify_all();
             }
         }
         LOGV2_DEBUG(29066, 1, "stopping thread", "name"_attr = name());
@@ -332,10 +339,22 @@ public:
             stdx::unique_lock<Latch> lock{_mutex};
             auto it = _poll_fds.find(fd);
             if(it == _poll_fds.end()) {
-                it = _poll_fds.insert({fd, {ldap, true, false}}).first;
+                it = _poll_fds.insert({fd, {.conn = ldap, .borrowed = true}}).first;
                 changed = true;
+            } else if (it->second.conn != ldap) {
+                // we have some connection corresponding to provided fd
+                // we observed such connections in failed state (see PSMDB-1712)
+                // let's replace it with the new one
+                // we are going to overwrite it->second.conn with ldap
+                // if it is borrowed then it will be unbind in return_ldap_connection()
+                // otherwise close it here
+                it->second.safe_close();
+                it->second.conn = ldap;
+                it->second.borrowed = true;
+                changed = true;
+            } else {
+                LOGV2_WARNING(171201, "unexpected start of the same connection", "fd"_attr = fd);
             }
-            invariant(!it->second.failed);
         }
         if (changed) {
             _condvar.notify_one();
@@ -350,7 +369,7 @@ public:
     // requires holding _mutex
     LDAPConnInfo* find_free_slot() {
         for (auto& fd : _poll_fds) {
-            if (!fd.second.borrowed && !fd.second.failed) {
+            if (!fd.second.borrowed) {
                 return &fd.second;
             }
         }
@@ -392,6 +411,8 @@ public:
         });
         if (it == _poll_fds.end()) {
             // for this connection there was no cb_add call
+            // or it was removed from _poll_fds by start_poll()'s logic
+            // or it was removed from _poll_fds due to some event reported by poll()
             // unbind it here
             ldap_unbind_ext(ldap, nullptr, nullptr);
             return;
@@ -405,7 +426,6 @@ public:
 
 private:
     std::map<int, LDAPConnInfo> _poll_fds;
-    LDAPManagerImpl* _manager;
     AtomicWord<bool> _shuttingDown{false};
     // _mutex works in pair with _condvar and also protects _poll_fds
     Mutex _mutex = MONGO_MAKE_LATCH("LDAPUserCacheInvalidator::_mutex");
@@ -542,7 +562,7 @@ Status LDAPManagerImpl::initialize() {
 // is executed when thread starting is prohibited
 void LDAPManagerImpl::start_threads() {
     if (!_connPoller) {
-        _connPoller = std::make_unique<ConnectionPoller>(this);
+        _connPoller = std::make_unique<ConnectionPoller>();
         _connPoller->go();
     }
 }

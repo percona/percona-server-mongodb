@@ -240,6 +240,16 @@ Status validateServerOptions(const moe::Environment& params) {
                                       " and replication.replSet");
             }
         }
+
+        bool disableJavaScriptJITUsed = parameters.find("disableJavaScriptJIT") != parameters.end();
+        if (disableJavaScriptJITUsed) {
+            LOGV2_WARNING(
+                10201701,
+                "The Javascript Just In Time compiler is deprecated, and should be disabled "
+                "for security reasons. The server parameter will be removed in the next minor "
+                "version. See https://www.mongodb.com/docs/manual/reference/parameters for "
+                "more information.");
+        }
     }
     if ((params.count("security.authorization") &&
          params["security.authorization"].as<std::string>() == "enabled") ||
@@ -372,18 +382,19 @@ Status storeServerOptions(const moe::Environment& params) {
     }
 
     if (params.count("net.maxIncomingConnectionsOverride")) {
-        std::vector<std::variant<CIDR, std::string>> maxConnsOverride;
+        std::vector<std::variant<CIDR, std::string>> maxIncomingConnsOverride;
         auto ranges = params["net.maxIncomingConnectionsOverride"].as<std::vector<std::string>>();
         for (const auto& range : ranges) {
             auto swr = CIDR::parse(range);
             if (!swr.isOK()) {
-                maxConnsOverride.push_back(range);
+                maxIncomingConnsOverride.push_back(range);
             } else {
-                maxConnsOverride.push_back(std::move(swr.getValue()));
+                maxIncomingConnsOverride.push_back(std::move(swr.getValue()));
             }
         }
-        serverGlobalParams.maxConnsOverride.update(
-            std::make_shared<decltype(maxConnsOverride)>(std::move(maxConnsOverride)));
+        serverGlobalParams.maxIncomingConnsOverride.update(
+            std::make_shared<decltype(maxIncomingConnsOverride)>(
+                std::move(maxIncomingConnsOverride)));
     }
 
     if (params.count("net.reservedAdminThreads")) {

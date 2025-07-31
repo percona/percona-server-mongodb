@@ -60,6 +60,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/service_context_test_fixture.h"
+#include "mongo/idl/server_parameter_test_util.h"
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_attr.h"
 #include "mongo/logv2/log_component.h"
@@ -68,6 +69,8 @@
 #include "mongo/rpc/message.h"
 #include "mongo/rpc/op_msg.h"
 #include "mongo/stdx/condition_variable.h"
+#include "mongo/stdx/mutex.h"
+#include "mongo/transport/asio/asio_session_manager.h"
 #include "mongo/transport/service_entry_point.h"
 #include "mongo/transport/service_executor.h"
 #include "mongo/transport/session_manager_common.h"
@@ -75,8 +78,11 @@
 #include "mongo/transport/session_workflow_test_util.h"
 #include "mongo/transport/test_fixtures.h"
 #include "mongo/transport/transport_layer_manager_impl.h"
+#include "mongo/transport/transport_options_gen.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/framework.h"
+#include "mongo/unittest/log_test.h"
+#include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/duration.h"
@@ -251,8 +257,14 @@ public:
         ServiceExecutor::shutdownAll(getServiceContext(), Seconds{10});
     }
 
-    void initializeNewSession() {
-        _session = std::make_shared<CustomMockSession>(this);
+    /**
+     * This must be called before beginning a session workflow on a new session in the test. It
+     * updates the _session shared pointer to a fresh session.
+     */
+    void initializeNewSession(HostAndPort remote = HostAndPort(),
+                              SockAddr remoteAddr = SockAddr(),
+                              SockAddr localAddr = SockAddr()) {
+        _session = std::make_shared<CustomMockSession>(this, remote, remoteAddr, localAddr);
         _session->getTransportLayerCb = [this] {
             return _transportLayer;
         };
@@ -274,7 +286,7 @@ public:
             getServiceContext()->getService()->getServiceEntryPoint());
     }
 
-    SessionManagerCommon* sessionManager() {
+    virtual SessionManagerCommon* sessionManager() {
         return _sessionManager;
     }
 
@@ -323,10 +335,50 @@ public:
 
     std::function<void(Client*)> onClientDisconnectCb;
 
+protected:
+    class MockSessionManagerCommon : public SessionManagerCommon {
+    public:
+        using SessionManagerCommon::SessionManagerCommon;
+
+    protected:
+        std::string getClientThreadName(const Session& session) const override {
+            return "mock{}"_format(session.id());
+        }
+
+        void configureServiceExecutorContext(Client* client,
+                                             bool isPrivilegedSession) const override {
+            auto seCtx = std::make_unique<ServiceExecutorContext>();
+            seCtx->setThreadModel(ServiceExecutorContext::kSynchronous);
+            seCtx->setCanUseReserved(isPrivilegedSession);
+            stdx::lock_guard lk(*client);
+            ServiceExecutorContext::set(client, std::move(seCtx));
+        }
+    };
+
+    class SWTObserver : public ClientTransportObserver {
+    public:
+        explicit SWTObserver(SessionWorkflowTest* test) : _test(test) {}
+        void onClientDisconnect(Client* client) override {
+            _test->_onMockEvent<Event::sepEndSession>(std::tie(client->session()));
+            if (_test->onClientDisconnectCb) {
+                _test->onClientDisconnectCb(client);
+            }
+        }
+
+    private:
+        SessionWorkflowTest* _test;
+    };
+
+    SessionManagerCommon* _sessionManager{nullptr};
+
 private:
     class CustomMockSession : public CallbackMockSession {
     public:
-        explicit CustomMockSession(SessionWorkflowTest* fixture) {
+        explicit CustomMockSession(SessionWorkflowTest* fixture,
+                                   HostAndPort remote,
+                                   SockAddr remoteAddr,
+                                   SockAddr localAddr)
+            : CallbackMockSession(remote, remoteAddr, localAddr) {
             endCb = [this] {
                 *_connected = false;
             };
@@ -375,45 +427,16 @@ private:
         return sep;
     }
 
-    class MockSessionManagerCommon : public SessionManagerCommon {
-    public:
-        using SessionManagerCommon::SessionManagerCommon;
-
-    protected:
-        std::string getClientThreadName(const Session& session) const override {
-            return "mock{}"_format(session.id());
-        }
-
-        void configureServiceExecutorContext(Client* client,
-                                             bool isPrivilegedSession) const override {
-            auto seCtx = std::make_unique<ServiceExecutorContext>();
-            seCtx->setThreadModel(ServiceExecutorContext::kSynchronous);
-            seCtx->setCanUseReserved(isPrivilegedSession);
-            stdx::lock_guard lk(*client);
-            ServiceExecutorContext::set(client, std::move(seCtx));
-        }
-    };
-
-    class SWTObserver : public ClientTransportObserver {
-    public:
-        explicit SWTObserver(SessionWorkflowTest* test) : _test(test) {}
-        void onClientDisconnect(Client* client) override {
-            _test->_onMockEvent<Event::sepEndSession>(std::tie(client->session()));
-            if (_test->onClientDisconnectCb) {
-                _test->onClientDisconnectCb(client);
-            }
-        }
-
-    private:
-        SessionWorkflowTest* _test;
-    };
-
-    void _initTransportLayer(ServiceContext* svcCtx) {
+    virtual std::unique_ptr<SessionManager> _initSessionManager(ServiceContext* svcCtx) {
         auto sm =
             std::make_unique<MockSessionManagerCommon>(svcCtx, std::make_unique<SWTObserver>(this));
         _sessionManager = sm.get();
+        return std::move(sm);
+    }
 
-        auto tl = std::make_unique<test::TransportLayerMockWithReactor>(std::move(sm));
+    void _initTransportLayer(ServiceContext* svcCtx) {
+        auto tl =
+            std::make_unique<test::TransportLayerMockWithReactor>(_initSessionManager(svcCtx));
         _transportLayer = tl.get();
         svcCtx->setTransportLayerManager(
             std::make_unique<TransportLayerManagerImpl>(std::move(tl)));
@@ -424,9 +447,10 @@ private:
     }
 
     /**
-     * Called by all mock functions to notify the main thread and get a value with which to respond.
-     * The mock function call is identified by an `event`.  If there isn't already an expectation,
-     * the mock object will wait for one to be injected via a call to `injectMockResponse`.
+     * Called by all mock functions to notify the main thread and get a value with which to
+     * respond. The mock function call is identified by an `event`.  If there isn't already an
+     * expectation, the mock object will wait for one to be injected via a call to
+     * `injectMockResponse`.
      */
     template <Event event>
     EventResultT<event> _onMockEvent(const EventTiedArgumentsT<event>& args) {
@@ -438,7 +462,6 @@ private:
     std::shared_ptr<CustomMockSession> _session;
     std::shared_ptr<ThreadPool> _threadPool = _makeThreadPool();
     test::TransportLayerMockWithReactor* _transportLayer{nullptr};
-    SessionManagerCommon* _sessionManager{nullptr};
 };
 
 TEST_F(SessionWorkflowTest, StartThenEndSession) {
@@ -550,6 +573,141 @@ TEST_F(SessionWorkflowTest, CleanupFromGetMore) {
     // calls to the SEP for the cleanup "killCursors", and the next thing to happen
     // will be the end of the session.
     expect<Event::sepEndSession>();
+    joinSessions();
+}
+
+class ConnectionEstablishmentQueueingTest : public SessionWorkflowTest {
+public:
+    AsioSessionManager* sessionManager() override {
+        return dynamic_cast<AsioSessionManager*>(_sessionManager);
+    }
+
+    BSONObj getConnectionStats() {
+        BSONObjBuilder bob;
+        sessionManager()->appendStats(&bob);
+        auto stats = bob.obj();
+        LOGV2(10481100, "Connection stats", "stats"_attr = stats);
+        return stats;
+    }
+
+    void waitUntil(std::function<bool(void)> pred) {
+        auto retries = 0;
+        while (!pred() && retries < 5) {
+            sleepmillis(pow(5, ++retries));
+        }
+    }
+
+private:
+    std::unique_ptr<SessionManager> _initSessionManager(ServiceContext* svcCtx) override {
+        auto sm = std::make_unique<AsioSessionManager>(svcCtx, std::make_unique<SWTObserver>(this));
+        _sessionManager = sm.get();
+        return std::move(sm);
+    }
+
+    RAIIServerParameterControllerForTest featureEnabled{
+        "ingressConnectionEstablishmentRateLimiterEnabled", true};
+    unittest::MinimumLoggedSeverityGuard logSeverityGuard{logv2::LogComponent::kDefault,
+                                                          logv2::LogSeverity::Debug(4)};
+};
+
+TEST_F(ConnectionEstablishmentQueueingTest, RejectEstablishmentWhenQueueingDisabled) {
+    RAIIServerParameterControllerForTest refreshRate{"ingressConnectionEstablishmentRatePerSec",
+                                                     1.0};
+    RAIIServerParameterControllerForTest burstCapacitySecs{
+        "ingressConnectionEstablishmentBurstCapacitySecs", 1};
+
+    // The first session gets a token successfully and calls sourceMessage.
+    startSession();
+    expect<Event::sessionSourceMessage>(makeOpMsg());
+    waitUntil([&] { return getConnectionStats()["active"].numberLong() == 1; });
+    ASSERT_EQ(getConnectionStats()["active"].numberLong(), 1);
+    ASSERT_EQ(getConnectionStats()["current"].numberLong(), 1);
+    expect<Event::sepHandleRequest>(makeResponse(makeOpMsg()));
+    expect<Event::sessionSinkMessage>(Status::OK());
+    expect<Event::sessionSourceMessage>(kClosedSessionError);
+    expect<Event::sepEndSession>();
+
+    // The next session fails to get a token and is closed because queueing is disabled.
+    initializeNewSession();
+    startSession();
+    expect<Event::sepEndSession>();
+
+    // Rejected connections should be counted in both server status sections.
+    ASSERT_EQ(getConnectionStats()["rejected"].numberLong(), 1);
+    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["rejected"].numberLong(), 1);
+    ASSERT_EQ(getConnectionStats()["queuedForEstablishment"].numberLong(), 0);
+    ASSERT_EQ(getConnectionStats()["totalCreated"].numberLong(), 2);
+
+    joinSessions();
+}
+
+TEST_F(ConnectionEstablishmentQueueingTest, InterruptQueuedEstablishments) {
+    RAIIServerParameterControllerForTest refreshRate{"ingressConnectionEstablishmentRatePerSec",
+                                                     1.0};
+    RAIIServerParameterControllerForTest burstCapacitySecs{
+        "ingressConnectionEstablishmentBurstCapacitySecs", 1};
+    RAIIServerParameterControllerForTest maxQueueDepth{
+        "ingressConnectionEstablishmentMaxQueueDepth", 10};
+    const auto initialAvailable = getConnectionStats()["available"].numberLong();
+
+    // The first session gets a token successfully and calls sourceMessage.
+    startSession();
+    expect<Event::sessionSourceMessage>(kClosedSessionError);
+    expect<Event::sepEndSession>();
+
+    // The next session fails to get a token and queues until it is interrupted.
+    initializeNewSession();
+    startSession();
+
+    // Ensure the session queues.
+    waitUntil([&] { return getConnectionStats()["queuedForEstablishment"].numberLong() == 1; });
+    // Queued connections should be counted in "queuedForEstablishment", "totalCreated", and
+    // "available" stats.
+    ASSERT_EQ(getConnectionStats()["queuedForEstablishment"].numberLong(), 1);
+    ASSERT_EQ(getConnectionStats()["available"].numberLong(), initialAvailable - 1);
+    ASSERT_EQ(getConnectionStats()["totalCreated"].numberLong(), 2);
+
+    // Queued connections shouldn't be counted as active or current.
+    ASSERT_EQ(getConnectionStats()["active"].numberLong(), 0);
+    ASSERT_EQ(getConnectionStats()["current"].numberLong(), 0);
+
+    getServiceContext()->setKillAllOperations();
+    expect<Event::sepEndSession>();
+
+    ASSERT_EQ(getConnectionStats()["queuedForEstablishment"].numberLong(), 0);
+
+    joinSessions();
+}
+
+TEST_F(ConnectionEstablishmentQueueingTest, BypassQueueingEstablishment) {
+    std::string ip = "127.0.0.1";
+    RAIIServerParameterControllerForTest exemptionsGuard(
+        "ingressConnectionEstablishmentRateLimiterBypass",
+        BSON("ranges" << BSONArray(BSON("0" << ip))));
+    RAIIServerParameterControllerForTest refreshRate{"ingressConnectionEstablishmentRatePerSec",
+                                                     1.0};
+    RAIIServerParameterControllerForTest burstCapacitySecs{
+        "ingressConnectionEstablishmentBurstCapacitySecs", 1};
+
+    // The first session gets a token successfully and calls sourceMessage.
+    startSession();
+    expect<Event::sessionSourceMessage>(kClosedSessionError);
+    expect<Event::sepEndSession>();
+
+    // Non-exempt ips fail because there are no tokens available and queueing is disabled.
+    initializeNewSession(HostAndPort("192.168.0.53", 27017),
+                         SockAddr::create("192.168.0.53", 27017, AF_INET));
+    startSession();
+    expect<Event::sepEndSession>();
+    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["rejected"].numberLong(), 1);
+
+    // Exempted ips get through.
+    initializeNewSession(HostAndPort(ip, 27017), SockAddr::create(ip, 27017, AF_INET));
+    startSession();
+    expect<Event::sessionSourceMessage>(kClosedSessionError);
+    expect<Event::sepEndSession>();
+    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["exempted"].numberLong(), 1);
+
     joinSessions();
 }
 

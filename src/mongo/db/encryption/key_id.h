@@ -35,6 +35,8 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <memory>
 #include <string>
 
+#include "mongo/base/string_data.h"
+
 namespace mongo {
 class BSONObj;
 class BSONObjBuilder;
@@ -77,6 +79,9 @@ public:
 
     /// @brief Makes the class and its subclasses loggable with LOGV2.
     virtual void serialize(BSONObjBuilder* b) const = 0;
+
+    /// @brief Serializes the key identifier for the server status command with the given field name.
+    virtual void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const = 0;
 
     virtual void accept(KeyIdConstVisitor& v) const = 0;
 
@@ -122,6 +127,7 @@ public:
     }
 
     void serialize(BSONObjBuilder* b) const override;
+    void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const override;
     void accept(KeyIdConstVisitor& v) const override;
 
     static constexpr const char* kFacilityType = "encryption key file";
@@ -168,6 +174,7 @@ public:
     }
 
     void serialize(BSONObjBuilder* b) const override;
+    void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const override;
     void accept(KeyIdConstVisitor& v) const override;
 
     static constexpr const char* kFacilityType = "Vault server";
@@ -216,6 +223,7 @@ public:
     }
 
     void serialize(BSONObjBuilder* b) const override;
+    void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const override;
     void accept(KeyIdConstVisitor& v) const override;
 
     static constexpr const char* kFacilityType = "KMIP server";
@@ -261,6 +269,12 @@ public:
 /// _ten_ arguments and adding even more is not an option. Thus, having to
 /// use some analog of a nasty global variable for now.
 ///
+/// @warning Thread Safety: This singleton is NOT fully thread-safe.
+/// The fields are set once during startup/initialization and
+/// then read during runtime operations like server status generation.
+/// Concurrent modifications may cause data races.
+/// Consider adding synchronization if concurrent access patterns change.
+///
 /// @todo Refactor the code so that this singleton is eliminated.
 class WtKeyIds {
 public:
@@ -268,7 +282,7 @@ public:
 
     /// @brief The present configured key identifier, if any.
     ///
-    /// Is is read from the storage engine metadata, specifically form the
+    /// It is read from the storage engine metadata, specifically from the
     /// storage engine encryption options.
     std::unique_ptr<KeyId> configured;
 

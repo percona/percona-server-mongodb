@@ -36,7 +36,10 @@ if "tom" in env["MONGO_CRYPTO"]:
 
 cryptoEnv.Library(
     target='sha_block_${MONGO_CRYPTO}',
-    source=['sha_block_${MONGO_CRYPTO}.cpp'],
+    source=[
+        'hash_block.cpp',
+        'sha_block_${MONGO_CRYPTO}.cpp',
+    ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
         'sha1_block',
@@ -197,7 +200,7 @@ env.Library(
         'jwt_types',
     ],
     LIBDEPS_PRIVATE=[
-        '$BUILD_DIR/mongo/client/sasl_client',
+        '$BUILD_DIR/mongo/client/native_sasl_client',
         '$BUILD_DIR/mongo/db/auth/oidc_protocol',
         '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
         '$BUILD_DIR/mongo/util/net/http_client_impl',

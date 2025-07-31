@@ -41,6 +41,7 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/catalog/collection_catalog.h"
+#include "mongo/db/catalog/collection_uuid_mismatch_info.h"
 #include "mongo/db/client.h"
 #include "mongo/db/curop_failpoint_helpers.h"
 #include "mongo/db/feature_flag.h"
@@ -73,6 +74,8 @@ MONGO_FAIL_POINT_DEFINE(hangWhileBuildingDocumentSourceOutBatch);
 MONGO_FAIL_POINT_DEFINE(outWaitAfterTempCollectionCreation);
 MONGO_FAIL_POINT_DEFINE(outWaitBeforeTempCollectionRename);
 MONGO_FAIL_POINT_DEFINE(outWaitAfterTempCollectionRenameBeforeView);
+MONGO_FAIL_POINT_DEFINE(outImplictlyCreateDBOnSpecificShard);
+MONGO_FAIL_POINT_DEFINE(hangDollarOutAfterInsert);
 
 REGISTER_DOCUMENT_SOURCE(out,
                          DocumentSourceOut::LiteParsed::parse,
@@ -103,7 +106,7 @@ DocumentSourceOut::~DocumentSourceOut() {
                 LOGV2_WARNING(7466203,
                               "Unexpected error dropping temporary collection; drop will complete "
                               "on next server restart",
-                              "error"_attr = e.toString(),
+                              "error"_attr = redact(e.toString()),
                               "coll"_attr = dropNs);
             };
         };
@@ -261,9 +264,17 @@ void DocumentSourceOut::createTemporaryCollection() {
         createCommandOptions.appendElementsUnique(_originalOutOptions);
     }
 
-    // If the output collection exists, we should create the temp collection on the shard that
-    // owns the output collection.
-    auto targetShard = getMergeShardId();
+    auto targetShard = [&]() -> boost::optional<ShardId> {
+        if (auto fpTarget = outImplictlyCreateDBOnSpecificShard.scoped();
+            // Used for consistently picking a shard in testing.
+            MONGO_unlikely(fpTarget.isActive())) {
+            return ShardId(fpTarget.getData()["shardId"].String());
+        } else {
+            // If the output collection exists, we should create the temp collection on the shard
+            // that owns the output collection.
+            return getMergeShardId();
+        }
+    }();
 
     // Set the enum state to 'kTmpCollExists' first, because 'createTempCollection' can throw
     // after constructing the collection.
@@ -329,6 +340,14 @@ void DocumentSourceOut::initialize() {
                 !_timeseries);
 
     createTemporaryCollection();
+
+    // Save the collection UUID to detect if it was dropped during execution. Timeseries will detect
+    // this when inserting as it doesn't implicity create collections on insert.
+    if (!_timeseries) {
+        _tempNsUUID =
+            pExpCtx->mongoProcessInterface->fetchCollectionUUIDFromPrimary(pExpCtx->opCtx, _tempNs);
+    }
+
     if (_originalIndexes.empty()) {
         return;
     }
@@ -349,6 +368,20 @@ void DocumentSourceOut::initialize() {
 void DocumentSourceOut::renameTemporaryCollection() {
     // If the collection is time-series, we must rename to the "real" buckets collection.
     const NamespaceString& outputNs = makeBucketNsIfTimeseries(getOutputNs());
+
+    // Use the UUID to catch a mismatch if the temp collection was dropped and recreated in case of
+    // stepdown. Timeseries has it's own handling for this case as the dropped temp collection isn't
+    // implicitly recreated.
+    if (!_timeseries) {
+        tassert(8085301, "No uuid found for $out temporary namespace", _tempNsUUID);
+        const UUID currentTempNsUUID =
+            pExpCtx->mongoProcessInterface->fetchCollectionUUIDFromPrimary(pExpCtx->opCtx, _tempNs);
+        uassert((CollectionUUIDMismatchInfo{
+                    _tempNs.dbName(), currentTempNsUUID, _tempNs.coll().toString(), boost::none}),
+                "$out cannot complete as the temp collection was dropped while executing",
+                currentTempNsUUID == _tempNsUUID);
+    }
+
     CurOpFailpointHelpers::waitWhileFailPointEnabled(
         &outWaitBeforeTempCollectionRename,
         pExpCtx->opCtx,
@@ -416,6 +449,43 @@ void DocumentSourceOut::finalize() {
     _tmpCleanUpState = OutCleanUpProgress::kComplete;
 }
 
+void DocumentSourceOut::flush(BatchedCommandRequest bcr, BatchedObjects batch) {
+    DocumentSourceWriteBlock writeBlock(pExpCtx->opCtx);
+
+    auto insertCommand = bcr.extractInsertRequest();
+    insertCommand->setDocuments(std::move(batch));
+    auto targetEpoch = boost::none;
+
+    if (_timeseries) {
+        uassertStatusOK(pExpCtx->mongoProcessInterface->insertTimeseries(
+            pExpCtx, _tempNs, std::move(insertCommand), _writeConcern, targetEpoch));
+    } else {
+        // Use the UUID to catch a mismatch if the temp collection was dropped and recreated.
+        // Timeseries will detect this as inserts into the buckets collection don't implicitly
+        // create the collection. Inserts with uuid are not supported with apiStrict, so there is a
+        // secondary check at the rename when apiStrict is true.
+        if (!APIParameters::get(pExpCtx->opCtx).getAPIStrict().value_or(false)) {
+            tassert(8085300, "No uuid found for $out temporary namespace", _tempNsUUID);
+            insertCommand->getWriteCommandRequestBase().setCollectionUUID(_tempNsUUID);
+        }
+        try {
+            uassertStatusOK(pExpCtx->mongoProcessInterface->insert(
+                pExpCtx, _tempNs, std::move(insertCommand), _writeConcern, targetEpoch));
+
+        } catch (ExceptionFor<ErrorCodes::CollectionUUIDMismatch>& ex) {
+            ex.addContext(
+                str::stream()
+                << "$out cannot complete as the temp collection was dropped while executing");
+            throw;
+        }
+    }
+
+    CurOpFailpointHelpers::waitWhileFailPointEnabled(
+        &hangDollarOutAfterInsert, pExpCtx->opCtx, "hangDollarOutAfterInsert", []() {
+            LOGV2(8085302, "Hanging aggregation due to 'hangDollarOutAfterInsert' failpoint");
+        });
+}
+
 BatchedCommandRequest DocumentSourceOut::makeBatchedWriteRequest() const {
     const auto& nss =
         _tempNs.isTimeseriesBucketsCollection() ? _tempNs.getTimeseriesViewNamespace() : _tempNs;
@@ -475,9 +545,8 @@ void DocumentSourceOut::waitWhileFailPointEnabled() {
         pExpCtx->opCtx,
         "hangWhileBuildingDocumentSourceOutBatch",
         []() {
-            LOGV2(
-                20902,
-                "Hanging aggregation due to  'hangWhileBuildingDocumentSourceOutBatch' failpoint");
+            LOGV2(20902,
+                  "Hanging aggregation due to 'hangWhileBuildingDocumentSourceOutBatch' failpoint");
         });
 }
 

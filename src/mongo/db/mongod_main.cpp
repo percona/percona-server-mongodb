@@ -72,6 +72,9 @@
 #include "mongo/db/audit/audit_options.h"
 #include "mongo/db/auth/auth_op_observer.h"
 #include "mongo/db/auth/authorization_manager.h"
+#ifdef PERCONA_OIDC_ENABLED
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
+#endif
 #include "mongo/db/auth/user_cache_invalidator_job.h"
 #include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_catalog.h"
@@ -1223,6 +1226,21 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
         audit::logStartupOptions(Client::getCurrent(), serverGlobalParams.parsedOpts);
     }
 
+#ifdef PERCONA_OIDC_ENABLED
+    // Cannot use ServiceContext::ConstructorActionRegisterer to construct the
+    // OidcIdentityProvidersRegistry because the PeriodicRunner is not yet initialized
+    // when the initializer runs.
+    //
+    // Constructors are called early in mongod_main(), when the ServiceContext is created
+    // (see ServiceContext::make()).
+    // However, the PeriodicRunner is only created later in the current function
+    // (_initAndListen(), see makePeriodicRunner()).
+    //
+    // To ensure proper initialization of the registry, use a global initializer
+    // function to construct the registry and register it with the ServiceContext.
+    initializeOidcIdentityProvidersRegistry(serviceContext);
+#endif
+
     // MessageServer::run will return when exit code closes its socket and we don't need the
     // operation context anymore
     startupOpCtx.reset();
@@ -2115,7 +2133,8 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
                                                   "Shut down the storage engine",
                                                   &shutdownTimeElapsedBuilder);
         LOGV2(4784930, "Shutting down the storage engine");
-        shutdownGlobalStorageEngineCleanly(serviceContext);
+        // Allow memory leak for faster shutdown.
+        shutdownGlobalStorageEngineCleanly(serviceContext, true /* memLeakAllowed */);
     }
 
     {

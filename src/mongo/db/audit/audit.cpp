@@ -164,7 +164,7 @@ class FileAuditLog : public WritableAuditLog {
 public:
     FileAuditLog(const std::string& file, const BSONObj& filter)
         : WritableAuditLog(filter), _file(new Sink), _fileName(file) {
-        _file->open(file.c_str(), std::ios_base::out | std::ios_base::app | std::ios_base::binary);
+        _file->open(file.c_str(), kFileOpenMode);
     }
 
     virtual ~FileAuditLog() {
@@ -175,6 +175,9 @@ public:
     }
 
 protected:
+    static constexpr auto kFileOpenMode =
+        std::ios_base::out | std::ios_base::app | std::ios_base::binary;
+
     // Creates specific Adapter instance for FileAuditLog::append()
     // and passess ownership to caller
     virtual AuditLogFormatAdapter* createAdapter(const BSONObj& obj) const = 0;
@@ -216,25 +219,54 @@ protected:
         if (rename) {
             // Rename the current file
             // Note: we append a timestamp to the file name.
-            std::string s = _fileName + renameSuffix;
-            int r = std::rename(_fileName.c_str(), s.c_str());
-            if (r != 0) {
-                auto ec = lastSystemError();
-                if (onMinorError) {
-                    onMinorError(
-                        {ErrorCodes::FileRenameFailed,
-                         "Failed to rename {} to {}: {}"_format(_fileName, s, errorMessage(ec))});
+            std::string targetName = _fileName + renameSuffix;
+
+            // Check if the target file already exists.
+            auto targetExists = [&targetName]() -> StatusWith<bool> {
+                try {
+                    return boost::filesystem::exists(targetName);
+                } catch (const boost::exception&) {
+                    return exceptionToStatus();
                 }
-                LOGV2_ERROR(29016,
-                            "Could not rotate audit log, but continuing normally "
-                            "(error desc: {err_desc})",
-                            "err_desc"_attr = errorMessage(ec));
+            }();
+
+            if (!targetExists.isOK()) {
+                // If cannot determine whether the target file exists,
+                // report a minor error and skip renaming.
+                if (onMinorError) {
+                    onMinorError({ErrorCodes::FileRenameFailed,
+                                  "Cannot verify whether destination already exists: {}. "
+                                  "Skipping audit log rotation."_format(targetName)});
+                }
+            } else if (targetExists.getValue()) {
+                // If the target file already exists,
+                // report a minor error and skip renaming.
+                if (onMinorError) {
+                    onMinorError({ErrorCodes::FileRenameFailed,
+                                  "Target already exists during audit log rotation. "
+                                  "Skipping audit log rotation. "
+                                  "target={}, file={}"_format(targetName, _fileName)});
+                }
+            } else {
+                int r = std::rename(_fileName.c_str(), targetName.c_str());
+                if (r != 0) {
+                    auto ec = lastSystemError();
+                    if (onMinorError) {
+                        onMinorError({ErrorCodes::FileRenameFailed,
+                                      "Failed to rename {} to {}: {}"_format(
+                                          _fileName, targetName, errorMessage(ec))});
+                    }
+                    LOGV2_ERROR(29016,
+                                "Could not rotate audit log, but continuing normally "
+                                "(error desc: {err_desc})",
+                                "err_desc"_attr = errorMessage(ec));
+                }
             }
         }
 
         // Open a new file, with the same name as the original.
         _file.reset(new Sink);
-        _file->open(_fileName.c_str());
+        _file->open(_fileName.c_str(), kFileOpenMode);
 
         return Status::OK();
     }
@@ -489,11 +521,26 @@ Status initialize() {
         _setGlobalAuditLog(new ConsoleAuditLog(filter));
     else if (auditOptions.destination == "syslog")
         _setGlobalAuditLog(new SyslogAuditLog(filter));
-    // "file" destination
-    else if (auditOptions.format == "BSON")
-        _setGlobalAuditLog(new BSONAuditLog(auditOptions.path, filter));
-    else
-        _setGlobalAuditLog(new JSONAuditLog(auditOptions.path, filter));
+    else {
+        const bool needRotate = boost::filesystem::exists(auditOptions.path);
+        // "file" destination
+        if (auditOptions.format == "BSON")
+            _setGlobalAuditLog(new BSONAuditLog(auditOptions.path, filter));
+        else
+            _setGlobalAuditLog(new JSONAuditLog(auditOptions.path, filter));
+
+        // Rotate the audit log if it already exists.
+        if (needRotate) {
+            logv2::LogRotateErrorAppender minorErrors;
+            uassertStatusOK(
+                logv2::rotateLogs(serverGlobalParams.logRenameOnRotate,
+                                  logv2::kAuditLogTag,
+                                  [&minorErrors](Status err) { minorErrors.append(err); }));
+            if (auto status = minorErrors.getCombinedStatus(); !status.isOK()) {
+                LOGV2_ERROR(29139, "Log rotation failed", "error"_attr = status);
+            }
+        }
+    }
     return Status::OK();
 }
 
@@ -663,6 +710,7 @@ public:
         params << "user" << event.getUser().getName();
         params << "db" << toString(event.getUser().getDatabaseName());
         params << "mechanism" << event.getMechanism();
+        event.appendExtraInfo(&params);
         _auditEvent(client, "authenticate", params.done(), event.getResult(), false);
     }
 

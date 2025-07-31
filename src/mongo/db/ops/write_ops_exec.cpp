@@ -118,6 +118,7 @@
 #include "mongo/db/s/query_analysis_writer.h"
 #include "mongo/db/s/scoped_collection_metadata.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/server_parameter_insert_max_batch_size.h"
 #include "mongo/db/shard_role.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/stats/resource_consumption_metrics.h"
@@ -1205,7 +1206,7 @@ WriteResult performInserts(OperationContext* opCtx,
     size_t nextOpIndex = 0;
     size_t bytesInBatch = 0;
     std::vector<InsertStatement> batch;
-    const size_t maxBatchSize = internalInsertMaxBatchSize.load();
+    const size_t maxBatchSize = getInternalInsertMaxBatchSize();
     const size_t maxBatchBytes = write_ops::insertVectorMaxBytes;
     batch.reserve(std::min(wholeOp.getDocuments().size(), maxBatchSize));
 
@@ -1514,9 +1515,9 @@ static SingleWriteResult performSingleUpdateOpWithDupKeyRetry(
         request.setSampleId(sampleId);
     }
 
-    size_t numAttempts = 0;
+    int retryAttempts = 0;
     while (true) {
-        ++numAttempts;
+        ++retryAttempts;
 
         try {
             bool containsDotsAndDollarsField = false;
@@ -1538,14 +1539,14 @@ static SingleWriteResult performSingleUpdateOpWithDupKeyRetry(
             auto cq = uassertStatusOK(parseWriteQueryToCQ(opCtx, nullptr /* expCtx */, request));
 
             if (!write_ops_exec::shouldRetryDuplicateKeyException(
-                    request, *cq, *ex.extraInfo<DuplicateKeyErrorInfo>())) {
+                    opCtx, request, *cq, *ex.extraInfo<DuplicateKeyErrorInfo>(), retryAttempts)) {
                 throw;
             }
 
             logAndBackoff(4640402,
                           ::mongo::logv2::LogComponent::kWrite,
                           logv2::LogSeverity::Debug(1),
-                          numAttempts,
+                          retryAttempts,
                           "Caught DuplicateKey exception during upsert",
                           logAttrs(ns));
         }
@@ -2252,11 +2253,35 @@ bool matchContainsOnlyAndedEqualityNodes(const MatchExpression& root) {
 }
 }  // namespace
 
-bool shouldRetryDuplicateKeyException(const UpdateRequest& updateRequest,
+bool shouldRetryDuplicateKeyException(OperationContext* opCtx,
+                                      const UpdateRequest& updateRequest,
                                       const CanonicalQuery& cq,
-                                      const DuplicateKeyErrorInfo& errorInfo) {
+                                      const DuplicateKeyErrorInfo& errorInfo,
+                                      int retryAttempts) {
     // In order to be retryable, the update must be an upsert with multi:false.
     if (!updateRequest.isUpsert() || updateRequest.isMulti()) {
+        return false;
+    }
+
+    // In multi document transactions, there is an outer WriteUnitOfWork and inner WriteUnitOfWork.
+    // The inner WriteUnitOfWork exists per-document. Aborting the inner one necessitates aborting
+    // the outer one. Otherwise, retrying the inner one will read the writes of the
+    // previously-aborted inner WriteUnitOfWork.
+    if (opCtx->inMultiDocumentTransaction()) {
+        return false;
+    }
+
+    // There was a bug where an upsert sending a document into a partial/sparse unique index would
+    // retry indefinitely. To avoid this, cap the number of retries.
+    int upsertMaxRetryAttemptsOnDuplicateKeyError =
+        write_ops::gUpsertMaxRetryAttemptsOnDuplicateKeyError.load();
+    if (retryAttempts > upsertMaxRetryAttemptsOnDuplicateKeyError) {
+        LOGV2(9552300,
+              "Upsert hit max number of retries on duplicate key exception, as determined by "
+              "server parameter upsertMaxRetryAttemptsOnDuplicateKeyError. No further retry will "
+              "be attempted for this query.",
+              "upsertMaxRetryAttemptsOnDuplicateKeyError"_attr =
+                  upsertMaxRetryAttemptsOnDuplicateKeyError);
         return false;
     }
 

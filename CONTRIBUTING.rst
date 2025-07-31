@@ -181,20 +181,26 @@ Build AWS Software Development Kit for C++ library
 
       $ cd aws-sdk-cpp && git checkout 1.9.379
 
-5. It is recommended to keep build files outside the SDK directory.
+5. Apply a patch to fix build failure with libcurl >= 7.87.0
+
+   .. code:: bash
+
+      $ curl -L https://github.com/aws/aws-sdk-cpp/commit/0fba9f908d7ddc30aceab69b939f997330a44bb3.patch | git apply
+
+6. It is recommended to keep build files outside the SDK directory.
    Create a build directory and navigate to it
 
    .. code:: bash
 
       $ mkdir build && cd build
 
-6. Generate build files using ``cmake``
+7. Generate build files using ``cmake``
 
    .. code:: bash
 
       $ cmake .. -DCMAKE_BUILD_TYPE=Release '-DBUILD_ONLY=s3;transfer' -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
 
-7. Install the SDK
+8. Install the SDK
 
    .. code:: bash
 

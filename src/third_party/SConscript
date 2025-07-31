@@ -33,6 +33,7 @@ thirdPartyEnvironmentModifications = {
     'libarchive': {'CPPPATH': ['#/src/third_party/libarchive' + libarchiveSuffix], },
     'libkmip': {'CPPPATH': ['#/src/third_party/libkmip' + libkmipSuffix + '/libkmip/include'], },
     'kmippp' : {'CPPPATH': ['#/src/third_party/libkmip' + libkmipSuffix], },
+    'folly': {'CPPPATH': ['#src/third_party/folly/dist'], },
     'fmt': {'CPPPATH': ['#src/third_party/fmt/dist/include'], },
     'immer': {'CPPPATH': ['#src/third_party/immer/dist'], },
     's2': {'CPPPATH': ['#src/third_party/s2'], },

@@ -594,7 +594,8 @@ DocumentSource::GetNextResult DocumentSourceLookUp::doGetNext() {
     std::unique_ptr<Pipeline, PipelineDeleter> pipeline;
     try {
         pipeline = buildPipeline(_fromExpCtx, inputDoc);
-        LOGV2_DEBUG(9497000, 5, "Built pipeline", "pipeline"_attr = pipeline->serializeToBson());
+        LOGV2_DEBUG(
+            9497000, 5, "Built pipeline", "pipeline"_attr = pipeline->serializeForLogging());
     } catch (const ExceptionForCat<ErrorCategory::StaleShardVersionError>& ex) {
         // If lookup on a sharded collection is disallowed and the foreign collection is sharded,
         // throw a custom exception.
@@ -732,8 +733,8 @@ PipelinePtr DocumentSourceLookUp::buildPipeline(
                         "$lookup found view definition. ns: {namespace}, pipeline: {pipeline}. New "
                         "$lookup sub-pipeline: {new_pipe}",
                         logAttrs(e->getNamespace()),
-                        "pipeline"_attr = Value(e->getPipeline()),
-                        "new_pipe"_attr = _resolvedPipeline);
+                        "pipeline"_attr = Pipeline::serializePipelineForLogging(e->getPipeline()),
+                        "new_pipe"_attr = Pipeline::serializePipelineForLogging(_resolvedPipeline));
 
             // We can now safely optimize and reattempt attaching the cursor source.
             pipeline = Pipeline::makePipeline(_resolvedPipeline, fromExpCtx, pipelineOpts);
@@ -783,8 +784,8 @@ PipelinePtr DocumentSourceLookUp::buildPipeline(
                         "$lookup found view definition. ns: {namespace}, pipeline: {pipeline}. New "
                         "$lookup sub-pipeline: {new_pipe}",
                         logAttrs(e->getNamespace()),
-                        "pipeline"_attr = Value(e->getPipeline()),
-                        "new_pipe"_attr = _resolvedPipeline);
+                        "pipeline"_attr = Pipeline::serializePipelineForLogging(e->getPipeline()),
+                        "new_pipe"_attr = Pipeline::serializePipelineForLogging(_resolvedPipeline));
 
             // Try to attach the cursor source again.
             pipeline = pExpCtx->mongoProcessInterface->preparePipelineForExecution(
@@ -996,22 +997,35 @@ Pipeline::SourceContainer::iterator DocumentSourceLookUp::doOptimizeAt(
 
     // We cannot yet lower $LUM (combined $lookup + $unwind + $match) stages to SBE.
     _sbeCompatibility = SbeCompatibility::notCompatible;
+    bool needToOptimize = false;
     if (!_matchSrc) {
         _matchSrc = nextMatch;
     } else {
-        // We have already absorbed a $match. We need to join it with 'dependent'.
-        _matchSrc->joinMatchWith(nextMatch, "$and"_sd);
+        // We have already absorbed a $match. We need to join it with the next one.
+        _matchSrc->joinMatchWith(nextMatch, MatchExpression::MatchType::AND);
+        needToOptimize = true;
     }
 
     // Remove the original $match.
     container->erase(std::next(itr));
 
     // We have internalized a $match, but have not yet computed the descended $match that should
-    // be applied to our queries.
-    _additionalFilter = DocumentSourceMatch::descendMatchOnPath(
-                            _matchSrc->getMatchExpression(), _as.fullPath(), pExpCtx)
-                            ->getQuery()
-                            .getOwned();
+    // be applied to our queries. Note that we have to optimze the MatchExpression that we pass into
+    // 'descendMatchOnPath' because the call to 'joinMatchWith' rebuilds the new $match stage using
+    // each stage's unoptimized BSON predicate. The unoptimized BSON may contain predicates that
+    // were optimized away, so that the checks performed by 'computeWhetherMatchOnlyOnAs' may no
+    // longer be true for the combined $match's MatchExpression.
+    _additionalFilter =
+        DocumentSourceMatch::descendMatchOnPath(
+            needToOptimize ? MatchExpression::optimize(
+                                 std::move(_matchSrc->getMatchProcessor()->getExpression()),
+                                 /* enableSimplification */ false)
+                                 .get()
+                           : _matchSrc->getMatchExpression(),
+            _as.fullPath(),
+            pExpCtx)
+            ->getQuery()
+            .getOwned();
 
     // Add '_additionalFilter' to '_resolvedPipeline' if there is a pipeline. If there is no
     // pipeline, '_additionalFilter' can safely be added to the local/foreignField $match stage

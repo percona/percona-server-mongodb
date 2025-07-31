@@ -38,6 +38,7 @@
 #include "mongo/transport/hello_metrics.h"
 #include "mongo/transport/service_executor.h"
 #include "mongo/transport/session.h"
+#include "mongo/transport/session_establishment_rate_limiter.h"
 #include "mongo/util/duration.h"
 
 namespace mongo {
@@ -94,6 +95,14 @@ public:
         return std::numeric_limits<std::size_t>::max();
     }
 
+    /**
+     * Returns the rate limiter component used for session establishment. New sessions should call
+     * into this component to ensure they are respecting the configured establishment rate limit.
+     */
+    SessionEstablishmentRateLimiter& getSessionEstablishmentRateLimiter() {
+        return _sessionEstablishmentRateLimiter;
+    }
+
     // Stats
 
     /**
@@ -125,6 +134,8 @@ protected:
     friend class Session;
     AtomicWord<std::size_t> _totalOperations{0};
     AtomicWord<std::size_t> _completedOperations{0};
+
+    SessionEstablishmentRateLimiter _sessionEstablishmentRateLimiter;
 };
 
 }  // namespace transport

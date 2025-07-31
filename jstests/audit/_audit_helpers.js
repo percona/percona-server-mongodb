@@ -95,13 +95,19 @@ var auditTestShard = function(name, fn, serverParams) {
                                         auditFormat: 'JSON'
                                     }, serverParams),
                                 ],
-                                shards: 2,
-                                config: 1,
-                                other: {
-                                    shardOptions: Object.merge({
+                                shards: [
+                                    Object.merge({
+                                        auditPath: dbpath + '/auditLog-d0.json',
                                         auditDestination: 'file',
                                         auditFormat: 'JSON'
                                     }, mongodOptions(serverParams)),
+                                    Object.merge({
+                                        auditPath: dbpath + '/auditLog-d1.json',
+                                        auditDestination: 'file',
+                                        auditFormat: 'JSON'
+                                    }, mongodOptions(serverParams))
+                                ],
+                                config: {
                                     configOptions: {
                                         auditPath: dbpath + '/auditLog-c0.json',
                                         auditDestination: 'file',
@@ -119,7 +125,8 @@ var auditTestShard = function(name, fn, serverParams) {
 
 // Drop the existing audit events collection, import
 // the audit json file, then return the new collection.
-var getAuditEventsCollection = function(m, dbname, primary, useAuth) {
+var getAuditEventsCollection =
+    function(m, dbname, primary, useAuth, loadRotated) {
     var adminDB = m.getDB('admin');
     var auth = ((useAuth !== undefined) && (useAuth != false)) ? true : false;
     if (auth) {
@@ -131,11 +138,68 @@ var getAuditEventsCollection = function(m, dbname, primary, useAuth) {
     var auditOptions = adminDB.runCommand('auditGetOptions');
     var auditPath = auditOptions.path;
     var auditCollectionName = 'auditCollection';
-    return loadAuditEventsIntoCollection(m, auditPath, dbname, auditCollectionName, primary, auth);
+    return loadAuditEventsIntoCollection(m, auditPath, dbname, auditCollectionName, primary, auth, loadRotated);
+}
+
+function dirname(path) {
+    if (typeof path !== 'string')
+        throw new TypeError('Path must be a string');
+
+    // Remove trailing slashes
+    while (path.length > 1 && path.endsWith('/')) {
+        path = path.slice(0, -1);
+    }
+
+    const idx = path.lastIndexOf('/');
+    // If no slash is found, return '.' (current directory)
+    if (idx === -1)
+        return '.';
+    // If the slash is at the start, return '/' (root directory)
+    if (idx === 0)
+        return '/';
+    // Otherwise, return the substring up to the last slash
+    return path.slice(0, idx);
+}
+
+// Checks if the file path has a valid date suffix
+// The suffix should be in the format 'YYYY-MM-DDTHH-MM-SS'
+function isValidDateSuffix(rotatedFileName, baseFileName) {
+    if (typeof rotatedFileName !== 'string' || typeof baseFileName !== 'string') {
+        throw new TypeError('Both rotatedFileName and baseFileName must be strings');
+    }
+
+    // The file name must start with the base file name followed by a dot
+    if (!rotatedFileName.startsWith(baseFileName + '.')) {
+        return false;
+    }
+
+    // Extract the suffix and check if it matches the expected date format
+    // The expected format is 'YYYY-MM-DDTHH-MM-SS'
+    const suffix = rotatedFileName.substring(baseFileName.length + 1);
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}$/.test(suffix)) {
+        return false;
+    }
+
+    // Replace the '-' with ':' for hour to create an ISO date string
+    // Example: '2023-10-01T12-30-45' becomes '2023-10-01T12:30:45'
+    const isoDateString = suffix.replace(/(\d{2})-(\d{2})-(\d{2})$/, '$1:$2:$3');
+
+    const date = new Date(isoDateString);
+    return !isNaN(date.getTime());
+}
+
+// Import a JSON file into a MongoDB collection.
+const importFile =
+    function(filename, collection) {
+    cat(filename)
+        .split('\n')
+        .filter(line => line.length > 0)
+        .forEach(ev => collection.insert(parseJsonCanonical(ev)));
 }
 
 // Load audit log events into a named collection
-var loadAuditEventsIntoCollection = function(m, filename, dbname, collname, primary, auth) {
+var loadAuditEventsIntoCollection =
+    function(m, filename, dbname, collname, primary, auth, loadRotated) {
     var db = primary !== undefined ? primary.getDB(dbname) : m.getDB(dbname);
 
     // Make all audit events durable
@@ -152,10 +216,16 @@ var loadAuditEventsIntoCollection = function(m, filename, dbname, collname, prim
     db[collname].drop();
     // load data from audit log file
     var auditCollection = db.getCollection(collname);
-    cat(filename)
-        .split('\n')
-        .filter(line => line.length > 0)
-        .forEach(ev => auditCollection.insert(parseJsonCanonical(ev)));
+    importFile(filename, auditCollection);
+
+    // conditionally import all rotated audit log files to collection
+    if (loadRotated) {
+        ls(dirname(filename)).forEach(function(file) {
+            if (isValidDateSuffix(file, filename)) {
+                importFile(file, auditCollection);
+            }
+        });
+    }
 
     // allow duplicate audit log lines with "unique: false"
     // because during some runs of audit_<something>_sharding.js tests
