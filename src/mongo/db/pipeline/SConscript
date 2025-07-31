@@ -264,6 +264,7 @@ env.Library(
     source=[
         'document_source_backup_cursor.cpp',
         'document_source_backup_cursor_extend.cpp',
+        'document_source_backup_file.cpp',
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/db/server_base',

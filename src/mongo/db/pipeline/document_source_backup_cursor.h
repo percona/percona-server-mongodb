@@ -35,6 +35,7 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/repl/read_concern_level.h"
 
 namespace mongo {
 
@@ -63,7 +64,26 @@ public:
             return true;
         }
 
-        void assertSupportsMultiDocumentTransaction() const {
+        // Ideally this stage should only support local read concern, but PBM executes it with
+        // "majority" read concern. So in order to be compatible with that we allow 'local' and
+        // 'majority' read concerns.
+        ReadConcernSupportResult supportsReadConcern(repl::ReadConcernLevel level,
+                                                     bool isImplicitDefault) const final {
+            // return onlyReadConcernLocalSupported(kStageName, level, isImplicitDefault);
+            return {{(level != repl::ReadConcernLevel::kLocalReadConcern &&
+                      level != repl::ReadConcernLevel::kMajorityReadConcern) &&
+                         !isImplicitDefault,
+                     {ErrorCodes::InvalidOptions,
+                      str::stream() << "Aggregation stage " << kStageName
+                                    << " cannot run with a readConcern other than 'local' or "
+                                       "'majority'. Current readConcern: "
+                                    << repl::readConcernLevels::toString(level)}},
+                    {{ErrorCodes::InvalidOptions,
+                      str::stream() << "Aggregation stage " << kStageName
+                                    << " does not permit default readConcern to be applied."}}};
+        }
+
+        void assertSupportsMultiDocumentTransaction() const final {
             transactionNotSupported(kStageName);
         }
     };

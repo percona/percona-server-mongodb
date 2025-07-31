@@ -299,6 +299,12 @@ add_option(
 )
 
 add_option(
+    'enable-fcbis',
+    help='Enable file copy-based initial sync',
+    nargs=0,
+)
+
+add_option(
     'enable-oidc',
     help='Enable OpenID Connect authentication support',
     nargs=0,
@@ -2803,6 +2809,10 @@ if has_option('audit'):
 if has_feature_option('enable-fipsmode'):
     env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
     env['PSMDB_PRO_FEATURES'].append('FIPSMode')
+
+if has_feature_option('enable-fcbis'):
+    env.SetConfigHeaderDefine("PERCONA_FCBIS_ENABLED")
+    env['PSMDB_PRO_FEATURES'].append('FCBIS')
 
 if has_feature_option('enable-oidc'):
     env.SetConfigHeaderDefine("PERCONA_OIDC_ENABLED")
