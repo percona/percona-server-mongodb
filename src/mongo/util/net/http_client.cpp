@@ -50,7 +50,7 @@ Status HttpClient::endpointIsSecure(StringData url) {
     return [&] {
         if (url.starts_with("https://"))
             return true;
-        if (!getTestCommandsEnabled())
+        if (!getTestCommandsEnabled() && !localhostExceptionEnabled())
             return false;
         constexpr StringData localhostPrefix = "http://localhost"_sd;
         if (!url.starts_with(localhostPrefix)) {

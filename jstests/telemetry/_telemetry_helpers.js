@@ -44,3 +44,15 @@ var getTelmDataByConn = function(conn) {
     });
     return data;
 };
+
+var getTelmDataForMongos = function() {
+    var files = listFiles(telmPath);
+    var data = [];
+    files.forEach((file) => {
+        const obj = JSON.parse(cat(file.name));
+        if (obj.source === "mongos") {
+            data.push(obj);
+        }
+    });
+    return data;
+}
