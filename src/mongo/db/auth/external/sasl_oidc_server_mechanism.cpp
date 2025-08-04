@@ -38,6 +38,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/crypto/jws_validated_token.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
+#include "mongo/db/auth/oidc/user_request_oidc.h"
 #include "mongo/db/auth/oidc_protocol_gen.h"
 #include "mongo/db/auth/sasl_mechanism_registry.h"
 #include "mongo/db/server_parameter.h"
@@ -317,8 +318,8 @@ void SaslOidcServerMechanism::processLogClaims(const OidcIdentityProviderConfig&
 }
 
 StatusWith<std::unique_ptr<UserRequest>> SaslOidcServerMechanism::makeUserRequest(OperationContext*) const  {
-    return std::make_unique<UserRequestGeneral>(
-        UserName{getPrincipalName(), getAuthenticationDatabase()}, _roles);
+    return std::make_unique<UserRequestOIDC>(
+        UserName{getPrincipalName(), getAuthenticationDatabase()}, _roles, _roles);
 }
 
 boost::optional<Date_t> SaslOidcServerMechanism::getExpirationTime() const {

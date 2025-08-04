@@ -21,6 +21,7 @@ mongo_cc_library(
     hdrs = [
         "oidc_identity_providers_registry.h",
         "oidc_identity_providers_registry_impl.h",
+        "user_request_oidc.h",
         "match_pattern.h",
         "//src/mongo/crypto:jwks_fetcher_factory.h",
     ],
@@ -29,6 +30,7 @@ mongo_cc_library(
         "//src/mongo/crypto:jwt",
         "//src/mongo/crypto:jwt_types",
         "//src/mongo/db:server_base",
+        "//src/mongo/db:service_context",
         "//src/mongo/util/options_parser"
     ],
 )
