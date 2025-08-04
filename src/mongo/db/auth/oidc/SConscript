@@ -8,6 +8,7 @@ env.CppUnitTest(
     source=[
         "oidc_commands_test.cpp",
         "oidc_identity_providers_registry_test.cpp",
+        "user_request_oidc_test.cpp"
     ],
     LIBDEPS=[
         "$BUILD_DIR/mongo/crypto/jwt",
@@ -15,8 +16,6 @@ env.CppUnitTest(
         "$BUILD_DIR/mongo/db/auth/auth_impl_internal",
         "$BUILD_DIR/mongo/db/auth/authmocks",
         "$BUILD_DIR/mongo/db/auth/authorization_session_test_fixture",
-        "$BUILD_DIR/mongo/db/service_context",
-        "$BUILD_DIR/mongo/util/periodic_runner",
         "oidc",
         "oidc_commands",
     ],
