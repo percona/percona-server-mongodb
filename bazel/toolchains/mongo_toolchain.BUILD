@@ -21,8 +21,8 @@ filegroup(
 COMMON_LINK_FLAGS = [
     # Make sure that our toolchain libraries are used for linking
     "-Lexternal/mongo_toolchain/stow/gcc-v4/lib/gcc/{arch}-mongodb-linux/11.3.0",
-    "-Lexternal/mongo_toolchain/v4/lib",
-    "-Lexternal/mongo_toolchain/v4/lib64",
+    "-Lexternal/mongo_toolchain/v5/lib",
+    "-Lexternal/mongo_toolchain/v5/lib64",
 ]
 
 COMMON_INCLUDE_DIRECTORIES = [
@@ -49,7 +49,7 @@ mongo_cc_toolchain_config(
     ],
     bin_dirs = [
         # Make sure that the toolchain binaries are available
-        "external/mongo_toolchain/v4/bin",
+        "external/mongo_toolchain/v5/bin",
         "external/mongo_toolchain/stow/gcc-v4/libexec/gcc/{arch}-mongodb-linux/11.3.0",
         "external/mongo_toolchain/stow/gcc-v4/lib/gcc/{arch}-mongodb-linux/11.3.0",
         "external/mongo_toolchain/stow/llvm-v4/bin",
@@ -99,7 +99,7 @@ mongo_cc_toolchain_config(
     ],
     bin_dirs = [
         # Make sure that the toolchain binaries are available
-        "external/mongo_toolchain/v4/bin",
+        "external/mongo_toolchain/v5/bin",
         "external/mongo_toolchain/stow/gcc-v4/libexec/gcc/{arch}-mongodb-linux/11.3.0",
         "external/mongo_toolchain/stow/llvm-v4/lib/clang/12.0.1",
         "external/mongo_toolchain/stow/gcc-v4/lib/gcc/{arch}-mongodb-linux/11.3.0",

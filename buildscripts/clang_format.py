@@ -51,7 +51,7 @@ CLANG_FORMAT_PROGNAME = "clang-format"
 CLANG_FORMAT_HTTP_DARWIN_CACHE = "http://mongodbtoolchain.build.10gen.cc/toolchain/osx/clang-format-12.0.1"
 
 # TODO: Move clang format to the v4 toolchain
-CLANG_FORMAT_TOOLCHAIN_PATH = "/opt/mongodbtoolchain/v4/bin/clang-format"
+CLANG_FORMAT_TOOLCHAIN_PATH = "/opt/mongodbtoolchain/v5/bin/clang-format"
 
 
 ##############################################################################

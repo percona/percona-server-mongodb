@@ -1,4 +1,4 @@
-#!/opt/mongodbtoolchain/v4/bin/python3
+#!/opt/mongodbtoolchain/v5/bin/python3
 """Wraps clang tidy to include our custom checks."""
 
 # TODO: if https://github.com/notskm/vscode-clang-tidy/pull/77#issuecomment-1422910143 is resolved then this script can be removed
@@ -11,7 +11,7 @@ CHECKS_SO = "build/install/lib/libmongo_tidy_checks.so"
 
 
 def main():
-    clang_tidy_args = ["/opt/mongodbtoolchain/v4/bin/clang-tidy"]
+    clang_tidy_args = ["/opt/mongodbtoolchain/v5/bin/clang-tidy"]
     if os.path.isfile(CHECKS_SO):
         clang_tidy_args += [f"-load={CHECKS_SO}"]
     clang_tidy_args += sys.argv[1:]

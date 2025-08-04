@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description='Run tests for the IWYU analysis sc
 
 parser.add_argument('--mongo-toolchain-bin-dir', type=str,
                     help='Which toolchain bin directory to use for this analysis.',
-                    default='/opt/mongodbtoolchain/v4/bin')
+                    default='/opt/mongodbtoolchain/v5/bin')
 
 args = parser.parse_args()
 

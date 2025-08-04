@@ -144,7 +144,7 @@ export PATH=/usr/local/go/bin:$PATH
 %if  0%{?amzn} == 2023
 export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
 %else
-export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v5/bin"
 %endif
 export GLIBC_TUNABLES=${GLIBC_TUNABLES}
 
@@ -178,7 +178,7 @@ pushd $RPM_BUILD_DIR/%{src_dir}
 %if  0%{?amzn} == 2023
 poetry install --no-root --sync
 %else
-poetry env use /opt/mongodbtoolchain/v4/bin/python3
+poetry env use /opt/mongodbtoolchain/v5/bin/python3
 poetry install --no-root --sync
 %endif
 buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on  \

@@ -41,7 +41,7 @@ from buildscripts.build_system_options import PathOptions  #pylint: disable=wron
 
 SYMBOLIZER_PATH_ENV = "MONGOSYMB_SYMBOLIZER_PATH"
 # since older versions may have issues with symbolizing, we are setting the toolchain version to v4
-DEFAULT_SYMBOLIZER_PATH = "/opt/mongodbtoolchain/v4/bin/llvm-symbolizer"
+DEFAULT_SYMBOLIZER_PATH = "/opt/mongodbtoolchain/v5/bin/llvm-symbolizer"
 
 
 class DbgFileResolver(ABC):

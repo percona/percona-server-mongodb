@@ -304,15 +304,15 @@ install_gcc_deb(){
 
 set_compiler(){
     if [ x"$RHEL" != x2023 ]; then
-        export CC=/opt/mongodbtoolchain/v4/bin/gcc
-        export CXX=/opt/mongodbtoolchain/v4/bin/g++
+        export CC=/opt/mongodbtoolchain/v5/bin/gcc
+        export CXX=/opt/mongodbtoolchain/v5/bin/g++
     fi
     return
 }
 
 fix_rules(){
-    sed -i 's|CC = gcc-5|CC = /opt/mongodbtoolchain/v4/bin/gcc|' debian/rules
-    sed -i 's|CXX = g++-5|CXX = /opt/mongodbtoolchain/v4/bin/g++|' debian/rules
+    sed -i 's|CC = gcc-5|CC = /opt/mongodbtoolchain/v5/bin/gcc|' debian/rules
+    sed -i 's|CXX = g++-5|CXX = /opt/mongodbtoolchain/v5/bin/g++|' debian/rules
     sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules
     if [ x"${FIPSMODE}" == x1 ]; then
         sed -i 's:FIPSMODE=0:FIPSMODE=1:' debian/rules
@@ -385,7 +385,7 @@ install_deps() {
         yum -y install devtoolset-9
         yum -y install devtoolset-11-elfutils devtoolset-11-dwz
 
-        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
 
         pip install --upgrade pip
         pip install --user setuptools --upgrade
@@ -403,7 +403,7 @@ install_deps() {
         yum -y install python38 python38-devel python38-pip
         ln -sf /usr/bin/scons-3 /usr/bin/scons
 
-        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
         /usr/bin/pip install --user typing pyyaml regex Cheetah3
       elif [ x"$RHEL" = x9  -o x"$RHEL" = x2023 ]; then
         dnf config-manager --enable ol9_codeready_builder
@@ -476,8 +476,8 @@ install_deps() {
       install_golang
 
       install_mongodbtoolchain
-      PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
-      update-alternatives --install /usr/bin/python python /opt/mongodbtoolchain/v4/bin/python3.10 1
+      PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
+      update-alternatives --install /usr/bin/python python /opt/mongodbtoolchain/v5/bin/python3.10 1
 
       wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
       python get-pip.py
@@ -500,7 +500,7 @@ install_mongodbtoolchain(){
     export USER=$(whoami)
     #bash -x ./toolchain_installer.sh -k --download-url https://jenkins.percona.com/downloads/mongodbtoolchain/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
     bash -x ./installer.sh --keep-download --download-dir /tmp/ --download-url https://downloads.percona.com/downloads/packaging/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
-    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+    export PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
 }
 
 get_tar(){
@@ -694,9 +694,9 @@ build_rpm(){
 #        export CC=/usr/bin/gcc
 #        export CXX=/usr/bin/g++
     else
-         PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+         PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
     fi
-#        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+#        PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
         pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
@@ -710,8 +710,8 @@ build_rpm(){
 
     if [ "x${RHEL}" != "x2023" ]; then
         echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-        export CC=/opt/mongodbtoolchain/v4/bin/gcc
-        export CXX=/opt/mongodbtoolchain/v4/bin/g++
+        export CC=/opt/mongodbtoolchain/v5/bin/gcc
+        export CXX=/opt/mongodbtoolchain/v5/bin/g++
         #update toolchain pathes to know about installed poetry
         toolchain_revision=$(tar -ztf /tmp/mongodbtoolchain.tar.gz | head -1 | sed 's/\/$//')
         /opt/mongodbtoolchain/revisions/${toolchain_revision}/scripts/install.sh
@@ -734,7 +734,7 @@ build_rpm(){
     if [ "x${RHEL}" == "x2023" ]; then
         export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
     else
-        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v5/bin"
     fi
     if [[ "x${FIPSMODE}" == "x1" ]]; then
         rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --define "enable_fipsmode 1" --rebuild rpmbuild/SRPMS/$SRC_RPM
@@ -801,7 +801,7 @@ build_source_deb(){
     fi
     cd ${BUILDDIR}
 
-    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+    export PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
     pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
@@ -815,7 +815,7 @@ build_source_deb(){
     #update toolchain pathes to know about installed poetry
     toolchain_revision=$(tar -ztf /tmp/mongodbtoolchain.tar.gz | head -1 | sed 's/\/$//')
     /opt/mongodbtoolchain/revisions/${toolchain_revision}/scripts/install.sh
-    poetry env use /opt/mongodbtoolchain/v4/bin/python3
+    poetry env use /opt/mongodbtoolchain/v5/bin/python3
     poetry install --no-root --sync
 
     set_compiler
@@ -905,7 +905,7 @@ build_deb(){
     else
         cd ${PRODUCT}-${VERSION}
     fi
-    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+    export PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
 
     pip install --upgrade pip
 
@@ -920,7 +920,7 @@ build_deb(){
     #update toolchain pathes to know about installed poetry
     toolchain_revision=$(tar -ztf /tmp/mongodbtoolchain.tar.gz | head -1 | sed 's/\/$//')
     /opt/mongodbtoolchain/revisions/${toolchain_revision}/scripts/install.sh
-    poetry env use /opt/mongodbtoolchain/v4/bin/python3
+    poetry env use /opt/mongodbtoolchain/v5/bin/python3
     poetry install --no-root --sync
 
     #
@@ -947,7 +947,7 @@ build_deb(){
     dch -m -D "${DEBIAN}" --force-distribution -v "${VERSION}-${RELEASE}.${DEBIAN}" 'Update distribution'
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
-    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v5/bin"
 
     cd debian/
         wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
@@ -1041,8 +1041,8 @@ build_tarball(){
         fi
         if [ "x${RHEL}" != "x2023" ]; then
             echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-            export CC=/opt/mongodbtoolchain/v4/bin/gcc
-            export CXX=/opt/mongodbtoolchain/v4/bin/g++
+            export CC=/opt/mongodbtoolchain/v5/bin/gcc
+            export CXX=/opt/mongodbtoolchain/v5/bin/g++
         else
             export CC=/usr/bin/gcc
             export CXX=/usr/bin/g++
@@ -1078,7 +1078,7 @@ build_tarball(){
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
     if [ "x${RHEL}" != "x2023" ]; then
-        export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        export PATH=/opt/mongodbtoolchain/v5/bin/:$PATH
         pip install --upgrade pip
     fi
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
@@ -1093,7 +1093,7 @@ build_tarball(){
     if [ "x${RHEL}" != "x2023" ]; then
     toolchain_revision=$(tar -ztf /tmp/mongodbtoolchain.tar.gz | head -1 | sed 's/\/$//')
         /opt/mongodbtoolchain/revisions/${toolchain_revision}/scripts/install.sh
-        poetry env use /opt/mongodbtoolchain/v4/bin/python3
+        poetry env use /opt/mongodbtoolchain/v5/bin/python3
     fi
     poetry install --no-root --sync
 
@@ -1144,7 +1144,7 @@ build_tarball(){
     if [ "x${RHEL}" == "x2023" ]; then
         export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
     else
-        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v5/bin"
     fi
     if [ x"${DEBIAN}" = "xstretch" ]; then
       CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
