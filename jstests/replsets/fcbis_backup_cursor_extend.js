@@ -16,10 +16,11 @@
  *
  * @tags: [requires_wiredtiger]
  */
+import {configureFailPoint} from "jstests/libs/fail_point_util.js";
+import {reconfig, isConfigCommitted} from "jstests/replsets/rslib.js";
+
 (function() {
 'use strict';
-
-load("jstests/replsets/rslib.js");  // For reconfig and isConfigCommitted.
 
 // Add node, intiate reconfig but don't wait for anything to be able to wait for the failpoint
 let addNodeConfig = function(rst, nodeId, conn) {
