@@ -134,6 +134,33 @@ function test_roles_and_privileges_without_auth_claim(clusterClass) {
     test.teardown();
 }
 
+function test_roles_and_privileges_with_auth_claim_after_invalidate(
+    clusterClass, should_create_roles, expected_roles, expected_privileges) {
+    var test = new OIDCFixture({
+        oidcProviders: [oidcProviderWithClaim], idps: [{ url: issuer_url, config: idp_config }]
+    });
+    test.setup(clusterClass);
+    if (should_create_roles) {
+        // Create a role that inherits from built-in roles on test_db1 and test_db2.
+        // When the user authenticates, the role associated with the claim should inherit
+        // these roles and appropriate privileges.
+        test.create_role("test/group", roles);
+    }
+    var conn = test.create_conn();
+
+    assert(test.auth(conn, "user"), "Failed to authenticate");
+    test.assert_authenticated(conn, "test/user", expected_roles, expected_privileges);
+
+    // Invalidate the user cache
+    test.admin.runCommand({invalidateUserCache: 1});
+
+    // Make sure the user is authenticated and authorized after the invalidate.
+    test.assert_authenticated(conn, "test/user", expected_roles, expected_privileges);
+
+    test.logout(conn);
+    test.teardown();
+}
+
 test_roles_and_privileges_with_auth_claim(StandaloneMongod, false, ["test/group"], []);
 test_roles_and_privileges_with_auth_claim(ShardedCluster, false, ["test/group"], []);
 
@@ -144,3 +171,8 @@ test_roles_and_privileges_with_auth_claim(
 
 test_roles_and_privileges_without_auth_claim(StandaloneMongod);
 test_roles_and_privileges_without_auth_claim(ShardedCluster);
+
+test_roles_and_privileges_with_auth_claim_after_invalidate(
+    StandaloneMongod, true, expectedRolesWithClaim, expectedPrivileges);
+test_roles_and_privileges_with_auth_claim_after_invalidate(
+    ShardedCluster, true, expectedRolesWithClaim, expectedPrivileges);
