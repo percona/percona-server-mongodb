@@ -1,0 +1,11 @@
+test_kind: js_test
+
+selector:
+  roots:
+  - jstests/oidc/*.js
+
+executor:
+  config:
+    shell_options:
+      nodb: ''
+      setShellParameter: httpClientEnableLocalhostException=true

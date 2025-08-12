@@ -49,7 +49,11 @@
 #include "mongo/db/audit/audit_options.h"
 #include "mongo/db/auth/auth_op_observer.h"
 #include "mongo/db/auth/authorization_manager.h"
+#ifdef PERCONA_OIDC_ENABLED
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
+#endif
 #include "mongo/db/auth/sasl_options.h"
+#include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_catalog.h"
 #include "mongo/db/catalog/collection_impl.h"
 #include "mongo/db/catalog/collection_write_path.h"
@@ -1080,6 +1084,21 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     // Startup options are written to the audit log at the end of startup so that cluster server
     // parameters are guaranteed to have been initialized from disk at this point.
     audit::logStartupOptions(Client::getCurrent(), serverGlobalParams.parsedOpts);
+
+#ifdef PERCONA_OIDC_ENABLED
+    // Cannot use ServiceContext::ConstructorActionRegisterer to construct the
+    // OidcIdentityProvidersRegistry because the PeriodicRunner is not yet initialized
+    // when the initializer runs.
+    //
+    // Constructors are called early in mongod_main(), when the ServiceContext is created
+    // (see ServiceContext::make()).
+    // However, the PeriodicRunner is only created later in the current function
+    // (_initAndListen(), see makePeriodicRunner()).
+    //
+    // To ensure proper initialization of the registry, use a global initializer
+    // function to construct the registry and register it with the ServiceContext.
+    initializeOidcIdentityProvidersRegistry(serviceContext);
+#endif
 
     // MessageServer::run will return when exit code closes its socket and we don't need the
     // operation context anymore

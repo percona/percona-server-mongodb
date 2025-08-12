@@ -39,12 +39,14 @@ namespace mongo::crypto {
  */
 class JWKSFetcherImpl : public JWKSFetcher {
 public:
-    JWKSFetcherImpl(StringData issuer) : _issuer(issuer) {}
+    JWKSFetcherImpl(StringData issuer, StringData caFilePath = {})
+        : _issuer(issuer), _caFilePath(caFilePath) {}
 
     JWKSet fetch() final;
 
 private:
     std::string _issuer;
+    std::string _caFilePath;
 };
 
 }  // namespace mongo::crypto

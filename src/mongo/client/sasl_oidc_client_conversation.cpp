@@ -51,7 +51,18 @@ constexpr auto kGrantTypeParameterDeviceCodeValue =
     "urn:ietf:params:oauth:grant-type:device_code"_sd;
 constexpr auto kGrantTypeParameterRefreshTokenValue = "refresh_token"_sd;
 constexpr auto kDeviceCodeParameterName = "device_code"_sd;
+constexpr auto kCodeParameterName = "code"_sd;
 constexpr auto kRefreshTokenParameterName = kGrantTypeParameterRefreshTokenValue;
+
+std::unique_ptr<HttpClient> createHttpClient(bool withConnectionPool = false) {
+    std::unique_ptr<HttpClient> httpClient = withConnectionPool
+        ? HttpClient::create()
+        : HttpClient::createWithoutConnectionPool();
+    // If we consider plain HTTP localhost endpoints secure, then don't prevent the HTTP client
+    // from sending requests there.
+    httpClient->allowInsecureHTTP(HttpClient::localhostExceptionEnabled());
+    return httpClient;
+}
 
 inline void appendPostBodyRequiredParams(StringBuilder* sb, StringData clientId) {
     *sb << kClientIdParameterName << "=" << uriEncode(clientId);
@@ -71,8 +82,10 @@ inline void appendPostBodyDeviceCodeRequestParams(
 }
 
 inline void appendPostBodyTokenRequestParams(StringBuilder* sb, StringData deviceCode) {
+    // kDeviceCodeParameterName and kCodeParameterName are the same, IDP's use different names.
     *sb << "&" << kGrantTypeParameterName << "=" << kGrantTypeParameterDeviceCodeValue << "&"
-        << kDeviceCodeParameterName << "=" << uriEncode(deviceCode);
+        << kDeviceCodeParameterName << "=" << uriEncode(deviceCode) << "&" << kCodeParameterName
+        << "=" << uriEncode(deviceCode);
 }
 
 inline void appendPostBodyRefreshFlowParams(StringBuilder* sb, StringData refreshToken) {
@@ -93,11 +106,13 @@ std::pair<std::string, std::string> doDeviceAuthorizationGrantFlow(
     const OAuthAuthorizationServerMetadata& discoveryReply,
     const auth::OIDCMechanismServerStep1& serverReply,
     StringData principalName) {
-    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
+    boost::optional<StringData> deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
+    // If exists, the device authorization endpoint has been already validated during parsing of
+    // `OAuthAuthorizationServerMetadata` class.
+    // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).
     uassert(ErrorCodes::BadValue,
-            "Device authorization endpoint in server reply must be an https endpoint or localhost",
-            deviceAuthorizationEndpoint.startsWith("https://"_sd) ||
-                deviceAuthorizationEndpoint.startsWith("http://localhost"_sd));
+            "Missing or invalid device authorization endpoint in server reply",
+            deviceAuthorizationEndpoint && !deviceAuthorizationEndpoint->empty());
 
     auto clientId = serverReply.getClientId();
     uassert(ErrorCodes::BadValue,
@@ -115,17 +130,27 @@ std::pair<std::string, std::string> doDeviceAuthorizationGrantFlow(
     auto deviceCodeRequest = deviceCodeRequestSb.str();
 
     // Retrieve device code and user verification URI from IdP.
-    auto httpClient = HttpClient::createWithoutConnectionPool();
+    auto httpClient = createHttpClient();
     httpClient->setHeaders(
         {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
     BSONObj deviceAuthorizationResponseObj =
-        doPostRequest(httpClient.get(), deviceAuthorizationEndpoint, deviceCodeRequest);
+        doPostRequest(httpClient.get(), *deviceAuthorizationEndpoint, deviceCodeRequest);
 
     // Simulate end user login via user verification URI.
     auto deviceAuthorizationResponse = OIDCDeviceAuthorizationResponse::parse(
         IDLParserContext{"oidcDeviceAuthorizationResponse"}, deviceAuthorizationResponseObj);
+
+    // IDP's use different names to refer to the verification url.
+    const auto& optURI = deviceAuthorizationResponse.getVerificationUri();
+    const auto& optURL = deviceAuthorizationResponse.getVerificationUrl();
+    uassert(ErrorCodes::BadValue, "Encountered empty device authorization url", optURI || optURL);
+    uassert(ErrorCodes::BadValue,
+            "Encounterd both verification_uri and verification_url",
+            !(optURI && optURL));
+    auto deviceAuthURL = optURI ? optURI.get() : optURL.get();
+
     oidcClientGlobalParams.oidcIdPAuthCallback(
-        principalName, deviceAuthorizationResponse.getVerificationUriComplete());
+        principalName, deviceAuthURL, deviceAuthorizationResponse.getUserCode());
 
     // Poll token endpoint for access and refresh tokens. It should return immediately since
     // the shell blocks on the authenticationSimulator until it completes, but poll anyway.
@@ -211,7 +236,7 @@ StatusWith<std::string> SaslOIDCClientConversation::doRefreshFlow() try {
 
     auto refreshFlowRequestBody = refreshFlowRequestBuilder.str();
 
-    auto httpClient = HttpClient::createWithoutConnectionPool();
+    auto httpClient = createHttpClient();
     httpClient->setHeaders(
         {"Accept: application/json", "Content-Type: application/x-www-form-urlencoded"});
     BSONObj refreshFlowResponseObj = doPostRequest(
@@ -272,16 +297,17 @@ StatusWith<bool> SaslOIDCClientConversation::_secondStep(StringData input,
 
         auto issuer = serverReply.getIssuer();
 
-        OAuthDiscoveryFactory discoveryFactory(HttpClient::create());
+        OAuthDiscoveryFactory discoveryFactory(createHttpClient(/* withConnectionPool = */ true));
         OAuthAuthorizationServerMetadata discoveryReply = discoveryFactory.acquire(issuer);
 
         // The token endpoint must be provided for both device auth and authz code flows.
-        auto tokenEndpoint = discoveryReply.getTokenEndpoint();
+        // If exists, the token endpoint has been already validated during parsing of
+        // `OAuthAuthorizationServerMetadata` class.
+        // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).
+        boost::optional<StringData> tokenEndpoint = discoveryReply.getTokenEndpoint();
         uassert(ErrorCodes::BadValue,
                 "Missing or invalid token endpoint in server reply",
-                tokenEndpoint && !tokenEndpoint->empty() &&
-                    (tokenEndpoint->startsWith("https://"_sd) ||
-                     tokenEndpoint->startsWith("http://localhost"_sd)));
+                tokenEndpoint && !tokenEndpoint->empty());
 
         // Cache the token endpoint for potential reuse during the refresh flow.
         oidcClientGlobalParams.oidcTokenEndpoint = tokenEndpoint->toString();

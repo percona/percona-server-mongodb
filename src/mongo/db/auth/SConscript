@@ -1,6 +1,7 @@
 # -*- mode: python -*-
 
 Import("env")
+Import("has_feature_option")
 
 env = env.Clone()
 
@@ -12,6 +13,16 @@ env.SConscript(
         'env',
     ],
 )
+
+if has_feature_option('enable-oidc'):
+    env.SConscript(
+        dirs=[
+            'oidc',
+        ],
+        exports=[
+            'env',
+        ],
+    )
 
 env.Library(
     target='security_token',
@@ -543,11 +554,24 @@ env.Library(
 )
 
 env.Library(
+    target='oidc_protocol_messages',
+    source=[
+        'oidc_protocol.idl',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/idl/idl_parser',
+    ],
+)
+
+env.Library(
     target='oidc_protocol',
     source=[
         "oauth_authorization_server_metadata.idl",
         "oauth_discovery_factory.cpp",
-        'oidc_protocol.idl',
+    ],
+    LIBDEPS=[
+        'oidc_protocol_messages',
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',

@@ -661,5 +661,75 @@ TEST_F(AuthorizationManagerTest, testAuthzManagerExternalStateResolveRoles) {
     ASSERT_TRUE(resolvedData.restrictions.has_value());
 }
 
+TEST_F(AuthorizationManagerTest, testReacquireUserOIDC) {
+    std::set<RoleName> roles({{"group1", "admin"}, {"group2", "admin"}});
+    UserName userName("prefix/user", "$external");
+    UserRequest userRequest(userName, roles);
+    userRequest.mechanismData = "OIDC";
+    userRequest.reacquireRoles = roles;
+
+    // Simulate acquiring the user for the first time.
+    auto swUser = authzManager->acquireUser(opCtx.get(), userRequest);
+    ASSERT_OK(swUser.getStatus());
+    auto user = std::move(swUser.getValue());
+    ASSERT(user.isValid());
+    ASSERT_EQUALS(user->getName(), userName);
+    for (auto& r : roles) {
+        ASSERT_TRUE(user->hasRole(r));
+    }
+
+    {
+        auto cacheInfo = authzManager->getUserCacheInfo();
+        ASSERT_EQ(cacheInfo.size(), 1U);
+        ASSERT_EQ(cacheInfo[0].userName, userName);
+        ASSERT_TRUE(cacheInfo[0].active);
+    }
+
+    authzManager->invalidateUserCache(opCtx.get());
+
+    {
+        auto cacheInfo = authzManager->getUserCacheInfo();
+        ASSERT_EQ(cacheInfo.size(), 0U);
+    }
+
+    auto reacquiredUser = authzManager->reacquireUser(opCtx.get(), user);
+    ASSERT_OK(reacquiredUser.getStatus());
+    auto reacquiredUserHandle = std::move(reacquiredUser.getValue());
+    ASSERT(reacquiredUserHandle.isValid());
+    ASSERT_EQUALS(reacquiredUserHandle->getName(), userName);
+    for (auto& r : roles) {
+        ASSERT_TRUE(reacquiredUserHandle->hasRole(r));
+    }
+}
+
+TEST_F(AuthorizationManagerTest, testRefreshExternalUsers) {
+    std::set<RoleName> roles({{"group1", "admin"}, {"group2", "admin"}});
+    UserName userName("prefix/user", "$external");
+    UserRequest userRequest(userName, roles);
+    userRequest.mechanismData = "OIDC";
+    userRequest.reacquireRoles = roles;
+
+    // Simulate acquiring the user for the first time.
+    auto swUser = authzManager->acquireUser(opCtx.get(), userRequest);
+    ASSERT_OK(swUser.getStatus());
+    auto user = std::move(swUser.getValue());
+    ASSERT(user.isValid());
+    ASSERT_EQUALS(user->getName(), userName);
+    for (auto& r : roles) {
+        ASSERT_TRUE(user->hasRole(r));
+    }
+
+    {
+        auto cacheInfo = authzManager->getUserCacheInfo();
+        ASSERT_EQ(cacheInfo.size(), 1U);
+        ASSERT_EQ(cacheInfo[0].userName, userName);
+        ASSERT_TRUE(cacheInfo[0].active);
+    }
+
+    auto cacheGeneration = authzManager->getCacheGeneration();
+    ASSERT_OK(authzManager->refreshExternalUsers(opCtx.get()));
+    ASSERT_EQ(authzManager->getCacheGeneration(), cacheGeneration);
+}
+
 }  // namespace
 }  // namespace mongo
