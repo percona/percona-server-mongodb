@@ -1,0 +1,3 @@
+OPTIONS="-f /etc/mongos.conf"
+STDOUT="/var/log/mongos/mongos.stdout"
+STDERR="/var/log/mongos/mongos.stderr"

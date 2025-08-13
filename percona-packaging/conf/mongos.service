@@ -1,0 +1,20 @@
+[Unit]
+Description=High-performance, schema-free document-oriented database
+After=time-sync.target network.target
+
+[Service]
+Type=Simple
+User=mongos
+Group=mongos
+PermissionsStartOnly=true
+LimitFSIZE=infinity
+LimitCPU=infinity
+LimitAS=infinity
+LimitNOFILE=64000
+LimitNPROC=64000
+EnvironmentFile=/etc/sysconfig/mongos
+ExecStartPre=/usr/bin/percona-server-mongos-helper.sh
+ExecStart=/usr/bin/env bash -c "/usr/bin/mongos $OPTIONS > ${STDOUT} 2> ${STDERR}"
+
+[Install]
+WantedBy=multi-user.target
