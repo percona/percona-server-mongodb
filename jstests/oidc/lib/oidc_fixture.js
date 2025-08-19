@@ -44,15 +44,18 @@ function checkExpectedLog(expectedLog, element) {
  * @param {array<object>} oidcProviders Identity provider configurations.
  * @param {string} auditLogPath Path to audit log file; default is `null`, which means audit
  *     log is disabled.
+ * @param {number} jwksMinimumQuiescePeriodSecs The minimum quiesce period for JWKS in seconds;
+ *     default is 0, which means disabled.
  *
  * @returns {object} Common part of the configuration.
  */
-function _createCommonConfig(oidcProviders, auditLogPath = null) {
+function _createCommonConfig(oidcProviders, auditLogPath = null, jwksMinimumQuiescePeriodSecs = 0) {
     let config = {
         setParameter: {
             authenticationMechanisms: "SCRAM-SHA-256,MONGODB-OIDC",
             oidcIdentityProviders: JSON.stringify(oidcProviders),
-            JWKSMinimumQuiescePeriodSecs: 0, // Disable JWKS quiesce period for testing
+            JWKSMinimumQuiescePeriodSecs: jwksMinimumQuiescePeriodSecs,
+            userCacheInvalidationIntervalSecs: 1,
         }
     };
     if (auditLogPath) {
@@ -75,10 +78,13 @@ export class StandaloneMongod {
      * @param {array<object>} oidcProviders Identity provider configurations.
      * @param {string} auditLogPath Path to audit log file; default is `null`, which means audit
      *     log is disabled.
+     * @param {number} jwksMinimumQuiescePeriodSecs The minimum quiesce period for JWKS in seconds;
+     *     default is 0, which means disabled.
      */
-    constructor(oidcProviders, auditLogPath = null) {
-        this.conn = MongoRunner.runMongod(
-            Object.merge({auth: ""}, _createCommonConfig(oidcProviders, auditLogPath)));
+    constructor(oidcProviders, auditLogPath = null, jwksMinimumQuiescePeriodSecs = 0) {
+        this.conn = MongoRunner.runMongod(Object.merge(
+            {auth: ""},
+            _createCommonConfig(oidcProviders, auditLogPath, jwksMinimumQuiescePeriodSecs)));
     }
 
     /**
@@ -116,10 +122,16 @@ export class ShardedCluster {
      * @param {array<object>} oidcProviders Identity provider configurations.
      * @param {string} auditLogPath Path to audit log file; default is `null`, which means audit
      *     log is disabled.
-     * @param {boolean} shouldFailInit Set to `true` if construction is expected to fail; defaut
+     * @param {number} jwksMinimumQuiescePeriodSecs The minimum quiesce period for JWKS in seconds;
+     *     default is 0, which means disabled.
+     * @param {boolean} shouldFailInit Set to `true` if construction is expected to fail; default
      *     is `false`.
      */
-    constructor(oidcProviders, auditLogPath = null, shouldFailInit = false) {
+    constructor(oidcProviders,
+                auditLogPath = null,
+                jwksMinimumQuiescePeriodSecs = 0,
+                shouldFailInit = false) {
+        assert(!shouldFailInit);
         const config = {
             shouldFailInit: shouldFailInit,
             shards: 1,
@@ -129,7 +141,8 @@ export class ShardedCluster {
                 keyFile: 'jstests/libs/key1',
                 configOptions: {auth: ""},
                 shardOptions: {auth: ""},
-                mongosOptions: _createCommonConfig(oidcProviders, auditLogPath),
+                mongosOptions:
+                    _createCommonConfig(oidcProviders, auditLogPath, jwksMinimumQuiescePeriodSecs),
             }
         };
         this.shardingTest = new ShardingTest(config);
@@ -154,10 +167,10 @@ export class ShardedCluster {
      * Creates a class instance to be used for testing initialization failures.
      *
      * @param {array<object>} oidcProviders Identity provider configurations.
-     * @returns {ShardedCluster} Instance of a class; the function is not supposed to return.
+     * @returns {ShardedCluster} Instance of a class.
      */
     static createForFailingInitializationTest(oidcProviders) {
-        return new StandaloneMongod(oidcProviders, null, true);
+        return new ShardedCluster(oidcProviders, null, 0, true);
     }
 }
 
@@ -278,12 +291,14 @@ export class OIDCFixture {
      *     the testing is going to be done. Allowed values: `StandaloneMongod` (default),
      *     `ShardedCluster`.
      * @param {boolean} with_audit - If true, enables audit logging.
+     * @param {number} jwksMinimumQuiescePeriodSecs - The minimum quiesce period for JWKS in seconds;
+     *     default is 0, which means disabled.
      *
      * NOTE: The SCRAM-SHA-256 mechanism is specified to allow admin authentication.
      *       The admin session is created so that it is possible to run admin commands
      *       on the server (e.g. getLog). It can also be used to create roles for the user.
      */
-    setup(clusterClass = StandaloneMongod, with_audit = false) {
+    setup(clusterClass = StandaloneMongod, with_audit = false, jwksMinimumQuiescePeriodSecs = 0) {
         print("OIDCFixture.setup")
 
         if (with_audit) {
@@ -294,7 +309,7 @@ export class OIDCFixture {
             this.idps[idp_url].start();
         }
 
-        this.cluster = new clusterClass(this.oidc_providers, this.audit_path);
+        this.cluster = new clusterClass(this.oidc_providers, this.audit_path, jwksMinimumQuiescePeriodSecs);
         this.admin_conn = this.cluster.connection();
         this.admin = this.admin_conn.getDB("admin");
         assert.commandWorked(this.admin.runCommand(
