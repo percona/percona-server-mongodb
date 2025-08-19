@@ -7,6 +7,7 @@ function runAndStopMongod(config) {
     const conn = MongoRunner.runMongod(config);
     assert.neq(conn, null, "Failed to start mongod with config: " + tojson(config));
     MongoRunner.stopMongod(conn);
+    sleep(1000);
 }
 
 // Returns an array of audit log files in the auditLogDir
