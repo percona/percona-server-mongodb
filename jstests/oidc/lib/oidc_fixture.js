@@ -51,6 +51,7 @@ function _createCommonConfig(oidcProviders, auditLogPath = null) {
         setParameter: {
             authenticationMechanisms: "SCRAM-SHA-256,MONGODB-OIDC",
             oidcIdentityProviders: JSON.stringify(oidcProviders),
+            JWKSMinimumQuiescePeriodSecs: 0, // Disable JWKS quiesce period for testing
         }
     };
     if (auditLogPath) {
