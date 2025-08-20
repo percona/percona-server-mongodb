@@ -37,6 +37,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry_impl.h"
 #include "mongo/db/service_context.h"
 #include "mongo/util/assert_util_core.h"
+#include "mongo/util/system_clock_source.h"
 
 namespace mongo {
 
@@ -55,7 +56,8 @@ const std::vector<OidcIdentityProviderConfig>& getIdPConfigs() {
 struct JWKSFetcherFactoryImpl : public JWKSFetcherFactory {
     std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer,
                                                          StringData caFilePath) const override {
-        return std::make_unique<crypto::JWKSFetcherImpl>(issuer, caFilePath);
+        return std::make_unique<crypto::JWKSFetcherImpl>(
+            SystemClockSource::get(), issuer, caFilePath);
     }
 };
 }  // namespace
