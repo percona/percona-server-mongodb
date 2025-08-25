@@ -36,6 +36,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <string>
 #include <utility>
 
+#include "mongo/bson/bsonobj.h"
+
 namespace mongo::encryption {
 class VaultClient {
 public:
@@ -80,6 +82,11 @@ public:
     ///
     /// @throws std::runtime_error in case of issues
     std::uint64_t putKey(const std::string& secretPath, const std::string& key) const;
+
+    /// @brief Retrieves the OpenAPI specification from the Vault server.
+    ///
+    /// @returns Status with the OpenAPI specification as a BSON object in case of success.
+    StatusWith<BSONObj> getOpenAPISpec() const;
 
 private:
     class Impl;
