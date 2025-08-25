@@ -52,6 +52,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/client.h"
 #include "mongo/db/cluster_role.h"
 #include "mongo/db/encryption/encryption_options.h"
+#include "mongo/db/encryption/vault_client.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/member_state.h"
@@ -84,6 +85,7 @@ constexpr StringData kId = "_id"_sd;
 constexpr StringData kScheduledAt = "scheduledAt"_sd;
 
 constexpr StringData kEncryptionKeyStorage = "tde_key_storage"_sd;
+constexpr StringData kEncryptionVaultSpec = "tde_vault_info"_sd;
 constexpr StringData kVaultKeyFile = "keyfile"_sd;
 constexpr StringData kVaultVault = "vault"_sd;
 constexpr StringData kVaultKmip = "kmip"_sd;
@@ -94,6 +96,45 @@ constexpr StringData kPBMActive = "pbm_active"_sd;
 
 constexpr StringData kInitialSyncMethod = "initial_sync_method"_sd;
 
+constexpr StringData kOpenApiSpecFieldInfo = "info"_sd;
+constexpr StringData kOpenApiSpecInfoFields[] = {
+    "title"_sd,
+    "version"_sd,
+};
+
+namespace {
+encryption::VaultClient createVaultClient() {
+    // Without the token the response will be shorter but the fields we need should be available.
+    return encryption::VaultClient(encryptionGlobalParams.vaultServerName,
+                                   encryptionGlobalParams.vaultPort,
+                                   "", // encryptionGlobalParams.vaultToken,
+                                   "", // encryptionGlobalParams.vaultTokenFile,
+                                   encryptionGlobalParams.vaultServerCAFile,
+                                   encryptionGlobalParams.vaultCheckMaxVersions,
+                                   encryptionGlobalParams.vaultDisableTLS,
+                                   encryptionGlobalParams.vaultTimeout);
+}
+
+bool isKeyStorageVault(StringData keyStorage) {
+    return keyStorage == kVaultVault;
+}
+
+// Return specified fields from the 'info' section from the OpenAPI spec document.
+BSONObj getVaultInfo(const BSONObj& obj) {
+    BSONObjBuilder builder;
+    const auto infoElement = obj.getField(kOpenApiSpecFieldInfo);
+    if (infoElement.ok() && infoElement.isABSONObj()) {
+        const auto infoObj = infoElement.Obj();
+        for (const auto fieldName : kOpenApiSpecInfoFields) {
+            const auto field = infoObj.getField(fieldName);
+            if (field.ok()) {
+                builder.appendAs(field, fieldName);
+            }
+        }
+    }
+    return builder.obj();
+}
+}  // namespace
 
 StringData keyStorageType() {
     if (!encryptionGlobalParams.encryptionKeyFile.empty()) {
@@ -297,7 +338,21 @@ private:
         }
         // data at rest encryption
         if (encryptionGlobalParams.enableEncryption) {
-            builder->append(kEncryptionKeyStorage, keyStorageType());
+            const auto keyStorage = keyStorageType();
+            builder->append(kEncryptionKeyStorage, keyStorage);
+
+            // Add more information if key storage is Vault
+            if (isKeyStorageVault(keyStorage)) {
+                const auto status = createVaultClient().getOpenAPISpec();
+                if (status.isOK()) {
+                    builder->append(kEncryptionVaultSpec, getVaultInfo(status.getValue()));
+                } else {
+                    LOGV2_DEBUG(29142,
+                                1,
+                                "Failed to collect encryption vault spec",
+                                "status"_attr = status.getStatus());
+                }
+            }
         }
 
         // operation context is necessary for following operations
