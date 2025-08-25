@@ -39,6 +39,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <string_view>
 #include <type_traits>
 #include <vector>
+#include <regex>
 
 #include <boost/tokenizer.hpp>
 
@@ -187,6 +188,14 @@ std::string genPutKeyReqBody(const std::string& key,
     data << R"json("data": {"value": ")json" << key << R"json("}})json";
     return data;
 }
+
+// Replaces '$ref' with '_ref'
+// The OpenAPI references can cause a parsing failure because they
+// will be treated as DBRefs.
+std::string removeRef(StringData json) {
+    return std::regex_replace(json.toString(), std::regex{"\"\\$ref\""}, "\"_ref\"");
+}
+
 }  // namespace
 
 class VaultClient::Impl {
@@ -210,6 +219,8 @@ public:
                                                  std::uint64_t secretVersion = 0) const;
     std::uint64_t putKey(const std::string& secretPath, const std::string& key) const;
 
+    StatusWith<BSONObj> getOpenAPISpec() const;
+
 private:
     std::uint64_t requestEngineMaxVersions(const StringData& url) const;
     std::optional<SecretMetadata> requestSecretMetadata(const StringData& url) const;
@@ -220,6 +231,8 @@ private:
     static constexpr std::uint16_t kHttpStatusCodeNotFound = 404;
 
     static constexpr std::uint64_t kDefaultMaxVersions = 10;
+
+    static constexpr auto kOpenAPISpecEndpoint = "sys/internal/specs/openapi"_sd;
 
     std::unique_ptr<HttpClient> _httpClient;
     // concatenation of the URL's scheme, authority and the constant part of the path;
@@ -249,11 +262,13 @@ VaultClient::Impl::Impl(const std::string& host,
     _httpClient->allowInsecureHTTP(disableTls);
 
 
-    std::vector<std::string> headers(1, "X-Vault-Token: ");
-    headers.at(0).append(!token.empty() ? token
-                                        : std::string_view(*detail::readFileToSecureString(
-                                              tokenFile, "Vault token")));
-    _httpClient->setHeaders(headers);
+    if (!token.empty() || !tokenFile.empty()) {
+        std::vector<std::string> headers(1, "X-Vault-Token: ");
+        headers.at(0).append(!token.empty() ? token
+                                            : std::string_view(*detail::readFileToSecureString(
+                                                tokenFile, "Vault token")));
+        _httpClient->setHeaders(headers);
+    }
 }
 
 
@@ -415,6 +430,30 @@ std::uint64_t VaultClient::Impl::putKey(const std::string& secretPath,
     MONGO_UNREACHABLE;
 }
 
+StatusWith<BSONObj> VaultClient::Impl::getOpenAPISpec() const try {
+    str::stream url;
+    url << _urlHead << kOpenAPISpecEndpoint;
+
+    HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
+    ConstDataRangeCursor cur = reply.body.getCursor();
+    StringData replyBody(cur.data(), cur.length());
+
+    LOGV2_DEBUG(29143,
+                1,
+                "Vault: get OpenAPI spec",
+                "request.method"_attr = "GET",
+                "request.url"_attr = url,
+                "response.code"_attr = reply.code,
+                "response.body"_attr = replyBody,
+                "response.size"_attr = replyBody.size());
+
+    return fromjson(removeRef(replyBody));
+} catch (const std::exception& e) {
+    std::ostringstream msg;
+    msg << "Reading the OpenAPI spec failed: " << e.what();
+    return Status(ErrorCodes::OperationFailed, msg.str());
+}
+
 VaultClient::~VaultClient() = default;
 
 VaultClient::VaultClient(VaultClient&&) = default;
@@ -438,5 +477,9 @@ std::pair<std::string, std::uint64_t> VaultClient::getKey(const std::string& sec
 
 std::uint64_t VaultClient::putKey(const std::string& secretPath, const std::string& key) const {
     return _impl->putKey(secretPath, key);
+}
+
+StatusWith<BSONObj> VaultClient::getOpenAPISpec() const {
+    return _impl->getOpenAPISpec();
 }
 }  // namespace mongo::encryption
