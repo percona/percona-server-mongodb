@@ -59,6 +59,8 @@
 #include "mongo/transport/service_executor_reserved.h"
 #include "mongo/transport/service_executor_synchronous.h"
 #include "mongo/transport/session.h"
+#include "mongo/transport/session_establishment_rate_limiter.h"
+#include "mongo/transport/session_establishment_rate_limiter_utils.h"
 #include "mongo/transport/session_workflow.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/hierarchical_acquisition.h"
@@ -113,40 +115,6 @@ struct ClientSummary {
     bool isLoadBalanced;
 };
 }  // namespace
-
-bool shouldOverrideMaxConns(const std::shared_ptr<transport::Session>& session,
-                            const std::vector<stdx::variant<CIDR, std::string>>& exemptions) {
-    if (exemptions.empty())
-        return false;
-
-    boost::optional<CIDR> remoteCIDR;
-    if (const auto& ra = session->getProxiedSrcRemoteAddr(); ra.isValid() && ra.isIP())
-        remoteCIDR = uassertStatusOK(CIDR::parse(ra.getAddr()));
-
-#ifndef _WIN32
-    boost::optional<std::string> localPath;
-    if (const auto& la = session->localAddr(); la.isValid())
-        localPath = la.getAddr();
-#endif
-
-    return std::any_of(exemptions.begin(), exemptions.end(), [&](const auto& exemption) {
-        return stdx::visit(
-            [&](auto&& ex) {
-                using Alt = std::decay_t<decltype(ex)>;
-                if constexpr (std::is_same_v<Alt, CIDR>)
-                    return remoteCIDR && ex.contains(*remoteCIDR);
-#ifndef _WIN32
-                // Otherwise the exemption is a UNIX path and we should check the local path
-                // (the remoteAddr == "anonymous unix socket") against the exemption string.
-                // On Windows we don't check this at all and only CIDR ranges are supported.
-                if constexpr (std::is_same_v<Alt, std::string>)
-                    return localPath && *localPath == ex;
-#endif
-                return false;
-            },
-            exemption);
-    });
-}
 
 size_t getSupportedMax() {
     const auto supportedMax = [] {
@@ -317,7 +285,8 @@ void ServiceEntryPointImpl::startSession(std::shared_ptr<transport::Session> ses
     auto restrictionEnvironment = std::make_unique<RestrictionEnvironment>(remoteAddr, localAddr);
     RestrictionEnvironment::set(session, std::move(restrictionEnvironment));
 
-    bool isPrivilegedSession = shouldOverrideMaxConns(session, serverGlobalParams.maxConnsOverride);
+    bool isPrivilegedSession =
+        isExemptedByCIDRList(session, serverGlobalParams.maxIncomingConnsOverride);
 
     auto client = _svcCtx->makeClient("conn{}"_format(session->id()), session);
     auto clientPtr = client.get();
@@ -454,21 +423,34 @@ void ServiceEntryPointImpl::appendStats(BSONObjBuilder* bob) const {
         bob->append(n, static_cast<int>(v));
     };
 
-    appendInt("current", sessionCount);
+    transport::SessionEstablishmentRateLimiter* rateLimiter = nullptr;
+    int64_t rateLimiterQueued{0};
+    int64_t rateLimiterRejected{0};
+    if (_svcCtx) {
+        rateLimiter = transport::SessionEstablishmentRateLimiter::get(*_svcCtx);
+        rateLimiterQueued = rateLimiter->queued();
+        rateLimiterRejected = rateLimiter->rejected();
+    }
+
+    appendInt("current", sessionCount - rateLimiterQueued);
     appendInt("available", _maxSessions - sessionCount);
     appendInt("totalCreated", sessionsCreated);
 
     // (Ignore FCV check): This feature flag doesn't have any upgrade/downgrade concerns.
     if (gFeatureFlagConnHealthMetrics.isEnabledAndIgnoreFCVUnsafe()) {
-        appendInt("rejected", _rejectedSessions);
+        appendInt("rejected", _rejectedSessions + rateLimiterRejected);
     }
 
     invariant(_svcCtx);
-    appendInt("active", _svcCtx->getActiveClientOperations());
+    appendInt("active", _svcCtx->getActiveClientOperations() - rateLimiterQueued);
+
+    if (rateLimiter) {
+        rateLimiter->appendStatsConnections(bob);
+    }
 
     const auto seStats = transport::ServiceExecutorStats::get(_svcCtx);
-    appendInt("threaded", seStats.usesDedicated);
-    if (!serverGlobalParams.maxConnsOverride.empty())
+    appendInt("threaded", seStats.usesDedicated - rateLimiterQueued);
+    if (!serverGlobalParams.maxIncomingConnsOverride.empty())
         appendInt("limitExempt", seStats.limitExempt);
 
     auto&& hm = HelloMetrics::get(_svcCtx);
