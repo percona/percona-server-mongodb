@@ -17,3 +17,8 @@ env.CppUnitTest(
     target="encryption_status_test",
     source=[],
 )
+
+env.CppUnitTest(
+    target='vault_client_test',
+    source=[],
+)

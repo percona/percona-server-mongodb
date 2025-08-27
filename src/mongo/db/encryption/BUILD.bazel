@@ -164,3 +164,15 @@ mongo_cc_unit_test(
         "//src/mongo/db:service_context",
     ],
 )
+
+mongo_cc_unit_test(
+    name = "vault_client_test",
+    srcs = [
+        "vault_client_test.cpp",
+    ],
+    deps = [
+        ":vault_client",
+        "//src/mongo/util/net:http_client",
+        "//src/mongo/util/net:mock_http_client",
+    ],
+)
