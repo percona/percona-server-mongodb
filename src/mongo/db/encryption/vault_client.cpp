@@ -435,6 +435,12 @@ StatusWith<BSONObj> VaultClient::Impl::getOpenAPISpec() const try {
     url << _urlHead << kOpenAPISpecEndpoint;
 
     HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
+    if (reply.code != kHttpStatusCodeOk) {
+        return Status(ErrorCodes::OperationFailed,
+                      str::stream()
+                          << "Getting the OpenAPI spec failed, statusCode: " << reply.code);
+    }
+
     ConstDataRangeCursor cur = reply.body.getCursor();
     StringData replyBody(cur.data(), cur.length());
 
