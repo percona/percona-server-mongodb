@@ -75,6 +75,18 @@ env.Library(
     ],
 )
 
+env.CppUnitTest(
+    target='vault_client_test',
+    source=[
+        'vault_client_test.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/util/net/http_client',
+        '$BUILD_DIR/mongo/util/net/mock_http_client',
+        'vault_client',
+    ],
+)
+
 kmipClientEnv = env.Clone()
 kmipClientEnv.InjectThirdParty(libraries=['libkmip', 'kmippp'])
 kmipClientEnv.Library(
