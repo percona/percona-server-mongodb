@@ -200,7 +200,7 @@ get_sources(){
                 git clean -xdf
                 git checkout 1.9.379
                 git submodule update --init --recursive
-                if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
+                if [[ x"${RHEL}" =~ ^x(7|8|9|10|2023)$ ]]; then
                     sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                     sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
                 fi
@@ -237,6 +237,11 @@ get_system(){
         OS="deb"
     fi
     export GLIBC_VER=".glibc${GLIBC_VER_TMP}"
+    if [ "x${RHEL}" == "x10" ]; then
+        export TOOLCHAIN_PATH="/opt/mongodbtoolchain/v5"
+    else
+        export TOOLCHAIN_PATH="/opt/mongodbtoolchain/v4"
+    fi
     return
 }
 
@@ -308,15 +313,15 @@ install_gcc_deb(){
 
 set_compiler(){
     if [ x"$RHEL" != x2023 ]; then
-        export CC=/opt/mongodbtoolchain/v4/bin/gcc
-        export CXX=/opt/mongodbtoolchain/v4/bin/g++
+        export CC=${TOOLCHAIN_PATH}/bin/gcc
+        export CXX=${TOOLCHAIN_PATH}/bin/g++
     fi
     return
 }
 
 fix_rules(){
-    sed -i 's|CC = gcc-5|CC = /opt/mongodbtoolchain/v4/bin/gcc|' debian/rules
-    sed -i 's|CXX = g++-5|CXX = /opt/mongodbtoolchain/v4/bin/g++|' debian/rules
+    sed -i "s|CC = gcc-5|CC = ${TOOLCHAIN_PATH}/bin/gcc|" debian/rules
+    sed -i "s|CXX = g++-5|CXX = ${TOOLCHAIN_PATH}/bin/g++|" debian/rules
     sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules
     if [ x"${FIPSMODE}" == x1 ]; then
         sed -i 's:FIPSMODE=0:FIPSMODE=1:' debian/rules
@@ -332,7 +337,7 @@ aws_sdk_build(){
             git clean -xdf
             git checkout 1.9.379
             git submodule update --init --recursive
-            if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
+            if [[ x"${RHEL}" =~ ^x(7|8|9|10|2023)$ ]]; then
                 sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                 sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
             fi
@@ -397,7 +402,7 @@ install_deps() {
         yum -y install devtoolset-9
         yum -y install devtoolset-11-elfutils devtoolset-11-dwz
 
-       PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+       PATH=${TOOLCHAIN_PATH}/bin/:$PATH
 
         pip install --upgrade pip
         pip install --user setuptools --upgrade
@@ -414,7 +419,7 @@ install_deps() {
         yum -y install gcc-toolset-11-dwz gcc-toolset-11-elfutils
         ln -sf /usr/bin/scons-3 /usr/bin/scons
 
-        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        PATH=${TOOLCHAIN_PATH}/bin/:$PATH
         /usr/bin/pip install --user typing pyyaml regex Cheetah3
       elif [ x"$RHEL" = x9  -o x"$RHEL" = x2023 ]; then
         dnf config-manager --enable ol9_codeready_builder
@@ -430,7 +435,20 @@ install_deps() {
         yum -y install perl
         /usr/bin/pip install --upgrade pip setuptools --ignore-installed
         /usr/bin/pip install --user typing pyyaml==5.3.1 regex Cheetah3
+      elif [ x"$RHEL" = x10 ]; then
+        dnf config-manager --enable ol10_codeready_builder
 
+        yum -y install oracle-epel-release-el10
+        yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
+        yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
+        yum -y install python3 python3-pip python3-devel
+        yum -y install python3-scons
+
+        yum -y install redhat-rpm-config which e2fsprogs-devel expat-devel lz4-devel
+        yum -y install openldap-devel krb5-devel xz-devel
+        yum -y install perl
+        /usr/bin/pip install --upgrade pip setuptools --ignore-installed
+        /usr/bin/pip install --user typing pyyaml==5.3.1 regex Cheetah3
       fi
       if [ x"$RHEL" = x2023 ]; then
           /usr/bin/pip install scons --root-user-action=ignore
@@ -505,7 +523,7 @@ install_mongodbtoolchain(){
     fi
     export USER=$(whoami)
     bash -x ./installer.sh -k --download-url https://downloads.percona.com/downloads/packaging/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
-    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+    export PATH=${TOOLCHAIN_PATH}/bin/:$PATH
 }
 
 get_tar(){
@@ -685,7 +703,7 @@ build_rpm(){
         source /opt/rh/gcc-toolset-9/enable
         source /opt/rh/gcc-toolset-11/enable
       fi
-    elif [ x"$RHEL" = x9 ]; then
+    elif [ x"$RHEL" = x9 -o x"$RHEL" = x10 ]; then
       mv /usr/bin/python3 /usr/bin/python3_old
     fi
     if [ "x${RHEL}" == "x2023" ]; then
@@ -697,7 +715,7 @@ build_rpm(){
 #        export CC=/usr/bin/gcc
 #        export CXX=/usr/bin/g++
     fi
-        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        PATH=${TOOLCHAIN_PATH}/bin/:$PATH
         pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
@@ -710,8 +728,8 @@ build_rpm(){
 
     if [ "x${RHEL}" != "x2023" ]; then
         echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-        export CC=/opt/mongodbtoolchain/v4/bin/gcc
-        export CXX=/opt/mongodbtoolchain/v4/bin/g++
+        export CC=${TOOLCHAIN_PATH}/bin/gcc
+        export CXX=${TOOLCHAIN_PATH}/bin/g++
     fi
     cd $WORKDIR
     echo "RHEL=${RHEL}" >> percona-server-mongodb-70.properties
@@ -729,7 +747,7 @@ build_rpm(){
     if [ "x${RHEL}" == "x2023" ]; then
         export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
     else
-        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B${TOOLCHAIN_PATH}/bin"
     fi
     if [[ "x${FIPSMODE}" == "x1" ]]; then
         rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --define "enable_fipsmode 1" --rebuild rpmbuild/SRPMS/$SRC_RPM
@@ -796,7 +814,7 @@ build_source_deb(){
     fi
     cd ${BUILDDIR}
 
-    PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+    PATH=${TOOLCHAIN_PATH}/bin/:$PATH
     pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
@@ -894,7 +912,7 @@ build_deb(){
     else
         cd ${PRODUCT}-${VERSION}
     fi
-    PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+    PATH=${TOOLCHAIN_PATH}/bin/:$PATH
 
     pip install --upgrade pip
 
@@ -928,7 +946,7 @@ build_deb(){
     . ./mongo-tools/set_tools_revision.sh
     dch -m -D "${DEBIAN}" --force-distribution -v "${VERSION}-${RELEASE}.${DEBIAN}" 'Update distribution'
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B${TOOLCHAIN_PATH}/bin"
 
     cd debian/
         wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
@@ -1022,8 +1040,8 @@ build_tarball(){
         fi
         if [ "x${RHEL}" != "x2023" ]; then
             echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-            export CC=/opt/mongodbtoolchain/v4/bin/gcc
-            export CXX=/opt/mongodbtoolchain/v4/bin/g++
+            export CC=${TOOLCHAIN_PATH}/bin/gcc
+            export CXX=${TOOLCHAIN_PATH}/bin/g++
         else
             export CC=/usr/bin/gcc
             export CXX=/usr/bin/g++
@@ -1059,7 +1077,7 @@ build_tarball(){
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
     if [ "x${RHEL}" != "x2023" ]; then
-        export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        export PATH=${TOOLCHAIN_PATH}/bin/:$PATH
         pip install --upgrade pip
     fi
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
@@ -1082,7 +1100,7 @@ build_tarball(){
             git clean -xdf
             git checkout 1.9.379
             git submodule update --init --recursive
-            if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
+            if [[ x"${RHEL}" =~ ^x(7|8|9|10|2023)$ ]]; then
                 sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
                 sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
             fi
@@ -1116,7 +1134,7 @@ build_tarball(){
     if [ "x${RHEL}" == "x2023" ]; then
         export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
     else
-        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B${TOOLCHAIN_PATH}/bin"
     fi
     if [ x"${DEBIAN}" = "xstretch" ]; then
       CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
