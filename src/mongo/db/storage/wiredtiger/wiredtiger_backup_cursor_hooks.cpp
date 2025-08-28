@@ -258,6 +258,9 @@ BackupCursorExtendState WiredTigerBackupCursorHooks::extendBackupCursor(Operatio
             _openCursor == backupId);
     // wait for extendTo
     auto* replCoord = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
+    uassert(29144,
+            "Cannot extend backup cursor when replication is not enabled",
+            replCoord->getSettings().isReplSet());
     if (auto status = replCoord->awaitTimestampCommitted(opCtx, extendTo); !status.isOK()) {
         LOGV2_ERROR_OPTIONS(29096,
                             {logv2::UserAssertAfterLog(status.code())},
