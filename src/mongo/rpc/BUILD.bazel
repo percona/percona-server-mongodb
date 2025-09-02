@@ -220,6 +220,16 @@ mongo_cc_integration_test(
     ],
 )
 
+mongo_cc_library(
+    name = "rpc_test_deps_shim",
+    deps = select({
+        "//bazel/config:audit_enabled": [
+            "//src/mongo/db/audit:audit_impl",
+        ],
+        "//conditions:default": [],
+    })
+)
+
 mongo_cc_unit_test(
     name = "rpc_test",
     srcs = [
@@ -244,6 +254,7 @@ mongo_cc_unit_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
+        ":rpc_test_deps_shim",
         ":client_metadata",
         ":metadata",
         ":rewrite_state_change_errors",
