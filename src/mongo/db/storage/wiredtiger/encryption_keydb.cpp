@@ -39,6 +39,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/debug_util.h"
+#include "mongo/util/system_clock_source.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
@@ -131,9 +132,10 @@ void EncryptionKeyDB::close_handles() {
         _sess->close(_sess, nullptr);
         _sess = nullptr;
     }
-    if (_conn) {
-        _conn->close(_conn, nullptr);
-        _conn = nullptr;
+    if (_connection) {
+        WT_CONNECTION* conn = _connection->conn();
+        conn->close(conn, nullptr);
+        _connection.reset();
     }
 }
 
@@ -155,9 +157,18 @@ int EncryptionKeyDB::_openWiredTiger(const std::string& path, const std::string&
     // For now we don't use event handler in EncryptionKeyDB
     WT_EVENT_HANDLER* wtEventHandler = nullptr;
 
+    int ret = 0;
+    WT_CONNECTION* conn = nullptr;
+    ScopeGuard initConnection([this, &conn, &ret] {
+        invariant(!ret, "this scope guard should be dismissed in case of anny failure");
+        invariant(conn, "connection should be initialized if there is no error");
+        _fastClockSource = std::make_unique<SystemClockSource>();
+        _connection = std::make_unique<WiredTigerConnection>(conn, _fastClockSource.get());
+    });
+
     // MongoDB 4.4 will always run in compatibility version 10.0.
     std::string configStr = wtOpenConfig + ",compatibility=(require_min=\"10.0.0\")";
-    int ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &_conn);
+    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &conn);
     if (!ret) {
         //_fileVersion = {WiredTigerFileVersion::StartupVersion::IS_44_FCV_44};
         return ret;
@@ -165,7 +176,7 @@ int EncryptionKeyDB::_openWiredTiger(const std::string& path, const std::string&
 
     // MongoDB 4.4 doing clean shutdown in FCV 4.2 will use compatibility version 3.3.
     configStr = wtOpenConfig + ",compatibility=(require_min=\"3.3.0\")";
-    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &_conn);
+    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &conn);
     if (!ret) {
         //_fileVersion = {WiredTigerFileVersion::StartupVersion::IS_44_FCV_42};
         return ret;
@@ -173,11 +184,13 @@ int EncryptionKeyDB::_openWiredTiger(const std::string& path, const std::string&
 
     // MongoDB 4.2 uses compatibility version 3.2.
     configStr = wtOpenConfig + ",compatibility=(require_min=\"3.2.0\")";
-    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &_conn);
+    ret = wiredtiger_open(path.c_str(), wtEventHandler, configStr.c_str(), &conn);
     if (!ret) {
         //_fileVersion = {WiredTigerFileVersion::StartupVersion::IS_42};
         return ret;
     }
+
+    initConnection.dismiss();
 
     LOGV2_WARNING(29054,
         "EncryptionKeyDB: Failed to start up WiredTiger under any compatibility version.");
@@ -216,7 +229,9 @@ void EncryptionKeyDB::init() {
         _wtOpenConfig = config;
 
         // empty keyid means masterkey
-        res = _conn->open_session(_conn, nullptr, nullptr, &_sess);
+        invariant(_connection, "Connection is not initialized");
+        invariant(_connection->conn(), "WiredTiger connection is not initialized");
+        res = _connection->conn()->open_session(_connection->conn(), nullptr, nullptr, &_sess);
         if (res) {
             throw std::runtime_error(std::string("error opening wiredTiger session: ") + wiredtiger_strerror(res));
         }
@@ -503,14 +518,17 @@ void EncryptionKeyDB::reconfigure(const char *newCfg) {
     LOGV2(29076, "KeyDB closed", "duration"_attr = Date_t::now() - startTime);
 
     startTime = Date_t::now();
-    invariantWTOK(wiredtiger_open(_path.c_str(), wtEventHandler, _wtOpenConfig.c_str(), &_conn),
+    WT_CONNECTION* conn = nullptr;
+    invariantWTOK(wiredtiger_open(_path.c_str(), wtEventHandler, _wtOpenConfig.c_str(), &conn),
                   nullptr);
     LOGV2(29077, "KeyDB re-opened", "duration"_attr = Date_t::now() - startTime);
 
     startTime = Date_t::now();
     LOGV2(29078, "Reconfiguring KeyDB", "newConfig"_attr = newCfg);
-    invariantWTOK(_conn->reconfigure(_conn, newCfg), nullptr);
+    invariantWTOK(conn->reconfigure(conn, newCfg), nullptr);
     LOGV2(29079, "KeyDB reconfigure complete", "duration"_attr = Date_t::now() - startTime);
+
+    _connection = std::make_unique<WiredTigerConnection>(conn, _fastClockSource.get());
 }
 
 }  // namespace mongo

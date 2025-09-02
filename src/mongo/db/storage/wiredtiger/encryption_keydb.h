@@ -96,7 +96,9 @@ public:
     void store_pseudo_bytes(uint8_t *buf, int len);
 
     // get connection for hot backup procedure to create backup
-    WT_CONNECTION*  getConnection() const { return _conn; }
+    WiredTigerConnection* getConnection() const {
+        return _connection.get();
+    }
 
     // reconfigure wiredtiger (used for downgrade)
     // after reconfiguration this instance is not fully functional
@@ -149,7 +151,8 @@ private:
     const bool _rotation;
     const std::string _path;
     std::string _wtOpenConfig;
-    WT_CONNECTION *_conn = nullptr;
+    std::unique_ptr<ClockSource> _fastClockSource;
+    std::unique_ptr<WiredTigerConnection> _connection;
     stdx::recursive_mutex _lock;  // _prng, _gcm_iv, _gcm_iv_reserved
     stdx::mutex _lock_sess;       // _sess
     stdx::mutex _lock_key;  // serialize access to the encryption keys table, also protects _srng

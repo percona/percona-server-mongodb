@@ -1760,7 +1760,7 @@ private:
 StatusWith<std::unique_ptr<StorageEngine::StreamingCursor>>
 WiredTigerKVEngine::_disableIncrementalBackup() {
     // This cursor will be freed by the backupSession being closed as the session is uncached
-    auto sessionRaii = std::make_unique<WiredTigerSession>(_conn);
+    auto sessionRaii = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* cursor = nullptr;
     WT_SESSION* session = sessionRaii->getSession();
     int wtRet =
@@ -1914,7 +1914,7 @@ StatusWith<std::deque<std::string>> WiredTigerKVEngine::extendBackupCursor() {
 // - returns empty list of files
 StatusWith<std::deque<BackupBlock>> EncryptionKeyDB::_disableIncrementalBackup() {
     // This cursor will be freed by the backupSession being closed as the session is uncached
-    auto sessionRaii = std::make_unique<WiredTigerSession>(_conn);
+    auto sessionRaii = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* cursor = nullptr;
     WT_SESSION* session = sessionRaii->getSession();
     int wtRet =
@@ -1955,7 +1955,7 @@ StatusWith<std::deque<BackupBlock>> EncryptionKeyDB::beginNonBlockingBackup(
     }
 
     // This cursor will be freed by the backupSession being closed as the session is uncached
-    auto sessionRaii = std::make_unique<WiredTigerSession>(_conn);
+    auto sessionRaii = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* cursor = nullptr;
     WT_SESSION* session = sessionRaii->getSession();
     const std::string config = ss.str();
@@ -2094,7 +2094,7 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
     // Open backup cursor in new session, the session will kill the
     // cursor upon closing.
     {
-        auto session = std::make_shared<WiredTigerSession>(_conn);
+        auto session = std::make_shared<WiredTigerSession>(_connection.get());
         WT_SESSION* s = session->getSession();
         ret = s->log_flush(s, "sync=off");
         if (ret != 0) {
@@ -4296,7 +4296,10 @@ void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
     if (!_keyDBSession) {
         auto encryptionKeyDB = getEncryptionKeyDB();
         if (encryptionKeyDB) {
-            auto conn = encryptionKeyDB->getConnection();
+            invariant(encryptionKeyDB->getConnection(), "Connection is not initialized");
+            invariant(encryptionKeyDB->getConnection()->conn(),
+                      "WiredTiger connection is not initialized");
+            auto conn = encryptionKeyDB->getConnection()->conn();
             invariantWTOK(conn->open_session(conn, nullptr, "isolation=snapshot", &_keyDBSession),
                           nullptr);
         }
