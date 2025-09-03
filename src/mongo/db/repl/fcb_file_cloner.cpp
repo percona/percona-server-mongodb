@@ -189,7 +189,7 @@ void FCBFileCloner::runQuery() {
                 2,
                 "FCBFileCloner running aggregation",
                 "source"_attr = getSource(),
-                "aggRequest"_attr = aggregation_request_helper::serializeToCommandObj(aggRequest));
+                "aggRequest"_attr = aggRequest.toBSON());
     const bool useExhaust =
         true;  // TODO: !MONGO_unlikely(FCBFileClonerDisableExhaust.shouldFail());
     std::unique_ptr<DBClientCursor> cursor = uassertStatusOK(DBClientCursor::fromAggregationRequest(
