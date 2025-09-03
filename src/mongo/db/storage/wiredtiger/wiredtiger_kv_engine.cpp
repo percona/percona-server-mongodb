@@ -1049,7 +1049,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     }
 
     _sizeStorerUri = _uri("sizeStorer");
-    WiredTigerSession session(_conn);
+    WiredTigerSession session(_connection.get());
     if (repair && _hasUri(session, _sizeStorerUri)) {
         LOGV2(22316, "Repairing size cache");
 
@@ -1058,7 +1058,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
             fassertNoTrace(28577, status);
     }
 
-    _sizeStorer = std::make_unique<WiredTigerSizeStorer>(_conn, _sizeStorerUri);
+    _sizeStorer = std::make_unique<WiredTigerSizeStorer>(_connection.get(), _sizeStorerUri);
     auto param = std::make_unique<WiredTigerEngineRuntimeConfigParameter>(
         "wiredTigerEngineRuntimeConfig", ServerParameterType::kRuntimeOnly);
     param->_data.second = this;
@@ -1321,7 +1321,7 @@ Status WiredTigerKVEngine::repairIdent(RecoveryUnit& ru, StringData ident) {
 
 Status WiredTigerKVEngine::_salvageIfNeeded(const char* uri) {
     // Using a side session to avoid transactional issues
-    WiredTigerSession session(_conn);
+    WiredTigerSession session(_connection.get());
 
     int rc = session.verify(uri, nullptr);
     // WT may return EBUSY if the database contains dirty data. If we checkpoint and retry the
@@ -1474,7 +1474,7 @@ Status WiredTigerKVEngine::beginBackup() {
     syncSizeInfo(true);
 
     // This cursor will be freed by the backupSession being closed as the session is uncached
-    auto session = std::make_unique<WiredTigerSession>(_conn);
+    auto session = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* c = nullptr;
     WT_SESSION* s = session->getSession();
     int ret = WT_OP_CHECK(s->open_cursor(s, "backup:", nullptr, nullptr, &c));
@@ -1501,7 +1501,7 @@ Status WiredTigerKVEngine::disableIncrementalBackup() {
     // reinstate incremental backup history.
     uassert(31401, "Cannot open backup cursor with in-memory storage engine.", !isEphemeral());
 
-    auto sessionRaii = std::make_unique<WiredTigerSession>(_conn);
+    auto sessionRaii = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* cursor = nullptr;
     WT_SESSION* session = sessionRaii->getSession();
     int wtRet =
@@ -1817,7 +1817,7 @@ WiredTigerKVEngine::beginNonBlockingBackup(const StorageEngine::BackupOptions& o
     syncSizeInfo(true);
 
     // This cursor will be freed by the backupSession being closed as the session is uncached
-    auto sessionRaii = std::make_unique<WiredTigerSession>(_conn);
+    auto sessionRaii = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* cursor = nullptr;
     WT_SESSION* session = sessionRaii->getSession();
     const std::string config = ss.str();
@@ -2880,7 +2880,7 @@ Status WiredTigerKVEngine::createRecordStore(const NamespaceString& nss,
                                              StringData ident,
                                              const CollectionOptions& options,
                                              KeyFormat keyFormat) {
-    WiredTigerSession session(_conn);
+    WiredTigerSession session(_connection.get());
 
     StatusWith<std::string> result =
         WiredTigerRecordStore::generateCreateString(_canonicalName,
@@ -2921,7 +2921,7 @@ Status WiredTigerKVEngine::createRecordStore(const NamespaceString& nss,
 Status WiredTigerKVEngine::importRecordStore(StringData ident,
                                              const BSONObj& storageMetadata,
                                              const ImportOptions& importOptions) {
-    WiredTigerSession session(_conn);
+    WiredTigerSession session(_connection.get());
 
     std::string config = uassertStatusOK(
         WiredTigerUtil::generateImportString(ident, storageMetadata, importOptions));
@@ -2996,7 +2996,7 @@ Status WiredTigerKVEngine::recoverOrphanedIdent(const NamespaceString& nss,
     auto start = Date_t::now();
     LOGV2(22335, "Salvaging ident", "ident"_attr = ident);
 
-    WiredTigerSession sessionWrapper(_conn);
+    WiredTigerSession sessionWrapper(_connection.get());
     WT_SESSION* session = sessionWrapper.getSession();
     status = wtRCToStatus(
         session->salvage(session, _uri(ident).c_str(), nullptr), session, "Salvage failed: ");
@@ -3216,7 +3216,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getTemporaryRecordStore(Operati
 std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(OperationContext* opCtx,
                                                                           StringData ident,
                                                                           KeyFormat keyFormat) {
-    WiredTigerSession wtSession(_conn);
+    WiredTigerSession wtSession(_connection.get());
 
     // We don't log writes to temporary record stores.
     const bool isLogged = false;
@@ -3275,7 +3275,7 @@ void WiredTigerKVEngine::alterIdentMetadata(RecoveryUnit& ru,
 
 Status WiredTigerKVEngine::alterMetadata(StringData uri, StringData config) {
     // Use a dedicated session in an alter operation to avoid transaction issues.
-    WiredTigerSession session(_conn);
+    WiredTigerSession session(_connection.get());
 
     auto uriNullTerminated = uri.toString();
     auto configNullTerminated = config.toString();
@@ -3302,7 +3302,7 @@ Status WiredTigerKVEngine::dropIdent(RecoveryUnit* ru,
     wtRu->getSessionNoTxn()->closeAllCursors(uri);
     _connection->closeAllCursors(uri);
 
-    WiredTigerSession session(_conn);
+    WiredTigerSession session(_connection.get());
 
     int ret =
         session.getSession()->drop(session.getSession(), uri.c_str(), "checkpoint_wait=false");
@@ -3344,7 +3344,7 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
     wtRu->getSessionNoTxn()->closeAllCursors(uri);
     _connection->closeAllCursors(uri);
 
-    WiredTigerSession session(_conn);
+    WiredTigerSession session(_connection.get());
 
     // Don't wait for the global checkpoint lock to be obtained in WiredTiger as it can take a
     // substantial amount of time to be obtained if there is a concurrent checkpoint running. We
@@ -3914,7 +3914,7 @@ StatusWith<Timestamp> WiredTigerKVEngine::recoverToStableTimestamp(Interruptible
                 str::stream() << "Error rolling back to stable. Err: " << wiredtiger_strerror(ret)};
     }
 
-    _sizeStorer = std::make_unique<WiredTigerSizeStorer>(_conn, _sizeStorerUri);
+    _sizeStorer = std::make_unique<WiredTigerSizeStorer>(_connection.get(), _sizeStorerUri);
 
     // SERVER-85167: restart the cache after resetting the size storer.
     _connection->restart();
@@ -4291,7 +4291,7 @@ void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
 
     // Initialize on first use.
     if (!_waitUntilDurableSession) {
-        _waitUntilDurableSession = std::make_unique<WiredTigerSession>(_conn);
+        _waitUntilDurableSession = std::make_unique<WiredTigerSession>(_connection.get());
     }
     if (!_keyDBSession) {
         auto encryptionKeyDB = getEncryptionKeyDB();
