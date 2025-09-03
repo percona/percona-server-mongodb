@@ -294,6 +294,19 @@ Status InitialSyncerFCB::startup(OperationContext* opCtx,
 
     _setUp_inlock(opCtx, initialSyncMaxAttempts);
 
+    if (storageGlobalParams.engine != "wiredTiger") {
+        static constexpr auto msg =
+            "wiredTiger storage engine required on the syncing node for file copy-based initial "
+            "sync";
+        LOGV2_ERROR(128466, msg, "currentEngine"_attr = storageGlobalParams.engine);
+        // Schedule _finishCallback to terminate initial sync with error.
+        auto scheduleResult =
+            _exec->scheduleWork([this](const mongo::executor::TaskExecutor::CallbackArgs&) {
+                _finishCallback(Status(ErrorCodes::InitialSyncFailure, msg));
+            });
+        return scheduleResult.getStatus();
+    }
+
     // Start first initial sync attempt.
     std::uint32_t initialSyncAttempt = 0;
     _attemptExec = std::make_unique<executor::ScopedTaskExecutor>(
