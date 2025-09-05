@@ -149,6 +149,14 @@ common --flag_alias=simple_build_id=//bazel/config:simple_build_id
 common --flag_alias=create_dwp=//bazel/config:create_dwp
 common --flag_alias=win_min_version=//bazel/config:win_min_version
 
+# Aliases for config flags: Percona-specific
+common --flag_alias=inmemory=//bazel/config:inmemory
+common --flag_alias=audit=//bazel/config:audit
+common --flag_alias=full_featured=//bazel/config:full_featured
+common --flag_alias=enable_fipsmode=//bazel/config:enable_fipsmode
+common --flag_alias=enable_fcbis=//bazel/config:enable_fcbis
+common --flag_alias=enable_oidc=//bazel/config:enable_oidc
+
 #############################################################################################################################
 # BUILD 'PROFILES' - this is the area to set up configurations of flags to be used by developers.
 # --enable_platform_specific_config=true is passed to every profile so more hardware specific 
