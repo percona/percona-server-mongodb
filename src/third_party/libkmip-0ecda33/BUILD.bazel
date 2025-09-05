@@ -1,0 +1,39 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+mongo_cc_library(
+    name = "libkmip",
+    srcs = [
+        "libkmip/src/kmip.c",
+        "libkmip/src/kmip_bio.c",
+        "libkmip/src/kmip_locate.c",
+        "libkmip/src/kmip_memset.c",
+    ],
+    hdrs = glob(["libkmip/include/*.h"]),
+    includes = [
+        "libkmip/include",
+    ],
+    no_undefined_ref_DO_NOT_USE = False,
+    linkopts = [
+        "-lcrypto",
+        "-lssl",
+    ],
+)
+
+
+mongo_cc_library(
+    name = "kmippp",
+    srcs = [
+        "kmippp/kmippp.cpp",
+    ],
+    hdrs = [
+        "kmippp/kmippp.h",
+    ],
+    deps = [
+        ":libkmip"
+    ],
+    includes = [
+        ".",
+    ],
+)
