@@ -104,7 +104,15 @@ CEResult CardinalityEstimator::estimate(const QuerySolutionNode* node) {
             ceRes = indexUnionCard(static_cast<const MergeSortNode*>(node));
             break;
         case STAGE_SORT_DEFAULT:
-        case STAGE_SORT_SIMPLE:
+        case STAGE_SORT_SIMPLE: {
+            const SortNode* sortNode = static_cast<const SortNode*>(node);
+            ceRes = estimate(sortNode);
+            if (sortNode->limit > 0) {
+                // If there is no limit, this node is just a sort and doesn't affect cardinality.
+                isConjunctionBreaker = true;
+            }
+            break;
+        }
         case STAGE_PROJECTION_DEFAULT:
         case STAGE_PROJECTION_COVERED:
         case STAGE_PROJECTION_SIMPLE: {
@@ -131,18 +139,18 @@ CEResult CardinalityEstimator::estimate(const QuerySolutionNode* node) {
             // TODO SERVER-99075: Implement distinct scan
             MONGO_UNIMPLEMENTED_TASSERT(9907501);
         }
-        case STAGE_TEXT_MATCH: {
-            isConjunctionBreaker = true;
-            // TODO SERVER-99278 Estimate the cardinality of TextMatchNode QSNs
-            MONGO_UNIMPLEMENTED_TASSERT(9927801);
+        case STAGE_TEXT_OR:
+        case STAGE_TEXT_MATCH:
+        case STAGE_GEO_NEAR_2D:
+        case STAGE_GEO_NEAR_2DSPHERE: {
+            // These stages will fallback to multiplanning.
+            return Status(ErrorCodes::UnsupportedCbrNode, "encountered unsupported stages");
         }
         case STAGE_BATCHED_DELETE:
         case STAGE_CACHED_PLAN:
         case STAGE_COUNT:
         case STAGE_COUNT_SCAN:
         case STAGE_DELETE:
-        case STAGE_GEO_NEAR_2D:
-        case STAGE_GEO_NEAR_2DSPHERE:
         case STAGE_IDHACK:
         case STAGE_MATCH:
         case STAGE_MOCK:
@@ -156,7 +164,6 @@ CEResult CardinalityEstimator::estimate(const QuerySolutionNode* node) {
         case STAGE_SORT_KEY_GENERATOR:
         case STAGE_SPOOL:
         case STAGE_SUBPLAN:
-        case STAGE_TEXT_OR:
         case STAGE_TIMESERIES_MODIFY:
         case STAGE_TRIAL:
         case STAGE_UNKNOWN:
@@ -171,7 +178,10 @@ CEResult CardinalityEstimator::estimate(const QuerySolutionNode* node) {
         case STAGE_SENTINEL:
         case STAGE_UNPACK_TS_BUCKET:
             // These stages should never reach the cardinality estimator.
-            MONGO_UNREACHABLE_TASSERT(9902301);
+            tasserted(9902301,
+                      str::stream{}
+                          << "Encountered " << nodeType
+                          << " stage in CardinalityEstimator which should be unreachable");
     }
 
     if (!ceRes.isOK()) {
@@ -336,6 +346,10 @@ CEResult CardinalityEstimator::estimate(const MatchExpression* node, const bool 
  * QuerySolutionNodes
  */
 CEResult CardinalityEstimator::estimate(const CollectionScanNode* node) {
+    if (node->isClustered) {
+        // Fallback to multiplanning
+        return Status(ErrorCodes::UnsupportedCbrNode, "clustered scan unsupported");
+    }
     return scanCard(node, _inputCard);
 }
 
@@ -349,6 +363,13 @@ CEResult CardinalityEstimator::scanCard(const QuerySolutionNode* node,
                                         const CardinalityEstimate& card) {
     QSNEstimate est;
     est.inCE = card;
+
+    if (_inputCard == zeroCE) {
+        est.outCE = _inputCard;
+        _qsnEstimates.emplace(node, std::move(est));
+        return _inputCard;
+    }
+
     if (const MatchExpression* filter = node->filter.get()) {
         auto ceRes = estimate(filter, true);
         if (!ceRes.isOK()) {
@@ -364,8 +385,32 @@ CEResult CardinalityEstimator::scanCard(const QuerySolutionNode* node,
     return outCE;
 }
 
+bool isIndexScanSupported(const IndexScanNode& node) {
+    const auto& indexEntry = node.index;
+    return indexEntry.filterExpr == nullptr &&  // prevent partial index
+        indexEntry.type == INDEX_BTREE &&       // prevent hashed, text, wildcard and geo
+        !indexEntry.sparse &&                   // prevent sparse indexes
+        indexEntry.collator == nullptr &&       // collation unsupported
+        indexEntry.version == IndexDescriptor::IndexVersion::kV2;  // prevent old index formats
+}
+
 CEResult CardinalityEstimator::estimate(const IndexScanNode* node) {
+    if (!isIndexScanSupported(*node)) {
+        // Fallback to multiplanning
+        return Status(ErrorCodes::UnsupportedCbrNode,
+                      str::stream{} << "encountered unsupported index scan: "
+                                    << node->index.toString());
+    }
+
     QSNEstimate est;
+
+    if (_inputCard == zeroCE) {
+        est.inCE = _inputCard;
+        est.outCE = _inputCard;
+        _qsnEstimates.emplace(node, std::move(est));
+        return _inputCard;
+    }
+
     // Ignore selectivities pushed by other operators up to this point
     size_t selOffset = _conjSels.size();
 
@@ -422,6 +467,12 @@ CEResult CardinalityEstimator::estimate(const FetchNode* node) {
         return ceRes1;
     }
 
+    if (ceRes1 == zeroCE) {
+        est.outCE = ceRes1.getValue();
+        _qsnEstimates.emplace(node, std::move(est));
+        return ceRes1.getValue();
+    }
+
     if (node->children[0]->getType() == STAGE_IXSCAN &&
         static_cast<const IndexScanNode*>(node->children[0].get())->filter ==
             nullptr &&  // TODO SERVER-98577: Remove this restriction
@@ -456,11 +507,29 @@ CEResult CardinalityEstimator::estimate(const FetchNode* node) {
 CEResult CardinalityEstimator::passThroughNodeCard(const QuerySolutionNode* node) {
     tassert(9768401, "Pass-through nodes cannot have filters.", !node->filter);
     tassert(9768402, "Pass-through nodes must have a single child.", node->children.size() == 1);
-    QSNEstimate est;
-    est.outCE = estimate(node->children[0].get()).getValue();
-    CardinalityEstimate outCE{est.outCE};
-    _qsnEstimates.emplace(node, std::move(est));
-    return outCE;
+
+    auto ceRes = estimate(node->children[0].get());
+    if (!ceRes.isOK()) {
+        return ceRes;
+    }
+    _qsnEstimates.emplace(node, QSNEstimate{.outCE = ceRes.getValue()});
+    return ceRes.getValue();
+}
+
+CEResult CardinalityEstimator::limitNodeCard(const QuerySolutionNode* node, size_t limit) {
+    auto ceRes = estimate(node->children[0].get());
+    if (!ceRes.isOK()) {
+        return ceRes;
+    }
+    if (ceRes == zeroCE) {
+        _qsnEstimates.emplace(node, QSNEstimate{.outCE = ceRes.getValue()});
+        return ceRes.getValue();
+    }
+    auto limitCE = CardinalityEstimate{CardinalityType{static_cast<double>(limit)},
+                                       EstimationSource::Metadata};
+    auto est = std::min(limitCE, ceRes.getValue());
+    _qsnEstimates.emplace(node, QSNEstimate{.outCE = est});
+    return est;
 }
 
 template <IntersectionType T>
@@ -471,15 +540,24 @@ CEResult CardinalityEstimator::indexIntersectionCard(const T* node) {
     // Ignore selectivities pushed by other operators up to this point.
     size_t selOffset = _conjSels.size();
 
+    bool hasZeroCEChild = false;
     for (auto&& child : node->children) {
         auto ceRes = estimate(child.get());
         if (!ceRes.isOK()) {
             return ceRes;
         }
+        if (ceRes == zeroCE) {
+            hasZeroCEChild = true;
+        }
     }
 
-    // Combine the selectivities of all child nodes.
-    est.outCE = conjCard(selOffset, _inputCard);
+    if (hasZeroCEChild) {
+        est.outCE = zeroCE;
+    } else {
+        // Combine the selectivities of all child nodes.
+        est.outCE = conjCard(selOffset, _inputCard);
+    }
+
     CardinalityEstimate outCE{est.outCE};
     _qsnEstimates.emplace(node, std::move(est));
 
@@ -501,14 +579,23 @@ CEResult CardinalityEstimator::indexUnionCard(const T* node) {
         if (!ceRes.isOK()) {
             return ceRes;
         }
+        if (ceRes.getValue() == zeroCE) {
+            continue;
+        }
         popSelectivities(selOffset);
         disjSels.emplace_back(ceRes.getValue() / _inputCard);
     }
-
-    // Combine the selectivities of all child nodes.
-    est.outCE = disjCard(_inputCard, disjSels);
+    if (!disjSels.empty()) {
+        // Combine the selectivities of all child nodes.
+        est.outCE = disjCard(_inputCard, disjSels);
+    } else {
+        est.outCE = zeroCE;
+    }
+    popSelectivities();
     CardinalityEstimate outCE{est.outCE};
-    _conjSels.emplace_back(outCE / _inputCard);
+    if (_inputCard != zeroCE) {
+        _conjSels.emplace_back(outCE / _inputCard);
+    }
     _qsnEstimates.emplace(node, std::move(est));
 
     return outCE;
@@ -626,23 +713,26 @@ CEResult CardinalityEstimator::tryHistogramAnd(const AndMatchExpression* node) {
     return conjCard(selOffset, _inputCard);
 }
 
-CEResult CardinalityEstimator::estimate(const LimitNode* node) {
-    auto ceRes = estimate(node->children[0].get());
-    if (!ceRes.isOK()) {
-        return ceRes;
+CEResult CardinalityEstimator::estimate(const SortNode* node) {
+    if (node->limit > 0) {
+        return limitNodeCard(node, node->limit);
+    } else {
+        return passThroughNodeCard(node);
     }
-    auto est = std::min(CardinalityEstimate{CardinalityType{static_cast<double>(node->limit)},
-                                            EstimationSource::Metadata},
-                        ceRes.getValue());
-    _qsnEstimates.emplace(node, QSNEstimate{.outCE = est});
-    _conjSels.push_back(est / _inputCard);
-    return est;
+}
+
+CEResult CardinalityEstimator::estimate(const LimitNode* node) {
+    return limitNodeCard(node, node->limit);
 }
 
 CEResult CardinalityEstimator::estimate(const SkipNode* node) {
     auto ceRes = estimate(node->children[0].get());
     if (!ceRes.isOK()) {
         return ceRes;
+    }
+    if (ceRes == zeroCE) {
+        _qsnEstimates.emplace(node, QSNEstimate{.outCE = ceRes.getValue()});
+        return ceRes.getValue();
     }
     auto childEst = ceRes.getValue();
     auto skip =
@@ -799,7 +889,8 @@ IndexBounds equalityPrefix(const IndexBounds* node) {
 
 CEResult CardinalityEstimator::estimate(const IndexBounds* node) {
     if (node->isSimpleRange) {
-        MONGO_UNIMPLEMENTED_TASSERT(9586707);  // TODO: SERVER-96816
+        // TODO SERVER-96816: Implement support for estimation of simple ranges
+        return Status(ErrorCodes::UnsupportedCbrNode, "simple ranges unsupported");
     }
 
     if (_rankerMode == QueryPlanRankerModeEnum::kSamplingCE) {
