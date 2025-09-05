@@ -34,14 +34,6 @@ def main():
     enterprise = True
     if check_bazel_command_type(sys.argv[1:]) not in ["clean", "shutdown", "version", None]:
         args = sys.argv
-        enterprise_mod = REPO_ROOT / "src" / "mongo" / "db" / "modules" / "enterprise"
-        if not enterprise_mod.exists():
-            enterprise = False
-            print(
-                f"{enterprise_mod.relative_to(REPO_ROOT).as_posix()} missing, defaulting to local non-enterprise build (--config=local --build_enterprise=False). Add the directory to not automatically add these options."
-            )
-            args += ["--build_enterprise=False", "--config=local"]
-
         engflow_auth(args)
 
         write_workstation_bazelrc(args)
