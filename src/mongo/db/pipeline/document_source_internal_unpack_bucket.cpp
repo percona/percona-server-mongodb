@@ -52,6 +52,7 @@
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/document_metadata_fields.h"
+#include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/exec/plan_stats.h"
 #include "mongo/db/matcher/expression.h"
 #include "mongo/db/matcher/expression_parser.h"
@@ -723,6 +724,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
                 uassert(5346503,
                         "include or exclude field element must be a single-element field path",
                         field.find('.') == std::string::npos);
+                // TODO SERVER-98589: Remove when BSON field name type is implemented.
+                uassert(9568705,
+                        "include or exclude field element must not contain an embedded null byte",
+                        field.find('\0') == std::string::npos);
                 bucketSpec.addIncludeExcludeField(field);
             }
             bucketSpec.setBehavior(fieldName == kInclude ? BucketSpec::Behavior::kInclude
@@ -737,7 +742,12 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
             uassert(5346504,
                     str::stream() << "timeField field must be a string, got: " << elem.type(),
                     elem.type() == BSONType::String);
-            bucketSpec.setTimeField(elem.str());
+            auto timeField = elem.str();
+            // TODO SERVER-98589: Remove when BSON field name type is implemented.
+            uassert(9568701,
+                    str::stream() << "timeField must not contain an embedded null byte",
+                    timeField.find('\0') == std::string::npos);
+            bucketSpec.setTimeField(std::move(timeField));
             hasTimeField = true;
         } else if (fieldName == timeseries::kMetaFieldName) {
             uassert(5346505,
@@ -747,6 +757,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
             uassert(5545700,
                     str::stream() << "metaField field must be a single-element field path",
                     metaField.find('.') == std::string::npos);
+            // TODO SERVER-98589: Remove when BSON field name type is implemented.
+            uassert(9568702,
+                    str::stream() << "metaField field must not contain an embedded null byte",
+                    metaField.find('\0') == std::string::npos);
             bucketSpec.setMetaField(std::move(metaField));
         } else if (fieldName == kBucketMaxSpanSeconds) {
             uassert(5510600,
@@ -774,6 +788,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
                 uassert(5509902,
                         "computedMetaProjFields field element must be a single-element field path",
                         field.find('.') == std::string::npos);
+                // TODO SERVER-98589: Remove when BSON field name type is implemented.
+                uassert(9568706,
+                        "computedMetaProjFields field must not contain an embedded null byte",
+                        field.find('\0') == std::string::npos);
                 bucketSpec.addComputedMetaProjFields(field);
             }
         } else if (fieldName == kIncludeMinTimeAsMetadata) {
@@ -858,10 +876,15 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
         auto fieldName = elem.fieldNameStringData();
         // We only expose "timeField" and "metaField" as parameters in $_unpackBucket.
         if (fieldName == timeseries::kTimeFieldName) {
+            auto timeField = elem.str();
             uassert(5612401,
                     str::stream() << "timeField field must be a string, got: " << elem.type(),
                     elem.type() == BSONType::String);
-            bucketSpec.setTimeField(elem.str());
+            // TODO SERVER-98589: Remove when BSON field name type is implemented.
+            uassert(9568703,
+                    str::stream() << "timeField must not contain an embedded null byte",
+                    timeField.find('\0') == std::string::npos);
+            bucketSpec.setTimeField(std::move(timeField));
             hasTimeField = true;
         } else if (fieldName == timeseries::kMetaFieldName) {
             uassert(5612402,
@@ -871,6 +894,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalUnpackBucket::createF
             uassert(5612403,
                     str::stream() << "metaField field must be a single-element field path",
                     metaField.find('.') == std::string::npos);
+            // TODO SERVER-98589: Remove when BSON field name type is implemented.
+            uassert(9568704,
+                    str::stream() << "metaField field must not contain an embedded null byte",
+                    metaField.find('\0') == std::string::npos);
             bucketSpec.setMetaField(std::move(metaField));
         } else if (fieldName == kAssumeNoMixedSchemaData) {
             uassert(6067203,
@@ -994,7 +1021,8 @@ boost::optional<Document> DocumentSourceInternalUnpackBucket::getNextMatchingMea
         if (_eventFilter) {
             if (_unpackToBson) {
                 auto measure = _bucketUnpacker.getNextBson();
-                if (_bucketUnpacker.bucketMatchedQuery() || _eventFilter->matchesBSON(measure)) {
+                if (_bucketUnpacker.bucketMatchedQuery() ||
+                    exec::matcher::matchesBSON(_eventFilter.get(), measure)) {
                     return Document(measure);
                 }
             } else {
@@ -1006,7 +1034,7 @@ boost::optional<Document> DocumentSourceInternalUnpackBucket::getNextMatchingMea
                     : document_path_support::documentToBsonWithPaths(measure,
                                                                      _eventFilterDeps.fields);
                 if (_bucketUnpacker.bucketMatchedQuery() ||
-                    _eventFilter->matchesBSON(measureBson)) {
+                    exec::matcher::matchesBSON(_eventFilter.get(), measureBson)) {
                     return measure;
                 }
             }
@@ -1029,7 +1057,8 @@ DocumentSource::GetNextResult DocumentSourceInternalUnpackBucket::doGetNext() {
     auto nextResult = pSource->getNext();
     while (nextResult.isAdvanced()) {
         auto bucket = nextResult.getDocument().toBson();
-        auto bucketMatchedQuery = _wholeBucketFilter && _wholeBucketFilter->matchesBSON(bucket);
+        auto bucketMatchedQuery =
+            _wholeBucketFilter && exec::matcher::matchesBSON(_wholeBucketFilter.get(), bucket);
         _bucketUnpacker.reset(std::move(bucket), bucketMatchedQuery);
 
         uassert(5346509,
