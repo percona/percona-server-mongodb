@@ -5859,5 +5859,13 @@ void ReplicationCoordinatorImpl::setConsistentDataAvailable_forTest() {
     _isDataConsistent.store(true);
 }
 
+ReplicationCoordinatorExternalState* ReplicationCoordinatorImpl::getExternalState_forTest() {
+    return _externalState.get();
+}
+
+executor::TaskExecutor* ReplicationCoordinatorImpl::getReplExecutor_forTest() {
+    return _replExecutor.get();
+}
+
 }  // namespace repl
 }  // namespace mongo
