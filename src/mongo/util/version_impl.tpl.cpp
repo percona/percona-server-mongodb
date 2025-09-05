@@ -75,7 +75,9 @@ public:
     }
 
     std::vector<StringData> psmdbProFeatures() const final {
-        return version::psmdbProFeatureList();
+        return {
+@buildinfo_psmdb_pro_features@
+        };
     }
 
     StringData allocator() const final {

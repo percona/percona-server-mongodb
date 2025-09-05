@@ -397,6 +397,25 @@ def usdt_provider_flags() -> list[HeaderDefinition]:
     return []
 
 
+def basic_stringbuf_str_rvalue_flag() -> list[HeaderDefinition]:
+    log_check(
+        "[MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE] Checking if basic_stringbuf::str()&& overload exists..."
+    )
+    if compile_check("""
+        #include <sstream>
+        #include <string>
+
+        int main() {
+            std::stringstream ss("a very long string that exceeds the small string optimization buffer length");
+            std::string s = std::move(ss).str();
+            return ss.str().empty() ? 0 : -1;
+        }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE")]
+    else:
+        return []
+
+
 def get_config_header_substs():
     config_header_substs = (
         ('@mongo_config_altivec_vec_vbpermq_output_index@',
@@ -427,6 +446,14 @@ def get_config_header_substs():
         ('@mongo_config_glibc_rseq@', 'MONGO_CONFIG_GLIBC_RSEQ'),
         ('@mongo_config_tcmalloc_google@', 'MONGO_CONFIG_TCMALLOC_GOOGLE'),
         ('@mongo_config_tcmalloc_gperf@', 'MONGO_CONFIG_TCMALLOC_GPERF'),
+        ("@percona_audit_enabled@", "PERCONA_AUDIT_ENABLED"),
+        ("@percona_fipsmode_enabled@", "PERCONA_FIPSMODE_ENABLED"),
+        ("@percona_fcbis_enabled@", "PERCONA_FCBIS_ENABLED"),
+        ("@percona_oidc_enabled@", "PERCONA_OIDC_ENABLED"),
+        (
+            "@mongo_config_have_basic_stringbuf_str_rvalue@",
+            "MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE",
+        ),
     )
     return config_header_substs
 

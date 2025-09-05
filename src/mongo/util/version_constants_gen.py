@@ -245,6 +245,15 @@ def generate_config_header(
     modules = ["enterprise"] if "build_enterprise_enabled" in extra_definitions_dict else []
     module_list = ",\n".join(['"{0}"_sd'.format(x) for x in modules])
 
+    psmdb_pro_features = []
+    if "fipsmode_enabled" in extra_definitions_dict:
+        psmdb_pro_features.append("FIPSMode")
+    if "fcbis_enabled" in extra_definitions_dict:
+        psmdb_pro_features.append("FCBIS")
+    if "oidc_enabled" in extra_definitions_dict:
+        psmdb_pro_features.append("OIDC")
+    psmdb_pro_feature_list = ",\n".join(['"{0}"_sd'.format(x) for x in psmdb_pro_features])
+
     replacements = {
         "@mongo_version@": extra_definitions_dict["MONGO_VERSION"],
         "@mongo_version_major@": str(version_parts[0]),
@@ -256,6 +265,7 @@ def generate_config_header(
         "@buildinfo_js_engine@": extra_definitions_dict["js_engine_ver"],
         "@buildinfo_allocator@": extra_definitions_dict["MONGO_ALLOCATOR"],
         "@buildinfo_modules@": module_list,
+        "@buildinfo_psmdb_pro_features@": psmdb_pro_feature_list,
         "@buildinfo_environment_data@": buildInfoInitializer,
     }
 
