@@ -332,6 +332,7 @@ common --remote_upload_local_results=False
 
 # Settings specific for clang-tidy
 --config=clang-tidy
+common:clang-tidy --//bazel/config:clang_tidy_toolchain_version=v4
 common:clang-tidy --config=dbg
 common:clang-tidy --build_tag_filters=-third_party,-mongo-tidy-tests
 common:clang-tidy --//bazel/config:compiler_type=clang
@@ -351,6 +352,7 @@ common:clang-tidy --//bazel/config:mongo_toolchain_version=v4
 --config=clang-tidy-v5
 common:clang-tidy-v5 --config=clang-tidy
 common:clang-tidy-v5 --//bazel/config:mongo_toolchain_version=v5
+common:clang-tidy-v5 --//bazel/config:clang_tidy_toolchain_version=v5
 
 # if you don't have access to the remote execution cluster above, use the local config
 # described below.
@@ -414,7 +416,7 @@ try-import %workspace%/.bazelrc.evergreen
 try-import %workspace%/.bazelrc.xcode
 
 # local default dev settings
-try-import %workspace%/.bazelrc.workstation
+try-import %workspace%/.bazelrc.common_bes
 
 # local git version info
 try-import %workspace%/.bazelrc.git
