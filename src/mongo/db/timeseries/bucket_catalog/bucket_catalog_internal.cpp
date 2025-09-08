@@ -498,8 +498,6 @@ StatusWith<tracking::unique_ptr<Bucket>> rehydrateBucket(BucketCatalog& catalog,
         minTime,
         catalog.bucketStateRegistry);
 
-    const bool isCompressed = isCompressedBucket(bucketDoc);
-
     bucket->isReopened = true;
 
     // Initialize the remaining member variables from the bucket document.
@@ -528,15 +526,14 @@ StatusWith<tracking::unique_ptr<Bucket>> rehydrateBucket(BucketCatalog& catalog,
     const BSONObj& dataObj = bucketDoc.getObjectField(kBucketDataFieldName);
     const BSONElement timeColumnElem = dataObj.getField(options.getTimeField());
 
-    if (isCompressed && timeColumnElem.type() == BSONType::BinData) {
-        BSONColumn storage{timeColumnElem};
-        numMeasurements = storage.size();
-    } else if (timeColumnElem.isABSONObj()) {
-        numMeasurements = timeColumnElem.Obj().nFields();
-    } else {
+    // This check accounts for if a user performs a direct bucket write on the timeColumnElem and we
+    // attempt to rehydrate the bucket as part of query-based reopening.
+    if (timeColumnElem.type() != BSONType::BinData) {
         return {ErrorCodes::BadValue,
-                "Bucket data field is malformed (missing a valid time column)"};
+                "Bucket data field is malformed (time column is not compressed)"};
     }
+    BSONColumn storage{timeColumnElem};
+    numMeasurements = storage.size();
 
     bucket->bucketIsSortedByTime = controlField.getField(kBucketControlVersionFieldName).Number() ==
             kTimeseriesControlCompressedSortedVersion
@@ -545,32 +542,29 @@ StatusWith<tracking::unique_ptr<Bucket>> rehydrateBucket(BucketCatalog& catalog,
     bucket->numMeasurements = numMeasurements;
     bucket->numCommittedMeasurements = numMeasurements;
 
-    if (isCompressed) {
-        // Initialize BSONColumnBuilders from the compressed bucket data fields.
-        try {
-            bucket->measurementMap.initBuilders(dataObj, bucket->numCommittedMeasurements);
-        } catch (const DBException& ex) {
-            LOGV2_WARNING(
-                8830601,
-                "Failed to decompress bucket for time-series insert upon reopening, will retry "
-                "insert on a new bucket",
-                "error"_attr = ex,
-                "bucketId"_attr = bucket->bucketId.oid,
-                "collectionUUID"_attr = bucket->bucketId.collectionUUID);
+    // Initialize BSONColumnBuilders from the compressed bucket data fields.
+    try {
+        bucket->measurementMap.initBuilders(dataObj, bucket->numCommittedMeasurements);
+    } catch (const DBException& ex) {
+        LOGV2_WARNING(
+            8830601,
+            "Failed to decompress bucket for time-series insert upon reopening, will retry "
+            "insert on a new bucket",
+            "error"_attr = ex,
+            "bucketId"_attr = bucket->bucketId.oid,
+            "collectionUUID"_attr = bucket->bucketId.collectionUUID);
 
-            LOGV2_WARNING_OPTIONS(8852900,
-                                  logv2::LogTruncation::Disabled,
-                                  "Failed to decompress bucket for time-series insert upon "
-                                  "reopening, will retry insert on a new bucket",
-                                  "bucket"_attr =
-                                      base64::encode(bucketDoc.objdata(), bucketDoc.objsize()));
+        LOGV2_WARNING_OPTIONS(8852900,
+                              logv2::LogTruncation::Disabled,
+                              "Failed to decompress bucket for time-series insert upon "
+                              "reopening, will retry insert on a new bucket",
+                              "bucket"_attr =
+                                  base64::encode(bucketDoc.objdata(), bucketDoc.objsize()));
 
-            invariant(!TestingProctor::instance().isEnabled());
-            timeseries::bucket_catalog::freeze(catalog, bucketId);
-            return Status(
-                BucketCompressionFailure(collectionUUID, bucketId.oid, bucketId.keySignature),
-                ex.reason());
-        }
+        invariant(!TestingProctor::instance().isEnabled());
+        timeseries::bucket_catalog::freeze(catalog, bucketId);
+        return Status(BucketCompressionFailure(collectionUUID, bucketId.oid, bucketId.keySignature),
+                      ex.reason());
     }
 
     updateStatsOnError.dismiss();
@@ -640,46 +634,6 @@ StatusWith<std::reference_wrapper<Bucket>> reopenBucket(BucketCatalog& catalog,
     stats.incNumActiveBuckets();
 
     return *unownedBucket;
-}
-
-StatusWith<std::reference_wrapper<Bucket>> reuseExistingBucket(BucketCatalog& catalog,
-                                                               Stripe& stripe,
-                                                               WithLock stripeLock,
-                                                               ExecutionStatsController& stats,
-                                                               const BucketKey& key,
-                                                               Bucket& existingBucket,
-                                                               std::uint64_t targetEra) {
-    // If we have an existing bucket, passing the Bucket* will let us check if the bucket was
-    // cleared as part of a set since the last time it was used. If we were to just check by OID, we
-    // may miss if e.g. there was a move chunk operation.
-    auto state = materializeAndGetBucketState(catalog.bucketStateRegistry, &existingBucket);
-    invariant(state);
-    if (isBucketStateCleared(state.value()) || isBucketStateFrozen(state.value())) {
-        abort(catalog,
-              stripe,
-              stripeLock,
-              existingBucket,
-              stats,
-              nullptr,
-              getTimeseriesBucketClearedError(existingBucket.bucketId.oid));
-        return {ErrorCodes::WriteConflict, "Bucket may be stale"};
-    } else if (transientlyConflictsWithReopening(state.value())) {
-        // Avoid reusing the bucket if it conflicts with reopening.
-        return {ErrorCodes::WriteConflict, "Bucket may be stale"};
-    }
-
-    // It's possible to have two buckets with the same ID in different collections, so let's make
-    // extra sure the existing bucket is the right one.
-    if (existingBucket.bucketId.collectionUUID != key.collectionUUID) {
-        return {ErrorCodes::BadValue, "Cannot re-use bucket: same ID but different namespace"};
-    }
-
-    // If the bucket was already open, wasn't cleared, the state didn't conflict with reopening, and
-    // the namespace matches, then we can simply return it.
-    stats.incNumDuplicateBucketsReopened();
-    markBucketNotIdle(stripe, stripeLock, existingBucket);
-
-    return existingBucket;
 }
 
 std::variant<std::shared_ptr<WriteBatch>, RolloverReason> insertIntoBucket(

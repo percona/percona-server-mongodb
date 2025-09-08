@@ -156,10 +156,10 @@ Bucket* useAlternateBucket(BucketCatalog& catalog,
                            const Date_t& time);
 
 /**
- * Given a bucket to reopen, performs validation and constructs the in-memory representation of the
- * bucket. If specified, 'expectedKey' is matched against the key extracted from the document to
- * validate that the bucket is expected (i.e. to help resolve hash collisions for archived buckets).
- * Does *not* hand ownership of the bucket to the catalog.
+ * Given a compressed bucket to reopen, performs validation and constructs the in-memory
+ * representation of the bucket. If specified, 'expectedKey' is matched against the key extracted
+ * from the document to validate that the bucket is expected (i.e. to help resolve hash collisions
+ * for archived buckets). Does *not* hand ownership of the bucket to the catalog.
  */
 StatusWith<tracking::unique_ptr<Bucket>> rehydrateBucket(BucketCatalog& catalog,
                                                          ExecutionStatsController& stats,
@@ -181,20 +181,6 @@ StatusWith<std::reference_wrapper<Bucket>> reopenBucket(BucketCatalog& catalog,
                                                         const BucketKey& key,
                                                         tracking::unique_ptr<Bucket>&& bucket,
                                                         std::uint64_t targetEra);
-
-/**
- * Check to see if 'insert' can use existing bucket rather than reopening a candidate bucket. If
- * true, chances are the caller raced with another thread to reopen the same bucket, but if false,
- * there might be another bucket that had been cleared, or that has the same _id in a different
- * namespace.
- */
-StatusWith<std::reference_wrapper<Bucket>> reuseExistingBucket(BucketCatalog& catalog,
-                                                               Stripe& stripe,
-                                                               WithLock stripeLock,
-                                                               ExecutionStatsController& stats,
-                                                               const BucketKey& key,
-                                                               Bucket& existingBucket,
-                                                               std::uint64_t targetEra);
 
 /**
  * Given an already-selected 'bucket', inserts 'doc' to the bucket if possible. If not, and 'mode'

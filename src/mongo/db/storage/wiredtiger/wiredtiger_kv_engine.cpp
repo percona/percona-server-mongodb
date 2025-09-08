@@ -1307,7 +1307,6 @@ Status WiredTigerKVEngine::repairIdent(RecoveryUnit& ru, StringData ident) {
     WiredTigerSession* session = WiredTigerRecoveryUnit::get(ru).getSession();
     string uri = _uri(ident);
     session->closeAllCursors(uri);
-    _connection->closeAllCursors(uri);
     if (isEphemeral()) {
         return Status::OK();
     }
@@ -3283,7 +3282,6 @@ Status WiredTigerKVEngine::dropIdent(RecoveryUnit* ru,
 
     WiredTigerRecoveryUnit* wtRu = checked_cast<WiredTigerRecoveryUnit*>(ru);
     wtRu->getSessionNoTxn()->closeAllCursors(uri);
-    _connection->closeAllCursors(uri);
 
     WiredTigerSession session(_connection.get());
 
@@ -3324,7 +3322,6 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
 
     WiredTigerRecoveryUnit* wtRu = checked_cast<WiredTigerRecoveryUnit*>(&ru);
     wtRu->getSessionNoTxn()->closeAllCursors(uri);
-    _connection->closeAllCursors(uri);
 
     WiredTigerSession session(_connection.get());
 

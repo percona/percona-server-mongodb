@@ -143,6 +143,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/smoke_tests/OWNERS.yml
 /buildscripts/smoke_tests/**/server_programmability.yml @10gen/server-programmability @svc-auto-approve-bot
+/buildscripts/smoke_tests/**/catalog_and_routing.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/tracing_profiler/OWNERS.yml
 /buildscripts/tracing_profiler/**/* @10gen/query @svc-auto-approve-bot
@@ -2331,10 +2332,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/stdx/OWNERS.yml
 /src/mongo/stdx/**/* @10gen/server-programmability @svc-auto-approve-bot
 
-# The following patterns are parsed from ./src/mongo/tla_plus/OWNERS.yml
-/src/mongo/tla_plus/**/MoveRange* @10gen/server-catalog-and-routing @svc-auto-approve-bot
-/src/mongo/tla_plus/**/TxnsCollectionIncarnation* @10gen/server-catalog-and-routing @svc-auto-approve-bot
-/src/mongo/tla_plus/**/TxnsMoveRange* @10gen/server-catalog-and-routing @svc-auto-approve-bot
+# The following patterns are parsed from ./src/mongo/tla_plus/Sharding/OWNERS.yml
+/src/mongo/tla_plus/Sharding/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/tools/mongo_tidy_checks/OWNERS.yml
 /src/mongo/tools/mongo_tidy_checks/**/* @10gen/server-programmability @svc-auto-approve-bot
