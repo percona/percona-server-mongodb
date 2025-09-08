@@ -42,9 +42,6 @@ filters:
   - "field_parser*":
     approvers:
       - 10gen/server-programmability
-  - "field_parser*":
-    approvers:
-      - 10gen/server-programmability
   - "generic_argument_util.*":
     approvers:
       - 10gen/server-programmability
@@ -129,9 +126,18 @@ filters:
   - "repair*":
     approvers:
       - 10gen/server-storage-engine-integration
+  - "throw_hook*":
+    approvers:
+      - 10gen/server-programmability
   - "*transaction*":
     approvers:
       - 10gen/server-cluster-scalability
+  - "*transaction_resources.h":
+    approvers:
+      - 10gen/server-catalog-and-routing
+  - "*transaction_resources.cpp":
+    approvers:
+      - 10gen/server-catalog-and-routing
   - "*txn*":
     approvers:
       - 10gen/server-cluster-scalability
