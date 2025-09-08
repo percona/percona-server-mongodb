@@ -58,8 +58,6 @@ class WiredTigerKVEngine;
  */
 class WiredTigerConnection {
 public:
-    using SessionId = int64_t;  // TODO SERVER-99352 use WiredTiger session id.
-
     WiredTigerConnection(WiredTigerKVEngine* engine);
     WiredTigerConnection(WT_CONNECTION* conn,
                          ClockSource* cs,
@@ -93,8 +91,16 @@ public:
      * Returns a smart pointer to a previously released session for reuse, or creates a new session.
      * This method must only be called while holding the global lock to avoid races with
      * shuttingDown, but otherwise is thread safe.
+     * The passed in OperationContext is used to propagate interrupts from MongoDB to WiredTiger. If
+     * interrupts are not needed call getUninterruptibleSession()
      */
-    std::unique_ptr<WiredTigerSession, WiredTigerSessionDeleter> getSession();
+    std::unique_ptr<WiredTigerSession, WiredTigerSessionDeleter> getSession(
+        OperationContext* opCtx);
+    /**
+     * As above but does not propagate interrupts
+     */
+    std::unique_ptr<WiredTigerSession, WiredTigerSessionDeleter> getUninterruptibleSession();
+
 
     /**
      * Get a count of idle sessions in the session cache.
@@ -175,20 +181,7 @@ public:
         return &_compiledConfigurations;
     }
 
-    WiredTigerSession* getSessionById(const SessionId& id);
-
 private:
-    // TODO SERVER-99353 hook up the session registry.
-    // Session registry.
-    struct RegistryPartition {
-        stdx::mutex mtx;
-        stdx::unordered_map<SessionId, WiredTigerSession*> map;
-    };
-
-    void _addSession(const SessionId& id, WiredTigerSession* session);
-
-    bool _removeSession(const SessionId& id);
-
     // Opens a session.
     WT_SESSION* _openSession(WiredTigerSession* session,
                              WT_EVENT_HANDLER* handler,
@@ -236,9 +229,6 @@ private:
     stdx::mutex _prepareCommittedOrAbortedMutex;
     stdx::condition_variable _prepareCommittedOrAbortedCond;
     AtomicWord<std::uint64_t> _prepareCommitOrAbortCounter{0};
-
-    typedef std::vector<RegistryPartition> SessionRegistry;
-    SessionRegistry _registry;
 };
 
 /**

@@ -3491,12 +3491,12 @@ void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session) try {
 }
 
 void WiredTigerKVEngine::checkpoint() {
-    UniqueWiredTigerSession session = _connection->getSession();
+    UniqueWiredTigerSession session = _connection->getUninterruptibleSession();
     return _checkpoint(*session);
 }
 
 void WiredTigerKVEngine::forceCheckpoint(bool useStableTimestamp) {
-    UniqueWiredTigerSession session = _connection->getSession();
+    UniqueWiredTigerSession session = _connection->getUninterruptibleSession();
     return _checkpoint(*session, useStableTimestamp);
 }
 
@@ -4369,7 +4369,7 @@ Status WiredTigerKVEngine::reconfigureLogging() {
 }
 
 StatusWith<BSONObj> WiredTigerKVEngine::getStorageMetadata(StringData ident) const {
-    auto session = _connection->getSession();
+    auto session = _connection->getUninterruptibleSession();
 
     auto tableMetadata = WiredTigerUtil::getMetadata(*session, "table:{}"_format(ident));
     if (!tableMetadata.isOK()) {
