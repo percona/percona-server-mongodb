@@ -60,6 +60,11 @@ mongo_cc_library(
     ] + select({
         "@platforms//os:windows": ["//src/mongo/db:windows_options_idl"],
         "//conditions:default": [],
+    }) + select({
+        "//bazel/config:audit_enabled": [
+            "//src/mongo/db/audit:audit_impl",
+        ],
+        "//conditions:default": [],
     }),
 )
 

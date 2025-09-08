@@ -320,6 +320,8 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:service_context",
         "//src/mongo/db:shard_role_api",
+        "//src/mongo/db/encryption:encryption_options",
+        "//src/mongo/db/encryption:key",
         "//src/mongo/db/exec:scoped_timer",
         "//src/mongo/db/storage:storage_control",
         "//src/mongo/db/storage:storage_engine_lock_file",
@@ -364,6 +366,7 @@ mongo_cc_library(
         "//src/mongo/bson:bson_validate",
         "//src/mongo/db:server_base",
         "//src/mongo/db/bson:dotted_path_support",
+        "//src/mongo/db/encryption:key",
     ],
 )
 

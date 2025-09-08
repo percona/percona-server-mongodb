@@ -34,6 +34,7 @@ mongo_cc_library(
         "//src/mongo/db/fts:fts_query_parser.cpp",
         "//src/mongo/db/fts:fts_spec.cpp",
         "//src/mongo/db/fts:fts_spec_legacy.cpp",
+        "//src/mongo/db/fts:fts_unicode_ngram_tokenizer.cpp",
         "//src/mongo/db/fts:fts_unicode_phrase_matcher.cpp",
         "//src/mongo/db/fts:fts_unicode_tokenizer.cpp",
         "//src/mongo/db/fts:fts_util.cpp",

@@ -36,7 +36,6 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/util/options_parser/startup_options.h"
 #include "mongo/util/version.h"
-#include "mongo/util/version_constants.h"
 
 namespace mongo {
 
@@ -53,8 +52,9 @@ void printPerconaDecryptHelp(std::ostream* out) {
 }
 
 void printPerconaDecryptVersion(std::ostream* out) {
-    *out << "perconadecrypt version v" << version::kVersion << std::endl;
-    *out << "git version: " << version::kGitVersion << std::endl;
+    auto&& vii = VersionInfoInterface::instance();
+    *out << "perconadecrypt version v" << vii.version() << std::endl;
+    *out << "git version: " << vii.gitVersion() << std::endl;
     *out << std::flush;
 }
 

@@ -1,0 +1,90 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library", "mongo_cc_unit_test", "mongo_idl_library")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob([
+    "*.cpp",
+    "*.h",
+    "*.inl",
+    "*.hpp",
+    "*.py",
+    "*.in",
+]))
+
+filegroup(
+    name = "audit_global_hdrs",
+    srcs = glob([
+        "*.h",
+        "*.inl",
+        "*.hpp",
+    ]),
+)
+
+mongo_idl_library(
+    name = "audit_parameters_idl",
+    src = "audit_parameters.idl",
+)
+
+mongo_idl_library(
+    name = "audit_options_idl",
+    src = "audit_options.idl",
+)
+
+mongo_cc_library(
+    name = "audit_options",
+    srcs = [
+        "//src/mongo/db/audit:audit_options.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:server_base",
+        "//src/mongo/db:service_context",
+        "//src/mongo/db/audit:audit_parameters_idl",
+        "//src/mongo/db/audit:audit_options_idl",
+        "//src/mongo/util/options_parser:options_parser",
+    ],
+)
+
+mongo_cc_library(
+    name = "audit_impl",
+    srcs = [
+        "//src/mongo/db/audit:audit_flusher.cpp",
+        "//src/mongo/db/audit:audit.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:audit_interface",
+        "//src/mongo/db:query_expressions",
+        "//src/mongo/db:server_base",
+        "//src/mongo/db:service_context",
+        "//src/mongo/db/audit:audit_options",
+        "//src/mongo/util:background_job",
+    ],
+)
+
+# Please note that the `commands` library (@see below) depends on
+# the `audit` library and the `audit_commands` depends on `commands`.
+mongo_cc_library(
+    name = "audit_commands",
+    srcs = [
+        "//src/mongo/db/audit:audit_commands.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:audit",
+        "//src/mongo/db/audit:audit_impl",
+        "//src/mongo/db/audit:audit_options",
+        "//src/mongo/db/auth:auth",
+        "//src/mongo/db/auth:authprivilege",
+        "//src/mongo/db:commands",
+        "//src/mongo/db/commands:test_commands_enabled",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "audit_options_test",
+    srcs = [
+        "//src/mongo/db/audit:audit_options_test.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:server_options_base",
+        "//src/mongo/db/audit:audit_options",
+    ],
+)

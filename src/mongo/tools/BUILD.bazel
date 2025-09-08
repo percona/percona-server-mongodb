@@ -1,3 +1,5 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_binary", "mongo_cc_library", "mongo_idl_library")
+
 package(default_visibility = ["//visibility:public"])
 
 exports_files(glob([
@@ -8,4 +10,25 @@ exports_files(glob([
 filegroup(
     name = "tools_global_hdrs",
     srcs = glob(["*.h"]),
+)
+
+mongo_idl_library(
+    name = "perconadecrypt_options_idl",
+    src = "perconadecrypt_options.idl",
+)
+
+mongo_cc_binary(
+    name = "perconadecrypt",
+    srcs = [
+        "//src/mongo/tools:perconadecrypt.cpp",
+        "//src/mongo/tools:perconadecrypt_options.cpp",
+        "//src/mongo/tools:perconadecrypt_options_init.cpp",
+    ],
+    deps = [
+        "//src/mongo/db/encryption:encryption_options",
+        "//src/mongo/db/encryption:key_management",
+        "//src/mongo/tools:perconadecrypt_options_idl",
+        "//src/mongo/util:version_impl",
+        "//src/mongo/util/options_parser:options_parser_init",
+    ],
 )

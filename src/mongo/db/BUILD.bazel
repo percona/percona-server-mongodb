@@ -258,9 +258,11 @@ mongo_cc_library(
 mongo_cc_library(
     name = "server_options",
     srcs = [
+        "//src/mongo/db:redaction_parameter.cpp",
         "//src/mongo/db:server_options_helpers.cpp",
     ],
     deps = [
+        "//src/mongo/db:redaction_parameter_idl",
         "//src/mongo/db:server_base",
         "//src/mongo/db:server_options_helpers_idl",
         "//src/mongo/util:fail_point",
@@ -326,22 +328,55 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/encryption:encryption_options",
         "//src/mongo/db/repl:repl_settings",
     ],
 )
 
 mongo_cc_library(
+    name = "ldap_options",
+    srcs = [
+        "//src/mongo/db:ldap_options.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db:ldap_options_idl",
+        "//src/mongo/db:server_base",
+        "//src/mongo/util/options_parser:options_parser",
+    ],
+)
+
+mongo_cc_library(
+    name = "ldap_options_init",
+    srcs = [
+        "//src/mongo/db:ldap_options_init.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:ldap_options",
+        "//src/mongo/util/net:network",
+        "//src/mongo/util/options_parser:options_parser",
+    ],
+)
+
+
+mongo_cc_library(
     name = "mongod_options",
     srcs = [
         "//src/mongo/db:mongod_options.cpp",
+        "//src/mongo/db:ratelimit_parameter.cpp",
     ],
     deps = [
         "//src/mongo/db:global_settings",
+        "//src/mongo/db:ldap_options",
+        "//src/mongo/db:mongod_options_encryption_idl",
         "//src/mongo/db:mongod_options_general_idl",
+        "//src/mongo/db:mongod_options_ldapauthz_idl",
         "//src/mongo/db:mongod_options_legacy_idl",
         "//src/mongo/db:mongod_options_replication_idl",
+        "//src/mongo/db:mongod_options_removed_idl",
         "//src/mongo/db:mongod_options_sharding_idl",
         "//src/mongo/db:mongod_options_storage_idl",
+        "//src/mongo/db:ratelimit_parameter_idl",
         "//src/mongo/db:server_base",
         "//src/mongo/db:server_feature_flags",
         "//src/mongo/db:server_options_base",
@@ -661,12 +696,23 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "audit_interface",
+    srcs = [
+        "//src/mongo/db:audit_interface.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:service_context",
+    ]
+)
+
+mongo_cc_library(
     name = "audit",
     srcs = [
         "//src/mongo/db:audit.cpp",
     ],
     deps = [
         "//src/mongo:base",
+        "//src/mongo/db:audit_interface",
         "//src/mongo/db:service_context",
     ],
 )
@@ -2608,6 +2654,11 @@ mongo_cc_library(
         "//src/mongo/executor:task_executor_interface",
         "//src/mongo/util/concurrency:thread_pool",
     ] + select({
+        "//bazel/config:audit_enabled": [
+            "//src/mongo/db/audit:audit_impl",
+        ],
+        "//conditions:default": [],
+    }) + select({
         "//bazel/config:enterprise_feature_audit_enabled": [
             "//src/mongo/db/modules/enterprise/src/audit:audit_enterprise",
         ],
@@ -2723,6 +2774,7 @@ mongo_cc_library(
         "//src/mongo/db/storage:oplog_cap_maintainer_thread",
         "//src/mongo/db/storage:storage_control",
         "system_index",
+        "//src/mongo/db/telemetry:telemetry_d",
         "//src/mongo/db/timeseries:timeseries_op_observer",
         "ttl_d",
         "vector_clock",
@@ -2733,6 +2785,28 @@ mongo_cc_library(
         "//conditions:default": [],
     }) + select({
         "//bazel/config:use_diagnostic_latches_enabled": ["//src/mongo/util:latch_analyzer"],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:audit_enabled": [
+            "//src/mongo/db/audit:audit_impl",
+            "//src/mongo/db/audit:audit_options",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:full_featured_enabled": [
+            "//src/mongo/db/repl:initial_syncer_fcb",
+            "//src/mongo/db/auth/oidc:oidc",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:fcbis_enabled": [
+            "//src/mongo/db/repl:initial_syncer_fcb",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:oidc_enabled": [
+            "//src/mongo/db/auth/oidc:oidc",
+        ],
         "//conditions:default": [],
     }),
 )
@@ -2788,6 +2862,7 @@ mongo_cc_library(
         "dbdirectclient",
         "dbhelpers",
         "default_max_time_ms_cluster_parameter",
+        "//src/mongo/db/encryption:encryption_status",
         "//src/mongo/db/exec:working_set",
         "feature_compatibility_version_metrics",
         "//src/mongo/db/ftdc:ftdc_mongod",
@@ -2803,6 +2878,7 @@ mongo_cc_library(
         "mongod_options_init",
         "periodic_runner_job_abort_expired_transactions",
         "//src/mongo/db/pipeline:aggregation",
+        "//src/mongo/db/pipeline:pipeline_mongod",
         "//src/mongo/db/pipeline/process_interface:mongod_process_interface_factory",
         "query_exec",
         "read_concern_d_impl",
@@ -2865,6 +2941,26 @@ mongo_cc_library(
         "//bazel/config:tcmalloc_gperf_enabled": ["//src/mongo/util:tcmalloc_set_parameter"],
         "//conditions:default": [],
     }) + select({
+        "//bazel/config:audit_enabled": [
+            "//src/mongo/db/audit:audit_commands",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:full_featured_enabled": [
+            "//src/mongo/db/auth/oidc:oidc_commands",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:inmemory_enabled": [
+            "//src/mongo/db/storage/inmemory:storage_inmemory",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:oidc_enabled": [
+            "//src/mongo/db/auth/oidc:oidc_commands",
+        ],
+        "//conditions:default": [],
+    }) + select({
         "//bazel/config:enterprise_feature_audit_enabled": [
             "//src/mongo/db/modules/enterprise/src/audit:audit_configuration",
             "//src/mongo/db/modules/enterprise/src/audit:audit_mongod_proxy",
@@ -2916,11 +3012,6 @@ mongo_cc_library(
         "//bazel/config:enterprise_feature_sasl_enabled": [
             "//src/mongo/db/modules/enterprise/src/sasl:auth_delay_idl",
             "//src/mongo/db/modules/enterprise/src/sasl:mongosaslservercommon",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:use_sasl_client_required_settings": [
-            "//src/mongo/db/modules/enterprise/src/sasl:authz_manager_factory_external",
         ],
         "//conditions:default": [],
     }) + select({
@@ -3626,4 +3717,34 @@ mongo_cc_unit_test(
         "//src/mongo/db/repl:repl_settings",
         "//src/mongo/db/repl:replmocks",
     ],
+)
+
+mongo_idl_library(
+    name = "ldap_options_idl",
+    src = "ldap_options.idl",
+)
+
+mongo_idl_library(
+    name = "mongod_options_encryption_idl",
+    src = "mongod_options_encryption.idl",
+)
+
+mongo_idl_library(
+    name = "mongod_options_ldapauthz_idl",
+    src = "mongod_options_ldapauthz.idl",
+)
+
+mongo_idl_library(
+    name = "mongod_options_removed_idl",
+    src = "mongod_options_removed.idl",
+)
+
+mongo_idl_library(
+    name = "redaction_parameter_idl",
+    src = "redaction_parameter.idl",
+)
+
+mongo_idl_library(
+    name = "ratelimit_parameter_idl",
+    src = "ratelimit_parameter.idl",
 )

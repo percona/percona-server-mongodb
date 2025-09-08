@@ -29,18 +29,24 @@ mongo_cc_library(
     deps = [
         "//src/mongo:base",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/encryption:encryption_options",
     ],
 )
 
 mongo_cc_library(
     name = "storage_wiredtiger_core",
     srcs = [
+        "//src/mongo/db/storage/wiredtiger:encryption_extension.c",
+        "//src/mongo/db/storage/wiredtiger:encryption_keydb.cpp",
         "//src/mongo/db/storage/wiredtiger:oplog_truncate_markers_server_status_section.cpp",
+        "//src/mongo/db/storage/wiredtiger:wiredtiger_backup_cursor_hooks.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_begin_transaction_block.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_column_store.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_compiled_configuration.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_cursor.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_cursor_helpers.cpp",
+        "//src/mongo/db/storage/wiredtiger:wiredtiger_data_protector.cpp",
+        "//src/mongo/db/storage/wiredtiger:wiredtiger_encryption_hooks.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_global_options.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_index.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_index_util.cpp",
@@ -58,6 +64,7 @@ mongo_cc_library(
     ],
     deps = [
         ":oplog_truncate_marker_parameters_idl",
+        "//src/mongo/db:dbhelpers",
         "//src/mongo/db:global_settings",
         "//src/mongo/db:mongod_options",
         "//src/mongo/db:multitenancy",
@@ -75,11 +82,13 @@ mongo_cc_library(
         "//src/mongo/db/commands:server_status_core",
         "//src/mongo/db/concurrency:exception_util",
         "//src/mongo/db/concurrency:lock_manager",
+        "//src/mongo/db/encryption:key_management",
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/query/query_stats",
         "//src/mongo/db/repl:repl_settings",
         "//src/mongo/db/stats:resource_consumption_metrics",
         "//src/mongo/db/storage:backup_block",
+        "//src/mongo/db/storage:backup_cursor_hooks",
         "//src/mongo/db/storage:capped_snapshots",
         "//src/mongo/db/storage:index_entry_comparison",
         "//src/mongo/db/storage:key_string",
@@ -93,12 +102,40 @@ mongo_cc_library(
         "//src/mongo/util:elapsed_tracker",
         "//src/mongo/util:log_and_backoff",
         "//src/mongo/util:processinfo",
+        "//src/mongo/util:progress_meter",
         "//src/mongo/util/concurrency:spin_lock",
         "//src/mongo/util/concurrency:ticketholder",
         "//src/mongo/util/options_parser",
+        "//src/third_party/libarchive-3.4.0:libarchive",
         "//src/third_party/snappy",
         "//src/third_party/wiredtiger",
         "//src/third_party/zlib",
+    ] + select({
+        "//bazel/config:audit_enabled": [
+            "//src/mongo/db/audit:audit_impl",
+        ],
+        "//conditions:default": [],
+    }),
+    linkopts = [
+        # S3 and its dependencies
+        # order is important here
+        "-laws-cpp-sdk-transfer",
+        "-laws-cpp-sdk-s3",
+        "-laws-cpp-sdk-core",
+        "-laws-crt-cpp",
+        "-laws-c-event-stream",
+        "-laws-c-mqtt",
+        "-laws-c-s3",
+        "-laws-c-auth",
+        "-laws-c-http",
+        "-laws-c-compression",
+        "-laws-c-io",
+        "-laws-c-cal",
+        "-laws-c-sdkutils",
+        "-ls2n",
+        "-laws-checksums",
+        "-laws-c-common",
+        "-lcurl",
     ],
 )
 
@@ -284,4 +321,30 @@ mongo_idl_library(
 mongo_idl_library(
     name = "oplog_truncate_marker_parameters_idl",
     src = "oplog_truncate_marker_parameters.idl",
+)
+
+mongo_cc_unit_test(
+    name = "storage_wiredtiger_encryption_test",
+    srcs = [
+        "//src/mongo/db/storage/wiredtiger:wiredtiger_encryption_test.cpp",
+    ],
+    deps = [
+        "//src/mongo/db/storage/wiredtiger:storage_wiredtiger_core",
+    ]
+)
+
+mongo_cc_unit_test(
+    name = "storage_wiredtiger_kv_engine_encryption_key_test",
+    srcs = [
+        "//src/mongo/db/storage/wiredtiger:wiredtiger_kv_engine_encryption_key_test.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:service_context_d_test_fixture",
+        "//src/mongo/db/auth:authmocks",
+        "//src/mongo/db/encryption:key_management",
+        "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
+        "//src/mongo/util:clock_source_mock",
+        "//src/mongo/util:mock_periodic_runner",
+        "//src/mongo/util:periodic_runner_factory",
+    ],
 )

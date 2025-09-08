@@ -942,6 +942,7 @@ mongo_cc_library(
         "//src/mongo/db/auth:sasl_options",
         "//src/mongo/db/auth:user",
         "//src/mongo/db/auth:user_document_parser",
+        "//src/mongo/db/backup:backup",
         "//src/mongo/db/catalog:catalog_control",
         "//src/mongo/db/catalog:catalog_helpers",
         "//src/mongo/db/catalog:catalog_impl",

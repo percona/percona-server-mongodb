@@ -96,6 +96,7 @@ mongo_cc_library(
         "//src/mongo/transport:message_compressor",
         "//src/mongo/unittest:golden_test_base",
         "//src/mongo/util:password",
+        "//src/mongo/util/net:http_client",
     ],
 )
 

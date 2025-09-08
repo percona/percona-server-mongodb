@@ -64,6 +64,16 @@ mongo_cc_library(
         "//src/mongo/db/query:query_test_service_context",
         "//src/mongo/db/repl:replica_set_messages",
     ] + select({
+        "//bazel/config:audit_enabled": [
+            "//src/mongo/db/audit:audit_impl",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        "//bazel/config:inmemory_enabled": [
+            "//src/mongo/db/storage/inmemory:storage_inmemory",
+        ],
+        "//conditions:default": [],
+    }) + select({
         "//bazel/config:enterprise_feature_inmemory_enabled": [
             "//src/mongo/db/modules/enterprise/src/inmemory:storage_inmemory",
         ],

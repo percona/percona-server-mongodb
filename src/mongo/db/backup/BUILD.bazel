@@ -1,0 +1,36 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob([
+    "*.cpp",
+    "*.h",
+    "*.inl",
+    "*.hpp",
+    "*.py",
+    "*.in",
+]))
+
+filegroup(
+    name = "backup_global_hdrs",
+    srcs = glob([
+        "*.h",
+        "*.inl",
+        "*.hpp",
+    ]),
+)
+
+mongo_cc_library(
+    name = "backup",
+    srcs = [
+        "//src/mongo/db/backup:backup_commands.cpp",
+    ],
+    deps = [
+        "//src/mongo/bson/mutable:mutable_bson",
+        "//src/mongo/db/auth:auth",
+        "//src/mongo/db/auth:authprivilege",
+        "//src/mongo/db:commands",
+        "//src/mongo/db:service_context",
+        "//src/mongo/db/storage:storage_options",
+    ],
+)

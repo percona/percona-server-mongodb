@@ -179,6 +179,20 @@ mongo_cc_library(
     ],
 )
 
+# pipeline stages which exist in mongod only
+mongo_cc_library(
+    name = "pipeline_mongod",
+    srcs = [
+        "//src/mongo/db/pipeline:document_source_backup_cursor.cpp",
+        "//src/mongo/db/pipeline:document_source_backup_cursor_extend.cpp",
+        "//src/mongo/db/pipeline:document_source_backup_file.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:server_base",
+        "//src/mongo/db/pipeline:pipeline",
+    ],
+)
+
 mongo_cc_library(
     name = "lite_parsed_document_source",
     srcs = [

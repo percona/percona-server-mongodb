@@ -1,0 +1,160 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library", "mongo_cc_unit_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(glob([
+    "*.cpp",
+    "*.h",
+    "*.inl",
+    "*.hpp",
+    "*.py",
+    "*.in",
+]))
+
+filegroup(
+    name = "encryption_global_hdrs",
+    srcs = glob([
+        "*.h",
+        "*.inl",
+        "*.hpp",
+    ]),
+)
+
+mongo_cc_library(
+    name = "key",
+    srcs = [
+        "//src/mongo/db/encryption:key.cpp",
+        "//src/mongo/db/encryption:key_id.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/base:secure_allocator",
+    ],
+)
+
+mongo_cc_library(
+    name = "encryption_options",
+    srcs = [
+        "//src/mongo/db/encryption:encryption_options.cpp",
+    ],
+)
+
+mongo_cc_library(
+    name = "read_file_to_secure_string",
+    srcs = [
+        "//src/mongo/db/encryption:read_file_to_secure_string.cpp",
+    ],
+    deps = [
+        "//src/mongo/base:secure_allocator",
+        "//src/mongo/db:server_base",
+    ],
+)
+
+mongo_cc_library(
+    name = "vault_secret_metadata_locator",
+    srcs = [
+        "//src/mongo/db/encryption:vault_secret_metadata_locator.cpp",
+    ],
+)
+
+mongo_cc_library(
+    name = "vault_client",
+    srcs = [
+        "//src/mongo/db/encryption:vault_client.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db/encryption:read_file_to_secure_string",
+        "//src/mongo/db/encryption:vault_secret_metadata_locator",
+        "//src/mongo/util/net:http_client",
+    ],
+)
+
+mongo_cc_library(
+    name = "kmip_client",
+    srcs = [
+        "//src/mongo/db/encryption:kmip_client.cpp",
+        "//src/mongo/db/encryption:kmip_exchange.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/base:secure_allocator",
+        "//src/mongo/db/encryption:key",
+        "//src/third_party/libkmip-0ecda33:kmippp",
+        "//src/third_party/libkmip-0ecda33:libkmip",
+    ],
+)
+
+mongo_cc_library(
+    name = "key_management",
+    srcs = [
+        "//src/mongo/db/encryption:key_operations.cpp",
+        "//src/mongo/db/encryption:master_key_provider.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db/encryption:key",
+        "//src/mongo/db/encryption:encryption_options",
+        "//src/mongo/db/encryption:kmip_client",
+        "//src/mongo/db/encryption:read_file_to_secure_string",
+        "//src/mongo/db/encryption:vault_client",
+        "//src/mongo/util:periodic_runner",
+    ],
+)
+
+mongo_cc_library(
+    name = "encryption_status",
+    srcs = [
+        "//src/mongo/db/encryption:encryption_status.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db/encryption:encryption_options",
+        "//src/mongo/db/encryption:key_management",
+        "//src/mongo/db/commands:server_status_core",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "db_encryption_key_id_test",
+    srcs = [
+        "//src/mongo/db/encryption:key_id_test.cpp",
+    ],
+    deps = [
+        "//src/mongo/db/encryption:key",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "vault_secret_metadata_locator_test",
+    srcs = [
+        "//src/mongo/db/encryption:vault_secret_metadata_locator_test.cpp",
+    ],
+    deps = [
+        "//src/mongo/db/encryption:vault_secret_metadata_locator",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "encryption_status_test",
+    srcs = [
+        "//src/mongo/db/encryption:encryption_status_test.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:service_context",
+        "//src/mongo/db/commands:server_status_core",
+        "//src/mongo/db/encryption:encryption_status",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "vault_client_test",
+    srcs = [
+        "//src/mongo/db/encryption:vault_client_test.cpp",
+    ],
+    deps = [
+        "//src/mongo/db/encryption:vault_client",
+        "//src/mongo/util/net:http_client",
+        "//src/mongo/util/net:mock_http_client",
+    ],
+)
