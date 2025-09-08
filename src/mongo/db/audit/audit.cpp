@@ -69,7 +69,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/namespace_string.h"
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_util.h"
-#include "mongo/rpc/metadata/impersonated_user_metadata.h"
+#include "mongo/rpc/metadata/audit_metadata.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/database_name_util.h"
 #include "mongo/util/errno_util.h"
