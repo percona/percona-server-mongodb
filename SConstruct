@@ -1625,13 +1625,6 @@ env_vars.Add(
 )
 
 env_vars.Add(
-    "ENABLE_GRPC_BUILD",
-    help="Set the boolean (auto, on/off true/false 1/0) to enable building grpc and protobuf compiler.",
-    converter=functools.partial(bool_var_converter, var="ENABLE_GRPC_BUILD"),
-    default="0",
-)
-
-env_vars.Add(
     "ENABLE_OTEL_BUILD",
     help="Set the boolean (auto, on/off true/false 1/0) to enable building otel and protobuf compiler.",
     converter=functools.partial(bool_var_converter, var="ENABLE_OTEL_BUILD"),
@@ -5942,7 +5935,7 @@ if gdb_index_enabled is True:
     elif env.get("GDB_INDEX") != "auto":
         env.FatalError("Could not enable explicit request for gdb index generation.")
 
-if env.get("ENABLE_GRPC_BUILD"):
+if env.TargetOSIs("linux") and get_option("ssl") == "on":
     env.Tool("protobuf_compiler")
 
 if (get_option("separate-debug") == "on" or env.TargetOSIs("windows")) and debug_symbols:
@@ -7051,7 +7044,9 @@ gen_header_paths = [
 ]
 
 replacements = {
-    "@MONGO_BUILD_DIR@": ("|".join([path + "/.*" for path in gen_header_paths])),
+    "@MONGO_BUILD_DIR@": (
+        gen_header_paths[0] + "(?!.*\.pb\.h)" + "|" + gen_header_paths[1] + "/.*"
+    ),
     "@MONGO_BRACKET_BUILD_DIR@": (";".join(gen_header_paths)),
 }
 

@@ -219,20 +219,6 @@ use_libcxx = rule(
 )
 
 # =========
-# grpc
-# =========
-
-build_grpc_provider = provider(
-    doc = """Enable building grpc and protobuf compiler. This has no effect on non-linux operating systems.""",
-    fields = ["enabled"],
-)
-
-build_grpc = rule(
-    implementation = lambda ctx: build_grpc_provider(enabled = ctx.build_setting_value),
-    build_setting = config.bool(flag = True),
-)
-
-# =========
 # otel
 # =========
 
@@ -350,6 +336,20 @@ skip_archive_provider = provider(
 
 skip_archive = rule(
     implementation = lambda ctx: skip_archive_provider(enabled = ctx.build_setting_value),
+    build_setting = config.bool(flag = True),
+)
+
+# =========
+# compress_debug_compile
+# =========
+
+compress_debug_compile_provider = provider(
+    doc = "Compress the debug sections outputted by the compiler.",
+    fields = ["enabled"],
+)
+
+compress_debug_compile = rule(
+    implementation = lambda ctx: compress_debug_compile_provider(enabled = ctx.build_setting_value),
     build_setting = config.bool(flag = True),
 )
 

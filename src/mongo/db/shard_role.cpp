@@ -230,10 +230,16 @@ ResolvedNamespaceOrViewAcquisitionRequests resolveNamespaceOrViewAcquisitionRequ
     }
 
     // Sort them in ascending ResourceId order since that is the canonical lock ordering used across
-    // the server.
+    // the server. However always lock system.views collection in the end because concurrent
+    // view-related operations always lock system.views in the end.
     std::sort(resolvedAcquisitionRequests.begin(),
               resolvedAcquisitionRequests.end(),
-              [](auto& lhs, auto& rhs) { return lhs.resourceId < rhs.resourceId; });
+              [](auto& lhs, auto& rhs) {
+                  return lhs.prerequisites.nss.isSystemDotViews() ==
+                          rhs.prerequisites.nss.isSystemDotViews()
+                      ? lhs.resourceId < rhs.resourceId
+                      : rhs.prerequisites.nss.isSystemDotViews();
+              });
     return resolvedAcquisitionRequests;
 }
 
@@ -1058,7 +1064,7 @@ ResolvedNamespaceOrViewAcquisitionRequests generateSortedAcquisitionRequests(
         auto coll = catalog.establishConsistentCollection(opCtx, ar.nssOrUUID, readTimestamp);
 
         if (ar.nssOrUUID.isUUID()) {
-            validateResolvedCollectionByUUID(opCtx, ar, coll);
+            validateResolvedCollectionByUUID(opCtx, ar, coll.get());
         }
 
         const auto& nss = ar.nssOrUUID.isNamespaceString() ? ar.nssOrUUID.nss() : coll->ns();
@@ -1398,16 +1404,14 @@ void StashedTransactionResources::dispose() {
     }
 }
 
-YieldedTransactionResources yieldTransactionResourcesFromOperationContext(OperationContext* opCtx) {
+PreparedForYieldToken prepareForYieldingTransactionResources(OperationContext* opCtx) {
     auto& transactionResources = TransactionResources::get(opCtx);
     invariant(
         !(transactionResources.yielded ||
           transactionResources.state == shard_role_details::TransactionResources::State::YIELDED));
-
     invariant(transactionResources.state ==
                   shard_role_details::TransactionResources::State::ACTIVE ||
               transactionResources.state == shard_role_details::TransactionResources::State::EMPTY);
-
     for (auto& acquisition : transactionResources.acquiredCollections) {
         // Yielding kLocalCatalogOnlyWithPotentialDataLoss acquisitions is not allowed.
         invariant(
@@ -1415,7 +1419,23 @@ YieldedTransactionResources yieldTransactionResourcesFromOperationContext(Operat
                 acquisition.prerequisites.placementConcern),
             str::stream() << "Collection " << acquisition.prerequisites.nss.toStringForErrorMsg()
                           << " acquired with special placement concern and cannot be yielded");
+        // We detach the pointer here. This is safe to do since we do not dereference it while
+        // yielded. This will only be used by the restore to check if the collection has appeared
+        // suddenly.
+        acquisition.collectionPtr = CollectionPtr{acquisition.collectionPtr.get()};
     }
+
+    return PreparedForYieldToken{};
+}
+
+YieldedTransactionResources yieldTransactionResourcesFromOperationContext(OperationContext* opCtx) {
+    auto token = prepareForYieldingTransactionResources(opCtx);
+    return yieldTransactionResourcesFromOperationContext(opCtx, token);
+}
+
+YieldedTransactionResources yieldTransactionResourcesFromOperationContext(OperationContext* opCtx,
+                                                                          PreparedForYieldToken) {
+    auto& transactionResources = TransactionResources::get(opCtx);
 
     // Yielding view acquisitions is not supported.
     tassert(7300502,
@@ -1436,22 +1456,8 @@ YieldedTransactionResources yieldTransactionResourcesFromOperationContext(Operat
 void stashTransactionResourcesFromOperationContext(OperationContext* opCtx,
                                                    TransactionResourcesStasher* stasher) {
     auto& transactionResources = TransactionResources::get(opCtx);
-    invariant(
-        !(transactionResources.yielded ||
-          transactionResources.state == shard_role_details::TransactionResources::State::YIELDED));
 
-    invariant(transactionResources.state ==
-                  shard_role_details::TransactionResources::State::ACTIVE ||
-              transactionResources.state == shard_role_details::TransactionResources::State::EMPTY);
-
-    for (auto& acquisition : transactionResources.acquiredCollections) {
-        // Yielding kLocalCatalogOnlyWithPotentialDataLoss acquisitions is not allowed.
-        invariant(
-            !holds_alternative<AcquisitionPrerequisites::PlacementConcernPlaceholder>(
-                acquisition.prerequisites.placementConcern),
-            str::stream() << "Collection " << acquisition.prerequisites.nss.toStringForErrorMsg()
-                          << " acquired with special placement concern and cannot be yielded");
-    }
+    (void)prepareForYieldingTransactionResources(opCtx);
 
     // Yielding view acquisitions is not supported.
     tassert(7750701,
@@ -1502,6 +1508,17 @@ void restoreTransactionResourcesToOperationContext(
             shard_role_details::getLocker(opCtx)->restoreLockState(opCtx, ptr->yieldedLocker);
             transactionResources.yielded.reset();
         }
+
+        ScopeGuard removeStaleCollectionPtrReferences([&] {
+            // Detach the CollectionPtr from the snapshot in case of failure since we could retry
+            // the whole operation again by abandoning the snapshot and reacquiring the locks. Note
+            // this is safe to do since the collections will have passed a appearance after restore
+            // check.
+            for (auto& acquiredCollection : transactionResources.acquiredCollections) {
+                acquiredCollection.collectionPtr =
+                    CollectionPtr{acquiredCollection.collectionPtr.get()};
+            }
+        });
 
         // Reestablish a consistent catalog snapshot (multi document transactions don't yield).
         auto requests = toNamespaceStringOrUUIDs(transactionResources.acquiredCollections);
@@ -1591,6 +1608,7 @@ void restoreTransactionResourcesToOperationContext(
                     acquiredCollection.collectionDescription->getKeyPattern());
             }
         }
+        removeStaleCollectionPtrReferences.dismiss();
         return catalog;
     };
 

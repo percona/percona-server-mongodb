@@ -39,8 +39,8 @@
 #include <grpcpp/security/tls_credentials_options.h>
 #include <grpcpp/support/async_stream.h>
 
-#include "src/core/tsi/ssl_transport_security.h"
-#include "src/core/tsi/transport_security_interface.h"
+#include <src/core/tsi/ssl_transport_security.h>
+#include <src/core/tsi/transport_security_interface.h>
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/service_context.h"
@@ -221,18 +221,25 @@ Future<std::shared_ptr<EgressSession>> Client::connect(
                        auto it = _sessions.insert(_sessions.begin(), session);
                        _numCurrentStreams.increment();
 
-                       session->setCleanupCallback(
-                           [this, client = weak_from_this(), it = std::move(it)]() {
-                               if (auto anchor = client.lock()) {
-                                   stdx::lock_guard lk(_mutex);
-                                   _sessions.erase(it);
-                                   _numCurrentStreams.decrement();
+                       session->setCleanupCallback([this,
+                                                    client = weak_from_this(),
+                                                    it = std::move(it)](Status terminationStatus) {
+                           if (terminationStatus.isOK()) {
+                               _numSuccessfulStreams.increment();
+                           } else {
+                               _numFailedStreams.increment();
+                           }
 
-                                   if (MONGO_unlikely(_isShutdownComplete_inlock())) {
-                                       _shutdownCV.notify_one();
-                                   }
+                           if (auto anchor = client.lock()) {
+                               stdx::lock_guard lk(_mutex);
+                               _sessions.erase(it);
+                               _numCurrentStreams.decrement();
+
+                               if (MONGO_unlikely(_isShutdownComplete_inlock())) {
+                                   _shutdownCV.notify_one();
                                }
-                           });
+                           }
+                       });
 
                        return session;
                    })
@@ -393,12 +400,13 @@ public:
         // operations.
         _pool = std::make_shared<ChannelPool<std::shared_ptr<Channel>, Stub>>(
             svcCtx->getFastClockSource(),
-            [](ConnectSSLMode sslMode) {
+            [](ConnectSSLMode sslMode) -> bool {
 #ifndef MONGO_CONFIG_SSL
                 if (sslMode == kEnableSSL) {
                     uasserted(ErrorCodes::InvalidSSLConfiguration,
                               "SSL requested but not supported");
                 }
+                return false;
 #else
                 auto globalSSLMode =
                     static_cast<SSLParams::SSLModes>(getSSLGlobalParams().sslMode.load());
@@ -635,6 +643,8 @@ void GRPCClient::appendStats(BSONObjBuilder* section) const {
     {
         BSONObjBuilder streamSection(section->subobjStart(kStreamsSubsectionFieldName));
         streamSection.append(kCurrentStreamsFieldName, _numCurrentStreams.get());
+        streamSection.append(kSuccessfulStreamsFieldName, _numSuccessfulStreams.get());
+        streamSection.append(kFailedStreamsFieldName, _numFailedStreams.get());
     }
 }
 

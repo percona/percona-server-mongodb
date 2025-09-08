@@ -34,12 +34,14 @@
 
 #include <boost/filesystem.hpp>
 
+#include "mongo/client/async_client.h"
 #include "mongo/db/server_options.h"
 #include "mongo/logv2/log.h"
 #include "mongo/transport/grpc/client_cache.h"
 #include "mongo/transport/grpc/grpc_session.h"
 #include "mongo/transport/grpc/grpc_session_manager.h"
 #include "mongo/transport/grpc/grpc_transport_layer_impl.h"
+#include "mongo/transport/grpc/grpc_transport_layer_mock.h"
 #include "mongo/transport/grpc/test_fixtures.h"
 #include "mongo/transport/grpc/wire_version_provider.h"
 #include "mongo/transport/service_executor.h"
@@ -47,12 +49,14 @@
 #include "mongo/transport/session_workflow_test_util.h"
 #include "mongo/transport/test_fixtures.h"
 #include "mongo/transport/transport_layer.h"
+#include "mongo/transport/transport_layer_manager_impl.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/log_test.h"
 #include "mongo/unittest/thread_assertion_monitor.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/errno_util.h"
+#include "mongo/util/fail_point.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/net/socket_utils.h"
 #include "mongo/util/net/ssl_manager.h"
@@ -68,8 +72,6 @@ namespace {
 class GRPCTransportLayerTest : public ServiceContextTest {
 public:
     void setUp() override {
-        ServiceContextTest::setUp();
-
         auto svcCtx = getServiceContext();
 
         // Default SEP behavior is to fail.
@@ -90,7 +92,6 @@ public:
     }
 
     void tearDown() override {
-        ServiceContextTest::tearDown();
         ServiceExecutor::shutdownAll(getServiceContext(), Seconds{10});
     }
 
@@ -107,10 +108,11 @@ public:
         auto sm = options.enableIngress
             ? std::make_unique<GRPCSessionManager>(svcCtx, clientCache, std::move(observers))
             : nullptr;
+        bool enableIngress = options.enableIngress;
         auto tl =
             std::make_unique<GRPCTransportLayerImpl>(svcCtx, std::move(options), std::move(sm));
 
-        if (options.enableIngress) {
+        if (enableIngress) {
             uassertStatusOK(tl->registerService(
                 std::make_unique<CommandService>(tl.get(),
                                                  std::move(serverCb),
@@ -397,7 +399,6 @@ public:
 
     void tearDown() override {
         _tl.reset();
-        ServiceContextTest::tearDown();
     }
 
     GRPCTransportLayer& transportLayer() {
@@ -974,6 +975,60 @@ TEST_F(RotateCertificatesGRPCTransportLayerTest, ClientUsesOldCertsUntilRotate) 
                       newConfig.serverCertificateExpirationDate);
         },
         CommandServiceTestFixtures::makeTLOptions());
+}
+
+class MockGRPCTransportLayerTest : public ServiceContextTest {
+public:
+    inline static const HostAndPort kServerHostAndPort = HostAndPort("localhost", 12345);
+
+    void setUp() override {
+        ServiceContextTest::setUp();
+
+        // Mock resolver that automatically returns the producer end of the test's pipe.
+        auto resolver = [&](const HostAndPort&) -> MockRPCQueue::Producer {
+            return _pipe.producer;
+        };
+        auto options = CommandServiceTestFixtures::makeTLOptions();
+        options.enableIngress = false;
+
+        auto tl = std::make_unique<GRPCTransportLayerMock>(
+            getServiceContext(),
+            CommandServiceTestFixtures::makeTLOptions(),
+            resolver,
+            HostAndPort(MockStubTestFixtures::kClientAddress));
+
+        getServiceContext()->setTransportLayerManager(
+            std::make_unique<transport::TransportLayerManagerImpl>(std::move(tl)));
+        uassertStatusOK(getServiceContext()->getTransportLayerManager()->setup());
+        uassertStatusOK(getServiceContext()->getTransportLayerManager()->start());
+    }
+
+    void tearDown() override {
+        getServiceContext()->getTransportLayerManager()->shutdown();
+        ServiceContextTest::tearDown();
+    }
+
+private:
+    MockRPCQueue::Pipe _pipe;
+};
+
+TEST_F(MockGRPCTransportLayerTest, ConnectionTimeout) {
+    FailPointEnableBlock fp("grpcHangOnStreamEstablishment");
+
+    auto tl = getServiceContext()->getTransportLayerManager()->getTransportLayer(
+        transport::TransportProtocol::GRPC);
+    auto client =
+        AsyncDBClient::connect(kServerHostAndPort,
+                               transport::ConnectSSLMode::kGlobalSSLMode,
+                               getServiceContext(),
+                               tl,
+                               tl->getReactor(transport::TransportLayer::WhichReactor::kEgress),
+                               Milliseconds(500),
+                               nullptr);
+
+    auto status = client.getNoThrow();
+    ASSERT_NOT_OK(status);
+    ASSERT_EQ(status.getStatus().code(), ErrorCodes::NetworkTimeout);
 }
 
 }  // namespace

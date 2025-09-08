@@ -476,7 +476,9 @@ def mongo_shell_program(
         if config.SHELL_TLS_CERTIFICATE_KEY_FILE:
             kwargs["tlsCertificateKeyFile"] = config.SHELL_TLS_CERTIFICATE_KEY_FILE
 
-    if config.SHELL_GRPC:
+    # mongotmock testing with gRPC requires that the shell establish a connection with mongotmock
+    # over gRPC.
+    if config.SHELL_GRPC or mongod_set_parameters.get("useGrpcForSearch"):
         args.append("--gRPC")
 
     if connection_string is not None:
@@ -490,7 +492,7 @@ def mongo_shell_program(
             kwargs.pop("host")
 
     # if featureFlagQETextSearchPreview is enabled in setParameter, enable it in the shell also
-    # TODO: SERVER-94394 remove once FF is enabled by default
+    # TODO: SERVER-65769 remove once FF is enabled by default
     if mongod_set_parameters.get("featureFlagQETextSearchPreview"):
         args.append("--setShellParameter=featureFlagQETextSearchPreview=true")
 
