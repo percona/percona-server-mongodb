@@ -404,7 +404,7 @@ namespace {
 
 StatusWith<std::deque<BackupBlock>> getBackupBlocksFromBackupCursor(
     boost::optional<Timestamp> checkpointTimestamp,
-    WT_SESSION* session,
+    WiredTigerSession* session,
     WT_CURSOR* cursor,
     bool incrementalBackup,
     bool fullBackup,
@@ -417,7 +417,7 @@ StatusWith<std::deque<BackupBlock>> getBackupBlocksFromBackupCursor(
     const auto wiredTigerLogFilePrefix = "WiredTigerLog";
     const auto isKeyDB = directoryPath.filename() == kKeyDbDirBasename;
     while ((wtRet = cursor->next(cursor)) == 0) {
-        invariantWTOK(cursor->get_key(cursor, &filename), session);
+        invariantWTOK(cursor->get_key(cursor, &filename), *session);
 
         std::string name(filename);
 
@@ -445,16 +445,16 @@ StatusWith<std::deque<BackupBlock>> getBackupBlocksFromBackupCursor(
             ss << "incremental=(file=" << filename << ")";
             const std::string config = ss.str();
             WT_CURSOR* dupCursor;
-            wtRet = session->open_cursor(session, nullptr, cursor, config.c_str(), &dupCursor);
+            wtRet = session->open_cursor(nullptr, cursor, config.c_str(), &dupCursor);
             if (wtRet != 0) {
-                return wtRCToStatus(wtRet, session);
+                return wtRCToStatus(wtRet, *session);
             }
 
             bool fileUnchangedFlag = true;
             while ((wtRet = dupCursor->next(dupCursor)) == 0) {
                 fileUnchangedFlag = false;
                 uint64_t offset, size, type;
-                invariantWTOK(dupCursor->get_key(dupCursor, &offset, &size, &type), session);
+                invariantWTOK(dupCursor->get_key(dupCursor, &offset, &size, &type), *session);
                 LOGV2_DEBUG(22311,
                             2,
                             "Block to copy for incremental backup: filename: {filePath_string}, "
@@ -484,12 +484,12 @@ StatusWith<std::deque<BackupBlock>> getBackupBlocksFromBackupCursor(
             }
 
             if (wtRet != WT_NOTFOUND) {
-                return wtRCToStatus(wtRet, session);
+                return wtRCToStatus(wtRet, *session);
             }
 
             wtRet = dupCursor->close(dupCursor);
             if (wtRet != 0) {
-                return wtRCToStatus(wtRet, session);
+                return wtRCToStatus(wtRet, *session);
             }
         } else {
             // For a full backup or the initial incremental backup, each BackupBlock corresponds
@@ -506,7 +506,7 @@ StatusWith<std::deque<BackupBlock>> getBackupBlocksFromBackupCursor(
     }
 
     if (wtRet != WT_NOTFOUND) {
-        return wtRCToStatus(wtRet, session, statusPrefix);
+        return wtRCToStatus(wtRet, *session, statusPrefix);
     }
     return backupBlocks;
 }
@@ -1758,12 +1758,11 @@ WiredTigerKVEngine::_disableIncrementalBackup() {
     // This cursor will be freed by the backupSession being closed as the session is uncached
     auto sessionRaii = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* cursor = nullptr;
-    WT_SESSION* session = sessionRaii->getSession();
     int wtRet =
-        session->open_cursor(session, "backup:", nullptr, "incremental=(force_stop=true)", &cursor);
+        sessionRaii->open_cursor("backup:", nullptr, "incremental=(force_stop=true)", &cursor);
     if (wtRet != 0) {
         LOGV2_ERROR(22360, "Could not open a backup cursor to disable incremental backups");
-        return wtRCToStatus(wtRet, session);
+        return wtRCToStatus(wtRet, *sessionRaii);
     }
 
     _backupSession = std::move(sessionRaii);
@@ -1910,12 +1909,11 @@ StatusWith<std::deque<BackupBlock>> EncryptionKeyDB::_disableIncrementalBackup()
     // This cursor will be freed by the backupSession being closed as the session is uncached
     auto sessionRaii = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* cursor = nullptr;
-    WT_SESSION* session = sessionRaii->getSession();
     int wtRet =
-        session->open_cursor(session, "backup:", nullptr, "incremental=(force_stop=true)", &cursor);
+        sessionRaii->open_cursor("backup:", nullptr, "incremental=(force_stop=true)", &cursor);
     if (wtRet != 0) {
         LOGV2_ERROR(22360, "Could not open a backup cursor to disable incremental backups");
-        return wtRCToStatus(wtRet, session);
+        return wtRCToStatus(wtRet, *sessionRaii);
     }
 
     _backupSession = std::move(sessionRaii);
@@ -1951,16 +1949,15 @@ StatusWith<std::deque<BackupBlock>> EncryptionKeyDB::beginNonBlockingBackup(
     // This cursor will be freed by the backupSession being closed as the session is uncached
     auto sessionRaii = std::make_unique<WiredTigerSession>(_connection.get());
     WT_CURSOR* cursor = nullptr;
-    WT_SESSION* session = sessionRaii->getSession();
     const std::string config = ss.str();
-    int wtRet = session->open_cursor(session, "backup:", nullptr, config.c_str(), &cursor);
+    int wtRet = sessionRaii->open_cursor("backup:", nullptr, config.c_str(), &cursor);
     if (wtRet != 0) {
-        return wtRCToStatus(wtRet, session);
+        return wtRCToStatus(wtRet, *sessionRaii);
     }
 
     const bool fullBackup = !options.srcBackupName;
     auto swBackupBlocks = getBackupBlocksFromBackupCursor(checkpointTimestamp,
-                                                          session,
+                                                          sessionRaii.get(),
                                                           cursor,
                                                           options.incrementalBackup,
                                                           fullBackup,
@@ -1989,14 +1986,13 @@ StatusWith<std::deque<std::string>> EncryptionKeyDB::extendBackupCursor(Operatio
     // The "target=(\"log:\")" configuration string for the cursor will ensure that we only see the
     // log files when iterating on the cursor.
     WT_CURSOR* cursor = nullptr;
-    WT_SESSION* session = _backupSession->getSession();
-    int wtRet = session->open_cursor(session, nullptr, _backupCursor, "target=(\"log:\")", &cursor);
+    int wtRet = _backupSession->open_cursor(nullptr, _backupCursor, "target=(\"log:\")", &cursor);
     if (wtRet != 0) {
-        return wtRCToStatus(wtRet, session);
+        return wtRCToStatus(wtRet, *_backupSession);
     }
 
     auto swBackupBlocks = getBackupBlocksFromBackupCursor(boost::none,
-                                                          session,
+                                                          _backupSession.get(),
                                                           cursor,
                                                           /*incrementalBackup=*/false,
                                                           /*fullBackup=*/true,
@@ -2005,7 +2001,7 @@ StatusWith<std::deque<std::string>> EncryptionKeyDB::extendBackupCursor(Operatio
 
     wtRet = cursor->close(cursor);
     if (wtRet != 0) {
-        return wtRCToStatus(wtRet, session);
+        return wtRCToStatus(wtRet, *_backupSession);
     }
 
     if (!swBackupBlocks.isOK()) {
@@ -2089,15 +2085,14 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
     // cursor upon closing.
     {
         auto session = std::make_shared<WiredTigerSession>(_connection.get());
-        WT_SESSION* s = session->getSession();
-        ret = s->log_flush(s, "sync=off");
+        ret = session->log_flush("sync=off");
         if (ret != 0) {
-            return wtRCToStatus(ret, s);
+            return wtRCToStatus(ret, *session);
         }
         WT_CURSOR* c = nullptr;
-        ret = s->open_cursor(s, "backup:", nullptr, nullptr, &c);
+        ret = session->open_cursor("backup:", nullptr, nullptr, &c);
         if (ret != 0) {
-            return wtRCToStatus(ret, s);
+            return wtRCToStatus(ret, *session);
         }
         dbList.emplace_back(_path, destPath, session, c);
     }
@@ -2105,15 +2100,14 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
     // Open backup cursor for keyDB
     if (_restEncr) {
         auto session = std::make_shared<WiredTigerSession>(_restEncr->keyDb()->getConnection());
-        WT_SESSION* s = session->getSession();
-        ret = s->log_flush(s, "sync=off");
+        ret = session->log_flush("sync=off");
         if (ret != 0) {
-            return wtRCToStatus(ret, s);
+            return wtRCToStatus(ret, *session);
         }
         WT_CURSOR* c = nullptr;
-        ret = s->open_cursor(s, "backup:", nullptr, nullptr, &c);
+        ret = session->open_cursor("backup:", nullptr, nullptr, &c);
         if (ret != 0) {
-            return wtRCToStatus(ret, s);
+            return wtRCToStatus(ret, *session);
         }
         dbList.emplace_back(
             fs::path{_path} / kKeyDbDirBasename, destPath / kKeyDbDirBasename, session, c);
@@ -3491,8 +3485,7 @@ void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session) try {
     auto encryptionKeyDB = _connection->getKVEngine()->getEncryptionKeyDB();
     if (encryptionKeyDB) {
         std::unique_ptr<WiredTigerSession> sess = std::make_unique<WiredTigerSession>(encryptionKeyDB->getConnection());
-        WT_SESSION* s = sess->getSession();
-        invariantWTOK(s->checkpoint(s, "use_timestamp=false"), s);
+        invariantWTOK(sess->checkpoint("use_timestamp=false"), *sess);
     }
 } catch (const StorageUnavailableException&) {
     LOGV2_WARNING(7754200, "Checkpoint encountered a StorageUnavailableException.");
@@ -4229,21 +4222,19 @@ void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
         !isEphemeral()) {
         auto encryptionKeyDB = getEncryptionKeyDB();
         std::unique_ptr<WiredTigerSession> encryptionKeyDbSession;
-        WT_SESSION* ekdbSession = nullptr;
         if (encryptionKeyDB) {
             encryptionKeyDbSession =
                 std::make_unique<WiredTigerSession>(encryptionKeyDB->getConnection());
-            ekdbSession = encryptionKeyDbSession->getSession();
         }
 
         auto [journalListener, token] = _getJournalListenerWithToken(opCtx, useListener);
 
         forceCheckpoint(syncType == Fsync::kCheckpointStableTimestamp);
 
-        if (ekdbSession) {
+        if (encryptionKeyDbSession) {
             auto config = syncType == Fsync::kCheckpointStableTimestamp ? "use_timestamp=true"
                                                                         : "use_timestamp=false";
-            invariantWTOK(ekdbSession->checkpoint(ekdbSession, config), ekdbSession);
+            invariantWTOK(encryptionKeyDbSession->checkpoint(config), *encryptionKeyDbSession);
         }
 
         if (token) {
