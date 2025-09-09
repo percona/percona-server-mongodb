@@ -948,7 +948,9 @@ WiredTigerKVEngine::WiredTigerKVEngine(
 
     if (!wiredTigerGlobalOptions.liveRestoreSource.empty() && !_ephemeral) {
         ss << "live_restore=(enabled=true,path=\"" << wiredTigerGlobalOptions.liveRestoreSource
-           << "\"),";
+           << "\",threads_max=" << wiredTigerGlobalOptions.liveRestoreThreads
+           << ",read_size=" << wiredTigerGlobalOptions.liveRestoreReadSizeMB << "MB"
+           << "),";
     }
 
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())
