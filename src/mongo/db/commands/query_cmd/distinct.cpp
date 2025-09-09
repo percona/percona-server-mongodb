@@ -68,6 +68,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
+#include "mongo/db/pipeline/expression_context_diagnostic_printer.h"
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/query/bson/dotted_path_support.h"
 #include "mongo/db/query/canonical_distinct.h"
@@ -95,6 +96,7 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/s/query_analysis_writer.h"
 #include "mongo/db/s/scoped_collection_metadata.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role.h"
 #include "mongo/db/stats/top.h"
@@ -102,9 +104,6 @@
 #include "mongo/db/timeseries/timeseries_request_util.h"
 #include "mongo/db/transaction_resources.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_attr.h"
-#include "mongo/logv2/log_component.h"
-#include "mongo/logv2/redaction.h"
 #include "mongo/rpc/op_msg.h"
 #include "mongo/rpc/reply_builder_interface.h"
 #include "mongo/s/analyze_shard_key_common_gen.h"
@@ -145,6 +144,10 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
             "BSON field 'querySettings' is an unknown field",
             query_settings::utils::allowQuerySettingsFromClient(opCtx->getClient()) ||
                 !distinctCommand->getQuerySettings().has_value());
+
+    uassert(ErrorCodes::InvalidOptions,
+            "rawData is not enabled",
+            !distinctCommand->getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
     auto expCtx = ExpressionContextBuilder{}
                       .fromRequest(opCtx, *distinctCommand, defaultCollator)
@@ -404,6 +407,12 @@ public:
                                                defaultCollator,
                                                verbosity);
 
+        // Create an RAII object that prints useful information about the ExpressionContext in the
+        // case of a tassert or crash.
+        ScopedDebugInfo expCtxDiagnostics(
+            "ExpCtxDiagnostics",
+            command_diagnostics::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
+
         if (collectionOrView->isView()) {
             // Relinquish locks. The aggregation command will re-acquire them.
             collectionOrView.reset();
@@ -532,6 +541,12 @@ public:
                                                defaultCollation,
                                                {});
         const CanonicalDistinct& canonicalDistinct = *canonicalQuery->getDistinct();
+
+        // Create an RAII object that prints useful information about the ExpressionContext in the
+        // case of a tassert or crash.
+        ScopedDebugInfo expCtxDiagnostics(
+            "ExpCtxDiagnostics",
+            command_diagnostics::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
 
         if (canonicalDistinct.isMirrored()) {
             const auto& invocation = CommandInvocation::get(opCtx);

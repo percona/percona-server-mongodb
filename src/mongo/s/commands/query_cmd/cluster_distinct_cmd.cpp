@@ -62,6 +62,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
+#include "mongo/db/pipeline/expression_context_diagnostic_printer.h"
 #include "mongo/db/pipeline/legacy_runtime_constants_gen.h"
 #include "mongo/db/query/canonical_distinct.h"
 #include "mongo/db/query/canonical_query.h"
@@ -78,6 +79,7 @@
 #include "mongo/db/read_concern_support_result.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/read_concern_level.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/db/views/resolved_view.h"
@@ -130,6 +132,10 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
     uassert(7923001,
             "BSON field 'querySettings' is an unknown field",
             !distinctCommand->getQuerySettings().has_value());
+
+    uassert(ErrorCodes::InvalidOptions,
+            "rawData is not enabled",
+            !distinctCommand->getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
     auto expCtx = ExpressionContextBuilder{}
                       .fromRequest(opCtx, *distinctCommand, defaultCollator)
@@ -243,6 +249,13 @@ public:
         const NamespaceString nss(parseNs(opMsgRequest.parseDbName(), cmdObj));
         auto canonicalQuery = parseDistinctCmd(
             opCtx, nss, cmdObj, ExtensionsCallbackNoop(), nullptr /* defaultCollator */, verbosity);
+
+        // Create an RAII object that prints useful information about the ExpressionContext in the
+        // case of a tassert or crash.
+        ScopedDebugInfo expCtxDiagnostics(
+            "ExpCtxDiagnostics",
+            command_diagnostics::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
+
         auto targetingQuery = canonicalQuery->getQueryObj();
         auto targetingCollation = canonicalQuery->getFindCommandRequest().getCollation();
 
@@ -327,6 +340,12 @@ public:
                                                boost::none /* verbosity */);
         auto query = canonicalQuery->getQueryObj();
         auto collation = canonicalQuery->getFindCommandRequest().getCollation();
+
+        // Create an RAII object that prints useful information about the ExpressionContext in the
+        // case of a tassert or crash.
+        ScopedDebugInfo expCtxDiagnostics(
+            "ExpCtxDiagnostics",
+            command_diagnostics::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
 
         auto swCri = getCollectionRoutingInfoForTxnCmd(opCtx, nss);
         if (swCri == ErrorCodes::NamespaceNotFound) {

@@ -701,8 +701,15 @@ const internalCommandsMap = {
         testname: "_shardsvrReshardingDonorFetchFinalCollectionStats",
         command: {
             _shardsvrReshardingDonorFetchFinalCollectionStats: "test.x",
+            reshardingUUID: UUID(),
+        },
+    },
+    _shardsvrReshardingDonorStartChangeStreamsMonitor: {
+        testname: "_shardsvrReshardingDonorStartChangeStreamsMonitor",
+        command: {
+            _shardsvrReshardingDonorStartChangeStreamsMonitor: "test.x",
+            reshardingUUID: UUID(),
             cloneTimestamp: Timestamp(),
-            reshardingUUID: UUID()
         },
     },
     _shardsvrReshardingOperationTime: {

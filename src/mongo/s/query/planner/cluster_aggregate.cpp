@@ -63,6 +63,7 @@
 #include "mongo/db/pipeline/aggregation_request_helper.h"
 #include "mongo/db/pipeline/document_source_internal_unpack_bucket.h"
 #include "mongo/db/pipeline/expression_context.h"
+#include "mongo/db/pipeline/expression_context_diagnostic_printer.h"
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/process_interface/mongos_process_interface.h"
@@ -80,6 +81,7 @@
 #include "mongo/db/query/query_stats/key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/query/tailable_mode_gen.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/shard_id.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
@@ -285,6 +287,10 @@ void performValidationChecks(const OperationContext* opCtx,
     liteParsedPipeline.validate(opCtx);
     aggregation_request_helper::validateRequestForAPIVersion(opCtx, request);
     aggregation_request_helper::validateRequestFromClusterQueryWithoutShardKey(request);
+
+    uassert(ErrorCodes::InvalidOptions,
+            "rawData is not enabled",
+            !request.getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
     uassert(51028, "Cannot specify exchange option to a router", !request.getExchange());
     uassert(51143,
@@ -604,6 +610,11 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         }
         return pipeline;
     }();
+
+    // Create an RAII object that prints useful information about the ExpressionContext in the case
+    // of a tassert or crash.
+    ScopedDebugInfo expCtxDiagnostics("ExpCtxDiagnostics",
+                                      command_diagnostics::ExpressionContextPrinter{expCtx});
 
     auto targeter = cluster_aggregation_planner::AggregationTargeter::make(
         opCtx,

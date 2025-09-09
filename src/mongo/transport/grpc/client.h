@@ -57,6 +57,7 @@ constexpr auto kStreamsSubsectionFieldName = "streams"_sd;
 constexpr auto kCurrentStreamsFieldName = "current"_sd;
 constexpr auto kSuccessfulStreamsFieldName = "successful"_sd;
 constexpr auto kFailedStreamsFieldName = "failed"_sd;
+constexpr auto kSSLCertFileEnvVar = "SSL_CERT_FILE";
 
 class Client : public std::enable_shared_from_this<Client> {
 public:
@@ -69,6 +70,7 @@ public:
         std::shared_ptr<ClientContext> ctx;
         std::shared_ptr<ClientStream> stream;
         boost::optional<SSLConfiguration> sslConfig;
+        UUID channelUUID;
     };
 
     explicit Client(TransportLayer* tl, ServiceContext* svcCtx, const BSONObj& clientMetadata);
@@ -104,6 +106,7 @@ public:
         const std::shared_ptr<GRPCReactor>& reactor,
         Milliseconds timeout,
         ConnectOptions options,
+        const CancellationToken& token = CancellationToken::uncancelable(),
         std::shared_ptr<ConnectionMetrics> connectionMetrics = nullptr);
 
     /**
@@ -127,27 +130,19 @@ protected:
 
 private:
     enum class ClientState { kUninitialized, kStarted, kShutdown };
-    class PendingStreamState {
+    class PendingStreamState : public enable_shared_from_this<PendingStreamState> {
     public:
-        std::list<std::shared_ptr<PendingStreamState>>::iterator iter;
+        explicit PendingStreamState(const CancellationToken& token) : _cancelSource(token) {}
 
-        void cancel(Status reason) {
-            {
-                stdx::lock_guard lg(_mutex);
-                if (!_cancellationReason.isOK()) {
-                    // Already cancelled, can early return.
-                    return;
-                }
-                _cancellationReason = reason;
-            }
-            _cancelSource.cancel();
-            cancelTimer();
-        }
+        // The WithLock corresponds to the Client's mutex, not the PendingStreamState's.
+        void registerWithClient(WithLock, Client& client);
 
-        Status getCancellationReason() {
-            stdx::lock_guard lg(_mutex);
-            return _cancellationReason;
-        }
+        // The WithLock corresponds to the Client's mutex, not the PendingStreamState's.
+        void unregisterFromClient(WithLock, Client& client);
+
+        void cancel(Status reason);
+
+        Status getCancellationReason();
 
         CancellationToken getCancellationToken() {
             return _cancelSource.token();
@@ -168,6 +163,8 @@ private:
         }
 
     private:
+        std::list<std::shared_ptr<PendingStreamState>>::iterator _iter;
+
         stdx::mutex _mutex;
         Status _cancellationReason = Status::OK();
         CancellationSource _cancelSource;

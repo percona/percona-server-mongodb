@@ -33,6 +33,7 @@
 namespace mongo::transport::grpc {
 
 MONGO_FAIL_POINT_DEFINE(grpcHangOnStreamEstablishment);
+MONGO_FAIL_POINT_DEFINE(grpcFailChannelEstablishment);
 
 MockClient::MockClient(TransportLayer* tl,
                        ServiceContext* svcCtx,
@@ -62,6 +63,10 @@ Future<Client::CallContext> MockClient::_streamFactory(const HostAndPort& remote
                 return Status(ErrorCodes::CallbackCanceled,
                               "Cancelled stream establishment attempt due to failpoint");
             });
+    } else if (MONGO_unlikely(grpcFailChannelEstablishment.shouldFail())) {
+        return Future<Client::CallContext>::makeReady(
+            Status(grpc::util::statusToErrorCode(::grpc::StatusCode::UNAVAILABLE),
+                   "failing establishment due to fail point"));
     }
 
     auto stub = _pool->createStub(remote, options.sslMode, timeout);
@@ -88,7 +93,7 @@ Future<Client::CallContext> MockClient::_streamFactory(const HostAndPort& remote
         stream = stub->stub().unauthenticatedCommandStream(ctx.get(), reactor);
     }
 
-    return Future<CallContext>::makeReady(CallContext{ctx, std::move(stream), {}});
+    return Future<CallContext>::makeReady(CallContext{ctx, std::move(stream), {}, UUID::gen()});
 }
 
 

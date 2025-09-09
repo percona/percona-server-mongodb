@@ -628,22 +628,26 @@ tasks:
 
   - <<: *task_template
     name: change_streams_multitenant_passthrough
-    tags: [
+    tags:
+      [
         "assigned_to_jira_team_server_query_execution",
         "experimental",
         "serverless",
-      ] # TODO SERVER-57866: Add the "change_streams" tag here.
+        "change_streams",
+      ]
     commands:
       - func: "do setup"
       - func: "run tests"
 
   - <<: *task_template
     name: change_streams_multitenant_sharded_collections_passthrough
-    tags: [
+    tags:
+      [
         "assigned_to_jira_team_server_query_execution",
         "experimental",
         "serverless",
-      ] # TODO SERVER-57866: Add the "change_streams" tag here.
+        "change_streams",
+      ]
     commands:
       - func: "do setup"
       - func: "run tests"
@@ -1790,8 +1794,11 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_query_optimization",
-        "experimental",
+        "default",
         "query_correctness",
+        "incompatible_tsan",
+        "incompatible_aubsan",
+        "incompatible_debug_mode",
       ]
     commands:
       - func: "do setup"
@@ -1809,14 +1816,18 @@ tasks:
         vars:
           suite: query_correctness_generated_test
           should_shuffle: false
+          resmoke_args: "--mongodSetParameters='{internalQueryFrameworkControl: trySbeEngine}'"
 
   - <<: *task_template
     name: query_correctness_generated_test_2
     tags:
       [
         "assigned_to_jira_team_server_query_optimization",
-        "experimental",
+        "default",
         "query_correctness",
+        "incompatible_tsan",
+        "incompatible_aubsan",
+        "incompatible_debug_mode",
       ]
     commands:
       - func: "do setup"
@@ -1834,14 +1845,18 @@ tasks:
         vars:
           suite: query_correctness_generated_test
           should_shuffle: false
+          resmoke_args: "--mongodSetParameters='{internalQueryFrameworkControl: trySbeEngine}'"
 
   - <<: *task_template
     name: query_correctness_generated_test_3
     tags:
       [
         "assigned_to_jira_team_server_query_optimization",
-        "experimental",
+        "default",
         "query_correctness",
+        "incompatible_tsan",
+        "incompatible_aubsan",
+        "incompatible_debug_mode",
       ]
     commands:
       - func: "do setup"
@@ -1859,14 +1874,18 @@ tasks:
         vars:
           suite: query_correctness_generated_test
           should_shuffle: false
+          resmoke_args: "--mongodSetParameters='{internalQueryFrameworkControl: trySbeEngine}'"
 
   - <<: *task_template
     name: query_correctness_generated_test_4
     tags:
       [
         "assigned_to_jira_team_server_query_optimization",
-        "experimental",
+        "default",
         "query_correctness",
+        "incompatible_tsan",
+        "incompatible_aubsan",
+        "incompatible_debug_mode",
       ]
     commands:
       - func: "do setup"
@@ -1884,14 +1903,18 @@ tasks:
         vars:
           suite: query_correctness_generated_test
           should_shuffle: false
+          resmoke_args: "--mongodSetParameters='{internalQueryFrameworkControl: trySbeEngine}'"
 
   - <<: *task_template
     name: query_correctness_manual_test
     tags:
       [
         "assigned_to_jira_team_server_query_optimization",
-        "experimental",
+        "default",
         "query_correctness",
+        "incompatible_tsan",
+        "incompatible_aubsan",
+        "incompatible_debug_mode",
       ]
     commands:
       - func: "do setup"
@@ -1911,6 +1934,19 @@ tasks:
       - func: "run tests"
         vars:
           suite: query_cbr_heuristic_jscore_passthrough
+
+  - <<: *task_template
+    name: query_cbr_sampling_jscore_passthrough
+    tags: [
+        "assigned_to_jira_team_server_query_optimization",
+        "experimental",
+        "blocked_in_query_alias", # We explicitly specify this task in query alias
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+        vars:
+          suite: query_cbr_sampling_jscore_passthrough
 
   ################################################
   #           Query Integration tasks            #

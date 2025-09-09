@@ -54,7 +54,6 @@
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_component.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/s/resharding/resume_token_gen.h"
 #include "mongo/util/decorable.h"
@@ -298,7 +297,7 @@ Value DocumentSourceCursor::serialize(const SerializationOptions& opts) const {
                                  secondaryNssList.cbegin(), secondaryNssList.cend()));
         };
         bool isAnySecondaryCollectionNotLocal =
-            intializeAutoGet(opCtx, _exec->nss(), secondaryNssList, initAutoGetFn);
+            initializeAutoGet(opCtx, _exec->nss(), secondaryNssList, initAutoGetFn);
         tassert(8322003,
                 "Should have initialized AutoGet* after calling 'initializeAutoGet'",
                 readLock.has_value());

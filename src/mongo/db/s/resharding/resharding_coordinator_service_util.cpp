@@ -87,9 +87,6 @@
 #include "mongo/db/write_concern_options.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_attr.h"
-#include "mongo/logv2/log_component.h"
-#include "mongo/logv2/redaction.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/s/analyze_shard_key_documents_gen.h"
@@ -1022,11 +1019,17 @@ void writeToCoordinatorStateNss(OperationContext* opCtx,
     Date_t timestamp = resharding::getCurrentTime();
     auto nextState = coordinatorDoc.getState();
 
-    // We only need to check one donorShardEntry for documentsToCopy because it will either be set
+    // We only need to check one donorShardEntry for 'documentsToCopy' because it will either be set
     // on all entries or on none of them.
-    auto shouldUpdateDonorShardEntriesDocumentsToClone =
-        nextState == CoordinatorStateEnum::kCloning && !coordinatorDoc.getDonorShards().empty() &&
+    auto shouldUpdateDonorShardEntriesDocumentsToCopy =
+        nextState == CoordinatorStateEnum::kCloning &&
         coordinatorDoc.getDonorShards().front().getDocumentsToCopy();
+
+    // We only need to check one donorShardEntry for 'documentsFinal' because it will either be set
+    // on all entries or on none of them.
+    auto shouldUpdateDonorShardEntriesDocumentsFinal =
+        nextState == CoordinatorStateEnum::kBlockingWrites &&
+        coordinatorDoc.getDonorShards().front().getDocumentsFinal();
 
     BatchedCommandRequest request([&] {
         switch (nextState) {
@@ -1100,9 +1103,8 @@ void writeToCoordinatorStateNss(OperationContext* opCtx,
                         unsetInitializingFields(updateBuilder);
                     }
 
-                    // If we are in the cloning state and at least one donor shard has data set for
-                    // documents to copy
-                    if (shouldUpdateDonorShardEntriesDocumentsToClone) {
+                    if (shouldUpdateDonorShardEntriesDocumentsToCopy ||
+                        shouldUpdateDonorShardEntriesDocumentsFinal) {
                         appendDonorShardEntriesToSetBuilder(coordinatorDoc, setBuilder);
                         setBuilder.doneFast();
                     }
@@ -1130,11 +1132,11 @@ void writeToCoordinatorStateNss(OperationContext* opCtx,
         assertNumDocsMatchedEqualsExpected(request, res, *expectedNumMatched);
     }
 
-    // When moving from quiescing to done, we don't have metrics available, and when
-    // we are in the cloning state and are updating the donor shard entries we do not have metrics.
-    invariant(metrics ||
-              (nextState == CoordinatorStateEnum::kDone ||
-               shouldUpdateDonorShardEntriesDocumentsToClone));
+    // We don't have metrics when moving from quiescing to done and when we are in the cloning state
+    // or blocking state and are updating the donor shard entries.
+    invariant(metrics || shouldUpdateDonorShardEntriesDocumentsToCopy ||
+              shouldUpdateDonorShardEntriesDocumentsFinal ||
+              (nextState == CoordinatorStateEnum::kDone));
     if (metrics) {
         setMeticsAfterWrite(metrics, nextState, timestamp);
     }

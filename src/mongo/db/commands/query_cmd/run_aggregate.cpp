@@ -73,6 +73,7 @@
 #include "mongo/db/pipeline/document_source_exchange.h"
 #include "mongo/db/pipeline/document_source_geo_near.h"
 #include "mongo/db/pipeline/expression_context.h"
+#include "mongo/db/pipeline/expression_context_diagnostic_printer.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/pipeline_d.h"
 #include "mongo/db/pipeline/plan_executor_pipeline.h"
@@ -101,6 +102,7 @@
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/s/operation_sharding_state.h"
 #include "mongo/db/s/query_analysis_writer.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/stats/resource_consumption_metrics.h"
@@ -112,8 +114,6 @@
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/db/views/view.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_attr.h"
-#include "mongo/logv2/redaction.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/s/analyze_shard_key_common_gen.h"
 #include "mongo/s/query_analysis_sampler_util.h"
@@ -578,8 +578,8 @@ std::vector<std::unique_ptr<Pipeline, PipelineDeleter>> createExchangePipelinesI
     if (aggExState.getRequest().getExchange() && !pipeline->getContext()->getExplain()) {
         auto expCtx = pipeline->getContext();
         // The Exchange constructor deregisters the pipeline from the context. Since we need a valid
-        // opCtx for the makeExpressionContext call below, store the pointer ahead of the Exchange()
-        // call.
+        // opCtx for the ExpressionContextBuilder call below, store the pointer ahead of the
+        // Exchange() call.
         auto* opCtx = aggExState.getOpCtx();
         auto exchange = make_intrusive<Exchange>(aggExState.getRequest().getExchange().value(),
                                                  std::move(pipeline));
@@ -1034,7 +1034,10 @@ Status _runAggregate(AggExState& aggExState, rpc::ReplyBuilderInterface* result)
     InterruptibleLockGuard interruptibleLockAcquisition(aggExState.getOpCtx());
 
     // Acquire any catalog locks needed by the pipeline, and create catalog-dependent state.
-    std::unique_ptr<AggCatalogState> aggCatalogState = aggExState.createAggCatalogState();
+    // Do not use acquisition for now.
+    const bool useAcquisition = false;
+    std::unique_ptr<AggCatalogState> aggCatalogState =
+        aggExState.createAggCatalogState(useAcquisition);
 
     boost::optional<AutoStatsTracker> statsTracker;
     aggCatalogState->getStatsTrackerIfNeeded(statsTracker);
@@ -1054,6 +1057,11 @@ Status _runAggregate(AggExState& aggExState, rpc::ReplyBuilderInterface* result)
     }
 
     boost::intrusive_ptr<ExpressionContext> expCtx = aggCatalogState->createExpressionContext();
+
+    // Create an RAII object that prints useful information about the ExpressionContext in the case
+    // of a tassert or crash.
+    ScopedDebugInfo expCtxDiagnostics("ExpCtxDiagnostics",
+                                      command_diagnostics::ExpressionContextPrinter{expCtx});
 
     // Prepare the parsed pipeline for execution. This involves parsing the pipeline,
     // registering query stats, rewriting the pipeline to support queryable encryption, and
@@ -1094,6 +1102,10 @@ Status runAggregate(
     rpc::ReplyBuilderInterface* result,
     const std::vector<std::pair<NamespaceString, std::vector<ExternalDataSourceInfo>>>&
         usedExternalDataSources) {
+
+    if (request.getRawData() && !gFeatureFlagRawDataCrudOperations.isEnabled()) {
+        return {ErrorCodes::InvalidOptions, "rawData is not enabled"};
+    }
 
     AggExState aggExState(
         opCtx, request, liteParsedPipeline, cmdObj, privileges, usedExternalDataSources, verbosity);

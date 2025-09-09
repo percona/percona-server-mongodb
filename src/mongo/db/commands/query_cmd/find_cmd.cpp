@@ -82,6 +82,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
 #include "mongo/db/pipeline/expression_context.h"
+#include "mongo/db/pipeline/expression_context_diagnostic_printer.h"
 #include "mongo/db/pipeline/query_request_conversion.h"
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/profile_settings.h"
@@ -114,6 +115,7 @@
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/s/query_analysis_writer.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/stats/resource_consumption_metrics.h"
@@ -125,9 +127,6 @@
 #include "mongo/db/transaction/transaction_participant.h"
 #include "mongo/db/transaction_resources.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_attr.h"
-#include "mongo/logv2/log_component.h"
-#include "mongo/logv2/redaction.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/get_status_from_command_result.h"
@@ -420,6 +419,10 @@ public:
             // path, we have already parsed the FindCommandRequest, so start timing here.
             CurOp::get(opCtx)->beginQueryPlanningTimer();
 
+            uassert(ErrorCodes::InvalidOptions,
+                    "rawData is not enabled",
+                    !_cmdRequest->getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
+
             // Acquire locks. The RAII object is optional, because in the case of a view, the locks
             // need to be released.
             // TODO SERVER-79175: Make nicer. We need to instantiate the AutoStatsTracker before the
@@ -470,6 +473,12 @@ public:
                     .tmpDir(storageGlobalParams.dbpath + "/_tmp")
                     .build();
             expCtx->startExpressionCounters();
+
+            // Create an RAII object that prints useful information about the ExpressionContext in
+            // the case of a tassert or crash.
+            ScopedDebugInfo expCtxDiagnostics(
+                "ExpCtxDiagnostics", command_diagnostics::ExpressionContextPrinter{expCtx});
+
             auto parsedRequest = uassertStatusOK(parsed_find_command::parse(
                 expCtx,
                 {.findCommand = std::move(_cmdRequest),
@@ -563,6 +572,10 @@ public:
             // Start the query planning timer right after parsing.
             CurOp::get(opCtx)->beginQueryPlanningTimer();
 
+            uassert(ErrorCodes::InvalidOptions,
+                    "rawData is not enabled",
+                    !_cmdRequest->getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
+
             _rewriteFLEPayloads(opCtx);
             auto respSc =
                 SerializationContext::stateCommandReply(_cmdRequest->getSerializationContext());
@@ -647,8 +660,8 @@ public:
                                 nss,
                                 Top::LockType::ReadLocked,
                                 AutoStatsTracker::LogMode::kUpdateTopAndCurOp,
-                                0 /* dbProfilingLevel */
-                );
+                                DatabaseProfileSettings::get(opCtx->getServiceContext())
+                                    .getDatabaseProfileLevel(nss.dbName()));
             };
             auto const nssOrUUID = _cmdRequest->getNamespaceOrUUID();
             if (nssOrUUID.isNamespaceString()) {
@@ -662,19 +675,6 @@ public:
                 req.expectedUUID = _cmdRequest->getCollectionUUID();
                 return req;
             }();
-
-            // The acquireCollection can throw before we raise the profile level, and some callers
-            // expect to see profiler entries on errors that can throw in the acquisition. To avoid
-            // getting an expensive CollectionCatalog snapshot an extra time before the collection
-            // acquisition path, only do this if the collection acquisition fails. Note that this
-            // still doesn't work correctly if UUID resolution fails.
-            auto setProfileLevelOnError = ScopeGuard([&] {
-                if (nssOrUUID.isNamespaceString()) {
-                    CurOp::get(opCtx)->raiseDbProfileLevel(
-                        DatabaseProfileSettings::get(opCtx->getServiceContext())
-                            .getDatabaseProfileLevel(nssOrUUID.dbName()));
-                }
-            });
 
             boost::optional<CollectionOrViewAcquisition> collectionOrView =
                 acquireCollectionOrViewMaybeLockFree(opCtx, acquisitionRequest);
@@ -690,13 +690,6 @@ public:
                 }
             }
             const NamespaceString nss = collectionOrView->nss();
-
-            // It is cheaper to raise the profiling level here, now that a CollectionCatalog
-            // snapshot is stashed on the OpCtx.
-            CurOp::get(opCtx)->raiseDbProfileLevel(
-                DatabaseProfileSettings::get(opCtx->getServiceContext())
-                    .getDatabaseProfileLevel(nss.dbName()));
-            setProfileLevelOnError.dismiss();
 
             if (!tracker) {
                 initializeTracker(nss);
@@ -771,6 +764,12 @@ public:
             auto cq = parseQueryAndBeginOperation(
                 opCtx, *collectionOrView, nss, _request.body, std::move(_cmdRequest));
             const auto& findCommandReq = cq->getFindCommandRequest();
+
+            // Create an RAII object that prints useful information about the ExpressionContext in
+            // the case of a tassert or crash.
+            ScopedDebugInfo expCtxDiagnostics(
+                "ExpCtxDiagnostics",
+                command_diagnostics::ExpressionContextPrinter{cq->getExpCtx()});
 
             tassert(7922501,
                     "CanonicalQuery namespace should match catalog namespace",

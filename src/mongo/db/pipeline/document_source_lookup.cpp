@@ -82,8 +82,6 @@
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_attr.h"
-#include "mongo/logv2/log_component.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/overflow_arithmetic.h"
 #include "mongo/s/database_version.h"
@@ -1336,12 +1334,7 @@ DepsTracker::State DocumentSourceLookUp::getDependencies(DepsTracker* deps) cons
         // We will use the introspection pipeline which we prebuilt during construction.
         invariant(_resolvedIntrospectionPipeline);
 
-        // We are not attempting to enforce that any referenced metadata are in fact unavailable,
-        // this is done elsewhere. We only need to know what variable dependencies exist in the
-        // subpipeline for the top-level pipeline. So without knowledge of what metadata is in fact
-        // unavailable, we "lie" and say that all metadata is available to avoid tripping any
-        // assertions.
-        DepsTracker subDeps(DepsTracker::kNoMetadata);
+        DepsTracker subDeps;
 
         // Get the subpipeline dependencies. Subpipeline stages may reference both 'let' variables
         // declared by this $lookup and variables declared externally.

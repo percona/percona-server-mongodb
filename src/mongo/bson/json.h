@@ -35,11 +35,17 @@
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
+#include "mongo/bson/bson_depth.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/oid.h"
 #include "mongo/util/time_support.h"
 
 namespace mongo {
+
+namespace fromjson_detail {
+/** Private implementation detail of fromjson. */
+BSONObj fromJsonImpl(const char* jsonString, size_t len);
+}  // namespace fromjson_detail
 
 /**
  * Create a BSONObj from a JSON <http://www.json.org>,
@@ -50,14 +56,46 @@ namespace mongo {
  * used when specifying field names and std::string values instead of double
  * quotes.  JSON unicode escape sequences (of the form \uXXXX) are
  * converted to utf8.
+ * `str` must be a null terminated string.
  *
- * @throws AssertionException if parsing fails.  The message included with
- * this assertion includes the character offset where parsing failed.
+ * `str` must be completely consumed by the parse.
+ * Trailing whitespace is tolerated.
+ *
+ * Throws with `ErrorCodes::FailedToParse` on failure.
+ *   - If the parse failed because the `str` was incompletely consumed,
+ *     the exception message will indicate "Garbage at end".
+ *   - Otherwise, the message includes the character offset where parsing failed.
  */
-BSONObj fromjson(StringData str);
 
-/** @param len will be size of JSON object in text chars. */
-BSONObj fromjson(const char* str, int* len = nullptr);
+inline BSONObj fromjson(const char* str) {
+    return fromjson_detail::fromJsonImpl(str, strlen(str));
+}
+
+inline BSONObj fromjson(char* str) {
+    return fromjson_detail::fromJsonImpl(str, strlen(str));
+}
+
+inline BSONObj fromjson(const std::string& str) {
+    return fromjson_detail::fromJsonImpl(str.c_str(), str.size());
+}
+
+inline BSONObj fromjson(const str::stream& ss) {
+    return fromjson(std::string{ss});
+}
+
+/** Inefficiently promote to std::string, temporarily. */
+inline BSONObj fromjson(StringData str) {
+    return fromjson(std::string{str});
+}
+
+/** Decay arrays (literals) to `const char*`. */
+template <size_t N>
+BSONObj fromjson(const char (&str)[N]) {
+    return fromjson_detail::fromJsonImpl(str, N - 1);
+}
+
+/** Prevent conversion. Caller must choose a directly supported overload. */
+BSONObj fromjson(const auto& str) = delete;
 
 /**
  * Tests whether the JSON string is an Array.
@@ -108,7 +146,7 @@ class JParse {
     friend class JParseUtil;
 
 public:
-    constexpr static int kMaxDepth = 250;
+    constexpr static int kMaxDepth = BSONDepth::kDefaultMaxAllowableDepth;
     explicit JParse(StringData str);
 
     /*

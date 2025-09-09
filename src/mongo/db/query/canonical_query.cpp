@@ -56,7 +56,6 @@
 #include "mongo/db/query/query_planner_common.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_component.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/str.h"
 #include "mongo/util/synchronized_value.h"
@@ -212,7 +211,7 @@ void CanonicalQuery::initCq(boost::intrusive_ptr<ExpressionContext> expCtx,
         _sortPattern = std::move(parsedFind->sort);
 
         // Be sure to track and add any metadata dependencies from the sort (e.g. text score).
-        _metadataDeps |= _sortPattern->metadataDeps(parsedFind->unavailableMetadata);
+        _metadataDeps |= _sortPattern->metadataDeps(parsedFind->availableMetadata);
 
         // If the results of this query might have to be merged on a remote node, then that node
         // might need the sort key metadata. Request that the plan generates this metadata.

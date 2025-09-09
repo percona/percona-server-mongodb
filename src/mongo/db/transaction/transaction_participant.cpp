@@ -113,8 +113,6 @@
 #include "mongo/db/write_concern_options.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_attr.h"
-#include "mongo/logv2/log_component.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/s/shard_version.h"
 #include "mongo/s/would_change_owning_shard_exception.h"
@@ -930,6 +928,8 @@ void TransactionParticipant::Participant::_continueMultiDocumentTransaction(
     uassert(ErrorCodes::NoSuchTransaction,
             str::stream()
                 << "Given transaction number " << txnNumberAndRetryCounter.getTxnNumber()
+                << " on session " << _sessionId() << " using txnRetryCounter "
+                << txnNumberAndRetryCounter.getTxnRetryCounter()
                 << " does not match any in-progress transactions. The active transaction number is "
                 << o().activeTxnNumberAndRetryCounter.getTxnNumber(),
             txnNumberAndRetryCounter.getTxnNumber() ==
@@ -2206,7 +2206,7 @@ void TransactionParticipant::Participant::_commitStorageTransaction(OperationCon
     // writes.
     {
         ClientLock clientLock(opCtx->getClient());
-        CurOp::get(opCtx)->updateStorageMetricsOnRecoveryUnitChange(clientLock);
+        CurOp::get(opCtx)->updateStorageMetricsOnRecoveryUnitStash(clientLock);
         shard_role_details::setRecoveryUnit(
             opCtx,
             std::unique_ptr<RecoveryUnit>(
@@ -2617,7 +2617,7 @@ void TransactionParticipant::Participant::_cleanUpTxnResourceOnOpCtx(
     // transactional settings such as a read timestamp.
     {
         ClientLock clientLock(opCtx->getClient());
-        CurOp::get(opCtx)->updateStorageMetricsOnRecoveryUnitChange(clientLock);
+        CurOp::get(opCtx)->updateStorageMetricsOnRecoveryUnitStash(clientLock);
         shard_role_details::setRecoveryUnit(
             opCtx,
             std::unique_ptr<RecoveryUnit>(

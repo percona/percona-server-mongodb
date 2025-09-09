@@ -128,9 +128,6 @@
 #include "mongo/db/timeseries/timeseries_update_delete_util.h"
 #include "mongo/db/update/update_driver.h"
 #include "mongo/logv2/log.h"
-#include "mongo/logv2/log_attr.h"
-#include "mongo/logv2/log_component.h"
-#include "mongo/logv2/redaction.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/scopeguard.h"
@@ -471,7 +468,7 @@ public:
                         CardinalityType{
                             _plannerParams->mainCollectionInfo.collStats->getCardinality()},
                         EstimationSource::Metadata},
-                    SamplingConfidenceIntervalEnum::k95,
+                    _cq->getExpCtx()->getQueryKnobConfiguration().getConfidenceInterval(),
                     samplingMarginOfError.load(),
                     internalQueryNumChunksForChunkBasedSampling.load());
             }
@@ -1143,7 +1140,6 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     std::size_t plannerOptions,
     Pipeline* pipeline,
     bool needsMerge,
-    QueryMetadataBitSet unavailableMetadata,
     boost::optional<TraversalPreference> traversalPreference,
     ExecShardFilterPolicy execShardFilterPolicy) {
     invariant(canonicalQuery);
@@ -1258,7 +1254,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     } else if (canCommitToSbe()) {
         // Commit to using SBE by removing the pushed-down aggregation stages from the original
         // pipeline and by mutating the canonical query with search specific metadata.
-        finalizePipelineStages(pipeline, unavailableMetadata, canonicalQuery.get());
+        finalizePipelineStages(pipeline, canonicalQuery.get());
     }
 
 
@@ -1340,7 +1336,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
             canonicalQuery->resetDistinct();
             if (canonicalQuery->isSbeCompatible()) {
                 // Stages still need to be finalized for SBE since classic was used previously.
-                finalizePipelineStages(pipeline, unavailableMetadata, canonicalQuery.get());
+                finalizePipelineStages(pipeline, canonicalQuery.get());
             }
             return makePlanner(makeQueryPlannerParams(plannerOptions));
         }
@@ -1810,6 +1806,13 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorCoun
                                            false, /* whether we must return owned BSON */
                                            cq->getFindCommandRequest().getNamespaceOrUUID().nss());
     }
+
+    // Can't encode plan cache key for non-existent collections. Add plan cache key information to
+    // curOp here so both FastCountStage and multi-planner codepaths properly populate it.
+    auto planCache = plan_cache_key_factory::make<PlanCacheKey>(*cq, collection);
+    setOpDebugPlanCacheInfo(opCtx,
+                            PlanCacheInfo{.planCacheKey = planCache.planCacheKeyHash(),
+                                          .planCacheShapeHash = planCache.planCacheShapeHash()});
 
     // If the query is empty, then we can determine the count by just asking the collection
     // for its number of records. This is implemented by the CountStage, and we don't need

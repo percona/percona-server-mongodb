@@ -468,6 +468,72 @@ TEST_F(GRPCClientTest, GRPCClientAppendStatsFailedSession) {
     CommandServiceTestFixtures::runWithServer(serverHandler, clientThreadBody, std::move(options));
 }
 
+TEST_F(GRPCClientTest, UniqueChannelIds) {
+    auto serverHandler = [&](std::shared_ptr<IngressSession>) {
+    };
+
+    auto clientThreadBody = [&](auto& server, auto&) {
+        auto client = makeClient();
+        client->start();
+
+        auto session1 = client
+                            ->connect(server.getListeningAddresses().at(0),
+                                      getReactor(),
+                                      CommandServiceTestFixtures::kDefaultConnectTimeout,
+                                      {})
+                            .get();
+
+        auto session2 = client
+                            ->connect(server.getListeningAddresses().at(1),
+                                      getReactor(),
+                                      CommandServiceTestFixtures::kDefaultConnectTimeout,
+                                      {})
+                            .get();
+
+        ASSERT_NE(session1->getChannelId(), session2->getChannelId());
+    };
+
+    auto options = CommandServiceTestFixtures::makeServerOptions();
+    options.addresses.push_back(
+        HostAndPort(CommandServiceTestFixtures::kBindAddress, test::kLetKernelChoosePort));
+
+    CommandServiceTestFixtures::runWithServer(serverHandler, clientThreadBody, std::move(options));
+}
+
+TEST_F(GRPCClientTest, UniqueChannelIdsAfterDropChannel) {
+    auto serverHandler = [&](std::shared_ptr<IngressSession>) {
+    };
+
+    auto clientThreadBody = [&](auto& server, auto&) {
+        auto client = makeClient();
+        client->start();
+
+        auto session1 = client
+                            ->connect(server.getListeningAddresses().at(0),
+                                      getReactor(),
+                                      CommandServiceTestFixtures::kDefaultConnectTimeout,
+                                      {})
+                            .get();
+
+        client->dropAllChannels_forTest();
+
+        auto session2 = client
+                            ->connect(server.getListeningAddresses().at(0),
+                                      getReactor(),
+                                      CommandServiceTestFixtures::kDefaultConnectTimeout,
+                                      {})
+                            .get();
+
+        ASSERT_NE(session1->getChannelId(), session2->getChannelId());
+    };
+
+    auto options = CommandServiceTestFixtures::makeServerOptions();
+    options.addresses.push_back(
+        HostAndPort(CommandServiceTestFixtures::kBindAddress, test::kLetKernelChoosePort));
+
+    CommandServiceTestFixtures::runWithServer(serverHandler, clientThreadBody, std::move(options));
+}
+
 TEST_F(GRPCClientTest, GRPCClientMetadata) {
     boost::optional<UUID> clientId;
 
@@ -560,6 +626,120 @@ TEST_F(GRPCClientTest, GRPCClientShutdown) {
     };
 
     CommandServiceTestFixtures::runWithServer(serverHandler, clientThreadBody);
+}
+
+class GRPCClientTestWithSystemCA : public GRPCClientTest {
+public:
+    // ClientStart should return false if client startup is expected to fail.
+    using ClientStart = std::function<bool(std::shared_ptr<GRPCClient>&)>;
+    void testClientConnect(bool useSystemCA,
+                           bool allowInvalidCerts,
+                           StringData caFilePath,
+                           ClientStart clientStart) {
+        const std::string sslCertFileOriginalEnv = [] {
+            if (auto res = getenv(kSSLCertFileEnvVar); res != nullptr) {
+                return std::string(res);
+            } else {
+                return std::string();
+            }
+        }();
+        const bool sslUseSystemCAOriginal = sslGlobalParams.sslUseSystemCA;
+
+        ON_BLOCK_EXIT([&]() {
+            setenv(kSSLCertFileEnvVar, sslCertFileOriginalEnv.c_str(), 1);
+            sslGlobalParams.sslUseSystemCA = sslUseSystemCAOriginal;
+        });
+
+        setenv(kSSLCertFileEnvVar, caFilePath.rawData(), 1);
+        sslGlobalParams.sslUseSystemCA = useSystemCA;
+
+        const auto clientThreadBody = [&](auto& server, auto& monitor) {
+            GRPCClient::Options options;
+            options.tlsCertificateKeyFile = CommandServiceTestFixtures::kClientCertificateKeyFile;
+            options.tlsAllowInvalidCertificates = allowInvalidCerts;
+            auto client = makeClient(std::move(options));
+            if (!clientStart(client)) {
+                return;
+            }
+            auto session = client
+                               ->connect(server.getListeningAddresses().at(0),
+                                         getReactor(),
+                                         CommandServiceTestFixtures::kDefaultConnectTimeout,
+                                         {})
+                               .get();
+            assertEchoSucceeds(*session);
+            ASSERT_OK(session->finish());
+        };
+        CommandServiceTestFixtures::runWithServer(CommandServiceTestFixtures::makeEchoHandler(),
+                                                  clientThreadBody,
+                                                  CommandServiceTestFixtures::makeServerOptions());
+    }
+};
+
+TEST_F(GRPCClientTestWithSystemCA, ConnectWithValidCAAndUseSystemCA) {
+    testClientConnect(true /*useSystemCA*/,
+                      false /*allowInvalidCerts*/,
+                      CommandServiceTestFixtures::kCAFile,
+                      [](auto& client) {
+                          client->start();
+                          return true;
+                      });
+}
+
+TEST_F(GRPCClientTestWithSystemCA, ConnectWithoutCaAllowInvalidCerts) {
+    testClientConnect(false /*useSystemCA*/,
+                      true /*allowInvalidCerts*/,
+                      CommandServiceTestFixtures::kCAFile,
+                      [](auto& client) {
+                          client->start();
+                          return true;
+                      });
+}
+
+TEST_F(GRPCClientTestWithSystemCA, ConnectWithValidCAAndWithoutUseSystemCA) {
+    testClientConnect(false /*useSystemCA*/,
+                      false /*allowInvalidCerts*/,
+                      CommandServiceTestFixtures::kCAFile,
+                      [](auto& client) {
+                          ASSERT_THROWS_CODE(client->start(), DBException, 9985604);
+                          return false;
+                      });
+}
+
+TEST_F(GRPCClientTestWithSystemCA, ConnectWithInvalidEnv) {
+    testClientConnect(true /*useSystemCA*/, false /*allowInvalidCerts*/, "", [](auto& client) {
+        ASSERT_THROWS_CODE(client->start(), DBException, 9985601);
+        return false;
+    });
+}
+
+TEST_F(GRPCClientTestWithSystemCA, MissingEnv) {
+    const std::string sslCertFileOriginalEnv = [] {
+        if (auto res = getenv(kSSLCertFileEnvVar); res != nullptr) {
+            return std::string(res);
+        } else {
+            return std::string();
+        }
+    }();
+    const bool sslUseSystemCAOriginal = sslGlobalParams.sslUseSystemCA;
+
+    ON_BLOCK_EXIT([&]() {
+        setenv(kSSLCertFileEnvVar, sslCertFileOriginalEnv.c_str(), 1);
+        sslGlobalParams.sslUseSystemCA = sslUseSystemCAOriginal;
+    });
+
+    unsetenv(kSSLCertFileEnvVar);  // Delete the env variable.
+    sslGlobalParams.sslUseSystemCA = true;
+
+    const auto clientThreadBody = [&](auto& server, auto& monitor) {
+        GRPCClient::Options options;
+        options.tlsCertificateKeyFile = CommandServiceTestFixtures::kClientCertificateKeyFile;
+        auto client = makeClient(std::move(options));
+        ASSERT_THROWS_CODE(client->start(), DBException, 9985601);
+    };
+    CommandServiceTestFixtures::runWithServer(CommandServiceTestFixtures::makeEchoHandler(),
+                                              clientThreadBody,
+                                              CommandServiceTestFixtures::makeServerOptions());
 }
 
 }  // namespace mongo::transport::grpc
