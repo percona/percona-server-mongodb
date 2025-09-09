@@ -131,14 +131,8 @@ CEResult CardinalityEstimator::estimate(const QuerySolutionNode* node) {
             ceRes = estimate(static_cast<const SkipNode*>(node));
             isConjunctionBreaker = true;
             break;
-        case STAGE_SHARDING_FILTER:
-            // TODO SERVER-99073: Implement shard filter
-            MONGO_UNIMPLEMENTED_TASSERT(9907301);
-        case STAGE_DISTINCT_SCAN: {
-            isConjunctionBreaker = true;
-            // TODO SERVER-99075: Implement distinct scan
-            MONGO_UNIMPLEMENTED_TASSERT(9907501);
-        }
+        case STAGE_SHARDING_FILTER:  // TODO SERVER-99073: Implement shard filter
+        case STAGE_DISTINCT_SCAN:    // TODO SERVER-99075: Implement distinct scan
         case STAGE_TEXT_OR:
         case STAGE_TEXT_MATCH:
         case STAGE_GEO_NEAR_2D:
@@ -341,9 +335,8 @@ CEResult CardinalityEstimator::estimate(const MatchExpression* node, const bool 
             ceRes = estimate(static_cast<const ElemMatchValueMatchExpression*>(node), isFilterRoot);
             break;
         case MatchExpression::ELEM_MATCH_OBJECT:
-            ceRes =
-                estimate(static_cast<const ElemMatchObjectMatchExpression*>(node), isFilterRoot);
-            break;
+            // TODO SERVER-100293
+            return Status(ErrorCodes::UnsupportedCbrNode, "elemMatchObject supported");
         default:
             MONGO_UNIMPLEMENTED_TASSERT(9586708);
     }
