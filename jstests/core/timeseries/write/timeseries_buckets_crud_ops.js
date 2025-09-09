@@ -45,13 +45,17 @@ function crudTest(fn, addStartingMeasurements = true) {
 
 // aggregate()
 crudTest(() => {
-    const buckets = bucketsColl.find().toArray();
-    assert.eq(buckets.length, 2);
-    const correctBucket = buckets.filter(bucket => bucket.control.count == 2)[0];
-    assert(correctBucket);
-    const agg = bucketsColl.aggregate([
-        {$match: {"control.count": 2}},
-    ]);
+    // TODO (SERVER-100413): Run this test case when going through a mongos or the collection is
+    // sharded/unsplittable.
+    if (FixtureHelpers.isMongos(db) || FixtureHelpers.isSharded(bucketsColl) ||
+        FixtureHelpers.isUnsplittable(bucketsColl)) {
+        return;
+    }
+    const agg = coll.aggregate(
+        [
+            {$match: {"control.count": 2}},
+        ],
+        {rawData: true});
     assert.eq(agg.toArray().length, 1);
 });
 
@@ -68,10 +72,6 @@ crudTest(() => {
 
 // count()
 crudTest(() => {
-    // TODO (SERVER-99409): Run this test case when the collection is sharded or unsplittable.
-    if (FixtureHelpers.isSharded(bucketsColl) || FixtureHelpers.isUnsplittable(bucketsColl)) {
-        return;
-    }
     assert.eq(coll.count({"control.count": 2}, {rawData: true}), 1);
 });
 
@@ -97,24 +97,12 @@ crudTest(() => {
 
 // find()
 crudTest(() => {
-    // TODO (SERVER-100232): Run this test case when going through a mongos or the collection is
-    // sharded/unsplittable.
-    if (FixtureHelpers.isMongos(db) || FixtureHelpers.isSharded(bucketsColl) ||
-        FixtureHelpers.isUnsplittable(bucketsColl)) {
-        return;
-    }
     assert.eq(coll.find().rawData().length(), 2);
     assert.eq(coll.find({"control.count": 2}).rawData().length(), 1);
 });
 
 // findOne()
 crudTest(() => {
-    // TODO (SERVER-100232): Run this test case when going through a mongos or the collection is
-    // sharded/unsplittable.
-    if (FixtureHelpers.isMongos(db) || FixtureHelpers.isSharded(bucketsColl) ||
-        FixtureHelpers.isUnsplittable(bucketsColl)) {
-        return;
-    }
     const retrievedBucket =
         coll.findOne({"control.count": 2}, null, null, null, null, true /* rawData */);
     assert.eq(retrievedBucket.control.count, 2);

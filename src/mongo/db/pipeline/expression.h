@@ -125,7 +125,7 @@ class BSONElement;
                                       parser,                        \
                                       AllowedWithApiStrict::kAlways, \
                                       AllowedWithClientType::kAny,   \
-                                      boost::none,                   \
+                                      kDoesNotRequireFeatureFlag,    \
                                       true)
 
 /**
@@ -149,18 +149,18 @@ class BSONElement;
  * parser and enforce the 'sometimes' behavior during that invocation. No extra validation will be
  * done here.
  */
-#define REGISTER_EXPRESSION_WITH_FEATURE_FLAG(                         \
-    key, parser, allowedWithApiStrict, allowedClientType, featureFlag) \
-    REGISTER_EXPRESSION_CONDITIONALLY(                                 \
-        key,                                                           \
-        parser,                                                        \
-        allowedWithApiStrict,                                          \
-        allowedClientType,                                             \
-        featureFlag,                                                   \
-        (boost::optional<FeatureFlag>(featureFlag) == boost::none ||   \
-         boost::optional<FeatureFlag>(featureFlag)                     \
-             ->isEnabledUseLatestFCVWhenUninitialized(                 \
-                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot())))
+#define REGISTER_EXPRESSION_WITH_FEATURE_FLAG(                                  \
+    key, parser, allowedWithApiStrict, allowedClientType, featureFlag)          \
+    REGISTER_EXPRESSION_CONDITIONALLY(                                          \
+        key,                                                                    \
+        parser,                                                                 \
+        allowedWithApiStrict,                                                   \
+        allowedClientType,                                                      \
+        featureFlag,                                                            \
+        CheckableFeatureFlagRef(featureFlag).isEnabled([](auto& fcvGatedFlag) { \
+            return fcvGatedFlag.isEnabledUseLatestFCVWhenUninitialized(         \
+                serverGlobalParams.featureCompatibility.acquireFCVSnapshot());  \
+        }))
 
 /**
  * Registers a Parser only if test commands are enabled. Use this if your expression is only used
@@ -171,7 +171,7 @@ class BSONElement;
                                       parser,                                          \
                                       allowedWithApiStrict,                            \
                                       allowedClientType,                               \
-                                      boost::none,                                     \
+                                      kDoesNotRequireFeatureFlag,                      \
                                       getTestCommandsEnabled())
 
 class Expression : public RefCountable {
@@ -326,7 +326,7 @@ public:
                                    Parser parser,
                                    AllowedWithApiStrict allowedWithApiStrict,
                                    AllowedWithClientType allowedWithClientType,
-                                   boost::optional<FeatureFlag> featureFlag);
+                                   CheckableFeatureFlagRef featureFlag);
 
     const ExpressionVector& getChildren() const {
         return _children;
@@ -554,7 +554,7 @@ public:
         // As a special case, we would like to serialize a variadic number of children as
         // "?array<?subtype>" if they are all constant. Check for that here, otherwise default to
         // the normal one-by-one serialization of the children.
-        if (options.literalPolicy == LiteralSerializationPolicy::kToDebugTypeString &&
+        if (options.isSerializingLiteralsAsDebugTypes() &&
             ExpressionConstant::allConstant(this->_children)) {
             // We could evaluate the expression right here and now and end up with just the one
             // constant answer, but this is not an optimization funciton, it is meant to just

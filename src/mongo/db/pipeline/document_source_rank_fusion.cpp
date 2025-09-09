@@ -372,7 +372,7 @@ auto setWindowFields(const auto& expCtx, const std::string& rankFieldName) {
  * Builds and returns an $addFields stage like this one:
  * {$addFields: {
  *      prefix_scoreDetails:
- *          {$ifNull: [{$meta: "scoreDetails"}, {value: score, details: "Not Calculated"}]}
+ *          {$ifNull: [{$meta: "scoreDetails"}, {value: score, details: []]}]}
  *      }
  *  }
  */
@@ -383,12 +383,12 @@ auto addScoreDetails(const boost::intrusive_ptr<ExpressionContext>& expCtx,
     {
         BSONObjBuilder addFieldsBob(bob.subobjStart("$addFields"_sd));
         addFieldsBob.append(scoreDetails,
-                            BSON("$ifNull" << BSON_ARRAY(BSON("$meta"
-                                                              << "scoreDetails")
-                                                         << BSON("value" << BSON("$meta"
-                                                                                 << "score")
-                                                                         << "details"
-                                                                         << "Not Calculated"))));
+                            BSON("$ifNull" << BSON_ARRAY(
+                                     BSON("$meta"
+                                          << "scoreDetails")
+                                     << BSON("value" << BSON("$meta"
+                                                             << "score")
+                                                     << "details" << BSONArrayBuilder().arr()))));
     }
     const auto spec = bob.obj();
     return DocumentSourceAddFields::createFromBson(spec.firstElement(), expCtx);
@@ -518,29 +518,51 @@ BSONObj calculateFinalScore(
     return BSON("$addFields" << BSON("score" << allInputs()));
 }
 
-BSONObj calculateFinalScoreDetails(
-    const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& inputs) {
-    // Generate the following string for each pipeline:
-    // "name: {rank: $name_rank, details: $name_scoreDetails}""
-    // And add them all to an array to be merged together.
-    BSONObjBuilder bob;
-    BSONArrayBuilder mergeNamedDetailsBob(bob.subarrayStart("$mergeObjects"_sd));
-    for (auto it = inputs.begin(); it != inputs.end(); it++) {
-        mergeNamedDetailsBob.append(fromjson(
-            fmt::format("{{{0}: {{$mergeObjects: [{{rank: '${0}_rank'}}, '${0}_scoreDetails']}}}}",
-                        it->first)));
-    }
-    mergeNamedDetailsBob.done();
+boost::intrusive_ptr<DocumentSource> calculateFinalScoreDetails(
+    const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& inputs,
+    const boost::intrusive_ptr<ExpressionContext>& expCtx) {
     // Create the following object:
     /*
         { $addFields: {
-            calculatedScoreDetails: {
-                $mergeObjects: [<generated above>]
-            }
-        }
+            calculatedScoreDetails: [
+            {
+                $mergeObjects: [
+                    {inputPipelineName: "name1", rank: "$name1_rank"},
+                    "$name1_scoreDetails"
+                ]
+            },
+            {
+                $mergeObjects: [
+                    {inputPipelineName: "name2", rank: "$name2_rank"},
+                    "$name2_scoreDetails"
+                ]
+            },
+            ...
+            ]
+        }}
     */
-    return fromjson(
-        fmt::format("{{$addFields: {{calculatedScoreDetails: {0}}}}}", bob.obj().toString()));
+    std::vector<boost::intrusive_ptr<Expression>> detailsChildren;
+    for (auto it = inputs.begin(); it != inputs.end(); it++) {
+        const std::string rankFieldName = fmt::format("${}_rank", it->first);
+        const std::string scoreDetailsFieldName = fmt::format("${}_scoreDetails", it->first);
+
+        auto mergeObjectsObj =
+            BSON("$mergeObjects"_sd
+                 << BSON_ARRAY(BSON("inputPipelineName" << it->first << "rank"_sd << rankFieldName)
+                               << scoreDetailsFieldName));
+        boost::intrusive_ptr<Expression> mergeObjectsExpr =
+            ExpressionFromAccumulator<AccumulatorMergeObjects>::parse(
+                expCtx.get(), mergeObjectsObj.firstElement(), expCtx->variablesParseState);
+
+        detailsChildren.push_back(std::move(mergeObjectsExpr));
+    }
+
+    boost::intrusive_ptr<Expression> arrayExpr =
+        ExpressionArray::create(expCtx.get(), std::move(detailsChildren));
+
+    auto addFields = DocumentSourceAddFields::create(
+        "calculatedScoreDetails"_sd, std::move(arrayExpr), expCtx.get());
+    return addFields;
 }
 
 boost::intrusive_ptr<DocumentSource> buildUnionWithPipeline(
@@ -589,8 +611,8 @@ std::list<boost::intrusive_ptr<DocumentSource>> buildScoreAndMergeStages(
                                           SbeCompatibility::noRequirements);
 
     if (includeScoreDetails) {
-        auto addFieldsDetails = DocumentSourceAddFields::createFromBson(
-            calculateFinalScoreDetails(inputPipelines).firstElement(), expCtx);
+        boost::intrusive_ptr<DocumentSource> addFieldsDetails =
+            calculateFinalScoreDetails(inputPipelines, expCtx);
         auto setDetails = DocumentSourceSetMetadata::create(
             expCtx,
             Expression::parseObject(expCtx.get(),

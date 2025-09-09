@@ -34,6 +34,8 @@
 #include "mongo/db/query/write_ops/write_ops_exec_util.h"
 #include "mongo/db/shard_role.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
+#include "mongo/db/timeseries/bucket_catalog/bucket_catalog_helpers.h"
+#include "mongo/db/timeseries/bucket_catalog/bucket_catalog_internal.h"
 #include "mongo/db/timeseries/bucket_catalog/global_bucket_catalog.h"
 #include "mongo/db/timeseries/bucket_compression.h"
 #include "mongo/db/timeseries/bucket_compression_failure.h"
@@ -55,6 +57,8 @@ namespace {
 MONGO_FAIL_POINT_DEFINE(failAtomicTimeseriesWrites);
 MONGO_FAIL_POINT_DEFINE(failUnorderedTimeseriesInsert);
 MONGO_FAIL_POINT_DEFINE(hangInsertIntoBucketCatalogBeforeCheckingTimeseriesCollection);
+MONGO_FAIL_POINT_DEFINE(hangCommitTimeseriesBucketBeforeCheckingTimeseriesCollection);
+MONGO_FAIL_POINT_DEFINE(hangCommitTimeseriesBucketsAtomicallyBeforeCheckingTimeseriesCollection);
 MONGO_FAIL_POINT_DEFINE(hangTimeseriesInsertBeforeCommit);
 
 
@@ -372,6 +376,8 @@ bool commitTimeseriesBucketsAtomically(OperationContext* opCtx,
                                        TimeseriesStmtIds&& stmtIds,
                                        boost::optional<repl::OpTime>* opTime,
                                        boost::optional<OID>* electionId) {
+    hangCommitTimeseriesBucketsAtomicallyBeforeCheckingTimeseriesCollection.pauseWhileSet();
+
     auto& bucketCatalog = bucket_catalog::GlobalBucketCatalog::get(opCtx->getServiceContext());
 
     auto batchesToCommit = timeseries::determineBatchesToCommit(batches, extractFromPair);
@@ -391,19 +397,47 @@ bool commitTimeseriesBucketsAtomically(OperationContext* opCtx,
     try {
         std::vector<mongo::write_ops::InsertCommandRequest> insertOps;
         std::vector<mongo::write_ops::UpdateCommandRequest> updateOps;
-        auto catalog = CollectionCatalog::get(opCtx);
         auto nss = write_ops_utils::makeTimeseriesBucketsNamespace(internal::ns(request));
-        auto bucketsColl = catalog->lookupCollectionByNamespace(opCtx, nss);
-        assertTimeseriesBucketsCollection(bucketsColl);
+
+        // Explicitly hold a reference to the CollectionCatalog, such that the corresponding
+        // Collection instances remain valid, and the collator is not invalidated.
+        auto catalog = CollectionCatalog::get(opCtx);
+        const CollatorInterface* collator = nullptr;
+
+        try {
+            // The associated collection must be acquired before we check for the presence of
+            // buckets collection. This ensures that a potential ShardVersion mismatch can be
+            // detected, before checking for other errors. Moreover, since e.g. 'prepareCommit()'
+            // might block waiting for other batches to complete, limiting the scope of the
+            // collectionAcquisition is necessary to prevent deadlocks due to ticket exhaustion.
+            const auto acquisition =
+                acquireCollection(opCtx,
+                                  CollectionAcquisitionRequest::fromOpCtx(
+                                      opCtx, nss, AcquisitionPrerequisites::kRead),
+                                  MODE_IS);
+            auto bucketsColl = acquisition.getCollectionPtr().get();
+            assertTimeseriesBucketsCollection(bucketsColl);
+            collator = bucketsColl->getDefaultCollator();
+        } catch (const DBException& ex) {
+            if (ex.code() != ErrorCodes::StaleDbVersion &&
+                !ErrorCodes::isStaleShardVersionError(ex)) {
+                throw;
+            }
+            // The unsuccessful ordered timeseries insert will resolve into a sequence of unordered
+            // inserts. Therefore, do not set the failed operation status on the operation sharding
+            // state here, as it will be set during the unordered insert attempt.
+            abortStatus = ex.toStatus();
+            return false;
+        }
+
         for (auto batch : batchesToCommit) {
             auto metadata = getMetadata(bucketCatalog, batch.get()->bucketId);
-            auto prepareCommitStatus = bucket_catalog::prepareCommit(
-                bucketCatalog, batch, bucketsColl->getDefaultCollator());
+            auto prepareCommitStatus =
+                bucket_catalog::prepareCommit(bucketCatalog, batch, collator);
             if (!prepareCommitStatus.isOK()) {
                 abortStatus = prepareCommitStatus;
                 return false;
             }
-
             write_ops_utils::makeWriteRequest(
                 opCtx, batch, metadata, stmtIds, nss, &insertOps, &updateOps);
         }
@@ -795,14 +829,43 @@ bool commitTimeseriesBucket(OperationContext* opCtx,
                             std::vector<size_t>* docsToRetry,
                             absl::flat_hash_map<int, int>& retryAttemptsForDup,
                             const mongo::write_ops::InsertCommandRequest& request) try {
-    auto& bucketCatalog = bucket_catalog::GlobalBucketCatalog::get(opCtx->getServiceContext());
+    hangCommitTimeseriesBucketBeforeCheckingTimeseriesCollection.pauseWhileSet();
 
+    auto& bucketCatalog = bucket_catalog::GlobalBucketCatalog::get(opCtx->getServiceContext());
     auto metadata = getMetadata(bucketCatalog, batch->bucketId);
-    auto catalog = CollectionCatalog::get(opCtx);
     auto nss = write_ops_utils::makeTimeseriesBucketsNamespace(internal::ns(request));
-    auto bucketsColl = catalog->lookupCollectionByNamespace(opCtx, nss);
-    assertTimeseriesBucketsCollection(bucketsColl);
-    auto status = prepareCommit(bucketCatalog, batch, bucketsColl->getDefaultCollator());
+
+    // Explicitly hold a reference to the CollectionCatalog, such that the corresponding
+    // Collection instances remain valid, and the collator is not invalidated.
+    auto catalog = CollectionCatalog::get(opCtx);
+    const CollatorInterface* collator = nullptr;
+
+    try {
+        // The associated collection must be acquired before we check for the presence of
+        // buckets collection. This ensures that a potential ShardVersion mismatch can be
+        // detected, before checking for other errors. Moreover, since e.g. 'prepareCommit()' might
+        // block waiting for other batches to complete, limiting the scope of the
+        // collectionAcquisition is necessary to prevent deadlocks due to ticket exhaustion.
+        const auto acquisition = acquireCollection(
+            opCtx,
+            CollectionAcquisitionRequest::fromOpCtx(opCtx, nss, AcquisitionPrerequisites::kRead),
+            MODE_IS);
+        auto bucketsColl = acquisition.getCollectionPtr().get();
+        assertTimeseriesBucketsCollection(bucketsColl);
+        collator = bucketsColl->getDefaultCollator();
+    } catch (const DBException& ex) {
+        if (ex.code() != ErrorCodes::StaleDbVersion && !ErrorCodes::isStaleShardVersionError(ex)) {
+            throw;
+        }
+        auto& oss{OperationShardingState::get(opCtx)};
+        oss.setShardingOperationFailedStatus(ex.toStatus());
+        const auto error{
+            write_ops_exec::generateError(opCtx, ex.toStatus(), start + index, errors->size())};
+        errors->emplace_back(std::move(*error));
+        return false;
+    }
+
+    auto status = prepareCommit(bucketCatalog, batch, collator);
     if (!status.isOK()) {
         invariant(bucket_catalog::isWriteBatchFinished(*batch));
         docsToRetry->push_back(index);
@@ -919,6 +982,138 @@ size_t performOrderedTimeseriesWrites(OperationContext* opCtx,
     }
 
     return request.getDocuments().size();
+}
+
+StatusWith<std::vector<bucket_catalog::BatchedInsertContext>> buildBatchedInsertContextsNoMetaField(
+    const bucket_catalog::BucketCatalog& bucketCatalog,
+    const UUID& collectionUUID,
+    const TimeseriesOptions& timeseriesOptions,
+    const std::vector<BSONObj>& userMeasurementsBatch,
+    bucket_catalog::ExecutionStatsController& stats,
+    tracking::Context& trackingContext) {
+
+    std::vector<bucket_catalog::BatchedInsertTuple> batchedInsertTupleVector;
+
+    // As part of the InsertBatchTuple struct we store the index of the measurement in the original
+    // user batch for error reporting and retryability purposes.
+    for (size_t i = 0; i < userMeasurementsBatch.size(); i++) {
+        auto swTime =
+            bucket_catalog::extractTime(userMeasurementsBatch[i], timeseriesOptions.getTimeField());
+        if (!swTime.isOK()) {
+            return swTime.getStatus();
+        }
+        batchedInsertTupleVector.emplace_back(userMeasurementsBatch[i], swTime.getValue(), i);
+    }
+
+    // Empty metadata.
+    BSONElement metadata;
+    auto bucketKey = bucket_catalog::BucketKey{
+        collectionUUID, bucket_catalog::BucketMetadata{trackingContext, metadata, boost::none}};
+    auto stripeNumber = bucket_catalog::internal::getStripeNumber(bucketCatalog, bucketKey);
+
+    std::sort(
+        batchedInsertTupleVector.begin(), batchedInsertTupleVector.end(), [](auto& lhs, auto& rhs) {
+            // Sort measurements on their timeField.
+            return std::get<Date_t>(lhs) < std::get<Date_t>(rhs);
+        });
+
+    return {{bucket_catalog::BatchedInsertContext(
+        bucketKey, stripeNumber, timeseriesOptions, stats, batchedInsertTupleVector)}};
+};
+
+StatusWith<std::vector<bucket_catalog::BatchedInsertContext>>
+buildBatchedInsertContextsWithMetaField(const bucket_catalog::BucketCatalog& bucketCatalog,
+                                        const UUID& collectionUUID,
+                                        const TimeseriesOptions& timeseriesOptions,
+                                        const std::vector<BSONObj>& userMeasurementsBatch,
+                                        StringData metaFieldName,
+                                        bucket_catalog::ExecutionStatsController& stats,
+                                        tracking::Context& trackingContext) {
+    // Maps from the string representation of a distinct metaField value to a vector of
+    // BatchedInsertTuples whose measurements have that same metaField value.
+    stdx::unordered_map<std::string, std::vector<bucket_catalog::BatchedInsertTuple>>
+        metaFieldToBatchedInsertTuples;
+    // Maps from the string representation of a metaField value to the BSONElement of that metaField
+    // value. Workaround for the fact that BSONElements are not hashable.
+    stdx::unordered_map<std::string, BSONElement> metaFieldStringToBSONElement;
+
+    // Go through the vector of user measurements and create a map from each distinct metaField
+    // value to a vector of InsertBatchTuples for that metaField. As part of the InsertBatchTuple
+    // struct we store the index of the measurement in the original user batch for error reporting
+    // and retryability purposes.
+    for (size_t i = 0; i < userMeasurementsBatch.size(); i++) {
+        auto swTimeAndMeta =
+            bucket_catalog::extractTimeAndMeta(userMeasurementsBatch[i],
+                                               timeseriesOptions.getTimeField(),
+                                               timeseriesOptions.getMetaField().get());
+        if (!swTimeAndMeta.isOK()) {
+            return swTimeAndMeta.getStatus();
+        }
+        auto time = std::get<Date_t>(swTimeAndMeta.getValue());
+        auto meta = std::get<BSONElement>(swTimeAndMeta.getValue());
+
+        metaFieldStringToBSONElement.try_emplace(meta.String(), meta);
+        metaFieldToBatchedInsertTuples.try_emplace(
+            meta.String(), std::vector<bucket_catalog::BatchedInsertTuple>{});
+
+        metaFieldToBatchedInsertTuples[meta.String()].emplace_back(
+            userMeasurementsBatch[i], time, i);
+    }
+
+    std::vector<bucket_catalog::BatchedInsertContext> batchedInsertContexts;
+
+    // Go through all meta-unique batches, sort by time, and fill result
+    for (auto& [metaFieldString, batchedInsertTupleVector] : metaFieldToBatchedInsertTuples) {
+        std::sort(batchedInsertTupleVector.begin(),
+                  batchedInsertTupleVector.end(),
+                  [](auto& lhs, auto& rhs) {
+                      // Sort measurements on their timeField.
+                      return std::get<Date_t>(lhs) < std::get<Date_t>(rhs);
+                  });
+        auto metadata = metaFieldStringToBSONElement[metaFieldString];
+        auto bucketKey = bucket_catalog::BucketKey{
+            collectionUUID, bucket_catalog::BucketMetadata{trackingContext, metadata, boost::none}};
+        auto stripeNumber = bucket_catalog::internal::getStripeNumber(bucketCatalog, bucketKey);
+
+        batchedInsertContexts.emplace_back(bucket_catalog::BatchedInsertContext(
+            bucketKey, stripeNumber, timeseriesOptions, stats, batchedInsertTupleVector));
+    }
+
+    return batchedInsertContexts;
+}
+
+StatusWith<std::vector<bucket_catalog::BatchedInsertContext>> buildBatchedInsertContexts(
+    bucket_catalog::BucketCatalog& bucketCatalog,
+    const UUID& collectionUUID,
+    const TimeseriesOptions& timeseriesOptions,
+    const std::vector<BSONObj>& userMeasurementsBatch) {
+
+    auto metaFieldName = timeseriesOptions.getMetaField();
+    auto& trackingContext = bucket_catalog::getTrackingContext(
+        bucketCatalog.trackingContexts, bucket_catalog::TrackingScope::kOpenBucketsByKey);
+    auto stats =
+        bucket_catalog::internal::getOrInitializeExecutionStats(bucketCatalog, collectionUUID);
+
+    auto swBatchedInsertContexts = (metaFieldName)
+        ? buildBatchedInsertContextsWithMetaField(bucketCatalog,
+                                                  collectionUUID,
+                                                  timeseriesOptions,
+                                                  userMeasurementsBatch,
+                                                  metaFieldName.get(),
+                                                  stats,
+                                                  trackingContext)
+        : buildBatchedInsertContextsNoMetaField(bucketCatalog,
+                                                collectionUUID,
+                                                timeseriesOptions,
+                                                userMeasurementsBatch,
+                                                stats,
+                                                trackingContext);
+
+    if (!swBatchedInsertContexts.isOK()) {
+        return swBatchedInsertContexts.getStatus();
+    }
+
+    return swBatchedInsertContexts.getValue();
 }
 
 }  // namespace internal

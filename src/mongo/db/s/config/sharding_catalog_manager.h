@@ -58,7 +58,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/optime_with.h"
 #include "mongo/db/repl/read_concern_level.h"
-#include "mongo/db/s/remove_shard_draining_progress_gen.h"
+#include "mongo/db/s/remove_shard_exception.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_cache.h"
@@ -85,40 +85,6 @@
 #include "mongo/util/uuid.h"
 
 namespace mongo {
-
-// TODO (SERVER-97816): remove these helpers and move the implementations into the add/remove shard
-// coordinators once 9.0 becomes last LTS.
-namespace topology_change_helpers {
-
-// Returns the count of range deletion tasks locally on the config server.
-long long getRangeDeletionCount(OperationContext* opCtx);
-
-// Calls ShardsvrJoinMigrations locally on the config server.
-void joinMigrations(OperationContext* opCtx);
-
-/**
- * Used during addShard to determine if there is already an existing shard that matches the shard
- * that is currently being added. An OK return with boost::none indicates that there is no
- * conflicting shard, and we can proceed trying to add the new shard. An OK return with a ShardType
- * indicates that there is an existing shard that matches the shard being added but since the
- * options match, this addShard request can do nothing and return success. A non-OK return either
- * indicates a problem reading the existing shards from disk or more likely indicates that an
- * existing shard conflicts with the shard being added and they have different options, so the
- * addShard attempt must be aborted.
- */
-StatusWith<boost::optional<ShardType>> checkIfShardExists(
-    OperationContext* opCtx,
-    const ConnectionString& proposedShardConnectionString,
-    const boost::optional<StringData>& proposedShardName,
-    ShardingCatalogClient& localCatalogClient);
-
-/**
- * Given the shard draining state, returns the message that should be included as part of the remove
- * shard response.
- */
-std::string getRemoveShardMessage(const ShardDrainingStateEnum& status);
-
-}  // namespace topology_change_helpers
 
 struct DrainingShardUsage {
     RemainingCounts removeShardCounts;
@@ -812,21 +778,6 @@ private:
      */
     void _setUserWriteBlockingStateOnNewShard(OperationContext* opCtx,
                                               RemoteCommandTargeter* targeter);
-
-    using FetcherDocsCallbackFn = std::function<bool(const std::vector<BSONObj>& batch)>;
-    using FetcherStatusCallbackFn = std::function<void(const Status& status)>;
-
-    /**
-     * Creates a Fetcher task for fetching documents in the given collection on the given shard.
-     * After the task is scheduled, applies 'processDocsCallback' to each fetched batch and
-     * 'processStatusCallback' to the fetch status.
-     */
-    std::unique_ptr<Fetcher> _createFetcher(OperationContext* opCtx,
-                                            std::shared_ptr<RemoteCommandTargeter> targeter,
-                                            const NamespaceString& nss,
-                                            const repl::ReadConcernLevel& readConcernLevel,
-                                            FetcherDocsCallbackFn processDocsCallback,
-                                            FetcherStatusCallbackFn processStatusCallback);
 
     /**
      * Gets the cluster time keys on the given shard and then saves them locally.

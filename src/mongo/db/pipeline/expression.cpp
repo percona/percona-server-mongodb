@@ -98,9 +98,8 @@ Value ExpressionConstant::serializeConstant(const SerializationOptions& opts,
     // constant arguments (e.g. variadic expressions - SERVER-84159).
     // Debug shapes never wrap constants in $const to reduce shape size (and because re-parsing
     // support is not a consideration there).
-    if ((opts.literalPolicy == LiteralSerializationPolicy::kUnchanged) ||
-        (wrapRepresentativeValue &&
-         opts.literalPolicy == LiteralSerializationPolicy::kToRepresentativeParseableValue)) {
+    if (opts.isKeepingLiteralsUnchanged() ||
+        (wrapRepresentativeValue && opts.isReplacingLiteralsWithRepresentativeValues())) {
         return Value(DOC("$const" << opts.serializeLiteral(val)));
     }
 
@@ -143,7 +142,7 @@ struct ParserRegistration {
     Parser parser;
     AllowedWithApiStrict allowedWithApiStrict;
     AllowedWithClientType allowedWithClientType;
-    boost::optional<FeatureFlag> featureFlag;
+    CheckableFeatureFlagRef featureFlag;
 };
 
 StringMap<ParserRegistration> parserMap;
@@ -153,7 +152,7 @@ void Expression::registerExpression(string key,
                                     Parser parser,
                                     AllowedWithApiStrict allowedWithApiStrict,
                                     AllowedWithClientType allowedWithClientType,
-                                    boost::optional<FeatureFlag> featureFlag) {
+                                    CheckableFeatureFlagRef featureFlag) {
     auto op = parserMap.find(key);
     massert(17064,
             str::stream() << "Duplicate expression (" << key << ") registered.",
@@ -498,8 +497,7 @@ Value ExpressionArray::evaluate(const Document& root, Variables* variables) cons
 }
 
 Value ExpressionArray::serialize(const SerializationOptions& options) const {
-    if (options.literalPolicy != LiteralSerializationPolicy::kUnchanged &&
-        selfAndChildrenAreConstant()) {
+    if (!options.isKeepingLiteralsUnchanged() && selfAndChildrenAreConstant()) {
         return ExpressionConstant::serializeConstant(
             options, evaluate(Document{}, &(getExpressionContext()->variables)));
     }
@@ -1596,8 +1594,7 @@ bool ExpressionObject::selfAndChildrenAreConstant() const {
 }
 
 Value ExpressionObject::serialize(const SerializationOptions& options) const {
-    if (options.literalPolicy != LiteralSerializationPolicy::kUnchanged &&
-        selfAndChildrenAreConstant()) {
+    if (!options.isKeepingLiteralsUnchanged() && selfAndChildrenAreConstant()) {
         return ExpressionConstant::serializeConstant(options, Value(Document{}));
     }
     MutableDocument outputDoc;
@@ -2039,7 +2036,7 @@ REGISTER_EXPRESSION_CONDITIONALLY(meta,
                                   ExpressionMeta::parse,
                                   AllowedWithApiStrict::kConditionally,
                                   AllowedWithClientType::kAny,
-                                  boost::none,
+                                  kDoesNotRequireFeatureFlag,
                                   true);
 
 void ExpressionMeta::_assertMetaFieldCompatibleWithStrictAPI(ExpressionContext* const expCtx,
@@ -2174,8 +2171,7 @@ REGISTER_EXPRESSION_CONDITIONALLY(
     ExpressionInternalRawSortKey::parse,
     AllowedWithApiStrict::kInternal,
     AllowedWithClientType::kInternal,
-    // No feature flag.
-    boost::none,
+    kDoesNotRequireFeatureFlag,
     true);  // The 'condition' is always true - we just wanted to restrict to internal.
 
 intrusive_ptr<Expression> ExpressionInternalRawSortKey::parse(ExpressionContext* const expCtx,
@@ -3930,7 +3926,7 @@ Value ExpressionConvert::serialize(const SerializationOptions& options) const {
     Value toField = Value();
     if (!constExpr) {
         toField = _children[_kTo]->serialize(options);
-    } else if (options.literalPolicy == LiteralSerializationPolicy::kToDebugTypeString) {
+    } else if (options.isSerializingLiteralsAsDebugTypes()) {
         toField = constExpr->getValue();
     } else {
         toField = Value(DOC("$const" << constExpr->getValue()));
@@ -4619,8 +4615,7 @@ Value ExpressionGetField::serialize(const SerializationOptions& options) const {
         // However, if we are serializing for a debug string and the string looks like a field
         // reference, it should be wrapped in $const to make it unambiguous with actual field
         // references.
-        if (options.literalPolicy != LiteralSerializationPolicy::kToDebugTypeString ||
-            strPath[0] == '$') {
+        if (!options.isSerializingLiteralsAsDebugTypes() || strPath[0] == '$') {
             maybeRedactedPath = Value(Document{{"$const"_sd, maybeRedactedPath}});
         }
         fieldValue = maybeRedactedPath;
@@ -4701,7 +4696,7 @@ Value ExpressionSetField::serialize(const SerializationOptions& options) const {
     // means that it:
     //  - should be redacted (if that option is set).
     //  - should *not* be wrapped in $const iff we are serializing for a debug string
-    if (options.literalPolicy != LiteralSerializationPolicy::kToDebugTypeString) {
+    if (!options.isSerializingLiteralsAsDebugTypes()) {
         maybeRedactedPath = Value(Document{{"$const"_sd, maybeRedactedPath}});
     }
 

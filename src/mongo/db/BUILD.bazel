@@ -1347,6 +1347,7 @@ mongo_cc_library(
         "//src/mongo/db/exec:near.h",
         "//src/mongo/db/exec:or.h",
         "//src/mongo/db/exec:orphan_chunk_skipper.h",
+        "//src/mongo/db/exec:plan_cache_callbacks_impl.h",
         "//src/mongo/db/exec:plan_cache_util.h",
         "//src/mongo/db/exec:plan_stage.h",
         "//src/mongo/db/exec:projection.h",
@@ -1928,6 +1929,7 @@ mongo_cc_library(
         "dump_lock_manager.cpp",
         "feature_compatibility_version_parser.cpp",
         "feature_flag.cpp",
+        "feature_flag_server_parameter.cpp",
         "generic_argument_util.cpp",
         "index_names.cpp",
         "keypattern.cpp",
@@ -1990,6 +1992,7 @@ mongo_cc_library(
         "//src/mongo/db:feature_compatibility_version_documentation.h",
         "//src/mongo/db:feature_compatibility_version_parser.h",
         "//src/mongo/db:feature_flag.h",
+        "//src/mongo/db:feature_flag_server_parameter.h",
         "//src/mongo/db:generic_argument_util.h",
         "//src/mongo/db:index_names.h",
         "//src/mongo/db:keypattern.h",
@@ -4445,7 +4448,6 @@ mongo_cc_benchmark(
 mongo_cc_benchmark(
     name = "service_entry_point_shard_role_bm",
     srcs = [
-        "profiler_bm_fixture.h",
         "service_entry_point_bm_fixture.h",
         "service_entry_point_shard_role_bm.cpp",
     ],
@@ -4467,6 +4469,7 @@ mongo_cc_benchmark(
         "//src/mongo/db/s:sharding_runtime_d",
         "//src/mongo/db/storage:storage_control",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
+        "//src/mongo/unittest:benchmark_util",
         "//src/mongo/util:periodic_runner_factory",
     ],
 )

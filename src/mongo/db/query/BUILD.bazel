@@ -786,6 +786,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/query/query_shape:distinct_cmd_shape_test.cpp",
         "//src/mongo/db/query/query_shape:find_cmd_shape_test.cpp",
         "//src/mongo/db/query/query_shape:let_shape_component_test.cpp",
+        "//src/mongo/db/query/query_shape:serialization_options_test.cpp",
         "//src/mongo/db/query/stage_builder:classic_stage_builder_test.cpp",
         "//src/mongo/db/query/stage_builder/sbe/tests:and_hash_test.cpp",
         "//src/mongo/db/query/stage_builder/sbe/tests:and_sorted_test.cpp",
@@ -920,7 +921,6 @@ mongo_cc_library(
     ],
     hdrs = [
         "query_bm_fixture.h",
-        "//src/mongo/db:profiler_bm_fixture.h",
     ],
     deps = [
         "query_planner_test_fixture",
@@ -929,6 +929,7 @@ mongo_cc_library(
         "//src/mongo/db:service_context_d",
         "//src/mongo/db/catalog:catalog_test_fixture",
         "//src/mongo/db/repl:storage_interface_impl",
+        "//src/mongo/unittest:benchmark_util",
         "//src/third_party/benchmark",
     ],
 )

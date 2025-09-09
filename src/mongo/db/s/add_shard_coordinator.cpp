@@ -30,9 +30,15 @@
 #include "mongo/db/s/add_shard_coordinator.h"
 
 #include "mongo/db/s/config/sharding_catalog_manager.h"
+#include "mongo/db/s/topology_change_helpers.h"
 #include "mongo/util/assert_util.h"
 
 namespace mongo {
+
+namespace {
+static constexpr size_t kMaxFailedRetryCount = 3;
+static const Backoff kExponentialBackoff(Seconds(1), Milliseconds::max());
+}  // namespace
 
 ExecutorFuture<void> AddShardCoordinator::_runImpl(
     std::shared_ptr<executor::ScopedTaskExecutor> executor,
@@ -46,15 +52,55 @@ ExecutorFuture<void> AddShardCoordinator::_runImpl(
 
                 _verifyInput();
 
-                const auto existingShard =
-                    uassertStatusOK(topology_change_helpers::checkIfShardExists(
-                        opCtx,
-                        _doc.getConnectionString(),
-                        _doc.getProposedName(),
-                        *ShardingCatalogManager::get(opCtx)->localCatalogClient()));
+                const auto existingShard = topology_change_helpers::getExistingShard(
+                    opCtx,
+                    _doc.getConnectionString(),
+                    _doc.getProposedName(),
+                    *ShardingCatalogManager::get(opCtx)->localCatalogClient());
                 if (existingShard.has_value()) {
                     _doc.setChosenName(existingShard.value().getName());
                     _enterPhase(AddShardCoordinatorPhaseEnum::kFinal);
+                }
+            }))
+        .then(_buildPhaseHandler(
+            Phase::kCheckShardPreconditions,
+            [this, &token, _ = shared_from_this(), executor]() {
+                auto opCtxHolder = cc().makeOperationContext();
+                auto* opCtx = opCtxHolder.get();
+
+                auto& targeter = _getTargeter(opCtx);
+
+                auto shardRegistry = Grid::get(opCtx)->shardRegistry();
+                shardRegistry->reload(opCtx);
+                const bool isFirstShard = shardRegistry->getNumShards(opCtx) == 0;
+
+                _runWithRetries(
+                    [&]() {
+                        topology_change_helpers::validateHostAsShard(opCtx,
+                                                                     targeter,
+                                                                     _doc.getConnectionString(),
+                                                                     _doc.getIsConfigShard(),
+                                                                     **executor);
+                    },
+                    executor,
+                    token);
+
+                // TODO(SERVER-97997) Remove the check after promoting to sharded cluster is
+                // implemented correctly
+                if (!isFirstShard) {
+                    topology_change_helpers::setUserWriteBlockingState(
+                        opCtx,
+                        targeter,
+                        topology_change_helpers::UserWriteBlockingLevel::All,
+                        true, /* block writes */
+                        boost::make_optional<
+                            std::function<OperationSessionInfo(OperationContext*)>>(
+                            [this](OperationContext* opCtx) -> OperationSessionInfo {
+                                return getNewSession(opCtx);
+                            }),
+                        **executor);
+
+                    _checkExistingDataOnShard(opCtx, targeter, **executor);
                 }
             }))
         .then(_buildPhaseHandler(Phase::kFinal,
@@ -77,7 +123,26 @@ ExecutorFuture<void> AddShardCoordinator::_runImpl(
 
                                      _result = _doc.getChosenName().value().toString();
                                  }))
-        .onError([this, _ = shared_from_this()](const Status& status) { return status; });
+        .onError([this, _ = shared_from_this(), executor](const Status& status) {
+            auto opCtxHolder = cc().makeOperationContext();
+            auto* opCtx = opCtxHolder.get();
+            auto& targeter = _getTargeter(opCtx);
+
+            topology_change_helpers::setUserWriteBlockingState(
+                opCtx,
+                targeter,
+                topology_change_helpers::UserWriteBlockingLevel::All,
+                false, /* unblock writes */
+                boost::make_optional<std::function<OperationSessionInfo(OperationContext*)>>(
+                    [this](OperationContext* opCtx) -> OperationSessionInfo {
+                        return getNewSession(opCtx);
+                    }),
+                **executor);
+
+            topology_change_helpers::removeReplicaSetMonitor(opCtx, _doc.getConnectionString());
+
+            return status;
+        });
 }
 
 const std::string& AddShardCoordinator::getResult(OperationContext* opCtx) const {
@@ -100,6 +165,57 @@ void AddShardCoordinator::_verifyInput() const {
     uassert(ErrorCodes::BadValue,
             "shard name cannot be empty",
             !_doc.getProposedName() || !_doc.getProposedName()->empty());
+}
+
+void AddShardCoordinator::_checkExistingDataOnShard(
+    OperationContext* opCtx,
+    RemoteCommandTargeter& targeter,
+    std::shared_ptr<executor::TaskExecutor> executor) const {
+    const auto dbNames =
+        topology_change_helpers::getDBNamesListFromShard(opCtx, targeter, executor);
+
+    uassert(ErrorCodes::IllegalOperation,
+            str::stream() << "can't add shard '" << _doc.getConnectionString().toString()
+                          << "' because it's not empty.",
+            dbNames.empty());
+}
+
+RemoteCommandTargeter& AddShardCoordinator::_getTargeter(OperationContext* opCtx) {
+    if (!_shardConnection) {
+        const auto shardRegistry = Grid::get(opCtx)->shardRegistry();
+        _shardConnection = shardRegistry->createConnection(_doc.getConnectionString());
+    }
+
+    return *(_shardConnection->getTargeter());
+}
+
+void AddShardCoordinator::_runWithRetries(std::function<void()>&& function,
+                                          std::shared_ptr<executor::ScopedTaskExecutor> executor,
+                                          const CancellationToken& token) {
+    size_t failCounter = 0;
+
+    AsyncTry([&]() {
+        try {
+            function();
+        } catch (const DBException& ex) {
+            return ex.toStatus();
+        }
+        return Status::OK();
+    })
+        .until([&](const Status& status) {
+            if (status.isOK()) {
+                return true;
+            }
+            failCounter++;
+            if (failCounter > kMaxFailedRetryCount) {
+                _completeOnError = true;
+                return true;
+            }
+            return false;
+        })
+        .withBackoffBetweenIterations(kExponentialBackoff)
+        .on(**executor, token)
+        .get();
 }
 
 }  // namespace mongo

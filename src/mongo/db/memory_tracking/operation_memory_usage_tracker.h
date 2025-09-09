@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -26,44 +26,29 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
 #pragma once
-
-#include <string>
-
-#include "mongo/base/string_data.h"
-#include "mongo/bson/bsonobj.h"
-#include "mongo/db/auth/validated_tenancy_scope.h"
-#include "mongo/db/write_concern_options.h"
+#include <cstdint>
 
 namespace mongo {
-class ShardsvrAddShard;
-class BSONObj;
-class OperationContext;
+// TODO SERVER-98972 Replace this.
+class OperationMemoryUsageTracker {
+public:
+    OperationMemoryUsageTracker(int64_t currentMemoryBytes = 0, int64_t maxUsedMemoryBytes = 0)
+        : _currentMemoryBytes(currentMemoryBytes), _maxUsedMemoryBytes(maxUsedMemoryBytes) {}
 
-class ShardId;
+    int64_t currentMemoryBytes() const {
+        return _currentMemoryBytes;
+    }
 
-// Contains a collection of utility functions relating to the addShard command
-namespace add_shard_util {
+    int64_t maxUsedMemoryBytes() const {
+        return _maxUsedMemoryBytes;
+    }
 
-/*
- * The _id value for shard identity documents
- */
-constexpr StringData kShardIdentityDocumentId = "shardIdentity"_sd;
+private:
+    // Current amount of memory in use by all blocking stages.
+    int64_t _currentMemoryBytes = 0;
 
-/**
- * Creates an ShardsvrAddShard command object that's sent from the config server to
- * a mongod to instruct it to initialize itself as a shard in the cluster.
- */
-ShardsvrAddShard createAddShardCmd(OperationContext* opCtx, const ShardId& shardName);
-
-/**
- * Returns a BSON representation of an update request that can be used to insert a shardIdentity
- * doc into the shard with the given shardName (or update the shard's existing shardIdentity
- * doc's configsvrConnString if the _id, shardName, and clusterId do not conflict).
- */
-BSONObj createShardIdentityUpsertForAddShard(const ShardsvrAddShard& addShardCmd,
-                                             const WriteConcernOptions& wc);
-
-}  // namespace add_shard_util
+    // High-water mark: the highest amount of memory that has been allocated at one time so far.
+    int64_t _maxUsedMemoryBytes = 0;
+};
 }  // namespace mongo

@@ -264,6 +264,10 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/aggregation/sources/indexStats/**/* @10gen/query-execution-index-access-stats @svc-auto-approve-bot
 /jstests/aggregation/sources/indexStats/**/OWNERS.yml @10gen/query-execution-staff-leads @svc-auto-approve-bot
 
+# The following patterns are parsed from ./jstests/aggregation/sources/rankFusion/OWNERS.yml
+/jstests/aggregation/sources/rankFusion/**/* @10gen/query-integration-search @svc-auto-approve-bot
+/jstests/aggregation/sources/rankFusion/**/OWNERS.yml @10gen/query-integration-staff-leads @svc-auto-approve-bot
+
 # The following patterns are parsed from ./jstests/aggregation/sources/sample/OWNERS.yml
 /jstests/aggregation/sources/sample/**/* @10gen/query-execution-aggregation @10gen/query-optimization @svc-auto-approve-bot
 /jstests/aggregation/sources/sample/**/OWNERS.yml @10gen/query-execution-staff-leads @10gen/query-optimization-staff-leads @svc-auto-approve-bot
@@ -1208,7 +1212,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/**/operation_key_manager.* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/**/operation_killer.* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/db/**/operation_time_tracker* @10gen/server-programmability @svc-auto-approve-bot
-/src/mongo/db/**/profiler_bm_fixture.* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/db/**/README_default_max_time_ms.md @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/**/request_execution_context.* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/db/**/service_context* @10gen/server-programmability @svc-auto-approve-bot
@@ -1425,7 +1428,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/exec/**/cached_plan* @10gen/query-optimization-runtime-planners @svc-auto-approve-bot
 /src/mongo/db/exec/**/multi_plan* @10gen/query-optimization-runtime-planners @svc-auto-approve-bot
 /src/mongo/db/exec/**/subplan* @10gen/query-optimization-runtime-planners @svc-auto-approve-bot
-/src/mongo/db/exec/**/plan_cache_util* @10gen/query-optimization-plan-cache @svc-auto-approve-bot
+/src/mongo/db/exec/**/plan_cache* @10gen/query-optimization-plan-cache @svc-auto-approve-bot
 /src/mongo/db/exec/**/trial_period_utils* @10gen/query-optimization-runtime-planners @svc-auto-approve-bot
 /src/mongo/db/exec/**/trial_run_tracker.h @10gen/query-optimization-runtime-planners @svc-auto-approve-bot
 /src/mongo/db/exec/**/trial_stage* @10gen/query-optimization-runtime-planners @svc-auto-approve-bot

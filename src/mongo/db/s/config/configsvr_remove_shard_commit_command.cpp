@@ -29,6 +29,8 @@
 
 #include "mongo/db/s/remove_shard_commit_coordinator.h"
 #include "mongo/db/s/remove_shard_draining_progress_gen.h"
+#include "mongo/db/s/remove_shard_exception.h"
+#include "mongo/db/s/topology_change_helpers.h"
 #include "mongo/s/request_types/remove_shard_gen.h"
 #include "mongo/s/sharding_feature_flags_gen.h"
 
@@ -93,11 +95,12 @@ public:
                 try {
                     auto drainingStatus = removeShardCommitCoordinator->getResult(opCtx);
                     return drainingStatus;
-                } catch (const ExceptionFor<ErrorCodes::ChunkRangeCleanupPending>&) {
-                    RemoveShardProgress progress(ShardDrainingStateEnum::kPendingDataCleanup);
-                    progress.setPendingRangeDeletions(
-                        topology_change_helpers::getRangeDeletionCount(opCtx));
-                    return progress;
+                } catch (const ExceptionFor<ErrorCodes::RemoveShardDrainingInProgress>& ex) {
+                    const auto removeShardProgress = ex.extraInfo<RemoveShardDrainingInfo>();
+                    tassert(1003142,
+                            "RemoveShardDrainingInProgress must have extra info",
+                            removeShardProgress);
+                    return removeShardProgress->getProgress();
                 }
             }();
 

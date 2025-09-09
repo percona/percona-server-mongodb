@@ -28,6 +28,9 @@
  */
 
 #include "mongo/db/s/remove_shard_commit_coordinator.h"
+#include "mongo/db/s/remove_shard_exception.h"
+
+#include "mongo/db/s/topology_change_helpers.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
@@ -65,8 +68,10 @@ void RemoveShardCommitCoordinator::_joinMigrationsAndCheckRangeDeletions() {
         LOGV2(9782400,
               "removeShard: waiting for range deletions",
               "pendingRangeDeletions"_attr = pendingRangeDeletions);
+        RemoveShardProgress progress(ShardDrainingStateEnum::kPendingDataCleanup);
+        progress.setPendingRangeDeletions(pendingRangeDeletions);
         uasserted(
-            ErrorCodes::ChunkRangeCleanupPending,
+            RemoveShardDrainingInfo(progress),
             "Range deletions must complete before transitioning to a dedicated config server.");
     }
 }
