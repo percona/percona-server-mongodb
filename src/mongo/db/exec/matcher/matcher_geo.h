@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,31 +27,26 @@
  *    it in the license file.
  */
 
-#include "mongo/db/operation_context.h"
-#include "mongo/rpc/metadata/audit_metadata.h"
+#pragma once
+
+#include "mongo/db/geo/geometry_container.h"
+#include "mongo/db/matcher/expression_geo.h"
+#include "mongo/db/matcher/match_details.h"
 
 namespace mongo {
-class OperationContext;
 
-/**
- * RAII class to optionally set an impersonated username list into the authorization session
- * for the duration of the life of this object.
- */
-class ImpersonationSessionGuard {
-    ImpersonationSessionGuard(const ImpersonationSessionGuard&) = delete;
-    ImpersonationSessionGuard& operator=(const ImpersonationSessionGuard&) = delete;
+namespace exec::matcher {
 
-public:
-    ImpersonationSessionGuard(OperationContext* opCtx);
-    ~ImpersonationSessionGuard();
+bool geoContains(const GeometryContainer& queryGeom,
+                 const GeoExpression::Predicate& queryPredicate,
+                 bool skipValidation,
+                 const BSONElement& e);
 
-    bool isActive() const {
-        return _active;
-    }
+bool geoContains(const GeometryContainer& queryGeom,
+                 const GeoExpression::Predicate& queryPredicate,
+                 GeometryContainer& otherContainer);
 
-private:
-    OperationContext* _opCtx;
-    bool _active{false};
-};
+bool matchesGeoContainer(const GeoMatchExpression* expr, const GeometryContainer& input);
 
+}  // namespace exec::matcher
 }  // namespace mongo

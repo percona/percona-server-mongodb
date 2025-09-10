@@ -1268,15 +1268,6 @@ ServiceContext::ConstructorActionRegisterer registerCreateAuditPercona{
     }};
 }  // namespace
 
-ImpersonatedClientAttrs::ImpersonatedClientAttrs(Client* client) {
-    if (auto optAttrs = rpc::getImpersonatedUserMetadata(client->getOperationContext()); optAttrs) {
-        if (auto optUser = optAttrs->getUser(); optUser) {
-            userName = *optUser;
-            roleNames = optAttrs->getRoles();
-        }
-    }
-}
-
 void rotateAuditLog() {}
 
 void flushAuditLog() {

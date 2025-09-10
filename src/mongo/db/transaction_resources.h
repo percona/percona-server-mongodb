@@ -48,7 +48,6 @@
 #include "mongo/db/views/view.h"
 #include "mongo/s/database_version.h"
 #include "mongo/s/shard_version.h"
-#include "mongo/util/inline_memory.h"
 #include "mongo/util/uuid.h"
 
 namespace mongo {
@@ -260,7 +259,7 @@ inline const RecoveryUnit* getRecoveryUnit(const OperationContext* opCtx) {
  * ownership of the returned RecoveryUnit, and the OperationContext instance relinquishes
  * ownership. Sets the RecoveryUnit to NULL. Requires holding the client lock.
  */
-// TODO (SERVER-77213): Move implementation to .cpp file
+std::unique_ptr<RecoveryUnit> releaseRecoveryUnit(OperationContext* opCtx);
 std::unique_ptr<RecoveryUnit> releaseRecoveryUnit(OperationContext* opCtx, ClientLock& clientLock);
 
 /*
@@ -400,8 +399,8 @@ struct TransactionResources {
     ////////////////////////////////////////////////////////////////////////////////////////
     // Per-collection resources
 
-    using AcquiredCollections = inline_memory::List<AcquiredCollection, 1>;
-    using AcquiredViews = inline_memory::List<AcquiredView, 1>;
+    using AcquiredCollections = std::list<AcquiredCollection>;
+    using AcquiredViews = std::list<AcquiredView>;
 
     // Set of all collections which are currently acquired
     AcquiredCollections acquiredCollections;

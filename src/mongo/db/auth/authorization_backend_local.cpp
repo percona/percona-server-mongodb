@@ -284,26 +284,17 @@ Status AuthorizationBackendLocal::makeRoleNotFoundStatus(
     return {ErrorCodes::RoleNotFound, sb.str()};
 }
 
-AuthorizationBackendLocal::RolesLocks::RolesLocks(OperationContext* opCtx,
-                                                  const boost::optional<TenantId>& tenant) {
-    if (!storageGlobalParams.disableLockFreeReads) {
-        _readLockFree = std::make_unique<AutoReadLockFree>(opCtx);
-    } else {
-        _adminLock = std::make_unique<Lock::DBLock>(opCtx, DatabaseName::kAdmin, LockMode::MODE_IS);
-        _rolesLock =
-            std::make_unique<Lock::CollectionLock>(opCtx, rolesNSS(tenant), LockMode::MODE_S);
-    }
+AuthorizationBackendLocal::RolesSnapshot::RolesSnapshot(OperationContext* opCtx) {
+    _readLockFree = std::make_unique<AutoReadLockFree>(opCtx);
 }
 
-AuthorizationBackendLocal::RolesLocks::~RolesLocks() {
+AuthorizationBackendLocal::RolesSnapshot::~RolesSnapshot() {
     _readLockFree.reset(nullptr);
-    _rolesLock.reset(nullptr);
-    _adminLock.reset(nullptr);
 }
 
-AuthorizationBackendLocal::RolesLocks AuthorizationBackendLocal::_lockRoles(
-    OperationContext* opCtx, const boost::optional<TenantId>& tenant) {
-    return AuthorizationBackendLocal::RolesLocks(opCtx, tenant);
+AuthorizationBackendLocal::RolesSnapshot AuthorizationBackendLocal::_snapshotRoles(
+    OperationContext* opCtx) {
+    return AuthorizationBackendLocal::RolesSnapshot(opCtx);
 }
 
 Status AuthorizationBackendLocal::rolesExist(OperationContext* opCtx,
@@ -501,7 +492,7 @@ StatusWith<User> AuthorizationBackendLocal::getUserObject(
         return rolesStatus.getStatus();
     const auto& roles = rolesStatus.getValue();
 
-    auto rolesLock = _lockRoles(opCtx, userName.tenantId());
+    auto RolesSnapshot = _snapshotRoles(opCtx);
 
     // Set ResolveRoleOption to mine all information from role tree.
     auto options = ResolveRoleOption::kAllInfo();
@@ -577,7 +568,7 @@ Status AuthorizationBackendLocal::getUserDescription(
         return rolesStatus.getStatus();
     const auto& roles = rolesStatus.getValue();
 
-    auto rolesLock = _lockRoles(opCtx, userName.tenantId());
+    auto RolesSnapshot = _snapshotRoles(opCtx);
 
     auto options = ResolveRoleOption::kAllInfo();
     if (!roles) {

@@ -44,8 +44,6 @@ std::function<void(ServiceContext*)> initializeSynchronizeJob;
 std::function<void()> shutdownSynchronizeJob;
 
 #if !PERCONA_AUDIT_ENABLED
-ImpersonatedClientAttrs::ImpersonatedClientAttrs(Client* client) {}
-
 void rotateAuditLog() {}
 
 namespace {

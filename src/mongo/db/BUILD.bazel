@@ -2545,6 +2545,8 @@ mongo_cc_library(
         "//src/mongo/db/exec/expression:evaluate_string.cpp",
         "//src/mongo/db/exec/matcher:matcher.cpp",
         "//src/mongo/db/exec/matcher:matcher_geo.cpp",
+        "//src/mongo/db/exec/matcher:matcher_single_element_match.cpp",
+        "//src/mongo/db/exec/matcher:matcher_text.cpp",
         "//src/mongo/db/exec/matcher:matcher_where.cpp",
         "//src/mongo/db/matcher:doc_validation_error.cpp",
         "//src/mongo/db/matcher:doc_validation_util.cpp",
@@ -2582,7 +2584,6 @@ mongo_cc_library(
         "//src/mongo/db/matcher/schema:encrypt_schema_types.cpp",
         "//src/mongo/db/matcher/schema:expression_internal_schema_all_elem_match_from_index.cpp",
         "//src/mongo/db/matcher/schema:expression_internal_schema_allowed_properties.cpp",
-        "//src/mongo/db/matcher/schema:expression_internal_schema_cond.cpp",
         "//src/mongo/db/matcher/schema:expression_internal_schema_eq.cpp",
         "//src/mongo/db/matcher/schema:expression_internal_schema_fmod.cpp",
         "//src/mongo/db/matcher/schema:expression_internal_schema_match_array_index.cpp",
@@ -2618,6 +2619,7 @@ mongo_cc_library(
         "//src/mongo/db/exec:projection_executor_utils.h",
         "//src/mongo/db/exec/expression:evaluate.h",
         "//src/mongo/db/exec/matcher:matcher.h",
+        "//src/mongo/db/exec/matcher:matcher_geo.h",
         "//src/mongo/db/fts:fts_query_hash.h",
         "//src/mongo/db/matcher:doc_validation_error.h",
         "//src/mongo/db/matcher:doc_validation_util.h",
@@ -2736,6 +2738,7 @@ mongo_cc_library(
         "//src/mongo/db/query/query_shape:query_shape_common",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/stats:counters",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/update:pattern_cmp",
+        "//src/mongo/rpc:metadata_impersonated_user",
         "//src/mongo/scripting",  # TODO(SERVER-93876): Remove.
         "//src/mongo/scripting:scripting_common",  # TODO(SERVER-93876): Remove.
         "//src/mongo/util:elapsed_tracker",

@@ -73,6 +73,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/metadata/audit_metadata.h"
+#include "mongo/rpc/metadata/audit_user_attrs.h"
 #include "mongo/rpc/metadata/client_metadata.h"
 #include "mongo/transport/service_executor.h"
 #include "mongo/util/assert_util.h"
@@ -136,13 +137,6 @@ void addSingleSpillingStats(PlanSummaryStats::SpillingStage stage,
             appendCallback("groupSpilledRecords",
                            static_cast<long long>(stats.getSpilledRecords()));
             appendCallback("groupSpilledDataStorageSize",
-                           static_cast<long long>(stats.getSpilledDataStorageSize()));
-            return;
-        case PlanSummaryStats::SpillingStage::OR:
-            appendCallback("orSpills", static_cast<long long>(stats.getSpills()));
-            appendCallback("orSpilledBytes", static_cast<long long>(stats.getSpilledBytes()));
-            appendCallback("orSpilledRecords", static_cast<long long>(stats.getSpilledRecords()));
-            appendCallback("orSpilledDataStorageSize",
                            static_cast<long long>(stats.getSpilledDataStorageSize()));
             return;
         case PlanSummaryStats::SpillingStage::SET_WINDOW_FIELDS:
@@ -327,28 +321,17 @@ void CurOp::reportCurrentOpForClient(const boost::intrusive_ptr<ExpressionContex
                             ->now()
                             .toString());
 
-    auto authSession = AuthorizationSession::get(client);
-    // Depending on whether the authenticated user is the same user which ran the command,
-    // this might be "effectiveUsers" or "runBy".
-    const auto serializeAuthenticatedUsers = [&](StringData name) {
-        if (authSession->isAuthenticated()) {
-            BSONArrayBuilder users(infoBuilder->subarrayStart(name));
-            authSession->getAuthenticatedUserName()->serializeToBSON(&users);
-        }
-    };
-
-    auto maybeImpersonationData = rpc::getImpersonatedUserMetadata(clientOpCtx);
-    if (maybeImpersonationData) {
+    if (auto clientAuditUserAttrs = rpc::AuditUserAttrs::get(clientOpCtx)) {
         BSONArrayBuilder users(infoBuilder->subarrayStart("effectiveUsers"));
-
-        if (maybeImpersonationData->getUser()) {
-            maybeImpersonationData->getUser()->serializeToBSON(&users);
-        }
-
+        clientAuditUserAttrs->getUser().serializeToBSON(&users);
         users.doneFast();
-        serializeAuthenticatedUsers("runBy"_sd);
-    } else {
-        serializeAuthenticatedUsers("effectiveUsers"_sd);
+        if (clientAuditUserAttrs->getIsImpersonating()) {
+            auto authSession = AuthorizationSession::get(client);
+            if (authSession->isAuthenticated()) {
+                BSONArrayBuilder users(infoBuilder->subarrayStart("runBy"));
+                authSession->getAuthenticatedUserName()->serializeToBSON(&users);
+            }
+        }
     }
 
     infoBuilder->appendBool("isFromUserConnection", client->isFromUserConnection());
@@ -567,6 +550,21 @@ void CurOp::updateStorageMetricsOnRecoveryUnitStash(ClientLock&) {
         !storageMetrics.isEmpty()) {
         _initializeResourceStatsBaseIfNecessary();
         _resourceStatsBase->storageMetrics -= storageMetrics;
+    }
+}
+
+void CurOp::setMemoryTrackingStats(const int64_t inUseMemoryBytes,
+                                   const int64_t maxUsedMemoryBytes) {
+    tassert(9897000,
+            "featureFlagQueryMemoryTracking must be turned on before writing memory stats to CurOp",
+            feature_flags::gFeatureFlagQueryMemoryTracking.isEnabled(
+                serverGlobalParams.featureCompatibility.acquireFCVSnapshot()));
+    _inUseMemoryBytes.fetchAndAdd(inUseMemoryBytes);
+
+    // We recompute the max here (the memory tracker that calls this method will already computing
+    // the max) in order to avoid writing to the atomic if the max does not change.
+    if (maxUsedMemoryBytes > _maxUsedMemoryBytes.load()) {
+        _maxUsedMemoryBytes.swap(maxUsedMemoryBytes);
     }
 }
 

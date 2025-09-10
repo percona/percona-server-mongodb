@@ -34,7 +34,9 @@
 #include "mongo/db/s/balancer/balancer_policy.h"
 #include "mongo/db/s/config/sharding_catalog_manager.h"
 #include "mongo/db/s/resharding/resharding_coordinator_commit_monitor.h"
+#include "mongo/db/s/resharding/resharding_coordinator_observer.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service.h"
+#include "mongo/db/s/resharding/resharding_coordinator_service_external_state.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service_util.h"
 #include "mongo/db/s/resharding/resharding_future_util.h"
 #include "mongo/db/s/resharding/resharding_server_parameters_gen.h"
@@ -626,10 +628,7 @@ ExecutorFuture<void> ReshardingCoordinator::_runReshardingOp(
         })
         .onCompletion([this, self = shared_from_this()](Status status) {
             _metrics->onStateTransition(_coordinatorDoc.getState(), boost::none);
-            if (resharding::gFeatureFlagReshardingImprovements.isEnabled(
-                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
-                _logStatsOnCompletion(status.isOK());
-            }
+            _logStatsOnCompletion(status.isOK());
 
             // Unregister metrics early so the cumulative metrics do not continue to track these
             // metrics for the lifetime of this state machine. We have future callbacks copy shared

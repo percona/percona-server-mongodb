@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,15 +27,24 @@
  *    it in the license file.
  */
 
-#include "mongo/db/matcher/schema/expression_internal_schema_cond.h"
+#pragma once
 
-namespace mongo {
-constexpr StringData InternalSchemaCondMatchExpression::kName;
+#include <vector>
 
-bool InternalSchemaCondMatchExpression::matchesSingleElement(const BSONElement& elem,
-                                                             MatchDetails* details) const {
-    return condition()->matchesSingleElement(elem, details)
-        ? thenBranch()->matchesSingleElement(elem, details)
-        : elseBranch()->matchesSingleElement(elem, details);
-}
-}  // namespace mongo
+#include <boost/optional.hpp>
+
+#include "mongo/db/auth/role_name.h"
+#include "mongo/db/auth/user_name.h"
+#include "mongo/db/operation_context.h"
+
+namespace mongo::audit {
+class AuditUserAttrsClientObserver final : public ServiceContext::ClientObserver {
+public:
+    void onCreateClient(Client* client) final{};
+    void onDestroyClient(Client* client) final{};
+
+    void onCreateOperationContext(OperationContext* opCtx) final;
+    void onDestroyOperationContext(OperationContext* opCtx) final{};
+};
+
+}  // namespace mongo::audit

@@ -35,7 +35,7 @@
 #include "mongo/db/auth/role_name.h"
 #include "mongo/db/auth/user_name.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/rpc/metadata/audit_client_attrs_gen.h"
+#include "mongo/rpc/metadata/audit_attrs_gen.h"
 #include "mongo/rpc/metadata/audit_metadata_gen.h"
 
 namespace mongo::rpc {
