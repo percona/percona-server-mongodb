@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2019-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,20 +27,22 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/timeseries/bucket_catalog/rollover.h"
 
-namespace mongo {
-
-class KVEngine;
-class DurableCatalog;
-class StorageEngine;
-
-class StorageEngineInterface {
-public:
-    StorageEngineInterface() = default;
-    virtual ~StorageEngineInterface() = default;
-    virtual StorageEngine* getStorageEngine() = 0;
-    virtual KVEngine* getEngine() = 0;
-    virtual DurableCatalog* getCatalog() = 0;
-};
-}  // namespace mongo
+namespace mongo::timeseries::bucket_catalog {
+RolloverAction getRolloverAction(RolloverReason reason) {
+    switch (reason) {
+        case RolloverReason::kCount:
+        case RolloverReason::kSchemaChange:
+        case RolloverReason::kCachePressure:
+        case RolloverReason::kSize:
+            return RolloverAction::kHardClose;
+        case RolloverReason::kTimeForward:
+            return RolloverAction::kSoftClose;
+        case RolloverReason::kTimeBackward:
+            return RolloverAction::kArchive;
+        default:
+            return RolloverAction::kNone;
+    }
+}
+}  // namespace mongo::timeseries::bucket_catalog

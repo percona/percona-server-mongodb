@@ -55,4 +55,9 @@ enum class RolloverReason {
     kSize,  // Adding this measurement would make the bucket larger than the normal size limit
 };
 
+/**
+ * Returns the RolloverAction based on the RolloverReason.
+ */
+RolloverAction getRolloverAction(RolloverReason reason);
+
 }  // namespace mongo::timeseries::bucket_catalog
