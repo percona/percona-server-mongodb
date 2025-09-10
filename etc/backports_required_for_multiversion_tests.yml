@@ -376,8 +376,14 @@ last-continuous:
       ticket: SERVER-89883
     - test_file: jstests/sharding/metadata_refresh_on_shard_removal.js
       ticket: SERVER-99277
+    - test_file: jstests/core/txns/multi_statement_transaction_abort.js
+      ticket: SERVER-84081
     - test_file: jstests/replsets/rollback_with_coalesced_txn_table_updates_during_oplog_application_inserts.js
       ticket: SERVER-99185
+    - test_file: jstests/sharding/coll_mod_unsplittable_collection.js
+      ticket: SERVER-99618
+    - test_file: jstests/concurrency/fsm_workloads/ddl/collMod/collMod.js
+      ticket: SERVER-99618
   suites: null
 last-lts:
   all:
@@ -799,8 +805,16 @@ last-lts:
       ticket: SERVER-95687
     - test_file: jstests/sharding/remove_shard_with_unsharded.js
       ticket: SERVER-89883
+    - test_file: jstests/core/dbstats.js
+      ticket: SERVER-98571
     - test_file: jstests/sharding/metadata_refresh_on_shard_removal.js
       ticket: SERVER-99277
+    - test_file: jstests/core/txns/multi_statement_transaction_abort.js
+      ticket: SERVER-84081
     - test_file: jstests/replsets/rollback_with_coalesced_txn_table_updates_during_oplog_application_inserts.js
       ticket: SERVER-99185
+    - test_file: jstests/sharding/coll_mod_unsplittable_collection.js
+      ticket: SERVER-99618
+    - test_file: jstests/concurrency/fsm_workloads/ddl/collMod/collMod.js
+      ticket: SERVER-99618
   suites: null

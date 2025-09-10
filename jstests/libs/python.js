@@ -8,7 +8,7 @@ export function getPython3Binary() {
     const pythonVersion = rawMongoProgramOutput("Python");  // Will look like "Python 3.10.4\n"
     const match = pythonVersion.match(/Python 3\.(\d+)\./);
     if (match && match[1] >= 10) {
-        print("Found python 3." + match[1] +
+        jsTest.log.info("Found python 3." + match[1] +
               " by default. Likely this is because we are using a virtual enviorment.");
         return "python";
     }
@@ -22,7 +22,7 @@ export function getPython3Binary() {
     ];
     for (let p of paths) {
         if (fileExists(p)) {
-            print("Found python3 in default location " + p);
+            jsTest.log.info("Found python3 in default location " + p);
             return p;
         }
     }
@@ -30,6 +30,6 @@ export function getPython3Binary() {
     assert(/Python 3/.exec(pythonVersion));
 
     // We are probs running on mac
-    print("Did not find python3 in a virtualenv or default location");
+    jsTest.log.info("Did not find python3 in a virtualenv or default location");
     return "python3";
 }

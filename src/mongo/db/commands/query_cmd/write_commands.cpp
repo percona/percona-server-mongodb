@@ -78,6 +78,7 @@
 #include "mongo/db/query/write_ops/write_ops_parsers.h"
 #include "mongo/db/repl/repl_client_info.h"
 #include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role.h"
@@ -285,6 +286,10 @@ public:
         }
 
         write_ops::InsertCommandReply typedRun(OperationContext* opCtx) final try {
+            uassert(ErrorCodes::InvalidOptions,
+                    "rawData is not enabled",
+                    !request().getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
+
             // On debug builds, verify that the estimated size of the insert command is at least as
             // large as the size of the actual, serialized insert command. This ensures that the
             // logic which estimates the size of insert commands is correct.
@@ -299,9 +304,8 @@ public:
                 }
             }
 
-            if (auto [isTimeseriesViewRequest, _] =
-                    timeseries::isTimeseriesViewRequest(opCtx, request());
-                isTimeseriesViewRequest) {
+            if (!request().getRawData() &&
+                timeseries::isTimeseriesViewRequest(opCtx, request()).first) {
                 // Re-throw parsing exceptions to be consistent with CmdInsert::Invocation's
                 // constructor.
                 try {
@@ -478,6 +482,10 @@ public:
             // logic which estimates the size of update commands is correct.
             dassert(write_ops::verifySizeEstimate(request(), &unparsedRequest()));
 
+            uassert(ErrorCodes::InvalidOptions,
+                    "rawData is not enabled",
+                    !request().getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
+
             doTransactionValidationForWrites(opCtx, ns());
             write_ops::UpdateCommandReply updateReply;
             if (prepareForFLERewrite(opCtx, request().getEncryptionInformation())) {
@@ -589,6 +597,10 @@ public:
             // Start the query planning timer right after parsing. In explain, there's only ever
             // one sub-operation, so we won't create nested CurOps.
             CurOp::get(opCtx)->beginQueryPlanningTimer();
+
+            uassert(ErrorCodes::InvalidOptions,
+                    "rawData is not enabled",
+                    !request().getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
             uassert(ErrorCodes::InvalidLength,
                     "explained write batches must be of size 1",
@@ -709,6 +721,10 @@ public:
             // of deletes for batch writes is correct.
             dassert(write_ops::verifySizeEstimate(request(), &unparsedRequest()));
 
+            uassert(ErrorCodes::InvalidOptions,
+                    "rawData is not enabled",
+                    !request().getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
+
             doTransactionValidationForWrites(opCtx, ns());
             write_ops::DeleteCommandReply deleteReply;
             OperationSource source = OperationSource::kStandard;
@@ -753,6 +769,10 @@ public:
             // Start the query planning timer right after parsing. In explain, there's only ever
             // one sub-operation, so we won't create nested CurOps.
             CurOp::get(opCtx)->beginQueryPlanningTimer();
+
+            uassert(ErrorCodes::InvalidOptions,
+                    "rawData is not enabled",
+                    !request().getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
             uassert(ErrorCodes::InvalidLength,
                     "explained write batches must be of size 1",

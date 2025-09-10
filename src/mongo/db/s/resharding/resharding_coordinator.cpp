@@ -324,8 +324,6 @@ ExecutorFuture<ReshardingCoordinatorDocument> ReshardingCoordinator::_runUntilRe
                    .then([this, executor] {
                        if (_coordinatorDoc.getState() == CoordinatorStateEnum::kCloning) {
                            _tellAllRecipientsToRefresh(executor);
-                       }
-                       if (_coordinatorDoc.getState() <= CoordinatorStateEnum::kBlockingWrites) {
                            _tellAllDonorsToStartChangeStreamsMonitor(executor);
                        }
                    })
@@ -628,7 +626,10 @@ ExecutorFuture<void> ReshardingCoordinator::_runReshardingOp(
         })
         .onCompletion([this, self = shared_from_this()](Status status) {
             _metrics->onStateTransition(_coordinatorDoc.getState(), boost::none);
-            _logStatsOnCompletion(status.isOK());
+            if (resharding::gFeatureFlagReshardingImprovements.isEnabled(
+                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+                _logStatsOnCompletion(status.isOK());
+            }
 
             // Unregister metrics early so the cumulative metrics do not continue to track these
             // metrics for the lifetime of this state machine. We have future callbacks copy shared

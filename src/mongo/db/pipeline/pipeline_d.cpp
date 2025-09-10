@@ -137,7 +137,6 @@
 #include "mongo/db/record_id.h"
 #include "mongo/db/s/collection_sharding_state.h"
 #include "mongo/db/s/scoped_collection_metadata.h"
-#include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/server_parameter_with_storage.h"
 #include "mongo/db/storage/record_store.h"
@@ -250,7 +249,7 @@ boost::optional<StringData> extractGeoNearFieldFromIndexesByType(OperationContex
  */
 StringData extractGeoNearFieldFromIndexes(OperationContext* opCtx,
                                           const CollectionPtr& collection) {
-    invariant(collection);
+    tassert(9911911, "", collection);
 
     // Look for relevant 2d index first. If none, look for relevant 2dsphere index.
     auto geoNearField = extractGeoNearFieldFromIndexesByType(opCtx, collection, IndexNames::GEO_2D);
@@ -1856,7 +1855,7 @@ PipelineD::BuildQueryExecutorResult PipelineD::buildInnerQueryExecutorGeoNear(
     Pipeline::SourceContainer& sources = pipeline->_sources;
     auto expCtx = pipeline->getContext();
     const auto geoNearStage = dynamic_cast<DocumentSourceGeoNear*>(sources.front().get());
-    invariant(geoNearStage);
+    tassert(9911900, "", geoNearStage);
 
     // If the user specified a "key" field, use that field to satisfy the "near" query. Otherwise,
     // look for a geo-indexed field in 'collection' that can.
@@ -2109,8 +2108,7 @@ bool PipelineD::isSearchPresentAndEligibleForSbe(const Pipeline* pipeline) {
     auto firstStageIsSearch = search_helpers::isSearchPipeline(pipeline) ||
         search_helpers::isSearchMetaPipeline(pipeline);
 
-    auto searchInSbeEnabled = feature_flags::gFeatureFlagSearchInSbe.isEnabled(
-        serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+    auto searchInSbeEnabled = feature_flags::gFeatureFlagSearchInSbe.isEnabled();
     auto forceClassicEngine =
         expCtx->getQueryKnobConfiguration().getInternalQueryFrameworkControlForOp() ==
         QueryFrameworkControlEnum::kForceClassicEngine;

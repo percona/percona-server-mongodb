@@ -306,6 +306,7 @@ DBCollection.prototype.insert = function(obj, options) {
     var flags = 0;
 
     var wc = undefined;
+    var rawData = undefined;
     if (options === undefined) {
         // do nothing
     } else if (typeof (options) == 'object') {
@@ -317,6 +318,9 @@ DBCollection.prototype.insert = function(obj, options) {
 
         if (options.writeConcern)
             wc = options.writeConcern;
+
+        if (options.rawData)
+            rawData = options.rawData;
     } else {
         flags = options;
     }
@@ -331,6 +335,8 @@ DBCollection.prototype.insert = function(obj, options) {
 
     // Bit 1 of option flag is continueOnError. Bit 0 (stop on error) is the default.
     var bulk = ordered ? this.initializeOrderedBulkOp() : this.initializeUnorderedBulkOp();
+    if (rawData)
+        bulk.setRawData(rawData);
     var isMultiInsert = Array.isArray(obj);
 
     if (isMultiInsert) {
@@ -371,6 +377,7 @@ DBCollection.prototype._parseRemove = function(t, justOne) {
     var wc = undefined;
     var collation = undefined;
     let letParams = undefined;
+    let rawData = undefined;
 
     if (typeof (justOne) === "object") {
         var opts = justOne;
@@ -378,6 +385,7 @@ DBCollection.prototype._parseRemove = function(t, justOne) {
         justOne = opts.justOne;
         collation = opts.collation;
         letParams = opts.let;
+        rawData = opts.rawData;
     }
 
     // Normalize "justOne" to a bool.
@@ -388,7 +396,14 @@ DBCollection.prototype._parseRemove = function(t, justOne) {
         wc = this.getWriteConcern();
     }
 
-    return {"query": query, "justOne": justOne, "wc": wc, "collation": collation, "let": letParams};
+    return {
+        "query": query,
+        "justOne": justOne,
+        "wc": wc,
+        "collation": collation,
+        "let": letParams,
+        "rawData": rawData,
+    };
 };
 
 // Returns a WriteResult if write command succeeded, but may contain write errors.
@@ -400,6 +415,7 @@ DBCollection.prototype.remove = function(t, justOne) {
     var wc = parsed.wc;
     var collation = parsed.collation;
     var letParams = parsed.let;
+    let rawData = parsed.rawData;
 
     var result = undefined;
     var bulk = this.initializeOrderedBulkOp();
@@ -407,6 +423,11 @@ DBCollection.prototype.remove = function(t, justOne) {
     if (letParams) {
         bulk.setLetParams(letParams);
     }
+
+    if (rawData) {
+        bulk.setRawData(rawData);
+    }
+
     var removeOp = bulk.find(query);
 
     if (collation) {
@@ -451,6 +472,7 @@ DBCollection.prototype._parseUpdate = function(query, updateSpec, upsert, multi)
     var arrayFilters = undefined;
     let hint = undefined;
     let letParams = undefined;
+    let rawData = undefined;
 
     // can pass options via object for improved readability
     if (typeof (upsert) === "object") {
@@ -467,6 +489,7 @@ DBCollection.prototype._parseUpdate = function(query, updateSpec, upsert, multi)
         arrayFilters = opts.arrayFilters;
         hint = opts.hint;
         letParams = opts.let;
+        rawData = opts.rawData;
         if (opts.sort) {
             throw new Error(
                 "This sort will not do anything. Please call update without a sort or defer to calling updateOne with a sort.");
@@ -490,7 +513,8 @@ DBCollection.prototype._parseUpdate = function(query, updateSpec, upsert, multi)
         "wc": wc,
         "collation": collation,
         "arrayFilters": arrayFilters,
-        "let": letParams
+        "let": letParams,
+        "rawData": rawData,
     };
 };
 
@@ -507,6 +531,7 @@ DBCollection.prototype.update = function(query, updateSpec, upsert, multi) {
     var collation = parsed.collation;
     var arrayFilters = parsed.arrayFilters;
     let letParams = parsed.let;
+    let rawData = parsed.rawData;
 
     var result = undefined;
     var bulk = this.initializeOrderedBulkOp();
@@ -514,6 +539,11 @@ DBCollection.prototype.update = function(query, updateSpec, upsert, multi) {
     if (letParams) {
         bulk.setLetParams(letParams);
     }
+
+    if (rawData) {
+        bulk.setRawData(rawData);
+    }
+
     var updateOp = bulk.find(query);
 
     if (hint) {

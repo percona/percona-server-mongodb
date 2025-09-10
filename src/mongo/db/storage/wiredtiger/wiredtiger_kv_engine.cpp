@@ -937,9 +937,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
         ss << "timing_stress_for_test=[history_store_checkpoint_delay,checkpoint_slow],";
     }
 
-    if (gFeatureFlagPrefetch.isEnabled(
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
-        !_ephemeral) {
+    if (gFeatureFlagPrefetch.isEnabled() && !_ephemeral) {
         ss << "prefetch=(available=true,default=false),";
     }
 
