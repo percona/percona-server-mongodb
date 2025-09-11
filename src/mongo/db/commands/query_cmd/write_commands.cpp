@@ -494,8 +494,9 @@ public:
 
             auto [isTimeseriesViewRequest, bucketNs] =
                 timeseries::isTimeseriesViewRequest(opCtx, request());
-            OperationSource source = isTimeseriesViewRequest ? OperationSource::kTimeseriesUpdate
-                                                             : OperationSource::kStandard;
+            OperationSource source = (isTimeseriesViewRequest && !request().getRawData())
+                ? OperationSource::kTimeseriesUpdate
+                : OperationSource::kStandard;
 
             long long nModified = 0;
 
@@ -507,7 +508,8 @@ public:
             // For retryable updates on time-series collections, we needs to run them in
             // transactions to ensure the multiple writes are replicated atomically.
             bool isTimeseriesRetryableUpdate = isTimeseriesViewRequest &&
-                opCtx->isRetryableWrite() && !opCtx->inMultiDocumentTransaction();
+                opCtx->isRetryableWrite() && !opCtx->inMultiDocumentTransaction() &&
+                !request().getRawData();
             if (isTimeseriesRetryableUpdate) {
                 auto executor = serverGlobalParams.clusterRole.has(ClusterRole::None)
                     ? ReplicaSetNodeProcessInterface::getReplicaSetNodeExecutor(
@@ -735,7 +737,7 @@ public:
 
             if (auto [isTimeseriesViewRequest, _] =
                     timeseries::isTimeseriesViewRequest(opCtx, request());
-                isTimeseriesViewRequest) {
+                isTimeseriesViewRequest && !request().getRawData()) {
                 source = OperationSource::kTimeseriesDelete;
             }
 

@@ -239,7 +239,6 @@ buildvariants:
       - name: .aggfuzzer
       - name: .change_stream_fuzzer
       - name: .config_fuzzer .suggested_excluding_required__for_devprod_mitigation_only
-      - name: .config_fuzzer_stress .suggested_excluding_required__for_devprod_mitigation_only
       - name: .query_fuzzer
       - name: .updatefuzzer
       - name: .jstestfuzz
@@ -341,7 +340,13 @@ buildvariants:
       - name: rollback_fuzzer_sanity_patch
       - name: query_cbr_heuristic_jscore_passthrough
         cron: "0 4 * * *" # From the ${project_nightly_cron} parameter.
+      - name: query_cbr_heuristic_aggregation_passthrough
+        cron: "0 4 * * *" # From the ${project_nightly_cron} parameter.
       - name: query_cbr_sampling_jscore_passthrough
+        cron: "0 4 * * *" # From the ${project_nightly_cron} parameter.
+      - name: query_cbr_sampling_aggregation_passthrough
+        cron: "0 4 * * *" # From the ${project_nightly_cron} parameter.
+      - name: query_cbr_histogram_jscore_passthrough
         cron: "0 4 * * *" # From the ${project_nightly_cron} parameter.
 
   - <<: *amazon_linux2_arm64_static_compile_variant_dependency
@@ -487,6 +492,8 @@ buildvariants:
         BAZEL_FLAGS=--jobs=4
       integration_test_compile_flags: >-
         BAZEL_FLAGS=--jobs=4
+      compile_all_but_not_unittests_flags: >-
+        BAZEL_FLAGS="--jobs=4 --linkopt=-s"
       crypt_task_compile_flags: SHLINKFLAGS_EXTRA="-Wl,-Bsymbolic -Wl,--no-gnu-unique" CCFLAGS="-fno-gnu-unique"
       test_flags: --excludeWithAnyTags=incompatible_with_amazon_linux,requires_ldap_pool,requires_v4_0,requires_external_data_source
       multiversion_platform: amazon2023
@@ -537,6 +544,8 @@ buildvariants:
         BAZEL_FLAGS=--jobs=4
       integration_test_compile_flags: >-
         BAZEL_FLAGS=--jobs=4
+      compile_all_but_not_unittests_flags: >-
+        BAZEL_FLAGS="--jobs=4 --linkopt=-s"
       crypt_task_compile_flags: SHLINKFLAGS_EXTRA="-Wl,-Bsymbolic -Wl,--no-gnu-unique" CCFLAGS="-fno-gnu-unique"
       test_flags: --excludeWithAnyTags=incompatible_with_amazon_linux,requires_ldap_pool,requires_v4_0,requires_external_data_source
       multiversion_platform: amazon2023
@@ -581,6 +590,8 @@ buildvariants:
         BAZEL_FLAGS=--jobs=4
       integration_test_compile_flags: >-
         BAZEL_FLAGS=--jobs=4
+      compile_all_but_not_unittests_flags: >-
+        BAZEL_FLAGS="--jobs=4 --linkopt=-s"
       has_packages: true
       packager_arch: x86_64
       packager_distro: amazon2
@@ -654,6 +665,8 @@ buildvariants:
         BAZEL_FLAGS=--jobs=4
       integration_test_compile_flags: >-
         BAZEL_FLAGS=--jobs=4
+      compile_all_but_not_unittests_flags: >-
+        BAZEL_FLAGS="--jobs=4 --linkopt=-s"
       crypt_task_compile_flags: >-
         SHLINKFLAGS_EXTRA="-Wl,-Bsymbolic -Wl,--no-gnu-unique"
         CCFLAGS="-fno-gnu-unique"
@@ -703,6 +716,8 @@ buildvariants:
         --link-model=static
       integration_test_compile_flags: >-
         BAZEL_FLAGS=--jobs=4
+      compile_all_but_not_unittests_flags: >-
+        BAZEL_FLAGS="--jobs=4 --linkopt=-s"
       unittest_library_compile_flags: >-
         --link-model=dynamic
       unittest_compile_flags: >-
@@ -824,6 +839,8 @@ buildvariants:
         --link-model=static
       integration_test_compile_flags: >-
         BAZEL_FLAGS=--jobs=4
+      compile_all_but_not_unittests_flags: >-
+        BAZEL_FLAGS="--jobs=4 --linkopt=-s"
       unittest_library_compile_flags: >-
         --link-model=dynamic
       unittest_compile_flags: >-

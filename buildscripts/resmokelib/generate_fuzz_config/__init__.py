@@ -34,12 +34,14 @@ class GenerateFuzzConfig(Subcommand):
             wt_coll_config,
             wt_index_config,
             encryption_config,
-        ) = mongo_fuzzer_configs.fuzz_mongod_set_parameters(
-            self._mongod_mode, self._seed, user_param
-        )
+        ) = mongo_fuzzer_configs.fuzz_mongod_set_parameters(self._seed, user_param)
         set_parameters = utils.load_yaml(set_parameters)
         # This is moved from Jepsen mongod.conf to have only one setParameter key value pair.
         set_parameters["enableTestCommands"] = True
+        # Increase the number of retry attempts for FCBIS due to the limitation of having only one
+        # $backupCursor open at a time. This restriction causes nodes to wait for others to complete
+        # their synchronization, leading to repeated failures.
+        set_parameters["numInitialSyncAttempts"] = 20
         set_parameters["testingDiagnosticsEnabled"] = True
         conf = {
             "setParameter": set_parameters,
@@ -130,11 +132,9 @@ class GenerateFuzzConfigPlugin(PluginInterface):
         parser.add_argument(
             "--fuzzMongodConfigs",
             dest="fuzz_mongod_configs",
-            help="Randomly chooses mongod parameters that were not specified. Use 'stress' to fuzz "
-            "all configs including stressful storage configurations that may significantly "
-            "slow down the server. Use 'normal' to only fuzz non-stressful configurations. ",
+            help="Randomly chooses mongod parameters that were not specified.",
             metavar="MODE",
-            choices=("normal", "stress"),
+            choices=("normal"),
         )
         parser.add_argument(
             "--fuzzMongosConfigs",

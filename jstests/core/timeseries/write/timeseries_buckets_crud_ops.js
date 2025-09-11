@@ -78,17 +78,17 @@ crudTest(() => {
 
 // remove()
 crudTest(() => {
-    assert.eq(bucketsColl.remove({"control.count": 2}).nRemoved, 1);
+    assert.eq(coll.remove({"control.count": 2}, {rawData: true}).nRemoved, 1);
 });
 
 // deleteOne()
 crudTest(() => {
-    assert.eq(bucketsColl.deleteOne({"control.count": 2}).deletedCount, 1);
+    assert.eq(coll.deleteOne({"control.count": 2}, {rawData: true}).deletedCount, 1);
 });
 
 // deleteMany()
 crudTest(() => {
-    assert.eq(bucketsColl.deleteMany({"control.version": 2}).deletedCount, 2);
+    assert.eq(coll.deleteMany({"control.version": 2}, {rawData: true}).deletedCount, 2);
 });
 
 // distinct()
@@ -164,21 +164,25 @@ crudTest(() => {
 
 // update()
 crudTest(() => {
-    assert.eq(bucketsColl.update({"control.count": 2}, {$set: {meta: "3"}}).nModified, 1);
+    assert.eq(coll.update({"control.count": 2}, {$set: {meta: "3"}}, {rawData: true}).nModified, 1);
     assert.eq(bucketsColl.find({"control.count": 2}).length(), 1);
     assert.eq(bucketsColl.find({"control.count": 2})[0].meta, "3");
 });
 
 // updateOne()
 crudTest(() => {
-    assert.eq(bucketsColl.updateOne({"control.count": 2}, {$set: {meta: "3"}}).modifiedCount, 1);
+    assert.eq(
+        coll.updateOne({"control.count": 2}, {$set: {meta: "3"}}, {rawData: true}).modifiedCount,
+        1);
     assert.eq(bucketsColl.find({"control.count": 2}).length(), 1);
     assert.eq(bucketsColl.find({"control.count": 2})[0].meta, "3");
 });
 
 // updateMany()
 crudTest(() => {
-    assert.eq(bucketsColl.updateMany({"control.version": 2}, {$set: {meta: "3"}}).modifiedCount, 2);
+    assert.eq(
+        coll.updateMany({"control.version": 2}, {$set: {meta: "3"}}, {rawData: true}).modifiedCount,
+        2);
     assert.eq(bucketsColl.find({"meta": "3"}).length(), 2);
 });
 
@@ -186,7 +190,8 @@ crudTest(() => {
 // Remove the id field from the bucket for this test since it is an immutable field.
 delete replaceOneBucket["_id"];
 crudTest(() => {
-    assert.eq(bucketsColl.replaceOne({"control.count": 2}, replaceOneBucket).modifiedCount, 1);
+    assert.eq(
+        coll.replaceOne({"control.count": 2}, replaceOneBucket, {rawData: true}).modifiedCount, 1);
     assert.eq(bucketsColl.find({"meta": "1"}).length(), 1);
     assert.eq(bucketsColl.find({"meta": "1"})[0].meta, "1");
     assert.eq(bucketsColl.find({"control.max.v": "replacement"}).length(), 1);
