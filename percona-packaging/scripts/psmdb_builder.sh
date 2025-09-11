@@ -241,7 +241,7 @@ install_golang() {
         return 1
     fi
 
-    GO_VERSION="1.23.8"
+    GO_VERSION="1.24.7"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
