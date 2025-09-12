@@ -656,7 +656,7 @@ std::list<boost::intrusive_ptr<DocumentSource>> buildScoreAndMergeStages(
 }  // namespace
 
 std::unique_ptr<DocumentSourceRankFusion::LiteParsed> DocumentSourceRankFusion::LiteParsed::parse(
-    const NamespaceString& nss, const BSONElement& spec) {
+    const NamespaceString& nss, const BSONElement& spec, const LiteParserOptions& options) {
     uassert(ErrorCodes::FailedToParse,
             str::stream() << kStageName << " must take a nested object but found: " << spec,
             spec.type() == BSONType::Object);
@@ -718,10 +718,7 @@ std::list<boost::intrusive_ptr<DocumentSource>> DocumentSourceRankFusion::create
         // If not, the default is one.
         double pipelineWeight = getPipelineWeight(weights, name);
 
-        // TODO SERVER-100404 Once $meta: "score" validation works for sharded queries, we can
-        // use hybrid_scoring_util::isScoredPipeline to toggle inputGeneratesScore.
-        const bool inputGeneratesScore = false;
-
+        const bool inputGeneratesScore = hybrid_scoring_util::isScoredPipeline(*pipeline);
         if (outputStages.empty()) {
             // First pipeline.
             makeSureSortKeyIsOutput(pipeline->getSources());
