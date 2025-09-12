@@ -75,9 +75,10 @@ ServiceContext::ConstructorActionRegisterer createLDAPManager(
             auto ldapManager = LDAPManager::create();
             Status res = ldapManager->initialize();
             using namespace fmt::literals;
-            uassertStatusOKWithContext(res,
-                "Cannot initialize LDAP manager (parameters are: {})"_format(
-                    ldapGlobalParams.logString()));
+            uassertStatusOKWithContext(
+                res,
+                fmt::format("Cannot initialize LDAP manager (parameters are: {})",
+                            ldapGlobalParams.logString()));
             LDAPManager::set(service, std::move(ldapManager));
         }
     });

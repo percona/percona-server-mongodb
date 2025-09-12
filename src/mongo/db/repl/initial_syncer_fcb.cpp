@@ -1612,7 +1612,7 @@ Status InitialSyncerFCB::_deleteLocalFiles() {
         boost::filesystem::remove(path, ec);
         if (ec) {
             return {ErrorCodes::InternalError,
-                    "Error deleting file '{}': {}"_format(path, ec.message())};
+                    fmt::format("Error deleting file '{}': {}", path, ec.message())};
         }
     }
     return Status::OK();

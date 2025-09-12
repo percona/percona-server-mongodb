@@ -159,9 +159,9 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
         const char* pw = authn_id + std::strlen(authn_id) + 1; // password
 
         if(strlen(pw) == 0) {
-            return Status(ErrorCodes::LDAPLibraryError,
-                          "Failed to authenticate '{}'; No password provided."_format(
-                              authn_id));
+            return Status(
+                ErrorCodes::LDAPLibraryError,
+                fmt::format("Failed to authenticate '{}'; No password provided.", authn_id));
         }
 
         // transform user to DN
@@ -177,8 +177,9 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
         int res = ldap_initialize(&_ld, uri.c_str());
         if (res != LDAP_SUCCESS) {
             return Status(ErrorCodes::LDAPLibraryError,
-                          "Cannot initialize LDAP structure for {}; LDAP error: {}"_format(
-                              uri, ldap_err2string(res)));
+                          fmt::format("Cannot initialize LDAP structure for {}; LDAP error: {}",
+                                      uri,
+                                      ldap_err2string(res)));
         }
 
         Status status = LDAPbind(_ld, mappedUser.c_str(), pw);

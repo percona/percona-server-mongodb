@@ -612,8 +612,7 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
     });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
-                      "Cannot parse LDAP URL: {}"_format(
-                          ldap_err2string(res)));
+                      fmt::format("Cannot parse LDAP URL: {}", ldap_err2string(res)));
     }
 
     // Special handling of 'DN' attribute
@@ -676,8 +675,7 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
     ON_BLOCK_EXIT([=] { ldap_msgfree(answer); });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
-                      "LDAP search failed with error: {}"_format(
-                          ldap_err2string(res)));
+                      fmt::format("LDAP search failed with error: {}", ldap_err2string(res)));
     } else if (answer == nullptr) {
         return Status(ErrorCodes::LDAPLibraryError, "LDAP search failed to return non-null answer");
     }
@@ -691,8 +689,8 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
                 int ld_errno = 0;
                 ldap_get_option(ldap, LDAP_OPT_RESULT_CODE, &ld_errno);
                 return Status(ErrorCodes::LDAPLibraryError,
-                              "Failed to get DN from LDAP query result: {}"_format(
-                                  ldap_err2string(ld_errno)));
+                              fmt::format("Failed to get DN from LDAP query result: {}",
+                                          ldap_err2string(ld_errno)));
             }
             results.emplace_back(dn);
         } else {
@@ -865,7 +863,7 @@ Status LDAPManagerImpl::mapUserToDN(const std::string& user, std::string& out) {
         }
     }
     // we have no successful transformations, return error
-    return {ErrorCodes::UserNotFound, "Failed to map user '{}' to LDAP DN"_format(user)};
+    return {ErrorCodes::UserNotFound, fmt::format("Failed to map user '{}' to LDAP DN", user)};
 }
 
 Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) {
@@ -898,11 +896,11 @@ Status LDAPManagerImpl::queryUserRoles(const UserName& userName, stdx::unordered
         }
         if (partnum == 3) {
             // ldap search filter should be escaped in a special way
-            escapedQuery += fmt::format(part,
+            escapedQuery += fmt::format(fmt::runtime(part),
                                         fmt::arg("USER", mappedUserEscapedForFilter),
                                         fmt::arg("PROVIDED_USER", providedUserEscapedForFilter));
         } else {
-            escapedQuery += fmt::format(part,
+            escapedQuery += fmt::format(fmt::runtime(part),
                                         fmt::arg("USER", mappedUserEscaped),
                                         fmt::arg("PROVIDED_USER", providedUserEscaped));
         }
@@ -935,9 +933,11 @@ Status LDAPbind(LDAP* ld, const char* usr, const char* psw) {
         auto res = ldap_sasl_bind_s(ld, usr, LDAP_SASL_SIMPLE, &cred,
                                nullptr, nullptr, nullptr);
         if (res != LDAP_SUCCESS) {
-            return Status(ErrorCodes::LDAPLibraryError,
-                          "Failed to authenticate '{}' using simple bind; LDAP error: {}"_format(
-                              usr, ldap_err2string(res)));
+            return Status(
+                ErrorCodes::LDAPLibraryError,
+                fmt::format("Failed to authenticate '{}' using simple bind; LDAP error: {}",
+                            usr,
+                            ldap_err2string(res)));
         }
     } else if (ldapGlobalParams.ldapBindMethod == "sasl") {
         interactionParameters params;
@@ -956,12 +956,13 @@ Status LDAPbind(LDAP* ld, const char* usr, const char* psw) {
                 &params);
         if (res != LDAP_SUCCESS) {
             return Status(ErrorCodes::LDAPLibraryError,
-                          "Failed to authenticate '{}' using sasl bind; LDAP error: {}"_format(
-                              usr, ldap_err2string(res)));
+                          fmt::format("Failed to authenticate '{}' using sasl bind; LDAP error: {}",
+                                      usr,
+                                      ldap_err2string(res)));
         }
     } else {
         return Status(ErrorCodes::OperationFailed,
-                      "Unknown bind method: {}"_format(ldapGlobalParams.ldapBindMethod));
+                      fmt::format("Unknown bind method: {}", ldapGlobalParams.ldapBindMethod));
     }
     return Status::OK();
 }

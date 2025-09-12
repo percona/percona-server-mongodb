@@ -427,8 +427,9 @@ StatusWith<std::deque<BackupBlock>> getBackupBlocksFromBackupCursor(
         boost::system::error_code errorCode;
         const std::uint64_t fileSize = boost::filesystem::file_size(filePath, errorCode);
         uassert(31403,
-                "Failed to get a file's size. Filename: {} Error: {}"_format(filePath.string(),
-                                                                             errorCode.message()),
+                fmt::format("Failed to get a file's size. Filename: {} Error: {}",
+                            filePath.string(),
+                            errorCode.message()),
                 !errorCode);
 
         if (incrementalBackup && !fullBackup) {

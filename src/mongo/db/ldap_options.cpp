@@ -154,15 +154,22 @@ Status validateLDAPUserToDNMapping(const std::string& mapping) {
             for(; it != end; ++it){
                 if (std::stol((*it)[1].str()) >= sm_count)
                     return {ErrorCodes::BadValue,
-                            "security.ldap.userToDNMapping: "
-                            "Regular expresssion '{}' has {} capture groups so '{}' placeholder is invalid "
-                            "(placeholder number must be less than number of capture groups)"_format(
-                                elmatch.str(), sm_count, it->str())};
+                            fmt::format(
+                                "security.ldap.userToDNMapping: "
+                                "Regular expresssion '{}' has {} capture groups so '{}' "
+                                "placeholder is invalid "
+                                "(placeholder number must be less than number of capture groups)",
+                                elmatch.str(),
+                                sm_count,
+                                it->str())};
             }
         } catch (std::regex_error& e) {
             return {ErrorCodes::BadValue,
-                    "security.ldap.userToDNMapping: std::regex_error exception while validating '{}'. "
-                    "Error message is: {}"_format(elmatch.str(), e.what())};
+                    fmt::format("security.ldap.userToDNMapping: std::regex_error exception while "
+                                "validating '{}'. "
+                                "Error message is: {}",
+                                elmatch.str(),
+                                e.what())};
         }
     }
 
@@ -189,21 +196,28 @@ Status validateLDAPAuthzQueryTemplate(const std::string& templ) {
             auto v = (*it)[1].str();
             if (v != "USER" && v != "PROVIDED_USER")
                 return {ErrorCodes::BadValue,
-                        "security.ldap.authz.queryTemplate: "
-                        "{} placeholder is invalid. Only {{USER}} and {{PROVIDED_USER}} placeholders are supported"_format((*it)[0].str())};
+                        fmt::format("security.ldap.authz.queryTemplate: "
+                                    "{} placeholder is invalid. Only {{USER}} and "
+                                    "{{PROVIDED_USER}} placeholders are supported",
+                                    (*it)[0].str())};
         }
         // test format (throws fmt::format_error if something is wrong)
-        fmt::format(templ,
-            fmt::arg("USER", "test user"),
-            fmt::arg("PROVIDED_USER", "test user"));
+        (void)fmt::format(fmt::runtime(templ),
+                    fmt::arg("USER", "test user"),
+                    fmt::arg("PROVIDED_USER", "test user"));
     } catch (std::regex_error& e) {
         return {ErrorCodes::BadValue,
-                "security.ldap.authz.queryTemplate: std::regex_error exception while validating '{}'. "
-                "Error message is: {}"_format(templ, e.what())};
+                fmt::format("security.ldap.authz.queryTemplate: std::regex_error exception while "
+                            "validating '{}'. "
+                            "Error message is: {}",
+                            templ,
+                            e.what())};
     } catch (fmt::format_error& e) {
         return {ErrorCodes::BadValue,
-                "security.ldap.authz.queryTemplate is malformed, attempt to substitute placeholders thrown an exception. "
-                "Error message is: {}"_format(e.what())};
+                fmt::format("security.ldap.authz.queryTemplate is malformed, attempt to substitute "
+                            "placeholders thrown an exception. "
+                            "Error message is: {}",
+                            e.what())};
     }
 
     return Status::OK();

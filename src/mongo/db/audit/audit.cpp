@@ -235,18 +235,22 @@ protected:
                 // If cannot determine whether the target file exists,
                 // report a minor error and skip renaming.
                 if (onMinorError) {
-                    onMinorError({ErrorCodes::FileRenameFailed,
-                                  "Cannot verify whether destination already exists: {}. "
-                                  "Skipping audit log rotation."_format(targetName)});
+                    onMinorError(
+                        {ErrorCodes::FileRenameFailed,
+                         fmt::format("Cannot verify whether destination already exists: {}. "
+                                     "Skipping audit log rotation.",
+                                     targetName)});
                 }
             } else if (targetExists.getValue()) {
                 // If the target file already exists,
                 // report a minor error and skip renaming.
                 if (onMinorError) {
                     onMinorError({ErrorCodes::FileRenameFailed,
-                                  "Target already exists during audit log rotation. "
-                                  "Skipping audit log rotation. "
-                                  "target={}, file={}"_format(targetName, _fileName)});
+                                  fmt::format("Target already exists during audit log rotation. "
+                                              "Skipping audit log rotation. "
+                                              "target={}, file={}",
+                                              targetName,
+                                              _fileName)});
                 }
             } else {
                 int r = std::rename(_fileName.c_str(), targetName.c_str());
@@ -254,8 +258,10 @@ protected:
                     auto ec = lastSystemError();
                     if (onMinorError) {
                         onMinorError({ErrorCodes::FileRenameFailed,
-                                      "Failed to rename {} to {}: {}"_format(
-                                          _fileName, targetName, errorMessage(ec))});
+                                      fmt::format("Failed to rename {} to {}: {}",
+                                                  _fileName,
+                                                  targetName,
+                                                  errorMessage(ec))});
                     }
                     LOGV2_ERROR(29016,
                                 "Could not rotate audit log, but continuing normally "
