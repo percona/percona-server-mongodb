@@ -857,6 +857,15 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         uassertStatusOK(globalAuthzManagerFactory->initialize(startupOpCtx.get()));
     }
 
+    {
+        // The instance of AuthorizationManager should always be available since it is created in
+        // 'CreateAuthorizationManager' constructor.
+        auto authzManager =
+            AuthorizationManager::get(serviceContext->getService(ClusterRole::ShardServer));
+        invariant(authzManager != nullptr);
+        uassertStatusOK(authzManager->initialize(startupOpCtx.get()));
+    }
+
     if (audit::initializeManager) {
         audit::initializeManager(startupOpCtx.get());
     }
