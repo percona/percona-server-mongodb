@@ -66,6 +66,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/commands.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/matcher/matcher.h"
+#include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_util.h"
@@ -124,7 +125,7 @@ public:
     virtual ~WritableAuditLog() {}
 
     void append(const BSONObj& obj, const bool affects_durable_state) {
-        if (_matcher.matches(obj)) {
+        if (exec::matcher::matches(&_matcher, obj)) {
             appendMatched(obj, affects_durable_state);
         }
     }

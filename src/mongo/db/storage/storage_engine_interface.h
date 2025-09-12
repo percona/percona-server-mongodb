@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2019-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,45 +27,20 @@
  *    it in the license file.
  */
 
-#include "mongo/db/matcher/match_details.h"
-
-#include <sstream>
-
-#include "mongo/util/assert_util.h"
+#pragma once
 
 namespace mongo {
 
-using std::string;
+class KVEngine;
+class DurableCatalog;
+class StorageEngine;
 
-MatchDetails::MatchDetails() : _elemMatchKeyRequested() {
-    resetOutput();
-}
-
-void MatchDetails::resetOutput() {
-    _loadedRecord = false;
-    _elemMatchKey.reset();
-}
-
-bool MatchDetails::hasElemMatchKey() const {
-    return _elemMatchKey.get();
-}
-
-std::string MatchDetails::elemMatchKey() const {
-    MONGO_verify(hasElemMatchKey());
-    return *(_elemMatchKey.get());
-}
-
-void MatchDetails::setElemMatchKey(const std::string& elemMatchKey) {
-    if (_elemMatchKeyRequested) {
-        _elemMatchKey.reset(new std::string(elemMatchKey));
-    }
-}
-
-string MatchDetails::toString() const {
-    std::stringstream ss;
-    ss << "loadedRecord: " << _loadedRecord << " ";
-    ss << "elemMatchKeyRequested: " << _elemMatchKeyRequested << " ";
-    ss << "elemMatchKey: " << (_elemMatchKey ? _elemMatchKey->c_str() : "NONE") << " ";
-    return ss.str();
-}
+class StorageEngineInterface {
+public:
+    StorageEngineInterface() = default;
+    virtual ~StorageEngineInterface() = default;
+    virtual StorageEngine* getStorageEngine() = 0;
+    virtual KVEngine* getEngine() = 0;
+    virtual DurableCatalog* getCatalog() = 0;
+};
 }  // namespace mongo

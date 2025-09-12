@@ -215,11 +215,11 @@ protected:
 
     int delta = 0;
     BSONObj lastResume;
-    ReshardingChangeStreamsMonitor::BatchProcessedCallback callback = [&](int documentDelta,
-                                                                          BSONObj resumeToken) {
-        delta += documentDelta;
-        lastResume = resumeToken.getOwned();
-    };
+    ReshardingChangeStreamsMonitor::BatchProcessedCallback callback =
+        [&](int documentsDelta, BSONObj resumeToken, bool completed) {
+            delta += documentsDelta;
+            lastResume = resumeToken.getOwned();
+        };
 };
 
 TEST_F(ReshardingChangeStreamsMonitorTest, SuccessfullyInitializeMonitorWithStartAtTime) {
@@ -235,9 +235,9 @@ TEST_F(ReshardingChangeStreamsMonitorTest, SuccessfullyInitializeMonitorWithStar
     ASSERT_FALSE(lastResume.isEmpty());
 }
 
-DEATH_TEST_F(ReshardingChangeStreamsMonitorTest,
-             FailIfAwaitEventCalledBeforeStartMonitoring,
-             "Attempted to await completion before starting the resharding change streams") {
+DEATH_TEST_REGEX_F(ReshardingChangeStreamsMonitorTest,
+                   FailIfAwaitEventCalledBeforeStartMonitoring,
+                   "Tripwire assertion.*1009073") {
     createCollectionAndInsertDocuments(0 /*minDocValue*/, 9 /*maxDocValue*/);
     Timestamp startAtTime = replicationCoordinator()->getMyLastAppliedOpTime().getTimestamp();
 
@@ -257,6 +257,9 @@ TEST_F(ReshardingChangeStreamsMonitorTest, StartMonitoringCalledTwiceSuccessful)
     auto factory = makeCancelableOpCtx();
     monitor->startMonitoring(executor, factory);
     monitor->startMonitoring(executor, factory);
+
+    fulfillRecipientFinalEventPromise(nss);
+    monitor->awaitFinalChangeEvent().get();
 }
 
 

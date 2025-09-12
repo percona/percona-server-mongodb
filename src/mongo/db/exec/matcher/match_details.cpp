@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2019-present MongoDB, Inc.
+ *    Copyright (C) 2018-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,33 +27,45 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/exec/matcher/match_details.h"
 
-#include "mongo/platform/source_location.h"
+#include <sstream>
 
-#include "mongo/unittest/unittest.h"
+#include "mongo/util/assert_util.h"
 
 namespace mongo {
-inline bool operator==(const SourceLocationHolder& lhs, const SourceLocationHolder& rhs) {
-    return lhs.line() == rhs.line()            //
-        && lhs.column() == rhs.column()        //
-        && lhs.file_name() == rhs.file_name()  //
-        && lhs.function_name() == rhs.function_name();
+
+using std::string;
+
+MatchDetails::MatchDetails() : _elemMatchKeyRequested() {
+    resetOutput();
 }
 
-inline bool operator!=(const SourceLocationHolder& lhs, const SourceLocationHolder& rhs) {
-    return !(lhs == rhs);
+void MatchDetails::resetOutput() {
+    _loadedRecord = false;
+    _elemMatchKey.reset();
 }
 
-// Simple recursive constexpr string comparison to play nice with static_assert
-constexpr bool areEqual(const char* string1, const char* string2) {
-    return (string1 != nullptr)  //
-        && (string2 != nullptr)  //
-        && *string1 == *string2  //
-        && (*string1 == '\0' || areEqual(string1 + 1, string2 + 1));
+bool MatchDetails::hasElemMatchKey() const {
+    return _elemMatchKey.get();
 }
 
-inline constexpr SourceLocation makeHeaderSourceLocationForTest() {
-    return MONGO_SOURCE_LOCATION();
+std::string MatchDetails::elemMatchKey() const {
+    MONGO_verify(hasElemMatchKey());
+    return *(_elemMatchKey.get());
+}
+
+void MatchDetails::setElemMatchKey(const std::string& elemMatchKey) {
+    if (_elemMatchKeyRequested) {
+        _elemMatchKey.reset(new std::string(elemMatchKey));
+    }
+}
+
+string MatchDetails::toString() const {
+    std::stringstream ss;
+    ss << "loadedRecord: " << _loadedRecord << " ";
+    ss << "elemMatchKeyRequested: " << _elemMatchKeyRequested << " ";
+    ss << "elemMatchKey: " << (_elemMatchKey ? _elemMatchKey->c_str() : "NONE") << " ";
+    return ss.str();
 }
 }  // namespace mongo

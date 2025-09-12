@@ -38,6 +38,7 @@
 #include <grpcpp/security/tls_certificate_verifier.h>
 #include <grpcpp/security/tls_credentials_options.h>
 #include <grpcpp/support/async_stream.h>
+#include <src/core/lib/security/security_connector/ssl_utils.h>
 
 #include <src/core/tsi/ssl_transport_security.h>
 #include <src/core/tsi/transport_security_interface.h>
@@ -272,7 +273,7 @@ Future<std::shared_ptr<EgressSession>> Client::connect(
             }
 
             auto it = _sessions.insert(_sessions.begin(), session);
-            _numCurrentStreams.increment();
+            _numActiveStreams.increment();
 
             session->setCleanupCallback(
                 [this, client = weak_from_this(), it = std::move(it)](Status terminationStatus) {
@@ -284,7 +285,7 @@ Future<std::shared_ptr<EgressSession>> Client::connect(
                     if (auto anchor = client.lock()) {
                         stdx::lock_guard lk(_mutex);
                         _sessions.erase(it);
-                        _numCurrentStreams.decrement();
+                        _numActiveStreams.decrement();
 
                         if (MONGO_unlikely(_isShutdownComplete_inlock())) {
                             _shutdownCV.notify_one();
@@ -713,20 +714,7 @@ private:
                     !sslGlobalParams.sslUseSystemCA);
                 caCert.emplace(ssl_util::readPEMFile(_options.tlsCAFile.get()).getValue());
             } else if (sslGlobalParams.sslUseSystemCA) {
-                // If sslUseSystemCA is specified, read the CA file path from the SSL_CERT_FILE env
-                // var.
-                StringData caPath;
-                if (char* env = getenv(kSSLCertFileEnvVar); env && *env) {
-                    caPath = env;
-                } else {
-                    uasserted(9985601,
-                              "tlsUseSystemCA enabled, but SSL_CERT_FILE has not been set in "
-                              "environment");
-                }
-                LOGV2(9985602,
-                      "tlsUseSystemCA enabled, using value from environment variable",
-                      "SSL_CERT_FILE"_attr = caPath);
-                caCert.emplace(ssl_util::readPEMFile(caPath).getValue());
+                caCert.emplace(grpc_core::DefaultSslRootStore::GetPemRootCerts());
             } else if (_options.tlsAllowInvalidCertificates) {
                 LOGV2_WARNING(9985603, "No tlsCAFile specified, and tlsUseSystemCA not specified");
             } else {
@@ -820,17 +808,11 @@ void GRPCClient::shutdown() {
     static_cast<StubFactoryImpl&>(*_stubFactory).stop();
 }
 
-void GRPCClient::appendStats(BSONObjBuilder* section) const {
-    auto numCurrentChannels = static_cast<StubFactoryImpl&>(*_stubFactory).getPoolSize();
-
-    section->append(kCurrentChannelsFieldName, numCurrentChannels);
-
-    {
-        BSONObjBuilder streamSection(section->subobjStart(kStreamsSubsectionFieldName));
-        streamSection.append(kCurrentStreamsFieldName, _numCurrentStreams.get());
-        streamSection.append(kSuccessfulStreamsFieldName, _numSuccessfulStreams.get());
-        streamSection.append(kFailedStreamsFieldName, _numFailedStreams.get());
-    }
+void GRPCClient::appendStats(GRPCConnectionStats& stats) const {
+    stats.setTotalOpenChannels(static_cast<StubFactoryImpl&>(*_stubFactory).getPoolSize());
+    stats.setTotalActiveStreams(_numActiveStreams.get());
+    stats.setTotalSuccessfulStreams(_numSuccessfulStreams.get());
+    stats.setTotalFailedStreams(_numFailedStreams.get());
 }
 
 #ifdef MONGO_CONFIG_SSL

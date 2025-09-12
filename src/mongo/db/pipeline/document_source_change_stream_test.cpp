@@ -56,6 +56,7 @@
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/document_value_test_util.h"
 #include "mongo/db/exec/document_value/value.h"
+#include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/index/index_constants.h"
 #include "mongo/db/matcher/matcher.h"
 #include "mongo/db/operation_context.h"
@@ -195,11 +196,12 @@ struct MockMongoInterface final : public ExecutableStubMongoProcessInterface {
         const Document& documentKey,
         boost::optional<BSONObj> readConcern) final {
         Matcher matcher(documentKey.toBson(), expCtx);
-        auto it = std::find_if(_documentsForLookup.begin(),
-                               _documentsForLookup.end(),
-                               [&](const Document& lookedUpDoc) {
-                                   return matcher.matches(lookedUpDoc.toBson(), nullptr);
-                               });
+        auto it =
+            std::find_if(_documentsForLookup.begin(),
+                         _documentsForLookup.end(),
+                         [&](const Document& lookedUpDoc) {
+                             return exec::matcher::matches(&matcher, lookedUpDoc.toBson(), nullptr);
+                         });
         return (it != _documentsForLookup.end() ? *it : boost::optional<Document>{});
     }
 
@@ -1412,11 +1414,11 @@ TEST_F(ChangeStreamStageTest, TransformReshardBlockingWrites) {
                                                    nss,
                                                    BSONObj(),
                                                    uuid,
-                                                   true,  // fromMigrate
+                                                   false,  // fromMigrate
                                                    o2Field.toBSON());
 
     // TODO (SERVER-86688): Remove showExpandedEvents: true filter from $changeStream.
-    auto spec = fromjson("{$changeStream: {showMigrationEvents: true, showExpandedEvents: true}}");
+    auto spec = fromjson("{$changeStream: {showSystemEvents: true, showExpandedEvents: true}}");
 
     const auto opDesc =
         D{{"reshardingUUID", reshardingUuid}, {"type", resharding::kReshardFinalOpLogType}};

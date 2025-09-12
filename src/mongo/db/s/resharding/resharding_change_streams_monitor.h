@@ -52,7 +52,8 @@ namespace mongo {
 class ReshardingChangeStreamsMonitor
     : public std::enable_shared_from_this<ReshardingChangeStreamsMonitor> {
 public:
-    using BatchProcessedCallback = std::function<void(int documentDelta, BSONObj resumeToken)>;
+    using BatchProcessedCallback =
+        std::function<void(int documentsDelta, BSONObj resumeToken, bool completed)>;
 
     ReshardingChangeStreamsMonitor(NamespaceString monitorNamespace,
                                    Timestamp startAtOperationTime,
@@ -79,35 +80,29 @@ public:
 
 private:
     /**
-     * Return an array of operation types to monitor.
-     */
-    BSONArray _getOperationTypesToMonitor();
-
-    /**
      * Creates the aggregation command request for the change streams.
      */
-    AggregateCommandRequest _createChangeStreamAggregation(OperationContext* opCtx);
+    AggregateCommandRequest _makeAggregateCommandRequest();
 
     /**
      * Continuously fetch and process events from the change streams.
      */
-    void _consumeChangeStream(OperationContext* opCtx, AggregateCommandRequest aggRequest);
-
+    void _consumeChangeEvents(OperationContext* opCtx, const AggregateCommandRequest& aggRequest);
     void _processChangeEvent(BSONObj changeEvent);
 
     const NamespaceString _monitorNS;
-    boost::optional<Timestamp> _startAt;
-    boost::optional<BSONObj> _startAfter;
+    const boost::optional<Timestamp> _startAt;
+    const boost::optional<BSONObj> _startAfter;
     const bool _isRecipient;
-    bool _recievedFinalEvent = false;
+    const BatchProcessedCallback _batchProcessedCallback;
 
     // Records the change in documents as the events are observed.
-    int _documentDelta = 0;
+    int _documentsDelta = 0;
 
     // Records the number of events processed.
     int _numEventsProcessed = 0;
 
-    BatchProcessedCallback _batchProcessedCallback;
+    bool _receivedFinalEvent = false;
     std::unique_ptr<SharedPromise<void>> _finalEventPromise;
 };
 
