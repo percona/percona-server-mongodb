@@ -184,7 +184,8 @@ feature_flags:
       description: "Feature flag to finish up $rankFusion features as well as introduce $score and
                    $scoreDetails stages. (Second milestone of Vector Search Hybrid Scoring)"
       cpp_varname: gFeatureFlagRankFusionFull
-      default: false
+      default: true
+      version: 8.1
       shouldBeFCVGated: true
 
     featureFlagSearchHybridScoringFull:
@@ -204,7 +205,8 @@ feature_flags:
     featureFlagMongotIndexedViews:
       description: "Feature flag to enable issuing mongot index commands on views and running mongot queries on said mongot indexed views."
       cpp_varname: gFeatureFlagMongotIndexedViews
-      default: false
+      default: true
+      version: 8.1
       shouldBeFCVGated: true
 
     featureFlagCurrentDate:
@@ -224,3 +226,9 @@ feature_flags:
       cpp_varname: gFeatureFlagSbeUpgradeBinaryTrees
       default: false
       shouldBeFCVGated: false
+
+    featureFlagUUIDExpression:
+      description: "Feature flag to enable $uuid expression"
+      cpp_varname: gFeatureFlagUUIDExpression
+      default: false
+      shouldBeFCVGated: true

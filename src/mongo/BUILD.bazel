@@ -510,7 +510,7 @@ filegroup(
         "//src/mongo/db:feature_compatibility_version_parser.h",
         "//src/mongo/db:feature_flag.h",
         "//src/mongo/db:version_context.h",
-        "//src/mongo/db:version_context_gen",
+        "//src/mongo/db:version_context_metadata_gen",
         "//src/mongo/db:feature_flag_server_parameter.h",
         "//src/mongo/db:field_ref.h",
         "//src/mongo/db:index_names.h",
@@ -870,6 +870,11 @@ filegroup(
         "//src/mongo/util/version:releases_header",
         #Extras
         "//src/mongo/db/query:explain_options.h",
+        "//src/mongo/db/auth:cluster_auth_mode.h",
+        "//src/mongo/db:cluster_role.h",
+        "//src/mongo/db/concurrency:flow_control_ticketholder.h",
+        "//src/mongo/db/stats:counter_ops.h",
+        "//src/mongo/db/query/datetime:date_time_support.h",
     ],
 )
 

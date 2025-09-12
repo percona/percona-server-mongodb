@@ -176,6 +176,7 @@ idl_generator(
     src = "forwardable_operation_metadata.idl",
     deps = [
         "//src/mongo/db:basic_types_gen",
+        "//src/mongo/db:version_context_gen",
         "//src/mongo/rpc/metadata:audit_attrs_gen",
         "//src/mongo/rpc/metadata:audit_metadata_gen",
     ],
@@ -632,6 +633,7 @@ mongo_cc_library(
         "ddl_lock_manager.cpp",
         "periodic_sharded_index_consistency_checker.cpp",
         "sharding_ddl_util.cpp",
+        "sharding_ddl_util_detail.cpp",
         "sharding_index_catalog_util.cpp",
         "sharding_util.cpp",
         "split_chunk_request_type.cpp",
@@ -691,17 +693,9 @@ mongo_cc_library(
         "//src/mongo/db/s/config:sharding_catalog_manager.h",
         "//src/mongo/s:chunk_constraints.h",
     ],
-    # TODO(SERVER-97809)
-    # sharding_ddl_util.cpp needs more than 3.5GB of ram for gcc+fission builds
-    exec_properties = select({
-        "//bazel/config:linux_gcc_fission_x86_64": {
-            "Pool": "large_mem_x86_64",
-        },
-        "//bazel/config:linux_gcc_fission_aarch64": {
-            "Pool": "large_memory_arm64",
-        },
-        "//conditions:default": {},
-    }),
+    tags = [
+        "compile_requires_large_memory_gcc_fission",
+    ],
     deps = [
         ":forwardable_operation_metadata",
         ":remove_shard_exception",

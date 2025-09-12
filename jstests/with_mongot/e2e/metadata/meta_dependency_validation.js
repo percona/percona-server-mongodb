@@ -14,9 +14,13 @@
  * stages.
  *
  * featureFlagRankFusionFull is required to enable use of "score".
- * featureFlagHybridScoringFull is required to enable use of $score.
+ * featureFlagSearchHybridScoringFull is required to enable use of $score.
  * The $rankFusion feature flag is required to enable use of "score" and "searchScore".
- * @tags: [ featureFlagRankFusionBasic, featureFlagRankFusionFull, featureFlagHybridScoringFull ]
+ * @tags: [
+ *   featureFlagRankFusionBasic,
+ *   featureFlagRankFusionFull,
+ *   featureFlagSearchHybridScoringFull,
+ * ]
  */
 
 import {assertErrCodeAndErrMsgContains} from "jstests/aggregation/extras/utils.js";
@@ -187,14 +191,13 @@ const MetaFields = Object.freeze({
         shouldBeValidated: true,
         debugName: "score",
         validSortKey: true,
-        // TODO SERVER-100209 $rankFusion should always populate "score" regardless of
-        // "scoreDetails".
         firstStageRequired: [
             FirstStageOptions.FTS_MATCH,
             FirstStageOptions.SCORE,
             FirstStageOptions.VECTOR_SEARCH,
             FirstStageOptions.SEARCH,
             FirstStageOptions.SEARCH_W_DETAILS,
+            FirstStageOptions.RANK_FUSION,
             FirstStageOptions.RANK_FUSION_W_DETAILS,
         ]
     },
