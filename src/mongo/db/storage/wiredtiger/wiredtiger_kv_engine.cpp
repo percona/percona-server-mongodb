@@ -1207,6 +1207,8 @@ void WiredTigerKVEngine::cleanShutdown() {
         return;
     }
 
+    getOplogManager()->stop();
+
     if (_sessionSweeper) {
         LOGV2(22318, "Shutting down session sweeper thread");
         _sessionSweeper->shutdown();
@@ -3015,7 +3017,8 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
             static_cast<WiredTigerRecordStore::Oplog*>(ret.get())->setTruncateMarkers(
                 WiredTigerOplogTruncateMarkers::createOplogTruncateMarkers(opCtx, ret.get()));
         }
-        initializeOplogVisibility(opCtx, ret.get());
+        getOplogManager()->stop();
+        getOplogManager()->start(opCtx, *this, *ret);
     } else {
         WiredTigerRecordStore::Params params{
             .uuid = options.uuid,
@@ -4095,11 +4098,6 @@ bool WiredTigerKVEngine::supportsReadConcernSnapshot() const {
 
 bool WiredTigerKVEngine::supportsOplogTruncateMarkers() const {
     return true;
-}
-
-void WiredTigerKVEngine::initializeOplogVisibility(OperationContext* opCtx,
-                                                   WiredTigerRecordStore* oplogRecordStore) {
-    _oplogManager->initialize(opCtx, oplogRecordStore);
 }
 
 Status WiredTigerKVEngine::oplogDiskLocRegister(RecoveryUnit& ru,

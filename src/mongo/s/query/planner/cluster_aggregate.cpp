@@ -81,6 +81,7 @@
 #include "mongo/db/query/query_stats/key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/query/tailable_mode_gen.h"
+#include "mongo/db/query/timeseries/timeseries_rewrites.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/shard_id.h"
@@ -384,6 +385,32 @@ std::vector<BSONObj> patchPipelineForTimeSeriesQuery(
     return newPipeline;
 }
 
+void mongotIndexedViewHelper(boost::intrusive_ptr<ExpressionContext> expCtx,
+                             std::unique_ptr<Pipeline, PipelineDeleter>& pipeline,
+                             ResolvedView resolvedView,
+                             const NamespaceString& viewName) {
+    if (expCtx->isFeatureFlagMongotIndexedViewsEnabled() &&
+        search_helpers::isMongotPipeline(pipeline.get())) {
+        if (search_helpers::isStoredSource(pipeline.get())) {
+            // For returnStoredSource queries, the documents returned by mongot already include the
+            // fields transformed by the view pipeline. As such, mongod doesn't need to apply the
+            // view pipeline after idLookup.
+            return;
+        } else {
+            // Search queries on views behave differently than non-search aggregations on views.
+            // When a user pipeline contains a $search/$vectorSearch stage, idLookup will apply the
+            // view transforms as part of its subpipeline. In this way, the view stages will always
+            // be applied directly after $_internalSearchMongotRemote and before the remaining
+            // stages of the user pipeline. This is to ensure the stages following
+            // $search/$vectorSearch in the user pipeline will receive the modified documents: when
+            // storedSource is disabled, idLookup will retrieve full/unmodified documents during
+            // (from the _id values returned by mongot), apply the view's data transforms, and pass
+            // said transformed documents through the rest of the user pipeline.
+            search_helpers::addResolvedNamespaceForSearch(viewName, resolvedView, expCtx);
+        }
+    }
+}
+
 /**
  * Builds an expCtx with which to parse the request's pipeline, then parses the pipeline and
  * registers the pre-optimized pipeline with query stats collection.
@@ -391,12 +418,13 @@ std::vector<BSONObj> patchPipelineForTimeSeriesQuery(
 std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
     OperationContext* opCtx,
     const stdx::unordered_set<NamespaceString>& involvedNamespaces,
-    const NamespaceString& executionNss,
+    const ClusterAggregate::Namespaces& nsStruct,
     AggregateCommandRequest& request,
     boost::optional<CollectionRoutingInfo> cri,
     bool hasChangeStream,
     bool shouldDoFLERewrite,
     bool requiresCollationForParsingUnshardedAggregate,
+    boost::optional<ResolvedView> resolvedView,
     boost::optional<ExplainOptions::Verbosity> verbosity) {
     // Populate the collation. If this is a change stream, take the user-defined collation if one
     // exists, or an empty BSONObj otherwise. Change streams never inherit the collection's default
@@ -407,7 +435,7 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
                                         : cluster_aggregation_planner::getCollation(
                                               opCtx,
                                               cri ? boost::make_optional(cri->cm) : boost::none,
-                                              executionNss,
+                                              nsStruct.executionNss,
                                               request.getCollation().value_or(BSONObj()),
                                               requiresCollationForParsingUnshardedAggregate);
 
@@ -418,31 +446,35 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
         makeExpressionContext(opCtx,
                               request,
                               cri,
-                              executionNss,
+                              nsStruct.executionNss,
                               collationObj,
                               boost::none /* uuid */,
                               resolveInvolvedNamespaces(involvedNamespaces),
                               hasChangeStream,
                               verbosity);
     auto pipeline = Pipeline::parse(request.getPipeline(), expCtx);
+    // TODO SERVER-100566 call view helper on raw bson obj vector, before parsing call above.
+    if (resolvedView) {
+        mongotIndexedViewHelper(expCtx, pipeline, *resolvedView, nsStruct.requestedNss);
+    }
 
     // Perform the query settings lookup and attach it to 'expCtx'.
     // In case query settings have already been looked up (in case the agg request is
     // running over a view) we avoid performing query settings lookup.
     query_shape::DeferredQueryShape deferredShape{[&]() {
         return shape_helpers::tryMakeShape<query_shape::AggCmdShape>(
-            request, executionNss, involvedNamespaces, *pipeline, expCtx);
+            request, nsStruct.executionNss, involvedNamespaces, *pipeline, expCtx);
     }};
     expCtx->setQuerySettingsIfNotPresent(std::move(request.getQuerySettings()).value_or_eval([&] {
         return query_settings::lookupQuerySettingsWithRejectionCheckOnRouter(
-            expCtx, deferredShape, executionNss);
+            expCtx, deferredShape, nsStruct.executionNss);
     }));
 
     // Skip query stats recording for queryable encryption queries.
     if (!shouldDoFLERewrite) {
         query_stats::registerRequest(
             opCtx,
-            executionNss,
+            nsStruct.executionNss,
             [&]() {
                 uassert(8472505, "Failed computing query shape", deferredShape());
                 return std::make_unique<query_stats::AggKey>(
@@ -451,6 +483,28 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
             hasChangeStream);
     }
     return pipeline;
+}
+
+void rewritePipelineIfTimeseries(AggregateCommandRequest& request,
+                                 const CollectionRoutingInfo& cri) {
+    // Conditions for enabling the viewless code path: feature flag is on, request does not use
+    // the rawData flag, and we're querying against a sharded viewless timeseries collection.
+    if (!request.getRawData() && cri.cm.isTimeseriesCollection() &&
+        cri.cm.isNewTimeseriesWithoutView()) {
+        // TypeCollectionTimeseriesFields encapsulates TimeseriesOptions.
+        const auto timeseriesFields = cri.cm.getTimeseriesFields();
+        tassert(9949202,
+                "Expected getTimeseriesFields() to return a meaningful value",
+                timeseriesFields.has_value());
+        if (timeseriesFields.has_value()) {
+            timeseries::rewriteRequestPipelineAndHintForTimeseriesCollection(
+                request, *timeseriesFields, timeseriesFields->getTimeseriesOptions());
+            // The query has been rewritten to something that should run directly against the bucket
+            // collection. Set this flag to indicate to the shard that the query's target has
+            // changed to avoid incorrect rewrites in the shard role.
+            request.setRawData(true);
+        }
+    }
 }
 
 }  // namespace
@@ -471,8 +525,15 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                                       const PrivilegeVector& privileges,
                                       boost::optional<ExplainOptions::Verbosity> verbosity,
                                       BSONObjBuilder* result) {
-    return runAggregate(
-        opCtx, namespaces, request, liteParsedPipeline, privileges, boost::none, verbosity, result);
+    return runAggregate(opCtx,
+                        namespaces,
+                        request,
+                        liteParsedPipeline,
+                        privileges,
+                        boost::none /*CollectionRoutingInfo*/,
+                        boost::none /*ResolvedView*/,
+                        verbosity,
+                        result);
 }
 
 Status ClusterAggregate::runAggregate(OperationContext* opCtx,
@@ -481,6 +542,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                                       const LiteParsedPipeline& liteParsedPipeline,
                                       const PrivilegeVector& privileges,
                                       boost::optional<CollectionRoutingInfo> cri,
+                                      boost::optional<ResolvedView> resolvedView,
                                       boost::optional<ExplainOptions::Verbosity> verbosity,
                                       BSONObjBuilder* result) {
     // Perform some validations on the LiteParsedPipeline and request before continuing with the
@@ -550,12 +612,13 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                 auto pipeline = parsePipelineAndRegisterQueryStats(
                     opCtx,
                     involvedNamespaces,
-                    namespaces.executionNss,
+                    namespaces,
                     request,
                     cri,
                     hasChangeStream,
                     shouldDoFLERewrite,
                     requiresCollationForParsingUnshardedAggregate,
+                    resolvedView,
                     verbosity);
                 pipeline->validateCommon(false);
             } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>& ex) {
@@ -573,6 +636,18 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         }
     }
 
+    // This is used later on as well.
+    const auto routingTableIsAvailable = cri && cri->hasRoutingTable();
+
+    // If cri is valueful, then the database definitely exists and the cluster has shards. If the
+    // routing table also exists, the collection exists and is tracked in the router role, so it is
+    // appropriate to attempt the rewrite. If any of these conditions are false, then either cri is
+    // none or the routing table is absent, and the rewrite will either be performed in the shard
+    // role or the database is nonexistent or the cluster has no shards to execute the query anyway.
+    if (routingTableIsAvailable) {
+        rewritePipelineIfTimeseries(request, *cri);
+    }
+
     // pipelineBuilder will be invoked within AggregationTargeter::make() if and only if it chooses
     // any policy other than "specific shard only".
     boost::intrusive_ptr<ExpressionContext> expCtx;
@@ -580,12 +655,13 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         auto pipeline =
             parsePipelineAndRegisterQueryStats(opCtx,
                                                involvedNamespaces,
-                                               namespaces.executionNss,
+                                               namespaces,
                                                request,
                                                cri,
                                                hasChangeStream,
                                                shouldDoFLERewrite,
                                                requiresCollationForParsingUnshardedAggregate,
+                                               resolvedView,
                                                verbosity);
         expCtx = pipeline->getContext();
 
@@ -614,7 +690,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         // This is because the results of optimization may depend on knowing the collation.
         // TODO SERVER-81991: Determine whether this is necessary once all unsharded collections are
         // tracked as unsplittable collections in the sharding catalog.
-        if ((cri && cri->cm.hasRoutingTable()) || requiresCollationForParsingUnshardedAggregate ||
+        if (routingTableIsAvailable || requiresCollationForParsingUnshardedAggregate ||
             hasChangeStream || shouldDoFLERewrite ||
             expCtx->getNamespaceString().isCollectionlessAggregateNS()) {
             pipeline->optimizePipeline();
@@ -864,6 +940,7 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
                                                  {resolvedAggRequest},
                                                  privileges,
                                                  snapshotCri,
+                                                 boost::make_optional(resolvedView),
                                                  verbosity,
                                                  result);
 

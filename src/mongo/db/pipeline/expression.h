@@ -75,6 +75,7 @@
 #include "mongo/db/query/sort_pattern.h"
 #include "mongo/db/query/util/named_enum.h"
 #include "mongo/db/update/pattern_cmp.h"
+#include "mongo/db/version_context.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/intrusive_counter.h"
 #include "mongo/util/pcre.h"
@@ -149,17 +150,17 @@ class BSONElement;
  * parser and enforce the 'sometimes' behavior during that invocation. No extra validation will be
  * done here.
  */
-#define REGISTER_EXPRESSION_WITH_FEATURE_FLAG(                                  \
-    key, parser, allowedWithApiStrict, allowedClientType, featureFlag)          \
-    REGISTER_EXPRESSION_CONDITIONALLY(                                          \
-        key,                                                                    \
-        parser,                                                                 \
-        allowedWithApiStrict,                                                   \
-        allowedClientType,                                                      \
-        featureFlag,                                                            \
-        CheckableFeatureFlagRef(featureFlag).isEnabled([](auto& fcvGatedFlag) { \
-            return fcvGatedFlag.isEnabledUseLatestFCVWhenUninitialized(         \
-                serverGlobalParams.featureCompatibility.acquireFCVSnapshot());  \
+#define REGISTER_EXPRESSION_WITH_FEATURE_FLAG(                                                    \
+    key, parser, allowedWithApiStrict, allowedClientType, featureFlag)                            \
+    REGISTER_EXPRESSION_CONDITIONALLY(                                                            \
+        key,                                                                                      \
+        parser,                                                                                   \
+        allowedWithApiStrict,                                                                     \
+        allowedClientType,                                                                        \
+        featureFlag,                                                                              \
+        CheckableFeatureFlagRef(featureFlag).isEnabled([](auto& fcvGatedFlag) {                   \
+            return fcvGatedFlag.isEnabledUseLatestFCVWhenUninitialized(                           \
+                kNoVersionContext, serverGlobalParams.featureCompatibility.acquireFCVSnapshot()); \
         }))
 
 /**
@@ -2861,9 +2862,18 @@ public:
 class ExpressionSetDifference final : public ExpressionFixedArity<ExpressionSetDifference, 2> {
 public:
     explicit ExpressionSetDifference(ExpressionContext* const expCtx)
-        : ExpressionFixedArity<ExpressionSetDifference, 2>(expCtx) {}
+        : ExpressionFixedArity<ExpressionSetDifference, 2>(expCtx) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
+
     ExpressionSetDifference(ExpressionContext* const expCtx, ExpressionVector&& children)
-        : ExpressionFixedArity<ExpressionSetDifference, 2>(expCtx, std::move(children)) {}
+        : ExpressionFixedArity<ExpressionSetDifference, 2>(expCtx, std::move(children)) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
 
     Value evaluate(const Document& root, Variables* variables) const final;
     const char* getOpName() const final;
@@ -2881,9 +2891,18 @@ public:
 class ExpressionSetEquals final : public ExpressionVariadic<ExpressionSetEquals> {
 public:
     explicit ExpressionSetEquals(ExpressionContext* const expCtx)
-        : ExpressionVariadic<ExpressionSetEquals>(expCtx) {}
+        : ExpressionVariadic<ExpressionSetEquals>(expCtx) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
+
     ExpressionSetEquals(ExpressionContext* const expCtx, ExpressionVector&& children)
-        : ExpressionVariadic<ExpressionSetEquals>(expCtx, std::move(children)) {}
+        : ExpressionVariadic<ExpressionSetEquals>(expCtx, std::move(children)) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
 
     [[nodiscard]] boost::intrusive_ptr<Expression> optimize() override;
     Value evaluate(const Document& root, Variables* variables) const override;
@@ -2915,9 +2934,18 @@ private:
 class ExpressionSetIntersection final : public ExpressionVariadic<ExpressionSetIntersection> {
 public:
     explicit ExpressionSetIntersection(ExpressionContext* const expCtx)
-        : ExpressionVariadic<ExpressionSetIntersection>(expCtx) {}
+        : ExpressionVariadic<ExpressionSetIntersection>(expCtx) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
+
     ExpressionSetIntersection(ExpressionContext* const expCtx, ExpressionVector&& children)
-        : ExpressionVariadic<ExpressionSetIntersection>(expCtx, std::move(children)) {}
+        : ExpressionVariadic<ExpressionSetIntersection>(expCtx, std::move(children)) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
 
     Value evaluate(const Document& root, Variables* variables) const final;
     const char* getOpName() const final;
@@ -2944,9 +2972,17 @@ public:
 class ExpressionSetIsSubset : public ExpressionFixedArity<ExpressionSetIsSubset, 2> {
 public:
     explicit ExpressionSetIsSubset(ExpressionContext* const expCtx)
-        : ExpressionFixedArity<ExpressionSetIsSubset, 2>(expCtx) {}
+        : ExpressionFixedArity<ExpressionSetIsSubset, 2>(expCtx) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
     ExpressionSetIsSubset(ExpressionContext* const expCtx, ExpressionVector&& children)
-        : ExpressionFixedArity<ExpressionSetIsSubset, 2>(expCtx, std::move(children)) {}
+        : ExpressionFixedArity<ExpressionSetIsSubset, 2>(expCtx, std::move(children)) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
 
     [[nodiscard]] boost::intrusive_ptr<Expression> optimize() override;
     Value evaluate(const Document& root, Variables* variables) const override;
@@ -2978,9 +3014,18 @@ private:
 class ExpressionSetUnion final : public ExpressionVariadic<ExpressionSetUnion> {
 public:
     explicit ExpressionSetUnion(ExpressionContext* const expCtx)
-        : ExpressionVariadic<ExpressionSetUnion>(expCtx) {}
+        : ExpressionVariadic<ExpressionSetUnion>(expCtx) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
+
     ExpressionSetUnion(ExpressionContext* const expCtx, ExpressionVector&& children)
-        : ExpressionVariadic<ExpressionSetUnion>(expCtx, std::move(children)) {}
+        : ExpressionVariadic<ExpressionSetUnion>(expCtx, std::move(children)) {
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
+    }
 
     Value evaluate(const Document& root, Variables* variables) const final;
     const char* getOpName() const final;
@@ -3407,6 +3452,9 @@ public:
                      std::vector<boost::intrusive_ptr<Expression>> children)
         : Expression(expCtx, std::move(children)) {
         uassert(40068, "$switch requires at least one branch", numBranches() >= 1);
+        if (!feature_flags::gFeatureFlagSbeUpgradeBinaryTrees.isEnabled()) {
+            expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+        }
     }
 
     Value evaluate(const Document& root, Variables* variables) const final;

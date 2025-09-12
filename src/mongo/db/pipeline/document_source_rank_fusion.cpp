@@ -549,6 +549,25 @@ BSONObj calculateFinalScore(
     return BSON("$addFields" << BSON("score" << allInputs()));
 }
 
+boost::intrusive_ptr<DocumentSource> calculateFinalScoreMetadata(
+    const auto& expCtx,
+    const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& inputs) {
+    // Generate an array of all the fields containing a score for a given pipeline.
+    Expression::ExpressionVector allInputScores;
+    for (auto it = inputs.begin(); it != inputs.end(); it++) {
+        allInputScores.push_back(ExpressionFieldPath::createPathFromString(
+            expCtx.get(), it->first + "_score", expCtx->variablesParseState));
+    }
+
+    // Return a $setMetadata stage that sets score to an $add object that takes the generated array
+    // of each pipeline's score fieldpaths as an input.
+    // Ex: {"$setMetadata": {"score": {"$add": ["$pipeline_name_score"]}}},
+    return DocumentSourceSetMetadata::create(
+        expCtx,
+        make_intrusive<ExpressionAdd>(expCtx.get(), std::move(allInputScores)),
+        DocumentMetadataFields::MetaType::kScore);
+}
+
 boost::intrusive_ptr<DocumentSource> calculateFinalScoreDetails(
     const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& inputs,
     const StringMap<double>& weights,
@@ -663,6 +682,12 @@ std::list<boost::intrusive_ptr<DocumentSource>> buildScoreAndMergeStages(
             DocumentMetadataFields::kScoreDetails);
         return {group, addFields, addFieldsDetails, setDetails, sort, restoreUserDocs};
     }
+    // TODO SERVER-85426: Remove this check once all feature flags have been removed.
+    if (feature_flags::gFeatureFlagRankFusionFull.isEnabledUseLastLTSFCVWhenUninitialized(
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        auto setScore = calculateFinalScoreMetadata(expCtx, inputPipelines);
+        return {group, addFields, setScore, sort, restoreUserDocs};
+    }
     return {group, addFields, sort, restoreUserDocs};
 }
 
@@ -722,6 +747,16 @@ std::list<boost::intrusive_ptr<DocumentSource>> DocumentSourceRankFusion::create
     // For now, the rankConstant is always 60.
     static const double rankConstant = 60;
     const bool includeScoreDetails = spec.getScoreDetails();
+    // TODO SERVER-85426: Remove this check once all feature flags have been removed.
+    if (includeScoreDetails) {
+        auto isRankFusionFullEnabled =
+            feature_flags::gFeatureFlagRankFusionFull.isEnabledUseLastLTSFCVWhenUninitialized(
+                serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+        uassert(ErrorCodes::QueryFeatureNotAllowed,
+                "'featureFlagRankFusionFull' must be enabled to use scoreDetails",
+                isRankFusionFullEnabled);
+    }
+
     std::list<boost::intrusive_ptr<DocumentSource>> outputStages;
     for (auto it = inputPipelines.begin(); it != inputPipelines.end(); it++) {
         const auto& name = it->first;

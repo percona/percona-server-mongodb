@@ -404,6 +404,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./jstests/core/catalog/collstats/OWNERS.yml
 /jstests/core/catalog/collstats/**/* @10gen/server-catalog-and-routing @10gen/server-storage-engine-integration @svc-auto-approve-bot
 
+# The following patterns are parsed from ./jstests/core/catalog/views/OWNERS.yml
+/jstests/core/catalog/views/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
+
 # The following patterns are parsed from ./jstests/core/cluster_parameters/OWNERS.yml
 /jstests/core/cluster_parameters/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
@@ -563,9 +566,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./jstests/core/txns/OWNERS.yml
 /jstests/core/txns/**/* @10gen/server-replication @svc-auto-approve-bot
 
-# The following patterns are parsed from ./jstests/core/views/OWNERS.yml
-/jstests/core/views/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
-
 # The following patterns are parsed from ./jstests/core/write/OWNERS.yml
 /jstests/core/write/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
 
@@ -670,7 +670,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/libs/query/**/aggregation_pipeline_utils.js @10gen/query @svc-auto-approve-bot
 /jstests/libs/query/**/change_stream*.js @10gen/query-execution-change-streams @svc-auto-approve-bot
 /jstests/libs/query/**/geo*.js @10gen/query-integration-geo @svc-auto-approve-bot
-/jstests/libs/query/**/group_to_distinct_scan_utils.js @10gen/query-integration-analytic-extensions @svc-auto-approve-bot
+/jstests/libs/query/**/group_to_distinct_scan_utils.js @10gen/query-optimization @svc-auto-approve-bot
 /jstests/libs/query/**/query_settings*.js @10gen/query-execution-query-settings @svc-auto-approve-bot
 /jstests/libs/query/**/sbe*.js @10gen/query-execution-sbe @svc-auto-approve-bot
 /jstests/libs/query/**/wildcard_index_helpers.js @10gen/query-optimization-planner @svc-auto-approve-bot

@@ -27,18 +27,22 @@
  *    it in the license file.
  */
 
+#include "mongo/db/pipeline/document_source_coll_stats.h"
+#include "mongo/db/pipeline/document_source_index_stats.h"
+#include "mongo/db/pipeline/document_source_internal_convert_bucket_index_stats.h"
 #include "mongo/db/pipeline/document_source_internal_unpack_bucket.h"
 #include "mongo/db/query/timeseries/timeseries_rewrites.h"
+#include "mongo/db/query/timeseries/timeseries_rewrites_mocks.h"
 #include "mongo/unittest/unittest.h"
 
 namespace mongo {
 
 TEST(TimeseriesRewritesTest, EmptyPipelineRewriteTest) {
-    const auto rewrittenPipeline =
-        timeseries::rewritePipelineForTimeseriesCollection({}, "time"_sd, {}, {}, {}, {});
+    const auto rewrittenPipeline = timeseries::rewritePipelineForTimeseriesCollection(
+        {}, "time"_sd, {}, {}, timeseries::MixedSchemaBucketsState::Invalid, {});
 
     ASSERT_EQ(rewrittenPipeline.size(), 1);
-    ASSERT_EQ(rewrittenPipeline[0].firstElementFieldName(),
+    ASSERT_EQ(rewrittenPipeline.front().firstElementFieldName(),
               DocumentSourceInternalUnpackBucket::kStageNameInternal);
 }
 
@@ -46,10 +50,50 @@ TEST(TimeseriesRewritesTest, InternalUnpackBucketRewriteTest) {
     const auto originalPipeline = std::vector{BSON("$match" << BSON("a"
                                                                     << "1"))};
     const auto rewrittenPipeline = timeseries::rewritePipelineForTimeseriesCollection(
-        originalPipeline, "time"_sd, {}, {}, {}, {});
+        originalPipeline, "time"_sd, {}, {}, timeseries::MixedSchemaBucketsState::Invalid, {});
 
     ASSERT_EQ(rewrittenPipeline.size(), originalPipeline.size() + 1);
-    ASSERT_EQ(rewrittenPipeline[0].firstElementFieldName(),
+    ASSERT_EQ(rewrittenPipeline.front().firstElementFieldName(),
+              DocumentSourceInternalUnpackBucket::kStageNameInternal);
+}
+
+TEST(TimeseriesRewritesTest, RouterRoleRequestRewriteTest) {
+    const auto originalPipeline = std::vector{BSON("$match" << BSON("a"
+                                                                    << "1"))};
+    auto request = AggregateCommandRequest{
+        NamespaceString::createNamespaceString_forTest("TestViewlessTimeseries"_sd),
+        originalPipeline};
+    auto timeseriesOptions = TimeseriesOptions{};
+    timeseriesOptions.setTimeField("time"_sd);
+    auto timeseriesFields = TypeCollectionTimeseriesFields{};
+    timeseriesFields.setTimeseriesOptions({timeseriesOptions});
+
+    timeseries::rewriteRequestPipelineAndHintForTimeseriesCollection(
+        request, timeseriesFields, timeseriesOptions);
+
+    const auto rewrittenPipeline = request.getPipeline();
+    ASSERT_EQ(rewrittenPipeline.size(), originalPipeline.size() + 1);
+    ASSERT_EQ(rewrittenPipeline.front().firstElementFieldName(),
+              DocumentSourceInternalUnpackBucket::kStageNameInternal);
+}
+
+TEST(TimeseriesRewritesTest, ShardRoleRequestRewriteTest) {
+    const auto originalPipeline = std::vector{BSON("$match" << BSON("a"
+                                                                    << "1"))};
+    auto request = AggregateCommandRequest{
+        NamespaceString::createNamespaceString_forTest("TestViewlessTimeseries"_sd),
+        originalPipeline};
+    auto timeseriesOptions = TimeseriesOptions{};
+    timeseriesOptions.setTimeField("time"_sd);
+    auto collection = TimeseriesRewritesCollectionMock(
+        timeseriesOptions, timeseries::MixedSchemaBucketsState::Invalid, boost::none, true, true);
+
+    timeseries::rewriteRequestPipelineAndHintForTimeseriesCollection(
+        request, collection, timeseriesOptions);
+
+    const auto rewrittenPipeline = request.getPipeline();
+    ASSERT_EQ(rewrittenPipeline.size(), originalPipeline.size() + 1);
+    ASSERT_EQ(rewrittenPipeline.front().firstElementFieldName(),
               DocumentSourceInternalUnpackBucket::kStageNameInternal);
 }
 
@@ -59,7 +103,12 @@ TEST(TimeseriesRewritesTest, InsertIndexStatsConversionStage) {
     const auto matchStage = BSON("$match" << BSON("b" << 2));
     const auto originalPipeline = std::vector{indexStatsStage, matchStage};
     const auto rewrittenPipeline = timeseries::rewritePipelineForTimeseriesCollection(
-        originalPipeline, "time"_sd, {"food"_sd}, {}, {}, {});
+        originalPipeline,
+        "time"_sd,
+        {"food"_sd},
+        {},
+        timeseries::MixedSchemaBucketsState::Invalid,
+        {});
 
     ASSERT_EQ(rewrittenPipeline.size(), originalPipeline.size() + 1);
     ASSERT_BSONOBJ_EQ(rewrittenPipeline[0], indexStatsStage);
@@ -77,7 +126,12 @@ TEST(TimeseriesRewritesTest, DontInsertUnpackStageWhenCollStatsPresent) {
     const auto matchStage = BSON("$match" << BSON("b" << 2));
     const auto originalPipeline = std::vector{collStatsStage, matchStage};
     const auto rewrittenPipeline = timeseries::rewritePipelineForTimeseriesCollection(
-        originalPipeline, "time"_sd, {"food"_sd}, {}, {}, {});
+        originalPipeline,
+        "time"_sd,
+        {"food"_sd},
+        {},
+        timeseries::MixedSchemaBucketsState::Invalid,
+        {});
 
     ASSERT_EQ(rewrittenPipeline.size(), originalPipeline.size());
     ASSERT_BSONOBJ_EQ(rewrittenPipeline[0], collStatsStage);

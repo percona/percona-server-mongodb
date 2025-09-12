@@ -264,18 +264,16 @@ public:
     }
 
     bool isTimeseriesCollection() const final {
-        unimplementedTasserted();
         return false;
     }
 
-    // TODO (SERVER-100717): To be implemented
     bool isNewTimeseriesWithoutView() const final {
         return false;
     }
 
-    boost::optional<bool> getTimeseriesBucketsMayHaveMixedSchemaData() const final {
+    timeseries::MixedSchemaBucketsState getTimeseriesMixedSchemaBucketsState() const final {
         unimplementedTasserted();
-        return boost::none;
+        return timeseries::MixedSchemaBucketsState::Invalid;
     }
 
     void setTimeseriesBucketsMayHaveMixedSchemaData(OperationContext* opCtx,

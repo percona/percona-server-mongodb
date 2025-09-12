@@ -57,6 +57,7 @@
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/generic_argument_util.h"
 #include "mongo/db/keys_collection_util.h"
+#include "mongo/db/list_collections_gen.h"
 #include "mongo/db/logical_time.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
@@ -76,6 +77,7 @@
 #include "mongo/db/s/range_deletion_task_gen.h"
 #include "mongo/db/s/remove_shard_draining_progress_gen.h"
 #include "mongo/db/s/sharding_config_server_parameters_gen.h"
+#include "mongo/db/s/sharding_ddl_util.h"
 #include "mongo/db/s/sharding_util.h"
 #include "mongo/db/s/topology_change_helpers.h"
 #include "mongo/db/server_parameter.h"
@@ -104,6 +106,7 @@
 #include "mongo/s/request_types/sharded_ddl_commands_gen.h"
 #include "mongo/s/request_types/shardsvr_join_ddl_coordinators_request_gen.h"
 #include "mongo/s/request_types/shardsvr_join_migrations_request_gen.h"
+#include "mongo/s/sharding_cluster_parameters_gen.h"
 #include "mongo/s/write_ops/batched_command_request.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/database_name_util.h"
@@ -116,6 +119,7 @@
 namespace mongo {
 
 namespace {
+MONGO_FAIL_POINT_DEFINE(hangAddShardBeforeUpdatingClusterCardinalityParameter);
 MONGO_FAIL_POINT_DEFINE(skipBlockingDDLCoordinatorsDuringAddAndRemoveShard);
 MONGO_FAIL_POINT_DEFINE(hangAfterDroppingDatabaseInTransitionToDedicatedConfigServer);
 
@@ -445,6 +449,184 @@ void removeShardInTransaction(OperationContext* opCtx,
 
     txn.run(opCtx, removeShardFn);
 }
+
+using FetcherDocsCallbackFn = std::function<bool(const std::vector<BSONObj>& batch)>;
+using FetcherStatusCallbackFn = std::function<void(const Status& status)>;
+
+std::unique_ptr<Fetcher> createFetcher(OperationContext* opCtx,
+                                       RemoteCommandTargeter& targeter,
+                                       const DatabaseName& dbName,
+                                       const Milliseconds maxTimeMS,
+                                       const BSONObj command,
+                                       FetcherDocsCallbackFn processDocsCallback,
+                                       FetcherStatusCallbackFn processStatusCallback,
+                                       std::shared_ptr<executor::TaskExecutor> executor) {
+    auto host = uassertStatusOK(
+        targeter.findHost(opCtx, ReadPreferenceSetting{ReadPreference::PrimaryOnly}));
+
+    auto fetcherCallback = [processDocsCallback,
+                            processStatusCallback](const Fetcher::QueryResponseStatus& dataStatus,
+                                                   Fetcher::NextAction* nextAction,
+                                                   BSONObjBuilder* getMoreBob) {
+        // Throw out any accumulated results on error.
+        if (!dataStatus.isOK()) {
+            processStatusCallback(dataStatus.getStatus());
+            return;
+        }
+        const auto& data = dataStatus.getValue();
+
+        try {
+            if (!processDocsCallback(data.documents)) {
+                *nextAction = Fetcher::NextAction::kNoAction;
+            }
+        } catch (DBException& ex) {
+            processStatusCallback(ex.toStatus());
+            return;
+        }
+        processStatusCallback(Status::OK());
+
+        if (!getMoreBob) {
+            return;
+        }
+        getMoreBob->append("getMore", data.cursorId);
+        getMoreBob->append("collection", data.nss.coll());
+    };
+
+    return std::make_unique<Fetcher>(executor.get(),
+                                     host,
+                                     dbName,
+                                     command,
+                                     fetcherCallback,
+                                     BSONObj(), /* metadata tracking, only used for shards */
+                                     maxTimeMS, /* command network timeout */
+                                     maxTimeMS /* getMore network timeout */);
+}
+
+std::unique_ptr<Fetcher> createFindFetcher(OperationContext* opCtx,
+                                           RemoteCommandTargeter& targeter,
+                                           const NamespaceString& nss,
+                                           const repl::ReadConcernLevel& readConcernLevel,
+                                           FetcherDocsCallbackFn processDocsCallback,
+                                           FetcherStatusCallbackFn processStatusCallback,
+                                           std::shared_ptr<executor::TaskExecutor> executor) {
+    FindCommandRequest findCommand(nss);
+    const auto readConcern = repl::ReadConcernArgs(readConcernLevel);
+    findCommand.setReadConcern(readConcern);
+    const Milliseconds maxTimeMS =
+        std::min(opCtx->getRemainingMaxTimeMillis(), Milliseconds(kRemoteCommandTimeout));
+    findCommand.setMaxTimeMS(durationCount<Milliseconds>(maxTimeMS));
+
+    return createFetcher(opCtx,
+                         targeter,
+                         nss.dbName(),
+                         maxTimeMS,
+                         findCommand.toBSON(),
+                         processDocsCallback,
+                         processStatusCallback,
+                         executor);
+}
+
+void deleteAllDocumentsInCollection(
+    OperationContext* opCtx,
+    RemoteCommandTargeter& targeter,
+    const NamespaceString& nss,
+    boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
+    std::shared_ptr<executor::TaskExecutor> executor) {
+    // We need to fetch manually rather than using Shard::runExhaustiveCursorCommand because
+    // ShardRemote uses the FixedTaskExecutor which checks that the host being targeted is a
+    // fully added shard already
+    auto fetcherStatus =
+        Status(ErrorCodes::InternalError, "Internal error running cursor callback in command");
+    std::vector<BSONObj> docsToDelete;
+    auto fetcher = createFindFetcher(
+        opCtx,
+        targeter,
+        nss,
+        repl::ReadConcernLevel::kMajorityReadConcern,
+        [&](const std::vector<BSONObj>& docs) -> bool {
+            for (const BSONObj& doc : docs) {
+                docsToDelete.emplace_back(doc.getOwned());
+            }
+            return true;
+        },
+        [&](const Status& status) { fetcherStatus = status; },
+        executor);
+    uassertStatusOK(fetcher->schedule());
+    uassertStatusOK(fetcher->join(opCtx));
+    uassertStatusOK(fetcherStatus);
+
+    const auto sendDelete = [&](std::vector<mongo::write_ops::DeleteOpEntry>&& deleteOps) {
+        if (deleteOps.empty()) {
+            return;
+        }
+        write_ops::DeleteCommandRequest deleteOp(nss);
+        deleteOp.setDeletes(deleteOps);
+        generic_argument_util::setMajorityWriteConcern(deleteOp);
+        if (osiGenerator) {
+            auto const osi = (*osiGenerator)(opCtx);
+            generic_argument_util::setOperationSessionInfo(deleteOp, osi);
+        }
+
+        const auto commandResponse = topology_change_helpers::runCommandForAddShard(
+            opCtx, targeter, nss.dbName(), deleteOp.toBSON(), executor);
+        uassertStatusOK(getStatusFromWriteCommandReply(commandResponse.response));
+    };
+
+    std::vector<mongo::write_ops::DeleteOpEntry> deleteOps;
+    deleteOps.reserve(write_ops::kMaxWriteBatchSize);
+    for (auto& element : docsToDelete) {
+        write_ops::DeleteOpEntry entry;
+        entry.setQ(std::move(element));
+        entry.setMulti(false);
+        deleteOps.emplace_back(std::move(entry));
+
+        if (deleteOps.size() == write_ops::kMaxWriteBatchSize) {
+            sendDelete(std::move(deleteOps));
+            deleteOps = std::vector<mongo::write_ops::DeleteOpEntry>();
+            deleteOps.reserve(write_ops::kMaxWriteBatchSize);
+        }
+    }
+    sendDelete(std::move(deleteOps));
+}
+
+BSONObj greetReplicaSet(OperationContext* opCtx,
+                        RemoteCommandTargeter& targeter,
+                        std::shared_ptr<executor::TaskExecutor> executor) {
+
+    boost::optional<Shard::CommandResponse> commandResponse;
+    try {
+        commandResponse = topology_change_helpers::runCommandForAddShard(
+            opCtx, targeter, DatabaseName::kAdmin, BSON("hello" << 1), executor);
+    } catch (ExceptionFor<ErrorCodes::IncompatibleServerVersion>& ex) {
+        uassertStatusOK(ex.toStatus().withReason(
+            str::stream() << "Cannot add " << targeter.connectionString().toString()
+                          << " as a shard because its binary version is not compatible with the "
+                             "cluster's featureCompatibilityVersion."));
+    }
+
+    // Check for a command response error
+    uassertStatusOKWithContext(commandResponse->commandStatus,
+                               str::stream() << "Error running 'hello' against "
+                                             << targeter.connectionString().toString());
+
+    return std::move(commandResponse->response);
+}
+
+void removeAllClusterParametersFromReplicaSet(
+    OperationContext* opCtx,
+    RemoteCommandTargeter& targeter,
+    boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
+    std::shared_ptr<executor::TaskExecutor> executor) {
+    auto tenantsOnTarget =
+        uassertStatusOK(getTenantsWithConfigDbsOnShard(opCtx, targeter, executor));
+
+    // Remove possible leftovers config.clusterParameters documents from the new shard.
+    for (const auto& tenantId : tenantsOnTarget) {
+        const auto& nss = NamespaceString::makeClusterParametersNSS(tenantId);
+        deleteAllDocumentsInCollection(opCtx, targeter, nss, osiGenerator, executor);
+    }
+}
+
 }  // namespace
 
 namespace add_shard_util {
@@ -671,69 +853,6 @@ Shard::CommandResponse runCommandForAddShard(OperationContext* opCtx,
                                   std::move(writeConcernStatus));
 }
 
-void deleteAllDocumentsInCollection(
-    OperationContext* opCtx,
-    RemoteCommandTargeter& targeter,
-    const NamespaceString& nss,
-    boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
-    std::shared_ptr<executor::TaskExecutor> executor) {
-    // We need to fetch manually rather than using Shard::runExhaustiveCursorCommand because
-    // ShardRemote uses the FixedTaskExecutor which checks that the host being targeted is a
-    // fully added shard already
-    auto fetcherStatus =
-        Status(ErrorCodes::InternalError, "Internal error running cursor callback in command");
-    std::vector<BSONObj> docsToDelete;
-    auto fetcher = topology_change_helpers::createFetcher(
-        opCtx,
-        targeter,
-        nss,
-        repl::ReadConcernLevel::kMajorityReadConcern,
-        [&](const std::vector<BSONObj>& docs) -> bool {
-            for (const BSONObj& doc : docs) {
-                docsToDelete.emplace_back(doc.getOwned());
-            }
-            return true;
-        },
-        [&](const Status& status) { fetcherStatus = status; },
-        executor);
-    uassertStatusOK(fetcher->schedule());
-    uassertStatusOK(fetcher->join(opCtx));
-    uassertStatusOK(fetcherStatus);
-
-    const auto sendDelete = [&](std::vector<mongo::write_ops::DeleteOpEntry>&& deleteOps) {
-        if (deleteOps.empty()) {
-            return;
-        }
-        write_ops::DeleteCommandRequest deleteOp(nss);
-        deleteOp.setDeletes(deleteOps);
-        generic_argument_util::setMajorityWriteConcern(deleteOp);
-        if (osiGenerator) {
-            auto const osi = (*osiGenerator)(opCtx);
-            generic_argument_util::setOperationSessionInfo(deleteOp, osi);
-        }
-
-        const auto commandResponse =
-            runCommandForAddShard(opCtx, targeter, nss.dbName(), deleteOp.toBSON(), executor);
-        uassertStatusOK(getStatusFromWriteCommandReply(commandResponse.response));
-    };
-
-    std::vector<mongo::write_ops::DeleteOpEntry> deleteOps;
-    deleteOps.reserve(write_ops::kMaxWriteBatchSize);
-    for (auto& element : docsToDelete) {
-        write_ops::DeleteOpEntry entry;
-        entry.setQ(std::move(element));
-        entry.setMulti(false);
-        deleteOps.emplace_back(std::move(entry));
-
-        if (deleteOps.size() == write_ops::kMaxWriteBatchSize) {
-            sendDelete(std::move(deleteOps));
-            deleteOps = std::vector<mongo::write_ops::DeleteOpEntry>();
-            deleteOps.reserve(write_ops::kMaxWriteBatchSize);
-        }
-    }
-    sendDelete(std::move(deleteOps));
-}
-
 void setUserWriteBlockingState(
     OperationContext* opCtx,
     RemoteCommandTargeter& targeter,
@@ -826,29 +945,6 @@ void removeReplicaSetMonitor(OperationContext* opCtx, const ConnectionString& co
         // added, it will be recreated.
         ReplicaSetMonitor::remove(connectionString.getSetName());
     }
-}
-
-BSONObj greetReplicaSet(OperationContext* opCtx,
-                        RemoteCommandTargeter& targeter,
-                        std::shared_ptr<executor::TaskExecutor> executor) {
-
-    boost::optional<Shard::CommandResponse> commandResponse;
-    try {
-        commandResponse = runCommandForAddShard(
-            opCtx, targeter, DatabaseName::kAdmin, BSON("hello" << 1), executor);
-    } catch (ExceptionFor<ErrorCodes::IncompatibleServerVersion>& ex) {
-        uassertStatusOK(ex.toStatus().withReason(
-            str::stream() << "Cannot add " << targeter.connectionString().toString()
-                          << " as a shard because its binary version is not compatible with the "
-                             "cluster's featureCompatibilityVersion."));
-    }
-
-    // Check for a command response error
-    uassertStatusOKWithContext(commandResponse->commandStatus,
-                               str::stream() << "Error running 'hello' against "
-                                             << targeter.connectionString().toString());
-
-    return std::move(commandResponse->response);
 }
 
 void validateHostAsShard(OperationContext* opCtx,
@@ -1006,61 +1102,6 @@ void validateHostAsShard(OperationContext* opCtx,
     }
 }
 
-std::unique_ptr<Fetcher> createFetcher(OperationContext* opCtx,
-                                       RemoteCommandTargeter& targeter,
-                                       const NamespaceString& nss,
-                                       const repl::ReadConcernLevel& readConcernLevel,
-                                       FetcherDocsCallbackFn processDocsCallback,
-                                       FetcherStatusCallbackFn processStatusCallback,
-                                       std::shared_ptr<executor::TaskExecutor> executor) {
-    auto host = uassertStatusOK(
-        targeter.findHost(opCtx, ReadPreferenceSetting{ReadPreference::PrimaryOnly}));
-
-    FindCommandRequest findCommand(nss);
-    const auto readConcern = repl::ReadConcernArgs(readConcernLevel);
-    findCommand.setReadConcern(readConcern);
-    const Milliseconds maxTimeMS =
-        std::min(opCtx->getRemainingMaxTimeMillis(), Milliseconds(kRemoteCommandTimeout));
-    findCommand.setMaxTimeMS(durationCount<Milliseconds>(maxTimeMS));
-
-    auto fetcherCallback = [processDocsCallback,
-                            processStatusCallback](const Fetcher::QueryResponseStatus& dataStatus,
-                                                   Fetcher::NextAction* nextAction,
-                                                   BSONObjBuilder* getMoreBob) {
-        // Throw out any accumulated results on error.
-        if (!dataStatus.isOK()) {
-            processStatusCallback(dataStatus.getStatus());
-            return;
-        }
-        const auto& data = dataStatus.getValue();
-
-        try {
-            if (!processDocsCallback(data.documents)) {
-                *nextAction = Fetcher::NextAction::kNoAction;
-            }
-        } catch (DBException& ex) {
-            processStatusCallback(ex.toStatus());
-            return;
-        }
-        processStatusCallback(Status::OK());
-
-        if (!getMoreBob) {
-            return;
-        }
-        getMoreBob->append("getMore", data.cursorId);
-        getMoreBob->append("collection", data.nss.coll());
-    };
-
-    return std::make_unique<Fetcher>(executor.get(),
-                                     host,
-                                     nss.dbName(),
-                                     findCommand.toBSON(),
-                                     fetcherCallback,
-                                     BSONObj(), /* metadata tracking, only used for shards */
-                                     maxTimeMS, /* command network timeout */
-                                     maxTimeMS /* getMore network timeout */);
-}
-
 std::string getRemoveShardMessage(const ShardDrainingStateEnum& status) {
     switch (status) {
         case ShardDrainingStateEnum::kStarted:
@@ -1085,7 +1126,7 @@ void getClusterTimeKeysFromReplicaSet(OperationContext* opCtx,
 
     auto expireAt = opCtx->getServiceContext()->getFastClockSource()->now() +
         Seconds(gNewShardExistingClusterTimeKeysExpirationSecs.load());
-    auto fetcher = topology_change_helpers::createFetcher(
+    auto fetcher = createFindFetcher(
         opCtx,
         targeter,
         NamespaceString::kKeysCollectionNamespace,
@@ -1151,23 +1192,6 @@ void createShardIdentity(
     uassertStatusOK(response.commandStatus);
 }
 
-void removeAllClusterParametersFromReplicaSet(
-    OperationContext* opCtx,
-    RemoteCommandTargeter& targeter,
-    boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
-    std::shared_ptr<executor::TaskExecutor> executor) {
-    auto tenantsOnTarget =
-        uassertStatusOK(getTenantsWithConfigDbsOnShard(opCtx, targeter, executor));
-
-    // Remove possible leftovers config.clusterParameters documents from the new shard.
-    for (const auto& tenantId : tenantsOnTarget) {
-        const auto& nss = NamespaceString::makeClusterParametersNSS(tenantId);
-
-        topology_change_helpers::deleteAllDocumentsInCollection(
-            opCtx, targeter, nss, osiGenerator, executor);
-    }
-}
-
 void setClusterParametersOnReplicaSet(
     OperationContext* opCtx,
     RemoteCommandTargeter& targeter,
@@ -1175,8 +1199,7 @@ void setClusterParametersOnReplicaSet(
     boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
     std::shared_ptr<executor::TaskExecutor> executor) {
     // First, remove all existing parameters from the new shard.
-    topology_change_helpers::removeAllClusterParametersFromReplicaSet(
-        opCtx, targeter, osiGenerator, executor);
+    removeAllClusterParametersFromReplicaSet(opCtx, targeter, osiGenerator, executor);
 
     LOGV2(6360600, "Pushing cluster parameters into new shard");
 
@@ -1260,7 +1283,7 @@ TenantIdMap<std::vector<BSONObj>> getClusterParametersFromReplicaSet(
     TenantIdMap<std::vector<BSONObj>> allParameters;
 
     for (const auto& tenantId : tenantIds) {
-        auto fetcher = topology_change_helpers::createFetcher(
+        auto fetcher = createFindFetcher(
             opCtx,
             targeter,
             NamespaceString::makeClusterParametersNSS(tenantId),
@@ -1509,6 +1532,201 @@ void removeShard(const Lock::ExclusiveLock&,
     // Remove the shard's document and update topologyTime within a transaction.
     removeShardInTransaction(
         opCtx, shardName, controlShardName, newTopologyTime.asTimestamp(), executor);
+}
+
+void addShardInTransaction(OperationContext* opCtx,
+                           const ShardType& newShard,
+                           std::vector<DatabaseName>&& databasesInNewShard,
+                           std::vector<CollectionType>&& collectionsInNewShard) {
+
+    const auto existingShardIds = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
+
+    const auto collCreationTime = [&]() {
+        const auto currentTime = VectorClock::get(opCtx)->getTime();
+        return currentTime.clusterTime().asTimestamp();
+    }();
+    for (auto& coll : collectionsInNewShard) {
+        coll.setTimestamp(collCreationTime);
+    }
+
+    // Set up and run the commit statements
+    // TODO SERVER-81582: generate batches of transactions to insert the database/placementHistory
+    // and collection/placementHistory before adding the shard in config.shards.
+    auto transactionChain = [opCtx, &newShard, &databasesInNewShard, &collectionsInNewShard](
+                                const txn_api::TransactionClient& txnClient, ExecutorPtr txnExec) {
+        write_ops::InsertCommandRequest insertShardEntry(NamespaceString::kConfigsvrShardsNamespace,
+                                                         {newShard.toBSON()});
+        return txnClient.runCRUDOp(insertShardEntry, {})
+            .thenRunOn(txnExec)
+            .then([&](const BatchedCommandResponse& insertShardEntryResponse) {
+                uassertStatusOK(insertShardEntryResponse.toStatus());
+                if (databasesInNewShard.empty()) {
+                    BatchedCommandResponse noOpResponse;
+                    noOpResponse.setStatus(Status::OK());
+                    noOpResponse.setN(0);
+
+                    return SemiFuture<BatchedCommandResponse>(std::move(noOpResponse));
+                }
+
+                std::vector<BSONObj> databaseEntries;
+                std::transform(databasesInNewShard.begin(),
+                               databasesInNewShard.end(),
+                               std::back_inserter(databaseEntries),
+                               [&](const DatabaseName& dbName) {
+                                   return DatabaseType(dbName,
+                                                       newShard.getName(),
+                                                       DatabaseVersion(UUID::gen(),
+                                                                       newShard.getTopologyTime()))
+                                       .toBSON();
+                               });
+                write_ops::InsertCommandRequest insertDatabaseEntries(
+                    NamespaceString::kConfigDatabasesNamespace, std::move(databaseEntries));
+                return txnClient.runCRUDOp(insertDatabaseEntries, {});
+            })
+            .thenRunOn(txnExec)
+            .then([&](const BatchedCommandResponse& insertDatabaseEntriesResponse) {
+                uassertStatusOK(insertDatabaseEntriesResponse.toStatus());
+                if (collectionsInNewShard.empty()) {
+                    BatchedCommandResponse noOpResponse;
+                    noOpResponse.setStatus(Status::OK());
+                    noOpResponse.setN(0);
+
+                    return SemiFuture<BatchedCommandResponse>(std::move(noOpResponse));
+                }
+                std::vector<BSONObj> collEntries;
+
+                std::transform(collectionsInNewShard.begin(),
+                               collectionsInNewShard.end(),
+                               std::back_inserter(collEntries),
+                               [&](const CollectionType& coll) { return coll.toBSON(); });
+                write_ops::InsertCommandRequest insertCollectionEntries(
+                    NamespaceString::kConfigsvrCollectionsNamespace, std::move(collEntries));
+                return txnClient.runCRUDOp(insertCollectionEntries, {});
+            })
+            .thenRunOn(txnExec)
+            .then([&](const BatchedCommandResponse& insertCollectionEntriesResponse) {
+                uassertStatusOK(insertCollectionEntriesResponse.toStatus());
+                if (collectionsInNewShard.empty()) {
+                    BatchedCommandResponse noOpResponse;
+                    noOpResponse.setStatus(Status::OK());
+                    noOpResponse.setN(0);
+
+                    return SemiFuture<BatchedCommandResponse>(std::move(noOpResponse));
+                }
+                std::vector<BSONObj> chunkEntries;
+                const auto unsplittableShardKey =
+                    ShardKeyPattern(sharding_ddl_util::unsplittableCollectionShardKey());
+                const auto shardId = ShardId(newShard.getName());
+                std::transform(
+                    collectionsInNewShard.begin(),
+                    collectionsInNewShard.end(),
+                    std::back_inserter(chunkEntries),
+                    [&](const CollectionType& coll) {
+                        // Create a single chunk for this
+                        ChunkType chunk(
+                            coll.getUuid(),
+                            {coll.getKeyPattern().globalMin(), coll.getKeyPattern().globalMax()},
+                            {{coll.getEpoch(), coll.getTimestamp()}, {1, 0}},
+                            shardId);
+                        chunk.setOnCurrentShardSince(coll.getTimestamp());
+                        chunk.setHistory({ChunkHistory(*chunk.getOnCurrentShardSince(), shardId)});
+                        return chunk.toConfigBSON();
+                    });
+
+                write_ops::InsertCommandRequest insertChunkEntries(
+                    NamespaceString::kConfigsvrChunksNamespace, std::move(chunkEntries));
+                return txnClient.runCRUDOp(insertChunkEntries, {});
+            })
+            .thenRunOn(txnExec)
+            .then([&](const BatchedCommandResponse& insertChunkEntriesResponse) {
+                uassertStatusOK(insertChunkEntriesResponse.toStatus());
+                if (databasesInNewShard.empty()) {
+                    BatchedCommandResponse noOpResponse;
+                    noOpResponse.setStatus(Status::OK());
+                    noOpResponse.setN(0);
+
+                    return SemiFuture<BatchedCommandResponse>(std::move(noOpResponse));
+                }
+                std::vector<BSONObj> placementEntries;
+                std::transform(databasesInNewShard.begin(),
+                               databasesInNewShard.end(),
+                               std::back_inserter(placementEntries),
+                               [&](const DatabaseName& dbName) {
+                                   return NamespacePlacementType(NamespaceString(dbName),
+                                                                 newShard.getTopologyTime(),
+                                                                 {ShardId(newShard.getName())})
+                                       .toBSON();
+                               });
+                std::transform(collectionsInNewShard.begin(),
+                               collectionsInNewShard.end(),
+                               std::back_inserter(placementEntries),
+                               [&](const CollectionType& coll) {
+                                   NamespacePlacementType placementInfo(
+                                       NamespaceString(coll.getNss()),
+                                       coll.getTimestamp(),
+                                       {ShardId(newShard.getName())});
+                                   placementInfo.setUuid(coll.getUuid());
+
+                                   return placementInfo.toBSON();
+                               });
+                write_ops::InsertCommandRequest insertPlacementEntries(
+                    NamespaceString::kConfigsvrPlacementHistoryNamespace,
+                    std::move(placementEntries));
+                return txnClient.runCRUDOp(insertPlacementEntries, {});
+            })
+            .thenRunOn(txnExec)
+            .then([](auto insertPlacementEntriesResponse) {
+                uassertStatusOK(insertPlacementEntriesResponse.toStatus());
+            })
+            .semi();
+    };
+
+    {
+        auto& executor = Grid::get(opCtx)->getExecutorPool()->getFixedExecutor();
+        auto inlineExecutor = std::make_shared<executor::InlineExecutor>();
+
+        txn_api::SyncTransactionWithRetries txn(opCtx, executor, nullptr, inlineExecutor);
+        txn.run(opCtx, transactionChain);
+    }
+}
+
+void updateClusterCardinalityParameter(const Lock::ExclusiveLock&, OperationContext* opCtx) {
+    const auto shardRegistry = Grid::get(opCtx)->shardRegistry();
+
+    const bool hasTwoOrMoreShard = shardRegistry->getNumShards(opCtx) >= 2;
+    ConfigsvrSetClusterParameter configsvrSetClusterParameter(BSON(
+        "shardedClusterCardinalityForDirectConns" << BSON(
+            ShardedClusterCardinalityParam::kHasTwoOrMoreShardsFieldName << hasTwoOrMoreShard)));
+    configsvrSetClusterParameter.setDbName(DatabaseName::kAdmin);
+
+    while (true) {
+        const auto cmdResponse = shardRegistry->getConfigShard()->runCommandWithFixedRetryAttempts(
+            opCtx,
+            ReadPreferenceSetting(ReadPreference::PrimaryOnly),
+            DatabaseName::kAdmin,
+            configsvrSetClusterParameter.toBSON(),
+            Shard::RetryPolicy::kIdempotent);
+
+        auto status = Shard::CommandResponse::getEffectiveStatus(cmdResponse);
+
+        if (status != ErrorCodes::ConflictingOperationInProgress) {
+            uassertStatusOK(status);
+            return;
+        }
+
+        // Retry on ErrorCodes::ConflictingOperationInProgress errors, which can be caused by
+        // another ConfigsvrCoordinator runnning concurrently.
+        LOGV2_DEBUG(9314400,
+                    2,
+                    "Failed to update the cluster parameter. Retrying again after 500ms.",
+                    "error"_attr = status);
+
+        opCtx->sleepFor(Milliseconds(500));
+    }
+}
+
+void hangAddShardBeforeUpdatingClusterCardinalityParameterFailpoint(OperationContext* opCtx) {
+    hangAddShardBeforeUpdatingClusterCardinalityParameter.pauseWhileSet(opCtx);
 }
 
 }  // namespace topology_change_helpers

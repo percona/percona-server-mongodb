@@ -55,6 +55,7 @@
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/query/timeseries/bucket_spec.h"
+#include "mongo/db/timeseries/mixed_schema_buckets_state.h"
 #include "mongo/util/assert_util.h"
 
 namespace mongo {
@@ -122,11 +123,11 @@ public:
      */
     static std::vector<BSONObj> generateStageInPipeline(
         const std::vector<BSONObj>& pipeline,
-        const StringData timeField,
+        StringData timeField,
         const boost::optional<StringData>& metaField,
         const boost::optional<std::int32_t>& bucketMaxSpanSeconds,
-        const boost::optional<bool>& timeseriesBucketsMayHaveMixedSchemaData,
-        const bool timeseriesBucketsAreFixed);
+        bool assumeNoMixedSchemaData,
+        bool timeseriesBucketsAreFixed);
 
     bool includeMetaField() const {
         return _bucketUnpacker.includeMetaField();

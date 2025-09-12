@@ -106,6 +106,7 @@ MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforeRemovingStateDoc);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforeCompletion);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforeStartingErrorFlow);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforePersistingStateTransition);
+MONGO_FAIL_POINT_DEFINE(reshardingPerformValidationAfterApplying);
 MONGO_FAIL_POINT_DEFINE(pauseBeforeTellDonorToRefresh);
 MONGO_FAIL_POINT_DEFINE(pauseAfterInsertCoordinatorDoc);
 MONGO_FAIL_POINT_DEFINE(pauseBeforeCTHolderInitialization);
@@ -1403,8 +1404,17 @@ ReshardingCoordinator::_awaitAllRecipientsInStrictConsistency(
                 coordinatorDocChangedOnDisk = resharding::getCoordinatorDoc(
                     opCtx.get(), coordinatorDocChangedOnDisk.getReshardingUUID());
 
-                _reshardingCoordinatorExternalState->verifyFinalCollection(
-                    opCtx.get(), coordinatorDocChangedOnDisk);
+                for (auto& donorShard : coordinatorDocChangedOnDisk.getDonorShards()) {
+                    uassert(1003585,
+                            str::stream() << "Expected to have set the final number of documents "
+                                             "on the donor shard '"
+                                          << donorShard.getId() << "'",
+                            donorShard.getDocumentsFinal());
+                }
+                if (MONGO_unlikely(reshardingPerformValidationAfterApplying.shouldFail())) {
+                    _reshardingCoordinatorExternalState->verifyFinalCollection(
+                        opCtx.get(), coordinatorDocChangedOnDisk);
+                }
             }
 
             return coordinatorDocChangedOnDisk;
@@ -1932,3 +1942,4 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
 #endif  // RESHARDING_COORDINATOR_PART_4
 
 }  // namespace mongo
+#undef MONGO_LOGV2_DEFAULT_COMPONENT

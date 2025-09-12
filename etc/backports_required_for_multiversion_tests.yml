@@ -21,6 +21,10 @@
 #
 last-continuous:
   all:
+    - test_file: jstests/core/query/explain/explain_plan_cache.js
+      ticket: SERVER-97662
+    - test_file: jstests/core/query/json_schema/json_schema.js
+      ticket: SERVER-98676
     - test_file: jstests/change_streams/change_streams_namespace_match_expressions.js
       ticket: SERVER-100489
     - test_file: jstests/change_streams/change_streams_dynamic_match_expressions.js
@@ -388,9 +392,15 @@ last-continuous:
       ticket: SERVER-99618
     - test_file: jstests/sharding/check_metadata_consistency.js
       ticket: SERVER-98664
+    - test_file: jstests/core/timeseries/query/bucket_unpacking_with_limit.js
+      ticket: SERVER-100299
   suites: null
 last-lts:
   all:
+    - test_file: jstests/core/query/explain/explain_plan_cache.js
+      ticket: SERVER-97662
+    - test_file: jstests/core/query/json_schema/json_schema.js
+      ticket: SERVER-98676
     - test_file: jstests/change_streams/change_streams_namespace_match_expressions.js
       ticket: SERVER-100489
     - test_file: jstests/change_streams/change_streams_dynamic_match_expressions.js
@@ -825,4 +835,6 @@ last-lts:
       ticket: SERVER-99618
     - test_file: jstests/sharding/check_metadata_consistency.js
       ticket: SERVER-98664
+    - test_file: jstests/core/timeseries/query/bucket_unpacking_with_limit.js
+      ticket: SERVER-100299
   suites: null

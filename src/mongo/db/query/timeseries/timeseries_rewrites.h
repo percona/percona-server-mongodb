@@ -32,7 +32,11 @@
 #include <boost/optional.hpp>
 
 #include "mongo/bson/bsonobj.h"
+#include "mongo/db/pipeline/aggregate_command_gen.h"
+#include "mongo/db/timeseries/mixed_schema_buckets_state.h"
+#include "mongo/db/timeseries/timeseries_index_schema_conversion_functions.h"
 #include "mongo/db/timeseries/timeseries_options.h"
+#include "mongo/s/type_collection_common_types_gen.h"
 
 namespace mongo {
 
@@ -40,6 +44,16 @@ namespace mongo {
  * Namespace for helper functions related to time-series collections.
  */
 namespace timeseries {
+
+// TODO(SERVER-101169): Remove these helper functions.
+inline bool canAssumeNoMixedSchemaData(const Collection& coll) {
+    return !coll.getTimeseriesMixedSchemaBucketsState().mustConsiderMixedSchemaBucketsInReads();
+}
+
+inline bool canAssumeNoMixedSchemaData(const TypeCollectionTimeseriesFields& timeseriesFields) {
+    // Assume the worst case (that buckets may have mixed schema data) if none.
+    return !timeseriesFields.getTimeseriesBucketsMayHaveMixedSchemaData().value_or(true);
+}
 
 /**
  * Returns a rewritten pipeline that queries against a timeseries collection.
@@ -51,11 +65,66 @@ namespace timeseries {
  */
 std::vector<BSONObj> rewritePipelineForTimeseriesCollection(
     const std::vector<BSONObj>& pipeline,
-    const StringData timeField,
+    StringData timeField,
     const boost::optional<StringData>& metaField,
     const boost::optional<std::int32_t>& bucketMaxSpanSeconds,
-    const boost::optional<bool>& timeseriesBucketsMayHaveMixedSchemaData,
-    const bool timeseriesBucketsAreFixed);
+    bool assumeNoMixedSchemaData,
+    bool timeseriesBucketsAreFixed);
+
+/**
+ * Rewrite the aggregate request's pipeline BSON for a timeseries query. The command object's
+ * pipeline will be replaced. Additionally, the index hint, if present, will be translated to an
+ * index on the bucket collection.
+ */
+void rewriteRequestPipelineAndHintForTimeseriesCollection(
+    AggregateCommandRequest& request,
+    // TODO(SERVER-101169): Remove the necessity of this argument.
+    const auto& catalogData,
+    const TimeseriesOptions& timeseriesOptions) {
+    // Compile-time check for catalogData's expected API.
+    static_assert(
+        requires { catalogData.timeseriesBucketingParametersHaveChanged(); } ||
+            requires { catalogData.getTimeseriesBucketingParametersHaveChanged(); },
+        "Invalid input for catalogData into rewriteRequestPipelineAndHintForTimeseriesCollection. "
+        "The catalogData parameter must support either timeseriesBucketingParametersHaveChanged() "
+        "or getTimeseriesBucketingParametersHaveChanged().");
+    const auto timeField = timeseriesOptions.getTimeField();
+    const auto metaField = timeseriesOptions.getMetaField();
+    const auto maxSpanSeconds =
+        timeseriesOptions.getBucketMaxSpanSeconds().get_value_or(getMaxSpanSecondsFromGranularity(
+            timeseriesOptions.getGranularity().get_value_or(BucketGranularityEnum::Seconds)));
+    const auto assumeNoMixedSchemaData = canAssumeNoMixedSchemaData(catalogData);
+    // This particular API call is not consistent between the router role and shard role APIs.
+    // TODO(SERVER-101169): Remove the need for this lambda once the API has been consolidated.
+    const auto parametersChanged = [](const auto& catalogData) {
+        // Assume parameters have changed unless otherwise specified.
+        if constexpr (requires { catalogData.timeseriesBucketingParametersHaveChanged(); }) {
+            return catalogData.timeseriesBucketingParametersHaveChanged().value_or(true);
+        } else if constexpr (requires {
+                                 catalogData.getTimeseriesBucketingParametersHaveChanged();
+                             }) {
+            return catalogData.getTimeseriesBucketingParametersHaveChanged().value_or(true);
+        } else {
+            MONGO_UNREACHABLE;
+        }
+    }(catalogData);
+    const auto bucketsAreFixed = areTimeseriesBucketsFixed(timeseriesOptions, parametersChanged);
+    request.setPipeline(rewritePipelineForTimeseriesCollection(request.getPipeline(),
+                                                               timeField,
+                                                               metaField,
+                                                               maxSpanSeconds,
+                                                               assumeNoMixedSchemaData,
+                                                               bucketsAreFixed));
+
+    // Rewrite index hints if needed.
+    if (const auto hint = request.getHint(); hint && timeseries::isHintIndexKey(*hint)) {
+        if (const auto rewrittenHintWithStatus =
+                createBucketsIndexSpecFromTimeseriesIndexSpec(timeseriesOptions, *hint);
+            rewrittenHintWithStatus.isOK()) {
+            request.setHint(rewrittenHintWithStatus.getValue());
+        }
+    }
+}
 
 }  // namespace timeseries
 }  // namespace mongo

@@ -132,16 +132,6 @@ enum UserWriteBlockingLevel {
 };
 
 /**
- * Deletes all documents in the given collection
- */
-void deleteAllDocumentsInCollection(
-    OperationContext* opCtx,
-    RemoteCommandTargeter& targeter,
-    const NamespaceString& nss,
-    boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
-    std::shared_ptr<executor::TaskExecutor> executor);
-
-/**
  * Sets the user write blocking state on a given target
  *
  * @param opCtx: The operation context
@@ -177,13 +167,6 @@ std::vector<DatabaseName> getDBNamesListFromReplicaSet(
 void removeReplicaSetMonitor(OperationContext* opCtx, const ConnectionString& connectionString);
 
 /**
- * Sends 'hello' to the given replica set, and gives back the answer
- */
-BSONObj greetReplicaSet(OperationContext* opCtx,
-                        RemoteCommandTargeter& targeter,
-                        std::shared_ptr<executor::TaskExecutor> executorForAddShard);
-
-/**
  * Validates that the specified endpoint can serve as a shard server. In particular, this
  * this function checks that the shard can be contacted and that it is not already member of
  * another sharded cluster.
@@ -193,22 +176,6 @@ void validateHostAsShard(OperationContext* opCtx,
                          const ConnectionString& connectionString,
                          bool isConfigShard,
                          std::shared_ptr<executor::TaskExecutor> executor);
-
-using FetcherDocsCallbackFn = std::function<bool(const std::vector<BSONObj>& batch)>;
-using FetcherStatusCallbackFn = std::function<void(const Status& status)>;
-
-/**
- * Creates a Fetcher task for fetching documents in the given collection on the given shard.
- * After the task is scheduled, applies 'processDocsCallback' to each fetched batch and
- * 'processStatusCallback' to the fetch status.
- */
-std::unique_ptr<Fetcher> createFetcher(OperationContext* opCtx,
-                                       RemoteCommandTargeter& targeter,
-                                       const NamespaceString& nss,
-                                       const repl::ReadConcernLevel& readConcernLevel,
-                                       FetcherDocsCallbackFn processDocsCallback,
-                                       FetcherStatusCallbackFn processStatusCallback,
-                                       std::shared_ptr<executor::TaskExecutor> executor);
 
 /**
  * Given the shard draining state, returns the message that should be included as part of the remove
@@ -238,15 +205,6 @@ void createShardIdentity(
     OperationContext* opCtx,
     RemoteCommandTargeter& targeter,
     const std::string& shardName,
-    boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
-    std::shared_ptr<executor::TaskExecutor> executor);
-
-/**
- * Remove all existing cluster parameters set on the replica set.
- */
-void removeAllClusterParametersFromReplicaSet(
-    OperationContext* opCtx,
-    RemoteCommandTargeter& targeter,
     boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
     std::shared_ptr<executor::TaskExecutor> executor);
 
@@ -282,7 +240,7 @@ TenantIdMap<std::vector<BSONObj>> getClusterParametersLocally(OperationContext* 
  * and throws any error that occurs while running this command.
  */
 long long runCountCommandOnConfig(OperationContext* opCtx,
-                                  const std::shared_ptr<Shard> localConfigShard,
+                                  std::shared_ptr<Shard> localConfigShard,
                                   const NamespaceString& nss,
                                   BSONObj query);
 
@@ -305,7 +263,7 @@ struct DrainingShardUsage {
  * shard being removed.
  */
 DrainingShardUsage getDrainingProgress(OperationContext* opCtx,
-                                       const std::shared_ptr<Shard> localConfigShard,
+                                       std::shared_ptr<Shard> localConfigShard,
                                        const std::string& shardName);
 
 /**
@@ -346,9 +304,32 @@ boost::optional<RemoveShardProgress> dropLocalCollectionsAndDatabases(
  */
 void removeShard(const Lock::ExclusiveLock&,
                  OperationContext* opCtx,
-                 const std::shared_ptr<Shard> localConfigShard,
+                 std::shared_ptr<Shard> localConfigShard,
                  const std::string& shardName,
                  std::shared_ptr<executor::TaskExecutor> executor);
+
+/**
+ * Inserts new entries into the config catalog to describe the shard being added (and the
+ * databases being imported) through the internal transaction API.
+ */
+void addShardInTransaction(OperationContext* opCtx,
+                           const ShardType& newShard,
+                           std::vector<DatabaseName>&& databasesInNewShard,
+                           std::vector<CollectionType>&& collectionsInNewShard);
+
+/**
+ * Updates the "hasTwoOrMoreShard" cluster cardinality parameter. Can only be called while holding
+ * the _kClusterCardinalityParameterLock in exclusive mode and not holding the _kShardMembershipLock
+ * in exclusive mode since setting cluster parameters requires taking the latter in shared mode.
+ */
+void updateClusterCardinalityParameter(const Lock::ExclusiveLock& clusterCardinalityParameterLock,
+                                       OperationContext* opCtx);
+
+/**
+ * Handles the hangAddShardBeforeUpdatingClusterCardinalityParameter failpoint that is used from
+ * multiple places
+ */
+void hangAddShardBeforeUpdatingClusterCardinalityParameterFailpoint(OperationContext* opCtx);
 
 }  // namespace topology_change_helpers
 }  // namespace mongo

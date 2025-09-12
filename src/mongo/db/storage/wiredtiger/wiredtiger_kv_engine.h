@@ -433,12 +433,6 @@ public:
     EncryptionKeyDB* getEncryptionKeyDB() noexcept;
 
     /*
-     * Registers the oplog and initializes the oplog manager
-     */
-    void initializeOplogVisibility(OperationContext* opCtx,
-                                   WiredTigerRecordStore* oplogRecordStore);
-
-    /*
      * Always returns a non-null pointer and is valid for the lifetime of this KVEngine. However,
      * the WiredTigerOplogManager may not have been initialized, which happens after the oplog
      * RecordStore is constructed.

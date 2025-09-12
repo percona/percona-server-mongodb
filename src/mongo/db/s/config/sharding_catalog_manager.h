@@ -489,7 +489,7 @@ public:
                                       boost::optional<int32_t> chunkSizeMB,
                                       boost::optional<bool> defragmentCollection,
                                       boost::optional<bool> enableAutoMerger,
-                                      boost::optional<bool> noBalance);
+                                      boost::optional<bool> enableBalancing);
 
     /**
      * Updates the bucketing parameters of a time-series collection. Also bumps the placement
@@ -556,6 +556,13 @@ public:
      * should only be acquired by topology change operations.
      */
     [[nodiscard]] Lock::ExclusiveLock acquireShardMembershipLockForTopologyChange(
+        OperationContext* opCtx);
+
+    /**
+     * Returns a scoped lock object, which holds the _kClusterCardinalityParameterLock in exclusive
+     * mode.
+     */
+    [[nodiscard]] Lock::ExclusiveLock acquireClusterCardinalityParameterLockForTopologyChange(
         OperationContext* opCtx);
 
     /**
@@ -758,15 +765,6 @@ private:
                                             const ShardId& donorShardId);
 
     /**
-     * Inserts new entries into the config catalog to describe the shard being added (and the
-     * databases being imported) through the internal transaction API.
-     */
-    void _addShardInTransaction(OperationContext* opCtx,
-                                const ShardType& newShard,
-                                std::vector<DatabaseName>&& databasesInNewShard,
-                                std::vector<CollectionType>&& collectionsInNewShard);
-
-    /**
      * Execute the merge chunk updates using the internal transaction API.
      */
     void _mergeChunksInTransaction(OperationContext* opCtx,
@@ -793,17 +791,6 @@ private:
                                                            const ChunkType& origChunk,
                                                            const ChunkVersion& collPlacementVersion,
                                                            const std::vector<BSONObj>& splitPoints);
-
-    /**
-     * Updates the "hasTwoOrMoreShard" cluster cardinality parameter based on the given number of
-     * shards. Can only be called while holding the _kClusterCardinalityParameterLock in exclusive
-     * mode and not holding the _kShardMembershipLock in exclusive mode since setting cluster
-     * parameters requires taking the latter in shared mode.
-     */
-    Status _updateClusterCardinalityParameter(
-        const Lock::ExclusiveLock& clusterCardinalityParameterLock,
-        OperationContext* opCtx,
-        int numShards);
 
     /**
      * Updates the "hasTwoOrMoreShard" cluster cardinality parameter after an add or remove shard
