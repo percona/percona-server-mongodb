@@ -60,7 +60,9 @@ ALLOCATE_DOCUMENT_SOURCE_ID(backupCursor, DocumentSourceBackupCursor::id)
 using boost::intrusive_ptr;
 
 std::unique_ptr<DocumentSourceBackupCursor::LiteParsed>
-DocumentSourceBackupCursor::LiteParsed::parse(const NamespaceString& nss, const BSONElement& spec) {
+DocumentSourceBackupCursor::LiteParsed::parse(const NamespaceString& nss,
+                                              const BSONElement& spec,
+                                              const LiteParserOptions& options) {
 
     return std::make_unique<DocumentSourceBackupCursor::LiteParsed>(spec.fieldName());
 }

@@ -72,7 +72,7 @@ ALLOCATE_DOCUMENT_SOURCE_ID(_backupFile, DocumentSourceBackupFile::id)
 using boost::intrusive_ptr;
 
 std::unique_ptr<DocumentSourceBackupFile::LiteParsed> DocumentSourceBackupFile::LiteParsed::parse(
-    const NamespaceString& nss, const BSONElement& spec) {
+    const NamespaceString& nss, const BSONElement& spec, const LiteParserOptions& options) {
 
     return std::make_unique<DocumentSourceBackupFile::LiteParsed>(spec.fieldName());
 }
