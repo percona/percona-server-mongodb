@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,32 +27,16 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/version_context.h"
 
-#include "mongo/s/catalog_cache.h"
+#include "mongo/db/operation_context.h"
 
 namespace mongo {
 
-/*
- * In-memory only cache for routing information, meant to support the worker threads of the
- * Config Server (the Balancer Subsystem and the PeriodicShardedIndexConsistencyChecker).
- *
- * TODO (SERVER-97261): Delete this file and replace usages with the dedicated CatalogCache for
- * routing information.
- */
-class RoutingInformationCache : public CatalogCache {
+static auto getVersionContext = OperationContext::declareDecoration<VersionContext>();
 
-public:
-    RoutingInformationCache(ServiceContext* serviceCtx);
-
-    ~RoutingInformationCache() override = default;
-
-    static void set(ServiceContext* serviceCtx);
-    static void setOverride(ServiceContext* serviceCtx, CatalogCache* cacheOverride);
-
-    static CatalogCache* get(ServiceContext* serviceCtx);
-
-    static CatalogCache* get(OperationContext* opCtx);
-};
+VersionContext& VersionContext::getDecoration(OperationContext* opCtx) {
+    return getVersionContext(opCtx);
+}
 
 }  // namespace mongo

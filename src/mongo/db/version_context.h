@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,30 +29,46 @@
 
 #pragma once
 
-#include "mongo/s/catalog_cache.h"
+#include "mongo/db/server_options.h"
+#include "mongo/db/version_context_gen.h"
 
 namespace mongo {
 
-/*
- * In-memory only cache for routing information, meant to support the worker threads of the
- * Config Server (the Balancer Subsystem and the PeriodicShardedIndexConsistencyChecker).
- *
- * TODO (SERVER-97261): Delete this file and replace usages with the dedicated CatalogCache for
- * routing information.
+class OperationContext;
+
+/**
+ * The VersionContext holds metadata related to snapshots of the system state
+ * taken by OFCV-aware operations.
  */
-class RoutingInformationCache : public CatalogCache {
-
+class VersionContext {
 public:
-    RoutingInformationCache(ServiceContext* serviceCtx);
+    using FCV = multiversion::FeatureCompatibilityVersion;
+    using FCVSnapshot = ServerGlobalParams::FCVSnapshot;
 
-    ~RoutingInformationCache() override = default;
+    static VersionContext& getDecoration(OperationContext*);
 
-    static void set(ServiceContext* serviceCtx);
-    static void setOverride(ServiceContext* serviceCtx, CatalogCache* cacheOverride);
+    VersionContext();
 
-    static CatalogCache* get(ServiceContext* serviceCtx);
+    explicit VersionContext(FCV fcv);
 
-    static CatalogCache* get(OperationContext* opCtx);
+    explicit VersionContext(FCVSnapshot fcv);
+
+    explicit VersionContext(const BSONObj& obj);
+
+    VersionContext(const VersionContext& other) = default;
+
+    VersionContext& operator=(const VersionContext& other);
+
+    void setOperationFCV(FCV fcv);
+
+    void setOperationFCV(FCVSnapshot fcv);
+
+    FCVSnapshot getOperationFCV() const;
+
+    BSONObj toBSON() const;
+
+private:
+    VersionContextMetadata _metadata;
 };
 
 }  // namespace mongo

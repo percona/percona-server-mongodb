@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,32 +27,56 @@
  *    it in the license file.
  */
 
-#pragma once
-
-#include "mongo/s/catalog_cache.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_managed_session.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
+#include "mongo/util/assert_util.h"
 
 namespace mongo {
 
-/*
- * In-memory only cache for routing information, meant to support the worker threads of the
- * Config Server (the Balancer Subsystem and the PeriodicShardedIndexConsistencyChecker).
- *
- * TODO (SERVER-97261): Delete this file and replace usages with the dedicated CatalogCache for
- * routing information.
- */
-class RoutingInformationCache : public CatalogCache {
+WiredTigerManagedSession::WiredTigerManagedSession(std::unique_ptr<WiredTigerSession> session)
+    : _session(std::move(session)) {}
 
-public:
-    RoutingInformationCache(ServiceContext* serviceCtx);
+WiredTigerManagedSession::~WiredTigerManagedSession() {
+    _release();
+}
 
-    ~RoutingInformationCache() override = default;
+void WiredTigerManagedSession::_release() {
+    if (_session) {
+        _session->_connection->_releaseSession(std::move(_session));
+    }
+}
 
-    static void set(ServiceContext* serviceCtx);
-    static void setOverride(ServiceContext* serviceCtx, CatalogCache* cacheOverride);
+WiredTigerManagedSession::WiredTigerManagedSession(WiredTigerManagedSession&& other) noexcept
+    : _session(std::move(other._session)) {}
 
-    static CatalogCache* get(ServiceContext* serviceCtx);
+WiredTigerManagedSession& WiredTigerManagedSession::operator=(
+    WiredTigerManagedSession&& other) noexcept {
+    if (this != &other) {
+        _release();
+        _session = std::move(other._session);
+    }
+    return *this;
+}
 
-    static CatalogCache* get(OperationContext* opCtx);
-};
+WiredTigerSession* WiredTigerManagedSession::operator->() const {
+    return get();
+}
 
+WiredTigerSession* WiredTigerManagedSession::get() const {
+    invariant(_session);
+    return _session.get();
+}
+
+WiredTigerSession& WiredTigerManagedSession::operator*() const {
+    invariant(_session);
+    return *_session;
+}
+
+bool WiredTigerManagedSession::operator!() const {
+    return _session == nullptr;
+}
+
+WiredTigerManagedSession::operator bool() const {
+    return _session != nullptr;
+}
 }  // namespace mongo
