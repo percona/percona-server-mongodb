@@ -416,6 +416,10 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./jstests/core/index/OWNERS.yml
 /jstests/core/index/**/* @10gen/query @svc-auto-approve-bot
 
+# The following patterns are parsed from ./jstests/core/index/geo/OWNERS.yml
+/jstests/core/index/geo/**/* @10gen/query-integration-geo @svc-auto-approve-bot
+/jstests/core/index/geo/**/OWNERS.yml @10gen/query-integration-staff-leads @svc-auto-approve-bot
+
 # The following patterns are parsed from ./jstests/core/js/OWNERS.yml
 /jstests/core/js/**/* @10gen/query-integration-javascript @svc-auto-approve-bot
 /jstests/core/js/**/json1.js @10gen/query-optimization-parsers @svc-auto-approve-bot
@@ -1280,6 +1284,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/**/mirror* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/**/wire_version* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/**/shutdown_in_progress_quiesce_info* @10gen/server-networking-and-observability @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/admission/OWNERS.yml
+/src/mongo/db/admission/**/* @10gen/server-workload-scheduling @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/auth/OWNERS.yml
 /src/mongo/db/auth/**/* @10gen/server-security @svc-auto-approve-bot

@@ -30,29 +30,11 @@
 #pragma once
 
 #include "mongo/client/dbclient_cursor.h"
-#include "mongo/db/database_name.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/s/catalog/type_database_gen.h"
 
 namespace mongo {
 
 namespace shard_local_catalog_operations {
-
-/**
- * Adds database metadata to the shard-local catalog.
- *
- * This function inserts the database metadata into the replicated durable collection
- * `config.shard.databases`.
- */
-void insertDatabaseMetadata(OperationContext* opCtx, const DatabaseType& db);
-
-/**
- * Deletes database metadata from the shard-local catalog.
- *
- * This function removes the database metadata from the replicated durable collection
- * `config.shard.databases`.
- */
-void removeDatabaseMetadata(OperationContext* opCtx, const DatabaseName& dbName);
 
 /**
  * Read database metadata from all databases in the shard-local catalog.

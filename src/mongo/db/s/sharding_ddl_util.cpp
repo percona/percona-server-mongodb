@@ -128,8 +128,6 @@
 
 namespace mongo {
 
-using namespace fmt::literals;
-
 static const size_t kSerializedErrorStatusMaxSize = 1024 * 2;
 
 void sharding_ddl_util_serializeErrorStatusToBSON(const Status& status,
@@ -869,11 +867,13 @@ void assertDataMovementAllowed() {
 void assertNamespaceLengthLimit(const NamespaceString& nss, bool isUnsharded) {
     auto maxNsLen = isUnsharded ? NamespaceString::MaxUserNsCollectionLen
                                 : NamespaceString::MaxUserNsShardedCollectionLen;
-    uassert(
-        ErrorCodes::InvalidNamespace,
-        "Namespace too log. The namespace {} is {} characters long, but the maximum allowed is {}"_format(
-            nss.toStringForErrorMsg(), nss.size(), maxNsLen),
-        nss.size() <= maxNsLen);
+    uassert(ErrorCodes::InvalidNamespace,
+            fmt::format("Namespace too log. The namespace {} is {} characters long, but the "
+                        "maximum allowed is {}",
+                        nss.toStringForErrorMsg(),
+                        nss.size(),
+                        maxNsLen),
+            nss.size() <= maxNsLen);
 }
 
 void commitDatabaseMetadataToShardLocalCatalog(
@@ -884,7 +884,7 @@ void commitDatabaseMetadataToShardLocalCatalog(
     const CancellationToken& token) {
     auto shardsvrRequest = [&]() {
         switch (request.op) {
-            case CommitToShardLocalCatalogOpEnum::kInsertDatabaseMetadata: {
+            case CommitToShardLocalCatalogOpEnum::kCreateDatabase: {
                 tassert(1003892,
                         "Expecting to find database metadata in this operation",
                         request.dbVersion);
@@ -897,14 +897,16 @@ void commitDatabaseMetadataToShardLocalCatalog(
                 updateRequest.setDbMetadata(dbType);
                 return updateRequest;
             }
-            case CommitToShardLocalCatalogOpEnum::kRemoveDatabaseMetadata: {
+            case CommitToShardLocalCatalogOpEnum::kDropDatabase: {
                 ShardsvrCommitToShardLocalCatalog updateRequest{NamespaceString{request.dbName}};
                 updateRequest.setDbName(request.dbName);
                 updateRequest.setOperation(request.op);
                 return updateRequest;
             }
             default:
-                MONGO_UNREACHABLE;
+                tasserted(ErrorCodes::IllegalOperation,
+                          str::stream() << "Received an unkown commit operation: "
+                                        << CommitToShardLocalCatalogOp_serializer(request.op));
         }
     }();
 
