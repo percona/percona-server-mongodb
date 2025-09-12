@@ -70,7 +70,7 @@
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/db/query/explain_options.h"
 #include "mongo/db/query/find_command.h"
-#include "mongo/db/query/query_settings/query_settings_utils.h"
+#include "mongo/db/query/query_settings/query_settings_service.h"
 #include "mongo/db/query/query_shape/distinct_cmd_shape.h"
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_stats/distinct_key.h"
@@ -133,10 +133,6 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
             "BSON field 'querySettings' is an unknown field",
             !distinctCommand->getQuerySettings().has_value());
 
-    uassert(ErrorCodes::InvalidOptions,
-            "rawData is not enabled",
-            !distinctCommand->getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
-
     auto expCtx = ExpressionContextBuilder{}
                       .fromRequest(opCtx, *distinctCommand, defaultCollator)
                       .ns(nss)
@@ -148,17 +144,22 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
                                        extensionsCallback,
                                        MatchExpressionParser::kAllowAllSpecialFeatures);
 
+    query_shape::DeferredQueryShape deferredShape{[&]() {
+        return shape_helpers::tryMakeShape<query_shape::DistinctCmdShape>(*parsedDistinct, expCtx);
+    }};
+    expCtx->setQuerySettingsIfNotPresent(
+        query_settings::lookupQuerySettingsWithRejectionCheckOnRouter(expCtx, deferredShape, nss));
+
     // We do not collect queryStats on explain for distinct.
     if (feature_flags::gFeatureFlagQueryStatsCountDistinct.isEnabled(
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
         !verbosity.has_value()) {
         query_stats::registerRequest(opCtx, nss, [&]() {
-            return std::make_unique<query_stats::DistinctKey>(expCtx, *parsedDistinct);
+            uassert(8472506, "Failed computing query shape", deferredShape());
+            return std::make_unique<query_stats::DistinctKey>(
+                expCtx, *parsedDistinct->distinctCommandRequest, std::move(*deferredShape));
         });
     }
-
-    expCtx->setQuerySettingsIfNotPresent(
-        query_settings::lookupQuerySettingsForDistinct(expCtx, *parsedDistinct, nss));
 
     return parsed_distinct_command::parseCanonicalQuery(std::move(expCtx),
                                                         std::move(parsedDistinct));
@@ -181,6 +182,29 @@ BSONObj prepareDistinctForPassthrough(const BSONObj& cmd,
     }
 
     return CommandHelpers::filterCommandRequestForPassthrough(cmd);
+}
+
+BSONObj translateCmdObjForRawData(OperationContext* opCtx,
+                                  const BSONObj& cmdObj,
+                                  NamespaceString& ns) {
+    if (!OptionalBool::parseFromBSON(cmdObj[DistinctCommandRequest::kRawDataFieldName]) ||
+        !CollectionRoutingInfoTargeter{opCtx, ns}.timeseriesNamespaceNeedsRewrite(ns)) {
+        return cmdObj;
+    }
+
+    ns = ns.makeTimeseriesBucketsNamespace();
+
+    // Rewrite the command object to use the buckets namespace.
+    BSONObjBuilder builder{cmdObj.objsize()};
+    for (auto&& [fieldName, elem] : cmdObj) {
+        if (fieldName == DistinctCommandRequest::kCommandName) {
+            builder.append(fieldName, ns.coll());
+        } else {
+            builder.append(elem);
+        }
+    }
+
+    return builder.obj();
 }
 
 class DistinctCmd : public BasicCommand {
@@ -225,6 +249,10 @@ public:
         return ReadConcernSupportResult::allSupportedAndDefaultPermitted();
     }
 
+    bool supportsRawData() const override {
+        return true;
+    }
+
     Status checkAuthForOperation(OperationContext* opCtx,
                                  const DatabaseName& dbName,
                                  const BSONObj& cmdObj) const override {
@@ -245,8 +273,9 @@ public:
                    const OpMsgRequest& opMsgRequest,
                    ExplainOptions::Verbosity verbosity,
                    rpc::ReplyBuilderInterface* result) const override {
-        const BSONObj& cmdObj = opMsgRequest.body;
-        const NamespaceString nss(parseNs(opMsgRequest.parseDbName(), cmdObj));
+        const BSONObj& originalCmdObj = opMsgRequest.body;
+        NamespaceString nss(parseNs(opMsgRequest.parseDbName(), originalCmdObj));
+        auto cmdObj = translateCmdObjForRawData(opCtx, originalCmdObj, nss);
         auto canonicalQuery = parseDistinctCmd(
             opCtx, nss, cmdObj, ExtensionsCallbackNoop(), nullptr /* defaultCollator */, verbosity);
 
@@ -254,7 +283,7 @@ public:
         // case of a tassert or crash.
         ScopedDebugInfo expCtxDiagnostics(
             "ExpCtxDiagnostics",
-            command_diagnostics::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
+            diagnostic_printers::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
 
         auto targetingQuery = canonicalQuery->getQueryObj();
         auto targetingCollation = canonicalQuery->getFindCommandRequest().getCollation();
@@ -309,29 +338,7 @@ public:
              BSONObjBuilder& result) override {
         CommandHelpers::handleMarkKillOnClientDisconnect(opCtx);
         NamespaceString nss(parseNs(dbName, originalCmdObj));
-
-        auto cmdObj = [&] {
-            if (!OptionalBool::parseFromBSON(
-                    originalCmdObj[DistinctCommandRequest::kRawDataFieldName]) ||
-                !CollectionRoutingInfoTargeter{opCtx, nss}.timeseriesNamespaceNeedsRewrite(nss)) {
-                return originalCmdObj;
-            }
-
-            nss = nss.makeTimeseriesBucketsNamespace();
-
-            // Rewrite the command object to use the buckets namespace.
-            BSONObjBuilder builder{originalCmdObj.objsize()};
-            for (auto&& [fieldName, elem] : originalCmdObj) {
-                if (fieldName == DistinctCommandRequest::kCommandName) {
-                    builder.append(fieldName, nss.coll());
-                } else {
-                    builder.append(elem);
-                }
-            }
-
-            return builder.obj();
-        }();
-
+        auto cmdObj = translateCmdObjForRawData(opCtx, originalCmdObj, nss);
         auto canonicalQuery = parseDistinctCmd(opCtx,
                                                nss,
                                                cmdObj,
@@ -345,7 +352,7 @@ public:
         // case of a tassert or crash.
         ScopedDebugInfo expCtxDiagnostics(
             "ExpCtxDiagnostics",
-            command_diagnostics::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
+            diagnostic_printers::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
 
         auto swCri = getCollectionRoutingInfoForTxnCmd(opCtx, nss);
         if (swCri == ErrorCodes::NamespaceNotFound) {
@@ -476,7 +483,7 @@ public:
 
         // Propagate the query settings with the request to the shards if present.
         const auto& querySettings = canonicalQuery->getExpCtx()->getQuerySettings();
-        if (!query_settings::utils::isDefault(querySettings)) {
+        if (!query_settings::isDefault(querySettings)) {
             viewAggRequest.setQuerySettings(querySettings);
         }
 

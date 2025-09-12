@@ -104,7 +104,7 @@
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_explainer.h"
 #include "mongo/db/query/query_request_helper.h"
-#include "mongo/db/query/query_settings/query_settings_utils.h"
+#include "mongo/db/query/query_settings/query_settings_service.h"
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/query/query_stats/find_key.h"
@@ -202,13 +202,25 @@ std::unique_ptr<CanonicalQuery> parseQueryAndBeginOperation(
     // properly initialized.
     expCtx->initializeReferencedSystemVariables();
 
+    // Perform the query settings lookup and attach it to 'expCtx'.
+    query_shape::DeferredQueryShape deferredShape{[&]() {
+        return shape_helpers::tryMakeShape<query_shape::FindCmdShape>(*parsedRequest, expCtx);
+    }};
+    expCtx->setQuerySettingsIfNotPresent(
+        query_settings::lookupQuerySettingsWithRejectionCheckOnShard(
+            expCtx, deferredShape, nss, parsedRequest->findCommandRequest->getQuerySettings()));
+
     // Register query stats collection. Exclude queries against collections with encrypted fields.
     // It is important to do this before canonicalizing and optimizing the query, each of which
     // would alter the query shape.
     if (!(collection && collection.get()->getCollectionOptions().encryptedFieldConfig)) {
         query_stats::registerRequest(opCtx, nss, [&]() {
+            uassert(8472501, "Failed computing query shape", deferredShape());
             return std::make_unique<query_stats::FindKey>(
-                expCtx, *parsedRequest, collOrViewAcquisition.getCollectionType());
+                expCtx,
+                *parsedRequest->findCommandRequest,
+                std::move(*deferredShape),
+                collOrViewAcquisition.getCollectionType());
         });
 
         if (parsedRequest->findCommandRequest->getIncludeQueryStatsMetrics() &&
@@ -233,11 +245,6 @@ std::unique_ptr<CanonicalQuery> parseQueryAndBeginOperation(
             "https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/");
     }
 
-    // TODO: SERVER-73632 Remove feature flag for PM-635.
-    // Query settings will only be looked up on mongos and therefore should be part of command body
-    // on mongod if present.
-    expCtx->setQuerySettingsIfNotPresent(
-        query_settings::lookupQuerySettingsForFind(expCtx, *parsedRequest, nss));
     return std::make_unique<CanonicalQuery>(CanonicalQueryParams{
         .expCtx = std::move(expCtx),
         .parsedFind = std::move(parsedRequest),
@@ -361,6 +368,10 @@ public:
             return ReadConcernSupportResult::allSupportedAndDefaultPermitted();
         }
 
+        bool supportsRawData() const override {
+            return true;
+        }
+
         bool isSubjectToIngressAdmissionControl() const override {
             return !_cmdRequest->getTerm().has_value();
         }
@@ -424,10 +435,6 @@ public:
                 _cmdRequest = _parseCmdObjectToFindCommandRequest(opCtx, _request);
             }
 
-            uassert(ErrorCodes::InvalidOptions,
-                    "rawData is not enabled",
-                    !_cmdRequest->getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
-
             // Acquire locks. The RAII object is optional, because in the case of a view, the locks
             // need to be released.
             // TODO SERVER-79175: Make nicer. We need to instantiate the AutoStatsTracker before the
@@ -482,7 +489,7 @@ public:
             // Create an RAII object that prints useful information about the ExpressionContext in
             // the case of a tassert or crash.
             ScopedDebugInfo expCtxDiagnostics(
-                "ExpCtxDiagnostics", command_diagnostics::ExpressionContextPrinter{expCtx});
+                "ExpCtxDiagnostics", diagnostic_printers::ExpressionContextPrinter{expCtx});
 
             auto parsedRequest = uassertStatusOK(parsed_find_command::parse(
                 expCtx,
@@ -495,8 +502,17 @@ public:
             // properly initialized.
             expCtx->initializeReferencedSystemVariables();
 
+            // Perform the query settings lookup and attach it to 'expCtx'.
+            query_shape::DeferredQueryShape deferredShape{[&]() {
+                return shape_helpers::tryMakeShape<query_shape::FindCmdShape>(*parsedRequest,
+                                                                              expCtx);
+            }};
             expCtx->setQuerySettingsIfNotPresent(
-                query_settings::lookupQuerySettingsForFind(expCtx, *parsedRequest, _ns));
+                query_settings::lookupQuerySettingsWithRejectionCheckOnShard(
+                    expCtx,
+                    deferredShape,
+                    _ns,
+                    parsedRequest->findCommandRequest->getQuerySettings()));
             auto cq = std::make_unique<CanonicalQuery>(CanonicalQueryParams{
                 .expCtx = std::move(expCtx), .parsedFind = std::move(parsedRequest)});
 
@@ -582,10 +598,6 @@ public:
             }
             // Start the query planning timer right after parsing.
             CurOp::get(opCtx)->beginQueryPlanningTimer();
-
-            uassert(ErrorCodes::InvalidOptions,
-                    "rawData is not enabled",
-                    !_cmdRequest->getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
             _rewriteFLEPayloads(opCtx);
             auto respSc =
@@ -780,7 +792,7 @@ public:
             // the case of a tassert or crash.
             ScopedDebugInfo expCtxDiagnostics(
                 "ExpCtxDiagnostics",
-                command_diagnostics::ExpressionContextPrinter{cq->getExpCtx()});
+                diagnostic_printers::ExpressionContextPrinter{cq->getExpCtx()});
 
             tassert(7922501,
                     "CanonicalQuery namespace should match catalog namespace",
@@ -1084,7 +1096,7 @@ private:
         // Forbid users from passing 'querySettings' explicitly.
         uassert(7746901,
                 "BSON field 'querySettings' is an unknown field",
-                query_settings::utils::allowQuerySettingsFromClient(opCtx->getClient()) ||
+                query_settings::allowQuerySettingsFromClient(opCtx->getClient()) ||
                     !findCommand->getQuerySettings().has_value());
 
         return findCommand;

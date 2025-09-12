@@ -471,6 +471,7 @@ mongo_cc_library(
         # TODO(SERVER-9414): Clean this up.
         "//src/mongo/db/repl:primary_only_service.h",
         "//src/mongo/db/s:sharding_ddl_util.h",
+        "//src/mongo/db/s:sharding_ddl_util_detail.h",
         "//src/mongo/db/catalog:drop_collection.h",
         "//src/mongo/db/transaction:transaction_api.h",
         "//src/mongo/executor:inline_executor.h",
@@ -980,8 +981,7 @@ mongo_cc_library(
         "//src/mongo/db/ftdc:ftdc_mongos",
         "//src/mongo/db/ldap:ldap_manager",
         "//src/mongo/db/process_health:fault_manager",
-        "//src/mongo/db/query/query_settings:manager",
-        "//src/mongo/db/query/query_settings:utils",
+        "//src/mongo/db/query/query_settings:query_settings_service",
         "//src/mongo/db/query/search:search_task_executors",
         "//src/mongo/db:read_write_concern_defaults",
         "//src/mongo/db:serverinit",

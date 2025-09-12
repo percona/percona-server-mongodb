@@ -47,6 +47,7 @@
 #include "mongo/db/pipeline/process_interface/mongo_process_interface.h"
 #include "mongo/db/repl/primary_only_service.h"
 #include "mongo/db/s/resharding/recipient_document_gen.h"
+#include "mongo/db/s/resharding/resharding_change_streams_monitor.h"
 #include "mongo/db/s/resharding/resharding_data_replication.h"
 #include "mongo/db/s/resharding/resharding_future_util.h"
 #include "mongo/db/s/resharding/resharding_metrics.h"
@@ -191,6 +192,18 @@ public:
         return _completionPromise.getFuture();
     }
 
+    /**
+     * Waits for the monitor to start. Throws an error if verification
+     * is not enabled or skipCloningAndApplying is true.
+     */
+    SharedSemiFuture<void> awaitChangeStreamsMonitorStartedForTest();
+
+    /**
+     * Waits for the monitor to complete and returns the final document delta from the applying
+     * phase. Throws an error if verification is not enabled or skipCloningAndApplying is true.
+     */
+    SharedSemiFuture<int64_t> awaitChangeStreamsMonitorCompletedForTest();
+
     inline const CommonReshardingMetadata& getMetadata() const {
         return _metadata;
     }
@@ -228,6 +241,9 @@ public:
     void abort(bool isUserCancelled);
 
     void checkIfOptionsConflict(const BSONObj& stateDoc) const final {}
+
+    SemiFuture<void> fulfillAllDonorsPreparedToDonate(CloneDetails cloneDetails,
+                                                      const CancellationToken& cancelToken);
 
 private:
     class CloningMetrics {
@@ -320,6 +336,9 @@ private:
                                   boost::optional<mongo::Date_t> configStartTime,
                                   const CancelableOperationContextFactory& factory);
 
+    void _updateRecipientDocument(ChangeStreamsMonitorContext newChangeStreamsCtx,
+                                  const CancelableOperationContextFactory& factory);
+
     // Removes the local recipient document from disk.
     void _removeRecipientDocument(bool aborted, const CancelableOperationContextFactory& factory);
 
@@ -328,6 +347,15 @@ private:
 
     void _ensureDataReplicationStarted(
         OperationContext* opCtx,
+        const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+        const CancellationToken& abortToken,
+        const CancelableOperationContextFactory& factory);
+
+    void _createAndStartChangeStreamsMonitor(
+        const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
+        const CancelableOperationContextFactory& factory);
+
+    ExecutorFuture<void> _awaitChangeStreamsMonitorCompleted(
         const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
         const CancellationToken& abortToken,
         const CancelableOperationContextFactory& factory);
@@ -353,6 +381,8 @@ private:
     // Return the total and per-donor number documents and bytes cloned if the numbers are available
     // in the cloner resume data documents. Otherwise, return none.
     boost::optional<CloningMetrics> _tryFetchCloningMetrics(OperationContext* opCtx);
+
+    void _fulfillPromisesOnStepup(boost::optional<mongo::ReshardingRecipientMetrics> metrics);
 
     // The primary-only service instance corresponding to the recipient instance. Not owned.
     const ReshardingRecipientService* const _recipientService;
@@ -380,6 +410,7 @@ private:
     // The in-memory representation of the mutable portion of the document in
     // config.localReshardingOperations.recipient.
     RecipientShardContext _recipientCtx;
+    boost::optional<ChangeStreamsMonitorContext> _changeStreamsMonitorCtx;
     std::vector<DonorShardFetchTimestamp> _donorShards;
     boost::optional<Timestamp> _cloneTimestamp;
 
@@ -399,10 +430,15 @@ private:
     const ReshardingDataReplicationFactory _dataReplicationFactory;
     SharedSemiFuture<void> _dataReplicationQuiesced;
 
+    SharedPromise<void> _changeStreamsMonitorStarted;
+    SharedPromise<int64_t> _changeStreamsMonitorCompleted;
+    SharedSemiFuture<void> _changeStreamsMonitorQuiesced;
+
     // Protects the state below
     stdx::mutex _mutex;
 
     std::unique_ptr<ReshardingDataReplicationInterface> _dataReplication;
+    std::shared_ptr<ReshardingChangeStreamsMonitor> _changeStreamsMonitor;
 
     // Canceled when there is an unrecoverable error or stepdown.
     boost::optional<CancellationSource> _abortSource;
@@ -425,6 +461,9 @@ private:
     SharedPromise<void> _coordinatorHasDecisionPersisted;
 
     SharedPromise<void> _completionPromise;
+
+    // This promise is emplaced if the recipient has majority committed the createCollection state.
+    SharedPromise<void> _transitionedToCreateCollection;
 };
 
 }  // namespace mongo

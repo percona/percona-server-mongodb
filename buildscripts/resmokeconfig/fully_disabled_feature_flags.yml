@@ -17,6 +17,8 @@
 - featureFlagEgressGrpcForSearch
 - featureFlagTrackUnshardedCollectionsUponCreation
 - featureFlagTSBucketingParametersUnchanged
-- featureFlagMongodProxyProcolSupport
+- featureFlagMongodProxyProtocolSupport
 - featureFlagShardAuthoritativeDbMetadata
+# TODO SERVER-99433: Delete featureFlagReplicaSetEndpoint.
+- featureFlagReplicaSetEndpoint
 - featureFlagGaplessFTDC

@@ -2151,6 +2151,19 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "raw_data_operation",
+    srcs = [
+        "raw_data_operation.cpp",
+    ],
+    hdrs = [
+        "raw_data_operation.h",
+    ],
+    deps = [
+        ":service_context",  # TODO (SERVER-93876): Remove.
+    ],
+)
+
+mongo_cc_library(
     name = "collection_index_usage_tracker",
     srcs = [
         "aggregated_index_usage_tracker.cpp",
@@ -2448,7 +2461,7 @@ mongo_cc_library(
         ":service_context",
         "//src/mongo/client:clientdriver_network",
         "//src/mongo/db/auth:authmocks",
-        "//src/mongo/db/query/query_settings:manager",
+        "//src/mongo/db/query/query_settings:query_settings_service",
         "//src/mongo/transport:session_manager",
         "//src/mongo/unittest",
         "//src/mongo/util:clock_source_mock",
@@ -2627,6 +2640,7 @@ mongo_cc_library(
         "//src/mongo/db/pipeline:monotonic_expression.cpp",
         "//src/mongo/db/pipeline:name_expression.cpp",
         "//src/mongo/db/pipeline:variables.cpp",
+        "//src/mongo/db/query:query_utils.cpp",
         "//src/mongo/db/query/fle:implicit_validator.cpp",
         "//src/mongo/db/query/query_shape:let_shape_component.cpp",
     ],
@@ -2637,6 +2651,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/matcher:match_details.h",
         "//src/mongo/db/exec/matcher:matcher.h",
         "//src/mongo/db/exec/matcher:matcher_geo.h",
+        "//src/mongo/db/exec/sbe:match_path.h",
         "//src/mongo/db/fts:fts_query_hash.h",
         "//src/mongo/db/matcher:doc_validation_error.h",
         "//src/mongo/db/matcher:doc_validation_util.h",
@@ -2716,6 +2731,8 @@ mongo_cc_library(
         "//src/mongo/db/pipeline/process_interface:stub_mongo_process_interface.h",
         "//src/mongo/db/query:dbref.h",
         "//src/mongo/db/query:expression_walker.h",
+        "//src/mongo/db/query:indexability.h",
+        "//src/mongo/db/query:query_utils.h",
         "//src/mongo/db/query:substr_utils.h",
         "//src/mongo/db/query/fle:implicit_validator.h",
         "//src/mongo/db/query/query_shape:let_shape_component.h",
@@ -3687,8 +3704,7 @@ mongo_cc_library(
         "periodic_runner_job_abort_expired_transactions",
         "//src/mongo/db/pipeline:change_stream_expired_pre_image_remover",
         "//src/mongo/db/pipeline/process_interface:mongod_process_interface_factory",
-        "//src/mongo/db/query/query_settings:manager",
-        "//src/mongo/db/query/query_settings:utils",
+        "//src/mongo/db/query/query_settings:query_settings_service",
         "//src/mongo/db/query/stats",
         "//src/mongo/db/repl:initial_syncer",
         "//src/mongo/db/repl:repl_coordinator_impl",

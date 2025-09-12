@@ -75,7 +75,7 @@
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/db/query/explain_common.h"
 #include "mongo/db/query/explain_options.h"
-#include "mongo/db/query/query_settings/query_settings_utils.h"
+#include "mongo/db/query/query_settings/query_settings_service.h"
 #include "mongo/db/query/query_shape/agg_cmd_shape.h"
 #include "mongo/db/query/query_stats/agg_key.h"
 #include "mongo/db/query/query_stats/key.h"
@@ -134,7 +134,8 @@ auto resolveInvolvedNamespaces(const stdx::unordered_set<NamespaceString>& invol
 }
 
 Document serializeForPassthrough(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                                 const AggregateCommandRequest& request) {
+                                 const AggregateCommandRequest& request,
+                                 const NamespaceString& executionNs) {
     auto req = request;
 
     // Reset all generic arguments besides those needed for the aggregation itself.
@@ -149,7 +150,22 @@ Document serializeForPassthrough(const boost::intrusive_ptr<ExpressionContext>& 
     req.setReadConcern(std::move(readConcern));
     req.setWriteConcern(std::move(writeConcern));
     aggregation_request_helper::addQuerySettingsToRequest(req, expCtx);
-    return Document(req.toBSON());
+
+    auto reqObj = req.toBSON();
+    if (request.getRawData() && req.getNamespace() != executionNs) {
+        // Rewrite the command object to use the execution namespace.
+        BSONObjBuilder builder{reqObj.objsize()};
+        for (auto&& [fieldName, elem] : reqObj) {
+            if (fieldName == AggregateCommandRequest::kCommandName) {
+                builder.append(fieldName, executionNs.coll());
+            } else {
+                builder.append(elem);
+            }
+        }
+        reqObj = builder.obj();
+    }
+
+    return Document(reqObj);
 }
 
 // Build an appropriate ExpressionContext for the pipeline. This helper instantiates an appropriate
@@ -159,6 +175,7 @@ boost::intrusive_ptr<ExpressionContext> makeExpressionContext(
     OperationContext* opCtx,
     const AggregateCommandRequest& request,
     const boost::optional<CollectionRoutingInfo>& cri,
+    const NamespaceString& executionNs,
     BSONObj collationObj,
     boost::optional<UUID> uuid,
     ResolvedNamespaceMap resolvedNamespaces,
@@ -174,6 +191,7 @@ boost::intrusive_ptr<ExpressionContext> makeExpressionContext(
 
     // Create the expression context, and set 'inRouter' to true. We explicitly do *not* set
     // mergeCtx->tempDir.
+    const bool canBeRejected = query_settings::canPipelineBeRejected(request.getPipeline());
     auto mergeCtx = ExpressionContextBuilder{}
                         .fromRequest(opCtx, request)
                         .explain(verbosity)
@@ -184,6 +202,7 @@ boost::intrusive_ptr<ExpressionContext> makeExpressionContext(
                         .mayDbProfile(true)
                         .inRouter(true)
                         .collUUID(uuid)
+                        .canBeRejected(canBeRejected)
                         .build();
 
     if ((!cri || !cri->cm.hasRoutingTable()) && collationObj.isEmpty()) {
@@ -194,7 +213,8 @@ boost::intrusive_ptr<ExpressionContext> makeExpressionContext(
     // reconstructed for dispatch to a new shard, which is sometimes necessary for change streams
     // pipelines.
     if (hasChangeStream) {
-        mergeCtx->setOriginalAggregateCommand(serializeForPassthrough(mergeCtx, request).toBson());
+        mergeCtx->setOriginalAggregateCommand(
+            serializeForPassthrough(mergeCtx, request, executionNs).toBson());
     }
 
     return mergeCtx;
@@ -287,10 +307,6 @@ void performValidationChecks(const OperationContext* opCtx,
     liteParsedPipeline.validate(opCtx);
     aggregation_request_helper::validateRequestForAPIVersion(opCtx, request);
     aggregation_request_helper::validateRequestFromClusterQueryWithoutShardKey(request);
-
-    uassert(ErrorCodes::InvalidOptions,
-            "rawData is not enabled",
-            !request.getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
     uassert(51028, "Cannot specify exchange option to a router", !request.getExchange());
     uassert(51143,
@@ -402,28 +418,38 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
         makeExpressionContext(opCtx,
                               request,
                               cri,
+                              executionNss,
                               collationObj,
                               boost::none /* uuid */,
                               resolveInvolvedNamespaces(involvedNamespaces),
                               hasChangeStream,
                               verbosity);
     auto pipeline = Pipeline::parse(request.getPipeline(), expCtx);
+
+    // Perform the query settings lookup and attach it to 'expCtx'.
+    // In case query settings have already been looked up (in case the agg request is
+    // running over a view) we avoid performing query settings lookup.
+    query_shape::DeferredQueryShape deferredShape{[&]() {
+        return shape_helpers::tryMakeShape<query_shape::AggCmdShape>(
+            request, executionNss, involvedNamespaces, *pipeline, expCtx);
+    }};
+    expCtx->setQuerySettingsIfNotPresent(std::move(request.getQuerySettings()).value_or_eval([&] {
+        return query_settings::lookupQuerySettingsWithRejectionCheckOnRouter(
+            expCtx, deferredShape, executionNss);
+    }));
+
     // Skip query stats recording for queryable encryption queries.
     if (!shouldDoFLERewrite) {
         query_stats::registerRequest(
             opCtx,
             executionNss,
             [&]() {
+                uassert(8472505, "Failed computing query shape", deferredShape());
                 return std::make_unique<query_stats::AggKey>(
-                    request, *pipeline, expCtx, involvedNamespaces, executionNss);
+                    expCtx, request, std::move(*deferredShape), std::move(involvedNamespaces));
             },
             hasChangeStream);
     }
-
-    // Perform the query settings lookup and attach it to the ExpressionContext.
-    expCtx->setQuerySettingsIfNotPresent(query_settings::lookupQuerySettingsForAgg(
-        expCtx, request, *pipeline, involvedNamespaces, executionNss));
-
     return pipeline;
 }
 
@@ -614,7 +640,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
     // Create an RAII object that prints useful information about the ExpressionContext in the case
     // of a tassert or crash.
     ScopedDebugInfo expCtxDiagnostics("ExpCtxDiagnostics",
-                                      command_diagnostics::ExpressionContextPrinter{expCtx});
+                                      diagnostic_printers::ExpressionContextPrinter{expCtx});
 
     auto targeter = cluster_aggregation_planner::AggregationTargeter::make(
         opCtx,
@@ -646,7 +672,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
     // By attaching the query settings to the original request object we can re-use the query
     // settings even though the original 'expCtx' object has been already destroyed.
     const auto& querySettings = expCtx->getQuerySettings();
-    if (!query_settings::utils::isDefault(querySettings)) {
+    if (!query_settings::isDefault(querySettings)) {
         request.setQuerySettings(querySettings);
     }
 
@@ -687,7 +713,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                     return cluster_aggregation_planner::dispatchPipelineAndMerge(
                         opCtx,
                         std::move(targeter),
-                        serializeForPassthrough(expCtx, request),
+                        serializeForPassthrough(expCtx, request, namespaces.executionNss),
                         request.getCursor().getBatchSize().value_or(
                             aggregation_request_helper::kDefaultBatchSize),
                         namespaces,
@@ -713,7 +739,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                         expCtx,
                         namespaces,
                         expCtx->getExplain(),
-                        serializeForPassthrough(expCtx, request),
+                        serializeForPassthrough(expCtx, request, namespaces.executionNss),
                         privileges,
                         shardId,
                         result,
@@ -762,7 +788,9 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
             if (targeter.policy !=
                 cluster_aggregation_planner::AggregationTargeter::kSpecificShardOnly) {
                 explain_common::appendIfRoom(
-                    serializeForPassthrough(expCtx, request).toBson(), "command", result);
+                    serializeForPassthrough(expCtx, request, namespaces.executionNss).toBson(),
+                    "command",
+                    result);
             }
             collectQueryStatsMongos(opCtx,
                                     std::move(CurOp::get(opCtx)->debug().queryStatsInfo.key));

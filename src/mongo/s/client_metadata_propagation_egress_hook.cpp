@@ -30,6 +30,7 @@
 #include "mongo/s/client_metadata_propagation_egress_hook.h"
 
 #include "mongo/db/operation_context.h"
+#include "mongo/db/raw_data_operation.h"
 #include "mongo/db/write_block_bypass.h"
 #include "mongo/rpc/metadata/audit_metadata.h"
 #include "mongo/rpc/metadata/client_metadata.h"
@@ -52,6 +53,10 @@ Status ClientMetadataPropagationEgressHook::writeRequestMetadata(OperationContex
         }
 
         WriteBlockBypass::get(opCtx).writeAsMetadata(metadataBob);
+
+        if (isRawDataOperation(opCtx)) {
+            metadataBob->append(kRawDataFieldName, true);
+        }
 
         // If the request is using the 'defaultMaxTimeMS' value, attaches the field so shards can
         // record the metrics correctly.

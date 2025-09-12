@@ -154,6 +154,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /docs/owners/** @10gen/devprod-correctness @svc-auto-approve-bot
 /docs/**/golden_data_test_framework.md @10gen/query-optimization-golden-test @svc-auto-approve-bot
 
+# The following patterns are parsed from ./etc/OWNERS.yml
+/etc/**/performance_thresholds.yml @10gen/performance @svc-auto-approve-bot
+
 # The following patterns are parsed from ./etc/evergreen_yml_components/tasks/resmoke/server_divisions/query/OWNERS.yml
 /etc/evergreen_yml_components/tasks/resmoke/server_divisions/query/**/* @10gen/query @svc-auto-approve-bot
 
@@ -614,7 +617,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/httpinterface/**/network_options.js @10gen/server-networking-and-observability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/libs/OWNERS.yml
-/jstests/libs/**/write_commands.js @10gen/query-execution-write-exec @svc-auto-approve-bot
+/jstests/libs/**/write_concern_all_commands.js @10gen/query-execution-write-exec @svc-auto-approve-bot
 /jstests/libs/**/replsettest.js @10gen/server-replication @svc-auto-approve-bot
 /jstests/libs/**/shardingtest.js @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/libs/**/*golden_test.js @10gen/query-optimization-golden-test @svc-auto-approve-bot

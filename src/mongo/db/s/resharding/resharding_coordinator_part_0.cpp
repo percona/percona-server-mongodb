@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2022-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -26,23 +26,5 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
-#pragma once
-
-
-#include "mongo/db/pipeline/transformer_interface.h"
-#include "mongo/db/pipeline/visitors/transformer_interface_visitor.h"
-
-namespace mongo {
-
-class TransformerInterfaceWalker final {
-public:
-    TransformerInterfaceWalker(TransformerInterfaceConstVisitor* visitor);
-
-    void walk(const TransformerInterface* transformer);
-
-private:
-    TransformerInterfaceConstVisitor* _visitor;
-};
-
-}  // namespace mongo
+#define RESHARDING_COORDINATOR_PART_0
+#include "mongo/db/s/resharding/resharding_coordinator.inl"

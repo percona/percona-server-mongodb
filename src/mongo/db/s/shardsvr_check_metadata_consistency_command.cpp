@@ -130,8 +130,20 @@ std::vector<DatabaseType> getDatabasesThisShardIsPrimaryFor(OperationContext* op
     std::vector<DatabaseType> databases;
     databases.reserve(rawDatabases.size());
     for (auto&& rawDb : rawDatabases) {
-        databases.emplace_back(
-            DatabaseType::parseOwned(IDLParserContext("DatabaseType"), std::move(rawDb)));
+        auto db = DatabaseType::parseOwned(IDLParserContext("DatabaseType"), std::move(rawDb));
+        if (db.getDbName() == DatabaseName::kAdmin) {
+            // TODO (SERVER-101175): Convert this into a new metadata inconsistency.
+            // The 'admin' database should not be explicitly assigned a primary shard. It may exist
+            // in the global catalog due to upgrade from an older MongoDB version.
+            LOGV2_INFO(
+                9866400,
+                "Found internal 'admin' database registered in the global catalog during the "
+                "execution of checkMetadataConsistency command. Skipping consistency check for "
+                "this database.",
+                "dbMetadata"_attr = db);
+            continue;
+        }
+        databases.emplace_back(std::move(db));
     }
     if (thisShardId == ShardId::kConfigServerId) {
         // Config database
@@ -182,7 +194,8 @@ public:
 
             auto response = [&] {
                 const auto nss = ns();
-                switch (metadata_consistency_util::getCommandLevel(nss)) {
+                const auto commandLevel = metadata_consistency_util::getCommandLevel(nss);
+                switch (commandLevel) {
                     case MetadataConsistencyCommandLevelEnum::kClusterLevel:
                         return _runClusterLevel(opCtx, nss);
                     case MetadataConsistencyCommandLevelEnum::kDatabaseLevel:
@@ -190,7 +203,14 @@ public:
                     case MetadataConsistencyCommandLevelEnum::kCollectionLevel:
                         return _runCollectionLevel(opCtx, nss);
                     default:
-                        MONGO_UNREACHABLE;
+                        tasserted(1011706,
+                                  str::stream()
+                                      << "Unexpected parameter during the internal execution of "
+                                         "checkMetadataConsistency command. The shard server was "
+                                         "expecting to receive a cluster, database or collection "
+                                         "level parameter, but received "
+                                      << MetadataConsistencyCommandLevel_serializer(commandLevel)
+                                      << " with namespace " << nss.toStringForErrorMsg());
                 }
             }();
 

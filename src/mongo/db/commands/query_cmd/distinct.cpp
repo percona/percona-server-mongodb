@@ -85,7 +85,7 @@
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_summary_stats.h"
 #include "mongo/db/query/query_planner_params.h"
-#include "mongo/db/query/query_settings/query_settings_utils.h"
+#include "mongo/db/query/query_settings/query_settings_service.h"
 #include "mongo/db/query/query_shape/distinct_cmd_shape.h"
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_stats/distinct_key.h"
@@ -143,12 +143,8 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
     // Forbid users from passing 'querySettings' explicitly.
     uassert(7923000,
             "BSON field 'querySettings' is an unknown field",
-            query_settings::utils::allowQuerySettingsFromClient(opCtx->getClient()) ||
+            query_settings::allowQuerySettingsFromClient(opCtx->getClient()) ||
                 !distinctCommand->getQuerySettings().has_value());
-
-    uassert(ErrorCodes::InvalidOptions,
-            "rawData is not enabled",
-            !distinctCommand->getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
     auto expCtx = ExpressionContextBuilder{}
                       .fromRequest(opCtx, *distinctCommand, defaultCollator)
@@ -161,13 +157,28 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
                                        extensionsCallback,
                                        MatchExpressionParser::kAllowAllSpecialFeatures);
 
+    // Perform the query settings lookup and attach it to 'expCtx'.
+    query_shape::DeferredQueryShape deferredShape{[&]() {
+        return shape_helpers::tryMakeShape<query_shape::DistinctCmdShape>(*parsedDistinct, expCtx);
+    }};
+    expCtx->setQuerySettingsIfNotPresent(
+        query_settings::lookupQuerySettingsWithRejectionCheckOnShard(
+            expCtx,
+            deferredShape,
+            nss,
+            parsedDistinct->distinctCommandRequest->getQuerySettings()));
+
     // We do not collect queryStats on explain for distinct.
     if (feature_flags::gFeatureFlagQueryStatsCountDistinct.isEnabled(
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
         !verbosity.has_value()) {
         query_stats::registerRequest(opCtx, nss, [&]() {
+            uassert(8472503, "Failed computing query shape", deferredShape());
             return std::make_unique<query_stats::DistinctKey>(
-                expCtx, *parsedDistinct, collOrViewAcquisition.getCollectionType());
+                expCtx,
+                *parsedDistinct->distinctCommandRequest,
+                std::move(*deferredShape),
+                collOrViewAcquisition.getCollectionType());
         });
 
         if (parsedDistinct->distinctCommandRequest->getIncludeQueryStatsMetrics() &&
@@ -177,11 +188,6 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
         }
     }
 
-    // TODO: SERVER-73632 Remove feature flag for PM-635.
-    // Query settings will only be looked up on mongos and therefore should be part of command body
-    // on mongod if present.
-    expCtx->setQuerySettingsIfNotPresent(
-        query_settings::lookupQuerySettingsForDistinct(expCtx, *parsedDistinct, nss));
     return parsed_distinct_command::parseCanonicalQuery(
         std::move(expCtx), std::move(parsedDistinct), nullptr);
 }
@@ -282,6 +288,43 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> createExecutorForDistinctCo
     return uassertStatusOK(
         getExecutorFind(opCtx, collections, std::move(cqWithoutProjection), yieldPolicy));
 }
+
+template <class NamespaceType>
+BSONObj translateCmdObjForRawData(OperationContext* opCtx,
+                                  const BSONObj& cmdObj,
+                                  NamespaceType& ns,
+                                  boost::optional<CollectionOrViewAcquisition>& collectionOrView,
+                                  const std::function<CollectionOrViewAcquisition()>& acquire) {
+    if (OptionalBool::parseFromBSON(cmdObj[DistinctCommandRequest::kRawDataFieldName])) {
+        const auto vts = auth::ValidatedTenancyScope::get(opCtx);
+        const auto serializationContext = vts != boost::none
+            ? SerializationContext::stateCommandRequest(vts->hasTenantId(), vts->isFromAtlasProxy())
+            : SerializationContext::stateCommandRequest();
+
+        auto [isTimeseriesViewRequest, translatedNs] = timeseries::isTimeseriesViewRequest(
+            opCtx,
+            DistinctCommandRequest::parse(
+                IDLParserContext{"rawData", vts, ns.dbName().tenantId(), serializationContext},
+                cmdObj));
+        if (isTimeseriesViewRequest) {
+            ns = translatedNs;
+            collectionOrView = acquire();
+
+            // Rewrite the command object to use the buckets namespace.
+            BSONObjBuilder builder{cmdObj.objsize()};
+            for (auto&& [fieldName, elem] : cmdObj) {
+                if (fieldName == DistinctCommandRequest::kCommandName) {
+                    builder.append(fieldName, translatedNs.coll());
+                } else {
+                    builder.append(elem);
+                }
+            }
+            return builder.obj();
+        }
+    }
+
+    return cmdObj;
+}
 }  // namespace
 
 class DistinctCommand : public BasicCommand {
@@ -320,6 +363,10 @@ public:
                                                  repl::ReadConcernLevel level,
                                                  bool isImplicitDefault) const override {
         return ReadConcernSupportResult::allSupportedAndDefaultPermitted();
+    }
+
+    bool supportsRawData() const override {
+        return true;
     }
 
     bool isSubjectToIngressAdmissionControl() const override {
@@ -380,10 +427,10 @@ public:
                    ExplainOptions::Verbosity verbosity,
                    rpc::ReplyBuilderInterface* replyBuilder) const override {
         const DatabaseName dbName = request.parseDbName();
-        const BSONObj& cmdObj = request.body;
+        const BSONObj& originalCmdObj = request.body;
         // Acquire locks. The RAII object is optional, because in the case of a view, the locks
         // need to be released.
-        const auto nss = CommandHelpers::parseNsCollectionRequired(dbName, cmdObj);
+        auto nss = CommandHelpers::parseNsCollectionRequired(dbName, originalCmdObj);
 
         AutoStatsTracker tracker(opCtx,
                                  nss,
@@ -392,10 +439,17 @@ public:
                                  DatabaseProfileSettings::get(opCtx->getServiceContext())
                                      .getDatabaseProfileLevel(nss.dbName()));
 
-        const auto acquisitionRequest = CollectionOrViewAcquisitionRequest::fromOpCtx(
-            opCtx, nss, AcquisitionPrerequisites::kRead);
-        boost::optional<CollectionOrViewAcquisition> collectionOrView =
-            acquireCollectionOrViewMaybeLockFree(opCtx, acquisitionRequest);
+        auto acquire = [&] {
+            return acquireCollectionOrViewMaybeLockFree(
+                opCtx,
+                CollectionOrViewAcquisitionRequest::fromOpCtx(
+                    opCtx, nss, AcquisitionPrerequisites::kRead));
+        };
+        boost::optional<CollectionOrViewAcquisition> collectionOrView = acquire();
+
+        auto cmdObj =
+            translateCmdObjForRawData(opCtx, originalCmdObj, nss, collectionOrView, acquire);
+
         const CollatorInterface* defaultCollator = collectionOrView->getCollectionPtr()
             ? collectionOrView->getCollectionPtr()->getDefaultCollator()
             : nullptr;
@@ -412,7 +466,7 @@ public:
         // case of a tassert or crash.
         ScopedDebugInfo expCtxDiagnostics(
             "ExpCtxDiagnostics",
-            command_diagnostics::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
+            diagnostic_printers::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
 
         if (collectionOrView->isView()) {
             // Relinquish locks. The aggregation command will re-acquire them.
@@ -474,40 +528,8 @@ public:
         };
         boost::optional<CollectionOrViewAcquisition> collectionOrView = acquire();
 
-        auto cmdObj = [&] {
-            if (OptionalBool::parseFromBSON(
-                    originalCmdObj[DistinctCommandRequest::kRawDataFieldName])) {
-                const auto vts = auth::ValidatedTenancyScope::get(opCtx);
-                const auto serializationContext = vts != boost::none
-                    ? SerializationContext::stateCommandRequest(vts->hasTenantId(),
-                                                                vts->isFromAtlasProxy())
-                    : SerializationContext::stateCommandRequest();
-
-                auto [isTimeseriesViewRequest, ns] = timeseries::isTimeseriesViewRequest(
-                    opCtx,
-                    DistinctCommandRequest::parse(
-                        IDLParserContext{
-                            "rawData", vts, nssOrUUID.dbName().tenantId(), serializationContext},
-                        originalCmdObj));
-                if (isTimeseriesViewRequest) {
-                    nssOrUUID = ns;
-                    collectionOrView = acquire();
-
-                    // Rewrite the command object to use the buckets namespace.
-                    BSONObjBuilder builder{originalCmdObj.objsize()};
-                    for (auto&& [fieldName, elem] : originalCmdObj) {
-                        if (fieldName == DistinctCommandRequest::kCommandName) {
-                            builder.append(fieldName, ns.coll());
-                        } else {
-                            builder.append(elem);
-                        }
-                    }
-                    return builder.obj();
-                }
-            }
-
-            return originalCmdObj;
-        }();
+        auto cmdObj =
+            translateCmdObjForRawData(opCtx, originalCmdObj, nssOrUUID, collectionOrView, acquire);
         const auto nss = collectionOrView->nss();
 
         if (!tracker) {
@@ -550,7 +572,7 @@ public:
         // case of a tassert or crash.
         ScopedDebugInfo expCtxDiagnostics(
             "ExpCtxDiagnostics",
-            command_diagnostics::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
+            diagnostic_printers::ExpressionContextPrinter{canonicalQuery->getExpCtx()});
 
         if (canonicalDistinct.isMirrored()) {
             const auto& invocation = CommandInvocation::get(opCtx);

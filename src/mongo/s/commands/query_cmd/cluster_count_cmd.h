@@ -111,6 +111,10 @@ public:
                 Status::OK()};
     }
 
+    bool supportsRawData() const override {
+        return true;
+    }
+
     Status checkAuthForOperation(OperationContext* opCtx,
                                  const DatabaseName& dbName,
                                  const BSONObj& cmdObj) const override {
@@ -145,10 +149,6 @@ public:
             auto cmdObj = translateCmdObjForRawData(opCtx, originalCmdObj, nss);
             auto countRequest = CountCommandRequest::parse(IDLParserContext("count"), cmdObj);
 
-            uassert(ErrorCodes::InvalidOptions,
-                    "rawData is not enabled",
-                    !countRequest.getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
-
             if (prepareForFLERewrite(opCtx, countRequest.getEncryptionInformation())) {
                 processFLECountS(opCtx, nss, countRequest);
             }
@@ -169,7 +169,7 @@ public:
             // Create an RAII object that prints useful information about the ExpressionContext in
             // the case of a tassert or crash.
             ScopedDebugInfo expCtxDiagnostics(
-                "ExpCtxDiagnostics", command_diagnostics::ExpressionContextPrinter{expCtx});
+                "ExpCtxDiagnostics", diagnostic_printers::ExpressionContextPrinter{expCtx});
 
             const auto parsedFind = uassertStatusOK(parsed_find_command::parseFromCount(
                 expCtx, countRequest, ExtensionsCallbackNoop(), nss));
@@ -324,10 +324,6 @@ public:
         } catch (...) {
             return exceptionToStatus();
         }
-
-        uassert(ErrorCodes::InvalidOptions,
-                "rawData is not enabled",
-                !countRequest.getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
         // If the command has encryptionInformation, rewrite the query as necessary.
         if (prepareForFLERewrite(opCtx, countRequest.getEncryptionInformation())) {

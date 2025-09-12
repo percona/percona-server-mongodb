@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2022-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -26,41 +26,5 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
-#pragma once
-
-#include "mongo/db/query/tree_walker.h"
-
-namespace mongo {
-
-namespace projection_executor {
-class AddFieldsProjectionExecutor;
-class ExclusionProjectionExecutor;
-class InclusionProjectionExecutor;
-}  // namespace projection_executor
-class GroupFromFirstDocumentTransformation;
-class ReplaceRootTransformation;
-
-/**
- * Visitor pattern for Transformer Interface instances
- */
-template <bool IsConst = false>
-class TransformerInterfaceVisitor {
-public:
-    virtual void visit(
-        tree_walker::MaybeConstPtr<IsConst, projection_executor::AddFieldsProjectionExecutor>
-            visitor) = 0;
-    virtual void visit(
-        tree_walker::MaybeConstPtr<IsConst, projection_executor::ExclusionProjectionExecutor>
-            visitor) = 0;
-    virtual void visit(
-        tree_walker::MaybeConstPtr<IsConst, projection_executor::InclusionProjectionExecutor>
-            visitor) = 0;
-    virtual void visit(
-        tree_walker::MaybeConstPtr<IsConst, GroupFromFirstDocumentTransformation> visitor) = 0;
-    virtual void visit(tree_walker::MaybeConstPtr<IsConst, ReplaceRootTransformation> visitor) = 0;
-};
-
-using TransformerInterfaceMutableVisitor = TransformerInterfaceVisitor<false>;
-using TransformerInterfaceConstVisitor = TransformerInterfaceVisitor<true>;
-}  // namespace mongo
+#define RESHARDING_COORDINATOR_PART_3
+#include "mongo/db/s/resharding/resharding_coordinator.inl"

@@ -79,6 +79,7 @@
 #include "mongo/db/pipeline/plan_executor_pipeline.h"
 #include "mongo/db/pipeline/process_interface/mongo_process_interface.h"
 #include "mongo/db/pipeline/search/search_helper.h"
+#include "mongo/db/pipeline/shard_role_transaction_resources_stasher_for_pipeline.h"
 #include "mongo/db/pipeline/visitors/document_source_visitor_docs_needed_bounds.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/client_cursor/clientcursor.h"
@@ -96,7 +97,9 @@
 #include "mongo/db/query/plan_executor_factory.h"
 #include "mongo/db/query/plan_explainer.h"
 #include "mongo/db/query/plan_summary_stats.h"
-#include "mongo/db/query/query_settings/query_settings_utils.h"
+#include "mongo/db/query/query_request_helper.h"
+#include "mongo/db/query/query_settings/query_settings_service.h"
+#include "mongo/db/query/query_shape/agg_cmd_shape.h"
 #include "mongo/db/query/query_stats/agg_key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/query/timeseries/timeseries_rewrites.h"
@@ -515,7 +518,7 @@ boost::optional<ClientCursorPin> executeSingleExecUntilFirstBatch(
  * getMore() if necessary.
  */
 void executeUntilFirstBatch(const AggExState& aggExState,
-                            const AggCatalogState& aggCatalogState,
+                            AggCatalogState& aggCatalogState,
                             boost::intrusive_ptr<ExpressionContext> expCtx,
                             std::vector<unique_ptr<PlanExecutor, PlanExecutor::Deleter>>& execs,
                             rpc::ReplyBuilderInterface* result) {
@@ -574,6 +577,13 @@ void executeUntilFirstBatch(const AggExState& aggExState,
             }
         }
     }
+
+    // For optimized away pipelines, which use LockPolicy::kLockExternally, stash the ShardRole
+    // TransactionResources on the cursor.
+    if (aggCatalogState.lockAcquired() && maybePinnedCursor) {
+        invariant(maybePinnedCursor->getCursor());
+        aggCatalogState.stashResources(maybePinnedCursor->getCursor());
+    }
 }
 
 /**
@@ -611,6 +621,8 @@ std::vector<std::unique_ptr<Pipeline, PipelineDeleter>> createExchangePipelinesI
                          .resolvedNamespace(uassertStatusOK(aggExState.resolveInvolvedNamespaces()))
                          .tmpDir(storageGlobalParams.dbpath + "/_tmp")
                          .collationMatchesDefault(expCtx->getCollationMatchesDefault())
+                         .canBeRejected(query_settings::canPipelineBeRejected(
+                             aggExState.getRequest().getPipeline()))
                          .build();
             // Create a new pipeline for the consumer consisting of a single
             // DocumentSourceExchange.
@@ -636,6 +648,7 @@ std::vector<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> prepareExecuto
     AggCatalogState& aggCatalogState,
     std::unique_ptr<Pipeline, PipelineDeleter> pipeline) {
     const auto expCtx = pipeline->getContext();
+    const auto mainCollectionUUID = aggCatalogState.getUUID();
     // Check if the pipeline has a $geoNear stage, as it will be ripped away during the build query
     // executor phase below (to be replaced with a $geoNearCursorStage later during the executor
     // attach phase).
@@ -661,8 +674,12 @@ std::vector<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> prepareExecuto
         execs.emplace_back(std::move(executor));
     } else {
         // Complete creation of the initial $cursor stage, if needed.
-        PipelineD::attachInnerQueryExecutorToPipeline(
-            aggCatalogState.getCollections(), attachCallback, std::move(executor), pipeline.get());
+        auto sharedStasher = make_intrusive<ShardRoleTransactionResourcesStasherForPipeline>();
+        PipelineD::attachInnerQueryExecutorToPipeline(aggCatalogState.getCollections(),
+                                                      attachCallback,
+                                                      std::move(executor),
+                                                      pipeline.get(),
+                                                      sharedStasher);
 
         std::vector<std::unique_ptr<Pipeline, PipelineDeleter>> pipelines;
         // Any pipeline that relies on calls to mongot requires additional setup.
@@ -670,7 +687,10 @@ std::vector<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> prepareExecuto
             // Release locks early, before we generate the search pipeline, so that we don't hold
             // them during network calls to mongot. This is fine for search pipelines since they are
             // not reading any local (lock-protected) data in the main pipeline.
-            aggCatalogState.relinquishLocks();
+            // Stash the ShardRole TransactionResources on the 'sharedStasher' we shared with the
+            // pipeline stages.
+            aggCatalogState.stashResources(sharedStasher.get());
+
             pipelines.push_back(std::move(pipeline));
 
             // TODO SERVER-89546 extractDocsNeededBounds should be called internally within
@@ -701,12 +721,16 @@ std::vector<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> prepareExecuto
                                                                  aggExState.hasChangeStream())));
         }
 
-        // With the pipelines created, we can relinquish locks as they will manage the locks
-        // internally further on. We still need to keep the lock for an optimized away pipeline
-        // though, as we will be changing its lock policy to 'kLockExternally' (see details
-        // below), and in order to execute the initial getNext() call in 'handleCursorCommand',
-        // we need to hold the collection lock.
-        aggCatalogState.relinquishLocks();
+        if (aggCatalogState.lockAcquired()) {
+            // With the pipelines created, we can relinquish locks as they will manage the locks
+            // internally further on. We still need to keep the lock for an optimized away pipeline
+            // though, as we will be changing its lock policy to 'kLockExternally' (see details
+            // below), and in order to execute the initial getNext() call in 'handleCursorCommand',
+            // we need to hold the collection lock.
+            // Stash the ShardRole TransactionResources on the 'sharedStasher' we shared with the
+            // pipeline stages.
+            aggCatalogState.stashResources(sharedStasher.get());
+        }
     }
 
     for (auto& exec : additionalExecutors) {
@@ -725,8 +749,7 @@ std::vector<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> prepareExecuto
     hangAfterCreatingAggregationPlan.executeIf(
         [](const auto&) { hangAfterCreatingAggregationPlan.pauseWhileSet(); },
         [&](const BSONObj& data) {
-            boost::optional<UUID> uuid{aggCatalogState.getUUID()};
-            return uuid && UUID::parse(data["uuid"]) == *uuid;
+            return mainCollectionUUID && UUID::parse(data["uuid"]) == *mainCollectionUUID;
         });
 
     return execs;
@@ -812,7 +835,7 @@ Status runAggregateOnView(AggExState& aggExState,
     auto resolvedView = aggExState.getResolvedView().value();
 
     // With the view & collation resolved, we can relinquish locks.
-    aggCatalogState->relinquishLocks();
+    aggCatalogState->relinquishResources();
 
     auto status{Status::OK()};
     if (!OperationShardingState::get(aggExState.getOpCtx())
@@ -898,6 +921,23 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
     bool hasEncryptedFields = aggCatalogState.lockAcquired() &&
         aggCatalogState.getPrimaryCollection() &&
         aggCatalogState.getPrimaryCollection()->getCollectionOptions().encryptedFieldConfig;
+
+    // Perform the query settings lookup and attach it to 'expCtx'.
+    query_shape::DeferredQueryShape deferredShape{[&]() {
+        return shape_helpers::tryMakeShape<query_shape::AggCmdShape>(
+            requestForQueryStats,
+            aggExState.getOriginalNss(),
+            aggExState.getInvolvedNamespaces(),
+            *pipeline,
+            expCtx);
+    }};
+    expCtx->setQuerySettingsIfNotPresent(
+        query_settings::lookupQuerySettingsWithRejectionCheckOnShard(
+            expCtx,
+            deferredShape,
+            aggExState.getOriginalNss(),
+            requestForQueryStats.getQuerySettings()));
+
     if (!hasEncryptedFields) {
         // If this is a query over a resolved view, we want to register query stats with the
         // original user-given request and pipeline, rather than the new request generated when
@@ -908,11 +948,11 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
             aggExState.getOpCtx(),
             aggExState.getOriginalNss(),
             [&]() {
-                return std::make_unique<query_stats::AggKey>(requestForQueryStats,
-                                                             *pipeline,
-                                                             expCtx,
+                uassert(8472502, "Failed computing query shape", deferredShape());
+                return std::make_unique<query_stats::AggKey>(expCtx,
+                                                             requestForQueryStats,
+                                                             std::move(*deferredShape),
                                                              std::move(pipelineInvolvedNamespaces),
-                                                             aggExState.getOriginalNss(),
                                                              collectionType);
             },
             aggExState.hasChangeStream());
@@ -923,17 +963,6 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
             CurOp::get(aggExState.getOpCtx())->debug().queryStatsInfo.metricsRequested = true;
         }
     }
-
-    // Lookup the query settings and attach it to the 'expCtx'.
-    // TODO: SERVER-73632 Remove feature flag for PM-635.
-    // Query settings will only be looked up on mongos and therefore should be part of command
-    // body on mongod if present.
-    expCtx->setQuerySettingsIfNotPresent(
-        query_settings::lookupQuerySettingsForAgg(expCtx,
-                                                  requestForQueryStats,
-                                                  *pipeline,
-                                                  aggExState.getInvolvedNamespaces(),
-                                                  aggExState.getOriginalNss()));
 
     if (aggExState.getResolvedView().has_value()) {
         expCtx->startExpressionCounters();
@@ -1148,7 +1177,7 @@ Status _runAggregate(AggExState& aggExState, rpc::ReplyBuilderInterface* result)
     // Create an RAII object that prints useful information about the ExpressionContext in the case
     // of a tassert or crash.
     ScopedDebugInfo expCtxDiagnostics("ExpCtxDiagnostics",
-                                      command_diagnostics::ExpressionContextPrinter{expCtx});
+                                      diagnostic_printers::ExpressionContextPrinter{expCtx});
 
     // Prepare the parsed pipeline for execution. This involves parsing the pipeline,
     // registering query stats, rewriting the pipeline to support queryable encryption, and
@@ -1189,11 +1218,6 @@ Status runAggregate(
     rpc::ReplyBuilderInterface* result,
     const std::vector<std::pair<NamespaceString, std::vector<ExternalDataSourceInfo>>>&
         usedExternalDataSources) {
-
-    if (request.getRawData() && !gFeatureFlagRawDataCrudOperations.isEnabled()) {
-        return {ErrorCodes::InvalidOptions, "rawData is not enabled"};
-    }
-
     AggExState aggExState(
         opCtx, request, liteParsedPipeline, cmdObj, privileges, usedExternalDataSources, verbosity);
 

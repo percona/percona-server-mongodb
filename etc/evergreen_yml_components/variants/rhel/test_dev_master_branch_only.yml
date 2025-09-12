@@ -270,7 +270,6 @@ buildvariants:
         --mongodTlsCertificateKeyFile jstests/libs/server.pem
         --shellGRPC
     tasks:
-      - name: compile_ninja_quick_TG
       - name: compile_test_parallel_unittest_stream_TG
       - name: compile_test_parallel_core_stream_TG
       - name: compile_test_parallel_dbtest_stream_TG
@@ -357,23 +356,6 @@ buildvariants:
         --excludeWithAnyTags=embedded_router_incompatible
     tasks:
       - name: sharding_gen
-
-  # This build variant is used to test feature parity between replica set and sharded cluster
-  # connected via replica set endpoint.
-  - <<: *linux_x86_dynamic_compile_variant_dependency
-    name: enterprise-rhel-8-64-bit-dynamic-replica-set-endpoint
-    display_name: "* Shared Library Enterprise RHEL 8 (Replica Set Endpoint all feature flags)"
-    tags: ["suggested"]
-    cron: "0 4 * * *" # From the ${project_nightly_cron} parameter.
-    run_on:
-      - rhel8.8-small
-    stepback: false
-    expansions:
-      <<: *enterprise-rhel-8-64-bit-dynamic-expansions
-      test_flags: >-
-        --runAllFeatureFlagTests
-    tasks:
-      - name: .replica_set_endpoint
 
   - name: &enterprise-rhel-8-benchmarks enterprise-rhel-8-benchmarks
     display_name: "* Enterprise RHEL 8 (Benchmarks)"

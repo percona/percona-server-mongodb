@@ -50,6 +50,7 @@
 #include "mongo/bson/bsontypes.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/bson/unordered_fields_bsonobj_comparator.h"
+#include "mongo/db/cancelable_operation_context.h"
 #include "mongo/db/catalog_raii.h"
 #include "mongo/db/keypattern.h"
 #include "mongo/db/namespace_string.h"
@@ -310,13 +311,6 @@ Timestamp getHighestMinFetchTimestamp(const std::vector<DonorShardEntry>& donorS
 void checkForOverlappingZones(std::vector<ReshardingZoneType>& zones);
 
 /**
- * Builds documents to insert into config.tags from zones provided to reshardCollection cmd.
- */
-std::vector<BSONObj> buildTagsDocsFromZones(const NamespaceString& tempNss,
-                                            std::vector<ReshardingZoneType>& zones,
-                                            const ShardKeyPattern& shardKey);
-
-/**
  * Create an array of resharding zones from the existing collection. This is used for forced
  * same-key resharding.
  */
@@ -475,6 +469,10 @@ Date_t getCurrentTime();
 
 ReshardingCoordinatorDocument getCoordinatorDoc(OperationContext* opCtx,
                                                 const UUID& reshardingUUID);
+
+// Waits for majority replication of the latest opTime unless token is cancelled.
+SemiFuture<void> waitForMajority(const CancellationToken& token,
+                                 const CancelableOperationContextFactory& factory);
 
 }  // namespace resharding
 }  // namespace mongo

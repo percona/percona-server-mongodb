@@ -298,6 +298,11 @@ void OpDebug::report(OperationContext* opCtx,
     if (storageMetrics.prepareReadConflicts > 0) {
         pAttrs->add("prepareReadConflicts", storageMetrics.prepareReadConflicts);
     }
+
+    if (storageMetrics.interruptDelayMs > 0) {
+        pAttrs->add("storageInterruptResponseMillis", storageMetrics.interruptDelayMs);
+    }
+
     OPDEBUG_TOATTR_HELP_ATOMIC("writeConflicts", additiveMetrics.writeConflicts);
     OPDEBUG_TOATTR_HELP_ATOMIC("temporarilyUnavailableErrors",
                                additiveMetrics.temporarilyUnavailableErrors);
@@ -497,6 +502,10 @@ void OpDebug::append(OperationContext* opCtx,
     OPDEBUG_APPEND_OPTIONAL(b, "keysExamined", additiveMetrics.keysExamined);
     OPDEBUG_APPEND_OPTIONAL(b, "docsExamined", additiveMetrics.docsExamined);
 
+    if (int64_t maxUsedMemBytes = curop.getMaxUsedMemoryBytes()) {
+        b.append("maxUsedMemBytes", maxUsedMemBytes);
+    }
+
     OPDEBUG_APPEND_BOOL2(b, "hasSortStage", additiveMetrics.hasSortStage);
     OPDEBUG_APPEND_BOOL2(b, "usedDisk", additiveMetrics.usedDisk);
     OPDEBUG_APPEND_BOOL2(b, "fromMultiPlanner", additiveMetrics.fromMultiPlanner);
@@ -518,6 +527,9 @@ void OpDebug::append(OperationContext* opCtx,
     OPDEBUG_APPEND_OPTIONAL(b, "keysDeleted", additiveMetrics.keysDeleted);
     if (storageMetrics.prepareReadConflicts > 0) {
         b.append("prepareReadConflicts", storageMetrics.prepareReadConflicts);
+    }
+    if (storageMetrics.interruptDelayMs > 0) {
+        b.append("storageInterruptResponseMillis", storageMetrics.interruptDelayMs);
     }
     OPDEBUG_APPEND_ATOMIC(b, "writeConflicts", additiveMetrics.writeConflicts);
     OPDEBUG_APPEND_ATOMIC(

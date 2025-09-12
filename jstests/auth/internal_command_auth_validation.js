@@ -207,6 +207,7 @@ const internalCommandsMap = {
         },
     },
     _configsvrCheckMetadataConsistency: {
+        skip: true,  // This command doesn't accept to be run in the 'admin' database.
         testname: "_configsvrCheckMetadataConsistency",
         command: {
             _configsvrCheckMetadataConsistency: "x.y",
@@ -719,6 +720,15 @@ const internalCommandsMap = {
             _shardsvrReshardingOperationTime: "test.x",
         },
     },
+    _shardsvrReshardRecipientClone: {
+        testname: "_shardsvrReshardRecipientClone",
+        command: {
+            _shardsvrReshardRecipientClone: UUID(),
+            cloneTimestamp: Timestamp(),
+            approxCopySize: {},
+            donorShards: []
+        },
+    },
     _shardsvrRefineCollectionShardKey: {
         testname: "_shardsvrRefineCollectionShardKey",
         command: {_shardsvrRefineCollectionShardKey: "test.x", newShardKey: {}},
@@ -782,9 +792,10 @@ const internalCommandsMap = {
         },
     },
     _shardsvrCheckMetadataConsistencyParticipant: {
+        skip: true,  // This command doesn't accept to be run in the 'admin' database.
         testname: "_shardsvrCheckMetadataConsistencyParticipant",
         command: {
-            _shardsvrCheckMetadataConsistencyParticipant: "x.y",
+            _shardsvrCheckMetadataConsistencyParticipant: 1,
             primaryShardId: shard0name,
         },
     },

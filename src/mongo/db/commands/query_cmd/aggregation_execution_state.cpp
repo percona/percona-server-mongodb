@@ -36,6 +36,7 @@
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 #include "mongo/db/query/query_request_helper.h"
+#include "mongo/db/query/query_settings/query_settings_service.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/timeseries/timeseries_request_util.h"
 #include "mongo/db/views/view_catalog_helpers.h"
@@ -117,9 +118,19 @@ public:
         return _uuid;
     }
 
-    void relinquishLocks() override {
+    void relinquishResources() override {
         _ctx.reset();
         _collections.clear();
+    }
+
+    void stashResources(TransactionResourcesStasher* transactionResourcesStasher) override {
+        // For AutoGet-based acquisitions simply release the resources. Later, the getmore command
+        // will set up a new AutoGet before continuing executing the plan.
+        relinquishResources();
+    }
+
+    bool usesCollectionAcquisitions() const override {
+        return false;
     }
 
     ~DefaultAggCatalogState() override {}
@@ -216,7 +227,8 @@ public:
 
     const CollectionPtr& getPrimaryCollection() const override {
         invariant(lockAcquired());
-        return _mainAcq->getCollection().getCollectionPtr();
+        return _mainAcq->isCollection() ? _mainAcq->getCollection().getCollectionPtr()
+                                        : CollectionPtr::null;
     }
 
     query_shape::CollectionType getPrimaryCollectionType() const override {
@@ -252,9 +264,27 @@ public:
         return _uuid;
     }
 
-    void relinquishLocks() override {
+    void relinquishResources() override {
         _mainAcq.reset();
         _collections.clear();
+    }
+
+    void stashResources(TransactionResourcesStasher* transactionResourcesStasher) override {
+        tassert(10096103,
+                "DefaultAggCatalogStateWithAcquisition::stashResources got null stasher",
+                transactionResourcesStasher);
+
+        // First release our own CollectionAcquisitions references.
+        relinquishResources();
+
+        // Stash the remaining ShardRole::TransactionResources that back the CollectionAcquisitions
+        // currently held by the query plan executor.
+        stashTransactionResourcesFromOperationContext(_aggExState.getOpCtx(),
+                                                      transactionResourcesStasher);
+    }
+
+    bool usesCollectionAcquisitions() const override {
+        return true;
     }
 
 private:
@@ -263,9 +293,19 @@ private:
      * structures, during construction of subclass instances.
      */
     void initContext(const AcquisitionPrerequisites::ViewMode& viewMode) {
-
         auto opCtx = _aggExState.getOpCtx();
         auto executionNss = _aggExState.getExecutionNss();
+
+        AutoStatsTracker statsTracker(
+            opCtx,
+            executionNss,
+            Top::LockType::ReadLocked,
+            AutoStatsTracker::LogMode::kUpdateTopAndCurOp,
+            DatabaseProfileSettings::get(_aggExState.getOpCtx()->getServiceContext())
+                .getDatabaseProfileLevel(_aggExState.getExecutionNss().dbName()),
+            Date_t::max(),
+            _secondaryExecNssList.begin(),
+            _secondaryExecNssList.end());
 
         CollectionOrViewAcquisitionMap secondaryAcquisitions;
         secondaryAcquisitions.reserve(_secondaryExecNssList.size() + 1);
@@ -294,6 +334,11 @@ private:
                                                                   _aggExState.getExecutionNss(),
                                                                   _secondaryExecNssList,
                                                                   initAutoGetCallback);
+
+        uassertStatusOK(repl::ReplicationCoordinator::get(opCtx)->checkCanServeReadsFor(
+            opCtx,
+            _aggExState.getExecutionNss(),
+            ReadPreferenceSetting::get(opCtx).canRunOnSecondary()));
 
         bool isAnySecondaryNamespaceAView =
             std::any_of(secondaryAcquisitions.begin(),
@@ -486,7 +531,13 @@ public:
         return boost::none;
     }
 
-    void relinquishLocks() override {}
+    void relinquishResources() override {}
+
+    void stashResources(TransactionResourcesStasher* transactionResourcesStasher) override {}
+
+    bool usesCollectionAcquisitions() const override {
+        return false;
+    }
 
     ~CollectionlessAggCatalogState() override {}
 
@@ -802,7 +853,7 @@ std::unique_ptr<AggCatalogState> AggExState::createAggCatalogState(bool useAcqui
                 timeseries::isTimeseriesViewRequest(getOpCtx(), getRequest());
             if (isTimeseriesViewRequest) {
                 setExecutionNss(translatedNs);
-                collectionState->relinquishLocks();
+                collectionState->relinquishResources();
                 collectionState =
                     AggCatalogStateFactory::createDefaultAggCatalogState(*this, useAcquisition);
             }
@@ -816,6 +867,8 @@ std::unique_ptr<AggCatalogState> AggExState::createAggCatalogState(bool useAcqui
 
 boost::intrusive_ptr<ExpressionContext> AggCatalogState::createExpressionContext() {
     auto [collator, collationMatchesDefault] = resolveCollator();
+    const bool canPipelineBeRejected =
+        query_settings::canPipelineBeRejected(_aggExState.getRequest().getPipeline());
     auto expCtx = ExpressionContextBuilder{}
                       .fromRequest(_aggExState.getOpCtx(),
                                    _aggExState.getRequest(),
@@ -827,8 +880,10 @@ boost::intrusive_ptr<ExpressionContext> AggCatalogState::createExpressionContext
                       .resolvedNamespace(uassertStatusOK(_aggExState.resolveInvolvedNamespaces()))
                       .tmpDir(storageGlobalParams.dbpath + "/_tmp")
                       .collationMatchesDefault(collationMatchesDefault)
+                      .canBeRejected(canPipelineBeRejected)
                       .explain(_aggExState.getVerbosity())
                       .build();
+
     // If any involved collection contains extended-range data, set a flag which individual
     // DocumentSource parsers can check.
     getCollections().forEach([&](const CollectionPtr& coll) {

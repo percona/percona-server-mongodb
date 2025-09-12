@@ -189,10 +189,6 @@ public:
                                   << "context",
                     !request().getNamespaceOrUUID().isUUID());
 
-            uassert(ErrorCodes::InvalidOptions,
-                    "rawData is not enabled",
-                    !request().getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
-
             if (prepareForFLERewrite(opCtx, request().getEncryptionInformation())) {
                 processFLECountD(opCtx, _ns, request());
             }
@@ -237,7 +233,7 @@ public:
             // Create an RAII object that prints useful information about the ExpressionContext in
             // the case of a tassert or crash.
             ScopedDebugInfo expCtxDiagnostics(
-                "ExpCtxDiagnostics", command_diagnostics::ExpressionContextPrinter{expCtx});
+                "ExpCtxDiagnostics", diagnostic_printers::ExpressionContextPrinter{expCtx});
 
             const auto extensionsCallback = getExtensionsCallback(collection, opCtx, ns);
             auto parsedFind = uassertStatusOK(
@@ -270,10 +266,6 @@ public:
 
         CountCommandReply typedRun(OperationContext* opCtx) final {
             CommandHelpers::handleMarkKillOnClientDisconnect(opCtx);
-
-            uassert(ErrorCodes::InvalidOptions,
-                    "rawData is not enabled",
-                    !request().getRawData() || gFeatureFlagRawDataCrudOperations.isEnabled());
 
             if (prepareForFLERewrite(opCtx, request().getEncryptionInformation())) {
                 processFLECountD(opCtx, _ns, request());
@@ -322,7 +314,7 @@ public:
             // Create an RAII object that prints useful information about the ExpressionContext in
             // the case of a tassert or crash.
             ScopedDebugInfo expCtxDiagnostics(
-                "ExpCtxDiagnostics", command_diagnostics::ExpressionContextPrinter{expCtx});
+                "ExpCtxDiagnostics", diagnostic_printers::ExpressionContextPrinter{expCtx});
 
             const auto& collection = ctx->getCollection();
             const auto extensionsCallback = getExtensionsCallback(collection, opCtx, ns);
@@ -398,6 +390,10 @@ public:
                                                       "read concern snapshot not supported"};
             return {{level == repl::ReadConcernLevel::kSnapshotReadConcern, kSnapshotNotSupported},
                     Status::OK()};
+        }
+
+        bool supportsRawData() const override {
+            return true;
         }
 
         bool supportsReadMirroring() const override {
