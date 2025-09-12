@@ -365,15 +365,17 @@ Status AuthorizationManagerImpl::refreshExternalUsers(OperationContext* opCtx) {
 }
 
 Status AuthorizationManagerImpl::initialize(OperationContext* opCtx) {
+    if (!ldapGlobalParams.ldapServers->empty()) {
+        _ldapUserCacheInvalidator = std::make_unique<LDAPUserCacheInvalidator>(this);
+        _ldapUserCacheInvalidator->go();
+    }
+
     if (auto* backend = auth::AuthorizationBackendInterface::get(opCtx->getService()); backend) {
         return backend->initialize(opCtx);
     }
 
     invalidateUserCache();
-    if (!ldapGlobalParams.ldapServers->empty()) {
-        _ldapUserCacheInvalidator = std::make_unique<LDAPUserCacheInvalidator>(this);
-        _ldapUserCacheInvalidator->go();
-    }
+
     return Status::OK();
 }
 
