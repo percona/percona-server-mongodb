@@ -934,6 +934,18 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
         }
     }
 
+    {
+        // The instance of AuthorizationManager should always be available since it is created in
+        // 'CreateAuthorizationManager' constructor.
+        auto authzManager =
+            AuthorizationManager::get(serviceContext->getService(ClusterRole::ShardServer));
+        invariant(authzManager != nullptr);
+        if (auto status = authzManager->initialize(opCtx); !status.isOK()) {
+            LOGV2_ERROR(29144, "Error initializing authorization mmanager", "error"_attr = status);
+            return ExitCode::shardingError;
+        }
+    }
+
     // Construct the router uptime reporter after the startup parameters have been parsed in order
     // to ensure that it picks up the server port instead of reporting the default value.
     RouterUptimeReporter::get(serviceContext).startPeriodicThread(serviceContext);
