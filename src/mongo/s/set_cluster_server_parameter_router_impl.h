@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2023-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,20 +27,18 @@
  *    it in the license file.
  */
 
-#include "mongo/db/query/explain_version_validator.h"
+#pragma once
 
-#include <boost/optional/optional.hpp>
+#include "mongo/bson/timestamp.h"
+#include "mongo/db/commands/cluster_server_parameter_cmds_gen.h"
+#include "mongo/db/logical_time.h"
+#include "mongo/db/operation_context.h"
 
-#include "mongo/base/error_codes.h"
-#include "mongo/base/string_data.h"
+namespace mongo {
 
-namespace mongo::optimizer {
+void setClusterParameterImplRouter(OperationContext* opCtx,
+                                   const SetClusterParameter& request,
+                                   boost::optional<Timestamp>,
+                                   boost::optional<LogicalTime> previousTime);
 
-Status validateOptimizerExplainVersion(const std::string& value, const boost::optional<TenantId>&) {
-    if (value == "bson"_sd || value == "v1"_sd || value == "v2"_sd || value == "v2compact"_sd) {
-        return Status::OK();
-    }
-    return Status(ErrorCodes::Error{6624103}, "Invalid optimizer explain version.");
-}
-
-}  // namespace mongo::optimizer
+}  // namespace mongo

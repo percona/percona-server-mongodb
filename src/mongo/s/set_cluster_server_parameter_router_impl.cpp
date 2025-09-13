@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2023-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,18 +27,38 @@
  *    it in the license file.
  */
 
-#pragma once
+#include <memory>
+#include <utility>
 
-#include <string>
+#include "mongo/s/set_cluster_server_parameter_router_impl.h"
 
-#include <boost/optional/optional.hpp>
+#include "mongo/s/grid.h"
+#include "mongo/s/request_types/sharded_ddl_commands_gen.h"
+#include "mongo/util/assert_util.h"
 
-#include "mongo/base/status.h"
-#include "mongo/db/tenant_id.h"
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
 
-namespace mongo::optimizer {
+namespace mongo {
 
-Status validateOptimizerExplainVersion(const std::string& value, const boost::optional<TenantId>&);
+void setClusterParameterImplRouter(OperationContext* opCtx,
+                                   const SetClusterParameter& request,
+                                   boost::optional<Timestamp>,
+                                   boost::optional<LogicalTime> previousTime) {
+    ConfigsvrSetClusterParameter configsvrSetClusterParameter(request.getCommandParameter());
+    configsvrSetClusterParameter.setDbName(request.getDbName());
+    configsvrSetClusterParameter.setPreviousTime(previousTime);
 
-}  // namespace mongo::optimizer
+    const auto configShard = Grid::get(opCtx)->shardRegistry()->getConfigShard();
+
+    const auto cmdResponse = uassertStatusOK(configShard->runCommandWithFixedRetryAttempts(
+        opCtx,
+        ReadPreferenceSetting(ReadPreference::PrimaryOnly),
+        DatabaseName::kAdmin,
+        configsvrSetClusterParameter.toBSON(),
+        Shard::RetryPolicy::kIdempotent));
+
+    uassertStatusOK(Shard::CommandResponse::getEffectiveStatus(std::move(cmdResponse)));
+}
+
+}  // namespace mongo
