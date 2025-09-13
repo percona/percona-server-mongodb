@@ -30,13 +30,10 @@
 
 #include "mongo/db/exec/sort_executor.h"
 #include "mongo/db/exec/working_set.h"
+#include "mongo/db/sorter/sorter_template_defs.h"
 
-#include "mongo/db/sorter/sorter.cpp"
-
-MONGO_CREATE_SORTER(mongo::Value,
-                    mongo::Document,
-                    mongo::SortExecutor<mongo::Document>::Comparator);
-MONGO_CREATE_SORTER(mongo::Value,
-                    mongo::SortableWorkingSetMember,
-                    mongo::SortExecutor<mongo::SortableWorkingSetMember>::Comparator);
-MONGO_CREATE_SORTER(mongo::Value, mongo::BSONObj, mongo::SortExecutor<mongo::BSONObj>::Comparator);
+namespace mongo {
+template class SortExecutor<Document>;
+template class SortExecutor<SortableWorkingSetMember>;
+template class SortExecutor<BSONObj>;
+}  // namespace mongo

@@ -38,6 +38,7 @@
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/snapshot_window_options_gen.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_event_handler.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_parameters_gen.h"
 #include "mongo/util/pcre.h"
@@ -116,62 +117,49 @@ void WiredTigerUtil::fetchTypeAndSourceURI(WiredTigerRecoveryUnit& ru,
 StatusWith<std::string> WiredTigerUtil::getMetadataCreate(WiredTigerSession& session,
                                                           StringData uri) {
     WT_CURSOR* cursor = nullptr;
-    invariantWTOK(session.open_cursor("metadata:create", nullptr, "", &cursor), session);
-    invariant(cursor);
-    ON_BLOCK_EXIT([cursor, &session] { invariantWTOK(cursor->close(cursor), session); });
-
-    return _getMetadata(cursor, uri);
-}
-
-StatusWith<std::string> WiredTigerUtil::getMetadataCreate(WiredTigerRecoveryUnit& ru,
-                                                          StringData uri) {
-    auto session = ru.getSessionNoTxn();
-
-    WT_CURSOR* cursor = nullptr;
     try {
         const std::string metadataURI = "metadata:create";
-        cursor = session->getCachedCursor(kMetadataCreateTableId, "");
+        cursor = session.getCachedCursor(kMetadataCreateTableId, "");
         if (!cursor) {
-            cursor = session->getNewCursor(metadataURI);
+            cursor = session.getNewCursor(metadataURI);
         }
     } catch (const ExceptionFor<ErrorCodes::CursorNotFound>& ex) {
         LOGV2_FATAL_NOTRACE(51257, "Cursor not found", "error"_attr = ex);
     }
     invariant(cursor);
     ScopeGuard releaser = [&] {
-        session->releaseCursor(kMetadataCreateTableId, cursor, "");
+        session.releaseCursor(kMetadataCreateTableId, cursor, "");
     };
 
     return _getMetadata(cursor, uri);
 }
 
-StatusWith<std::string> WiredTigerUtil::getMetadata(WiredTigerSession& session, StringData uri) {
-    WT_CURSOR* cursor = nullptr;
-    invariantWTOK(session.open_cursor("metadata:", nullptr, "", &cursor), session);
-    invariant(cursor);
-    ON_BLOCK_EXIT([cursor, &session] { invariantWTOK(cursor->close(cursor), session); });
-
-    return _getMetadata(cursor, uri);
+StatusWith<std::string> WiredTigerUtil::getMetadataCreate(WiredTigerRecoveryUnit& ru,
+                                                          StringData uri) {
+    return getMetadataCreate(*ru.getSessionNoTxn(), uri);
 }
 
-StatusWith<std::string> WiredTigerUtil::getMetadata(WiredTigerRecoveryUnit& ru, StringData uri) {
-    auto session = ru.getSessionNoTxn();
+StatusWith<std::string> WiredTigerUtil::getMetadata(WiredTigerSession& session, StringData uri) {
     WT_CURSOR* cursor = nullptr;
     try {
         const std::string metadataURI = "metadata:";
-        cursor = session->getCachedCursor(kMetadataTableId, "");
+        cursor = session.getCachedCursor(kMetadataTableId, "");
         if (!cursor) {
-            cursor = session->getNewCursor(metadataURI);
+            cursor = session.getNewCursor(metadataURI);
         }
     } catch (const ExceptionFor<ErrorCodes::CursorNotFound>& ex) {
         LOGV2_FATAL_NOTRACE(31293, "Cursor not found", "error"_attr = ex);
     }
     invariant(cursor);
     ScopeGuard releaser = [&] {
-        session->releaseCursor(kMetadataTableId, cursor, "");
+        session.releaseCursor(kMetadataTableId, cursor, "");
     };
 
     return _getMetadata(cursor, uri);
+}
+
+StatusWith<std::string> WiredTigerUtil::getMetadata(WiredTigerRecoveryUnit& ru, StringData uri) {
+    return getMetadata(*ru.getSessionNoTxn(), uri);
 }
 
 Status WiredTigerUtil::getApplicationMetadata(WiredTigerRecoveryUnit& ru,
@@ -1417,7 +1405,7 @@ int WiredTigerUtil::handleWtEvictionEvent(WT_SESSION* session) {
     }
     auto ru = reinterpret_cast<RecoveryUnit*>(session->app_private);
 
-    if (ru->shouldCancelCacheEvictionOnInterrupt() && ru->isInterrupted()) {
+    if (feature_flags::gStorageEngineInterruptibility.isEnabled() && ru->isInterrupted()) {
         ru->notifyInterruptionAcknowledged();
         return -1;
     }

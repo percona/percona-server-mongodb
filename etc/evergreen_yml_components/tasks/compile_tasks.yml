@@ -110,17 +110,6 @@ variables:
       - func: "run hang analyzer"
       - func: "wait for resmoke to shutdown"
 
-  - &clang_tidy_scons_compile_vars
-    task_compile_flags: >-
-      --build-profile=compiledb
-    targets: compiledb +mongo-tidy-tests
-    compiling_for_test: true
-    compile_flags: >-
-      --link-model=dynamic
-      -j$(grep -c ^processor /proc/cpuinfo)
-      --variables-files=etc/scons/mongodbtoolchain_v4_clang.vars
-    show_scons_timings: false
-
   - &clang_tidy_task_template
     tags:
       [
@@ -287,11 +276,11 @@ tasks:
           args: >-
             --config=fastbuild
             --define GIT_COMMIT_HASH=nogitversion
-            --linkopt="-s"
-            --jobs 32
+            --output_groups=compilation_outputs
+            --keep_going
             --build_tag_filters=${bazel_filters_for_cache_hydration}
 
-  - name: hydrate_bazel_profile_opt
+  - name: hydrate_required_bazel_profile_opt
     tags:
       [
         "assigned_to_jira_team_devprod_build",
@@ -305,13 +294,12 @@ tasks:
       - func: "bazel compile"
         vars:
           targets: //src/...
-          # Use --linkopt="-s" to dramatically reduce link time, since we only care about hydrating cache
-          # on CppCompile as CppLink is performed locally and not cached remotely.
+          # TODO(SERVER-99213): limit to --jobs 32 once fission is enabled by default in CI
           args: >-
             --config=opt
             --define GIT_COMMIT_HASH=nogitversion
-            --linkopt="-s"
-            --jobs 32
+            --output_groups=compilation_outputs
+            --keep_going
             --build_tag_filters=${bazel_filters_for_cache_hydration}
 
   - name: hydrate_bazel_profile_dbg
@@ -333,8 +321,8 @@ tasks:
           args: >-
             --config=dbg
             --define GIT_COMMIT_HASH=nogitversion
-            --linkopt="-s"
-            --jobs 32
+            --output_groups=compilation_outputs
+            --keep_going
             --build_tag_filters=${bazel_filters_for_cache_hydration}
 
   - name: hydrate_bazel_profile_dbg_aubsan
@@ -356,8 +344,8 @@ tasks:
           args: >-
             --config=dbg_aubsan
             --define GIT_COMMIT_HASH=nogitversion
-            --linkopt="-s"
-            --jobs 32
+            --output_groups=compilation_outputs
+            --keep_going
             --build_tag_filters=${bazel_filters_for_cache_hydration}
 
   - name: hydrate_bazel_profile_dbg_tsan
@@ -379,19 +367,21 @@ tasks:
           args: >-
             --config=dbg_tsan
             --define GIT_COMMIT_HASH=nogitversion
-            --linkopt="-s"
-            --jobs 32
+            --output_groups=compilation_outputs
+            --keep_going
             --build_tag_filters=${bazel_filters_for_cache_hydration}
 
   - <<: *clang_tidy_task_template
     name: run_bazel_clang_tidy
     commands:
       - func: "do scons setup"
-      - func: "bazel compile (clang)"
+      - func: "bazel compile"
         vars:
           # Note that we only run clang-tidy on the Mongo-authored targets, not on third-party code.
           targets: //src/mongo/...
-          args: --config=clang-tidy --compiler_type=clang
+          args: --config=clang-tidy-${clang_tidy_toolchain|v4} --mongo_toolchain_version=${clang_tidy_toolchain|v4} --keep_going
+          run_for_clang_tidy: "true"
+      - func: "generate clang-tidy report"
 
   - name: run_bazel_program_windows
     tags: ["assigned_to_jira_team_devprod_build", "auxiliary", "bazel_check"]
@@ -552,50 +542,6 @@ tasks:
             ${compile_all_but_not_unittests_flags|BAZEL_FLAGS=--linkopt=-s}
           skip_archive: on
           bazel_build_tags: --bazel-build-tag=-mongo_unittest --bazel-build-tag=mongo_binary --bazel-build-tag=mongo_benchmark --bazel-build-tag=mongo_integration_test
-
-  - <<: *clang_tidy_task_template
-    name: clang_tidy_1
-    commands:
-      - func: "do scons setup"
-      - func: "scons compile"
-        vars:
-          <<: *clang_tidy_scons_compile_vars
-      - func: "run clang tidy"
-        vars:
-          split: 1
-
-  - <<: *clang_tidy_task_template
-    name: clang_tidy_2
-    commands:
-      - func: "do scons setup"
-      - func: "scons compile"
-        vars:
-          <<: *clang_tidy_scons_compile_vars
-      - func: "run clang tidy"
-        vars:
-          split: 2
-
-  - <<: *clang_tidy_task_template
-    name: clang_tidy_3
-    commands:
-      - func: "do scons setup"
-      - func: "scons compile"
-        vars:
-          <<: *clang_tidy_scons_compile_vars
-      - func: "run clang tidy"
-        vars:
-          split: 3
-
-  - <<: *clang_tidy_task_template
-    name: clang_tidy_4
-    commands:
-      - func: "do scons setup"
-      - func: "scons compile"
-        vars:
-          <<: *clang_tidy_scons_compile_vars
-      - func: "run clang tidy"
-        vars:
-          split: 4
 
   ## compile_unittests ##
   - name: compile_unittests_future_git_tag_multiversion
@@ -1772,10 +1718,18 @@ task_groups:
     max_hosts: -1
     tasks:
       - hydrate_bazel_profile_fastbuild
-      - hydrate_bazel_profile_opt
+      - hydrate_required_bazel_profile_opt
       - hydrate_bazel_profile_dbg
       - hydrate_bazel_profile_dbg_aubsan
       - hydrate_bazel_profile_dbg_tsan
+
+  # TODO(SERVER-99213): Remove when CI is using fission by default
+  # Run this in required to prevent breaks when building with fission on
+  - <<: *compile_task_group_template
+    name: hydrate_required_bazel_profile_TG
+    max_hosts: -1
+    tasks:
+      - hydrate_required_bazel_profile_opt
 
   - <<: *compile_bazel_task_group_template
     name: compile_bazel_windows_TG

@@ -113,13 +113,6 @@ def list_files_without_targets(
         # TODO(SERVER-101361): Remove the exemptions below once resolved.
         "src/mongo/db/auth/authz_manager_external_state_local.cpp",
         "src/mongo/db/auth/authz_manager_external_state_s.cpp",
-        # TODO(SERVER-101362): Remove the exemptions below once resolved.
-        "src/mongo/db/exec/expression/evaluate_index_test.cpp",
-        # TODO(SERVER-101364): Remove the exemptions below once resolved.
-        "src/mongo/db/ftdc/ftdc_system_stats_freebsd.cpp",
-        "src/mongo/db/ftdc/ftdc_system_stats_macOS.cpp",
-        "src/mongo/db/ftdc/ftdc_system_stats_openbsd.cpp",
-        "src/mongo/db/ftdc/ftdc_system_stats_solaris.cpp",
         # TODO(SERVER-101365): Remove the exemptions below once resolved.
         "src/mongo/db/service_entry_point_test_fixture.cpp",
         # TODO(SERVER-101366): Remove the exemptions below once resolved.
@@ -132,8 +125,6 @@ def list_files_without_targets(
         "src/mongo/db/modules/enterprise/src/streams/third_party/mongocxx/dist/mongocxx/test_util/client_helpers.cpp",
         # TODO(SERVER-101371): Remove the exemptions below once resolved.
         "src/mongo/db/modules/enterprise/src/streams/util/tests/concurrent_memory_aggregator_test.cpp",
-        # TODO(SERVER-101372): Remove the exemptions below once resolved.
-        "src/mongo/executor/network_interface_perf_test.cpp",
         # TODO(SERVER-101373): Remove the exemptions below once resolved.
         "src/mongo/executor/network_interface_thread_pool_test.cpp",
         # TODO(SERVER-101375): Remove the exemptions below once resolved.
@@ -147,8 +138,6 @@ def list_files_without_targets(
         "src/mongo/platform/stack_locator_unknown.cpp",
         # TODO(SERVER-101377): Remove the exemptions below once resolved.
         "src/mongo/util/icu_init_stub.cpp",
-        # TODO(SERVER-101378): Remove the exemptions below once resolved.
-        "src/mongo/util/regex_util.cpp",
         # TODO(SERVER-101377): Remove the exemptions below once resolved.
         "src/mongo/util/processinfo_emscripten.cpp",
         "src/mongo/util/processinfo_macOS.cpp",

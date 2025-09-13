@@ -219,14 +219,6 @@ public:
         return !_opCtx->checkForInterruptNoAssert().isOK();
     }
 
-    void setCancelCacheEvictionOnInterrupt(bool cancelCacheEvictionOnInterrupt) override {
-        _cancelCacheEvictionOnInterrupt.store(cancelCacheEvictionOnInterrupt);
-    }
-
-    bool shouldCancelCacheEvictionOnInterrupt() const override {
-        return _cancelCacheEvictionOnInterrupt.load();
-    }
-
 private:
     void doBeginUnitOfWork() override;
     void doCommitUnitOfWork() override;
@@ -275,7 +267,7 @@ private:
 
     WiredTigerConnection* _connection;      // not owned
     WiredTigerOplogManager* _oplogManager;  // not owned
-    WiredTigerManagedSession _managed_sesion;
+    WiredTigerManagedSession _managedSession;
     WiredTigerSession* _session = nullptr;
     bool _isTimestamped = false;
 
@@ -329,9 +321,6 @@ private:
 
     // Tracks when we received a notification to interrupt any ongoing operation.
     AtomicWord<long long> _interruptNotifyTimeMs{0};
-
-    // If true, any ongoing/future cache eviction for the session will be cancelled.
-    AtomicWord<bool> _cancelCacheEvictionOnInterrupt{false};
 
     // Clock source used for timing events.
     ClockSource* _clockSource;

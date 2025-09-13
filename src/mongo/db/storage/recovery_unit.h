@@ -444,13 +444,6 @@ public:
     }
 
     /**
-     * Retrieve metrics from the storage layer.
-     */
-    AtomicStorageMetrics& getStorageMetrics() {
-        return _storageMetrics;
-    }
-
-    /**
      * The ReadSource indicates which external or provided timestamp to read from for future
      * transactions.
      */
@@ -891,20 +884,6 @@ public:
      */
     virtual void notifyInterruptionAcknowledged() {}
 
-    /**
-     * When true, cache eviction should be skipped when the operation is interrupted.
-     * This may be called by a non-owning thread provided that the lifetime of the RecoveryUnit is
-     * guaranteed
-     */
-    virtual void setCancelCacheEvictionOnInterrupt(bool cancelCacheEvictionOnInterrupt) {}
-
-    /**
-     * Whether or not cache eviction should occur when the operation is interrupted.
-     */
-    virtual bool shouldCancelCacheEvictionOnInterrupt() const {
-        return false;
-    }
-
 protected:
     RecoveryUnit() = default;
 
@@ -991,7 +970,6 @@ private:
     // Is constructed lazily when accessed or when an underlying storage snapshot is opened.
     boost::optional<Snapshot> _snapshot;
     State _state = State::kInactive;
-    AtomicStorageMetrics _storageMetrics;
     bool _readOnly = false;
     bool _blockingAllowed = true;
 };

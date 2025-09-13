@@ -63,6 +63,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_id_gen.h"
 #include "mongo/db/stats/timer_stats.h"
+#include "mongo/db/storage/execution_context.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/transaction_resources.h"
 #include "mongo/logv2/log.h"
@@ -462,34 +463,21 @@ void CurOp::updateStatsOnTransactionStash(ClientLock&) {
     _resourceStatsBase->subtractForStash(getAdditiveResourceStats(boost::none));
 }
 
-void CurOp::updateStorageMetricsOnRecoveryUnitUnstash(ClientLock&) {
-    if (auto storageMetrics = shard_role_details::getRecoveryUnit(opCtx())->getStorageMetrics();
-        !storageMetrics.isEmpty()) {
-        _initializeResourceStatsBaseIfNecessary();
-        _resourceStatsBase->storageMetrics += storageMetrics;
-    }
-}
-
-void CurOp::updateStorageMetricsOnRecoveryUnitStash(ClientLock&) {
-    if (auto storageMetrics = shard_role_details::getRecoveryUnit(opCtx())->getStorageMetrics();
-        !storageMetrics.isEmpty()) {
-        _initializeResourceStatsBaseIfNecessary();
-        _resourceStatsBase->storageMetrics -= storageMetrics;
-    }
-}
-
 void CurOp::setMemoryTrackingStats(const int64_t inUseMemoryBytes,
                                    const int64_t maxUsedMemoryBytes) {
     tassert(9897000,
             "featureFlagQueryMemoryTracking must be turned on before writing memory stats to CurOp",
             feature_flags::gFeatureFlagQueryMemoryTracking.isEnabled());
-    _inUseMemoryBytes.fetchAndAdd(inUseMemoryBytes);
-
     // We recompute the max here (the memory tracker that calls this method will already computing
     // the max) in order to avoid writing to the atomic if the max does not change.
+    //
+    // Set the max first, so that we can maintain the invariant that the max is always equal to or
+    // greater than the current in-use tally.
     if (maxUsedMemoryBytes > _maxUsedMemoryBytes.load()) {
-        _maxUsedMemoryBytes.swap(maxUsedMemoryBytes);
+        _maxUsedMemoryBytes.store(maxUsedMemoryBytes);
     }
+
+    _inUseMemoryBytes.store(inUseMemoryBytes);
 }
 
 void CurOp::setNS(WithLock, NamespaceString nss) {
@@ -1003,8 +991,6 @@ CurOp::AdditiveResourceStats CurOp::getAdditiveResourceStats(
     stats.timeQueuedForFlowControl =
         Microseconds(locker->getFlowControlStats().timeAcquiringMicros);
 
-    stats.storageMetrics = shard_role_details::getRecoveryUnit(opCtx())->getStorageMetrics();
-
     if (admCtx != boost::none) {
         stats.timeQueuedForTickets = admCtx->totalTimeQueuedMicros();
     }
@@ -1013,17 +999,11 @@ CurOp::AdditiveResourceStats CurOp::getAdditiveResourceStats(
 }
 
 SingleThreadedStorageMetrics CurOp::getOperationStorageMetrics() const {
-    SingleThreadedStorageMetrics singleThreadedMetrics =
-        shard_role_details::getRecoveryUnit(opCtx())->getStorageMetrics();
-    if (_resourceStatsBase) {
-        singleThreadedMetrics -= _resourceStatsBase->storageMetrics;
-    }
-    return singleThreadedMetrics;
+    return StorageExecutionContext::get(opCtx())->getStorageMetrics();
 }
 
 void CurOp::AdditiveResourceStats::addForUnstash(const CurOp::AdditiveResourceStats& other) {
     lockStats.append(other.lockStats);
-    storageMetrics += other.storageMetrics;
     cumulativeLockWaitTime += other.cumulativeLockWaitTime;
     timeQueuedForFlowControl += other.timeQueuedForFlowControl;
     // timeQueuedForTickets is intentionally excluded as it is tracked separately
@@ -1031,7 +1011,6 @@ void CurOp::AdditiveResourceStats::addForUnstash(const CurOp::AdditiveResourceSt
 
 void CurOp::AdditiveResourceStats::subtractForStash(const CurOp::AdditiveResourceStats& other) {
     lockStats.subtract(other.lockStats);
-    storageMetrics -= other.storageMetrics;
     cumulativeLockWaitTime -= other.cumulativeLockWaitTime;
     timeQueuedForFlowControl -= other.timeQueuedForFlowControl;
     // timeQueuedForTickets is intentionally excluded as it is tracked separately

@@ -9,6 +9,9 @@ filters:
   - "keyvault.js":
     approvers:
       - 10gen/server-security
+  - "README.md":
+    approvers:
+      - 10gen/devprod-correctness
   - "assert.js":
     approvers:
       - 10gen/devprod-correctness
@@ -57,3 +60,6 @@ filters:
   - "named_pipe_test_helper*":
     approvers:
       - 10gen/query-integration-analytic-extensions
+  - "feature_compatibility_version.js":
+    approvers:
+      - 10gen/server-replication

@@ -76,6 +76,7 @@
 #include "mongo/db/query/query_stats/distinct_key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/query/view_response_formatter.h"
+#include "mongo/db/raw_data_operation.h"
 #include "mongo/db/read_concern_support_result.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/read_concern_level.h"
@@ -193,18 +194,7 @@ BSONObj translateCmdObjForRawData(OperationContext* opCtx,
     }
 
     ns = ns.makeTimeseriesBucketsNamespace();
-
-    // Rewrite the command object to use the buckets namespace.
-    BSONObjBuilder builder{cmdObj.objsize()};
-    for (auto&& [fieldName, elem] : cmdObj) {
-        if (fieldName == DistinctCommandRequest::kCommandName) {
-            builder.append(fieldName, ns.coll());
-        } else {
-            builder.append(elem);
-        }
-    }
-
-    return builder.obj();
+    return rewriteCommandForRawDataOperation<DistinctCommandRequest>(cmdObj, ns.coll());
 }
 
 class DistinctCmd : public BasicCommand {
@@ -399,6 +389,13 @@ public:
             return true;
         }
 
+        // The construction of 'bsonCmp' below only accounts for a collection default collator when
+        // the targeted collection is sharded. In the event that the collection is unsharded (either
+        // untracked or unsplittable) and has a collection default collator, we can use binary
+        // comparison on the router as long as we obey the collection's default collator on the
+        // targeted shard.
+        // TODO SERVER-101576: Setting up the collation and aggregating shard responses can be
+        // avoided entirely when targeting a single shard.
         BSONObjComparator bsonCmp(BSONObj(),
                                   BSONObjComparator::FieldNamesMode::kConsider,
                                   !collation.isEmpty()

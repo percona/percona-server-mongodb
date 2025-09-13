@@ -758,6 +758,7 @@ mongo_cc_library(
         "//src/mongo/db/catalog:database_holder",
         "//src/mongo/db/catalog:local_oplog_info",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/catalog:snapshot_helper",
+        "//src/mongo/db/s:sharding_runtime_d_params_idl",
         "//src/mongo/db/stats:top",
         "//src/mongo/db/storage:capped_snapshots",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/storage:storage_options",  # TODO(SERVER-93876): Remove.
@@ -1115,6 +1116,7 @@ mongo_cc_library(
         "//src/mongo/db/repl:read_concern_args",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/stats:resource_consumption_metrics",
         "//src/mongo/db/stats:timer_stats",
+        "//src/mongo/db/storage:execution_context",
         "//src/mongo/db/timeseries:timeseries_options",  # TODO(SERVER-93876): Remove.
         "//src/mongo/rpc",
         "//src/mongo/rpc:command_status",  # TODO(SERVER-93876): Remove.
@@ -1602,7 +1604,7 @@ mongo_cc_library(
         "//src/mongo/db/catalog:health_log_interface",
         "//src/mongo/db/exec:working_set",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/index:index_access_method",
-        "//src/mongo/db/storage:execution_context",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/db/index:preallocated_container_pool",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/storage/key_string",  # TODO(SERVER-93876): Remove.
     ],
 )

@@ -103,6 +103,7 @@
 #include "mongo/db/query/query_stats/agg_key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/query/timeseries/timeseries_rewrites.h"
+#include "mongo/db/raw_data_operation.h"
 #include "mongo/db/read_concern.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/s/operation_sharding_state.h"
@@ -523,6 +524,17 @@ void executeUntilFirstBatch(const AggExState& aggExState,
         std::vector<ClientCursorPin> pinnedCursors;
         for (auto&& exec : execs) {
             auto pinnedCursor = registerCursor(aggExState, expCtx, std::move(exec));
+
+            // The first executor is the main executor. The following ones are additionalExecutors.
+            // AdditionalExecutors must never have associated ShardRole resources – therefore, we
+            // stash empty TransactionResources to their stashed cursor.
+            if (!pinnedCursors.empty() &&
+                pinnedCursor->getExecutor()->lockPolicy() ==
+                    PlanExecutor::LockPolicy::kLocksInternally) {
+                pinnedCursor->stashTransactionResources(StashedTransactionResources{
+                    std::make_unique<shard_role_details::TransactionResources>(),
+                    shard_role_details::TransactionResources::State::EMPTY});
+            }
             pinnedCursors.emplace_back(std::move(pinnedCursor));
         }
         handleMultipleCursorsForExchange(aggExState, expCtx, pinnedCursors, result);
@@ -799,6 +811,11 @@ Status runAggregateOnView(AggExState& aggExState,
             "mapReduce on a view is not supported",
             !aggExState.getRequest().getIsMapReduceCommand());
 
+    // TODO SERVER-101661 Enable $rankFusion run on views.
+    uassert(ErrorCodes::CommandNotSupportedOnView,
+            "$rankFusion is currently unsupported on views",
+            !aggExState.isRankFusionStage());
+
     // Resolve the request's collation and check that the default collation of 'view' is compatible
     // with the operation's collation. The collation resolution and check are both skipped if the
     // request did not specify a collation.
@@ -1067,17 +1084,16 @@ void rewritePipelineIfTimeseries(const AggExState& aggExState,
                                  const AggCatalogState& aggCatalogState) {
     // Conditions for enabling the viewless code path: feature flag is on, request does not use
     // the rawData flag, and we're querying against a viewless timeseries collection.
-    if (auto& request = aggExState.getRequest();
-        aggCatalogState.lockAcquired() && !request.getRawData()) {
+    if (aggCatalogState.lockAcquired()) {
         if (const auto& coll = aggCatalogState.getPrimaryCollection();
-            coll && coll->isTimeseriesCollection() && coll->isNewTimeseriesWithoutView()) {
+            timeseries::isEligibleForViewlessTimeseriesRewrites(aggExState.getOpCtx(), coll)) {
             const auto timeseriesOptions = coll->getTimeseriesOptions();
             tassert(10000200,
                     "Timeseries options must be present for timeseries collection",
                     timeseriesOptions);
             // Handle re-rewrite prevention in the callee.
             timeseries::rewriteRequestPipelineAndHintForTimeseriesCollection(
-                request, *coll.get(), *timeseriesOptions);
+                aggExState.getRequest(), *coll.get(), *timeseriesOptions);
         }
     }
 }

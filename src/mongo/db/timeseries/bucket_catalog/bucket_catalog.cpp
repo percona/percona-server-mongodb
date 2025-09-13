@@ -947,7 +947,7 @@ Bucket& getEligibleBucket(OperationContext* opCtx,
                           BucketCatalog& catalog,
                           Stripe& stripe,
                           stdx::unique_lock<stdx::mutex>& stripeLock,
-                          const CollectionPtr& bucketsColl,
+                          const Collection* bucketsColl,
                           const BSONObj& measurement,
                           const BucketKey& bucketKey,
                           const Date_t& measurementTimestamp,
@@ -958,6 +958,8 @@ Bucket& getEligibleBucket(OperationContext* opCtx,
                           const CompressAndWriteBucketFunc& compressAndWriteBucketFunc,
                           ExecutionStatsController& stats) {
     Status reopeningStatus = Status::OK();
+    auto numReopeningsAttempted = 0;
+    auto reopeningLimit = 3;
     do {
         auto allowQueryBasedReopening = internal::AllowQueryBasedReopening::kAllow;
         // 1. Try to find an eligible open bucket for the next measurement.
@@ -982,7 +984,7 @@ Bucket& getEligibleBucket(OperationContext* opCtx,
             catalog,
             stripe,
             stripeLock,
-            bucketsColl.get(),
+            bucketsColl,
             bucketKey,
             measurementTimestamp,
             options,
@@ -997,7 +999,8 @@ Bucket& getEligibleBucket(OperationContext* opCtx,
 
         reopeningStatus = swReopenedBucket.getStatus();
         // Try again when reopening or the reopened bucket encounters a conflict.
-    } while (reopeningStatus.code() == ErrorCodes::WriteConflict);
+    } while (reopeningStatus.code() == ErrorCodes::WriteConflict &&
+             ++numReopeningsAttempted < reopeningLimit);
 
     // 3. Reopening can release and reacquire the stripe lock. Look for an eligible open bucket
     // again. If not found, allocate a new bucket this time.
@@ -1097,6 +1100,12 @@ StatusWith<Bucket*> potentiallyReopenBucket(
         // Reacquire the stripe lock to load the bucket back into the catalog.
     }
 
+    // It's possible to re-open an opened bucket. This behavior isn't limited to rollover.
+    auto existingIt = stripe.openBucketsById.find(reopenedBucket->bucketId);
+    if (existingIt != stripe.openBucketsById.end()) {
+        stats.incNumDuplicateBucketsReopened();
+        return nullptr;
+    }
     auto swBucket = internal::loadBucketIntoCatalog(
         catalog, stripe, stripeLock, stats, bucketKey, std::move(reopenedBucket), catalogEra);
     if (!swBucket.isOK()) {

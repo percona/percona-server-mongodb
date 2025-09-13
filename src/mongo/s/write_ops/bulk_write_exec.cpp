@@ -622,7 +622,6 @@ void executeWriteWithoutShardKey(
             opCtx, targeter->getNS(), std::move(cmdObj));
 
         BulkWriteCommandReply bulkWriteResponse;
-        // TODO (SERVER-81261): Handle writeConcernErrors.
         WriteConcernErrorDetail wcError;
         Status responseStatus = swRes.getStatus();
         if (swRes.isOK()) {
@@ -1058,7 +1057,9 @@ BulkWriteCommandRequest BulkWriteOp::buildBulkCommandRequest(
             // For tracked timeseries collections, only the bucket collections are tracked. This
             // sets the namespace to the namespace of the tracked bucket collection.
             nsInfoEntry.setNs(targeter->getNS());
-            nsInfoEntry.setIsTimeseriesNamespace(true);
+            if (!_clientRequest.getRawData()) {
+                nsInfoEntry.setIsTimeseriesNamespace(true);
+            }
         }
 
         // If we are using the two phase write protocol introduced in PM-1632, we allow shard key

@@ -177,6 +177,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/sbe/stages:project.cpp",
         "//src/mongo/db/exec/sbe/stages:search_cursor.cpp",
         "//src/mongo/db/exec/sbe/stages:sort.cpp",
+        "//src/mongo/db/exec/sbe/stages:sort_stage_sort_impl.cpp",
         "//src/mongo/db/exec/sbe/stages:sorted_merge.cpp",
         "//src/mongo/db/exec/sbe/stages:spool.cpp",
         "//src/mongo/db/exec/sbe/stages:traverse.cpp",
@@ -276,8 +277,8 @@ mongo_cc_library(
         "//src/mongo/db:shard_role",
         "//src/mongo/db/exec:scoped_timer",
         "//src/mongo/db/index:index_access_method",
+        "//src/mongo/db/index:preallocated_container_pool",
         "//src/mongo/db/query:query_index_bounds",
-        "//src/mongo/db/storage:execution_context",
         "//src/mongo/db/storage:index_entry_comparison",
     ],
 )

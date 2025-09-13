@@ -222,6 +222,7 @@ let testCases = {
     streams_testOnlyGetFeatureFlags: {skip: "internal command"},
     streams_writeCheckpoint: {skip: "internal command"},
     streams_sendEvent: {skip: "internal command"},
+    streams_updateConnection: {skip: "internal command"},
     _transferMods: {skip: "internal command"},
     abortMoveCollection: {skip: "does not accept read or write concern"},
     abortReshardCollection: {skip: "does not accept read or write concern"},
@@ -666,6 +667,7 @@ let testCases = {
     refineCollectionShardKey: {skip: "does not accept read or write concern"},
     refreshLogicalSessionCacheNow: {skip: "does not accept read or write concern"},
     refreshSessions: {skip: "does not accept read or write concern"},
+    releaseMemory: {skip: "does not accept read or write concern"},
     removeShard: {skip: "does not accept read or write concern"},
     removeShardFromZone: {skip: "does not accept read or write concern"},
     renameCollection: {

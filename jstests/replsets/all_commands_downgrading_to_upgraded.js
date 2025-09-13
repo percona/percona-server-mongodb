@@ -163,6 +163,7 @@ const allCommands = {
     streams_testOnlyGetFeatureFlags: {skip: isAnInternalCommand},
     streams_writeCheckpoint: {skip: isAnInternalCommand},
     streams_sendEvent: {skip: isAnInternalCommand},
+    streams_updateConnection: {skip: "internal command"},
     _transferMods: {skip: isAnInternalCommand},
     abortMoveCollection: {
         // Skipping command because it requires testing through a parallel shell.
@@ -1243,6 +1244,27 @@ const allCommands = {
     },
     reIndex: {
         skip: isDeprecated,
+    },
+    releaseMemory: {
+        // TODO SERVER-97456 - remove this
+        skip: "Currently not supported in sharding",
+        setUp: function(conn) {
+            const db = conn.getDB(dbName);
+            for (let i = 0; i < 10; i++) {
+                assert.commandWorked(conn.getCollection(fullNs).insert({a: i}));
+            }
+
+            const res = db.runCommand({find: collName, batchSize: 1});
+            const cmdObj = {releaseMemory: [NumberLong(res.cursor.id)]};
+            return cmdObj;
+        },
+        // This command requires information that is created during the setUp portion (a cursor ID),
+        // so we need to create the command in setUp. We set the command to an empty object in order
+        // to indicate that the command created in setUp should be used instead.
+        command: {},
+        teardown: function(conn) {
+            assert.commandWorked(conn.getDB(dbName).runCommand({drop: collName}));
+        },
     },
     removeShard: {
         // We cannot test removeShard because we need to be able to run addShard during set up.

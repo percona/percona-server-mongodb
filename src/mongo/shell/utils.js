@@ -23,6 +23,10 @@ function reconnect(db) {
 function _getErrorWithCode(codeOrObj, message) {
     var e = new Error(message);
     if (typeof codeOrObj === "object" && codeOrObj !== null) {
+        if (TestData?.logFormat === "json") {
+            e.extraAttr = codeOrObj;
+            codeOrObj = codeOrObj.res ?? codeOrObj;
+        }
         if (codeOrObj.hasOwnProperty("code")) {
             e.code = codeOrObj.code;
         }
@@ -601,7 +605,7 @@ jsTestLog = function(
         if (attr && typeof attr === "object" && Object.keys(attr).length > 0) {
             new_msg["attr"] = attr;
         }
-        print(toEJSON(new_msg));
+        print(toJsonForLog(new_msg));
         return;
     }
 

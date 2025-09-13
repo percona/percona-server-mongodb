@@ -7,7 +7,6 @@
  *   multiversion_incompatible,
  *   # Cannot compact when using the in-memory storage engine.
  *   requires_persistence,
- *   featureFlagFailOnDirectShardOperations,
  *   requires_fcv_73
  * ]
  */
@@ -161,6 +160,7 @@ const allCommands = {
     streams_testOnlyGetFeatureFlags: {skip: isAnInternalCommand},
     streams_writeCheckpoint: {skip: isAnInternalCommand},
     streams_sendEvent: {skip: isAnInternalCommand},
+    streams_updateConnection: {skip: isAnInternalCommand},
     _transferMods: {skip: isAnInternalCommand},
     abortMoveCollection: {
         // Skipping command because it requires testing through a parallel shell.
@@ -976,6 +976,7 @@ const allCommands = {
     reIndex: {
         skip: isDeprecated,
     },
+    releaseMemory: {skip: "requires instantiating a cursor"},
     removeShard: {skip: requiresMongoS},
     removeShardFromZone: {skip: requiresMongoS},
     renameCollection: {

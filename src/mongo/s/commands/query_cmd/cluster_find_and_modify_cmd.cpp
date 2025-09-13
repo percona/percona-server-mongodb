@@ -64,6 +64,7 @@
 #include "mongo/db/pipeline/legacy_runtime_constants_gen.h"
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/write_ops/write_ops_gen.h"
+#include "mongo/db/raw_data_operation.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/stats/counters.h"
@@ -661,12 +662,13 @@ Status FindAndModifyCmd::explain(OperationContext* opCtx,
     auto shardVersion = cm.hasRoutingTable()
         ? boost::make_optional(cri.getShardVersion(*shardId))
         : boost::make_optional(!cm.dbVersion().isFixed(), ShardVersion::UNSHARDED());
+    auto dbVersion = cm.hasRoutingTable() ? boost::none : boost::make_optional(cm.dbVersion());
 
     _runCommand(
         opCtx,
         *shardId,
         shardVersion,
-        cm.dbVersion(),
+        dbVersion,
         nss,
         applyReadWriteConcern(opCtx, false, false, makeExplainCmd(opCtx, cmdObj, verbosity)),
         true /* isExplain */,
@@ -713,18 +715,8 @@ bool FindAndModifyCmd::run(OperationContext* opCtx,
         }
 
         nss = nss.makeTimeseriesBucketsNamespace();
-
-        // Rewrite the command object to use the buckets namespace.
-        BSONObjBuilder builder{originalCmdObj.objsize()};
-        for (auto&& [fieldName, elem] : originalCmdObj) {
-            if (fieldName == write_ops::FindAndModifyCommandRequest::kCommandName) {
-                builder.append(fieldName, nss.coll());
-            } else {
-                builder.append(elem);
-            }
-        }
-
-        return builder.obj();
+        return rewriteCommandForRawDataOperation<write_ops::FindAndModifyCommandRequest>(
+            originalCmdObj, nss.coll());
     }();
 
     // Collect metrics.

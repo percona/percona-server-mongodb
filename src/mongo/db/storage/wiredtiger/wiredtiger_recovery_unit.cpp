@@ -43,6 +43,7 @@
 #include "mongo/bson/util/builder_fwd.h"
 #include "mongo/db/concurrency/exception_util.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/storage/execution_context.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_begin_transaction_block.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
@@ -183,15 +184,17 @@ void WiredTigerRecoveryUnit::doAbortUnitOfWork() {
 }
 
 void WiredTigerRecoveryUnit::_ensureSession() {
-    if (!_managed_sesion) {
-        invariant(!_session);
-        if (_opCtx) {
-            _managed_sesion = _connection->getSession(*this);
-        } else {
-            _managed_sesion = _connection->getUninterruptibleSession();
-        }
-        _session = _managed_sesion.get();
+    if (_managedSession) {
+        return;
     }
+
+    invariant(!_session);
+    if (_opCtx) {
+        _managedSession = _connection->getSession(*this);
+    } else {
+        _managedSession = _connection->getUninterruptibleSession();
+    }
+    _session = _managedSession.get();
 }
 
 void WiredTigerRecoveryUnit::setPrefetching(bool enable) {
@@ -950,7 +953,8 @@ void WiredTigerRecoveryUnit::notifyInterruptionAcknowledged() {
     if (auto interruptNotifyTimeMs = _interruptNotifyTimeMs.load()) {
         auto now = _clockSource->now().toMillisSinceEpoch();
         // Log at least 0 to ensure that the storage stats don't show as empty.
-        getStorageMetrics().incrementInterruptDelayMs(now - interruptNotifyTimeMs);
+        StorageExecutionContext::get(_opCtx)->getStorageMetrics().incrementInterruptDelayMs(
+            now - interruptNotifyTimeMs);
         _interruptNotifyTimeMs.store(0);
     }
 }

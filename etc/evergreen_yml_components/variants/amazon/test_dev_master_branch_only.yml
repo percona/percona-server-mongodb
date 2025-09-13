@@ -177,8 +177,6 @@ buildvariants:
         --runAllFeatureFlagTests
         --excludeWithAnyTags=incompatible_with_amazon_linux,requires_ldap_pool,requires_external_data_source,incompatible_with_atlas_environment
     tasks:
-      - name: search_end_to_end_sharded_cluster
-      - name: search_end_to_end_single_node
       - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only
       - name: .development_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only
         distros:
@@ -214,8 +212,6 @@ buildvariants:
         --additionalFeatureFlags "featureFlagShardAuthoritativeDbMetadata"
         --excludeWithAnyTags=incompatible_with_amazon_linux,requires_ldap_pool,requires_external_data_source,incompatible_with_atlas_environment,multiversion_incompatible,incompatible_with_authoritative_shards
     tasks:
-      - name: search_end_to_end_sharded_cluster !.multiversion
-      - name: search_end_to_end_single_node !.multiversion
       - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only !.multiversion
       - name: .development_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only !.multiversion
         distros:
@@ -472,7 +468,7 @@ buildvariants:
     tags: ["forbid_tasks_tagged_with_experimental"]
     run_on:
       - amazon2023.3-arm64-small
-    activate: false
+    cron: "0 0 * * *" # Run once a day
     stepback: false
     expansions:
       additional_package_targets: archive-mongocryptd archive-mongocryptd-debug
@@ -498,18 +494,15 @@ buildvariants:
       scons_cache_scope: shared
       compile_variant: enterprise-amazon2023-arm64-toolchain-v5
     tasks:
-      - name: compile_test_and_package_serial_no_unittests_TG
+      - name: compile_test_serial_no_unittests_TG
         distros:
           - amazon2023.3-arm64-large
-      - name: test_packages
-        distros:
-          - ubuntu2204-arm64-large
       - name: .development_critical !.requires_large_host
       - name: .development_critical .requires_large_host
         distros:
           - amazon2023.3-arm64-large
-      - name: .release_critical !.requires_large_host
-      - name: .release_critical .requires_large_host
+      - name: .release_critical !.requires_large_host !.publish
+      - name: .release_critical .requires_large_host !.publish
         distros:
           - amazon2023.3-arm64-large
 
@@ -518,7 +511,7 @@ buildvariants:
     tags: ["forbid_tasks_tagged_with_experimental"]
     run_on:
       - amazon2023.3-small
-    activate: false
+    cron: "0 0 * * *" # Run once a day
     stepback: false
     expansions:
       additional_package_targets: archive-mongocryptd archive-mongocryptd-debug
@@ -544,18 +537,15 @@ buildvariants:
       scons_cache_scope: shared
       compile_variant: enterprise-amazon2023-toolchain-v5
     tasks:
-      - name: compile_test_and_package_serial_no_unittests_TG
+      - name: compile_test_serial_no_unittests_TG
         distros:
           - amazon2023.3-large
-      - name: test_packages
-        distros:
-          - ubuntu2204-large
       - name: .development_critical !.requires_large_host
       - name: .development_critical .requires_large_host
         distros:
           - amazon2023.3-large
-      - name: .release_critical !.requires_large_host
-      - name: .release_critical .requires_large_host
+      - name: .release_critical !.requires_large_host !.publish
+      - name: .release_critical .requires_large_host !.publish
         distros:
           - amazon2023.3-large
 
@@ -564,7 +554,7 @@ buildvariants:
     tags: ["forbid_tasks_tagged_with_experimental"]
     run_on:
       - amazon2-latest-small
-    activate: false
+    cron: "0 0 * * *" # Run once a day
     stepback: false
     expansions:
       test_flags: >-
@@ -590,15 +580,15 @@ buildvariants:
       compile_variant: enterprise-amazon2-streams-toolchain-v5
       large_distro_name: amazon2-latest-large
     tasks:
-      - name: compile_test_and_package_serial_no_unittests_TG
+      - name: compile_test_serial_no_unittests_TG
         distros:
           - amazon2-latest-large
       - name: .development_critical !.requires_large_host
       - name: .development_critical .requires_large_host
         distros:
           - amazon2-latest-large
-      - name: .release_critical !.requires_large_host !crypt_push
-      - name: .release_critical .requires_large_host !crypt_push
+      - name: .release_critical !.requires_large_host !crypt_push !.publish
+      - name: .release_critical .requires_large_host !crypt_push !.publish
         distros:
           - amazon2-latest-large
       - name: streams
@@ -627,7 +617,7 @@ buildvariants:
     display_name: "Enterprise Amazon Linux 2 (v5 toolchain)"
     run_on:
       - amazon2-latest-small
-    activate: false
+    cron: "0 0 * * *" # Run once a day
     stepback: false
     expansions:
       additional_package_targets: >-
@@ -659,18 +649,15 @@ buildvariants:
       core_analyzer_distro_name: amazon2-latest-large
       large_distro_name: amazon2-latest-large
     tasks:
-      - name: compile_test_and_package_serial_no_unittests_TG
+      - name: compile_test_serial_no_unittests_TG
         distros:
           - amazon2-latest-large
-      - name: test_packages
-        distros:
-          - ubuntu2204-large
       - name: .development_critical !.requires_large_host
       - name: .development_critical .requires_large_host
         distros:
           - amazon2-latest-large
-      - name: .release_critical !.requires_large_host
-      - name: .release_critical .requires_large_host
+      - name: .release_critical !.requires_large_host !.publish
+      - name: .release_critical .requires_large_host !.publish
         distros:
           - amazon2-latest-large
 
@@ -702,14 +689,10 @@ buildvariants:
       evergreen_remote_exec: on
     tasks:
       - name: compile_test_parallel_unittest_stream_TG
-      # TODO SERVER-99531 reenable when pretty printer tests work.
-      # - name: compile_test_parallel_core_stream_and_pretty_printer_tests_TG
-      #   distros:
-      #     - amazon2-arm64-latest-nvme
-      #- name: compile_all_but_not_unittests_TG
-      #  distros:
-      #    - amazon2-arm64-latest-nvme
-      - name: compile_test_parallel_core_stream_TG
+      - name: compile_test_parallel_core_stream_and_pretty_printer_tests_TG
+        distros:
+          - amazon2-arm64-latest-nvme
+      - name: compile_all_but_not_unittests_TG
         distros:
           - amazon2-arm64-latest-nvme
       - name: compile_test_parallel_dbtest_stream_TG
@@ -778,6 +761,8 @@ buildvariants:
     tasks:
       - name: search_end_to_end_sharded_cluster
       - name: search_end_to_end_single_node
+      - name: search_community_end_to_end_sharded_cluster
+      - name: search_community_end_to_end_single_node
       - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only
       - name: .development_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only
         distros:

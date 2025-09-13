@@ -1702,15 +1702,18 @@ PipelineD::BuildQueryExecutorResult PipelineD::buildInnerQueryExecutorSearch(
         // The $search is pushed down into SBE executor.
         if (auto cursor = search_helpers::getSearchMetadataCursor(searchStage)) {
             // Create a yield policy for metadata cursor.
+            // This pipeline does not hold any ShardRole resources, so pass an empty
+            // MultipleCollectionAccessor.
+            MultipleCollectionAccessor emptyMca;
             auto metadataYieldPolicy =
                 PlanYieldPolicyRemoteCursor::make(expCtx->getOperationContext(),
                                                   PlanYieldPolicy::YieldPolicy::YIELD_AUTO,
-                                                  collections,
+                                                  emptyMca,
                                                   nss);
             cursor->updateYieldPolicy(std::move(metadataYieldPolicy));
 
             additionalExecutors.push_back(uassertStatusOK(getSearchMetadataExecutorSBE(
-                expCtx->getOperationContext(), collections, nss, *cq, std::move(cursor))));
+                expCtx->getOperationContext(), nss, *expCtx, std::move(cursor))));
         }
     }
     return {std::move(executor), callback, std::move(additionalExecutors)};
@@ -1730,7 +1733,10 @@ PipelineD::BuildQueryExecutorResult PipelineD::buildInnerQueryExecutorGeneric(
     auto expCtx = pipeline->getContext();
 
     // Look for an initial match. This works whether we got an initial query or not. If not, it
-    // results in a "{}" query, which will be what we want in that case.
+    // results in a "{}" query, which will be what we want in that case. Note that if there is a
+    // leading $match, 'queryObj' will hold a reference to that $match's MatchExpression backing
+    // BSON. This gets passed into the FindCommandRequest we construct later through
+    // 'prepareExecutor', and this is how we keep the MatchExpression's backing BSON alive.
     const BSONObj queryObj = pipeline->getInitialQuery();
     boost::intrusive_ptr<DocumentSourceMatch> leadingMatch;
     bool isTextQuery = false;

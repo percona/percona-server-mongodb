@@ -21,6 +21,7 @@ mongo_cc_library(
     ],
     deps = [
         ":working_set",
+        "//src/mongo/db/pipeline/spilling:spilling_stats",
         "//src/mongo/db/query:sort_pattern",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/query:spill_util",
         "//src/mongo/db/sorter:sorter_base",
@@ -189,6 +190,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/exec/expression:evaluate_field_path_test.cpp",
         "//src/mongo/db/exec/expression:evaluate_find_internal_test.cpp",
         "//src/mongo/db/exec/expression:evaluate_fle_test.cpp",
+        "//src/mongo/db/exec/expression:evaluate_index_test.cpp",
         "//src/mongo/db/exec/expression:evaluate_logical_test.cpp",
         "//src/mongo/db/exec/expression:evaluate_math_test.cpp",
         "//src/mongo/db/exec/expression:evaluate_meta_test.cpp",
@@ -273,7 +275,6 @@ mongo_cc_benchmark(
         "//src/mongo/db:query_expressions",
         "//src/mongo/db:service_context_non_d",
         "//src/mongo/db:service_context_test_fixture",
-        "//src/mongo/db/pipeline:accumulator",
         "//src/mongo/db/pipeline:expression_context_for_test",
         "//src/mongo/db/query:query_test_service_context",
     ],
