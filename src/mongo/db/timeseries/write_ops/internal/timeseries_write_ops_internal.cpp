@@ -51,6 +51,8 @@
 #include "mongo/logv2/log.h"
 #include "mongo/stdx/unordered_set.h"
 
+#include <algorithm>
+
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
 namespace mongo::timeseries::write_ops::internal {
@@ -81,6 +83,11 @@ bool isTimeseriesWriteRetryable(OperationContext* opCtx) {
 std::shared_ptr<bucket_catalog::WriteBatch>& extractFromPair(
     std::pair<std::shared_ptr<bucket_catalog::WriteBatch>, size_t>& pair) {
     return pair.first;
+}
+
+inline uint64_t getStorageCacheSizeBytes(OperationContext* opCtx) {
+    return opCtx->getServiceContext()->getStorageEngine()->getEngine()->getCacheSizeMB() * 1024 *
+        1024;
 }
 
 TimeseriesSingleWriteResult getTimeseriesSingleWriteResult(
@@ -607,6 +614,165 @@ void processBatchResults(OperationContext* opCtx,
 }
 
 /**
+ * If no statement has been retried in 'request', fills stmtIds with stmtIds based on 'request'
+ * which can explicitly specify all StmtIds, the begin StmtId, or none at all (implied start from
+ * zero). Otherwise, sets 'containsRetry' to true and returns empty 'stmtIds'.
+ */
+void getStmtIdVectorFromRequest(OperationContext* opCtx,
+                                const mongo::write_ops::InsertCommandRequest& request,
+                                bool* containsRetry,
+                                std::vector<StmtId>& stmtIds) {
+    if (isTimeseriesWriteRetryable(opCtx)) {
+        std::vector<StmtId> stmtIdsVec(request.getDocuments().size());
+        // The driver can specify all stmtIds, the begin index, or none.
+        if (request.getStmtIds()) {
+            stmtIdsVec = request.getStmtIds().get();
+        } else {
+            // Fill stmtIdsVec with 0 ... N-1 if no stmtId was provided by the driver.
+            // Otherwise, begin at the index provided.
+            std::iota(stmtIdsVec.begin(), stmtIdsVec.end(), request.getStmtId().value_or(0));
+        }
+
+        for (auto& stmtId : stmtIdsVec) {
+            if (TransactionParticipant::get(opCtx).checkStatementExecuted(opCtx, stmtId)) {
+                *containsRetry = true;
+                return;
+            }
+        }
+
+        stmtIds = std::move(stmtIdsVec);
+    }
+}
+
+/**
+ * Stages ordered writes.
+ * Requires that no retryable writes have been executed prior and no malformed measurements.
+ * Returns empty WriteBatches if either of the cases above is true.
+ * On success, returns WriteBatches with the staged writes.
+ */
+TimeseriesWriteBatches stageOrderedWritesToBucketCatalog(
+    OperationContext* opCtx,
+    const mongo::write_ops::InsertCommandRequest& request,
+    std::vector<mongo::write_ops::WriteError>* errors,
+    bool* containsRetry) {
+    invariant(errors->empty());
+    hangInsertIntoBucketCatalogBeforeCheckingTimeseriesCollection.pauseWhileSet();
+
+    auto& bucketCatalog = bucket_catalog::GlobalBucketCatalog::get(opCtx->getServiceContext());
+    auto bucketsNs = write_ops_utils::makeTimeseriesBucketsNamespace(internal::ns(request));
+    auto& measurementDocs = request.getDocuments();
+
+    // Explicitly hold a reference to the CollectionCatalog, such that the corresponding
+    // Collection instances remain valid, and the collator is not invalidated.
+    auto catalog = CollectionCatalog::get(opCtx);
+    const Collection* bucketsColl = nullptr;
+
+    Status collectionAcquisitionStatus = Status::OK();
+    TimeseriesOptions timeseriesOptions;
+
+    auto fillErrors = [&](size_t startIndex, Status errorCode) {
+        for (auto i = startIndex; i < measurementDocs.size(); i++) {
+            if (auto error = write_ops_exec::generateError(opCtx, errorCode, i, errors->size())) {
+                invariant(errorCode != ErrorCodes::WriteConflict);
+                errors->emplace_back(std::move(*error));
+            }
+        }
+    };
+
+    try {
+        // It must be ensured that the CollectionShardingState remains consistent while rebuilding
+        // the timeseriesOptions. However, the associated collection must be acquired before
+        // we check for the presence of buckets collection. This ensures that a potential
+        // ShardVersion mismatch can be detected, before checking for other errors.
+        const auto coll = acquireCollection(opCtx,
+                                            CollectionAcquisitionRequest::fromOpCtx(
+                                                opCtx, bucketsNs, AcquisitionPrerequisites::kRead),
+                                            MODE_IS);
+        bucketsColl = catalog->lookupCollectionByNamespace(opCtx, bucketsNs);
+        // Check for the presence of the buckets collection
+        timeseries::assertTimeseriesBucketsCollection(bucketsColl);
+        // Process timeseriesOptions
+        timeseriesOptions = *bucketsColl->getTimeseriesOptions();
+        rebuildOptionsWithGranularityFromConfigServer(opCtx, bucketsNs, timeseriesOptions);
+    } catch (const DBException& ex) {
+        if (ex.code() != ErrorCodes::StaleDbVersion && !ErrorCodes::isStaleShardVersionError(ex)) {
+            throw;
+        }
+
+        collectionAcquisitionStatus = ex.toStatus();
+
+        auto& oss{OperationShardingState::get(opCtx)};
+        oss.setShardingOperationFailedStatus(ex.toStatus());
+    }
+
+    if (!collectionAcquisitionStatus.isOK()) {
+        fillErrors(0, collectionAcquisitionStatus);
+        return {};
+    }
+
+    // It is a layering violation to have the bucket catalog be privy to the details of writing
+    // out buckets with write_ops_exec functions. This callable function is a workaround in the
+    // case of an uncompressed bucket that gets reopened. The bucket catalog can blindly call
+    // this function handed down from write_ops_exec to write out the bucket as compressed.
+    // This can be safely removed when query-based reopening is removed.
+    timeseries::CompressAndWriteBucketFunc compressAndWriteBucketFunc =
+        compressUncompressedBucketOnReopen;
+
+    auto storageCacheSizeBytes = getStorageCacheSizeBytes(opCtx);
+
+    // Early exit before staging if any statements in the user's batch have been retried. Fallback
+    // to unordered one-by-one to handle this.
+    std::vector<StmtId> stmtIds;
+    getStmtIdVectorFromRequest(opCtx, request, containsRetry, stmtIds);
+    if (*containsRetry) {
+        return {};
+    }
+
+    std::vector<WriteStageErrorAndIndex> errorsAndIndices;
+    auto swWriteBatches = prepareInsertsToBuckets(opCtx,
+                                                  bucketCatalog,
+                                                  bucketsColl,
+                                                  timeseriesOptions,
+                                                  opCtx->getOpID(),
+                                                  bucketsColl->getDefaultCollator(),
+                                                  storageCacheSizeBytes,
+                                                  /*earlyReturnOnError=*/true,
+                                                  compressAndWriteBucketFunc,
+                                                  measurementDocs,
+                                                  errorsAndIndices);
+
+    if (!swWriteBatches.isOK()) {
+        invariant(!errorsAndIndices.empty());
+
+        // Must return errors for the first failed index and all past it for an ordered write.
+        sort(errorsAndIndices.begin(), errorsAndIndices.end(), [](auto& lhs, auto& rhs) {
+            return lhs.index < rhs.index;
+        });
+
+        auto& [firstError, firstIndex] = errorsAndIndices.front();
+        fillErrors(firstIndex, firstError);
+        return {};
+    }
+
+    invariant(errorsAndIndices.empty());
+    invariant(!swWriteBatches.getValue().empty());
+
+    auto& writeBatches = swWriteBatches.getValue();
+
+    // Map user batch indexes to stmtIds
+    if (isTimeseriesWriteRetryable(opCtx)) {
+        for (auto& writeBatch : writeBatches) {
+            for (auto userBatchIndex : writeBatch->userBatchIndices) {
+                writeBatch->stmtIds.push_back(stmtIds.at(userBatchIndex));
+            }
+        }
+    }
+
+    return std::move(writeBatches);
+}
+
+
+/**
  * Writes to the underlying system.buckets collection as a series of ordered time-series inserts.
  * Returns true on success, false otherwise, filling out errors as appropriate on failure as well
  * as containsRetry which is used at a higher layer to report a retry count metric.
@@ -721,6 +887,47 @@ std::vector<size_t> performUnorderedTimeseriesWrites(
     return docsToRetry;
 }
 
+/**
+ * Returns true if we are both performing retryable time-series writes and there is at least one
+ * measurement in the request's batch of measurements that has already been executed. Returns false
+ * otherwise.
+ */
+bool batchContainsExecutedStatements(OperationContext* opCtx,
+                                     const mongo::write_ops::InsertCommandRequest& request,
+                                     size_t start,
+                                     size_t numDocs) {
+    if (isTimeseriesWriteRetryable(opCtx)) {
+        for (size_t index = 0; index < numDocs; index++) {
+            auto stmtId = request.getStmtIds() ? request.getStmtIds()->at(start + index)
+                                               : request.getStmtId().value_or(0) + start + index;
+            if (TransactionParticipant::get(opCtx).checkStatementExecuted(opCtx, stmtId)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Populates 'filteredBatch' and 'filteredIndices' with only the measurements (and corresponding
+ * indices) in request's batch of measurements that have not been already executed.
+ */
+void filterOutExecutedMeasurements(OperationContext* opCtx,
+                                   const mongo::write_ops::InsertCommandRequest& request,
+                                   size_t start,
+                                   size_t numDocs,
+                                   std::vector<BSONObj>& filteredBatch,
+                                   std::vector<size_t>& filteredIndices) {
+    auto& originalUserMeasurementBatch = request.getDocuments();
+    for (size_t index = 0; index < numDocs; index++) {
+        auto stmtId = request.getStmtIds() ? request.getStmtIds()->at(start + index)
+                                           : request.getStmtId().value_or(0) + start + index;
+        if (!TransactionParticipant::get(opCtx).checkStatementExecuted(opCtx, stmtId)) {
+            filteredBatch.emplace_back(originalUserMeasurementBatch.at(start + index));
+            filteredIndices.emplace_back(start + index);
+        }
+    }
+}
 }  // namespace
 
 NamespaceString ns(const mongo::write_ops::InsertCommandRequest& request) {
@@ -1221,6 +1428,7 @@ TimeseriesWriteBatches stageInsertBatch(
     bool needsAnotherBucket = true;
 
     while (needsAnotherBucket) {
+        bool bucketOpenedDueToMetadata = true;
         auto [measurement, measurementTimestamp, _] =
             batch.measurementsTimesAndIndices[currentPosition];
         auto& eligibleBucket = bucket_catalog::getEligibleBucket(opCtx,
@@ -1236,11 +1444,15 @@ TimeseriesWriteBatches stageInsertBatch(
                                                                  catalogEra,
                                                                  storageCacheSizeBytes,
                                                                  compressAndWriteBucketFunc,
-                                                                 batch.stats);
+                                                                 batch.stats,
+                                                                 bucketOpenedDueToMetadata);
 
-        // We have a guarantee that eligibleBucket can insert at least one measurement in the batch,
-        // so this will always be assigned a relevant writeBatch.
-        std::shared_ptr<bucket_catalog::WriteBatch> writeBatch;
+        // getEligibleBucket guarantees that we will successfully insert at least one measurement
+        // (batch.measurementsTimesAndIndices[currentPosition]) into the provided bucket without
+        // rolling it over, which allows us to unconditionally initialize the writeBatch.
+        std::shared_ptr<bucket_catalog::WriteBatch> writeBatch = activeBatch(
+            bucketCatalog.trackingContexts, eligibleBucket, opId, batch.stripeNumber, batch.stats);
+        writeBatch->openedDueToMetadata = bucketOpenedDueToMetadata;
         needsAnotherBucket =
             !(bucket_catalog::internal::stageInsertBatchIntoEligibleBucket(bucketCatalog,
                                                                            opId,
@@ -1302,5 +1514,42 @@ StatusWith<TimeseriesWriteBatches> prepareInsertsToBuckets(
 
     return results;
 }
+
+void rewriteIndicesForSubsetOfBatch(OperationContext* opCtx,
+                                    const mongo::write_ops::InsertCommandRequest& request,
+                                    size_t startIndex,
+                                    TimeseriesWriteBatches& writeBatches,
+                                    std::vector<size_t>& originalIndices) {
+    auto stmtIds = request.getStmtIds();
+    auto retryableWrites = isTimeseriesWriteRetryable(opCtx);
+    for (auto& writeBatch : writeBatches) {
+        for (size_t index = 0; index < writeBatch->userBatchIndices.size(); index++) {
+            auto shiftedIndex = writeBatch->userBatchIndices[index];
+            auto originalIndex = originalIndices[shiftedIndex];
+            writeBatch->userBatchIndices[index] = originalIndex;
+            if (retryableWrites) {
+                auto stmtId = stmtIds
+                    ? stmtIds->at(startIndex + originalIndex)
+                    : request.getStmtId().value_or(0) + startIndex + originalIndex;
+                writeBatch->stmtIds.push_back(stmtId);
+            }
+        }
+    }
+}
+
+void processErrorsForSubsetOfBatch(OperationContext* opCtx,
+                                   const std::vector<WriteStageErrorAndIndex>& errorsAndIndices,
+                                   const std::vector<size_t>& originalIndices,
+                                   std::vector<mongo::write_ops::WriteError>* errors) {
+    if (!errorsAndIndices.empty()) {
+        for (auto& [errorStatus, index] : errorsAndIndices) {
+            auto error = write_ops_exec::generateError(
+                opCtx, errorStatus, originalIndices[index], errors->size());
+            invariant(errorStatus.code() != ErrorCodes::WriteConflict);
+            errors->emplace_back(std::move(*error));
+        }
+    }
+}
+
 
 }  // namespace mongo::timeseries::write_ops::internal
