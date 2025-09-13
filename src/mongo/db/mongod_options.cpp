@@ -99,7 +99,6 @@
 
 namespace mongo {
 
-using std::endl;
 
 std::string storageDBPathDescription() {
     StringBuilder sb;
