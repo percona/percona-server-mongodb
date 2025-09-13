@@ -435,13 +435,15 @@ protected:
     }
 
     std::unique_ptr<WiredTigerKVEngine> _createWiredTigerKVEngine() {
+        WiredTigerKVEngine::WiredTigerConfig wtConfig;
+        wtConfig.extraOpenOptions = "log=(file_max=1m,prealloc=false)";
+        wtConfig.cacheSizeMB = 1;
+
         auto engine = std::make_unique<WiredTigerKVEngine>(
             "wiredTiger",
             _tempDir->path(),
             _clockSource.get(),
-            "log=(file_max=1m,prealloc=false)",
-            1,
-            1,
+            std::move(wtConfig),
             false,
             false,
             _runner.get(),

@@ -779,14 +779,13 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     const std::string& canonicalName,
     const std::string& path,
     ClockSource* cs,
-    const std::string& extraOpenOptions,
-    size_t cacheSizeMB,
-    size_t maxHistoryFileSizeMB,
+    WiredTigerConfig wtConfig,
     bool ephemeral,
     bool repair,
     PeriodicRunner* periodicRunner,
     const encryption::MasterKeyProviderFactory& keyProviderFactory)
-    : _restEncr(DataAtRestEncryption::create(encryptionGlobalParams,
+    : _wtConfig(std::move(wtConfig)),
+      _restEncr(DataAtRestEncryption::create(encryptionGlobalParams,
                                              boost::filesystem::path(path),
                                              keyProviderFactory,
                                              storageGlobalParams.directoryperdb,
@@ -799,12 +798,14 @@ WiredTigerKVEngine::WiredTigerKVEngine(
                              gWiredTigerSizeStorerPeriodicSyncHits,
                              Milliseconds{gWiredTigerSizeStorerPeriodicSyncPeriodMillis}),
       _ephemeral(ephemeral),
-      _inRepairMode(repair),
-      _cacheSizeMB(cacheSizeMB) {
+      _inRepairMode(repair) {
+    // When the storage engine is configured to be in-memory, it should also be ephemeral.
+    invariant(!_wtConfig.inMemory || _ephemeral);
+
     _pinnedOplogTimestamp.store(Timestamp::max().asULL());
     boost::filesystem::path journalPath = path;
     journalPath /= "journal";
-    if (!_ephemeral) {
+    if (!_wtConfig.inMemory) {
         if (!boost::filesystem::exists(journalPath)) {
             try {
                 boost::filesystem::create_directory(journalPath);
@@ -820,19 +821,18 @@ WiredTigerKVEngine::WiredTigerKVEngine(
 
     std::stringstream ss;
     ss << "create,";
-    ss << "cache_size=" << cacheSizeMB << "M,";
-    ss << "session_max=" << gWiredTigerSessionMax << ",";
-    ss << "eviction=(threads_min=4,threads_max=4),";
+    ss << "cache_size=" << _wtConfig.cacheSizeMB << "M,";
+    ss << "session_max=" << _wtConfig.sessionMax << ",";
+    ss << "eviction=(threads_min=" << _wtConfig.evictionThreadsMin
+       << ",threads_max=" << _wtConfig.evictionThreadsMax << "),";
 
     if (gWiredTigerEvictionDirtyTargetGB)
-        ss << "eviction_dirty_target="
-           << static_cast<size_t>(gWiredTigerEvictionDirtyTargetGB * 1024) << "MB,";
+        ss << "eviction_dirty_target=" << _wtConfig.evictionDirtyTargetMB << "MB,";
     if (!gWiredTigerExtraDiagnostics.empty())
         ss << "extra_diagnostics=[" << boost::algorithm::join(gWiredTigerExtraDiagnostics, ",")
            << "],";
     if (gWiredTigerEvictionDirtyMaxGB)
-        ss << "eviction_dirty_trigger=" << static_cast<size_t>(gWiredTigerEvictionDirtyMaxGB * 1024)
-           << "MB,";
+        ss << "eviction_dirty_trigger=" << _wtConfig.evictionDirtyTriggerMB << "MB,";
     if (gWiredTigerCheckpointCleanupPeriodSeconds)
         ss << "checkpoint_cleanup=(wait="
            << static_cast<size_t>(gWiredTigerCheckpointCleanupPeriodSeconds) << "),";
@@ -840,23 +840,28 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     ss << "config_base=false,";
     ss << "statistics=(fast),";
 
-    if (_ephemeral) {
+    if (_wtConfig.inMemory) {
+        invariant(!_wtConfig.logEnabled);
         // If we've requested an ephemeral instance we store everything into memory instead of
         // backing it onto disk. Logging is not supported in this instance, thus we also have to
         // disable it.
         ss << ",in_memory=true,log=(enabled=false),";
     } else {
-        // In persistent mode we enable the journal and set the compression settings.
-        ss << "log=(enabled=true,remove=true,path=journal,compressor=";
-        ss << wiredTigerGlobalOptions.journalCompressor << "),";
-        ss << "builtin_extension_config=(zstd=(compression_level="
-           << wiredTigerGlobalOptions.zstdCompressorLevel << ")),";
+        if (_wtConfig.logEnabled) {
+            ss << "log=(enabled=true,remove=true,path=journal,compressor=";
+            ss << _wtConfig.logCompressor << "),";
+        } else {
+            ss << "log=(enabled=false),";
+        }
     }
+
+    ss << "builtin_extension_config=(zstd=(compression_level=" << _wtConfig.zstdCompressorLevel
+       << ")),";
 
     ss << "file_manager=(close_idle_time=" << gWiredTigerFileHandleCloseIdleTime
        << ",close_scan_interval=" << gWiredTigerFileHandleCloseScanInterval
        << ",close_handle_minimum=" << gWiredTigerFileHandleCloseMinimum << "),";
-    ss << "statistics_log=(wait=" << wiredTigerGlobalOptions.statisticsLogDelaySecs << "),";
+    ss << "statistics_log=(wait=" << _wtConfig.statisticsLogWaitSecs << "),";
 
     // Enable JSON output for errors and messages.
     ss << "json_output=(error,message),";
@@ -936,23 +941,23 @@ WiredTigerKVEngine::WiredTigerKVEngine(
         ss << "timing_stress_for_test=[history_store_checkpoint_delay,checkpoint_slow],";
     }
 
-    if (gFeatureFlagPrefetch.isEnabled() && !_ephemeral) {
+    if (gFeatureFlagPrefetch.isEnabled() && !_wtConfig.inMemory) {
         ss << "prefetch=(available=true,default=false),";
     }
 
-    if (!wiredTigerGlobalOptions.liveRestoreSource.empty() && !_ephemeral) {
-        ss << "live_restore=(enabled=true,path=\"" << wiredTigerGlobalOptions.liveRestoreSource
-           << "\",threads_max=" << wiredTigerGlobalOptions.liveRestoreThreads
-           << ",read_size=" << wiredTigerGlobalOptions.liveRestoreReadSizeMB << "MB"
+    if (!_wtConfig.liveRestorePath.empty() && !isEphemeral()) {
+        ss << "live_restore=(enabled=true,path=\"" << _wtConfig.liveRestorePath
+           << "\",threads_max=" << _wtConfig.liveRestoreThreadsMax
+           << ",read_size=" << _wtConfig.liveRestoreReadSizeMB << "MB"
            << "),";
     }
 
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())
               ->getTableCreateConfig("system");
     ss << WiredTigerExtensions::get(getGlobalServiceContext())->getOpenExtensionsConfig();
-    ss << extraOpenOptions;
+    ss << _wtConfig.extraOpenOptions;
 
-    if (WiredTigerUtil::willRestoreFromBackup()) {
+    if (!isEphemeral() && WiredTigerUtil::willRestoreFromBackup()) {
         ss << WiredTigerUtil::generateRestoreConfig() << ",";
     }
 
@@ -1001,7 +1006,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     setOldestActiveTransactionTimestampCallback(
         [](Timestamp) { return StatusWith(boost::make_optional(Timestamp::min())); });
 
-    if (!_ephemeral) {
+    if (!isEphemeral()) {
         if (!_recoveryTimestamp.isNull()) {
             // If the oldest/initial data timestamps were unset (there was no persisted durable
             // history), initialize them to the recovery timestamp.
@@ -1033,7 +1038,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
         }
     }
 
-    if (_ephemeral && !TestingProctor::instance().isEnabled()) {
+    if (isEphemeral() && !TestingProctor::instance().isEnabled()) {
         // We do not maintain any snapshot history for the ephemeral storage engine in production
         // because replication and sharded transactions do not currently run on the inMemory engine.
         // It is live in testing, however.
@@ -1419,7 +1424,7 @@ Status WiredTigerKVEngine::_rebuildIdent(WiredTigerSession& session, const char*
 
 void WiredTigerKVEngine::flushAllFiles(OperationContext* opCtx, bool callerHoldsReadLock) {
     LOGV2_DEBUG(22330, 1, "WiredTigerKVEngine::flushAllFiles");
-    if (_ephemeral) {
+    if (_wtConfig.inMemory) {
         return;
     }
 
@@ -1436,7 +1441,7 @@ void WiredTigerKVEngine::flushAllFiles(OperationContext* opCtx, bool callerHolds
     syncSizeInfo(true);
 
     // If there's no journal (ephemeral), we must checkpoint all of the data.
-    Fsync fsyncType = !_ephemeral ? Fsync::kCheckpointStableTimestamp : Fsync::kCheckpointAll;
+    Fsync fsyncType = !isEphemeral() ? Fsync::kCheckpointStableTimestamp : Fsync::kCheckpointAll;
 
     // We will skip updating the journal listener if the caller holds read locks.
     // The JournalListener may do writes, and taking write locks would conflict with the read locks.
@@ -1450,7 +1455,7 @@ Status WiredTigerKVEngine::beginBackup() {
     invariant(!_backupSession);
 
     // The inMemory Storage Engine cannot create a backup cursor.
-    if (_ephemeral) {
+    if (isEphemeral()) {
         return Status::OK();
     }
 
@@ -2860,14 +2865,17 @@ Status WiredTigerKVEngine::createRecordStore(const NamespaceString& nss,
                                              KeyFormat keyFormat) {
     WiredTigerSession session(_connection.get());
 
+    WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig =
+        getWiredTigerTableConfigFromStartupOptions();
+    wtTableConfig.keyFormat = keyFormat;
+    wtTableConfig.logEnabled = WiredTigerUtil::useTableLogging(nss);
+    wtTableConfig.extraCreateOptions = _rsOptions;
     StatusWith<std::string> result =
         WiredTigerRecordStore::generateCreateString(_canonicalName,
                                                     NamespaceStringUtil::serializeForCatalog(nss),
                                                     ident,
                                                     options,
-                                                    _rsOptions,
-                                                    keyFormat,
-                                                    WiredTigerUtil::useTableLogging(nss),
+                                                    wtTableConfig,
                                                     nss.isOplog());
 
     if (options.clusteredIndex) {
@@ -3002,7 +3010,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
             WiredTigerRecordStore::Oplog::Params{.uuid = *options.uuid,
                                                  .ident = ident.toString(),
                                                  .engineName = _canonicalName,
-                                                 .isEphemeral = _ephemeral,
+                                                 .inMemory = _wtConfig.inMemory,
                                                  .oplogMaxSize = options.cappedSize,
                                                  .sizeStorer = _sizeStorer.get(),
                                                  .tracksSizeAdjustments = true,
@@ -3028,7 +3036,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
             // Record stores for clustered collections need to guarantee uniqueness by preventing
             // overwrites.
             .overwrite = !options.clusteredIndex,
-            .isEphemeral = _ephemeral,
+            .inMemory = _wtConfig.inMemory,
             .isLogged =
                 [&] {
                     if (!nss.isEmpty()) {
@@ -3177,7 +3185,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getTemporaryRecordStore(Operati
     params.engineName = _canonicalName;
     params.keyFormat = keyFormat;
     params.overwrite = true;
-    params.isEphemeral = _ephemeral;
+    params.inMemory = _wtConfig.inMemory;
     params.isLogged = isLogged;
     params.isChangeCollection = false;
     // Temporary collections do not need to persist size information to the size storer.
@@ -3194,16 +3202,15 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(Operat
                                                                           KeyFormat keyFormat) {
     WiredTigerSession session(_connection.get());
 
+    WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig =
+        getWiredTigerTableConfigFromStartupOptions();
+    wtTableConfig.keyFormat = keyFormat;
     // We don't log writes to temporary record stores.
-    const bool isLogged = false;
-    StatusWith<std::string> swConfig =
-        WiredTigerRecordStore::generateCreateString(_canonicalName,
-                                                    {} /* internal table */,
-                                                    ident,
-                                                    CollectionOptions(),
-                                                    _rsOptions,
-                                                    keyFormat,
-                                                    isLogged);
+    wtTableConfig.logEnabled = false;
+    wtTableConfig.extraCreateOptions = _rsOptions;
+
+    StatusWith<std::string> swConfig = WiredTigerRecordStore::generateCreateString(
+        _canonicalName, {} /* internal table */, ident, CollectionOptions(), wtTableConfig);
     uassertStatusOK(swConfig.getStatus());
 
     std::string config = swConfig.getValue();
@@ -3388,9 +3395,8 @@ void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session, bool useTimesta
 }
 
 void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session) try {
-    // Ephemeral WiredTiger instances cannot do a checkpoint to disk as there is no disk backing
-    // the data.
-    if (_ephemeral) {
+    // Ephemeral WiredTiger instances do not checkpoint to disk.
+    if (isEphemeral()) {
         return;
     }
 
@@ -3745,8 +3751,8 @@ Timestamp WiredTigerKVEngine::_calculateHistoryLagFromStableTimestamp(Timestamp 
     // The oldest_timestamp should lag behind the stable_timestamp by
     // 'minSnapshotHistoryWindowInSeconds' seconds.
 
-    if (_ephemeral && !TestingProctor::instance().isEnabled()) {
-        // No history should be maintained for the inMemory engine because it is not used yet.
+    if (isEphemeral() && !TestingProctor::instance().isEnabled()) {
+        // No history should be maintained for an ephemeral engine because it is not used yet.
         invariant(minSnapshotHistoryWindowInSeconds.load() == 0);
     }
 
@@ -3910,7 +3916,7 @@ boost::optional<Timestamp> WiredTigerKVEngine::getRecoveryTimestamp() const {
 }
 
 boost::optional<Timestamp> WiredTigerKVEngine::getLastStableRecoveryTimestamp() const {
-    if (_ephemeral) {
+    if (isEphemeral()) {
         Timestamp stable(_stableTimestamp.load());
         Timestamp initialData(_initialDataTimestamp.load());
         if (stable.isNull() || stable < initialData) {
@@ -3960,7 +3966,7 @@ StatusWith<Timestamp> WiredTigerKVEngine::getOplogNeededForRollback() const {
 }
 
 boost::optional<Timestamp> WiredTigerKVEngine::getOplogNeededForCrashRecovery() const {
-    if (_ephemeral) {
+    if (isEphemeral()) {
         return boost::none;
     }
 
@@ -4166,7 +4172,7 @@ bool WiredTigerKVEngine::waitUntilUnjournaledWritesDurable(OperationContext* opC
 void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
                                           Fsync syncType,
                                           UseJournalListener useListener) {
-    // For inMemory storage engines, the data is "as durable as it's going to get".
+    // For ephemeral storage engines, the data is "as durable as it's going to get".
     // That is, a restart is equivalent to a complete node failure.
     if (isEphemeral()) {
         auto [journalListener, token] = _getJournalListenerWithToken(opCtx, useListener);
@@ -4371,14 +4377,14 @@ KeyFormat WiredTigerKVEngine::getKeyFormat(RecoveryUnit& ru, StringData ident) c
 }
 
 size_t WiredTigerKVEngine::getCacheSizeMB() const {
-    return _cacheSizeMB;
+    return _wtConfig.cacheSizeMB;
 }
 
 BSONObj WiredTigerKVEngine::getSanitizedStorageOptionsForSecondaryReplication(
     const BSONObj& options) const {
 
-    // Skip inMemory storage engine, encryption at rest only applies to storage backed engine.
-    if (_ephemeral) {
+    // Skip ephemeral storage engines, encryption at rest only applies to storage backed engine.
+    if (isEphemeral()) {
         return options;
     }
 
@@ -4483,6 +4489,27 @@ Status WiredTigerKVEngine::_drop(WiredTigerSession& session, const char* uri, co
     }
     // TODO: SERVER-100390 add dump and debug info if the drop failed here.
     return wtRCToStatus(ret, session);
+}
+
+WiredTigerKVEngine::WiredTigerConfig getWiredTigerConfigFromStartupOptions() {
+    WiredTigerKVEngine::WiredTigerConfig wtConfig;
+    wtConfig.sessionMax = gWiredTigerSessionMax;
+    wtConfig.evictionDirtyTargetMB = gWiredTigerEvictionDirtyTargetGB * 1024;
+    wtConfig.evictionDirtyTriggerMB = gWiredTigerEvictionDirtyMaxGB * 1024;
+    wtConfig.logCompressor = wiredTigerGlobalOptions.journalCompressor;
+    wtConfig.liveRestorePath = wiredTigerGlobalOptions.liveRestoreSource;
+    wtConfig.liveRestoreThreadsMax = wiredTigerGlobalOptions.liveRestoreThreads;
+    wtConfig.liveRestoreReadSizeMB = wiredTigerGlobalOptions.liveRestoreReadSizeMB;
+    wtConfig.statisticsLogWaitSecs = wiredTigerGlobalOptions.statisticsLogDelaySecs;
+    wtConfig.zstdCompressorLevel = wiredTigerGlobalOptions.zstdCompressorLevel;
+    wtConfig.extraOpenOptions = wiredTigerGlobalOptions.engineConfig;
+    return wtConfig;
+}
+
+WiredTigerRecordStore::WiredTigerTableConfig getWiredTigerTableConfigFromStartupOptions() {
+    WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig;
+    wtTableConfig.blockCompressor = wiredTigerGlobalOptions.collectionBlockCompressor;
+    return wtTableConfig;
 }
 
 }  // namespace mongo

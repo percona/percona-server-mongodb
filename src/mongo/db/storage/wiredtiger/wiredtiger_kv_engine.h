@@ -64,6 +64,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_event_handler.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_oplog_manager.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_session.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_size_storer.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_snapshot_manager.h"
@@ -82,11 +83,9 @@ class ClockSource;
 class EncryptionKeyDB;
 class JournalListener;
 
-class WiredTigerRecordStore;
 class WiredTigerConnection;
-class WiredTigerSizeStorer;
-
 class WiredTigerEngineRuntimeConfigParameter;
+class WiredTigerGlobalOptions;
 
 /**
  * With the absolute path to an ident and the parent dbpath, return the ident.
@@ -196,6 +195,44 @@ class WiredTigerKVEngine final : public KVEngine {
 public:
     static StringData kTableUriPrefix;
 
+    // Encapsulates configuration parameters to configure the WiredTiger instance.
+    struct WiredTigerConfig {
+        // The amount of memory alloted for the WiredTiger cache. This specifies the value for the
+        // cache_size configuration parameter.
+        int32_t cacheSizeMB;
+        // The maximum number of sessions. This specifies the value for the session_max
+        // configuration parameter.
+        int32_t sessionMax{33000};
+        // This specifies the value for the eviction.threads_min configuration parameter.
+        int32_t evictionThreadsMin{4};
+        // This specifies the value for the eviction.threads_max configuration parameter.
+        int32_t evictionThreadsMax{4};
+        // This specifies the value for the eviction_dirty_target configuration parameter.
+        int32_t evictionDirtyTargetMB{0};
+        // This specifies the value for the eviction_dirty_trigger configuration parameter.
+        int32_t evictionDirtyTriggerMB{0};
+        // This specifies the value for the in_memory configuration parameter.
+        bool inMemory{false};
+        // This specifies the value for the log.enabled configuration parameter.
+        bool logEnabled{true};
+        // This specifies the value for the log.compressor configuration parameter.
+        std::string logCompressor{"snappy"};
+        // This specifies the value for the live_restore.path configuration parameter.
+        std::string liveRestorePath;
+        // This specifies the value for the live_restore.threads_max configuration parameter.
+        int32_t liveRestoreThreadsMax{8};
+        // This specifies the value for the live_restore.read_size configuration parameter.
+        int32_t liveRestoreReadSizeMB{1};
+        // This specifies the value for the statistics_log.wait configuration parameter.
+        int32_t statisticsLogWaitSecs{0};
+        // This specifies the value for the builtin_extension_config.zstd.compression_level
+        // configuration parameter.
+        int32_t zstdCompressorLevel{6};
+        // Any additional configuration parameters for wiredtiger_open() in the configuration string
+        // format.
+        std::string extraOpenOptions;
+    };
+
     /// @brief Constructor.
     ///
     /// @param periodicRuner pointer to a `PeriodicRunner`. Must be a valid
@@ -204,9 +241,7 @@ public:
     WiredTigerKVEngine(const std::string& canonicalName,
                        const std::string& path,
                        ClockSource* cs,
-                       const std::string& extraOpenOptions,
-                       size_t cacheSizeMB,
-                       size_t maxHistoryFileSizeMB,
+                       WiredTigerConfig wtConfig,
                        bool ephemeral,
                        bool repair,
                        PeriodicRunner* periodicRunner = nullptr,
@@ -241,7 +276,7 @@ public:
 
     bool hasDataBeenCheckpointed(
         StorageEngine::CheckpointIteration checkpointIteration) const override {
-        return _ephemeral || _finishedCheckpointIteration.load() > checkpointIteration;
+        return _wtConfig.inMemory || _finishedCheckpointIteration.load() > checkpointIteration;
     }
 
     bool isEphemeral() const override {
@@ -693,6 +728,8 @@ private:
     StorageEngine::OldestActiveTransactionTimestampCallback
         _oldestActiveTransactionTimestampCallback;
 
+    // Configuration parameters to configure the WiredTiger instance.
+    WiredTigerConfig _wtConfig;
     std::unique_ptr<DataAtRestEncryption> _restEncr;
     WT_CONNECTION* _conn;
     WiredTigerFileVersion _fileVersion;
@@ -711,7 +748,8 @@ private:
     mutable ElapsedTracker _sizeStorerSyncTracker;
     mutable stdx::mutex _sizeStorerSyncTrackerMutex;
 
-    bool _ephemeral;  // whether we are using the in-memory mode of the WT engine
+    // When the storage engine is ephemeral, data doesn't need to persist after a restart.
+    bool _ephemeral{false};
     const bool _inRepairMode;
 
     std::unique_ptr<WiredTigerSessionSweeper> _sessionSweeper;
@@ -744,9 +782,6 @@ private:
     AtomicWord<std::uint64_t> _pinnedOplogTimestamp;
 
     stdx::mutex _checkpointMutex;
-
-    // The amount of memory alloted for the WiredTiger cache.
-    size_t _cacheSizeMB;
 
     // Counters used for computing whether a checkpointIteration has lapsed or not.
     //
@@ -787,4 +822,15 @@ private:
     // --directoryPerDb).
     stdx::mutex _directoryModificationMutex;
 };
+
+/**
+ * Returns a WiredTigerConfig populated with config values provided at startup.
+ */
+WiredTigerKVEngine::WiredTigerConfig getWiredTigerConfigFromStartupOptions();
+
+/**
+ * Returns a WiredTigerTableConfig populated with config values provided at startup.
+ */
+WiredTigerRecordStore::WiredTigerTableConfig getWiredTigerTableConfigFromStartupOptions();
+
 }  // namespace mongo

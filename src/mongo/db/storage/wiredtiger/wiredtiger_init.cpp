@@ -132,14 +132,19 @@ public:
                               "RAM. See http://dochub.mongodb.org/core/faq-memory-diagnostics-wt");
             }
         }
+
+        WiredTigerKVEngine::WiredTigerConfig wtConfig = getWiredTigerConfigFromStartupOptions();
+        wtConfig.cacheSizeMB = cacheMB;
+        wtConfig.inMemory = params.inMemory;
+        if (params.inMemory) {
+            wtConfig.logEnabled = false;
+        }
         auto kv =
             std::make_unique<WiredTigerKVEngine>(getCanonicalName().toString(),
                                                  params.dbpath,
                                                  getGlobalServiceContext()->getFastClockSource(),
-                                                 wiredTigerGlobalOptions.engineConfig,
-                                                 cacheMB,
-                                                 wiredTigerGlobalOptions.getMaxHistoryFileSizeMB(),
-                                                 params.ephemeral,
+                                                 std::move(wtConfig),
+                                                 params.inMemory,
                                                  params.repair,
                                                  opCtx->getServiceContext()->getPeriodicRunner());
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);

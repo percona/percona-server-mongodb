@@ -70,13 +70,18 @@ public:
 
         size_t cacheMB = WiredTigerUtil::getCacheSizeMB(wiredTigerGlobalOptions.cacheSizeGB);
         const bool ephemeral = true;
+        WiredTigerKVEngine::WiredTigerConfig wtConfig = getWiredTigerConfigFromStartupOptions();
+        wtConfig.cacheSizeMB = cacheMB;
+        wtConfig.inMemory = params.inMemory;
+        if (params.inMemory) {
+            wtConfig.logEnabled = false;
+        }
+
         auto kv =
             std::make_unique<WiredTigerKVEngine>(getCanonicalName().toString(),
                                                  params.dbpath,
                                                  getGlobalServiceContext()->getFastClockSource(),
-                                                 wiredTigerGlobalOptions.engineConfig,
-                                                 cacheMB,
-                                                 0,
+                                                 std::move(wtConfig),
                                                  ephemeral,
                                                  params.repair);
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);

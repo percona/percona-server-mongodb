@@ -53,17 +53,17 @@ public:
             setGlobalServiceContext(ServiceContext::make());
         auto client = svcCtx->getService()->makeClient("opCtx");
         auto opCtx = client->makeOperationContext();
-        _engine.reset(new WiredTigerKVEngine(kInMemoryEngineName,
-                                             _dbpath.path(),
-                                             _cs.get(),
-                                             "in_memory=true,"
-                                             "log=(enabled=false),"
-                                             "file_manager=(close_idle_time=0),"
-                                             "checkpoint=(wait=0,log_size=0)",
-                                             100,
-                                             0,
-                                             true,
-                                             false));
+
+        WiredTigerKVEngine::WiredTigerConfig wtConfig;
+        wtConfig.cacheSizeMB = 100;
+        wtConfig.inMemory = true;
+        wtConfig.extraOpenOptions =
+            "in_memory=true,"
+            "log=(enabled=false),"
+            "file_manager=(close_idle_time=0),"
+            "checkpoint=(wait=0,log_size=0)";
+        _engine.reset(new WiredTigerKVEngine(
+            kInMemoryEngineName, _dbpath.path(), _cs.get(), std::move(wtConfig), true, false));
         repl::ReplicationCoordinator::set(
             svcCtx,
             std::unique_ptr<repl::ReplicationCoordinator>(
