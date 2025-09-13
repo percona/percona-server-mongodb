@@ -907,8 +907,9 @@ private:
         planCacheCounters.incrementSbeHitsCounter();
 
         auto result = releaseResult();
-        result->runtimePlanner =
-            crp_sbe::makePlannerForSbeCacheEntry(makePlannerData(), std::move(cacheEntry));
+        const auto cachedSolutionHash = cacheEntry->cachedPlan->solutionHash;
+        result->runtimePlanner = crp_sbe::makePlannerForSbeCacheEntry(
+            makePlannerData(), std::move(cacheEntry), cachedSolutionHash);
         return result;
     }
 
@@ -991,8 +992,12 @@ private:
                     *_cq, std::move(querySolution), _plannerParams->secondaryCollectionsInfo);
 
                 auto result = releaseResult();
-                result->runtimePlanner = crp_sbe::makePlannerForClassicCacheEntry(
-                    makePlannerData(), std::move(querySolution), cs->decisionReads());
+
+                result->runtimePlanner =
+                    crp_sbe::makePlannerForClassicCacheEntry(makePlannerData(),
+                                                             std::move(querySolution),
+                                                             cs->cachedPlan->solutionHash,
+                                                             cs->decisionReads());
 
                 planCacheCounters.incrementClassicHitsCounter();
                 return result;
@@ -1301,14 +1306,24 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     };
 
     auto planner = [&] {
-        try {
+        static constexpr size_t kMaxIterations = 5;
+        for (size_t iter = 0; iter < kMaxIterations; ++iter) {
             try {
                 // First try the single collection query parameters, as these would have been
                 // generated with query settings if present.
                 return makePlanner(std::move(paramsForSingleCollectionQuery));
+            } catch (const ExceptionFor<ErrorCodes::NoDistinctScansForDistinctEligibleQuery>&) {
+                // The planner failed to generate a DISTINCT_SCAN for a distinct-like query. Remove
+                // the distinct property and replan using SBE or subplanning as applicable.
+                canonicalQuery->resetDistinct();
+                if (canonicalQuery->isSbeCompatible()) {
+                    // Stages still need to be finalized for SBE since classic was used previously.
+                    finalizePipelineStages(pipeline, canonicalQuery.get());
+                }
+                return makePlanner(makeQueryPlannerParams(plannerOptions));
             } catch (const ExceptionFor<ErrorCodes::NoQueryExecutionPlans>& exception) {
-                // The planner failed to generate a viable plan. Remove the query settings and retry
-                // if any are present. Otherwise just propagate the exception.
+                // The planner failed to generate a viable plan. Remove the query settings and
+                // retry if any are present. Otherwise just propagate the exception.
                 const auto& querySettings = canonicalQuery->getExpCtx()->getQuerySettings();
                 const bool hasQuerySettings = querySettings.getIndexHints().has_value();
                 if (!hasQuerySettings) {
@@ -1325,18 +1340,14 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
                     "code"_attr = exception.codeString());
 
                 plannerOptions |= QueryPlannerParams::IGNORE_QUERY_SETTINGS;
-                return makePlanner(makeQueryPlannerParams(plannerOptions));
+                // Propagate the params to the next iteration.
+                paramsForSingleCollectionQuery = makeQueryPlannerParams(plannerOptions);
+            } catch (const ExceptionFor<ErrorCodes::RetryMultiPlanning>&) {
+                // Propagate the params to the next iteration.
+                paramsForSingleCollectionQuery = makeQueryPlannerParams(plannerOptions);
             }
-        } catch (const ExceptionFor<ErrorCodes::NoDistinctScansForDistinctEligibleQuery>&) {
-            // The planner failed to generate a DISTINCT_SCAN for a distinct-like query. Remove the
-            // distinct property and replan using SBE or subplanning as applicable.
-            canonicalQuery->resetDistinct();
-            if (canonicalQuery->isSbeCompatible()) {
-                // Stages still need to be finalized for SBE since classic was used previously.
-                finalizePipelineStages(pipeline, canonicalQuery.get());
-            }
-            return makePlanner(makeQueryPlannerParams(plannerOptions));
         }
+        tasserted(8712800, "Exceeded retry iterations for making a planner");
     }();
     auto exec = planner->makeExecutor(std::move(canonicalQuery));
     setCurOpQueryFramework(exec.get());
