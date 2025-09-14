@@ -47,11 +47,16 @@ public:
 
     ~AddShardCoordinator() override = default;
 
-    void checkIfOptionsConflict(const BSONObj& stateDoc) const override {}
+    void checkIfOptionsConflict(const BSONObj& stateDoc) const override;
 
     const std::string& getResult(OperationContext* opCtx) const;
 
     bool canAlwaysStartWhenUserWritesAreDisabled() const override;
+
+    static std::shared_ptr<AddShardCoordinator> create(OperationContext* opCtx,
+                                                       const mongo::ConnectionString& target,
+                                                       boost::optional<std::string> name,
+                                                       bool isConfigShard);
 
 protected:
     bool _mustAlwaysMakeProgress() override;
