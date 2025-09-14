@@ -209,7 +209,8 @@ buildvariants:
       exec_timeout_factor: 1.5
       test_flags: >-
         --runAllFeatureFlagTests
-        --additionalFeatureFlags "featureFlagShardAuthoritativeDbMetadata"
+        --additionalFeatureFlags "featureFlagShardAuthoritativeDbMetadataCRUD"
+        --additionalFeatureFlags "featureFlagShardAuthoritativeDbMetadataDDL"
         --excludeWithAnyTags=incompatible_with_amazon_linux,requires_ldap_pool,requires_external_data_source,incompatible_with_atlas_environment,multiversion_incompatible,incompatible_with_authoritative_shards
     tasks:
       - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only !.multiversion
@@ -656,10 +657,7 @@ buildvariants:
         --excludeWithAnyTags=incompatible_with_amazon_linux,requires_ldap_pool,requires_external_data_source,incompatible_with_atlas_environment
       compile_variant: *amazon-linux2023-arm64-static-compile-toolchain-v5
     tasks:
-      - name: search_end_to_end_sharded_cluster
-      - name: search_end_to_end_single_node
-      - name: search_community_end_to_end_sharded_cluster
-      - name: search_community_end_to_end_single_node
+      - name: .search_e2e_tests
       - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only
       - name: .development_critical .requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only
         distros:

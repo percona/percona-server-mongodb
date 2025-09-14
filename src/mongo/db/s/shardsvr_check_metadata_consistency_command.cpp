@@ -222,10 +222,10 @@ public:
 
     private:
         template <typename Callback>
-        decltype(auto) _runWithDbMetadaLockDeadline(OperationContext* opCtx,
-                                                    Milliseconds timeout,
-                                                    const NamespaceString& nss,
-                                                    Callback&& cb) {
+        decltype(auto) _runWithDbMetadataLockDeadline(OperationContext* opCtx,
+                                                      Milliseconds timeout,
+                                                      const NamespaceString& nss,
+                                                      Callback&& cb) {
             const auto now = opCtx->getServiceContext()->getFastClockSource()->now();
             const auto deadline = now + timeout;
             const auto guard = opCtx->makeDeadlineGuard(deadline, ErrorCodes::ExceededTimeLimit);
@@ -307,7 +307,7 @@ public:
                     if (request().getDbMetadataLockMaxTimeMS().is_initialized()) {
                         const auto timeout =
                             Milliseconds(request().getDbMetadataLockMaxTimeMS().value());
-                        return _runWithDbMetadaLockDeadline(
+                        return _runWithDbMetadataLockDeadline(
                             opCtx, timeout, dbNss, checkMetadataForDb);
                     } else {
                         return checkMetadataForDb();
@@ -320,7 +320,8 @@ public:
                     auto extraInfo = status.extraInfo<StaleDbRoutingVersion>();
                     tassert(9980500, "StaleDbVersion must have extraInfo", extraInfo);
 
-                    if (feature_flags::gShardAuthoritativeDbMetadata.isEnabled()) {
+                    if (feature_flags::gShardAuthoritativeDbMetadataCRUD.isEnabled(
+                            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
                         // If versionWanted exists:
                         //    - This means that the wanted version is higher than the one initially
                         //      looked at the config server. There has been a drop-create under the
@@ -375,7 +376,7 @@ public:
                 if (request().getDbMetadataLockMaxTimeMS().is_initialized()) {
                     const auto timeout =
                         Milliseconds(request().getDbMetadataLockMaxTimeMS().value());
-                    return _runWithDbMetadaLockDeadline(opCtx, timeout, nss, establishDBCursors);
+                    return _runWithDbMetadataLockDeadline(opCtx, timeout, nss, establishDBCursors);
                 } else {
                     return establishDBCursors();
                 }

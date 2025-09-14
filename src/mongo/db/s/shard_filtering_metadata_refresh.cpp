@@ -440,19 +440,6 @@ void FilteringMetadataCache::forceCollectionPlacementRefresh(OperationContext* o
         return false;
     };
 
-    // Optimistic check with IS lock to avoid threads piling up on the collection X lock below.
-    {
-        Lock::DBLock dbLock(opCtx, nss.dbName(), MODE_IS);
-        Lock::CollectionLock collLock(opCtx, nss, MODE_IS);
-        const auto scopedCsr =
-            CollectionShardingRuntime::assertCollectionLockedAndAcquireShared(opCtx, nss);
-        if (isCollectionPlacementUpToDate(
-                scopedCsr->getCurrentMetadataIfKnown() /* optMetadata */)) {
-            return;
-        }
-    }
-
-    // Exclusive collection lock needed since we're now changing the metadata.
     Lock::DBLock dbLock(opCtx, nss.dbName(), MODE_IX);
     Lock::CollectionLock collLock(opCtx, nss, MODE_IX);
     auto scopedCsr =
@@ -470,7 +457,8 @@ Status FilteringMetadataCache::onDbVersionMismatch(
     const DatabaseName& dbName,
     boost::optional<DatabaseVersion> clientDbVersion) noexcept {
     try {
-        if (feature_flags::gShardAuthoritativeDbMetadata.isEnabled()) {
+        if (feature_flags::gShardAuthoritativeDbMetadataCRUD.isEnabled(
+                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
             tassert(10003600, "Expected to be called with a clientDbVersion", clientDbVersion);
             _onDbVersionMismatchAuthoritative(opCtx, dbName, *clientDbVersion);
         } else {
@@ -659,26 +647,6 @@ Status FilteringMetadataCache::_refreshDbMetadata(OperationContext* opCtx,
     // Force a refresh of the cached database metadata from the config server.
     catalogCache->onStaleDatabaseVersion(dbName, boost::none /* wantedVersion */);
     const auto swDbMetadata = catalogCache->getDatabase(opCtx, dbName);
-
-    // Before setting the database metadata, exit early if the database version received by the
-    // config server is not newer than the cached one. This is a best-effort optimization to reduce
-    // the number of possible threads convoying on the exclusive lock below.
-    {
-        Lock::DBLock dbLock(opCtx, dbName, MODE_IS);
-        const auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireShared(opCtx, dbName);
-
-        const auto cachedDbVersion = scopedDss->getDbVersion(opCtx);
-        if (swDbMetadata.isOK() && swDbMetadata.getValue()->getVersion() <= cachedDbVersion) {
-            LOGV2_DEBUG(7079300,
-                        2,
-                        "Skip setting cached database metadata as there are no updates",
-                        logAttrs(dbName),
-                        "cachedDbVersion"_attr = *cachedDbVersion,
-                        "refreshedDbVersion"_attr = swDbMetadata.getValue()->getVersion());
-
-            return Status::OK();
-        }
-    }
 
     Lock::DBLock dbLock(opCtx, dbName, MODE_IX);
     auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(opCtx, dbName);

@@ -77,6 +77,13 @@ struct TimeseriesSingleWriteResult {
     bool canContinue = true;
 };
 
+enum class StageWritesStatus {
+    kSuccess,
+    kContainsRetry,
+    kCollectionAcquisitionError,
+    kStagingError,
+};
+
 bool isTimeseriesWriteRetryable(OperationContext* opCtx) {
     return (opCtx->getTxnNumber() && !opCtx->inMultiDocumentTransaction());
 }
@@ -91,6 +98,15 @@ inline uint64_t getStorageCacheSizeBytes(OperationContext* opCtx) {
         1024;
 }
 
+inline void populateError(OperationContext* opCtx,
+                          size_t index,
+                          Status errorStatus,
+                          std::vector<mongo::write_ops::WriteError>* errors) {
+    if (auto error = write_ops_exec::generateError(opCtx, errorStatus, index, errors->size())) {
+        invariant(errorStatus.code() != ErrorCodes::WriteConflict);
+        errors->emplace_back(std::move(*error));
+    }
+}
 TimeseriesSingleWriteResult getTimeseriesSingleWriteResult(
     write_ops_exec::WriteResult&& reply, const mongo::write_ops::InsertCommandRequest& request) {
     invariant(reply.results.size() == 1,
@@ -634,10 +650,7 @@ void populateErrorsFromWriteBatches(OperationContext* opCtx,
     for (auto batchIndex = startIndex; batchIndex <= endIndex; batchIndex++) {
         auto batch = batches[batchIndex];
         for (auto index : batch->userBatchIndices) {
-            auto error = write_ops_exec::generateError(opCtx, errorStatus, index, errors.size());
-            if (error) {
-                errors.emplace_back(std::move(*error));
-            }
+            populateError(opCtx, static_cast<size_t>(index), errorStatus, &errors);
         }
     }
 }
@@ -749,17 +762,22 @@ void getStmtIdVectorFromRequest(OperationContext* opCtx,
 
 /**
  * Stages ordered writes.
- * Requires that no retryable writes have been executed prior and no malformed measurements.
- * Returns empty WriteBatches if either of the cases above is true.
  * On success, returns WriteBatches with the staged writes.
+ * Returns empty WriteBatches if:
+    - Collection acquisition fails, or
+    - Retryable writes have been executed, or
+    - Staging the measurements encounters an error
+ * Sets 'stageStatus' accordingly.
  */
 TimeseriesWriteBatches stageOrderedWritesToBucketCatalog(
     OperationContext* opCtx,
     const mongo::write_ops::InsertCommandRequest& request,
     std::vector<mongo::write_ops::WriteError>* errors,
-    bool* containsRetry) {
+    StageWritesStatus& stageStatus) {
     invariant(errors->empty());
     hangInsertIntoBucketCatalogBeforeCheckingTimeseriesCollection.pauseWhileSet();
+
+    stageStatus = StageWritesStatus::kSuccess;
 
     auto& bucketCatalog = bucket_catalog::GlobalBucketCatalog::get(opCtx->getServiceContext());
     auto bucketsNs = write_ops_utils::makeTimeseriesBucketsNamespace(internal::ns(request));
@@ -772,15 +790,6 @@ TimeseriesWriteBatches stageOrderedWritesToBucketCatalog(
 
     Status collectionAcquisitionStatus = Status::OK();
     TimeseriesOptions timeseriesOptions;
-
-    auto fillErrors = [&](size_t startIndex, Status errorCode) {
-        for (auto i = startIndex; i < measurementDocs.size(); i++) {
-            if (auto error = write_ops_exec::generateError(opCtx, errorCode, i, errors->size())) {
-                invariant(errorCode != ErrorCodes::WriteConflict);
-                errors->emplace_back(std::move(*error));
-            }
-        }
-    };
 
     try {
         // It must be ensured that the CollectionShardingState remains consistent while rebuilding
@@ -809,7 +818,8 @@ TimeseriesWriteBatches stageOrderedWritesToBucketCatalog(
     }
 
     if (!collectionAcquisitionStatus.isOK()) {
-        fillErrors(0, collectionAcquisitionStatus);
+        populateError(opCtx, /*index=*/0, collectionAcquisitionStatus, errors);
+        stageStatus = StageWritesStatus::kCollectionAcquisitionError;
         return {};
     }
 
@@ -826,8 +836,10 @@ TimeseriesWriteBatches stageOrderedWritesToBucketCatalog(
     // Early exit before staging if any statements in the user's batch have been retried. Fallback
     // to unordered one-by-one to handle this.
     std::vector<StmtId> stmtIds;
-    getStmtIdVectorFromRequest(opCtx, request, containsRetry, stmtIds);
-    if (*containsRetry) {
+    bool containsRetry;
+    getStmtIdVectorFromRequest(opCtx, request, &containsRetry, stmtIds);
+    if (containsRetry) {
+        stageStatus = StageWritesStatus::kContainsRetry;
         return {};
     }
 
@@ -847,13 +859,13 @@ TimeseriesWriteBatches stageOrderedWritesToBucketCatalog(
     if (!swWriteBatches.isOK()) {
         invariant(!errorsAndIndices.empty());
 
-        // Must return errors for the first failed index and all past it for an ordered write.
-        sort(errorsAndIndices.begin(), errorsAndIndices.end(), [](auto& lhs, auto& rhs) {
-            return lhs.index < rhs.index;
-        });
-
-        auto& [firstError, firstIndex] = errorsAndIndices.front();
-        fillErrors(firstIndex, firstError);
+        auto firstErrorAndIndex =
+            std::min_element(errorsAndIndices.begin(),
+                             errorsAndIndices.end(),
+                             [](auto& lhs, auto& rhs) { return lhs.index < rhs.index; });
+        auto& [firstErrorStatus, firstIndex] = *firstErrorAndIndex;
+        populateError(opCtx, firstIndex, firstErrorStatus, errors);
+        stageStatus = StageWritesStatus::kStagingError;
         return {};
     }
 
@@ -970,8 +982,7 @@ std::vector<size_t> performUnorderedTimeseriesWrites(
                     "Failed to compress bucket for time-series insert, please retry your write",
                     "bucketId"_attr = bucketId);
 
-                errors->emplace_back(*write_ops_exec::generateError(
-                    opCtx, ex.toStatus(), start + index, errors->size()));
+                populateError(opCtx, start + index, ex.toStatus(), errors);
             }
 
             batch.reset();
@@ -1254,9 +1265,8 @@ bool commitTimeseriesBucket(OperationContext* opCtx,
         }
         auto& oss{OperationShardingState::get(opCtx)};
         oss.setShardingOperationFailedStatus(ex.toStatus());
-        const auto error{
-            write_ops_exec::generateError(opCtx, ex.toStatus(), start + index, errors->size())};
-        errors->emplace_back(std::move(*error));
+
+        populateError(opCtx, start + index, ex.toStatus(), errors);
         return false;
     }
 
@@ -1392,10 +1402,6 @@ commit_result::Result commitTimeseriesBucketForBatch(
             } else {
                 if (output.canContinue)
                     return commit_result::ContinuableErrorWithAbortBatch{insertStatus};
-                return commit_result::NonContinuableErrorWithAbortBatch{insertStatus};
-                if (output.canContinue) {
-                    return commit_result::ContinuableErrorWithAbortBatch{insertStatus};
-                }
                 return commit_result::NonContinuableErrorWithAbortBatch{insertStatus};
             }
         }
@@ -1755,10 +1761,7 @@ void processErrorsForSubsetOfBatch(OperationContext* opCtx,
                                    std::vector<mongo::write_ops::WriteError>* errors) {
     if (!errorsAndIndices.empty()) {
         for (auto& [errorStatus, index] : errorsAndIndices) {
-            auto error = write_ops_exec::generateError(
-                opCtx, errorStatus, originalIndices[index], errors->size());
-            invariant(errorStatus.code() != ErrorCodes::WriteConflict);
-            errors->emplace_back(std::move(*error));
+            populateError(opCtx, originalIndices[index], errorStatus, errors);
         }
     }
 }
@@ -1814,9 +1817,7 @@ TimeseriesWriteBatches stageUnorderedWritesToBucketCatalog(
         // inserting, and return an empty vector of WriteBatches.
         for (size_t i = 0; i < numDocsToStage; i++) {
             invariant(startIndex + i < request.getDocuments().size());
-            const auto error{write_ops_exec::generateError(
-                opCtx, collectionAcquisitionStatus, startIndex + i, errors->size())};
-            errors->emplace_back(std::move(*error));
+            populateError(opCtx, startIndex + i, collectionAcquisitionStatus, errors);
         }
         return {};
     }
@@ -1845,9 +1846,7 @@ TimeseriesWriteBatches stageUnorderedWritesToBucketCatalog(
 
     if (!errorsAndIndices.empty()) {
         for (auto& [errorStatus, index] : errorsAndIndices) {
-            auto error = write_ops_exec::generateError(opCtx, errorStatus, index, errors->size());
-            invariant(errorStatus.code() != ErrorCodes::WriteConflict);
-            errors->emplace_back(std::move(*error));
+            populateError(opCtx, index, errorStatus, errors);
         }
     }
 
@@ -1916,9 +1915,7 @@ TimeseriesWriteBatches stageUnorderedWritesToBucketCatalogWithRetries(
         // inserting, and return an empty vector of WriteBatches.
         for (size_t i = 0; i < numDocsToStage; i++) {
             invariant(startIndex + i < request.getDocuments().size());
-            const auto error{write_ops_exec::generateError(
-                opCtx, collectionAcquisitionStatus, startIndex + i, errors->size())};
-            errors->emplace_back(std::move(*error));
+            populateError(opCtx, startIndex + i, collectionAcquisitionStatus, errors);
         }
         return {};
     }
