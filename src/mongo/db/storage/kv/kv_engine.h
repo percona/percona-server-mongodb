@@ -191,6 +191,8 @@ public:
     virtual bool waitUntilUnjournaledWritesDurable(OperationContext* opCtx,
                                                    bool stableCheckpoint) = 0;
 
+    virtual bool underCachePressure() = 0;
+
     virtual Status createSortedDataInterface(RecoveryUnit&,
                                              const NamespaceString& nss,
                                              const CollectionOptions& collOptions,

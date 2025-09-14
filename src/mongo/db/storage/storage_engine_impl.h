@@ -419,6 +419,8 @@ public:
 
     Status autoCompact(RecoveryUnit&, const AutoCompactOptions& options) override;
 
+    bool underCachePressure() override;
+
 private:
     using CollIter = std::list<std::string>::iterator;
 
