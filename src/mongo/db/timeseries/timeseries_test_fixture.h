@@ -66,6 +66,15 @@ protected:
         std::initializer_list<std::pair<NamespaceString*, UUID*>> collectionMetadata,
         std::function<BSONObj()> makeTimeseriesOptionsForCreateFn);
 
+    void _assertCollWithMetaField(const NamespaceString& ns,
+                                  std::vector<BSONObj> batchOfMeasurements) const;
+
+    void _assertCollWithoutMetaField(const NamespaceString& ns,
+                                     std::vector<BSONObj> batchOfMeasurements) const;
+
+    void _assertNoMetaFieldsInCollWithMetaField(const NamespaceString& ns,
+                                                std::vector<BSONObj> batchOfMeasurements) const;
+
     TimeseriesOptions _getTimeseriesOptions(const NamespaceString& ns) const;
 
     const CollatorInterface* _getCollator(const NamespaceString& ns) const;
@@ -124,6 +133,8 @@ protected:
         const MeasurementsWithRolloverReasonOptions& options) const;
 
     uint64_t _getStorageCacheSizeBytes() const;
+
+    long long _getExecutionStat(const UUID& uuid, StringData stat);
 
     template <typename T>
     inline std::vector<T> _getFlattenedVector(const std::vector<std::vector<T>>& vectors) {

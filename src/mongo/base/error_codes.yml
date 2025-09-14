@@ -934,6 +934,7 @@ error_codes:
       name: IDLUnknownFieldPossibleMongocryptd,
       categories: [IDLParseError],
     }
+
   # The following is for rewriting errors returned by a remote server while running a retriable
   # command so that the error is not passed through to other servers in a cluster. See SERVER-91331
   # for an example of using this error code.
@@ -961,6 +962,7 @@ error_codes:
       name: UnsupportedCbrNode,
       categories: [PlannerEstimationError],
     }
+
   # The following is for remove shard commit commands which fail due to draining not yet being
   # complete.
   - {
@@ -973,3 +975,5 @@ error_codes:
       name: InterruptedDueToFCVChange,
       categories: [Interruption, RetriableError],
     }
+
+  - {code: 10171600, name: ReadThroughCacheTimeMonotonicityViolation}

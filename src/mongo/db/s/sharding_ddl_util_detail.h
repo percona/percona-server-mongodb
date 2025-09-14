@@ -70,6 +70,10 @@ std::vector<AsyncRequestsSender::Response> sendAuthenticatedCommandToShards(
     if (auto meta = rpc::getAuditAttrsToAuditMetadata(opCtx)) {
         originalOpts->cmd.setDollarAudit(*meta);
     }
+    // TODO SERVER-99655: isInitialized() will always be true once DDL coordinators always use OFCV
+    if (auto& vCtx = VersionContext::getDecoration(opCtx); vCtx.isInitialized()) {
+        originalOpts->cmd.setVersionContext(vCtx);
+    }
     originalOpts->cmd.setMayBypassWriteBlocking(
         WriteBlockBypass::get(opCtx).isWriteBlockBypassEnabled());
 
@@ -166,9 +170,18 @@ sendAuthenticatedCommandToShards<ShardsvrDropCollectionParticipant>(
     bool throwOnError);
 
 extern template std::vector<AsyncRequestsSender::Response>
-sendAuthenticatedCommandToShards<ShardsvrCommitToShardLocalCatalog>(
+sendAuthenticatedCommandToShards<ShardsvrCommitCreateDatabaseMetadata>(
     OperationContext* opCtx,
-    std::shared_ptr<async_rpc::AsyncRPCOptions<ShardsvrCommitToShardLocalCatalog>> originalOpts,
+    std::shared_ptr<async_rpc::AsyncRPCOptions<ShardsvrCommitCreateDatabaseMetadata>> originalOpts,
+    const std::vector<ShardId>& shardIds,
+    const boost::optional<std::vector<ShardVersion>>& shardVersions,
+    ReadPreferenceSetting readPref,
+    bool throwOnError);
+
+extern template std::vector<AsyncRequestsSender::Response>
+sendAuthenticatedCommandToShards<ShardsvrCommitDropDatabaseMetadata>(
+    OperationContext* opCtx,
+    std::shared_ptr<async_rpc::AsyncRPCOptions<ShardsvrCommitDropDatabaseMetadata>> originalOpts,
     const std::vector<ShardId>& shardIds,
     const boost::optional<std::vector<ShardVersion>>& shardVersions,
     ReadPreferenceSetting readPref,

@@ -140,7 +140,7 @@ void updateBucketFetchAndQueryStats(const ReopeningContext& context,
 
 /**
  * Determines if 'measurement' will cause rollover to 'bucket'.
- * Returns the rollover reason and marks the bucket with rollover action if it needs to be rolled
+ * Returns the rollover reason and marks the bucket with rollover reason if it needs to be rolled
  * over.
  */
 RolloverReason determineBucketRolloverForMeasurement(BucketCatalog& catalog,
@@ -172,15 +172,10 @@ RolloverReason determineBucketRolloverForMeasurement(BucketCatalog& catalog,
         storageCacheSizeBytes,
         comparator,
         stats);
-    auto rolloverAction = getRolloverAction(rolloverReason);
 
-    if (rolloverAction == RolloverAction::kNone) {
-        // The measurement can be inserted into the open bucket.
-        internal::markBucketNotIdle(stripe, stripeLock, bucket);
-    } else {
-        // Update the bucket's 'rolloverAction'.
-        bucket.rolloverAction = rolloverAction;
-        internal::updateRolloverStats(stats, rolloverReason);
+    if (rolloverReason != RolloverReason::kNone) {
+        // Update the bucket's 'rolloverReason'.
+        bucket.rolloverReason = rolloverReason;
     }
     bucketOpenedDueToMetadata = false;
     return rolloverReason;
@@ -232,7 +227,6 @@ Bucket* findOpenBucketForMeasurement(BucketCatalog& catalog,
 
         if (rolloverReason == RolloverReason::kNone) {
             // The measurement can be inserted into the open bucket.
-            internal::markBucketNotIdle(stripe, stripeLock, *potentialBucket);
             return potentialBucket;
         }
 
@@ -440,9 +434,7 @@ StatusWith<InsertResult> tryInsert(BucketCatalog& catalog,
                                                          storageCacheSizeBytes,
                                                          comparator,
                                                          bucket,
-                                                         *reason == RolloverReason::kTimeBackward
-                                                             ? RolloverAction::kArchive
-                                                             : RolloverAction::kSoftClose);
+                                                         *reason);
             if (auto* batch = get_if<std::shared_ptr<WriteBatch>>(&insertionResult)) {
                 return SuccessfulInsertion{std::move(*batch)};
             }
@@ -720,7 +712,8 @@ void finish(BucketCatalog& catalog, std::shared_ptr<WriteBatch> batch) {
                             internal::getTimeseriesBucketClearedError(bucket->bucketId.oid));
         }
     } else if (allCommitted(*bucket)) {
-        switch (bucket->rolloverAction) {
+        auto action = getRolloverAction(bucket->rolloverReason);
+        switch (action) {
             case RolloverAction::kHardClose:
             case RolloverAction::kSoftClose: {
                 internal::closeOpenBucket(catalog, stripe, stripeLock, *bucket, stats);
@@ -884,10 +877,14 @@ std::vector<Bucket*> findAndRolloverOpenBuckets(BucketCatalog& catalog,
     auto openBuckets = internal::findOpenBuckets(stripe, stripeLock, bucketKey);
     Bucket* bucketWithoutRolloverAction = nullptr;
     for (const auto& openBucket : openBuckets) {
-        switch (openBucket->rolloverAction) {
-            case RolloverAction::kNone:
-                if (internal::isBucketStateEligibleForInsertsAndCleanup(
-                        catalog, stripe, stripeLock, openBucket)) {
+        auto reason = openBucket->rolloverReason;
+        auto action = getRolloverAction(reason);
+        switch (action) {
+            case RolloverAction::kNone: {
+                auto bucketState = internal::isBucketStateEligibleForInsertsAndCleanup(
+                    catalog, stripe, stripeLock, openBucket);
+                if (bucketState == internal::BucketStateForInsertAndCleanup::kEligibleForInsert) {
+                    internal::markBucketNotIdle(stripe, stripeLock, *openBucket);
                     // Only one uncleared open bucket is allowed for each key.
                     invariant(bucketWithoutRolloverAction == nullptr);
                     // Save the bucket with 'RolloverAction::kNone' to add it to the end of
@@ -895,23 +892,32 @@ std::vector<Bucket*> findAndRolloverOpenBuckets(BucketCatalog& catalog,
                     bucketWithoutRolloverAction = openBucket;
                 }
                 break;
+            }
             case RolloverAction::kHardClose:
-                internal::rollover(
-                    catalog, stripe, stripeLock, *openBucket, openBucket->rolloverAction);
+                internal::rollover(catalog, stripe, stripeLock, *openBucket, reason);
                 break;
             case RolloverAction::kArchive:
-            case RolloverAction::kSoftClose:
+            case RolloverAction::kSoftClose: {
                 auto bucketMinTime = openBucket->minTime;
+                auto bucketState = internal::isBucketStateEligibleForInsertsAndCleanup(
+                    catalog, stripe, stripeLock, openBucket);
+                if (bucketState == internal::BucketStateForInsertAndCleanup::kInsertionConflict) {
+                    // We will have aborted the bucket within
+                    // isBucketStateEligibleForInsertsAndCleanup. No further action is required.
+                    break;
+                }
+
                 if (time >= bucketMinTime && time - bucketMinTime < bucketMaxSpanSeconds &&
-                    internal::isBucketStateEligibleForInsertsAndCleanup(
-                        catalog, stripe, stripeLock, openBucket)) {
+                    bucketState == internal::BucketStateForInsertAndCleanup::kEligibleForInsert) {
                     // The time range and the state of the bucket are eligible.
                     potentialBuckets.push_back(openBucket);
                 } else {
-                    internal::rollover(
-                        catalog, stripe, stripeLock, *openBucket, openBucket->rolloverAction);
+                    // We only want to rollover these buckets when we don't have an insertion
+                    // conflict; otherwise, we will attempt to remove the bucket twice.
+                    internal::rollover(catalog, stripe, stripeLock, *openBucket, reason);
                 }
                 break;
+            }
         }
     }
     if (bucketWithoutRolloverAction) {
@@ -1164,6 +1170,7 @@ StatusWith<Bucket*> potentiallyReopenBucket(
     auto swBucket = internal::loadBucketIntoCatalog(
         catalog, stripe, stripeLock, stats, bucketKey, std::move(reopenedBucket), catalogEra);
     if (!swBucket.isOK()) {
+        stats.incNumBucketReopeningsFailed();
         return swBucket.getStatus();
     }
 

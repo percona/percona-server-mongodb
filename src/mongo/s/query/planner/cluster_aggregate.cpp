@@ -89,6 +89,7 @@
 #include "mongo/db/shard_id.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
 #include "mongo/db/timeseries/timeseries_options.h"
+#include "mongo/db/version_context.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/executor/task_executor_pool.h"
 #include "mongo/s/catalog_cache.h"
@@ -259,8 +260,8 @@ void updateHostsTargetedMetrics(OperationContext* opCtx,
             if (nss == executionNss)
                 continue;
 
-            const auto [resolvedNsCM, _] =
-                uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, nss));
+            const auto resolvedNsCM =
+                uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, nss)).cm;
             if (resolvedNsCM.isSharded()) {
                 std::set<ShardId> shardIdsForNs;
                 // Note: It is fine to use 'getAllShardIds_UNSAFE_NotPointInTime' here because the
@@ -533,8 +534,8 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         if (criSW.getStatus().code() == ErrorCodes::NamespaceNotFound) {
             return false;
         }
-        const auto [resolvedNsCM, _] = uassertStatusOK(criSW);
-        return resolvedNsCM.isSharded();
+        const auto& cri = uassertStatusOK(criSW);
+        return cri.cm.isSharded();
     };
     bool isExplain = request.getExplain().get_value_or(false);
     liteParsedPipeline.verifyIsSupported(opCtx, isSharded, isExplain);
@@ -624,8 +625,8 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
 
     // pipelineBuilder will be invoked within AggregationTargeter::make() if and only if it chooses
     // any policy other than "specific shard only".
-    boost::intrusive_ptr<ExpressionContext> expCtx;
-    auto pipeline = [&]() -> std::unique_ptr<Pipeline, PipelineDeleter> {
+    auto [pipeline, expCtx] = [&]() -> std::tuple<std::unique_ptr<Pipeline, PipelineDeleter>,
+                                                  boost::intrusive_ptr<ExpressionContext>> {
         auto pipeline =
             parsePipelineAndRegisterQueryStats(opCtx,
                                                involvedNamespaces,
@@ -637,7 +638,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                                                requiresCollationForParsingUnshardedAggregate,
                                                resolvedView,
                                                verbosity);
-        expCtx = pipeline->getContext();
+        auto expCtx = pipeline->getContext();
 
         // If the aggregate command supports encrypted collections, do rewrites of the pipeline to
         // support querying against encrypted fields.
@@ -684,7 +685,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
             auto searchStage = dynamic_cast<mongo::DocumentSourceSearch*>(pipeline->peekFront());
             searchStage->setDocsNeededBounds(bounds);
         }
-        return pipeline;
+        return {std::move(pipeline), expCtx};
     }();
 
     // Create an RAII object that prints useful information about the ExpressionContext in the case
@@ -726,7 +727,8 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         request.setQuerySettings(querySettings);
     }
 
-    auto status = [&]() {
+    // Need to explicitly assign expCtx because lambdas can't capture structured bindings.
+    auto status = [&](auto& expCtx) {
         bool requestQueryStatsFromRemotes = query_stats::shouldRequestRemoteMetrics(
             CurOp::get(expCtx->getOperationContext())->debug());
         try {
@@ -802,7 +804,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         } catch (const DBException& dbe) {
             return dbe.toStatus();
         }
-    }();
+    }(expCtx);
 
     if (status.code() != ErrorCodes::CommandOnShardedViewNotSupportedOnMongod) {
         // Increment counters and set flags even in case of failed aggregate commands.
@@ -863,7 +865,8 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
                       "Failed to resolve view after max number of retries.");
     }
 
-    auto resolvedAggRequest = resolvedView.asExpandedViewAggregation(request);
+    auto resolvedAggRequest =
+        resolvedView.asExpandedViewAggregation(VersionContext::getDecoration(opCtx), request);
 
     result->resetToEmpty();
 

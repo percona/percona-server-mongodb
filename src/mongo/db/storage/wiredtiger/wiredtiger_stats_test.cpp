@@ -47,6 +47,7 @@
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/clock_source_mock.h"
+#include "mongo/util/tick_source_mock.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kWiredTiger
 
@@ -83,6 +84,7 @@ protected:
             _path.path().c_str(), nullptr, "create,statistics=(fast),", &wtConnection));
         _conn = std::make_unique<WiredTigerConnection>(wtConnection, &_clockSource);
         _session = std::make_unique<WiredTigerSession>(_conn.get());
+        _session->setTickSource_forTest(&tickSourceMock);
         ASSERT_WT_OK(_session->create(_uri.c_str(),
                                       "type=file,key_format=q,value_format=u,log=(enabled=false)"));
     }
@@ -166,6 +168,7 @@ protected:
     unittest::TempDir _path{"wiredtiger_operation_stats_test"};
     std::string _uri{"table:wiredtiger_operation_stats_test"};
     ClockSourceMock _clockSource;
+    TickSourceMock<Microseconds> tickSourceMock;
     std::unique_ptr<WiredTigerConnection> _conn;
     std::unique_ptr<WiredTigerSession> _session;
     /* Number of reads the fixture will prepare in setUp(), consequently max amount of times read()
@@ -176,27 +179,6 @@ protected:
     /* Next key to be used by write(), must be initialized >= _kMaxReads. */
     int64_t _writeKey = _kMaxReads;
 };
-
-TEST_F(WiredTigerStatsTest, EmptySession) {
-    // Increase log component verbosity for WiredTiger
-    auto verbosityGuard = unittest::MinimumLoggedSeverityGuard{logv2::LogComponent::kWiredTiger,
-                                                               logv2::LogSeverity::Debug(5)};
-    auto verboseConfig = WiredTigerUtil::generateWTVerboseConfiguration();
-    ASSERT_OK(
-        wtRCToStatus(_conn->conn()->reconfigure(_conn->conn(), verboseConfig.c_str()), nullptr));
-
-    // Read and write statistics should be empty. Check "data" field does not exist. "wait" fields
-    // such as the schemaLock might have some value.
-    auto statsBson = WiredTigerStats{*_session}.toBSON();
-
-    {
-        BSONObjBuilder bob;
-        ASSERT_OK(WiredTigerUtil::exportTableToBSON(*_session, "statistics:", "", bob));
-        LOGV2(9032000, "Connection statistics", "stats"_attr = bob.obj());
-    }
-
-    ASSERT_FALSE(statsBson.hasField("data")) << statsBson;
-}
 
 TEST_F(WiredTigerStatsTest, SessionWithWrite) {
     write();
@@ -326,6 +308,40 @@ TEST_F(WiredTigerStatsTest, Clone) {
 
     stats += *clone;
     ASSERT_BSONOBJ_NE(stats.toBSON(), clone->toBSON());
+}
+
+TEST_F(WiredTigerStatsTest, StorageExecutionTime) {
+    auto getStorageExecutionTime = [&](WiredTigerSession& session) {
+        // querying stats also advances the tick source
+        tickSourceMock.setAdvanceOnRead(Microseconds{0});
+        WiredTigerStats stats{session};
+        BSONObj statsObj = stats.toBSON();
+        auto waitingObj = statsObj["timeWaitingMicros"];
+        if (waitingObj.eoo()) {
+            return 0LL;
+        }
+
+        auto storageExecutionTime = waitingObj["storageExecutionMicros"];
+        if (storageExecutionTime.eoo()) {
+            return 0LL;
+        }
+
+        return storageExecutionTime.Long();
+    };
+
+
+    ASSERT_EQ(getStorageExecutionTime(*_session), 0);
+    tickSourceMock.setAdvanceOnRead(Microseconds{200});
+    _session->checkpoint(nullptr);
+
+    auto storageExecutionTime = getStorageExecutionTime(*_session);
+    ASSERT_EQ(storageExecutionTime, 200);
+
+    tickSourceMock.setAdvanceOnRead(Microseconds{200});
+    _session->checkpoint(nullptr);
+
+    storageExecutionTime = getStorageExecutionTime(*_session);
+    ASSERT_EQ(storageExecutionTime, 400);
 }
 
 }  // namespace

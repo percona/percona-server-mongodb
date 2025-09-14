@@ -161,22 +161,8 @@ CachedDatabaseInfo createDatabase(OperationContext* opCtx,
 }
 
 CreateCollectionResponse createCollection(OperationContext* opCtx,
-                                          const ShardsvrCreateCollection& request,
+                                          ShardsvrCreateCollection request,
                                           bool againstFirstShard) {
-
-    const auto& cmdResponse = createCollectionNoThrowOnError(opCtx, request, againstFirstShard);
-    const auto& remoteResponse = uassertStatusOK(cmdResponse.swResponse);
-
-    uassertStatusOK(getStatusFromCommandResult(remoteResponse.data));
-    uassertStatusOK(getWriteConcernStatusFromCommandResult(remoteResponse.data));
-
-    return CreateCollectionResponse::parse(IDLParserContext("createCollection"),
-                                           remoteResponse.data);
-}
-
-AsyncRequestsSender::Response createCollectionNoThrowOnError(OperationContext* opCtx,
-                                                             ShardsvrCreateCollection request,
-                                                             bool againstFirstShard) {
     const auto& nss = request.getNamespace();
 
     if (MONGO_unlikely(hangCreateUnshardedCollection.shouldFail()) && request.getUnsplittable() &&
@@ -230,28 +216,17 @@ AsyncRequestsSender::Response createCollectionNoThrowOnError(OperationContext* o
                     "nss"_attr = nss,
                     "dataShard"_attr = *requestWithRandomDataShard.getDataShard());
 
-        const auto& cmdResponse =
-            createCollectionNoThrowOnError(opCtx, std::move(requestWithRandomDataShard));
-        const auto status =
-            getStatusFromCommandResult(uassertStatusOK(cmdResponse.swResponse).data);
-
-        static const std::unordered_set<ErrorCodes::Error> errorsToRetryWithoutDataShard = {
-            // If the collection already exists but we randomly selected a dataShard that turns
-            // out
+        try {
+            return createCollection(opCtx, std::move(requestWithRandomDataShard));
+        } catch (const ExceptionFor<ErrorCodes::AlreadyInitialized>&) {
+            // If the collection already exists but we randomly selected a dataShard that turns out
             // to be different than the current one, then createCollection will fail with
-            // AlreadyInitialized error. However, this error can also occur for other reasons.
-            // So
+            // AlreadyInitialized error. However, this error can also occur for other reasons. So
             // let's run createCollection again without selecting a random dataShard.
-            ErrorCodes::AlreadyInitialized,
+        } catch (const ExceptionFor<ErrorCodes::ShardNotFound>&) {
             // It's possible that the dataShard no longer exists. For example, the config shard
             // may have been migrated to a dedicated config server during the test.
             // In this case, the original request will be used to create the collection.
-            ErrorCodes::ShardNotFound};
-
-        if (errorsToRetryWithoutDataShard.find(status.code()) ==
-            errorsToRetryWithoutDataShard.end()) {
-            // Don't retry the operation, return the response we got from the shard.
-            return cmdResponse;
         }
     }
     // Note that this check must run separately to manage the case a request already comes with
@@ -277,16 +252,11 @@ AsyncRequestsSender::Response createCollectionNoThrowOnError(OperationContext* o
             generic_argument_util::setMajorityWriteConcern(request);
             return request.toBSON();
         }
-        // propagate write concern if asked by the caller otherwise we set
-        //  - majority if we are not in a transaction
-        //  - default wc in case of transaction (no other wc are allowed).
-        if (opCtx->getWriteConcern().getProvenance().isClientSupplied()) {
-            auto wc = opCtx->getWriteConcern();
-            request.setWriteConcern(wc);
-        } else {
-            if (!opCtx->inMultiDocumentTransaction()) {
-                generic_argument_util::setMajorityWriteConcern(request);
-            }
+
+        // Upgrade the request WC to 'majority', unless it is part of a transaction
+        // (where only the implicit default value can be applied).
+        if (!opCtx->inMultiDocumentTransaction()) {
+            generic_argument_util::setMajorityWriteConcern(request);
         }
         return request.toBSON();
     }();
@@ -311,18 +281,16 @@ AsyncRequestsSender::Response createCollectionNoThrowOnError(OperationContext* o
         }
     }();
 
-    const auto remoteResponseData = uassertStatusOK(cmdResponse.swResponse).data;
+    const auto remoteResponse = uassertStatusOK(cmdResponse.swResponse);
+    uassertStatusOK(getStatusFromCommandResult(remoteResponse.data));
 
-    const auto status = getStatusFromCommandResult(remoteResponseData);
-    if (status.isOK()) {
-        auto createCollResp = CreateCollectionResponse::parse(IDLParserContext("createCollection"),
-                                                              remoteResponseData);
+    auto createCollResp =
+        CreateCollectionResponse::parse(IDLParserContext("createCollection"), remoteResponse.data);
 
-        auto catalogCache = Grid::get(opCtx)->catalogCache();
-        catalogCache->onStaleCollectionVersion(nss, createCollResp.getCollectionVersion());
-    }
+    auto catalogCache = Grid::get(opCtx)->catalogCache();
+    catalogCache->onStaleCollectionVersion(nss, createCollResp.getCollectionVersion());
 
-    return cmdResponse;
+    return createCollResp;
 }
 
 void createCollectionWithRouterLoop(OperationContext* opCtx,

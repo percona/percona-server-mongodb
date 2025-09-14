@@ -43,7 +43,6 @@
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
-#include "mongo/db/basic_types.h"
 #include "mongo/db/exec/document_value/value_comparator.h"
 #include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/feature_flag.h"
@@ -67,15 +66,16 @@
 #include "mongo/util/intrusive_counter.h"
 #include "mongo/util/str.h"
 
-#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
-
-
 namespace mongo {
 
 REGISTER_INTERNAL_DOCUMENT_SOURCE(_internalChangeStreamUnwindTransaction,
                                   LiteParsedDocumentSourceChangeStreamInternal::parse,
                                   DocumentSourceChangeStreamUnwindTransaction::createFromBson,
                                   true);
+
+namespace {
+const std::set<std::string> kUnwindExcludedFields = {"clusterTime", "lsid", "txnNumber"};
+}
 
 namespace change_stream_filter {
 /**
@@ -109,9 +109,8 @@ std::unique_ptr<MatchExpression> buildUnwindTransactionFilter(
     // this separately because we need to exclude certain fields from the user's filters. Unwound
     // transaction events do not have these fields until we populate them from the commitTransaction
     // event. We already applied these predicates during the oplog scan, so we know that they match.
-    static const std::set<std::string> excludedFields = {"clusterTime", "lsid", "txnNumber"};
     if (auto rewrittenMatch = change_stream_rewrite::rewriteFilterForFields(
-            expCtx, userMatch, bsonObj, {}, excludedFields)) {
+            expCtx, userMatch, bsonObj, {}, kUnwindExcludedFields)) {
         unwindFilter->add(std::move(rewrittenMatch));
     }
     return MatchExpression::optimize(std::move(unwindFilter));
@@ -339,6 +338,12 @@ DocumentSourceChangeStreamUnwindTransaction::TransactionOpIterator::TransactionO
         tassert(5543803,
                 str::stream() << "Unexpected op at " << input["ts"].getTimestamp().toString(),
                 !commandObj["commitTransaction"].missing());
+
+        if (auto commitTimestamp = commandObj["commitTimestamp"]; !commitTimestamp.missing()) {
+            // Track commit timestamp of the prepared transaction if it's present in the oplog
+            // entry.
+            _commitTimestamp = commitTimestamp.getTimestamp();
+        }
     }
 
     // We need endOfTransaction only for unprepared transactions: so this must be an applyOps with
@@ -471,6 +476,9 @@ DocumentSourceChangeStreamUnwindTransaction::TransactionOpIterator::_addRequired
 
     newDoc.addField(repl::OplogEntry::kTimestampFieldName, Value(_clusterTime));
     newDoc.addField(repl::OplogEntry::kWallClockTimeFieldName, Value(_wallTime));
+
+    newDoc.addField(DocumentSourceChangeStream::kCommitTimestampField,
+                    _commitTimestamp ? Value(*_commitTimestamp) : Value());
 
     newDoc.addField(repl::OplogEntry::kSessionIdFieldName, _lsid ? Value(*_lsid) : Value());
     newDoc.addField(repl::OplogEntry::kTxnNumberFieldName,

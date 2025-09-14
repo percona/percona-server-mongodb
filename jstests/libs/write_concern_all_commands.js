@@ -10,7 +10,7 @@
  *
  */
 import {AllCommandsTest} from "jstests/libs/all_commands_test.js";
-import {getCommandName} from "jstests/libs/cmd_object_utils.js"
+import {getCommandName} from "jstests/libs/cmd_object_utils.js";
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {Thread} from "jstests/libs/parallelTester.js";
@@ -148,8 +148,10 @@ let wcCommandsTests = {
     _shardsvrBeginMigrationBlockingOperation: {skip: "internal command"},
     _shardsvrChangePrimary: {skip: "internal command"},
     _shardsvrCleanupReshardCollection: {skip: "internal command"},
+    _shardsvrCloneAuthoritativeMetadata: {skip: "internal command"},
     _shardsvrCloneCatalogData: {skip: "internal command"},
-    _shardsvrCommitToShardLocalCatalog: {skip: "internal command"},
+    _shardsvrCommitCreateDatabaseMetadata: {skip: "internal command"},
+    _shardsvrCommitDropDatabaseMetadata: {skip: "internal command"},
     _shardsvrRegisterIndex: {skip: "internal command"},
     _shardsvrCheckMetadataConsistency: {skip: "internal command"},
     _shardsvrCheckMetadataConsistencyParticipant: {skip: "internal command"},
@@ -2702,7 +2704,7 @@ let wcCommandsTests = {
                 assert.commandWorkedIgnoringWriteConcernErrors(res);
                 assert.eq(bsonWoCompare(getShardKey(coll, fullNs), {x: 1}), 0);
 
-                restartfAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
+                restartAdditionalSecondariesIfSharded(clusterType, cluster, secondariesRunning);
             },
             admin: true,
         },
@@ -2718,6 +2720,7 @@ let wcCommandsTests = {
     startSession: {skip: "does not accept write concern"},
     stopRecordingTraffic: {skip: "does not accept write concern"},
     sysprofile: {skip: "internal command"},
+    testCommandFeatureFlaggedOnLatestFCV: {skip: "internal command"},
     testDeprecation: {skip: "test command"},
     testDeprecationInVersion2: {skip: "test command"},
     testInternalTransactions: {skip: "internal command"},
@@ -3788,6 +3791,7 @@ function runCommandTest(
 // they no longer hang until the majority of the shards involved in DDL are available and return
 // WCE on timing out.
 const shardedDDLCommandsRequiringMajorityCommit = [
+    "create",
     "changePrimary",
     "collMod",
     "convertToCapped",
@@ -3827,13 +3831,14 @@ function shouldSkipTestCase(clusterType, command, testCase, shardedCollection, w
         // TODO SERVER-100935 updateRole does not return WCE
         // TODO SERVER-100935 updateUser does not return WCE
 
+        // TODO SERVER-100936 create does not return WCE
         // TODO SERVER-100937 dropIndexes does not return WCE
 
         // TODO SERVER-100939 setFeatureCompatibilityVersion does not return WCE
 
         // TODO SERVER-100940 enableSharding does not return WCE
         if (clusterType == "sharded" &&
-            (shardedDDLCommandsRequiringMajorityCommit.includes(command) ||
+            (shardedDDLCommandsRequiringMajorityCommit.includes(command) || command == "create" ||
              command == "dropIndexes" || command == "dropAllUsersFromDatabase" ||
              command == "grantPrivilegesToRole" || command == "grantRolesToRole" ||
              command == "grantRolesToUser" || command == "revokePrivilegesFromRole" ||
@@ -3846,8 +3851,9 @@ function shouldSkipTestCase(clusterType, command, testCase, shardedCollection, w
     }
 
     if (testCase == "success") {
+        // TODO SERVER-100936 create does not return WCE
         if (clusterType == "sharded" &&
-            (shardedDDLCommandsRequiringMajorityCommit.includes(command))) {
+            (shardedDDLCommandsRequiringMajorityCommit.includes(command) || command == "create")) {
             jsTestLog("Skipping " + command + " test for success case.");
             return true;
         }

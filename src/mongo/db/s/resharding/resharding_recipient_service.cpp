@@ -826,7 +826,7 @@ void ReshardingRecipientService::RecipientStateMachine::
             opCtx.get(), _metadata, *_cloneTimestamp);
 
         if (!_metadata.getProvenance() ||
-            _metadata.getProvenance() == ProvenanceEnum::kReshardCollection) {
+            _metadata.getProvenance() == ReshardingProvenanceEnum::kReshardCollection) {
             _externalState->withShardVersionRetry(
                 opCtx.get(),
                 _metadata.getSourceNss(),
@@ -929,8 +929,8 @@ ReshardingRecipientService::RecipientStateMachine::_makeDataReplication(Operatio
 
     auto myShardId = _externalState->myShardId(opCtx->getServiceContext());
 
-    auto [sourceChunkMgr, _] =
-        _externalState->getTrackedCollectionRoutingInfo(opCtx, _metadata.getSourceNss());
+    auto sourceChunkMgr =
+        _externalState->getTrackedCollectionRoutingInfo(opCtx, _metadata.getSourceNss()).cm;
 
     // The metrics map can already be pre-populated if it was recovered from disk.
     if (_applierMetricsMap.empty()) {
@@ -1019,19 +1019,13 @@ void ReshardingRecipientService::RecipientStateMachine::_createAndStartChangeStr
         _updateRecipientDocument(newChangeStreamsCtx, factory);
     };
 
-    if (_changeStreamsMonitorCtx->getResumeToken()) {
-        _changeStreamsMonitor = std::make_shared<ReshardingChangeStreamsMonitor>(
-            _metadata.getReshardingUUID(),
-            _metadata.getTempReshardingNss(),
-            *_changeStreamsMonitorCtx->getResumeToken(),
-            batchCallback);
-    } else {
-        _changeStreamsMonitor = std::make_shared<ReshardingChangeStreamsMonitor>(
-            _metadata.getReshardingUUID(),
-            _metadata.getTempReshardingNss(),
-            _changeStreamsMonitorCtx->getStartAtOperationTime(),
-            batchCallback);
-    }
+    _changeStreamsMonitor = std::make_shared<ReshardingChangeStreamsMonitor>(
+        _metadata.getReshardingUUID(),
+        _metadata.getTempReshardingNss(),
+        _changeStreamsMonitorCtx->getStartAtOperationTime(),
+        _changeStreamsMonitorCtx->getResumeToken(),
+        batchCallback);
+
     LOGV2(9858301,
           "Starting the change streams monitor",
           "reshardingUUID"_attr = _metadata.getReshardingUUID());
@@ -1143,7 +1137,7 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                    behaviors.setOpCtxAndCloneTimestamp(opCtx.get(), *_cloneTimestamp);
 
                    if (!_metadata.getProvenance() ||
-                       _metadata.getProvenance() == ProvenanceEnum::kReshardCollection) {
+                       _metadata.getProvenance() == ReshardingProvenanceEnum::kReshardCollection) {
                        auto [collOptions, _] = _externalState->getCollectionOptions(
                            opCtx.get(),
                            _metadata.getSourceNss(),
@@ -1759,7 +1753,6 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::_restore
 
 void ReshardingRecipientService::RecipientStateMachine::_restoreMetrics(
     const CancelableOperationContextFactory& factory) {
-
     ReshardingMetrics::ExternallyTrackedRecipientFields externalMetrics;
     auto opCtx = factory.makeOperationContext(&cc());
     [&] {

@@ -461,6 +461,10 @@ const internalCommandsMap = {
         testname: "_shardsvrCleanupReshardCollection",
         command: {_shardsvrCleanupReshardCollection: "test.x", reshardingUUID: UUID()},
     },
+    _shardsvrCloneAuthoritativeMetadata: {
+        testname: "_shardsvrCloneAuthoritativeMetadata",
+        command: {_shardsvrCloneAuthoritativeMetadata: 1, writeConcern: {w: "majority"}},
+    },
     _shardsvrCloneCatalogData: {
         testname: "_shardsvrCloneCatalogData",
         command: {_shardsvrCloneCatalogData: 'test', from: [], writeConcern: {w: "majority"}},
@@ -504,12 +508,16 @@ const internalCommandsMap = {
             reshardingUUID: UUID(),
         },
     },
-    _shardsvrCommitToShardLocalCatalog: {
-        testname: "_shardsvrCommitToShardLocalCatalog",
+    _shardsvrCommitCreateDatabaseMetadata: {
+        testname: "_shardsvrCommitCreateDatabaseMetadata",
         command: {
-            _shardsvrCommitToShardLocalCatalog: "x.y",
-            operation: "createDatabase",
+            _shardsvrCommitCreateDatabaseMetadata: "x.y",
+            dbVersion: {uuid: new UUID(), timestamp: new Timestamp(1, 0), lastMod: NumberInt(1)}
         },
+    },
+    _shardsvrCommitDropDatabaseMetadata: {
+        testname: "_shardsvrCommitDropDatabaseMetadata",
+        command: {_shardsvrCommitDropDatabaseMetadata: "x.y"},
     },
     _shardsvrDropCollection: {
         testname: "_shardsvrDropCollection",

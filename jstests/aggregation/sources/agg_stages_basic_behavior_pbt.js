@@ -22,10 +22,10 @@
  * ]
  */
 import {getCollectionModel} from "jstests/libs/property_test_helpers/models/collection_models.js";
+import {groupArb} from "jstests/libs/property_test_helpers/models/group_models.js";
 import {
     getAggPipelineModel,
     getSingleFieldProjectArb,
-    groupArb,
     limitArb,
     sortArb
 } from "jstests/libs/property_test_helpers/models/query_models.js";
@@ -201,7 +201,7 @@ function makePropertyFn(checkResultsFn, failMsg) {
             }
         }
         return {passed: true};
-    }
+    };
 }
 
 for (const {stageArb, checkResultsFn, failMsg} of testCases) {

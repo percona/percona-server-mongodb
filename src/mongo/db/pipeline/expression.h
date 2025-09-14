@@ -3907,7 +3907,7 @@ public:
     }
 
     static bool checkBinDataConvertAllowed();
-    static bool checkBinDataConvertNumericAllowed();
+    static bool checkBinDataConvertNumericAllowed(const VersionContext& vCtx);
 
     const Expression* getInput() const {
         return _children[_kInput].get();
@@ -4905,13 +4905,13 @@ public:
     // We'll use this for guardrails around code we know shouldn't ever be called.
     bool canBeEvaluated() const;
 
+    const ExpressionFieldPath& getInput() const;
+    const ExpressionConstant& getText() const;
+
 protected:
     ExpressionEncTextSearch(ExpressionContext* expCtx,
                             boost::intrusive_ptr<Expression> input,
                             boost::intrusive_ptr<Expression> text);
-
-    const ExpressionFieldPath& getInput() const;
-    const ExpressionConstant& getText() const;
 
     static constexpr size_t _kInput = 0;
     static constexpr size_t _kTextOperand = 1;

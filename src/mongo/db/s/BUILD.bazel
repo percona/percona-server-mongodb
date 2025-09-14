@@ -31,6 +31,15 @@ idl_generator(
 )
 
 idl_generator(
+    name = "type_oplog_catalog_metadata_gen",
+    src = "type_oplog_catalog_metadata.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+        "//src/mongo/s/catalog:type_database_gen",
+    ],
+)
+
+idl_generator(
     name = "collection_critical_section_document_gen",
     src = "collection_critical_section_document.idl",
     deps = [
@@ -244,6 +253,16 @@ idl_generator(
         ":sharding_ddl_coordinator_gen",
         "//src/mongo/db:basic_types_gen",
         "//src/mongo/db/commands:fle2_cleanup_gen",
+    ],
+)
+
+idl_generator(
+    name = "clone_authoritative_metadata_coordinator_gen",
+    src = "clone_authoritative_metadata_coordinator.idl",
+    deps = [
+        ":sharding_ddl_coordinator_gen",
+        "//src/mongo/db:basic_types_gen",
+        "//src/mongo/s/request_types:sharded_ddl_commands_gen",
     ],
 )
 
@@ -549,13 +568,13 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
-    # TODO (SERVER-101057): Review this library.
     name = "sharding_catalog",
     srcs = [
         "database_metadata_oplog_application.cpp",
         "shard_local_catalog_operations.cpp",
         "sharding_index_catalog_ddl_util.cpp",
         ":shard_authoritative_catalog_gen",
+        ":type_oplog_catalog_metadata_gen",
     ],
     hdrs = [
         "database_metadata_oplog_application.h",
@@ -1146,6 +1165,8 @@ mongo_cc_library(
         "cleanup_orphaned_cmd.cpp",
         "cleanup_structured_encryption_data_coordinator.cpp",
         "cleanup_structured_encryption_data_coordinator_gen",
+        "clone_authoritative_metadata_coordinator.cpp",
+        "clone_authoritative_metadata_coordinator_gen",
         "clone_catalog_data_command.cpp",
         "cluster_abort_transaction_cmd_d.cpp",
         "cluster_commit_transaction_cmd_d.cpp",
@@ -1197,11 +1218,13 @@ mongo_cc_library(
         "shardsvr_check_metadata_consistency_participant_command.cpp",
         "shardsvr_cleanup_reshard_collection_command.cpp",
         "shardsvr_cleanup_structured_encryption_data_command.cpp",
+        "shardsvr_clone_authoritative_metadata_command.cpp",
         "shardsvr_collmod_command.cpp",
         "shardsvr_collmod_participant_command.cpp",
+        "shardsvr_commit_create_database_metadata_command.cpp",
+        "shardsvr_commit_drop_database_metadata_command.cpp",
         "shardsvr_commit_index_participant_command.cpp",
         "shardsvr_commit_reshard_collection_command.cpp",
-        "shardsvr_commit_to_shard_local_catalog_command.cpp",
         "shardsvr_compact_structured_encryption_data_command.cpp",
         "shardsvr_convert_to_capped_command.cpp",
         "shardsvr_convert_to_capped_participant_command.cpp",
@@ -1322,6 +1345,7 @@ mongo_cc_library(
         "add_shard_coordinator.h",
         "analyze_shard_key_cmd_util.h",
         "cleanup_structured_encryption_data_coordinator.h",
+        "clone_authoritative_metadata_coordinator.h",
         "collmod_coordinator.h",
         "compact_structured_encryption_data_coordinator.h",
         "convert_to_capped_coordinator.h",
@@ -1523,6 +1547,8 @@ mongo_cc_unit_test(
         "//src/mongo/db/s/resharding:resharding_recipient_service_external_state_test.cpp",
         "//src/mongo/db/s/resharding:resharding_recipient_service_test.cpp",
         "//src/mongo/db/s/resharding:resharding_service_test_helpers.h",
+        "//src/mongo/db/s/resharding:resharding_test_util.cpp",
+        "//src/mongo/db/s/resharding:resharding_test_util.h",
         "//src/mongo/db/s/resharding:resharding_txn_cloner_test.cpp",
     ],
     tags = [

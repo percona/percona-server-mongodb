@@ -31,7 +31,7 @@
 
 #include "mongo/db/db_raii.h"
 #include "mongo/db/s/database_sharding_state.h"
-#include "mongo/s/catalog/type_oplog_catalog_metadata_gen.h"
+#include "mongo/db/s/type_oplog_catalog_metadata_gen.h"
 
 namespace mongo {
 
@@ -41,36 +41,29 @@ void applyOplogEntryToInsertDatabaseMetadata(OperationContext* opCtx, const Data
     AutoGetDb autoDb(opCtx, db.getDbName(), MODE_IX);
     auto scopedDss =
         DatabaseShardingState::assertDbLockedAndAcquireExclusive(opCtx, db.getDbName());
-    scopedDss->setDbInfo(opCtx, db, true /* useDssForTesting */);
+    scopedDss->setAuthoritativeDbInfo(opCtx, db);
 }
 
 void applyOplogEntryToRemoveDatabaseMetadata(OperationContext* opCtx, const DatabaseName& dbName) {
     AutoGetDb autoDb(opCtx, dbName, MODE_IX);
     auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(opCtx, dbName);
-    scopedDss->clearDbInfo(opCtx, false /* cancelOngoingRefresh */, true /* useDssForTesting */);
+    scopedDss->clearAuthoritativeDbInfo(opCtx);
 }
 
 }  // namespace
 
-void applyDatabaseMetadataUpdate(OperationContext* opCtx, const repl::OplogEntry& op) {
-    auto databaseMetadataOplog = DatabaseMetadataUpdateOplogEntry::parse(
-        IDLParserContext("OplogDatabaseMetadataUpdateEntryContext"), op.getObject());
+void applyCreateDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) {
+    auto oplogEntry = CreateDatabaseMetadataOplogEntry::parse(
+        IDLParserContext("OplogCreateDatabaseMetadataOplogEntryyContext"), op.getObject());
 
-    std::visit(
-        OverloadedVisitor{
-            [&](const DatabaseMetadataUpdateCreateEntry& entry) {
-                tassert(9980403,
-                        "Expecting an operation of type create",
-                        databaseMetadataOplog.getOp() == DatabaseMetadataUpdateOpEnum::kCreate);
-                applyOplogEntryToInsertDatabaseMetadata(opCtx, entry.getDb());
-            },
-            [&](const DatabaseMetadataUpdateDropEntry& entry) {
-                tassert(9980404,
-                        "Expecting an operation of type drop",
-                        databaseMetadataOplog.getOp() == DatabaseMetadataUpdateOpEnum::kDrop);
-                applyOplogEntryToRemoveDatabaseMetadata(opCtx, entry.getDbName());
-            }},
-        databaseMetadataOplog.getMetadata());
+    applyOplogEntryToInsertDatabaseMetadata(opCtx, oplogEntry.getDb());
+}
+
+void applyDropDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) {
+    auto oplogEntry = DropDatabaseMetadataOplogEntry::parse(
+        IDLParserContext("OplogDropDatabaseMetadataOplogEntryContext"), op.getObject());
+
+    applyOplogEntryToRemoveDatabaseMetadata(opCtx, oplogEntry.getDbName());
 }
 
 }  // namespace mongo

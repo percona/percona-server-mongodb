@@ -1219,17 +1219,16 @@ void CommandConstructionPlan::execute(CommandRegistry* registry,
                                       Service* service,
                                       const std::function<bool(const Entry&)>& pred) const {
     LOGV2_DEBUG(8043400, 3, "Constructing Command objects from specs");
+    StringMap<boost::optional<SourceLocation>> dupCheck;
     for (auto&& entry : entries()) {
         if (entry->testOnly && !getTestCommandsEnabled()) {
             LOGV2_DEBUG(8043401, 3, "Skipping test-only command", "entry"_attr = *entry);
             continue;
         }
-        if (!entry->featureFlag.isEnabled([](auto& fcvGatedFlag) {
-                // TODO(SERVER-100448): This check should not depend on the current FCV
-                return fcvGatedFlag.isEnabledUseLatestFCVWhenUninitialized(
-                    kVersionContextIgnored,
-                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
-            })) {
+        // (Ignore FCV check): Skip only if the flag is disabled. (see requiresFeatureFlag
+        // documentation).
+        if (!entry->featureFlag.isEnabled(
+                [](auto& fcvGatedFlag) { return fcvGatedFlag.isEnabledAndIgnoreFCVUnsafe(); })) {
             LOGV2_DEBUG(8043402, 3, "Skipping FeatureFlag gated command", "entry"_attr = *entry);
             continue;
         }
@@ -1238,6 +1237,19 @@ void CommandConstructionPlan::execute(CommandRegistry* registry,
             continue;
         }
         auto c = entry->construct();
+        {
+            const std::string& name = c->getName();
+            auto&& loc = entry->location;
+            if (auto dup = dupCheck.find(name); dup != dupCheck.end()) {
+                LOGV2_FATAL(10205200,
+                            "Duplicate command",
+                            "name"_attr = name,
+                            "role"_attr = service->role(),
+                            "location"_attr = loc,
+                            "dupLocation"_attr = dup->second);
+            }
+            dupCheck.insert({c->getName(), loc});
+        }
         c->initializeClusterRole(service ? service->role() : ClusterRole{});
         LOGV2_DEBUG(8043404, 3, "Created", "command"_attr = c->getName(), "entry"_attr = *entry);
         registry->registerCommand(&*c);

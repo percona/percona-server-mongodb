@@ -100,15 +100,17 @@ const allCommands = {
     _shardsvrChangePrimary: {skip: isAnInternalCommand},
     _shardsvrCleanupStructuredEncryptionData: {skip: isAnInternalCommand},
     _shardsvrCleanupReshardCollection: {skip: isAnInternalCommand},
+    _shardsvrCloneAuthoritativeMetadata: {skip: isAnInternalCommand},
     _shardsvrCloneCatalogData: {skip: isAnInternalCommand},
     _shardsvrCompactStructuredEncryptionData: {skip: isAnInternalCommand},
     _shardsvrConvertToCapped: {skip: isAnInternalCommand},
     _shardsvrRegisterIndex: {skip: isAnInternalCommand},
     _shardsvrRunSearchIndexCommand: {skip: isAnInternalCommand},
     _shardsvrResolveView: {skip: isAnInternalCommand},
+    _shardsvrCommitCreateDatabaseMetadata: {skip: isAnInternalCommand},
+    _shardsvrCommitDropDatabaseMetadata: {skip: isAnInternalCommand},
     _shardsvrCommitIndexParticipant: {skip: isAnInternalCommand},
     _shardsvrCommitReshardCollection: {skip: isAnInternalCommand},
-    _shardsvrCommitToShardLocalCatalog: {skip: isAnInternalCommand},
     _shardsvrDropCollection: {skip: isAnInternalCommand},
     _shardsvrCreateCollection: {skip: isAnInternalCommand},
     _shardsvrDropCollectionIfUUIDNotMatchingWithWriteConcern: {skip: isAnInternalCommand},
@@ -1246,8 +1248,6 @@ const allCommands = {
         skip: isDeprecated,
     },
     releaseMemory: {
-        // TODO SERVER-97456 - remove this
-        skip: "Currently not supported in sharding",
         setUp: function(conn) {
             const db = conn.getDB(dbName);
             for (let i = 0; i < 10; i++) {
@@ -1564,6 +1564,7 @@ const allCommands = {
         skip: "requires an actual file path to record traffic to",
     },
     sysprofile: {skip: isAnInternalCommand},
+    testCommandFeatureFlaggedOnLatestFCV: {skip: isAnInternalCommand},
     testDeprecation: {skip: isAnInternalCommand},
     testDeprecationInVersion2: {skip: isAnInternalCommand},
     testInternalTransactions: {skip: isAnInternalCommand},

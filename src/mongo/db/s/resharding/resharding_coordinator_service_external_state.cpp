@@ -112,9 +112,9 @@ ChunkVersion ReshardingCoordinatorExternalState::calculateChunkVersionForInitial
 
 boost::optional<CollectionIndexes> ReshardingCoordinatorExternalState::getCatalogIndexVersion(
     OperationContext* opCtx, const NamespaceString& nss, const UUID& uuid) {
-    auto [_, optSii] =
+    const auto cri =
         uassertStatusOK(RoutingInformationCache::get(opCtx)->getCollectionRoutingInfo(opCtx, nss));
-    if (optSii) {
+    if (cri.sii) {
         VectorClock::VectorTime vt = VectorClock::get(opCtx)->getTime();
         auto time = vt.clusterTime().asTimestamp();
         return CollectionIndexes{uuid, time};
@@ -124,16 +124,17 @@ boost::optional<CollectionIndexes> ReshardingCoordinatorExternalState::getCatalo
 
 bool ReshardingCoordinatorExternalState::getIsUnsplittable(OperationContext* opCtx,
                                                            const NamespaceString& nss) {
-    auto [cm, _] =
+    const auto cri =
         uassertStatusOK(RoutingInformationCache::get(opCtx)->getCollectionRoutingInfo(opCtx, nss));
-    return cm.isUnsplittable();
+    return cri.cm.isUnsplittable();
 }
 
 boost::optional<CollectionIndexes>
 ReshardingCoordinatorExternalState::getCatalogIndexVersionForCommit(OperationContext* opCtx,
                                                                     const NamespaceString& nss) {
-    auto [_, optSii] =
-        uassertStatusOK(RoutingInformationCache::get(opCtx)->getCollectionRoutingInfo(opCtx, nss));
+    const auto optSii =
+        uassertStatusOK(RoutingInformationCache::get(opCtx)->getCollectionRoutingInfo(opCtx, nss))
+            .sii;
     if (optSii) {
         return optSii->getCollectionIndexes();
     }
@@ -537,6 +538,7 @@ void ReshardingCoordinatorExternalStateImpl::verifyFinalCollection(
           "reshardingUUID"_attr = coordinatorDoc.getReshardingUUID());
 
     int64_t numDocsOriginal = 0;
+    BSONObjBuilder donorReportBuilder;
     for (const auto& donorEntry : coordinatorDoc.getDonorShards()) {
         uassert(9929904,
                 str::stream() << "Expected the coordinator document to have the "
@@ -544,9 +546,11 @@ void ReshardingCoordinatorExternalStateImpl::verifyFinalCollection(
                               << donorEntry.getId() << "'",
                 donorEntry.getDocumentsFinal());
         numDocsOriginal += *donorEntry.getDocumentsFinal();
+        donorReportBuilder.append(donorEntry.getId(), *donorEntry.getDocumentsFinal());
     }
 
     int64_t numDocsTemporary = 0;
+    BSONObjBuilder recipientReportBuilder;
     for (const auto& recipientEntry : coordinatorDoc.getRecipientShards()) {
         auto mutableState = recipientEntry.getMutableState();
         uassert(9929905,
@@ -555,7 +559,14 @@ void ReshardingCoordinatorExternalStateImpl::verifyFinalCollection(
                               << recipientEntry.getId() << "'",
                 mutableState.getTotalNumDocuments());
         numDocsTemporary += *mutableState.getTotalNumDocuments();
+        recipientReportBuilder.append(recipientEntry.getId(), *mutableState.getTotalNumDocuments());
     }
+
+    LOGV2(9858601,
+          "Verifying the temporary resharding collection after reaching strict consistency",
+          "reshardingUUID"_attr = coordinatorDoc.getReshardingUUID(),
+          "donorDocumentsFinal"_attr = donorReportBuilder.obj(),
+          "recipientDocumentsFinal"_attr = recipientReportBuilder.obj());
 
     uassert(
         9929906,
@@ -567,7 +578,9 @@ void ReshardingCoordinatorExternalStateImpl::verifyFinalCollection(
     LOGV2(
         9929913,
         "Finished verifying the temporary resharding collection after reaching strict consistency",
-        "reshardingUUID"_attr = coordinatorDoc.getReshardingUUID());
+        "reshardingUUID"_attr = coordinatorDoc.getReshardingUUID(),
+        "donorDocumentsFinal"_attr = numDocsOriginal,
+        "recipientDocumentsFinal"_attr = numDocsTemporary);
 }
 
 }  // namespace mongo

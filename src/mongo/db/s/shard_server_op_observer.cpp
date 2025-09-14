@@ -41,15 +41,12 @@
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/bson/util/bson_extract.h"
-#include "mongo/db/catalog/database_holder.h"
 #include "mongo/db/catalog_raii.h"
 #include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/concurrency/exception_util.h"
 #include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/db_raii.h"
-#include "mongo/db/dbhelpers.h"
-#include "mongo/db/query/write_ops/delete.h"
 #include "mongo/db/repl/member_state.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/replica_set_endpoint_sharding_state.h"
@@ -64,9 +61,11 @@
 #include "mongo/db/s/range_deletion_task_gen.h"
 #include "mongo/db/s/shard_filtering_metadata_refresh.h"
 #include "mongo/db/s/shard_identity_rollback_notifier.h"
+#include "mongo/db/s/shard_local_catalog_operations.h"
 #include "mongo/db/s/sharding_initialization_mongod.h"
 #include "mongo/db/s/sharding_migration_critical_section.h"
 #include "mongo/db/s/sharding_recovery_service.h"
+#include "mongo/db/s/type_oplog_catalog_metadata_gen.h"
 #include "mongo/db/s/type_shard_collection.h"
 #include "mongo/db/s/type_shard_collection_gen.h"
 #include "mongo/db/s/type_shard_database.h"
@@ -81,7 +80,6 @@
 #include "mongo/s/cannot_implicitly_create_collection_info.h"
 #include "mongo/s/catalog/type_index_catalog.h"
 #include "mongo/s/catalog/type_index_catalog_gen.h"
-#include "mongo/s/catalog/type_oplog_catalog_metadata_gen.h"
 #include "mongo/s/index_version.h"
 #include "mongo/s/sharding_index_catalog_cache.h"
 #include "mongo/s/sharding_state.h"
@@ -195,91 +193,29 @@ void abortOngoingMigrationIfNeeded(OperationContext* opCtx, const NamespaceStrin
     }
 }
 
-void updateDbMetadataOnDisk(OperationContext* opCtx,
-                            CollectionAcquisition& collection,
-                            const DatabaseName& dbName,
-                            const boost::optional<DatabaseType>& dbMetadata,
-                            DatabaseMetadataUpdateOpEnum op) {
-    const auto dbNameStr =
-        DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault());
-    switch (op) {
-        case DatabaseMetadataUpdateOpEnum::kCreate:
-            Helpers::upsert(opCtx,
-                            collection,
-                            BSON(DatabaseType::kDbNameFieldName << dbNameStr),
-                            dbMetadata->toBSON(),
-                            false /* fromMigrate */);
-            break;
-        case DatabaseMetadataUpdateOpEnum::kDrop:
-            deleteObjects(opCtx,
-                          collection,
-                          BSON(DatabaseType::kDbNameFieldName << dbNameStr),
-                          true /* justOne */);
-            break;
-        default:
-            tasserted(ErrorCodes::IllegalOperation,
-                      str::stream() << "Received an unkown database operation: "
-                                    << DatabaseMetadataUpdateOp_serializer(op));
-    }
-}
-
-void updateDbMetadataInCache(OperationContext* opCtx,
-                             const DatabaseName& dbName,
-                             const boost::optional<DatabaseType>& dbMetadata,
-                             DatabaseMetadataUpdateOpEnum op) {
-    AutoGetDb autoDb(opCtx, dbName, MODE_IX);
-    auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(opCtx, dbName);
-    switch (op) {
-        case DatabaseMetadataUpdateOpEnum::kCreate:
-            scopedDss->setDbInfo(opCtx, *dbMetadata, true /* useDssForTesting */);
-            break;
-        case DatabaseMetadataUpdateOpEnum::kDrop:
-            scopedDss->clearDbInfo(
-                opCtx, false /* cancelOngoingRefresh */, true /* useDssForTesting */);
-            break;
-        default:
-            tasserted(ErrorCodes::IllegalOperation,
-                      str::stream() << "Received an unkown database operation: "
-                                    << DatabaseMetadataUpdateOp_serializer(op));
-    }
-}
-
-std::tuple<DatabaseMetadataUpdateOpEnum, DatabaseName, boost::optional<DatabaseType>>
-deserializeDatabaseMetadataOplogEntry(const DatabaseMetadataUpdateOplogEntry& entry) {
-    auto op = entry.getOp();
-    boost::optional<DatabaseType> db;
-    boost::optional<DatabaseName> tempDbName;
-
-    std::visit(OverloadedVisitor{[&](const DatabaseMetadataUpdateCreateEntry& entry) {
-                                     tassert(9980401,
-                                             "Expecting an operation of type create",
-                                             op == DatabaseMetadataUpdateOpEnum::kCreate);
-                                     tempDbName = entry.getDb().getDbName();
-                                     db = entry.getDb();
-                                 },
-                                 [&](const DatabaseMetadataUpdateDropEntry& entry) {
-                                     tassert(9980402,
-                                             "Expecting an operation of type drop",
-                                             op == DatabaseMetadataUpdateOpEnum::kDrop);
-                                     tempDbName = entry.getDbName();
-                                 }},
-               entry.getMetadata());
-
-    invariant(tempDbName);
-    return {op, std::move(*tempDbName), db};
-}
-
-repl::MutableOplogEntry generateDatabaseMetadataUpdateOplogEntry(
-    OperationContext* opCtx,
-    const DatabaseName& dbName,
-    const DatabaseMetadataUpdateOplogEntry& dbMetadataEntry) {
+template <typename OplogEntry>
+void logDatabaseMetadataUpdateOplogEntry(OperationContext* opCtx,
+                                         const DatabaseName& dbName,
+                                         const OplogEntry& entry,
+                                         const std::string& operation) {
     repl::MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);
     oplogEntry.setNss(NamespaceString::makeCommandNamespace(dbName));
-    oplogEntry.setObject(dbMetadataEntry.toBSON());
+    oplogEntry.setObject(entry.toBSON());
     oplogEntry.setOpTime(OplogSlot());
     oplogEntry.setWallClockTime(opCtx->getServiceContext()->getFastClockSource()->now());
-    return oplogEntry;
+
+    writeConflictRetry(opCtx, operation, NamespaceString::kRsOplogNamespace, [&] {
+        AutoGetOplogFastPath oplogWrite(opCtx, OplogAccessMode::kWrite);
+        WriteUnitOfWork wuow(opCtx);
+        repl::OpTime opTime = repl::logOp(opCtx, &oplogEntry);
+        uassert(9980400,
+                str::stream() << "Failed to create new oplog entry for " << operation
+                              << " with opTime: " << oplogEntry.getOpTime().toString() << ": "
+                              << redact(oplogEntry.toBSON()),
+                !opTime.isNull());
+        wuow.commit();
+    });
 }
 
 }  // namespace
@@ -512,54 +448,6 @@ void ShardServerOpObserver::onUpdate(OperationContext* opCtx,
         }
     }
 
-    if (needsSpecialHandling &&
-        args.coll->ns() == NamespaceString::kConfigCacheDatabasesNamespace) {
-        // Notification of routing table changes is only needed on secondaries that are applying
-        // oplog entries.
-        if (opCtx->isEnforcingConstraints()) {
-            return;
-        }
-
-        // This logic runs on updates to the shard's persisted cache of the config server's
-        // config.databases collection.
-        //
-        // If an update occurs to the 'enterCriticalSectionSignal' field, clear the routing
-        // table immediately. This will provoke the next secondary caller to refresh through the
-        // primary, blocking behind the critical section.
-
-        // Extract which database was updated
-        std::string db;
-        fassert(40478,
-                bsonExtractStringField(
-                    args.updateArgs->criteria, ShardDatabaseType::kDbNameFieldName, &db));
-
-        auto enterCriticalSectionCounterFieldNewVal = update_oplog_entry::extractNewValueForField(
-            updateDoc, ShardDatabaseType::kEnterCriticalSectionCounterFieldName);
-
-        if (enterCriticalSectionCounterFieldNewVal.ok()) {
-            // TODO SERVER-58223: evaluate whether this is safe or whether acquiring the lock can
-            // block.
-            AllowLockAcquisitionOnTimestampedUnitOfWork allowLockAcquisition(
-                shard_role_details::getLocker(opCtx));
-
-            DatabaseName dbName = DatabaseNameUtil::deserialize(
-                boost::none, db, SerializationContext::stateDefault());
-            // TODO SERVER-99703: We have to disable the checks here as we're
-            // violating the ordering of locks for databases. This can happen
-            // because a write to a collection in the config database like the
-            // critical section will make us take a lock on a different database.
-            // That is, we have an operation that has taken a lock on config,
-            // followed by a lock on a user database. Other op observers like the
-            // preimages one will take the inverse order, that is they have a lock
-            // on a user database and then take a lock on the config database.
-            DisableLockerRuntimeOrderingChecks disableChecks{opCtx};
-            AutoGetDb autoDb(opCtx, dbName, MODE_X);
-            auto scopedDss =
-                DatabaseShardingState::assertDbLockedAndAcquireExclusive(opCtx, dbName);
-            scopedDss->clearDbInfo(opCtx);
-        }
-    }
-
     if (args.coll->ns() == NamespaceString::kCollectionCriticalSectionsNamespace) {
         const auto collCSDoc = CollectionCriticalSectionDocument::parse(
             IDLParserContext("ShardServerOpObserver"), args.updateArgs->updatedDoc);
@@ -776,41 +664,6 @@ void ShardServerOpObserver::onDelete(OperationContext* opCtx,
         onConfigDeleteInvalidateCachedCollectionMetadataAndNotify(opCtx, documentId);
     }
 
-    if (nss == NamespaceString::kConfigCacheDatabasesNamespace) {
-        // Primaries take locks when writing to certain internal namespaces. It must
-        // be ensured that those locks are also taken on secondaries, when applying
-        // the related oplog entries. Return early, if the node is not a secondary
-        // in oplog application.
-        if (opCtx->isEnforcingConstraints()) {
-            return;
-        }
-
-        // Extract which database entry is being deleted from the _id field.
-        std::string deletedDatabase;
-        fassert(50772,
-                bsonExtractStringField(
-                    documentId, ShardDatabaseType::kDbNameFieldName, &deletedDatabase));
-
-        // TODO SERVER-58223: evaluate whether this is safe or whether acquiring the lock can block.
-        AllowLockAcquisitionOnTimestampedUnitOfWork allowLockAcquisition(
-            shard_role_details::getLocker(opCtx));
-
-        DatabaseName dbName = DatabaseNameUtil::deserialize(
-            boost::none, deletedDatabase, SerializationContext::stateDefault());
-        // TODO SERVER-99703: We have to disable the checks here as we're
-        // violating the ordering of locks for databases. This can happen
-        // because a write to a collection in the config database like the
-        // critical section will make us take a lock on a different database.
-        // That is, we have an operation that has taken a lock on config,
-        // followed by a lock on a user database. Other op observers like the
-        // preimages one will take the inverse order, that is they have a lock
-        // on a user database and then take a lock on the config database.
-        DisableLockerRuntimeOrderingChecks disableChecks{opCtx};
-        AutoGetDb autoDb(opCtx, dbName, MODE_X);
-        auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(opCtx, dbName);
-        scopedDss->clearDbInfo(opCtx);
-    }
-
     if (nss == NamespaceString::kServerConfigurationNamespace) {
         if (auto idElem = documentId.firstElement()) {
             auto idStr = idElem.str();
@@ -978,7 +831,7 @@ void ShardServerOpObserver::onCreateCollection(OperationContext* opCtx,
     // Temp collections are always UNSHARDED
     if (options.temp) {
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, collectionName)
-            ->setFilteringMetadata(opCtx, CollectionMetadata());
+            ->setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
         return;
     }
 
@@ -995,7 +848,7 @@ void ShardServerOpObserver::onCreateCollection(OperationContext* opCtx,
     if (oss._forceCSRAsUnknownAfterCollectionCreation) {
         scopedCsr->clearFilteringMetadata(opCtx);
     } else if (!scopedCsr->getCurrentMetadataIfKnown()) {
-        scopedCsr->setFilteringMetadata(opCtx, CollectionMetadata());
+        scopedCsr->setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
     }
 }
 
@@ -1105,58 +958,51 @@ void ShardServerOpObserver::onReplicationRollback(OperationContext* opCtx,
     }
 }
 
-void ShardServerOpObserver::onDatabaseMetadataUpdate(
-    OperationContext* opCtx, const DatabaseMetadataUpdateOplogEntry& entry) {
-    auto [op, dbName, dbMetadata] = deserializeDatabaseMetadataOplogEntry(entry);
+void ShardServerOpObserver::onCreateDatabaseMetadata(
+    OperationContext* opCtx, const CreateDatabaseMetadataOplogEntry& entry) {
+    auto dbMetadata = entry.getDb();
+    auto dbName = dbMetadata.getDbName();
 
-    // 1: Update DSS in the primary nodes.
-    updateDbMetadataInCache(opCtx, dbName, dbMetadata, op);
+    LOGV2_DEBUG(10105906,
+                1,
+                "Updating database sharding in-memory state onCreateDatabaseMetadata",
+                "dbName"_attr = dbName);
 
-    // TODO (SERVER-100654): Apply both the writes and the oplog 'c' entry within the same WUOW.
+    // Step 1: Write to `config.shard.databases` to insert database metadata.
+    shard_local_catalog_operations::insertDatabaseMetadata(opCtx, dbMetadata);
 
-    // 2: Write to `config.shard.databases` to make writes durable.
+    // Step 2: Update DSS in primary node.
     {
-        WriteUnitOfWork wuow(opCtx);
-
-        auto coll = acquireCollection(
-            opCtx,
-            CollectionAcquisitionRequest(NamespaceString::kConfigShardDatabasesNamespace,
-                                         AcquisitionPrerequisites::kPretendUnsharded,
-                                         repl::ReadConcernArgs::kLocal,
-                                         AcquisitionPrerequisites::kWrite),
-            MODE_IX);
-
-        if (op == DatabaseMetadataUpdateOpEnum::kCreate && !coll.exists()) {
-            ScopedLocalCatalogWriteFence scopedLocalCatalogWriteFence(opCtx, &coll);
-            DatabaseHolder::get(opCtx)
-                ->openDb(opCtx, coll.nss().dbName())
-                ->createCollection(opCtx, coll.nss());
-        }
-
-        // For a drop operation, this method is based on the assumption that previous database
-        // metadata exists, which implies that the authoritative collection should also be present.
-        // If that collection is not found, it indicates an inconsistency in the metadata. In other
-        // words, there is a database that was not registered in the shard-local catalog.
-        invariant(coll.exists());
-
-        updateDbMetadataOnDisk(opCtx, coll, dbName, dbMetadata, op);
-        wuow.commit();
+        AutoGetDb autoDb(opCtx, dbName, MODE_IX);
+        auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(opCtx, dbName);
+        scopedDss->setAuthoritativeDbInfo(opCtx, dbMetadata);
     }
 
-    // 3. Write an oplog 'c' entry to inform the secondaries how to maintain the cache.
-    auto oplogEntry = generateDatabaseMetadataUpdateOplogEntry(opCtx, dbName, entry);
+    // Step 3: Write an oplog 'c' entry to inform secondaries.
+    logDatabaseMetadataUpdateOplogEntry(opCtx, dbName, entry, "createDatabaseMetadata");
+}
 
-    writeConflictRetry(opCtx, "databaseMetadataUpdate", NamespaceString::kRsOplogNamespace, [&] {
-        AutoGetOplogFastPath oplogWrite(opCtx, OplogAccessMode::kWrite);
-        WriteUnitOfWork wuow(opCtx);
-        repl::OpTime opTime = repl::logOp(opCtx, &oplogEntry);
-        uassert(9980400,
-                str::stream() << "Failed to create new oplog entry for oplog with opTime: "
-                              << oplogEntry.getOpTime().toString() << ": "
-                              << redact(oplogEntry.toBSON()),
-                !opTime.isNull());
-        wuow.commit();
-    });
+void ShardServerOpObserver::onDropDatabaseMetadata(OperationContext* opCtx,
+                                                   const DropDatabaseMetadataOplogEntry& entry) {
+    auto dbName = entry.getDbName();
+
+    LOGV2_DEBUG(10105907,
+                1,
+                "Updating database sharding in-memory state onDropDatabaseMetadata",
+                "dbName"_attr = dbName);
+
+    // Step 1: Remove database metadata from `config.shard.databases`.
+    shard_local_catalog_operations::deleteDatabaseMetadata(opCtx, dbName);
+
+    // Step 2: Update DSS in primary node.
+    {
+        AutoGetDb autoDb(opCtx, dbName, MODE_IX);
+        auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(opCtx, dbName);
+        scopedDss->clearAuthoritativeDbInfo(opCtx);
+    }
+
+    // Step 3: Write an oplog 'c' entry to inform secondaries.
+    logDatabaseMetadataUpdateOplogEntry(opCtx, dbName, entry, "dropDatabaseMetadata");
 }
 
 }  // namespace mongo

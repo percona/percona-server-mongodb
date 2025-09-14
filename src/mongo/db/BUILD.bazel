@@ -1411,6 +1411,7 @@ mongo_cc_library(
         "//src/mongo/db/query:plan_yield_policy_sbe.h",
         "//src/mongo/db/query:planner_interface.h",
         "//src/mongo/db/query:query_planner_params.h",
+        "//src/mongo/db/query:query_planner_params_diagnostic_printer.h",
         "//src/mongo/db/query:sbe_plan_ranker.h",
         "//src/mongo/db/query:sbe_trial_runtime_executor.h",
         "//src/mongo/db/query:shard_filterer_factory_impl.h",
@@ -2249,10 +2250,7 @@ mongo_cc_library(
         ":server_base",
         "//src/mongo/db/catalog:cannot_convert_index_to_unique_info",
         "//src/mongo/db/catalog:collection_uuid_mismatch_info",
-    ] + select({
-        "@platforms//os:linux": [":throw_hook_impl"],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 mongo_cc_library(
@@ -2660,6 +2658,7 @@ mongo_cc_library(
     hdrs = [
         "//src/mongo/bson:unordered_fields_bsonelement_comparator.h",
         "//src/mongo/db/exec:projection_executor_utils.h",
+        "//src/mongo/db/exec:substr_utils.h",
         "//src/mongo/db/exec/expression:evaluate.h",
         "//src/mongo/db/exec/matcher:match_details.h",
         "//src/mongo/db/exec/matcher:matcher.h",
@@ -2746,7 +2745,6 @@ mongo_cc_library(
         "//src/mongo/db/query:expression_walker.h",
         "//src/mongo/db/query:indexability.h",
         "//src/mongo/db/query:query_utils.h",
-        "//src/mongo/db/query:substr_utils.h",
         "//src/mongo/db/query/fle:implicit_validator.h",
         "//src/mongo/db/query/query_shape:let_shape_component.h",
     ],
@@ -2762,6 +2760,8 @@ mongo_cc_library(
         "//src/mongo/crypto:fle_crypto",
         "//src/mongo/crypto:fle_tokens",
         "//src/mongo/db/commands:test_commands_enabled",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/db/exec:str_trim_utils",
+        "//src/mongo/db/exec:substr_utils",
         "//src/mongo/db/exec/document_value",
         "//src/mongo/db/fts:fts_query_noop",
         "//src/mongo/db/geo:geometry",  # TODO(SERVER-93876): Remove.
@@ -2773,8 +2773,6 @@ mongo_cc_library(
         "//src/mongo/db/query:query_knob_configuration",
         "//src/mongo/db/query:query_knobs",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/query:random_utils",
-        "//src/mongo/db/query:str_trim_utils",
-        "//src/mongo/db/query:substr_utils",
         "//src/mongo/db/query/boolean_simplification",
         "//src/mongo/db/query/bson:dotted_path_support",
         "//src/mongo/db/query/collation:collator_factory_interface",
@@ -2945,6 +2943,7 @@ mongo_cc_library(
         "//src/mongo/db/query/fle:range_predicate.cpp",
         "//src/mongo/db/query/fle:range_validator.cpp",
         "//src/mongo/db/query/fle:server_rewrite.cpp",
+        "//src/mongo/db/query/fle:text_search_predicate.cpp",
         "//src/mongo/s:ns_targeter.h",
         "//src/mongo/s/write_ops:batch_write_exec.h",
     ],
@@ -2958,6 +2957,7 @@ mongo_cc_library(
         "//src/mongo/db/query/fle:range_validator.h",
         "//src/mongo/db/query/fle:server_rewrite.h",
         "//src/mongo/db/query/fle:server_rewrite_helper.h",
+        "//src/mongo/db/query/fle:text_search_predicate.h",
     ],
     deps = [
         ":dbdirectclient",
@@ -3007,6 +3007,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/query/fle:query_rewriter_test.cpp",
         "//src/mongo/db/query/fle:range_predicate_test.cpp",
         "//src/mongo/db/query/fle:range_validator_test.cpp",
+        "//src/mongo/db/query/fle:text_search_predicate_test.cpp",
     ],
     tags = ["mongo_unittest_seventh_group"],
     target_compatible_with = select({
@@ -3250,7 +3251,10 @@ mongo_cc_library(
         "//src/mongo/db:server_base",
         "//src/mongo/util:processinfo",
         "//src/mongo/util:signal_handlers",
-    ],
+    ] + select({
+        "@platforms//os:linux": [":throw_hook_impl"],
+        "//conditions:default": [],
+    }),
 )
 
 mongo_cc_library(

@@ -573,7 +573,7 @@ TEST_F(MetadataConsistencyTest, FindMissingDatabaseMetadataInShardLocalCatalogCa
         AutoGetDb autoDb(operationContext(), _dbName, MODE_X);
         auto scopedDss =
             DatabaseShardingState::assertDbLockedAndAcquireExclusive(operationContext(), _dbName);
-        scopedDss->clearDbInfo(operationContext(), true /* useDssForTesting */);
+        scopedDss->clearDbInfo(operationContext());
     }
 
     // Validate that we can find the inconsistency.
@@ -599,8 +599,7 @@ TEST_F(MetadataConsistencyTest, FindInconsistentDatabaseVersionInShardLocalCatal
         auto scopedDss =
             DatabaseShardingState::assertDbLockedAndAcquireExclusive(operationContext(), _dbName);
         scopedDss->setDbInfo(operationContext(),
-                             DatabaseType{_dbName, _shardId, {_dbUuid, Timestamp(2, 0)}},
-                             true /* useDssForTesting */);
+                             DatabaseType{_dbName, _shardId, {_dbUuid, Timestamp(2, 0)}});
     }
 
     // Validate that we can find the inconsistency.
@@ -621,7 +620,7 @@ TEST_F(MetadataConsistencyTest, FindEmptyDurableDatabaseMetadataInShard) {
         AutoGetDb autoDb(operationContext(), _dbName, MODE_X);
         auto scopedDss =
             DatabaseShardingState::assertDbLockedAndAcquireExclusive(operationContext(), _dbName);
-        scopedDss->setDbInfo(operationContext(), dbInGlobalCatalog, true /* useDssForTesting */);
+        scopedDss->setDbInfo(operationContext(), dbInGlobalCatalog);
     }
 
     // Validate that we can find the inconsistency.
@@ -642,7 +641,7 @@ TEST_F(MetadataConsistencyTest, FindInconsistentDurableDatabaseMetadataInShardWi
         AutoGetDb autoDb(operationContext(), _dbName, MODE_X);
         auto scopedDss =
             DatabaseShardingState::assertDbLockedAndAcquireExclusive(operationContext(), _dbName);
-        scopedDss->setDbInfo(operationContext(), dbInGlobalCatalog, true /* useDssForTesting */);
+        scopedDss->setDbInfo(operationContext(), dbInGlobalCatalog);
     }
 
     // Introduce an inconsistency in the shard-local catalog
@@ -654,9 +653,11 @@ TEST_F(MetadataConsistencyTest, FindInconsistentDurableDatabaseMetadataInShardWi
     const auto inconsistencies = metadata_consistency_util::checkDatabaseMetadataConsistency(
         operationContext(), dbInGlobalCatalog);
 
-    assertOneInconsistencyFound(
-        MetadataInconsistencyTypeEnum::kInconsistentDatabaseVersionInShardLocalCatalog,
-        inconsistencies);
+    ASSERT_EQ(2, inconsistencies.size());
+    ASSERT_EQ(MetadataInconsistencyTypeEnum::kInconsistentDatabaseVersionInShardLocalCatalog,
+              inconsistencies[0].getType());
+    ASSERT_EQ(MetadataInconsistencyTypeEnum::kInconsistentDatabaseVersionInShardLocalCatalogCache,
+              inconsistencies[1].getType());
 }
 
 TEST_F(MetadataConsistencyTest, FindMatchingDurableDatabaseMetadataInWrongShard) {
@@ -668,7 +669,7 @@ TEST_F(MetadataConsistencyTest, FindMatchingDurableDatabaseMetadataInWrongShard)
         AutoGetDb autoDb(operationContext(), _dbName, MODE_X);
         auto scopedDss =
             DatabaseShardingState::assertDbLockedAndAcquireExclusive(operationContext(), _dbName);
-        scopedDss->setDbInfo(operationContext(), dbInGlobalCatalog, true /* useDssForTesting */);
+        scopedDss->setDbInfo(operationContext(), dbInGlobalCatalog);
     }
 
     // Introduce an inconsistency in the shard-local catalog
@@ -694,7 +695,7 @@ TEST_F(MetadataConsistencyTest, FindInconsistentDurableDatabaseMetadataInShard) 
         AutoGetDb autoDb(operationContext(), _dbName, MODE_X);
         auto scopedDss =
             DatabaseShardingState::assertDbLockedAndAcquireExclusive(operationContext(), _dbName);
-        scopedDss->setDbInfo(operationContext(), dbInGlobalCatalog, true /* useDssForTesting */);
+        scopedDss->setDbInfo(operationContext(), dbInGlobalCatalog);
     }
 
     // Introduce an inconsistency in the shard-local catalog

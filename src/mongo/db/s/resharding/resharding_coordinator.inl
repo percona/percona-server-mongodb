@@ -106,7 +106,6 @@ MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforeRemovingStateDoc);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforeCompletion);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforeStartingErrorFlow);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseCoordinatorBeforePersistingStateTransition);
-MONGO_FAIL_POINT_DEFINE(reshardingPerformValidationAfterApplying);
 MONGO_FAIL_POINT_DEFINE(pauseBeforeTellDonorToRefresh);
 MONGO_FAIL_POINT_DEFINE(pauseAfterInsertCoordinatorDoc);
 MONGO_FAIL_POINT_DEFINE(pauseBeforeCTHolderInitialization);
@@ -843,7 +842,8 @@ ExecutorFuture<bool> ReshardingCoordinator::_isReshardingOpRedundant(
                        _coordinatorDoc.getShardDistribution().get().front().getShard();
                    return shardIdsSet.find(toShard) != shardIdsSet.end();
                } else if (_metadata.getProvenance() &&
-                          _metadata.getProvenance().get() == ProvenanceEnum::kUnshardCollection) {
+                          _metadata.getProvenance().get() ==
+                              ReshardingProvenanceEnum::kUnshardCollection) {
                    std::set<ShardId> shardIdsSet;
                    cm.getAllShardIds(&shardIdsSet);
                    const auto toShard =
@@ -976,7 +976,7 @@ void ReshardingCoordinator::_calculateParticipantsAndChunksThenWriteToDisk() {
 
     auto isUnsplittable = _reshardingCoordinatorExternalState->getIsUnsplittable(
                               opCtx.get(), updatedCoordinatorDoc.getSourceNss()) ||
-        (provenance && provenance.get() == ProvenanceEnum::kUnshardCollection);
+        (provenance && provenance.get() == ReshardingProvenanceEnum::kUnshardCollection);
 
     resharding::writeParticipantShardsAndTempCollInfo(opCtx.get(),
                                                       _metrics.get(),
@@ -1109,6 +1109,12 @@ ExecutorFuture<void> ReshardingCoordinator::_fetchAndPersistNumDocumentsToCloneF
                return ExecutorFuture<void>(**executor)
                    .then([this, anchor = shared_from_this(), executor] {
                        auto opCtx = _cancelableOpCtxFactory->makeOperationContext(&cc());
+
+                       // If running in "relaxed" mode, instruct the receiving shards to ignore
+                       // collection uuid mismatches between the local and sharding catalogs.
+                       boost::optional<RouterRelaxCollectionUUIDConsistencyCheckBlock>
+                           routerRelaxCollectionUUIDConsistencyCheckBlock(
+                               boost::in_place_init_if, _coordinatorDoc.getRelaxed(), opCtx.get());
 
                        std::map<ShardId, ShardVersion> donorShardVersions;
                        {
@@ -1404,17 +1410,8 @@ ReshardingCoordinator::_awaitAllRecipientsInStrictConsistency(
                 coordinatorDocChangedOnDisk = resharding::getCoordinatorDoc(
                     opCtx.get(), coordinatorDocChangedOnDisk.getReshardingUUID());
 
-                for (auto& donorShard : coordinatorDocChangedOnDisk.getDonorShards()) {
-                    uassert(1003585,
-                            str::stream() << "Expected to have set the final number of documents "
-                                             "on the donor shard '"
-                                          << donorShard.getId() << "'",
-                            donorShard.getDocumentsFinal());
-                }
-                if (MONGO_unlikely(reshardingPerformValidationAfterApplying.shouldFail())) {
-                    _reshardingCoordinatorExternalState->verifyFinalCollection(
-                        opCtx.get(), coordinatorDocChangedOnDisk);
-                }
+                _reshardingCoordinatorExternalState->verifyFinalCollection(
+                    opCtx.get(), coordinatorDocChangedOnDisk);
             }
 
             return coordinatorDocChangedOnDisk;
@@ -1510,7 +1507,9 @@ void ReshardingCoordinator::_generateOpEventOnCoordinatingShard(
     eventNotification.setNumInitialChunks(_coordinatorDoc.getNumInitialChunks());
     eventNotification.setUnique(_coordinatorDoc.getUnique());
     eventNotification.setCollation(_coordinatorDoc.getCollation());
-
+    if (const auto& provenance = _metadata.getProvenance()) {
+        eventNotification.setProvenance(provenance);
+    }
     ShardsvrNotifyShardingEventRequest request(notify_sharding_event::kCollectionResharded,
                                                eventNotification.toBSON());
 

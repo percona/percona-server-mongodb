@@ -91,6 +91,11 @@ enum class BucketPrepareAction { kPrepare, kUnprepare };
 enum class AllowQueryBasedReopening { kAllow, kDisallow };
 
 /**
+ * Mode enum to let us know what the isBucketStateEligibleForInsertsAndCleanup returns.
+ */
+enum class BucketStateForInsertAndCleanup { kNoState, kInsertionConflict, kEligibleForInsert };
+
+/**
  * Maps bucket identifier to the stripe that is responsible for it.
  */
 StripeNumber getStripeNumber(const BucketCatalog& catalog, const BucketKey& key);
@@ -153,23 +158,24 @@ std::vector<Bucket*> findOpenBuckets(Stripe& stripe,
                                      const BucketKey& bucketKey);
 
 /**
- * Return true if a given bucket's state is eligible for new inserts. Otherwise, return false.
- * Clean up the bucket from the catalog if there is a conflicting state.
+ * Returns kEligibleForInsert if a given bucket's state is eligible for new inserts. If the bucket
+ * has no state, returns kNoState. Returns kInsertionConflict and cleans up the bucket from the
+ * catalog if we have an insertion conflict.
  */
-bool isBucketStateEligibleForInsertsAndCleanup(BucketCatalog& catalog,
-                                               Stripe& stripe,
-                                               WithLock stripeLock,
-                                               Bucket* bucket);
+BucketStateForInsertAndCleanup isBucketStateEligibleForInsertsAndCleanup(BucketCatalog& catalog,
+                                                                         Stripe& stripe,
+                                                                         WithLock stripeLock,
+                                                                         Bucket* bucket);
 
 /**
- * Rollover 'bucket' according to 'action' if the bucket does not contain uncommitted measurements.
- * Mark the bucket's 'rolloverAction' otherwise.
+ * Rollover 'bucket' according to 'reason' and will update rollover stats if the bucket does not
+ * contain uncommitted measurements. Mark the bucket's 'rolloverReason' otherwise.
  */
 void rollover(BucketCatalog& catalog,
               Stripe& stripe,
               WithLock stripeLock,
               Bucket& bucket,
-              RolloverAction action);
+              RolloverReason reason);
 
 /**
  * Retrieve a previously closed bucket for write use if one exists in the catalog. Considers buckets
@@ -257,7 +263,7 @@ std::variant<std::shared_ptr<WriteBatch>, RolloverReason> insertIntoBucket(
     uint64_t storageCacheSizeBytes,
     const StringDataComparator* comparator,
     Bucket* excludedBucket = nullptr,
-    boost::optional<RolloverAction> excludedAction = boost::none);
+    boost::optional<RolloverReason> excludedReason = boost::none);
 
 /**
  * Wait for other batches to finish so we can prepare 'batch'
@@ -427,11 +433,11 @@ Bucket& rollover(BucketCatalog& catalog,
                  Bucket& bucket,
                  const BucketKey& key,
                  const TimeseriesOptions& timeseriesOptions,
-                 RolloverAction action,
+                 RolloverReason reason,
                  const Date_t& time,
                  const StringDataComparator* comparator,
                  Bucket* additionalBucket,
-                 boost::optional<RolloverAction> additionalAction,
+                 boost::optional<RolloverReason> additionalReason,
                  ExecutionStatsController& stats);
 
 /**

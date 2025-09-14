@@ -96,7 +96,7 @@ ShardsvrReshardCollection makeMoveCollectionOrUnshardCollectionRequest(
     const DatabaseName& dbName,
     const NamespaceString& nss,
     const boost::optional<ShardId>& destinationShard,
-    ProvenanceEnum provenance,
+    ReshardingProvenanceEnum provenance,
     const boost::optional<bool>& performVerification,
     const boost::optional<std::int64_t>& oplogBatchApplierTaskCount) {
     ShardsvrReshardCollection shardsvrReshardCollection(nss);
@@ -127,7 +127,7 @@ ShardsvrReshardCollection makeMoveCollectionRequest(
     const DatabaseName& dbName,
     const NamespaceString& nss,
     const ShardId& destinationShard,
-    ProvenanceEnum provenance,
+    ReshardingProvenanceEnum provenance,
     const boost::optional<bool>& performVerification,
     const boost::optional<std::int64_t>& oplogBatchApplierTaskCount) {
     return makeMoveCollectionOrUnshardCollectionRequest(
@@ -140,12 +140,13 @@ ShardsvrReshardCollection makeUnshardCollectionRequest(
     const boost::optional<ShardId>& destinationShard,
     const boost::optional<bool>& performVerification,
     const boost::optional<std::int64_t>& oplogBatchApplierTaskCount) {
-    return makeMoveCollectionOrUnshardCollectionRequest(dbName,
-                                                        nss,
-                                                        destinationShard,
-                                                        ProvenanceEnum::kUnshardCollection,
-                                                        performVerification,
-                                                        oplogBatchApplierTaskCount);
+    return makeMoveCollectionOrUnshardCollectionRequest(
+        dbName,
+        nss,
+        destinationShard,
+        ReshardingProvenanceEnum::kUnshardCollection,
+        performVerification,
+        oplogBatchApplierTaskCount);
 }
 }  // namespace cluster::unsplittable
 
@@ -1033,7 +1034,7 @@ BSONObj forceReadConcernLocal(OperationContext* opCtx, BSONObj& cmd) {
 StatusWith<Shard::QueryResponse> loadIndexesFromAuthoritativeShard(
     OperationContext* opCtx, const NamespaceString& nss, const CollectionRoutingInfo& cri) {
     auto [indexShard, listIndexesCmd] = [&]() -> std::pair<std::shared_ptr<Shard>, BSONObj> {
-        const auto& [cm, sii] = cri;
+        const auto& cm = cri.cm;
         ListIndexes listIndexesCmd(nss);
         setReadWriteConcern(opCtx, listIndexesCmd, true, false);
         auto cmdNoVersion = listIndexesCmd.toBSON();

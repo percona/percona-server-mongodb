@@ -54,11 +54,11 @@
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/rollback.h"
+#include "mongo/db/s/type_oplog_catalog_metadata_gen.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/session/logical_session_id_gen.h"
 #include "mongo/db/transaction/transaction_operations.h"
-#include "mongo/s/catalog/type_oplog_catalog_metadata_gen.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
@@ -676,10 +676,16 @@ public:
                                              const repl::OpTime& newCommitPoint) = 0;
 
     /**
-     * Called when the authoritative DSS is updated.
+     * Called when the authoritative DSS needs to be updated with a createDatabase operation.
      */
-    virtual void onDatabaseMetadataUpdate(OperationContext* opCtx,
-                                          const DatabaseMetadataUpdateOplogEntry& entry) = 0;
+    virtual void onCreateDatabaseMetadata(OperationContext* opCtx,
+                                          const CreateDatabaseMetadataOplogEntry& entry) = 0;
+
+    /**
+     * Called when the authoritative DSS needs to be updated with a dropDatabase operation.
+     */
+    virtual void onDropDatabaseMetadata(OperationContext* opCtx,
+                                        const DropDatabaseMetadataOplogEntry& entry) = 0;
 
     struct Times;
 

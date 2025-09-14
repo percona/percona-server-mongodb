@@ -274,7 +274,7 @@ struct HandleRequest {
     };
 
     HandleRequest(OperationContext* opCtx, const Message& msg)
-        : executionContext(ExecutionContext(opCtx, const_cast<Message&>(msg))) {}
+        : executionContext(opCtx, const_cast<Message&>(msg)) {}
 
     void startOperation();
     DbResponse runOperation();
@@ -809,7 +809,6 @@ private:
 };
 
 void InvokeCommand::run() {
-    const auto dbName = _ecd->getInvocation()->ns().dbName();
     runCommandInvocation(_ecd->getExecutionContext(), _ecd->getInvocation());
 }
 
@@ -817,8 +816,6 @@ void CheckoutSessionAndInvokeCommand::run() {
     auto status = [&] {
         try {
             _checkOutSession();
-
-            const auto dbName = _ecd->getInvocation()->ns().dbName();
 
             if (auto scoped = failWithErrorCodeAfterSessionCheckOut.scoped();
                 MONGO_unlikely(scoped.isActive())) {
@@ -1651,22 +1648,6 @@ void ExecCommandDatabase::_initiateCommand() {
                          "Skipping command execution for help request"));
     }
 
-    if (auto auditUserAttrs = rpc::AuditUserAttrs::get(opCtx);
-        auditUserAttrs && auditUserAttrs->getIsImpersonating()) {
-        uassert(
-            ErrorCodes::Unauthorized,
-            "Unauthorized use of impersonation metadata.",
-            authzSession->isAuthorizedForClusterActions({ActionType::impersonate}, boost::none));
-    }
-
-    if (auto auditClientAttrs = rpc::AuditClientAttrs::get(client);
-        auditClientAttrs && auditClientAttrs->getIsImpersonating()) {
-        uassert(
-            ErrorCodes::Unauthorized,
-            "Unauthorized use of impersonation metadata.",
-            authzSession->isAuthorizedForClusterActions({ActionType::impersonate}, boost::none));
-    }
-
     _invocation->checkAuthorization(opCtx, _execContext.getRequest());
 
     if (!opCtx->getClient()->isInDirectClient() &&
@@ -2434,7 +2415,7 @@ void onHandleRequestException(const HandleRequest::ExecutionContext& context,
 }
 
 Future<DbResponse> ServiceEntryPointShardRole::handleRequest(OperationContext* opCtx,
-                                                             const Message& m) noexcept try {
+                                                             const Message& m) try {
     tassert(9391501,
             "Invalid ClusterRole in ServiceEntryPointShardRole",
             opCtx->getService()->role().hasExclusively(ClusterRole::ShardServer));

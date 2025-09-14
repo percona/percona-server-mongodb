@@ -29,8 +29,14 @@
 
 #include "mongo/db/s/shard_local_catalog_operations.h"
 
+#include "mongo/db/catalog/database_holder.h"
 #include "mongo/db/dbdirectclient.h"
+#include "mongo/db/dbhelpers.h"
 #include "mongo/db/query/find_command_gen.h"
+#include "mongo/db/query/write_ops/delete.h"
+#include "mongo/db/shard_role.h"
+#include "mongo/db/transaction_resources.h"
+#include "mongo/s/catalog/type_database_gen.h"
 
 namespace mongo {
 
@@ -41,9 +47,86 @@ std::unique_ptr<DBClientCursor> readAllDatabaseMetadata(OperationContext* opCtx)
     DBDirectClient client(opCtx);
 
     auto cursor = client.find(std::move(findOp));
-    tassert(9813600, "Failed to retrieve cursor", cursor);
+    tassert(9813600, "Failed to retrieve cursor while reading database metadata", cursor);
 
     return cursor;
+}
+
+std::unique_ptr<DBClientCursor> readDatabaseMetadata(OperationContext* opCtx,
+                                                     const DatabaseName& dbName) {
+    DBDirectClient client(opCtx);
+
+    const auto dbNameStr =
+        DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault());
+
+    FindCommandRequest findOp{NamespaceString::kConfigShardDatabasesNamespace};
+    findOp.setFilter(BSON(DatabaseType::kDbNameFieldName << dbNameStr));
+
+    auto cursor = client.find(std::move(findOp));
+
+    tassert(
+        10078300,
+        str::stream() << "Failed to retrieve cursor while reading database metadata for database: "
+                      << dbName.toStringForErrorMsg(),
+        cursor);
+
+    return cursor;
+}
+
+void insertDatabaseMetadata(OperationContext* opCtx, const DatabaseType& dbMetadata) {
+    const auto dbNameStr =
+        DatabaseNameUtil::serialize(dbMetadata.getDbName(), SerializationContext::stateDefault());
+
+    WriteUnitOfWork wuow(opCtx);
+
+    auto coll = acquireCollection(
+        opCtx,
+        CollectionAcquisitionRequest(NamespaceString::kConfigShardDatabasesNamespace,
+                                     AcquisitionPrerequisites::kPretendUnsharded,
+                                     repl::ReadConcernArgs::kLocal,
+                                     AcquisitionPrerequisites::kWrite),
+        MODE_IX);
+
+    if (!coll.exists()) {
+        ScopedLocalCatalogWriteFence scopedLocalCatalogWriteFence(opCtx, &coll);
+        DatabaseHolder::get(opCtx)
+            ->openDb(opCtx, coll.nss().dbName())
+            ->createCollection(opCtx, coll.nss());
+    }
+    invariant(coll.exists());
+
+    Helpers::upsert(opCtx,
+                    coll,
+                    BSON(DatabaseType::kDbNameFieldName << dbNameStr),
+                    dbMetadata.toBSON(),
+                    false /* fromMigrate */);
+    wuow.commit();
+}
+
+void deleteDatabaseMetadata(OperationContext* opCtx, const DatabaseName& dbName) {
+    const auto dbNameStr =
+        DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault());
+
+    WriteUnitOfWork wuow(opCtx);
+
+    auto coll = acquireCollection(
+        opCtx,
+        CollectionAcquisitionRequest(NamespaceString::kConfigShardDatabasesNamespace,
+                                     AcquisitionPrerequisites::kPretendUnsharded,
+                                     repl::ReadConcernArgs::kLocal,
+                                     AcquisitionPrerequisites::kWrite),
+        MODE_IX);
+
+    // For a drop operation, this method is based on the assumption that previous database metadata
+    // exists, which implies that the authoritative collection should also be present. If that
+    // collection is not found, it indicates an inconsistency in the metadata. In other words, there
+    // is a database that was not registered in the shard-local catalog.
+    invariant(coll.exists());
+
+    deleteObjects(
+        opCtx, coll, BSON(DatabaseType::kDbNameFieldName << dbNameStr), true /* justOne */);
+
+    wuow.commit();
 }
 
 }  // namespace shard_local_catalog_operations
