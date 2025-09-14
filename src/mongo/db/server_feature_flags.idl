@@ -35,12 +35,14 @@ feature_flags:
         cpp_varname: gFeatureFlagSecurityToken
         default: false
         shouldBeFCVGated: true
+        fcv_context_unaware: true
     featureFlagAllowAdditionalParticipants:
         description: "Enable adding additional participants to active transaction"
         cpp_varname: gFeatureFlagAllowAdditionalParticipants
         default: true
         version: 8.0
         shouldBeFCVGated: true
+        fcv_context_unaware: true
     featureFlagBulkWriteCommand:
         description: "Support for bulkWrite command and one-shot transactions"
         cpp_varname: gFeatureFlagBulkWriteCommand
@@ -68,6 +70,7 @@ feature_flags:
         cpp_varname: feature_flags::gFeatureFlagEndOfTransactionChangeEvent
         default: false
         shouldBeFCVGated: true
+        fcv_context_unaware: true
     featureFlagAllMongodsAreSharded:
         description: "Feature flag to enable and autobootstrap sharding for all mongods"
         cpp_varname: gFeatureFlagAllMongodsAreSharded
@@ -80,6 +83,7 @@ feature_flags:
         default: true
         version: 7.2
         shouldBeFCVGated: true
+        fcv_context_unaware: true
     featureFlagRearchitectUserAcquisition:
         description: "Enable new flow for authentication and authorization"
         cpp_varname: gFeatureFlagRearchitectUserAcquisition
@@ -107,6 +111,7 @@ feature_flags:
         default: true
         shouldBeFCVGated: true
         version: 8.0
+        fcv_context_unaware: true
     featureFlagPrefetch:
         description: "Feature flag to make pre-fetching available"
         cpp_varname: gFeatureFlagPrefetch
@@ -119,22 +124,24 @@ feature_flags:
         version: 8.1
         shouldBeFCVGated: true
     featureFlagDistinguishMetadataInconsistencyFromConflictingOperation:
-         description: "Feature flag to distinguish ChunkMetadataInconsistency from ConflictingOperationInProgress error"
-         cpp_varname: gDistinguishMetadataInconsistencyFromConflictingOperation
-         default: true
-         version: 8.1
-         shouldBeFCVGated: true
+        description: "Feature flag to distinguish ChunkMetadataInconsistency from ConflictingOperationInProgress error"
+        cpp_varname: gDistinguishMetadataInconsistencyFromConflictingOperation
+        default: true
+        version: 8.1
+        shouldBeFCVGated: true
     featureFlagQETextSearchPreview:
-         description: "Queryable Encryption text search"
-         cpp_varname: gFeatureFlagQETextSearchPreview
-         default: false
-         shouldBeFCVGated: true
+        description: "Queryable Encryption text search"
+        cpp_varname: gFeatureFlagQETextSearchPreview
+        default: false
+        shouldBeFCVGated: true
+        fcv_context_unaware: true
     featureFlagExposeClientIpInAuditLogs:
-         description: "Expose client IP in audit logs for load-balanced connections"
-         cpp_varname: gFeatureFlagExposeClientIpInAuditLogs
-         default: true
-         version: 8.1
-         shouldBeFCVGated: true
+        description: "Expose client IP in audit logs for load-balanced connections"
+        cpp_varname: gFeatureFlagExposeClientIpInAuditLogs
+        default: true
+        version: 8.1
+        shouldBeFCVGated: true
+        fcv_context_unaware: true
     featureFlagCreateViewlessTimeseriesCollections:
         description: "Enables the creation of viewless timeseries collections.
         Viewless timeseries collections have only one associated namespace,
