@@ -116,7 +116,15 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }),
-    linkopts = [
+    linkopts = select({
+        # When linking statically, don't use the dynamic AWS libraries even if
+        # they are available. For dynamic linking, prefer the dynamic AWS
+        # libraries but if they are absent, resort to the static ones.
+        "//bazel/config:linkstatic_enabled": [
+            "-Wl,--push-state,-Bstatic",
+        ],
+        "//conditions:default": [],
+    }) + [
         # S3 and its dependencies
         # order is important here
         "-laws-cpp-sdk-transfer",
@@ -135,6 +143,12 @@ mongo_cc_library(
         "-ls2n",
         "-laws-checksums",
         "-laws-c-common",
+    ] + select({
+        "//bazel/config:linkstatic_enabled": [
+            "-Wl,--pop-state",
+        ],
+        "//conditions:default": [],
+    }) + [
         "-lcurl",
     ],
 )
