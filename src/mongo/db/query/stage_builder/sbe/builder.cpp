@@ -105,6 +105,7 @@
 #include "mongo/db/pipeline/accumulator.h"
 #include "mongo/db/pipeline/accumulator_multi.h"
 #include "mongo/db/pipeline/dependencies.h"
+#include "mongo/db/pipeline/document_source_match.h"
 #include "mongo/db/pipeline/expression.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/expression_visitor.h"
@@ -1618,9 +1619,9 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSort(const QueryS
                 b.makeFail(ErrorCodes::BadValue, "cannot sort with keys that are parallel arrays");
 
             auto failOnParallelArraysExpr =
-                b.makeBinaryOp(sbe::EPrimBinary::logicOr,
-                               std::move(sortKeys.parallelArraysCheckExpr),
-                               std::move(parallelArraysError));
+                b.makeBooleanOpTree(optimizer::Operations::Or,
+                                    std::move(sortKeys.parallelArraysCheckExpr),
+                                    std::move(parallelArraysError));
 
             projects.emplace_back(std::move(failOnParallelArraysExpr), boost::none);
         }

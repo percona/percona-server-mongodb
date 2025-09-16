@@ -862,6 +862,24 @@ public:
     }
 
     ExplainPrinter transport(const ABT::reference_type /*n*/,
+                             const NaryOp& expr,
+                             std::vector<ExplainPrinter> argResults) {
+        ExplainPrinter printer("NaryOp");
+        printer.separator(" [")
+            .fieldName("op", ExplainVersion::V3)
+            .print(toStringData(expr.op()))
+            .separator("]")
+            .setChildCount(argResults.size())
+            .maybeReverse();
+        for (size_t i = 0; i < argResults.size(); i++) {
+            std::stringstream ss;
+            ss << "arg" << i;
+            printer.fieldName(ss.str(), ExplainVersion::V3).print(argResults[i]);
+        }
+        return printer;
+    }
+
+    ExplainPrinter transport(const ABT::reference_type /*n*/,
                              const If& expr,
                              ExplainPrinter condResult,
                              ExplainPrinter thenResult,
@@ -913,6 +931,34 @@ public:
             .print(bindResult)
             .fieldName("expression", ExplainVersion::V3)
             .print(exprResult);
+        return printer;
+    }
+
+    ExplainPrinter transport(const ABT::reference_type /*n*/,
+                             const MultiLet& expr,
+                             std::vector<ExplainPrinter> results) {
+        auto numBinds = expr.numBinds();
+
+        ExplainPrinter printer("MultiLet");
+        printer.separator(" [");
+        for (size_t idx = 0; idx < numBinds; ++idx) {
+            std::stringstream ss;
+            ss << "variable" << idx;
+            printer.fieldName(ss.str(), ExplainVersion::V3).print(expr.varName(idx));
+            if (idx < numBinds - 1) {
+                printer.separator(", ");
+            }
+        }
+        printer.separator("]").setChildCount(numBinds + 1).maybeReverse();
+
+        for (size_t idx = 0; idx < numBinds; ++idx) {
+            std::stringstream ss;
+            ss << "bind" << idx;
+            printer.fieldName(ss.str(), ExplainVersion::V3).print(results[idx]);
+        }
+
+        printer.fieldName("expression", ExplainVersion::V3).print(results.back());
+
         return printer;
     }
 

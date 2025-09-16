@@ -55,6 +55,7 @@
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/catalog/document_validation.h"
 #include "mongo/db/commands.h"
+#include "mongo/db/commands/query_cmd/explain_gen.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/fle_crud.h"
@@ -63,6 +64,7 @@
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/legacy_runtime_constants_gen.h"
 #include "mongo/db/pipeline/variables.h"
+#include "mongo/db/query/shard_key_diagnostic_printer.h"
 #include "mongo/db/query/write_ops/write_ops_gen.h"
 #include "mongo/db/raw_data_operation.h"
 #include "mongo/db/repl/read_concern_args.h"
@@ -377,6 +379,26 @@ void handleWouldChangeOwningShardErrorTransactionLegacy(OperationContext* opCtx,
     }
 }
 
+BSONObj translateExplainObjForRawData(OperationContext* opCtx,
+                                      const BSONObj& cmdObj,
+                                      const NamespaceString& ns) {
+    if (!isRawDataOperation(opCtx) || !ns.isTimeseriesBucketsCollection()) {
+        return cmdObj;
+    }
+    BSONObjBuilder bob{cmdObj.objsize()};
+    for (auto&& [fieldName, elem] : cmdObj) {
+        if (fieldName == ExplainCommandRequest::kCommandName) {
+            bob.append(fieldName,
+                       rewriteCommandForRawDataOperation<write_ops::FindAndModifyCommandRequest>(
+                           elem.Obj(), ns.coll()));
+        } else {
+            bob.append(elem);
+        }
+    }
+
+    return bob.obj();
+}
+
 BSONObj prepareCmdObjForPassthrough(
     OperationContext* opCtx,
     const BSONObj& cmdObj,
@@ -507,7 +529,7 @@ CollectionRoutingInfo getCollectionRoutingInfo(OperationContext* opCtx,
         feature_flags::gTimeseriesUpdatesSupport.isEnabled(
             VersionContext::getDecoration(opCtx),
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
-    if (!arbitraryTimeseriesWritesEnabled || cri.cm.hasRoutingTable() ||
+    if (!arbitraryTimeseriesWritesEnabled || cri.hasRoutingTable() ||
         maybeTsNss.isTimeseriesBucketsCollection()) {
         return cri;
     }
@@ -519,7 +541,8 @@ CollectionRoutingInfo getCollectionRoutingInfo(OperationContext* opCtx,
     // timeseries buckets collections.
     auto bucketCollNss = maybeTsNss.makeTimeseriesBucketsNamespace();
     auto bucketCollCri = uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, bucketCollNss));
-    if (!bucketCollCri.cm.hasRoutingTable() || !bucketCollCri.cm.getTimeseriesFields()) {
+    if (!bucketCollCri.hasRoutingTable() ||
+        !bucketCollCri.getChunkManager().getTimeseriesFields()) {
         return cri;
     }
 
@@ -610,12 +633,14 @@ Status FindAndModifyCmd::explain(OperationContext* opCtx,
     NamespaceString nss(CommandHelpers::parseNsCollectionRequired(dbName, cmdObj));
 
     const auto cri = getCollectionRoutingInfo(opCtx, cmdObj, nss);
-    const auto& cm = cri.cm;
+    const auto& cm = cri.getChunkManager();
     auto isTrackedTimeseries = cm.hasRoutingTable() && cm.getTimeseriesFields();
     auto isTimeseriesViewRequest = false;
     if (isTrackedTimeseries && !nss.isTimeseriesBucketsCollection()) {
         nss = std::move(cm.getNss());
-        isTimeseriesViewRequest = true;
+        if (!isRawDataOperation(opCtx)) {
+            isTimeseriesViewRequest = true;
+        }
     }
     // Note: at this point, 'nss' should be the timeseries buckets collection namespace if we're
     // writing to a tracked timeseries collection.
@@ -626,7 +651,7 @@ Status FindAndModifyCmd::explain(OperationContext* opCtx,
     const auto isUpsert = cmdObj.getBoolField("upsert");
     const auto let = getLet(cmdObj);
     const auto rc = getLegacyRuntimeConstants(cmdObj);
-    if (cm.hasRoutingTable()) {
+    if (cri.hasRoutingTable()) {
         // If the request is for a view on a sharded timeseries buckets collection, we need to
         // replace the namespace by buckets collection namespace in the command object.
         if (isTimeseriesViewRequest) {
@@ -649,7 +674,7 @@ Status FindAndModifyCmd::explain(OperationContext* opCtx,
             shardId = targetSingleShard(expCtx, cm, query, collation, isTimeseriesViewRequest);
         }
     } else {
-        shardId = cm.dbPrimary();
+        shardId = cri.getDbPrimaryShardId();
     }
 
     // Time how long it takes to run the explain command on the shard.
@@ -662,10 +687,10 @@ Status FindAndModifyCmd::explain(OperationContext* opCtx,
         return Status::OK();
     }
 
-    auto shardVersion = cm.hasRoutingTable()
+    auto shardVersion = cri.hasRoutingTable()
         ? boost::make_optional(cri.getShardVersion(*shardId))
-        : boost::make_optional(!cm.dbVersion().isFixed(), ShardVersion::UNSHARDED());
-    auto dbVersion = cm.hasRoutingTable() ? boost::none : boost::make_optional(cm.dbVersion());
+        : boost::make_optional(!cri.getDbVersion().isFixed(), ShardVersion::UNSHARDED());
+    auto dbVersion = cri.hasRoutingTable() ? boost::none : boost::make_optional(cri.getDbVersion());
 
     _runCommand(
         opCtx,
@@ -752,8 +777,16 @@ bool FindAndModifyCmd::run(OperationContext* opCtx,
         }
     }();
 
-    const auto& cm = cri.cm;
-    auto isTrackedTimeseries = cm.hasRoutingTable() && cm.getTimeseriesFields();
+    const auto& cm = cri.getChunkManager();
+
+    // Create an RAII object that prints the collection's shard key in the case of a tassert
+    // or crash.
+    ScopedDebugInfo shardKeyDiagnostics(
+        "ShardKeyDiagnostics",
+        diagnostic_printers::ShardKeyDiagnosticPrinter{
+            cm.isSharded() ? cm.getShardKeyPattern().toBSON() : BSONObj()});
+
+    auto isTrackedTimeseries = cri.hasRoutingTable() && cm.getTimeseriesFields();
     auto isTimeseriesViewRequest = false;
     if (isTrackedTimeseries && !nss.isTimeseriesBucketsCollection()) {
         nss = std::move(cm.getNss());
@@ -764,7 +797,7 @@ bool FindAndModifyCmd::run(OperationContext* opCtx,
 
     // Append mongoS' runtime constants to the command object before forwarding it to the shard.
     auto cmdObjForShard = appendLegacyRuntimeConstantsToCommandObject(opCtx, cmdObj);
-    if (cm.hasRoutingTable()) {
+    if (cri.hasRoutingTable()) {
         // If the request is for a view on a sharded timeseries buckets collection, we need to
         // replace the namespace by buckets collection namespace in the command object.
         if (isTimeseriesViewRequest) {
@@ -858,9 +891,9 @@ bool FindAndModifyCmd::run(OperationContext* opCtx,
     } else {
         getQueryCounters(opCtx).findAndModifyUnshardedCount.increment(1);
         _runCommand(opCtx,
-                    cm.dbPrimary(),
-                    boost::make_optional(!cm.dbVersion().isFixed(), ShardVersion::UNSHARDED()),
-                    cm.dbVersion(),
+                    cri.getDbPrimaryShardId(),
+                    boost::make_optional(!cri.getDbVersion().isFixed(), ShardVersion::UNSHARDED()),
+                    cri.getDbVersion(),
                     nss,
                     applyReadWriteConcern(opCtx, this, cmdObjForShard),
                     false /* isExplain */,
@@ -907,6 +940,7 @@ void FindAndModifyCmd::_constructResult(OperationContext* opCtx,
 
     if (responseStatus.code() == ErrorCodes::WouldChangeOwningShard) {
         if (feature_flags::gFeatureFlagUpdateDocumentShardKeyUsingTransactionApi.isEnabled(
+                VersionContext::getDecoration(opCtx),
                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
             handleWouldChangeOwningShardError(opCtx, shardId, nss, cmdObj, responseStatus, result);
         } else {
@@ -1007,22 +1041,24 @@ void FindAndModifyCmd::_runCommandWithoutShardKey(OperationContext* opCtx,
 // Two-phase protocol to run an explain for a findAndModify command without a shard key or _id.
 void FindAndModifyCmd::_runExplainWithoutShardKey(OperationContext* opCtx,
                                                   const NamespaceString& nss,
-                                                  const BSONObj& cmdObj,
+                                                  const BSONObj& originalExplainObj,
                                                   ExplainOptions::Verbosity verbosity,
                                                   BSONObjBuilder* result) {
     auto cmdObjForPassthrough = prepareCmdObjForPassthrough(
         opCtx,
-        cmdObj,
+        originalExplainObj,
         nss,
         true /* isExplain */,
         boost::none /* dbVersion */,
         boost::none /* shardVersion */,
         boost::none /* allowShardKeyUpdatesWithoutFullShardKeyInQuery */);
 
+    auto explainObj = translateExplainObjForRawData(opCtx, cmdObjForPassthrough, nss);
+
     // Explain currently cannot be run within a transaction, so each command is instead run
     // separately outside of a transaction, and we compose the results at the end.
     auto clusterQueryWithoutShardKeyExplainRes = [&] {
-        ClusterQueryWithoutShardKey clusterQueryWithoutShardKeyCommand(cmdObjForPassthrough);
+        ClusterQueryWithoutShardKey clusterQueryWithoutShardKeyCommand(explainObj);
         const auto explainClusterQueryWithoutShardKeyCmd =
             ClusterExplain::wrapAsExplain(clusterQueryWithoutShardKeyCommand.toBSON(), verbosity);
         auto opMsg = OpMsgRequestBuilder::create(auth::ValidatedTenancyScope::get(opCtx),

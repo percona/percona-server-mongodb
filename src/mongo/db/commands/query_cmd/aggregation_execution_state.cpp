@@ -716,7 +716,7 @@ ScopedSetShardRole AggExState::setShardRole(const CollectionRoutingInfo& cri) {
         return originalShardVersion ? originalShardVersion->placementConflictTime() : boost::none;
     }();
 
-    if (cri.cm.hasRoutingTable()) {
+    if (cri.hasRoutingTable()) {
         const auto myShardId = ShardingState::get(_opCtx)->shardId();
 
         auto sv = cri.getShardVersion(myShardId);
@@ -733,7 +733,7 @@ ScopedSetShardRole AggExState::setShardRole(const CollectionRoutingInfo& cri) {
         return ScopedSetShardRole(_opCtx,
                                   underlyingNss,
                                   ShardVersion::UNSHARDED() /*shardVersion*/,
-                                  cri.cm.dbVersion() /*databaseVersion*/);
+                                  cri.getDbVersion() /*databaseVersion*/);
     }
 }
 
@@ -741,15 +741,16 @@ bool AggExState::canReadUnderlyingCollectionLocally(const CollectionRoutingInfo&
     const auto myShardId = ShardingState::get(_opCtx)->shardId();
     const auto atClusterTime = repl::ReadConcernArgs::get(_opCtx).getArgsAtClusterTime();
 
-    const auto chunkManagerMaybeAtClusterTime =
-        atClusterTime ? ChunkManager::makeAtTime(cri.cm, atClusterTime->asTimestamp()) : cri.cm;
+    const auto chunkManagerMaybeAtClusterTime = atClusterTime
+        ? ChunkManager::makeAtTime(cri.getChunkManager(), atClusterTime->asTimestamp())
+        : cri.getChunkManager();
 
     if (chunkManagerMaybeAtClusterTime.isSharded()) {
         return false;
     } else if (chunkManagerMaybeAtClusterTime.isUnsplittable()) {
         return chunkManagerMaybeAtClusterTime.getMinKeyShardIdWithSimpleCollation() == myShardId;
     } else {
-        return chunkManagerMaybeAtClusterTime.dbPrimary() == myShardId;
+        return cri.getDbPrimaryShardId() == myShardId;
     }
 }
 

@@ -196,6 +196,14 @@ TEST(SbeStageBuilderConstEvalTest, ConstVariableInlining) {
     ASSERT_EQ(constEval(tree)->getValueInt32(), 8);
 }
 
+TEST(SbeStageBuilderConstEvalTest, ConstVariableInliningWithMultiLet) {
+    ABT tree =
+        make<MultiLet>(std::vector<std::pair<ProjectionName, ABT>>{{"x", Constant::int32(4)},
+                                                                   {"y", Constant::int32(5)}},
+                       make<BinaryOp>(Operations::Add, make<Variable>("x"), make<Variable>("y")));
+    ASSERT_EQ(constEval(tree)->getValueInt32(), 9);
+}
+
 TEST(SbeStageBuilderConstEvalTest, IfSimplification) {
     ABT trueTree = make<If>(Constant::boolean(true), Constant::int32(1), Constant::int32(2));
     ABT falseTree = make<If>(Constant::boolean(false), Constant::int32(1), Constant::int32(2));
@@ -294,6 +302,118 @@ TEST(ConstEvalTest, AndOrFoldNonNothingLhs) {
     evaluator.optimize(abt);
     ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
         "BinaryOp [And]\n"
+        "|   Const [false]\n"
+        "If []\n"
+        "|   |   Variable [z]\n"
+        "|   Variable [y]\n"
+        "Variable [x]\n",
+        abt);
+}
+
+TEST(ConstEvalTest, NaryAndOrFoldNonNothingLhs) {
+    ExpressionConstEval evaluator{nullptr};
+
+    /* OR */
+    // nullable lhs (variable) || false -> lhs.
+    ABT abt = _nary("Or", _binary("Lte", "x"_var, "2"_cint64), _cbool(false))._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "BinaryOp [Lte]\n"
+        "|   Const [2]\n"
+        "Variable [x]\n",
+        abt);
+
+    // nullable lhs (variable) || true -> no change.
+    abt = _nary("Or", _binary("Lte", "x"_var, "2"_cint64), _cbool(true))._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "NaryOp [Or]\n"
+        "|   Const [true]\n"
+        "BinaryOp [Lte]\n"
+        "|   Const [2]\n"
+        "Variable [x]\n",
+        abt);
+
+    // nothing lhs (const) || true -> no change.
+    abt = _nary("Or", _cnothing(), _cbool(true))._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "NaryOp [Or]\n"
+        "|   Const [true]\n"
+        "Const [Nothing]\n",
+        abt);
+
+    // nullable lhs (variable) || false || nullable -> nullable || nullable
+    abt = _nary("Or", _binary("Lte", "x"_var, "2"_cint64), _cbool(false), "w"_var)._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "NaryOp [Or]\n"
+        "|   Variable [w]\n"
+        "BinaryOp [Lte]\n"
+        "|   Const [2]\n"
+        "Variable [x]\n",
+        abt);
+
+    // nullable lhs (variable) || true || nullable -> trim after 'true'.
+    abt = _nary("Or", _binary("Lte", "x"_var, "2"_cint64), _cbool(true), "w"_var)._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "NaryOp [Or]\n"
+        "|   Const [true]\n"
+        "BinaryOp [Lte]\n"
+        "|   Const [2]\n"
+        "Variable [x]\n",
+        abt);
+
+    // nothing lhs (const) || true -> trim after 'true'.
+    abt = _nary("Or", _cnothing(), _cbool(true), "w"_var)._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "NaryOp [Or]\n"
+        "|   Const [true]\n"
+        "Const [Nothing]\n",
+        abt);
+
+    /* AND */
+    // nullable lhs (if) && true -> lhs.
+    abt = _nary("And", _if("x"_var, "y"_var, "z"_var), _cbool(true))._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "If []\n"
+        "|   |   Variable [z]\n"
+        "|   Variable [y]\n"
+        "Variable [x]\n",
+        abt);
+
+    // nullable lhs (if) && false -> no change.
+    abt = _nary("And", _if("x"_var, "y"_var, "z"_var), _cbool(false))._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "NaryOp [And]\n"
+        "|   Const [false]\n"
+        "If []\n"
+        "|   |   Variable [z]\n"
+        "|   Variable [y]\n"
+        "Variable [x]\n",
+        abt);
+
+    // nullable lhs (if) && true && nullable -> ignore 'true': nullable && nullable.
+    abt = _nary("And", _if("x"_var, "y"_var, "z"_var), _cbool(true), "w"_var)._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "NaryOp [And]\n"
+        "|   Variable [w]\n"
+        "If []\n"
+        "|   |   Variable [z]\n"
+        "|   Variable [y]\n"
+        "Variable [x]\n",
+        abt);
+
+    // nullable lhs (if) && false && nullable -> truncate tail: nullable && false.
+    abt = _nary("And", _if("x"_var, "y"_var, "z"_var), _cbool(false), "w"_var)._n;
+    evaluator.optimize(abt);
+    ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+        "NaryOp [And]\n"
         "|   Const [false]\n"
         "If []\n"
         "|   |   Variable [z]\n"
@@ -699,6 +819,117 @@ TEST(Optimizer, ConstFoldSwitchAnd) {
         "|   Const [\"action-items mobile\"]\n"
         "Const [\"M(?:assachusett|etric)s|Fresh|Shoes\"]\n",
         tree);
+}
+
+TEST(Optimizer, ConstFoldMultiLet) {
+    {
+        ExpressionConstEval evaluator{nullptr};
+        auto tree = _multiLet("x"_sd, "A"_cstr, "y"_sd, "B"_cstr, "z"_var)._n;
+        evaluator.optimize(tree);
+
+
+        ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+            "Variable [z]\n",
+            tree);
+    }
+    {
+        ExpressionConstEval evaluator{nullptr};
+        auto tree =
+            _multiLet("x"_sd, "A"_cstr, "y"_sd, "B"_cstr, _binary("Eq", "x"_var, "y"_var))._n;
+        evaluator.optimize(tree);
+
+        ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+            "Const [false]\n",
+            tree);
+    }
+    {
+        // inline variables with single references
+        ExpressionConstEval evaluator{nullptr};
+        auto tree = _multiLet("x"_sd,
+                              _fn("floor", "v1"_var),
+                              "y"_sd,
+                              _fn("floor", "v2"_var),
+                              _binary("Mult", "x"_var, "y"_var))
+                        ._n;
+        evaluator.optimize(tree);
+
+        ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+            "BinaryOp [Mult]\n"
+            "|   FunctionCall [floor]\n"
+            "|   Variable [v2]\n"
+            "FunctionCall [floor]\n"
+            "Variable [v1]\n",
+            tree);
+    }
+    {
+        ExpressionConstEval evaluator{nullptr};
+        auto tree = _multiLet("x"_sd,
+                              _fn("floor", "v1"_var),
+                              "y"_sd,
+                              _fn("floor", "v2"_var),
+                              "z"_sd,
+                              _fn("floor", "v3"_var),
+                              _binary("Mult", "z"_var, "5"_cint32))
+                        ._n;
+        evaluator.optimize(tree);
+
+        ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+            "BinaryOp [Mult]\n"
+            "|   Const [5]\n"
+            "FunctionCall [floor]\n"
+            "Variable [v3]\n",
+            tree);
+    }
+    {
+        ExpressionConstEval evaluator{nullptr};
+        auto tree = _multiLet("x"_sd,
+                              _fn("floor", "v1"_var),
+                              "y"_sd,
+                              _fn("floor", "v2"_var),
+                              "z"_sd,
+                              _fn("floor", "v3"_var),
+                              _binary("Mult", "z"_var, "z"_var))
+                        ._n;
+        evaluator.optimize(tree);
+
+        ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+            "MultiLet [z]\n"
+            "|   BinaryOp [Mult]\n"
+            "|   |   Variable [z]\n"
+            "|   Variable [z]\n"
+            "FunctionCall [floor]\n"
+            "Variable [v3]\n",
+            tree);
+    }
+    {
+        ExpressionConstEval evaluator{nullptr};
+        auto tree = _multiLet("x"_sd,
+                              _fn("floor", "v1"_var),
+                              "y"_sd,
+                              _fn("floor", "v2"_var),
+                              "z"_sd,
+                              _fn("floor", "v3"_var),
+                              _binary("Add",
+                                      _binary("Mult", "x"_var, "x"_var),
+                                      _binary("Mult", "z"_var, "z"_var)))
+                        ._n;
+        evaluator.optimize(tree);
+
+        ASSERT_EXPLAIN_V2_AUTO(  // NOLINT
+            "MultiLet [x, z]\n"
+            "|   |   BinaryOp [Add]\n"
+            "|   |   |   BinaryOp [Mult]\n"
+            "|   |   |   |   Variable [z]\n"
+            "|   |   |   Variable [z]\n"
+            "|   |   BinaryOp [Mult]\n"
+            "|   |   |   Variable [x]\n"
+            "|   |   Variable [x]\n"
+            "|   FunctionCall [floor]\n"
+            "|   Variable [v3]\n"
+            "FunctionCall [floor]\n"
+            "Variable [v1]\n",
+            tree);
+    }
 }
 
 // The following nullability tests verify that ExpressionConstEval, which performs rewrites and

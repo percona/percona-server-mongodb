@@ -64,6 +64,10 @@ public:
                    const optimizer::Let& let,
                    optimizer::ABT&,
                    optimizer::ABT& in);
+    void prepare(optimizer::ABT&, const optimizer::MultiLet& multiLet);
+    void transport(optimizer::ABT& n,
+                   const optimizer::MultiLet& multiLet,
+                   std::vector<optimizer::ABT>& args);
     void transport(optimizer::ABT& n,
                    const optimizer::LambdaApplication& app,
                    optimizer::ABT& lam,
@@ -76,6 +80,9 @@ public:
                    const optimizer::BinaryOp& op,
                    optimizer::ABT& lhs,
                    optimizer::ABT& rhs);
+    void transport(optimizer::ABT& n,
+                   const optimizer::NaryOp& op,
+                   std::vector<optimizer::ABT>& args);
     void transport(optimizer::ABT& n,
                    const optimizer::FunctionCall& op,
                    std::vector<optimizer::ABT>& args);

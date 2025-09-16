@@ -238,6 +238,34 @@ public:
 };
 
 /**
+ * Models arithmetic or logical operations that can take more than two arguments, for instance add,
+ * multiply.
+ */
+class NaryOp final : public ABTOpDynamicArity<0>, public ExpressionSyntaxSort {
+    using Base = ABTOpDynamicArity<0>;
+    Operations _op;
+
+public:
+    NaryOp(Operations inOp, ABTVector exprs) : Base(std::move(exprs)), _op(inOp) {
+        tassert(10199600,
+                "operation doesn't allow multiple operands",
+                _op == Operations::And || _op == Operations::Or);
+        tassert(10199601, "operation needs at least two operands", nodes().size() >= 2);
+        for (auto&& expr : nodes()) {
+            assertExprSort(expr);
+        }
+    }
+
+    bool operator==(const NaryOp& other) const {
+        return _op == other._op && nodes() == other.nodes();
+    }
+
+    auto op() const {
+        return _op;
+    }
+};
+
+/**
  * Branching operator with a condition expression, "then" expression, and an "else" expression.
  */
 class If final : public ABTOpFixedArity<3>, public ExpressionSyntaxSort {
@@ -388,6 +416,81 @@ public:
 
     ABT& in() {
         return get<1>();
+    }
+};
+
+/**
+ * Defines variables from multiple expressions and specified names which are available to be
+ * referenced in a final expression.
+ */
+class MultiLet final : public ABTOpDynamicArity<0>, public ExpressionSyntaxSort {
+    using Base = ABTOpDynamicArity<0>;
+
+    std::vector<ProjectionName> _varNames;
+
+    void validate() {
+        tassert(10130800, "Invalid arguments", _varNames.size() + 1 == nodes().size());
+        tassert(10130809, "expected at least one binding", !_varNames.empty());
+
+        std::set<ProjectionName> set{_varNames.begin(), _varNames.end()};
+        tassert(10130810, "Variable names should be unique", set.size() == _varNames.size());
+    }
+
+public:
+    MultiLet(std::vector<ProjectionName> names, ABTVector exprs)
+        : Base(std::move(exprs)), _varNames(names) {
+        for (auto&& a : nodes()) {
+            assertExprSort(a);
+        }
+        validate();
+    }
+
+    MultiLet(std::vector<std::pair<ProjectionName, ABT>> inBinds, ABT inExpr)
+        : Base(std::vector<ABT>()) {
+        nodes().reserve(inBinds.size() + 1 /*inExpr*/);
+        for (auto&& inBind : inBinds) {
+            assertExprSort(inBind.second);
+            nodes().emplace_back(std::move(inBind.second));
+            _varNames.emplace_back(std::move(inBind.first));
+        }
+        assertExprSort(inExpr);
+        nodes().emplace_back(std::move(inExpr));
+        validate();
+    }
+
+    bool operator==(const MultiLet& other) const {
+        return _varNames == other._varNames && nodes() == other.nodes();
+    }
+
+    size_t numBinds() const {
+        return _varNames.size();
+    }
+
+    auto& varNames() const {
+        return _varNames;
+    }
+
+    auto& varName(size_t idx) const {
+        tassert(10130801, "Index out of bounds", idx < numBinds());
+        return _varNames[idx];
+    }
+
+    const ABT& bind(size_t idx) const {
+        tassert(10130802, "Index out of bounds", idx < numBinds());
+        return nodes()[idx];
+    }
+
+    ABT& bind(size_t idx) {
+        tassert(10130803, "Index out of bounds", idx < numBinds());
+        return nodes()[idx];
+    }
+
+    const ABT& in() const {
+        return nodes().back();
+    }
+
+    ABT& in() {
+        return nodes().back();
     }
 };
 

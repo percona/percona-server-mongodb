@@ -75,6 +75,7 @@
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_stats/distinct_key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
+#include "mongo/db/query/shard_key_diagnostic_printer.h"
 #include "mongo/db/query/timeseries/timeseries_rewrites.h"
 #include "mongo/db/query/view_response_formatter.h"
 #include "mongo/db/raw_data_operation.h"
@@ -284,9 +285,18 @@ public:
 
         std::vector<AsyncRequestsSender::Response> shardResponses;
         auto bodyBuilder = result->getBodyBuilder();
-        if (const auto cri = uassertStatusOK(
-                Grid::get(opCtx)->catalogCache()->getCollectionRoutingInfo(opCtx, nss));
-            timeseries::isEligibleForViewlessTimeseriesRewrites(opCtx, cri)) {
+
+        const auto cri =
+            uassertStatusOK(Grid::get(opCtx)->catalogCache()->getCollectionRoutingInfo(opCtx, nss));
+
+        // Create an RAII object that prints the collection's shard key in the case of a tassert
+        // or crash.
+        ScopedDebugInfo shardKeyDiagnostics(
+            "ShardKeyDiagnostics",
+            diagnostic_printers::ShardKeyDiagnosticPrinter{
+                cri.isSharded() ? cri.getChunkManager().getShardKeyPattern().toBSON() : BSONObj()});
+
+        if (timeseries::isEligibleForViewlessTimeseriesRewrites(opCtx, cri)) {
             runDistinctAsAgg(opCtx,
                              std::move(canonicalQuery),
                              boost::none /* resolvedView */,
@@ -373,7 +383,14 @@ public:
             cmdObj, canonicalQuery->getExpCtx()->getQuerySettings(), requestQueryStats);
 
         const auto cri = uassertStatusOK(std::move(swCri));
-        const auto& cm = cri.cm;
+        const auto& cm = cri.getChunkManager();
+
+        // Create an RAII object that prints the collection's shard key in the case of a tassert
+        // or crash.
+        ScopedDebugInfo shardKeyDiagnostics(
+            "ShardKeyDiagnostics",
+            diagnostic_printers::ShardKeyDiagnosticPrinter{
+                cm.isSharded() ? cm.getShardKeyPattern().toBSON() : BSONObj()});
 
         std::vector<AsyncRequestsSender::Response> shardResponses;
         if (timeseries::isEligibleForViewlessTimeseriesRewrites(opCtx, cri)) {

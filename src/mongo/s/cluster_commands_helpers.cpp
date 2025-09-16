@@ -193,7 +193,7 @@ boost::intrusive_ptr<ExpressionContext> makeExpressionContextWithDefaultsForTarg
                       .build();
 
     // Ignore the collator if the collection is untracked and the user did not specify a collator.
-    if (!cri.cm.hasRoutingTable() && noCollationSpecified) {
+    if (!cri.hasRoutingTable() && noCollationSpecified) {
         expCtx->setIgnoreCollator();
     }
     return expCtx;
@@ -208,8 +208,8 @@ std::vector<AsyncRequestsSender::Request> buildShardVersionedRequests(
     const std::set<ShardId>& shardIds,
     const BSONObj& cmdObj,
     bool eligibleForSampling) {
-    const auto& cm = cri.cm;
-    tassert(10162100, "Expected to find a routing table", cm.hasRoutingTable());
+    tassert(10162100, "Expected to find a routing table", cri.hasRoutingTable());
+    const auto& cm = cri.getChunkManager();
 
     std::vector<AsyncRequestsSender::Request> requests;
     requests.reserve(shardIds.size());
@@ -246,16 +246,15 @@ AsyncRequestsSender::Request buildDatabaseVersionedRequest(
     const ShardId& shardId,
     const BSONObj& cmdObj,
     bool eligibleForSampling) {
-    const auto& cm = cri.cm;
-    tassert(10162101, "Expected to not find a routing table", !cm.hasRoutingTable());
+    tassert(10162101, "Expected to not find a routing table", !cri.hasRoutingTable());
 
-    if (cm.dbVersion().isFixed()) {
+    if (cri.getDbVersion().isFixed()) {
         // In case the database is fixed (e.g. 'admin' or 'config'), ignore the routing information
         // and create a request to the given targetted shard.
         return {shardId, cmdObj};
     }
 
-    if (shardId != cm.dbPrimary()) {
+    if (shardId != cri.getDbPrimaryShardId()) {
         // TODO (SERVER-101687): There are several places that call this API with a database version
         // that does not match the targeted shard. This is an abuse of the database version
         // protocol, and we should inspect each case and either use the correct routing information
@@ -268,12 +267,12 @@ AsyncRequestsSender::Request buildDatabaseVersionedRequest(
         fmt::format("Expected exactly one shard matching the database primary shard when no shard "
                     "version is required. Found shard: {}, expected: {}, for namespace: {}.",
                     shardId.toString(),
-                    cm.dbPrimary().toString(),
+                    cri.getDbPrimaryShardId().toString(),
                     nss.toStringForErrorMsg()),
-        shardId == cm.dbPrimary());
+        shardId == cri.getDbPrimaryShardId());
 
     BSONObj versionedCmd = appendShardVersion(cmdObj, ShardVersion::UNSHARDED());
-    versionedCmd = appendDbVersionIfPresent(versionedCmd, cm.dbVersion());
+    versionedCmd = appendDbVersionIfPresent(versionedCmd, cri.getDbVersion());
 
     const auto targetedSampleId = eligibleForSampling
         ? analyze_shard_key::tryGenerateTargetedSampleId(expCtx->getOperationContext(),
@@ -297,11 +296,9 @@ std::vector<AsyncRequestsSender::Request> buildVersionedRequests(
     const std::set<ShardId>& shardIds,
     const BSONObj& cmdObj,
     bool eligibleForSampling) {
-    const auto& cm = cri.cm;
-    if (cm.hasRoutingTable()) {
+    if (cri.hasRoutingTable()) {
         return buildShardVersionedRequests(expCtx, nss, cri, shardIds, cmdObj, eligibleForSampling);
     }
-
     tassert(
         10162103,
         [&]() {
@@ -341,16 +338,15 @@ std::vector<AsyncRequestsSender::Request> buildVersionedRequestsForTargetedShard
     const BSONObj& query,
     const BSONObj& collation,
     bool eligibleForSampling = false) {
-    const auto& cm = cri.cm;
     std::set<ShardId> shardIds;
-    if (!cm.hasRoutingTable()) {
+    if (!cri.hasRoutingTable()) {
         // The collection does not have a routing table. Target only the primary shard for the
         // database.
-        shardIds.emplace(cm.dbPrimary());
+        shardIds.emplace(cri.getDbPrimaryShardId());
     } else {
         // The collection has a routing table. Target all shards that own chunks that match the
         // query.
-        getShardIdsForQuery(expCtx, query, collation, cm, &shardIds);
+        getShardIdsForQuery(expCtx, query, collation, cri.getChunkManager(), &shardIds);
     }
     for (const auto& shardToSkip : shardsToSkip) {
         shardIds.erase(shardToSkip);
@@ -697,8 +693,9 @@ AsyncRequestsSender::Response executeCommandAgainstShardWithMinKeyChunk(
                                                                boost::none /*letParameters*/,
                                                                boost::none /*runtimeConstants*/);
 
-    const auto query =
-        cri.cm.isSharded() ? cri.cm.getShardKeyPattern().getKeyPattern().globalMin() : BSONObj();
+    const auto query = cri.isSharded()
+        ? cri.getChunkManager().getShardKeyPattern().getKeyPattern().globalMin()
+        : BSONObj();
 
     auto responses = gatherResponses(
         opCtx,
@@ -878,24 +875,26 @@ bool appendEmptyResultSet(OperationContext* opCtx,
 }
 
 std::set<ShardId> getTargetedShardsForQuery(boost::intrusive_ptr<ExpressionContext> expCtx,
-                                            const ChunkManager& cm,
+                                            const CollectionRoutingInfo& cri,
                                             const BSONObj& query,
                                             const BSONObj& collation) {
-    if (cm.hasRoutingTable()) {
+    if (cri.hasRoutingTable()) {
         // The collection has a routing table. Use it to decide which shards to target based on the
         // query and collation.
         std::set<ShardId> shardIds;
-        getShardIdsForQuery(expCtx, query, collation, cm, &shardIds);
+        getShardIdsForQuery(expCtx, query, collation, cri.getChunkManager(), &shardIds);
         return shardIds;
     }
 
     // The collection does not have a routing table. Target only the primary shard for the database.
-    return {cm.dbPrimary()};
+    return {cri.getDbPrimaryShardId()};
 }
 
 std::set<ShardId> getTargetedShardsForCanonicalQuery(const CanonicalQuery& query,
-                                                     const ChunkManager& cm) {
-    if (cm.hasRoutingTable()) {
+                                                     const CollectionRoutingInfo& cri) {
+    if (cri.hasRoutingTable()) {
+        const auto& cm = cri.getChunkManager();
+
         // The collection has a routing table. Use it to decide which shards to target based on the
         // query and collation.
 
@@ -907,7 +906,7 @@ std::set<ShardId> getTargetedShardsForCanonicalQuery(const CanonicalQuery& query
             QueryPlannerCommon::hasNode(query.getPrimaryMatchExpression(),
                                         MatchExpression::GEO_NEAR)) {
             return getTargetedShardsForQuery(
-                query.getExpCtx(), cm, findCommand.getFilter(), findCommand.getCollation());
+                query.getExpCtx(), cri, findCommand.getFilter(), findCommand.getCollation());
         }
 
         query.getExpCtx()->setUUID(cm.getUUID());
@@ -933,7 +932,7 @@ std::set<ShardId> getTargetedShardsForCanonicalQuery(const CanonicalQuery& query
     }
 
     // The collection does not have a routing table. Target only the primary shard for the database.
-    return {cm.dbPrimary()};
+    return {cri.getDbPrimaryShardId()};
 }
 
 std::vector<AsyncRequestsSender::Request> getVersionedRequestsForTargetedShards(
@@ -1001,7 +1000,7 @@ CollectionRoutingInfo getRefreshedCollectionRoutingInfoAssertSharded_DEPRECATED(
     uassert(ErrorCodes::NamespaceNotSharded,
             str::stream() << "Command not supported on unsharded collection "
                           << nss.toStringForErrorMsg(),
-            cri.cm.isSharded());
+            cri.isSharded());
     return cri;
 };
 
@@ -1034,7 +1033,6 @@ BSONObj forceReadConcernLocal(OperationContext* opCtx, BSONObj& cmd) {
 StatusWith<Shard::QueryResponse> loadIndexesFromAuthoritativeShard(
     OperationContext* opCtx, const NamespaceString& nss, const CollectionRoutingInfo& cri) {
     auto [indexShard, listIndexesCmd] = [&]() -> std::pair<std::shared_ptr<Shard>, BSONObj> {
-        const auto& cm = cri.cm;
         ListIndexes listIndexesCmd(nss);
         setReadWriteConcern(opCtx, listIndexesCmd, true, false);
         auto cmdNoVersion = listIndexesCmd.toBSON();
@@ -1042,10 +1040,11 @@ StatusWith<Shard::QueryResponse> loadIndexesFromAuthoritativeShard(
         // force the read concern level to "local" as other values are not supported for listIndexes
         cmdNoVersion = forceReadConcernLocal(opCtx, cmdNoVersion);
 
-        if (cm.hasRoutingTable()) {
+        if (cri.hasRoutingTable()) {
             // For a collection that has a routing table, we must load indexes from a shard with
             // chunks. For consistency with cluster listIndexes, load from the shard that owns
             // the minKey chunk.
+            const auto& cm = cri.getChunkManager();
             const auto minKeyShardId = cm.getMinKeyShardIdWithSimpleCollation();
             return {
                 uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(opCtx, minKeyShardId)),
@@ -1053,12 +1052,12 @@ StatusWith<Shard::QueryResponse> loadIndexesFromAuthoritativeShard(
         } else {
             // For a collection without routing table, the primary shard will have correct indexes.
             // Attach dbVersion + shardVersion: UNSHARDED.
-            const auto cmdObjWithShardVersion = !cm.dbVersion().isFixed()
+            const auto cmdObjWithShardVersion = !cri.getDbVersion().isFixed()
                 ? appendShardVersion(cmdNoVersion, ShardVersion::UNSHARDED())
                 : cmdNoVersion;
-            return {
-                uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(opCtx, cm.dbPrimary())),
-                appendDbVersionIfPresent(cmdObjWithShardVersion, cm.dbVersion())};
+            return {uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(
+                        opCtx, cri.getDbPrimaryShardId())),
+                    appendDbVersionIfPresent(cmdObjWithShardVersion, cri.getDbVersion())};
         }
     }();
 

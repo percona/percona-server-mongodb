@@ -294,7 +294,6 @@ public:
     void visit(const ExpressionArrayToObject* expr) final {}
     void visit(const ExpressionBsonSize* expr) final {}
     void visit(const ExpressionCeil* expr) final {}
-    void visit(const ExpressionCoerceToBool* expr) final {}
     void visit(const ExpressionCompare* expr) final {}
     void visit(const ExpressionConcat* expr) final {}
     void visit(const ExpressionConcatArrays* expr) final {}
@@ -460,7 +459,6 @@ public:
     void visit(const ExpressionArrayToObject* expr) final {}
     void visit(const ExpressionBsonSize* expr) final {}
     void visit(const ExpressionCeil* expr) final {}
-    void visit(const ExpressionCoerceToBool* expr) final {}
     void visit(const ExpressionCompare* expr) final {}
     void visit(const ExpressionConcat* expr) final {}
     void visit(const ExpressionConcatArrays* expr) final {}
@@ -783,10 +781,10 @@ public:
             std::reverse(std::begin(binds), std::end(binds));
 
             auto checkNullAllArguments =
-                makeBalancedBooleanOpTree(optimizer::Operations::Or, std::move(checkArgIsNull));
+                makeBooleanOpTree(optimizer::Operations::Or, std::move(checkArgIsNull));
 
-            auto checkValidTypeAndCountDates = makeBalancedBooleanOpTree(
-                optimizer::Operations::Add, std::move(checkArgHasValidType));
+            auto checkValidTypeAndCountDates =
+                makeBooleanOpTree(optimizer::Operations::Add, std::move(checkArgHasValidType));
 
             auto addOp = makeVariable(names[0]);
             for (size_t idx = 1; idx < arity; ++idx) {
@@ -804,11 +802,7 @@ public:
                                  "only one date allowed in an $add expression")}},
                 std::move(addOp));
 
-            for (size_t idx = 0; idx < arity; ++idx) {
-                addExpr = optimizer::make<optimizer::Let>(
-                    std::move(names[idx]), std::move(binds[idx]), std::move(addExpr));
-            }
-
+            addExpr = makeLet(std::move(names), std::move(binds), std::move(addExpr));
             pushABT(std::move(addExpr));
         }
     }
@@ -987,11 +981,6 @@ public:
         pushABT(optimizer::make<optimizer::Let>(
             std::move(inputName), _context->popABTExpr(), std::move(ceilExpr)));
     }
-    void visit(const ExpressionCoerceToBool* expr) final {
-        // Since $coerceToBool is internal-only and there are not yet any input expressions that
-        // generate an ExpressionCoerceToBool expression, we will leave it as unreachable for now.
-        MONGO_UNREACHABLE;
-    }
     void visit(const ExpressionCompare* expr) final {
         _context->ensureArity(2);
 
@@ -1031,10 +1020,10 @@ public:
         }
 
         auto checkNullAnyArgument =
-            makeBalancedBooleanOpTree(optimizer::Operations::Or, std::move(checkNullArg));
+            makeBooleanOpTree(optimizer::Operations::Or, std::move(checkNullArg));
 
         auto checkStringAllArguments =
-            makeBalancedBooleanOpTree(optimizer::Operations::And, std::move(checkStringArg));
+            makeBooleanOpTree(optimizer::Operations::And, std::move(checkStringArg));
 
         auto concatExpr = buildABTMultiBranchConditionalFromCaseValuePairs(
             {ABTCaseValuePair{std::move(checkNullAnyArgument), optimizer::Constant::null()},
@@ -1082,7 +1071,7 @@ public:
         }
 
         auto anyArgumentNullOrMissing =
-            makeBalancedBooleanOpTree(optimizer::Operations::Or, std::move(argIsNullOrMissing));
+            makeBooleanOpTree(optimizer::Operations::Or, std::move(argIsNullOrMissing));
 
         auto nullOrFailExpr = optimizer::make<optimizer::If>(
             std::move(anyArgumentNullOrMissing),
@@ -1669,8 +1658,7 @@ public:
                                               generateABTNullMissingOrUndefined(monthName),
                                               generateABTNullMissingOrUndefined(yearName)};
 
-        auto checkPartsForNull =
-            makeBalancedBooleanOpTree(optimizer::Operations::Or, std::move(nullExprs));
+        auto checkPartsForNull = makeBooleanOpTree(optimizer::Operations::Or, std::move(nullExprs));
 
         // Invocation of the datePartsWeekYear and dateParts functions depend on a TimeZoneDatabase
         // for datetime computation. This global object is registered as an unowned value in the
@@ -2543,9 +2531,9 @@ public:
         std::reverse(std::begin(binds), std::end(binds));
 
         auto checkNullAnyArgument =
-            makeBalancedBooleanOpTree(optimizer::Operations::Or, std::move(checkExprsNull));
+            makeBooleanOpTree(optimizer::Operations::Or, std::move(checkExprsNull));
         auto checkNumberAllArguments =
-            makeBalancedBooleanOpTree(optimizer::Operations::And, std::move(checkExprsNumber));
+            makeBooleanOpTree(optimizer::Operations::And, std::move(checkExprsNumber));
         auto multiplication = std::accumulate(
             names.begin() + 1, names.end(), makeVariable(names.front()), [](auto&& acc, auto&& ex) {
                 return optimizer::make<optimizer::BinaryOp>(
@@ -2558,11 +2546,7 @@ public:
             makeABTFail(ErrorCodes::Error{7157721},
                         "only numbers are allowed in an $multiply expression"));
 
-        for (size_t i = 0; i < arity; ++i) {
-            multiplyExpr = optimizer::make<optimizer::Let>(
-                std::move(names[i]), std::move(binds[i]), std::move(multiplyExpr));
-        }
-
+        multiplyExpr = makeLet(std::move(names), std::move(binds), std::move(multiplyExpr));
         pushABT(std::move(multiplyExpr));
     }
     void visit(const ExpressionNot* expr) final {
@@ -3745,7 +3729,7 @@ private:
         }
         std::reverse(exprs.begin(), exprs.end());
 
-        pushABT(makeBalancedBooleanOpTree(logicOp, std::move(exprs)));
+        pushABT(makeBooleanOpTree(logicOp, std::move(exprs)));
     }
 
     /**
@@ -4255,9 +4239,9 @@ private:
         std::reverse(std::begin(args), std::end(args));
 
         auto checkNullAnyArgument =
-            makeBalancedBooleanOpTree(optimizer::Operations::Or, std::move(checkNulls));
+            makeBooleanOpTree(optimizer::Operations::Or, std::move(checkNulls));
         auto checkNotArrayAnyArgument =
-            makeBalancedBooleanOpTree(optimizer::Operations::Or, std::move(checkNotArrays));
+            makeBooleanOpTree(optimizer::Operations::Or, std::move(checkNotArrays));
         optimizer::ABT setExpr = [&]() -> optimizer::ABT {
             // To match classic engine semantics, $setEquals and $setIsSubset should throw an error
             // for any non-array arguments including null and missing values.
@@ -4280,11 +4264,8 @@ private:
                                                              std::move(variables)));
             }
         }();
-        for (size_t i = 0; i < arity; ++i) {
-            setExpr = optimizer::make<optimizer::Let>(
-                std::move(argNames[i]), std::move(args[i]), std::move(setExpr));
-        }
 
+        setExpr = makeLet(std::move(argNames), std::move(args), std::move(setExpr));
         pushABT(std::move(setExpr));
     }
 
@@ -4562,7 +4543,7 @@ private:
         checkNullArg.push_back(generateABTNullMissingOrUndefined(tzName));
 
         auto checkNullAnyArgument =
-            makeBalancedBooleanOpTree(optimizer::Operations::Or, std::move(checkNullArg));
+            makeBooleanOpTree(optimizer::Operations::Or, std::move(checkNullArg));
 
         auto dateAddExpr = buildABTMultiBranchConditionalFromCaseValuePairs(
             {ABTCaseValuePair{std::move(checkNullAnyArgument), optimizer::Constant::null()},

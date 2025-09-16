@@ -193,7 +193,7 @@ std::pair<DatabaseName, BSONObj> makeTargetWriteRequest(OperationContext* opCtx,
     const auto cri = uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, nss));
     uassert(ErrorCodes::NamespaceNotSharded,
             "_clusterWriteWithoutShardKey can only be run against sharded collections.",
-            cri.cm.isSharded());
+            cri.isSharded());
     const auto shardVersion = cri.getShardVersion(shardId);
     // For time-series collections, the 'targetDocId' corresponds to a measurement document's '_id'
     // field which is not guaranteed to exist and does not uniquely identify a measurement so we
@@ -316,6 +316,11 @@ std::pair<DatabaseName, BSONObj> makeTargetWriteRequest(OperationContext* opCtx,
             batchedCommandRequest.setShardVersion(shardVersion);
             return batchedCommandRequest.toBSON();
         } else if (commandName == write_ops::DeleteCommandRequest::kCommandName) {
+            if (isRawDataOperation(opCtx) && nss.isTimeseriesBucketsCollection()) {
+                opMsgRequest.body =
+                    rewriteCommandForRawDataOperation<write_ops::DeleteCommandRequest>(
+                        opMsgRequest.body, nss.coll());
+            }
             auto deleteRequest = write_ops::DeleteCommandRequest::parse(
                 IDLParserContext("_clusterWriteWithoutShardKeyForDelete"), opMsgRequest.body);
 
@@ -348,6 +353,11 @@ std::pair<DatabaseName, BSONObj> makeTargetWriteRequest(OperationContext* opCtx,
             return batchedCommandRequest.toBSON();
         } else if (commandName == write_ops::FindAndModifyCommandRequest::kCommandName ||
                    commandName == write_ops::FindAndModifyCommandRequest::kCommandAlias) {
+            if (isRawDataOperation(opCtx) && nss.isTimeseriesBucketsCollection()) {
+                opMsgRequest.body =
+                    rewriteCommandForRawDataOperation<write_ops::FindAndModifyCommandRequest>(
+                        opMsgRequest.body, nss.coll());
+            }
             auto findAndModifyRequest = write_ops::FindAndModifyCommandRequest::parse(
                 IDLParserContext("_clusterWriteWithoutShardKeyForFindAndModify"),
                 opMsgRequest.body);

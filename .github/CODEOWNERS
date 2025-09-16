@@ -1,8 +1,6 @@
 # This is a generated file do not make changes to this file.
 # This is generated from various OWNERS.yml files across the repo.
-# To regenerate this file run `bazel run //:codeowners`
-# If bazel is not installed, run the following:
-#  python buildscripts/install_bazel.py
+# To regenerate this file run `bazel run codeowners`
 # The documentation for the OWNERS.yml files can be found here:
 # https://github.com/10gen/mongo/blob/master/docs/owners/owners_format.md
 
@@ -568,15 +566,12 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/core/timeseries/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/core/timeseries/ddl/OWNERS.yml
-/jstests/core/timeseries/ddl/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
-/jstests/core/timeseries/ddl/**/timeseries_index* @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/jstests/core/timeseries/ddl/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/core/timeseries/ddl/**/timeseries_index_build_failure.js @10gen/server-index-builds @svc-auto-approve-bot
 /jstests/core/timeseries/ddl/**/timeseries_index_spec.js @10gen/server-collection-write-path @svc-auto-approve-bot
 /jstests/core/timeseries/ddl/**/timeseries_index_spec_with_originalSpec.js @10gen/server-collection-write-path @svc-auto-approve-bot
 /jstests/core/timeseries/ddl/**/timeseries_index_ttl_partial.js @10gen/query-integration-timeseries @svc-auto-approve-bot
 /jstests/core/timeseries/ddl/**/timeseries_index_use.js @10gen/query-integration-timeseries @svc-auto-approve-bot
-/jstests/core/timeseries/ddl/**/timeseries_user_system_buckets.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
-/jstests/core/timeseries/ddl/**/timeseries_nondefault_collation.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/core/timeseries/geo/OWNERS.yml
 /jstests/core/timeseries/geo/**/* @10gen/query-integration-timeseries @svc-auto-approve-bot
@@ -587,6 +582,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/core/timeseries/query/OWNERS.yml
 /jstests/core/timeseries/query/**/* @10gen/query-integration-timeseries @svc-auto-approve-bot
+/jstests/core/timeseries/query/**/timeseries_block_explain.js @10gen/query-execution-sbe @svc-auto-approve-bot
+/jstests/core/timeseries/query/**/timeseries_group* @10gen/query-execution-sbe @svc-auto-approve-bot
+/jstests/core/timeseries/query/**/timeseries_homogeneous_top_bottom.js @10gen/query-execution-sbe @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/core/timeseries/write/OWNERS.yml
 /jstests/core/timeseries/write/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -701,7 +699,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/libs/override_methods/**/txn_passthrough_cmd_massage.js @10gen/server-replication @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/libs/property_test_helpers/OWNERS.yml
-/jstests/libs/property_test_helpers/**/* @10gen/query-optimization @svc-auto-approve-bot
+/jstests/libs/property_test_helpers/**/* @10gen/query @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/libs/query/OWNERS.yml
 /jstests/libs/query/**/* @10gen/query @svc-auto-approve-bot
@@ -980,6 +978,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/timeseries/query/OWNERS.yml
 /jstests/noPassthrough/timeseries/query/**/* @10gen/query-integration-timeseries @svc-auto-approve-bot
+/jstests/noPassthrough/timeseries/query/**/timeseries_group* @10gen/query-execution-sbe @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/traffic_recording/OWNERS.yml
 /jstests/noPassthrough/traffic_recording/**/* @10gen/server-networking-and-observability @svc-auto-approve-bot

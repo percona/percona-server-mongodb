@@ -89,11 +89,11 @@ public:
 
             const auto& catalogCache = Grid::get(opCtx)->catalogCache();
             const auto cri = uassertStatusOK(catalogCache->getCollectionRoutingInfo(opCtx, nss));
-            auto primaryShardId = cri.cm.dbPrimary();
+            auto primaryShardId = cri.getDbPrimaryShardId();
 
             std::set<ShardId> candidateShardIds;
-            if (cri.cm.hasRoutingTable()) {
-                cri.cm.getAllShardIds(&candidateShardIds);
+            if (cri.hasRoutingTable()) {
+                cri.getChunkManager().getAllShardIds(&candidateShardIds);
             } else {
                 candidateShardIds.insert(primaryShardId);
             }
@@ -137,7 +137,7 @@ public:
 
                 uassert(ErrorCodes::IllegalOperation,
                         "Cannot analyze a shard key for a collection in a fixed database",
-                        !cri.cm.dbVersion().isFixed());
+                        !cri.getDbVersion().isFixed());
 
                 auto expCtx = makeExpressionContextWithDefaultsForTargeter(
                     opCtx, nss, cri, BSONObj(), boost::none, boost::none, boost::none);

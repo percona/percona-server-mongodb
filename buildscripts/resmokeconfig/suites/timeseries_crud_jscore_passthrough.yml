@@ -39,6 +39,7 @@ selector:
     # Text indexes.
     - jstests/core/query/internal_strip_invalid_assignment.js
     - jstests/core/query/plan_cache/plan_cache_eof.js
+    - jstests/core/query/release_memory/release_memory_text_or.js
     # Hashed indexes.
     - jstests/core/query/hashed_partial_and_sparse_index.js
     - jstests/core/query/distinct/distinct_with_hashed_index.js
@@ -86,6 +87,7 @@ selector:
     - jstests/core/query/distinct/distinct_sbe_compatibility.js
     - jstests/core/query/exists/existsa.js
     - jstests/core/query/explain/**/*.js
+    - jstests/core/query/expr/expr_and_or_index.js
     - jstests/core/query/expr/expr_in_index_use.js
     - jstests/core/query/expr/expr_index_use.js
     - jstests/core/query/idhack.js
@@ -286,6 +288,8 @@ selector:
     - jstests/core/query/change_streams_pre_and_post_images_in_create_and_collmod.js
     # Inserts documents that are too large for a timeseries collection.
     - jstests/core/query/bson_size_limit.js
+    # Test relying on document ordering that can be different for time-series collections.
+    - jstests/core/query/update/update_fail_halts_modifications.js
 
   exclude_with_any_tags:
     - requires_sharding

@@ -227,9 +227,7 @@ ChunkManager makeCustomChunkManager(const ShardKeyPattern& shardKeyPattern,
                                                             true,         // allowMigration
                                                             chunks);
 
-    return ChunkManager(ShardId("dummyShardPrimary"),
-                        DatabaseVersion(UUID::gen(), timestamp),
-                        RoutingTableHistoryValueHandle(
+    return ChunkManager(RoutingTableHistoryValueHandle(
                             std::make_shared<RoutingTableHistory>(std::move(routingTableHistory))),
                         boost::none);
 }
@@ -253,9 +251,13 @@ void CollectionRoutingInfoTargeterTest::
     auto cm = makeCustomChunkManager(shardKeyPattern, splitPoints);
     auto criTargeter = CollectionRoutingInfoTargeter(
         kNss,
-        CollectionRoutingInfo{std::move(cm),
-                              boost::optional<ShardingIndexesCatalogCache>(boost::none)});
-    ASSERT_EQ(criTargeter.getRoutingInfo().cm.numChunks(), 5);
+        CollectionRoutingInfo{
+            std::move(cm),
+            boost::optional<ShardingIndexesCatalogCache>(boost::none),
+            DatabaseTypeValueHandle(DatabaseType{kNss.dbName(),
+                                                 ShardId("dummyShardPrimary"),
+                                                 DatabaseVersion(UUID::gen(), Timestamp(1, 0))})});
+    ASSERT_EQ(criTargeter.getRoutingInfo().getChunkManager().numChunks(), 5);
 
     // Cause the global chunk manager to have some other configuration.
     std::vector<BSONObj> differentPoints = {BSON("c" << BSONNULL), BSON("c" << 0)};
@@ -266,7 +268,7 @@ void CollectionRoutingInfoTargeterTest::
                                           false,
                                           differentPoints,
                                           {});
-    ASSERT_EQ(cri2.cm.numChunks(), 3);
+    ASSERT_EQ(cri2.getChunkManager().numChunks(), 3);
 
     // Run common test on the custom ChunkManager of CollectionRoutingInfoTargeter.
     testTargetInsertWithRangePrefixHashedShardKeyCommon(operationContext(), criTargeter);
@@ -294,8 +296,9 @@ void CollectionRoutingInfoTargeterTest::
         // Verify that the given document is being routed based on hashed value of 'i'.
         auto hashValue =
             BSONElementHasher::hash64(insertObj["a"]["b"], BSONElementHasher::DEFAULT_HASH_SEED);
-        auto chunk = collectionRoutingInfo->cm.findIntersectingChunkWithSimpleCollation(
-            BSON("a.b" << hashValue));
+        auto chunk =
+            collectionRoutingInfo->getChunkManager().findIntersectingChunkWithSimpleCollation(
+                BSON("a.b" << hashValue));
         ASSERT_EQUALS(res.shardName, chunk.getShardId());
     }
 
@@ -446,7 +449,7 @@ TEST_F(CollectionRoutingInfoTargeterTest, TargetUpdateWithHashedPrefixHashedShar
 
 void CollectionRoutingInfoTargeterTest::testTargetUpdateWithHashedPrefixHashedShardKey() {
     auto findChunk = [&](BSONElement elem) {
-        return collectionRoutingInfo->cm.findIntersectingChunkWithSimpleCollation(
+        return collectionRoutingInfo->getChunkManager().findIntersectingChunkWithSimpleCollation(
             BSON("a.b" << BSONElementHasher::hash64(elem, BSONElementHasher::DEFAULT_HASH_SEED)));
     };
 
@@ -579,7 +582,7 @@ TEST_F(CollectionRoutingInfoTargeterTest, TargetDeleteWithHashedPrefixHashedShar
 
 void CollectionRoutingInfoTargeterTest::testTargetDeleteWithHashedPrefixHashedShardKey() {
     auto findChunk = [&](BSONElement elem) {
-        return collectionRoutingInfo->cm.findIntersectingChunkWithSimpleCollation(
+        return collectionRoutingInfo->getChunkManager().findIntersectingChunkWithSimpleCollation(
             BSON("a.b" << BSONElementHasher::hash64(elem, BSONElementHasher::DEFAULT_HASH_SEED)));
     };
 
@@ -697,8 +700,8 @@ class CollectionRoutingInfoTargeterUntrackedTest : public RouterCatalogCacheTest
 public:
     CollectionRoutingInfoTargeter prepare() {
         const auto cri = makeUntrackedCollectionRoutingInfo(kNss);
-        primaryShard = cri.cm.dbPrimary();
-        dbVersion = cri.cm.dbVersion();
+        primaryShard = cri.getDbPrimaryShardId();
+        dbVersion = cri.getDbVersion();
         return CollectionRoutingInfoTargeter(kNss, cri);
     };
 
@@ -753,7 +756,7 @@ public:
         const auto cri = makeUnshardedCollectionRoutingInfo(kNss);
 
         std::set<ShardId> shards;
-        cri.cm.getAllShardIds(&shards);
+        cri.getChunkManager().getAllShardIds(&shards);
         ASSERT_EQ(1, shards.size());
         owningShard = *shards.begin();
 
@@ -1060,7 +1063,7 @@ TEST_F(CollectionRoutingInfoTargeterTimeseriesTest, TrackedAreTranslatedToBucket
         ASSERT_EQ(true, cri.isTrackedTimeSeriesBucketsNamespace());
         ASSERT_TRUE(cri.timeseriesNamespaceNeedsRewrite(nss));
         ASSERT_FALSE(cri.timeseriesNamespaceNeedsRewrite(bucketsNss));
-        ASSERT_EQ(bucketsNss, cri.getRoutingInfo().cm.getNss());
+        ASSERT_EQ(bucketsNss, cri.getRoutingInfo().getChunkManager().getNss());
     };
 
     testFn(_unsplittableTimeseriesNss);

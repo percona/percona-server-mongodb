@@ -81,6 +81,7 @@
 #include "mongo/db/query/query_stats/agg_key.h"
 #include "mongo/db/query/query_stats/key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
+#include "mongo/db/query/shard_key_diagnostic_printer.h"
 #include "mongo/db/query/tailable_mode_gen.h"
 #include "mongo/db/query/timeseries/timeseries_rewrites.h"
 #include "mongo/db/raw_data_operation.h"
@@ -201,7 +202,7 @@ boost::intrusive_ptr<ExpressionContext> makeExpressionContext(
                         .canBeRejected(canBeRejected)
                         .build();
 
-    if (!(cri && cri->cm.hasRoutingTable()) && collationObj.isEmpty()) {
+    if (!(cri && cri->hasRoutingTable()) && collationObj.isEmpty()) {
         mergeCtx->setIgnoreCollator();
     }
 
@@ -230,9 +231,9 @@ void appendEmptyResultSetWithStatus(OperationContext* opCtx,
 
 void updateHostsTargetedMetrics(OperationContext* opCtx,
                                 const NamespaceString& executionNss,
-                                const boost::optional<ChunkManager>& cm,
+                                const boost::optional<CollectionRoutingInfo>& cri,
                                 const stdx::unordered_set<NamespaceString>& involvedNamespaces) {
-    if (!cm)
+    if (!cri)
         return;
 
     // Create a set of ShardIds that own a chunk belonging to any of the collections involved in
@@ -246,11 +247,11 @@ void updateHostsTargetedMetrics(OperationContext* opCtx,
     std::set<ShardId> shardsOwningChunks = [&]() {
         std::set<ShardId> shardsIds;
 
-        if (cm->isSharded()) {
+        if (cri->isSharded()) {
             std::set<ShardId> shardIdsForNs;
             // Note: It is fine to use 'getAllShardIds_UNSAFE_NotPointInTime' here because the
             // result is only used to update stats.
-            cm->getAllShardIds_UNSAFE_NotPointInTime(&shardIdsForNs);
+            cri->getChunkManager().getAllShardIds_UNSAFE_NotPointInTime(&shardIdsForNs);
             for (const auto& shardId : shardIdsForNs) {
                 shardsIds.insert(shardId);
             }
@@ -260,13 +261,14 @@ void updateHostsTargetedMetrics(OperationContext* opCtx,
             if (nss == executionNss)
                 continue;
 
-            const auto resolvedNsCM =
-                uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, nss)).cm;
-            if (resolvedNsCM.isSharded()) {
+            const auto resolvedNsCri =
+                uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, nss));
+            if (resolvedNsCri.isSharded()) {
                 std::set<ShardId> shardIdsForNs;
                 // Note: It is fine to use 'getAllShardIds_UNSAFE_NotPointInTime' here because the
                 // result is only used to update stats.
-                resolvedNsCM.getAllShardIds_UNSAFE_NotPointInTime(&shardIdsForNs);
+                resolvedNsCri.getChunkManager().getAllShardIds_UNSAFE_NotPointInTime(
+                    &shardIdsForNs);
                 for (const auto& shardId : shardIdsForNs) {
                     shardsIds.insert(shardId);
                 }
@@ -400,13 +402,13 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
     // collation, and since collectionless aggregations generally run on the 'admin'
     // database, the standard logic would attempt to resolve its non-existent UUID and
     // collation by sending a specious 'listCollections' command to the config servers.
-    auto collationObj = hasChangeStream ? request.getCollation().value_or(BSONObj())
-                                        : cluster_aggregation_planner::getCollation(
-                                              opCtx,
-                                              cri ? boost::make_optional(cri->cm) : boost::none,
-                                              nsStruct.executionNss,
-                                              request.getCollation().value_or(BSONObj()),
-                                              requiresCollationForParsingUnshardedAggregate);
+    auto collationObj = hasChangeStream
+        ? request.getCollation().value_or(BSONObj())
+        : cluster_aggregation_planner::getCollation(opCtx,
+                                                    cri,
+                                                    nsStruct.executionNss,
+                                                    request.getCollation().value_or(BSONObj()),
+                                                    requiresCollationForParsingUnshardedAggregate);
 
     // Build an ExpressionContext for the pipeline. This instantiates an appropriate collator,
     // includes all involved namespaces, and creates a shared MongoProcessInterface for use by
@@ -467,7 +469,7 @@ void rewritePipelineIfTimeseries(OperationContext* const opCtx,
                                  const CollectionRoutingInfo& cri) {
     if (timeseries::isEligibleForViewlessTimeseriesRewrites(opCtx, cri)) {
         // TypeCollectionTimeseriesFields encapsulates TimeseriesOptions.
-        const auto timeseriesFields = cri.cm.getTimeseriesFields();
+        const auto timeseriesFields = cri.getChunkManager().getTimeseriesFields();
         tassert(9949202,
                 "Expected getTimeseriesFields() to return a meaningful value",
                 timeseriesFields.has_value());
@@ -535,7 +537,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
             return false;
         }
         const auto& cri = uassertStatusOK(criSW);
-        return cri.cm.isSharded();
+        return cri.isSharded();
     };
     bool isExplain = request.getExplain().get_value_or(false);
     liteParsedPipeline.verifyIsSupported(opCtx, isSharded, isExplain);
@@ -622,6 +624,14 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
     if (routingTableIsAvailable) {
         rewritePipelineIfTimeseries(opCtx, request, *cri);
     }
+
+    // Create an RAII object that prints the collection's shard key in the case of a tassert
+    // or crash.
+    ScopedDebugInfo shardKeyDiagnostics(
+        "ShardKeyDiagnostics",
+        diagnostic_printers::ShardKeyDiagnosticPrinter{
+            (cri && cri->isSharded()) ? cri->getChunkManager().getShardKeyPattern().toBSON()
+                                      : BSONObj()});
 
     // pipelineBuilder will be invoked within AggregationTargeter::make() if and only if it chooses
     // any policy other than "specific shard only".
@@ -829,10 +839,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
     }
 
     if (status.isOK()) {
-        updateHostsTargetedMetrics(opCtx,
-                                   namespaces.executionNss,
-                                   cri ? boost::make_optional(cri->cm) : boost::none,
-                                   involvedNamespaces);
+        updateHostsTargetedMetrics(opCtx, namespaces.executionNss, cri, involvedNamespaces);
         if (expCtx->getExplain()) {
             explain_common::generateQueryShapeHash(expCtx->getOperationContext(), result);
             // Add 'command' object to explain output. If this command was done as passthrough, it
@@ -898,9 +905,9 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
 
             if (criSt.isOK()) {
                 const CollectionRoutingInfo& cri = criSt.getValue();
-                if (cri.cm.isSharded()) {
+                if (cri.isSharded()) {
                     snapshotCri = cri;
-                    return cri.cm.getTimeseriesFields().get_ptr();
+                    return cri.getChunkManager().getTimeseriesFields().get_ptr();
                 }
             }
             return nullptr;

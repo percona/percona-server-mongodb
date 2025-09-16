@@ -88,6 +88,8 @@ public:
     std::unique_ptr<sbe::EExpression> transport(const BinaryOp& op,
                                                 std::unique_ptr<sbe::EExpression> lhs,
                                                 std::unique_ptr<sbe::EExpression> rhs);
+    std::unique_ptr<sbe::EExpression> transport(
+        const NaryOp& op, std::vector<std::unique_ptr<sbe::EExpression>> args);
     std::unique_ptr<sbe::EExpression> transport(const UnaryOp& op,
                                                 std::unique_ptr<sbe::EExpression> arg);
     std::unique_ptr<sbe::EExpression> transport(const If&,
@@ -101,6 +103,9 @@ public:
     std::unique_ptr<sbe::EExpression> transport(const Let& let,
                                                 std::unique_ptr<sbe::EExpression> bind,
                                                 std::unique_ptr<sbe::EExpression> in);
+    void prepare(const MultiLet& multiLet);
+    std::unique_ptr<sbe::EExpression> transport(
+        const MultiLet& multiLet, std::vector<std::unique_ptr<sbe::EExpression>> args);
     void prepare(const LambdaAbstraction& lam);
     std::unique_ptr<sbe::EExpression> transport(const LambdaAbstraction& lam,
                                                 std::unique_ptr<sbe::EExpression> body);
@@ -136,6 +141,9 @@ private:
     sbe::value::FrameIdGenerator _localFrameIdGenerator{100};
 
     stdx::unordered_map<const Let*, sbe::FrameId> _letMap;
+    stdx::unordered_map<const MultiLet*,
+                        std::pair<sbe::FrameId, optimizer::ProjectionNameMap<sbe::value::SlotId>>>
+        _multiLetMap;
     stdx::unordered_map<const LambdaAbstraction*, sbe::FrameId> _lambdaMap;
 };
 

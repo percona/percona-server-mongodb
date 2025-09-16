@@ -249,12 +249,12 @@ public:
 
         const auto targeter = CollectionRoutingInfoTargeter(opCtx, nss);
         const auto cri = targeter.getRoutingInfo();
-        const auto& cm = cri.cm;
+        const auto& cm = cri.getChunkManager();
         if (cm.isSharded()) {
             result.appendBool("sharded", true);
         } else {
             result.appendBool("sharded", false);
-            result.append("primary", cm.dbPrimary().toString());
+            result.append("primary", cri.getDbPrimaryShardId().toString());
         }
 
         int scale = 1;

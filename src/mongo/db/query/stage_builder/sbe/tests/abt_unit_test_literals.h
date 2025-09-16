@@ -178,6 +178,13 @@ inline auto _binary(StringData name, ExprHolder input1, ExprHolder input2) {
         make<BinaryOp>(getOpByName(name), std::move(input1._n), std::move(input2._n))};
 }
 
+template <typename... Ts>
+inline auto _nary(StringData name, Ts&&... pack) {
+    std::vector<ExprHolder> v;
+    (v.push_back(std::forward<Ts>(pack)), ...);
+    return ExprHolder{make<NaryOp>(getOpByName(name), holdersToABTs(std::move(v)))};
+}
+
 inline auto _if(ExprHolder condExpr, ExprHolder thenExpr, ExprHolder elseExpr) {
     return ExprHolder{
         make<If>(std::move(condExpr._n), std::move(thenExpr._n), std::move(elseExpr._n))};
@@ -216,6 +223,28 @@ inline auto _switch(ExprHolder condExpr1,
 
 inline auto _let(StringData pn, ExprHolder inBind, ExprHolder inExpr) {
     return ExprHolder{make<Let>(ProjectionName{pn}, std::move(inBind._n), std::move(inExpr._n))};
+}
+
+inline auto _multiLet(
+    StringData pn1, ExprHolder inBind1, StringData pn2, ExprHolder inBind2, ExprHolder inExpr) {
+    return ExprHolder{
+        make<MultiLet>(std::vector{std::pair{ProjectionName{pn1}, std::move(inBind1._n)},
+                                   std::pair{ProjectionName{pn2}, std::move(inBind2._n)}},
+                       std::move(inExpr._n))};
+}
+
+inline auto _multiLet(StringData pn1,
+                      ExprHolder inBind1,
+                      StringData pn2,
+                      ExprHolder inBind2,
+                      StringData pn3,
+                      ExprHolder inBind3,
+                      ExprHolder inExpr) {
+    return ExprHolder{
+        make<MultiLet>(std::vector{std::pair{ProjectionName{pn1}, std::move(inBind1._n)},
+                                   std::pair{ProjectionName{pn2}, std::move(inBind2._n)},
+                                   std::pair{ProjectionName{pn3}, std::move(inBind3._n)}},
+                       std::move(inExpr._n))};
 }
 
 inline auto _lambda(StringData pn, ExprHolder body) {

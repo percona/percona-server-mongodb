@@ -316,7 +316,7 @@ std::set<ShardId> getTargetedShards(boost::intrusive_ptr<ExpressionContext> expC
     }
 
     tassert(8361100, "Need CollectionRoutingInfo to target sharded query", cri);
-    return getTargetedShardsForQuery(expCtx, cri->cm, shardQuery, collation);
+    return getTargetedShardsForQuery(expCtx, *cri, shardQuery, collation);
 }
 
 bool stageCanRunInParallel(const boost::intrusive_ptr<DocumentSource>& stage,
@@ -586,10 +586,9 @@ std::unique_ptr<Pipeline, PipelineDeleter> tryAttachCursorSourceForLocalRead(
     const CollectionRoutingInfo& targetingCri,
     const ShardId& localShardId) {
     try {
-        const auto& cm = targetingCri.cm;
         auto shardVersion = [&] {
-            auto sv = cm.hasRoutingTable() ? targetingCri.getShardVersion(localShardId)
-                                           : ShardVersion::UNSHARDED();
+            auto sv = targetingCri.hasRoutingTable() ? targetingCri.getShardVersion(localShardId)
+                                                     : ShardVersion::UNSHARDED();
             if (auto txnRouter = TransactionRouter::get(opCtx)) {
                 if (auto optOriginalPlacementConflictTime = txnRouter.getPlacementConflictTime()) {
                     sv.setPlacementConflictTime(*optOriginalPlacementConflictTime);
@@ -601,7 +600,8 @@ std::unique_ptr<Pipeline, PipelineDeleter> tryAttachCursorSourceForLocalRead(
             opCtx,
             expCtx.getNamespaceString(),
             shardVersion,
-            boost::optional<DatabaseVersion>{!cm.hasRoutingTable(), cm.dbVersion()}};
+            boost::optional<DatabaseVersion>{!targetingCri.hasRoutingTable(),
+                                             targetingCri.getDbVersion()}};
 
         // TODO SERVER-77402 Wrap this in a shardRoleRetry loop instead of
         // catching exceptions. attachCursorSourceToPipelineForLocalRead enters the
@@ -701,7 +701,7 @@ boost::optional<ShardedExchangePolicy> checkIfEligibleForExchange(OperationConte
 
     const auto cri =
         uassertStatusOK(getCollectionRoutingInfoForTxnCmd(opCtx, mergeStage->getOutputNs()));
-    if (!cri.cm.isSharded()) {
+    if (!cri.isSharded()) {
         return boost::none;
     }
 
@@ -713,7 +713,7 @@ boost::optional<ShardedExchangePolicy> checkIfEligibleForExchange(OperationConte
     // inserted on. With this ability we can insert an exchange on the shards to partition the
     // documents based on which shard will end up owning them. Then each shard can perform a merge
     // of only those documents which belong to it (optimistically, barring chunk migrations).
-    return walkPipelineBackwardsTrackingShardKey(opCtx, mergePipeline, cri.cm);
+    return walkPipelineBackwardsTrackingShardKey(opCtx, mergePipeline, cri.getChunkManager());
 }
 
 BSONObj createPassthroughCommandForShard(
@@ -1065,8 +1065,8 @@ DispatchShardPipelineResults dispatchTargetedShardPipeline(
                         mergeShardId.has_value() ? mergeShardId->toString() : "false");
 
         boost::optional<OrderedPathSet> shardKeyPaths;
-        if (cri && cri->cm.isSharded()) {
-            shardKeyPaths = getShardKeyPathsSet(cri->cm.getShardKeyPattern());
+        if (cri && cri->isSharded()) {
+            shardKeyPaths = getShardKeyPathsSet(cri->getChunkManager().getShardKeyPattern());
         }
         splitPipelines = SplitPipeline::split(std::move(pipeline), std::move(shardKeyPaths));
 
