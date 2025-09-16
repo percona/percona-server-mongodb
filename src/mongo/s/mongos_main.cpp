@@ -735,7 +735,7 @@ ServiceContext::ConstructorActionRegisterer registerWireSpec{
 
         WireSpec::getWireSpec(service).initialize(std::move(spec));
     }};
-}
+}  // namespace
 
 void logMongosStartupTimeElapsedStatistics(ServiceContext* serviceContext,
                                            Date_t beginRunMongosServer,

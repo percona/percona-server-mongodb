@@ -288,7 +288,7 @@ BatchedInsertContext::BatchedInsertContext(
       stripeNumber(stripeNumber),
       options(options),
       stats(stats),
-      measurementsTimesAndIndices(measurementsTimesAndIndices){};
+      measurementsTimesAndIndices(measurementsTimesAndIndices) {};
 
 BSONObj getMetadata(BucketCatalog& catalog, const BucketId& bucketId) {
     auto const& stripe = *catalog.stripes[internal::getStripeNumber(catalog, bucketId)];
@@ -713,20 +713,11 @@ void finish(BucketCatalog& catalog, std::shared_ptr<WriteBatch> batch) {
         }
     } else if (allCommitted(*bucket)) {
         auto action = getRolloverAction(bucket->rolloverReason);
-        switch (action) {
-            case RolloverAction::kHardClose:
-            case RolloverAction::kSoftClose: {
-                internal::closeOpenBucket(catalog, stripe, stripeLock, *bucket, stats);
-                break;
-            }
-            case RolloverAction::kArchive: {
-                internal::archiveBucket(catalog, stripe, stripeLock, *bucket, stats);
-                break;
-            }
-            case RolloverAction::kNone: {
-                internal::markBucketIdle(stripe, stripeLock, *bucket);
-                break;
-            }
+
+        if (action == RolloverAction::kNone) {
+            internal::markBucketIdle(stripe, stripeLock, *bucket);
+        } else {
+            internal::rollover(catalog, stripe, stripeLock, *bucket, bucket->rolloverReason);
         }
     }
 }

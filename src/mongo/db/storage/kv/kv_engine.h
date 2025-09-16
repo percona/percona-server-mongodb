@@ -395,7 +395,7 @@ public:
      * See `StorageEngine::setOldestActiveTransactionTimestampCallback`
      */
     virtual void setOldestActiveTransactionTimestampCallback(
-        StorageEngine::OldestActiveTransactionTimestampCallback callback){};
+        StorageEngine::OldestActiveTransactionTimestampCallback callback) {};
 
     /**
      * See `StorageEngine::setOldestTimestamp`

@@ -33,41 +33,40 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/raw_data_operation.h"
 #include "mongo/db/timeseries/catalog_helper.h"
+#include "mongo/db/timeseries/timeseries_options.h"
 
 namespace mongo::timeseries {
 
 template <typename T>
-concept HasGetNs = requires(const T& t) {
-    t.getNs();
-};
+concept HasGetNs = requires(const T& t) { t.getNs(); };
 
 template <typename T>
-concept HasGetNamespace = requires(const T& t) {
-    t.getNamespace();
-};
+concept HasGetNamespace = requires(const T& t) { t.getNamespace(); };
 
 template <typename T>
-concept HasGetNsString = requires(const T& t) {
-    t.getNsString();
-};
+concept HasGetNsString = requires(const T& t) { t.getNsString(); };
 
 template <typename T>
-concept HasGetNamespaceOrUUID = requires(const T& t) {
-    t.getNamespaceOrUUID();
-};
+concept HasGetNamespaceOrUUID = requires(const T& t) { t.getNamespaceOrUUID(); };
 
 template <typename T>
-concept HasGetIsTimeseriesNamespace = requires(const T& t) {
-    t.getIsTimeseriesNamespace();
-};
+concept HasGetIsTimeseriesNamespace = requires(const T& t) { t.getIsTimeseriesNamespace(); };
 
 template <typename T>
 concept IsRequestableOnTimeseries =
     HasGetNs<T> || HasGetNamespace<T> || HasGetNsString<T> || HasGetNamespaceOrUUID<T>;
 
+
 /**
- * Returns true if the timeseries namespace for this request has been already translated
- * from the view to bucket namespace.
+ * Returns true if the given request was sent with `isTimeseriesNamespace` flag to true.
+ *
+ * This flag is specified by the sender when had already translated the namespace to the underlying
+ * timeseries system.buckets collection.
+ *
+ * This is only used for legacy timeseries collection (view + buckets).
+ *
+ * TODO SERVER-101784 remove this function once 9.0 becomes last LTS. By then only viewless
+ * timeseries collection will exist and this function will always return false.
  */
 template <typename T>
 bool getIsTimeseriesNamespaceFlag(const T& request, const NamespaceStringOrUUID& nssOrUUID) {
@@ -84,9 +83,12 @@ bool getIsTimeseriesNamespaceFlag(const T& request, const NamespaceStringOrUUID&
     return false;
 }
 
+/**
+ * Extracts the namespace or UUID for the given request.
+ */
 template <typename T>
-requires IsRequestableOnTimeseries<T> mongo::NamespaceStringOrUUID getNamespaceOrUUID(
-    const T& request) {
+requires IsRequestableOnTimeseries<T>
+mongo::NamespaceStringOrUUID getNamespaceOrUUID(const T& request) {
     if constexpr (HasGetNamespace<T>) {
         return request.getNamespace();
     } else if constexpr (HasGetNsString<T>) {
@@ -99,6 +101,52 @@ requires IsRequestableOnTimeseries<T> mongo::NamespaceStringOrUUID getNamespaceO
 }
 
 /**
+ * Returns a boolean indicating if this request should serve raw data without performing any logical
+ * transformation.
+ *
+ * For timeseries collection this is the case when either the request was sent explicitily with
+ * `rawData` parameter.
+ *
+ * For legacy timeseries collection (view + buckets) all operation targeting directly the
+ * system.buckets collection are also considered raw.
+ */
+template <typename T>
+requires IsRequestableOnTimeseries<T>
+bool isRawDataRequest(OperationContext* opCtx, const T& request) {
+    if (isRawDataOperation(opCtx)) {
+        // Explicitily requested raw data
+        return true;
+    }
+
+    auto nssOrUUID = getNamespaceOrUUID(request);
+    auto wasNssAlreadyTranslated = getIsTimeseriesNamespaceFlag(request, nssOrUUID);
+
+    if (wasNssAlreadyTranslated) {
+        // The request originally was targeting the view timeseries namespace and the namespace have
+        // been translated to system.buckets.
+        // Since rawData was not passed we consider this a logical request.
+        return false;
+    }
+
+    // At this point we know that:
+    //  - rawData is not set
+    //  - The namespace was not translated to system.buckets
+
+    if (nssOrUUID.isUUID()) {
+        // The request is targeting a specific collection UUID
+        // In this case we always consider the request rawData
+        //
+        // TODO SERVER-102758 implement logical request through UUID targeting
+        return true;
+    } else if (nssOrUUID.nss().isTimeseriesBucketsCollection()) {
+        // The request came directly on the system.buckets namespace.
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Returns true if this request is targeting a timeseries collection.
  *
  * Throws if this is a time-series collection but the timeseries options are not valid.
@@ -106,17 +154,12 @@ requires IsRequestableOnTimeseries<T> mongo::NamespaceStringOrUUID getNamespaceO
 template <typename T>
 requires IsRequestableOnTimeseries<T>
 bool isTimeseriesRequest(OperationContext* opCtx, const T& request) {
-    if (isRawDataOperation(opCtx)) {
+    if (isRawDataRequest(opCtx, request)) {
         return false;
     }
 
     auto nssOrUUID = getNamespaceOrUUID(request);
     auto wasNssAlreadyTranslated = getIsTimeseriesNamespaceFlag(request, nssOrUUID);
-
-    if (!wasNssAlreadyTranslated &&
-        (nssOrUUID.isUUID() || nssOrUUID.nss().isTimeseriesBucketsCollection())) {
-        return false;
-    }
 
     return lookupTimeseriesCollection(opCtx, nssOrUUID, wasNssAlreadyTranslated).isTimeseries;
 }
@@ -134,8 +177,9 @@ bool isTimeseriesRequest(OperationContext* opCtx, const T& request) {
  * timeseries collection will exist and this function will always return false.
  */
 template <typename T>
-requires IsRequestableOnTimeseries<T> std::pair<bool, NamespaceString> isTimeseriesViewRequest(
-    OperationContext* opCtx, const T& request) {
+requires IsRequestableOnTimeseries<T>
+std::pair<bool, NamespaceString> isTimeseriesViewRequest(OperationContext* opCtx,
+                                                         const T& request) {
     auto nssOrUUID = getNamespaceOrUUID(request);
     auto isTimeseriesNamespaceFlag = getIsTimeseriesNamespaceFlag(request, nssOrUUID);
     auto lookupTimeseriesInfo =

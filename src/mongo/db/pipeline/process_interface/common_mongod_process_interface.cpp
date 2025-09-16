@@ -77,6 +77,7 @@
 #include "mongo/db/pipeline/search/search_helper.h"
 #include "mongo/db/pipeline/stage_constraints.h"
 #include "mongo/db/pipeline/variables.h"
+#include "mongo/db/profile_settings.h"
 #include "mongo/db/query/client_cursor/cursor_manager.h"
 #include "mongo/db/query/collection_index_usage_tracker_decoration.h"
 #include "mongo/db/query/collection_query_info.h"
@@ -236,6 +237,16 @@ void listDurableCatalog(OperationContext* opCtx,
     }
 }
 
+bool isQEColl(const CollectionAcquisition& acquisition) {
+    return (acquisition.exists() &&
+            acquisition.getCollectionPtr()->getCollectionOptions().encryptedFieldConfig) ||
+        acquisition.nss().isFLE2StateCollection();
+}
+
+bool isQEColl(const CollectionOrViewAcquisition& acquisition) {
+    return acquisition.isCollection() && isQEColl(acquisition.getCollection());
+}
+
 }  // namespace
 
 std::unique_ptr<TransactionHistoryIteratorBase>
@@ -249,18 +260,26 @@ std::vector<Document> CommonMongodProcessInterface::getIndexStats(OperationConte
                                                                   const NamespaceString& ns,
                                                                   StringData host,
                                                                   bool addShardName) {
-    AutoGetCollectionForReadMaybeLockFree collection(opCtx, ns);
-
+    // Using kPretendUnsharded as
+    // 1. the function is called in a stage where the shard version has already been checked.
+    // 2. The function only access index stats and not actual data.
+    // An ideal design would allow us to access an already acquired acquisition.
+    const auto acquisition = acquireCollectionMaybeLockFree(
+        opCtx,
+        CollectionAcquisitionRequest(ns,
+                                     AcquisitionPrerequisites::kPretendUnsharded,
+                                     repl::ReadConcernArgs::get(opCtx),
+                                     AcquisitionPrerequisites::kRead));
     std::vector<Document> indexStats;
-    if (!collection) {
+    if (!acquisition.exists()) {
         LOGV2_DEBUG(
             23881, 2, "Collection not found on index stats retrieval: {ns_ns}", "ns_ns"_attr = ns);
         return indexStats;
     }
 
+    const auto& collPtr = acquisition.getCollectionPtr();
     const auto& indexStatsMap =
-        CollectionIndexUsageTrackerDecoration::get(collection.getCollection().get())
-            .getUsageStats();
+        CollectionIndexUsageTrackerDecoration::get(collPtr.get()).getUsageStats();
     for (auto&& indexStatsMapIter : indexStatsMap) {
         auto indexName = indexStatsMapIter.first;
         auto stats = indexStatsMapIter.second;
@@ -275,7 +294,7 @@ std::vector<Document> CommonMongodProcessInterface::getIndexStats(OperationConte
             doc["shard"] = Value(getShardName(opCtx));
 
         // Retrieve the relevant index entry.
-        auto idxCatalog = collection->getIndexCatalog();
+        auto idxCatalog = collPtr->getIndexCatalog();
         auto idx = idxCatalog->findIndexByName(opCtx,
                                                indexName,
                                                IndexCatalog::InclusionPolicy::kReady |
@@ -314,18 +333,31 @@ std::deque<BSONObj> CommonMongodProcessInterface::listCatalog(OperationContext* 
 
         // We want to read all the system.views as well as _mdb_catalog (again) using a consistent
         // snapshot.
-        AutoGetCollectionForReadCommandMaybeLockFree collLock(
-            opCtx,
-            systemViewsNamespaces.front(),
-            AutoGetCollection::Options{}.secondaryNssOrUUIDs(++systemViewsNamespaces.cbegin(),
-                                                             systemViewsNamespaces.cend()),
-            AutoStatsTracker::LogMode::kUpdateTopAndCurOp);
+        auto primaryNss = systemViewsNamespaces.front().nss();
+        AutoStatsTracker tracker{opCtx,
+                                 primaryNss,
+                                 Top::LockType::ReadLocked,
+                                 AutoStatsTracker::LogMode::kUpdateTopAndCurOp,
+                                 DatabaseProfileSettings::get(opCtx->getServiceContext())
+                                     .getDatabaseProfileLevel(primaryNss.dbName()),
+                                 Date_t::max(),
+                                 systemViewsNamespaces.cbegin(),
+                                 systemViewsNamespaces.cend()};
 
-        // If the primary collection is not available, it means the information from parsing
-        // _mdb_catalog is no longer valid. Therefore, we restart this process from the top.
-        if (!collLock.getCollection()) {
-            continue;
-        }
+        CollectionAcquisitionRequests requests;
+        requests.reserve(systemViewsNamespaces.size());
+        std::transform(systemViewsNamespaces.begin(),
+                       systemViewsNamespaces.end(),
+                       std::back_inserter(requests),
+                       [opCtx](const NamespaceStringOrUUID& nsOrUuid) {
+                           return CollectionAcquisitionRequest(
+                               nsOrUuid,
+                               PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
+                               repl::ReadConcernArgs::get(opCtx),
+                               AcquisitionPrerequisites::kRead);
+                       });
+        auto acquisitions = acquireCollectionsMaybeLockFree(opCtx, requests);
+
 
         // Read _mdb_catalog again using the same snapshot set up by our collection(s) lock helper.
         // If _mdb_catalog contains a different set of system.views namespaces from the first time
@@ -341,20 +373,16 @@ std::deque<BSONObj> CommonMongodProcessInterface::listCatalog(OperationContext* 
             continue;
         }
 
-        for (const auto& svns : systemViewsNamespaces) {
-            // Hold reference to the catalog for collection lookup without locks to be safe.
-            auto catalog = CollectionCatalog::get(opCtx);
-            auto collection = catalog->lookupCollectionByNamespace(opCtx, svns.nss());
-            if (!collection) {
+        for (const auto& acq : acquisitions) {
+            if (!acq.exists())
                 continue;
-            }
-
-            auto cursor = collection->getCursor(opCtx);
+            const auto& collPtr = acq.getCollectionPtr();
+            auto cursor = collPtr->getCursor(opCtx);
             while (auto record = cursor->next()) {
                 BSONObj obj = record->data.releaseToBson();
 
                 NamespaceString ns(
-                    NamespaceStringUtil::deserialize(svns.nss().tenantId(),
+                    NamespaceStringUtil::deserialize(acq.nss().tenantId(),
                                                      obj.getStringField("_id"),
                                                      SerializationContext::stateDefault()));
                 NamespaceString viewOnNs(
@@ -392,9 +420,8 @@ boost::optional<BSONObj> CommonMongodProcessInterface::getCatalogEntry(
     if (!acquisition.exists()) {
         return boost::none;
     }
-
-    auto obj = DurableCatalog::get(opCtx)->getCatalogEntry(
-        opCtx, acquisition.getCollectionPtr()->getCatalogId());
+    const auto& collPtr = acquisition.getCollectionPtr();
+    auto obj = DurableCatalog::get(opCtx)->getCatalogEntry(opCtx, collPtr->getCatalogId());
 
     return createCommonNsFields(getShardName(opCtx), ns, obj).obj();
 }
@@ -403,17 +430,14 @@ void CommonMongodProcessInterface::appendLatencyStats(OperationContext* opCtx,
                                                       const NamespaceString& nss,
                                                       bool includeHistograms,
                                                       BSONObjBuilder* builder) const {
-    auto catalog = CollectionCatalog::get(opCtx);
-    auto view = catalog->lookupView(opCtx, nss);
-    if (!view) {
-        AutoGetCollectionForRead collection(opCtx, nss);
-        bool redactForQE =
-            (collection && collection->getCollectionOptions().encryptedFieldConfig) ||
-            nss.isFLE2StateCollection();
-        if (!redactForQE) {
-            Top::getDecoration(opCtx).appendLatencyStats(nss, includeHistograms, builder);
-        }
-    } else {
+    // Using kPretendUnsharded as the helper accesses only indexStats and not user data.
+    auto acquisition = acquireCollectionOrViewMaybeLockFree(
+        opCtx,
+        CollectionOrViewAcquisitionRequest(nss,
+                                           AcquisitionPrerequisites::kPretendUnsharded,
+                                           repl::ReadConcernArgs::get(opCtx),
+                                           AcquisitionPrerequisites::kRead));
+    if (!isQEColl(acquisition)) {
         Top::getDecoration(opCtx).appendLatencyStats(nss, includeHistograms, builder);
     }
 }
@@ -441,17 +465,14 @@ Status CommonMongodProcessInterface::appendRecordCount(OperationContext* opCtx,
 void CommonMongodProcessInterface::appendOperationStats(OperationContext* opCtx,
                                                         const NamespaceString& nss,
                                                         BSONObjBuilder* builder) const {
-    auto catalog = CollectionCatalog::get(opCtx);
-    auto view = catalog->lookupView(opCtx, nss);
-    if (!view) {
-        AutoGetCollectionForRead collection(opCtx, nss);
-        bool redactForQE =
-            (collection && collection->getCollectionOptions().encryptedFieldConfig) ||
-            nss.isFLE2StateCollection();
-        if (!redactForQE) {
-            Top::getDecoration(opCtx).appendOperationStats(nss, builder);
-        }
-    } else {
+    // Using kPretendUnsharded as the helper accesses only indexStats and not user data.
+    auto acquisition = acquireCollectionOrViewMaybeLockFree(
+        opCtx,
+        CollectionOrViewAcquisitionRequest(nss,
+                                           AcquisitionPrerequisites::kPretendUnsharded,
+                                           repl::ReadConcernArgs::get(opCtx),
+                                           AcquisitionPrerequisites::kRead));
+    if (!isQEColl(acquisition)) {
         Top::getDecoration(opCtx).appendOperationStats(nss, builder);
     }
 }
@@ -459,18 +480,22 @@ void CommonMongodProcessInterface::appendOperationStats(OperationContext* opCtx,
 Status CommonMongodProcessInterface::appendQueryExecStats(OperationContext* opCtx,
                                                           const NamespaceString& nss,
                                                           BSONObjBuilder* builder) const {
-    AutoGetCollectionForReadCommand collection(opCtx, nss);
-    if (!collection) {
+    // Using kPretendUnsharded as the helper accesses only query execution stats and not user data.
+    auto acquisition = acquireCollectionMaybeLockFree(
+        opCtx,
+        CollectionAcquisitionRequest(nss,
+                                     AcquisitionPrerequisites::kPretendUnsharded,
+                                     repl::ReadConcernArgs::get(opCtx),
+                                     AcquisitionPrerequisites::kRead));
+    if (!acquisition.exists()) {
         return {ErrorCodes::NamespaceNotFound,
                 str::stream() << "Collection [" << nss.toStringForErrorMsg() << "] not found."};
     }
 
-    bool redactForQE =
-        collection->getCollectionOptions().encryptedFieldConfig || nss.isFLE2StateCollection();
-    if (!redactForQE) {
+    if (!isQEColl(acquisition)) {
+        const auto& collPtr = acquisition.getCollectionPtr();
         auto collectionScanStats =
-            CollectionIndexUsageTrackerDecoration::get(collection.getCollection().get())
-                .getCollectionScanStats();
+            CollectionIndexUsageTrackerDecoration::get(collPtr.get()).getCollectionScanStats();
 
         dassert(collectionScanStats.collectionScans <=
                 static_cast<unsigned long long>(std::numeric_limits<long long>::max()));
@@ -594,23 +619,60 @@ CommonMongodProcessInterface::attachCursorSourceToPipelineForLocalRead(
     std::vector<NamespaceStringOrUUID> secondaryNamespaces = lpp.getForeignExecutionNamespaces();
     auto* opCtx = expCtx->getOperationContext();
 
-    boost::optional<AutoGetCollectionForReadCommandMaybeLockFree> autoColl = boost::none;
+    const auto& primaryNss = expCtx->getNamespaceString();
+    AutoStatsTracker tracker{opCtx,
+                             primaryNss,
+                             Top::LockType::ReadLocked,
+                             AutoStatsTracker::LogMode::kUpdateTop,
+                             DatabaseProfileSettings::get(opCtx->getServiceContext())
+                                 .getDatabaseProfileLevel(primaryNss.dbName()),
+                             Date_t::max(),
+                             secondaryNamespaces.cbegin(),
+                             secondaryNamespaces.cend()};
+
+    CollectionOrViewAcquisitionMap allAcquisitions;
     auto initAutoGetCallback = [&]() {
-        autoColl.emplace(opCtx,
-                         expCtx->getNamespaceString(),
-                         AutoGetCollection::Options{}.secondaryNssOrUUIDs(
-                             secondaryNamespaces.cbegin(), secondaryNamespaces.cend()),
-                         AutoStatsTracker::LogMode::kUpdateTop);
+        CollectionOrViewAcquisitionRequests requests;
+        requests.reserve(secondaryNamespaces.size() + 1);
+        std::transform(secondaryNamespaces.begin(),
+                       secondaryNamespaces.end(),
+                       std::back_inserter(requests),
+                       [opCtx](const NamespaceStringOrUUID& nsOrUuid) {
+                           return CollectionOrViewAcquisitionRequest::fromOpCtx(
+                               opCtx, nsOrUuid, AcquisitionPrerequisites::kRead);
+                       });
+        // Append acquisition for the primary nss.
+        requests.emplace_back(CollectionOrViewAcquisitionRequest::fromOpCtx(
+            opCtx,
+            primaryNss,
+            AcquisitionPrerequisites::kRead,
+            AcquisitionPrerequisites::kMustBeCollection));
+
+        // Acquire all the nss at the same snapshot.
+        allAcquisitions =
+            makeAcquisitionMap(acquireCollectionsOrViewsMaybeLockFree(opCtx, requests));
     };
 
-    bool isAnySecondaryCollectionNotLocal = initializeAutoGet(
-        opCtx, expCtx->getNamespaceString(), secondaryNamespaces, initAutoGetCallback);
+    bool isAnySecondaryCollectionNotLocal =
+        initializeAutoGet(opCtx, primaryNss, secondaryNamespaces, initAutoGetCallback);
 
-    tassert(8322002,
-            "Should have initialized AutoGet* after calling 'initializeAutoGet'",
-            autoColl.has_value());
+    // Extract the main acquisition.
+    auto primaryAcquisition = allAcquisitions.extract(primaryNss).mapped();
+    auto& secondaryAcquisitions = allAcquisitions;
 
-    const auto& collPtr = autoColl->getCollection();
+    tassert(10004200,
+            "Expected the primary namespace to be a collection.",
+            primaryAcquisition.isCollection());
+
+    bool isAnySecondaryNamespaceAView =
+        std::any_of(secondaryAcquisitions.begin(),
+                    secondaryAcquisitions.end(),
+                    [](const auto& acq) { return acq.second.isView(); });
+
+    bool isAnySecondaryNamespaceAViewOrNotFullyLocal =
+        isAnySecondaryNamespaceAView || isAnySecondaryCollectionNotLocal;
+
+    const auto& collPtr = primaryAcquisition.getCollection().getCollectionPtr();
     if (aggRequest && aggRequest->getCollectionUUID() && collPtr) {
         checkCollectionUUIDMismatch(
             opCtx, expCtx->getNamespaceString(), collPtr, aggRequest->getCollectionUUID());
@@ -623,19 +685,20 @@ CommonMongodProcessInterface::attachCursorSourceToPipelineForLocalRead(
         expCtx->setCollator(collPtr->getDefaultCollator()->clone());
     }
 
-    MultipleCollectionAccessor holder{expCtx->getOperationContext(),
-                                      &autoColl->getCollection(),
-                                      autoColl->getNss(),
-                                      autoColl->isAnySecondaryNamespaceAView() ||
-                                          isAnySecondaryCollectionNotLocal,
-                                      secondaryNamespaces};
+    MultipleCollectionAccessor holder{
+        primaryAcquisition, secondaryAcquisitions, isAnySecondaryNamespaceAViewOrNotFullyLocal};
+
     auto resolvedAggRequest = aggRequest ? &aggRequest.get() : nullptr;
+    auto sharedStasher = make_intrusive<ShardRoleTransactionResourcesStasherForPipeline>();
     PipelineD::buildAndAttachInnerQueryExecutorToPipeline(holder,
                                                           expCtx->getNamespaceString(),
                                                           resolvedAggRequest,
                                                           pipeline.get(),
-                                                          nullptr /* transactionResourcesStasher */,
+                                                          sharedStasher,
                                                           shardFilterPolicy);
+
+    // Stash resources to free locks.
+    stashTransactionResourcesFromOperationContext(opCtx, sharedStasher.get());
 
     return pipeline;
 }
@@ -762,12 +825,20 @@ std::vector<BSONObj> CommonMongodProcessInterface::getMatchingPlanCacheEntryStat
         return !matchExp ? true : exec::matcher::matchesBSON(matchExp, obj);
     };
 
-    AutoGetCollection collection(opCtx, nss, MODE_IS);
+    // Using kPretendUnsharded as the helper accesses only plan cache entry stats and not user data.
+    auto acquisition =
+        acquireCollection(opCtx,
+                          CollectionAcquisitionRequest(nss,
+                                                       AcquisitionPrerequisites::kPretendUnsharded,
+                                                       repl::ReadConcernArgs::get(opCtx),
+                                                       AcquisitionPrerequisites::kRead),
+                          MODE_IS);
     uassert(50933,
             str::stream() << "collection '" << nss.toStringForErrorMsg() << "' does not exist",
-            collection);
+            acquisition.exists());
 
-    const auto& collQueryInfo = CollectionQueryInfo::get(collection.getCollection());
+    const auto& collPtr = acquisition.getCollectionPtr();
+    const auto& collQueryInfo = CollectionQueryInfo::get(collPtr);
     const auto planCache = collQueryInfo.getPlanCache();
     invariant(planCache);
 
@@ -775,7 +846,7 @@ std::vector<BSONObj> CommonMongodProcessInterface::getMatchingPlanCacheEntryStat
         planCache->getMatchingStats({} /* cacheKeyFilterFunc */, serializer, predicate);
 
     // Retrieve plan cache entries from the SBE plan cache.
-    const auto cacheKeyFilter = [uuid = collection->uuid(),
+    const auto cacheKeyFilter = [uuid = acquisition.uuid(),
                                  collVersion = collQueryInfo.getPlanCacheInvalidatorVersion()](
                                     const sbe::PlanCacheKey& key) {
         // Only fetch plan cache entries with keys matching given UUID and collectionVersion.
@@ -1073,7 +1144,15 @@ boost::optional<Document> CommonMongodProcessInterface::lookupSingleDocumentLoca
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const NamespaceString& nss,
     const Document& documentKey) {
-    AutoGetCollectionForReadMaybeLockFree autoColl(expCtx->getOperationContext(), nss);
+    OperationContext* opCtx = expCtx->getOperationContext();
+    // Using kPretendUnsharded (and skipping version check) as this helper is only used to access
+    // the config.system.preimages which is always present and local.
+    const auto acquisition = acquireCollectionMaybeLockFree(
+        opCtx,
+        CollectionAcquisitionRequest(nss,
+                                     AcquisitionPrerequisites::kPretendUnsharded,
+                                     repl::ReadConcernArgs::get(opCtx),
+                                     AcquisitionPrerequisites::kRead));
     BSONObj document;
     if (!Helpers::findById(expCtx->getOperationContext(), nss, documentKey.toBson(), document)) {
         return boost::none;
