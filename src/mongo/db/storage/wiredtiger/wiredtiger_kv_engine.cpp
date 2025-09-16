@@ -98,7 +98,6 @@
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/master_key_provider.h"
 #include "mongo/db/global_settings.h"
-#include "mongo/db/index/index_descriptor.h"
 #include "mongo/db/index_names.h"
 #include "mongo/db/query/bson/dotted_path_support.h"
 #include "mongo/db/repl/repl_settings.h"
@@ -3079,7 +3078,7 @@ Status WiredTigerKVEngine::createSortedDataInterface(RecoveryUnit& ru,
                                                      const NamespaceString& nss,
                                                      const CollectionOptions& collOptions,
                                                      StringData ident,
-                                                     const IndexDescriptor* desc) {
+                                                     const IndexConfig& indexConfig) {
 
     std::string collIndexOptions;
 
@@ -3094,7 +3093,7 @@ Status WiredTigerKVEngine::createSortedDataInterface(RecoveryUnit& ru,
                                               _indexOptions,
                                               collIndexOptions,
                                               NamespaceStringUtil::serializeForCatalog(nss),
-                                              *desc,
+                                              indexConfig,
                                               WiredTigerUtil::useTableLogging(nss));
     if (!result.isOK()) {
         return result.getStatus();
@@ -3144,26 +3143,26 @@ std::unique_ptr<SortedDataInterface> WiredTigerKVEngine::getSortedDataInterface(
     const NamespaceString& nss,
     const CollectionOptions& collOptions,
     StringData ident,
-    const IndexDescriptor* desc) {
+    const IndexConfig& config) {
     invariant(collOptions.uuid);
 
-    if (desc->isIdIndex()) {
+    if (config.isIdIndex) {
         invariant(!collOptions.clusteredIndex);
         return std::make_unique<WiredTigerIdIndex>(opCtx,
                                                    _uri(ident),
                                                    *collOptions.uuid,
                                                    ident,
-                                                   desc,
+                                                   config,
                                                    WiredTigerUtil::useTableLogging(nss));
     }
     auto keyFormat = (collOptions.clusteredIndex) ? KeyFormat::String : KeyFormat::Long;
-    if (desc->unique()) {
+    if (config.unique) {
         return std::make_unique<WiredTigerIndexUnique>(opCtx,
                                                        _uri(ident),
                                                        *collOptions.uuid,
                                                        ident,
                                                        keyFormat,
-                                                       desc,
+                                                       config,
                                                        WiredTigerUtil::useTableLogging(nss));
     }
 
@@ -3172,7 +3171,7 @@ std::unique_ptr<SortedDataInterface> WiredTigerKVEngine::getSortedDataInterface(
                                                      *collOptions.uuid,
                                                      ident,
                                                      keyFormat,
-                                                     desc,
+                                                     config,
                                                      WiredTigerUtil::useTableLogging(nss));
 }
 
@@ -3233,7 +3232,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(Operat
 
 void WiredTigerKVEngine::alterIdentMetadata(RecoveryUnit& ru,
                                             StringData ident,
-                                            const IndexDescriptor* desc,
+                                            const IndexConfig& config,
                                             bool isForceUpdateMetadata) {
     std::string uri = _uri(ident);
     if (!isForceUpdateMetadata) {
@@ -3251,7 +3250,7 @@ void WiredTigerKVEngine::alterIdentMetadata(RecoveryUnit& ru,
     // Make the alter call to update metadata without taking exclusive lock to avoid conflicts with
     // concurrent operations.
     std::string alterString =
-        WiredTigerIndex::generateAppMetadataString(*desc) + "exclusive_refreshed=false,";
+        WiredTigerIndex::generateAppMetadataString(config) + "exclusive_refreshed=false,";
     auto status = alterMetadata(uri, alterString);
     invariantStatusOK(status);
 }

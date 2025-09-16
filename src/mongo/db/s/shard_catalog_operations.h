@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2019-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,6 +29,47 @@
 
 #pragma once
 
+#include "mongo/client/dbclient_cursor.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/s/catalog/type_database_gen.h"
+
 namespace mongo {
-class IndexDescriptor;
+
+namespace shard_catalog_operations {
+
+/**
+ * Read database metadata from all databases in the shard catalog.
+ *
+ * This function reads the database metadata from the replicated durable collection
+ * `config.shard.catalog.databases`.
+ */
+std::unique_ptr<DBClientCursor> readAllDatabaseMetadata(OperationContext* opCtx);
+
+/**
+ * Read database metadata for a specific database in the shard catalog.
+ *
+ * This function reads the database metadata from the replicated durable collection
+ * `config.shard.catalog.databases`.
+ */
+std::unique_ptr<DBClientCursor> readDatabaseMetadata(OperationContext* opCtx,
+                                                     const DatabaseName& dbName);
+
+/**
+ * Adds database metadata to the shard catalog.
+ *
+ * This function inserts the database metadata into the replicated durable collection
+ * `config.shard.catalog.databases`.
+ */
+void insertDatabaseMetadata(OperationContext* opCtx, const DatabaseType& dbMetadata);
+
+/**
+ * Deletes database metadata from the shard catalog.
+ *
+ * This function removes the database metadata from the replicated durable collection
+ * `config.shard.catalog.databases`.
+ */
+void deleteDatabaseMetadata(OperationContext* opCtx, const DatabaseName& dbName);
+
+}  // namespace shard_catalog_operations
+
 }  // namespace mongo

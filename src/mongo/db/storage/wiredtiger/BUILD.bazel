@@ -130,7 +130,6 @@ mongo_cc_library(
         "//src/mongo/db/concurrency:exception_util",
         "//src/mongo/db/encryption:key_management",
         "//src/mongo/db/query/bson:dotted_path_support",
-        "//src/mongo/db/repl:repl_settings",
         "//src/mongo/db/stats:resource_consumption_metrics",
         "//src/mongo/db/storage:backup_block",
         "//src/mongo/db/storage:backup_cursor_hooks",

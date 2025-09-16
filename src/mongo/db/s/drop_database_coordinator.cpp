@@ -130,7 +130,7 @@ void removeDatabaseMetadataFromShard(OperationContext* opCtx,
                                      const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
                                      const CancellationToken& token) {
     const auto thisShardId = ShardingState::get(opCtx)->shardId();
-    sharding_ddl_util::commitDropDatabaseMetadataToShardLocalCatalog(
+    sharding_ddl_util::commitDropDatabaseMetadataToShardCatalog(
         opCtx, dbName, thisShardId, osi, executor, token);
 }
 
@@ -579,7 +579,9 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
             auto opCtxHolder = cc().makeOperationContext();
             auto* opCtx = opCtxHolder.get();
             getForwardableOpMetadata().setOn(opCtx);
-            {
+
+            if (_doc.getAuthoritativeMetadataAccessLevel() ==
+                AuthoritativeMetadataAccessLevelEnum::kNone) {
                 const auto primaryShardId = ShardingState::get(opCtx)->shardId();
                 auto participants = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
                 participants.erase(
