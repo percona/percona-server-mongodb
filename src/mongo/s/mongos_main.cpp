@@ -938,7 +938,7 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
         // The instance of AuthorizationManager should always be available since it is created in
         // 'CreateAuthorizationManager' constructor.
         auto authzManager =
-            AuthorizationManager::get(serviceContext->getService(ClusterRole::ShardServer));
+            AuthorizationManager::get(serviceContext->getService(ClusterRole::RouterServer));
         invariant(authzManager != nullptr);
         if (auto status = authzManager->initialize(opCtx); !status.isOK()) {
             LOGV2_ERROR(29144, "Error initializing authorization mmanager", "error"_attr = status);
