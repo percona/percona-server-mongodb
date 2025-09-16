@@ -2326,8 +2326,7 @@ void InitialSyncerFCB::_executeRecovery(
 
     auto opCtx = makeOpCtx();
     auto* serviceCtx = opCtx->getServiceContext();
-    inReplicationRecovery(serviceCtx).store(true);
-    ON_BLOCK_EXIT([serviceCtx] { inReplicationRecovery(serviceCtx).store(false); });
+    InReplicationRecovery inReplicationRecovery(serviceCtx);
 
     _replicationProcess->getReplicationRecovery()->recoverFromOplogAsStandalone(opCtx.get(), true);
 
