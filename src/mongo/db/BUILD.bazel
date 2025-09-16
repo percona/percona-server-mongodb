@@ -201,9 +201,10 @@ idl_generator(
     src = "redaction_parameter.idl",
 )
 
-idl_generator(
+mongo_idl_library(
     name = "server_options_helpers_idl",
     src = "server_options_helpers.idl",
+    deps = [":server_base"],
 )
 
 mongo_cc_library(
@@ -211,7 +212,6 @@ mongo_cc_library(
     srcs = [
         "redaction_parameter.cpp",
         "redaction_parameter_gen",
-        "server_options_helpers_idl",
         "server_options_helpers.cpp",
     ],
     hdrs = [
@@ -219,6 +219,7 @@ mongo_cc_library(
     ],
     deps = [
         ":server_base",
+        ":server_options_helpers_idl",
         "//src/mongo/util:fail_point",  #  TODO(SERVER-93876): Remove.
         "//src/mongo/util/cmdline_utils",
     ],
