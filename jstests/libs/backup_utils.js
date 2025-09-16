@@ -18,22 +18,10 @@ export function backupData(mongo, destinationDirectory) {
 
 export function openBackupCursor(db, backupOptions, aggregateOptions) {
     const backupCursorDB = getBackupCursorDB(db.getMongo());
-    // Opening a backup cursor can race with taking a checkpoint, resulting in a transient
-    // error. Retry until it succeeds.
     backupOptions = backupOptions || {};
     aggregateOptions = aggregateOptions || {};
 
-    while (true) {
-        try {
-            return backupCursorDB.aggregate([{$backupCursor: backupOptions}], aggregateOptions);
-        } catch (exc) {
-            // Retry only on Location50915 error
-            if ( !exc.toString().includes("Location50915") ) {
-                throw exc;
-            }
-            jsTestLog({"Failed to open a backup cursor, retrying.": exc});
-        }
-    }
+    return backupCursorDB.aggregate([{$backupCursor: backupOptions}], aggregateOptions);
 }
 
 export function extendBackupCursor(mongo, backupId, extendTo) {
