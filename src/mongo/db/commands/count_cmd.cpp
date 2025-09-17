@@ -122,6 +122,10 @@ public:
         return "count objects in collection";
     }
 
+    bool enableDiagnosticPrintingOnFailure() const final {
+        return true;
+    }
+
     bool supportsWriteConcern(const BSONObj& cmd) const override {
         return false;
     }
@@ -303,6 +307,7 @@ public:
              const BSONObj& cmdObj,
              BSONObjBuilder& result) override {
         CommandHelpers::handleMarkKillOnClientDisconnect(opCtx);
+
         // Acquire locks and resolve possible UUID. The RAII object is optional, because in the case
         // of a view, the locks need to be released.
         boost::optional<AutoGetCollectionForReadCommandMaybeLockFree> ctx;

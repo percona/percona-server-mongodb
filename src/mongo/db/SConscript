@@ -105,7 +105,7 @@ env.Library(
         'auth/auth_name.cpp',
         'auth/auth_types.idl',
         'auth/validated_tenancy_scope.cpp',
-        env.BazelIdlc('basic_types.idl')[0],
+        'basic_types.idl',
         'catalog_shard_feature_flag.idl',
         'cluster_role.cpp',
         'dump_lock_manager.cpp',
@@ -142,6 +142,18 @@ env.Library(
     ],
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/bson/util/bson_extract',
+    ],
+)
+
+env.CppUnitTest(
+    target="diagnostic_printers_test",
+    source=[
+        'diagnostic_printers_test.cpp',
+    ],
+    LIBDEPS=[
+        'commands',
+        'commands/standalone',
+        'service_context_test_fixture',
     ],
 )
 
@@ -1054,6 +1066,7 @@ env.Library(
         'coll_mod_reply_validation.cpp',
         'commands.cpp',
         'curop.cpp',
+        'curop_diagnostic_printer.cpp',
         'drop.idl',
         'drop_database.idl',
         'explain.idl',
@@ -1160,6 +1173,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/admission/execution_admission_context',
         '$BUILD_DIR/mongo/s/grid',
         'concurrency/lock_manager',
+        's/user_writes_block_reason_idl',
         'shard_role_api_stor_ex',
         'storage/write_unit_of_work',
         'views/views',
@@ -2649,6 +2663,7 @@ env.Library(
         '$BUILD_DIR/mongo/transport/message_compressor_options_server',
         '$BUILD_DIR/mongo/transport/session_manager',
         '$BUILD_DIR/mongo/transport/transport_layer_manager',
+        '$BUILD_DIR/mongo/util/assert_util_params',
         '$BUILD_DIR/mongo/util/clock_sources',
         '$BUILD_DIR/mongo/util/elapsed_tracker',
         '$BUILD_DIR/mongo/util/fail_point',
@@ -3038,6 +3053,7 @@ if wiredtiger:
             'service_liaison_mock.cpp',
             'session/internal_session_pool_test.cpp',
             'session/internal_transactions_reap_service_test.cpp',
+            'session/kill_sessions_local_test.cpp',
             'session/logical_session_cache_test.cpp',
             'session/logical_session_id_test.cpp',
             'session/session_catalog_mongod_test.cpp',
@@ -3126,6 +3142,7 @@ if wiredtiger:
             'server_base',
             'server_options_servers',
             'server_parameter_insert_max_batch_size',
+            'session/kill_sessions_local',
             'session/logical_session_cache_impl',
             'session/logical_session_id_helpers',
             'session/session_catalog_mongod',

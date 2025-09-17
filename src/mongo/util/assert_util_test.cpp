@@ -34,6 +34,7 @@
 
 #include "mongo/base/static_assert.h"
 #include "mongo/config.h"  // IWYU pragma: keep
+#include "mongo/idl/server_parameter_test_util.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/assert_that.h"
 #include "mongo/unittest/death_test.h"
@@ -46,11 +47,55 @@
 #include "mongo/util/str.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
+namespace mongo {
+namespace {
+struct PrinterMockTassert {
+    auto format(auto& fc) const {
+        tasserted(9513401, "tasserting in mock printer");
+        return fc.out();
+    }
+};
 
+struct PrinterMockUassert {
+    auto format(auto& fc) const {
+        uasserted(9513402, "uasserting in mock printer");
+        return fc.out();
+    }
+};
+
+void someRiskyBusiness() {
+    invariant(false, "ouch");
+}
+struct PrinterMockInvariant {
+    auto format(auto& fc) const {
+        someRiskyBusiness();
+        return fc.out();
+    }
+};
+
+struct MemberCallFormatter {
+    constexpr auto parse(auto& ctx) {
+        return ctx.begin();
+    }
+    auto format(const auto& obj, auto& ctx) {
+        return obj.format(ctx);
+    }
+};
+}  // namespace
+}  // namespace mongo
+namespace fmt {
+template <>
+struct formatter<mongo::PrinterMockTassert> : mongo::MemberCallFormatter {};
+
+template <>
+struct formatter<mongo::PrinterMockUassert> : mongo::MemberCallFormatter {};
+
+template <>
+struct formatter<mongo::PrinterMockInvariant> : mongo::MemberCallFormatter {};
+}  // namespace fmt
 
 namespace mongo {
 namespace {
-
 #define ASSERT_CATCHES(code, Type)                                         \
     ([] {                                                                  \
         try {                                                              \
@@ -532,14 +577,136 @@ TEST(ScopedDebugInfo, Stack) {
     ASSERT_THAT(infoStack.getAll(), Eq(expected));
 }
 
-void someRiskyBusiness() {
-    invariant(false, "ouch");
-}
-
 DEATH_TEST(ScopedDebugInfo, PrintedOnInvariant, "mission: ATestInjectedString") {
     ScopedDebugInfo g("mission", "ATestInjectedString");
     someRiskyBusiness();
 }
+
+// The following test relies on SIGSEGV which is not supported on Windows.
+#if !defined(_WIN32)
+DEATH_TEST(ScopedDebugInfo, PrintedOnSignal, "mission: ATestInjectedString") {
+    ScopedDebugInfo g("mission", "ATestInjectedString");
+    raise(SIGSEGV);
+}
+#endif
+
+TEST(ScopedDebugInfo, FormattingCanBeCalledMoreThanOnce) {
+    using namespace unittest::match;
+    ScopedDebugInfoStack infoStack{};
+
+    ScopedDebugInfo guard("greeting", "hello", &infoStack);
+    // A second call to `getAll` returns correct results.
+    auto _ = infoStack.getAll();
+    ASSERT_THAT(infoStack.getAll(), ElementsAre(Eq("greeting: hello")));
+}
+
+// Test that we are able to incrementally log ScopedDebugInfos from the stack (if one throws an
+// exception, we are able to attempt to print the next one).
+DEATH_TEST_REGEX(ScopedDebugInfo,
+                 CorrectScopedDebugInfosOnStackAfterIncorrectOne,
+                 "(?s)tasserting in mock printer.*BACKTRACE"
+                 ".*ScopedDebugInfo failed.*test.*9513401") {
+    ScopedDebugInfoStack infoStack{};
+    ScopedDebugInfo greetingGuard("greeting", "hello", &infoStack);
+    ScopedDebugInfo guardTasserts("test", PrinterMockTassert(), &infoStack);
+    ScopedDebugInfo anotherGreetingGuard("greeting", "hey there", &infoStack);
+
+    using namespace unittest::match;
+    ASSERT_THAT(infoStack.getAll(), ElementsAre(Eq("greeting: hello"), Eq("greeting: hey there")));
+}
+
+// Test that if we log the `ScopedDebugInfoStack` due to a tassert, and we hit a tassert during
+// logging, we only surface the original tassert.
+DEATH_TEST_REGEX(ScopedDebugInfo,
+                 TassertAndTassertDuringLogging,
+                 "(?s)tasserting in test.*BACKTRACE"
+                 ".*tasserting in mock printer.*BACKTRACE"
+                 ".*ScopedDebugInfo failed.*test.*9513401") {
+    ScopedDebugInfo guardTasserts("test", PrinterMockTassert());
+    tasserted(9513403, "tasserting in test");
+}
+
+// Same as above, but with `uassert` instead of `tassert`.
+DEATH_TEST_REGEX(ScopedDebugInfo,
+                 TassertAndUassertDuringLogging,
+                 "(?s)tasserting in test.*BACKTRACE"
+                 ".*ScopedDebugInfo failed.*test.*9513402") {
+    ScopedDebugInfo guardUasserts("test", PrinterMockUassert());
+    tasserted(9513404, "tasserting in test");
+}
+
+// Test that we end the process as expected due to an invariant even if we hit a tassert during
+// logging of the `ScopedDebugInfoStack`.
+DEATH_TEST_REGEX(ScopedDebugInfo,
+                 InvariantAndTassertDuringLogging,
+                 "(?s)ouch.*abruptQuit"
+                 ".*tasserting in mock printer.*mongo::tassertFailed"
+                 ".*ScopedDebugInfo failed.*test.*9513401") {
+    ScopedDebugInfo guardTasserts("test", PrinterMockTassert());
+    someRiskyBusiness();
+}
+
+// Same as above, but with `uassert` instead of `tassert`.
+DEATH_TEST_REGEX(ScopedDebugInfo,
+                 InvariantAndUassertDuringLogging,
+                 "(?s)ouch.*abruptQuit"
+                 ".*ScopedDebugInfo failed.*test.*9513402") {
+    ScopedDebugInfo guardUasserts("test", PrinterMockUassert());
+    someRiskyBusiness();
+}
+
+DEATH_TEST_REGEX(ScopedDebugInfo,
+                 InvariantAndInvariantDuringLogging,
+                 "(?s)ouch.*abruptQuit.*ouch") {
+    ScopedDebugInfo guardInvariants("test", PrinterMockInvariant());
+    someRiskyBusiness();
+}
+
+// Tests the functionality of the `signalHandlerUsesDiagnosticLogging` knob.
+// Note the regex here uses the negative lookahead operator `(?!)` in order to ensure that the
+// string `hello` is not found within the logs. The syntax here means: we want to match the start of
+// the string unless something after the start of the string contains `hello`.
+DEATH_TEST_REGEX(ScopedDebugInfo, InvariantWhenSignalHandlerLoggingDisabled, "(?s)^(?!.*hello)") {
+    RAIIServerParameterControllerForTest knobController("signalHandlerUsesDiagnosticLogging",
+                                                        false);
+    ScopedDebugInfo guard("test", "hello");
+    someRiskyBusiness();
+}
+
+// The following tests relies on SIGSEGV which is not supported on Windows.
+// Test that we end the process as expected due to a seg fault even if we hit a tassert during
+// logging of the `ScopedDebugInfoStack`.
+#if !defined(_WIN32)
+DEATH_TEST_REGEX(ScopedDebugInfo,
+                 SignalAndTassertDuringLogging,
+                 "(?s)Invalid access at address.*abruptQuit"
+                 ".*tasserting in mock printer.*BACKTRACE"
+                 ".*ScopedDebugInfo failed.*test.*9513401") {
+    ScopedDebugInfo guardTasserts("test", PrinterMockTassert());
+    raise(SIGSEGV);
+}
+
+// Same as above, but with `uassert` instead of `tassert`.
+DEATH_TEST_REGEX(ScopedDebugInfo,
+                 SignalAndUassertDuringLogging,
+                 "(?s)Invalid access at address.*abruptQuit"
+                 ".*ScopedDebugInfo failed.*test.*9513402") {
+    ScopedDebugInfo guardUasserts("test", PrinterMockUassert());
+    raise(SIGSEGV);
+}
+
+// Tests the functionality of the `signalHandlerUsesDiagnosticLogging` knob with a signal
+// raised.
+// Note the regex here uses the negative lookahead operator `(?!)` in order to ensure that the
+// string `hello` is not found within the logs. The syntax here means: we want to match the start of
+// the string unless something after the start of the string contains `hello`.
+DEATH_TEST_REGEX(ScopedDebugInfo, SignalWhenSignalHandlerLoggingDisabled, "(?s)^(?!.*hello)") {
+    RAIIServerParameterControllerForTest knobController("signalHandlerUsesDiagnosticLogging",
+                                                        false);
+    ScopedDebugInfo guard("test", "hello");
+    raise(SIGSEGV);
+}
+#endif
 
 void mustNotCompile() {
 #if 0

@@ -275,6 +275,10 @@ public:
         return true;
     }
 
+    bool enableDiagnosticPrintingOnFailure() const final {
+        return true;
+    }
+
     class Invocation final : public InvocationBaseGen {
     public:
         using InvocationBaseGen::InvocationBaseGen;
@@ -560,7 +564,10 @@ write_ops::FindAndModifyCommandReply CmdFindAndModify::Invocation::typedRun(
             .getAsync([](auto) {});
     }
 
-    if (MONGO_unlikely(failAllFindAndModify.shouldFail())) {
+    if (auto scoped = failAllFindAndModify.scoped(); MONGO_unlikely(scoped.isActive())) {
+        tassert(9276705,
+                "failAllFindAndModify failpoint active!",
+                !scoped.getData().hasField("tassert") || !scoped.getData().getBoolField("tassert"));
         uasserted(ErrorCodes::InternalError, "failAllFindAndModify failpoint active!");
     }
 

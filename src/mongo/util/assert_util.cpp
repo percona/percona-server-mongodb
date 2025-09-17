@@ -39,6 +39,7 @@
 #include "mongo/util/debugger.h"
 #include "mongo/util/exit_code.h"
 #include "mongo/util/quick_exit.h"
+#include "mongo/util/signal_handlers_synchronous.h"
 #include "mongo/util/stacktrace.h"
 #include "mongo/util/str.h"
 
@@ -50,12 +51,33 @@
 #define XSTR(x) XSTR_INNER_(x)
 
 namespace mongo {
+
+// Used by `logScopedDebugInfo` below to determine if we should log anything.
+Atomic<bool> shouldLogScopedDebugInfoInAssertUtil{true};
+
+void setDiagnosticLoggingInAssertUtil(bool newVal) {
+    shouldLogScopedDebugInfoInAssertUtil.store(newVal);
+}
 namespace {
 void logScopedDebugInfo() {
+    if (!shouldLogScopedDebugInfoInAssertUtil.load()) {
+        return;
+    }
     auto diagStack = scopedDebugInfoStack().getAll();
     if (diagStack.empty())
         return;
-    LOGV2_FATAL_CONTINUE(4106400, "ScopedDebugInfo", "scopedDebugInfo"_attr = diagStack);
+    LOGV2_FATAL_OPTIONS(
+        4106400,
+        logv2::LogOptions(logv2::FatalMode::kContinue, logv2::LogTruncation::Disabled),
+        "ScopedDebugInfo",
+        "scopedDebugInfo"_attr = diagStack);
+}
+
+void logErrorBlock() {
+    // Logging in this order ensures that the stack trace is printed even if something goes wrong
+    // while printing ScopedDebugInfo.
+    printStackTrace();
+    logScopedDebugInfo();
 }
 
 /**
@@ -64,6 +86,10 @@ void logScopedDebugInfo() {
  * process even if multiple threads attempt to abort the process concurrently.
  */
 MONGO_COMPILER_NORETURN void callAbort() {
+    thread_local int reentry = 0;
+    if (reentry++)
+        endProcessWithSignal(SIGABRT);
+
     [[maybe_unused]] static auto initOnce = (std::abort(), 0);
     MONGO_COMPILER_UNREACHABLE;
 }
@@ -92,8 +118,7 @@ void DBException::traceIfNeeded(const DBException& e) {
         (e.code() == ErrorCodes::WriteConflict && traceWriteConflictExceptions.load());
     if (traceNeeded) {
         LOGV2_WARNING(23075, "DBException thrown", "error"_attr = e);
-        logScopedDebugInfo();
-        printStackTrace();
+        logErrorBlock();
     }
 }
 
@@ -101,8 +126,7 @@ MONGO_COMPILER_NOINLINE void verifyFailed(const char* expr, const char* file, un
     assertionCount.condrollover(assertionCount.regular.addAndFetch(1));
     LOGV2_ERROR(
         23076, "Assertion failure", "expr"_attr = expr, "file"_attr = file, "line"_attr = line);
-    logScopedDebugInfo();
-    printStackTrace();
+    logErrorBlock();
     std::stringstream temp;
     temp << "assertion " << file << ":" << line;
 
@@ -277,8 +301,7 @@ void tassertFailed(const Status& status, SourceLocation loc) {
                 "Tripwire assertion",
                 "error"_attr = status,
                 "location"_attr = SourceLocationHolder(std::move(loc)));
-    logScopedDebugInfo();
-    printStackTrace();
+    logErrorBlock();
     breakpoint();
     error_details::throwExceptionForStatus(status);
 }
@@ -341,5 +364,31 @@ Status exceptionToStatus() noexcept {
         LOGV2_FATAL_CONTINUE(23097, "Caught unknown exception in exceptionToStatus()");
         std::terminate();
     }
+}
+
+std::vector<std::string> ScopedDebugInfoStack::getAll() {
+    if (_loggingDepth > 0) {
+        return {};  // Re-entry detected.
+    }
+
+    _loggingDepth++;
+    ScopeGuard updateDepth = [&] {
+        _loggingDepth--;
+    };
+
+    std::vector<std::string> r;
+    r.reserve(_stack.size());
+    for (const auto& e : _stack) {
+        try {
+            r.push_back(e->toString());
+        } catch (...) {
+            LOGV2(9513400,
+                  "ScopedDebugInfo failed",
+                  "label"_attr = e->label(),
+                  "error"_attr = describeActiveException());
+        }
+    }
+
+    return r;
 }
 }  // namespace mongo

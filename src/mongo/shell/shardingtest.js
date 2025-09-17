@@ -979,9 +979,11 @@ var ShardingTest = function ShardingTest(params) {
      * in 'opts'.  If opts is specified and 'opts.restart' is true, merges the previous options
      * with the options specified in 'opts', with the options in 'opts' taking precedence.
      *
+     * 'stopOpts' are the options passed to the mongos when it is stopping.
+     *
      * Warning: Overwrites the old s (if n = 0) admin, config, and sn member variables.
      */
-    ShardingTest.prototype.restartMongos = function(n, opts) {
+    ShardingTest.prototype.restartMongos = function(n, opts, stopOpts) {
         var mongos;
 
         if (this._useBridge) {
@@ -996,7 +998,7 @@ var ShardingTest = function ShardingTest(params) {
         opts = opts || mongos;
         opts.port = opts.port || mongos.port;
 
-        this.stopMongos(n);
+        this.stopMongos(n, stopOpts);
 
         if (this._useBridge) {
             var bridgeOptions =
@@ -1330,6 +1332,13 @@ var ShardingTest = function ShardingTest(params) {
         let nodes = [];
         nodes.concat([this._configDB, this._connections, this._mongos]);
         return [...new Set(nodes)];
+    };
+
+    /**
+     * Returns all shards in the cluster.
+     */
+    ShardingTest.prototype.getAllShards = function() {
+        return this._rs.map(obj => obj.test);
     };
 
     // ShardingTest initialization

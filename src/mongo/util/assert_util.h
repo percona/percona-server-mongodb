@@ -57,6 +57,11 @@
 
 namespace mongo {
 
+/**
+ * Sets the appropriate state to enable/disable diagnostic logging based on `newVal`.
+ */
+void setDiagnosticLoggingInAssertUtil(bool newVal);
+
 class AssertionCount {
 public:
     AssertionCount();
@@ -850,6 +855,7 @@ public:
     struct Rec {
         virtual ~Rec() = default;
         virtual std::string toString() const = 0;
+        virtual StringData label() const = 0;
     };
 
     void push(const Rec* rec) {
@@ -859,17 +865,18 @@ public:
         _stack.pop_back();
     }
 
-    std::vector<std::string> getAll() const {
-        std::vector<std::string> r;
-        r.reserve(_stack.size());
-        std::transform(_stack.begin(), _stack.end(), std::back_inserter(r), [](auto&& e) {
-            return e->toString();
-        });
-        return r;
-    }
+    /**
+     * Returns the result of calling `toString` on every element in the stack in a way that prevents
+     * re-entry by keeping track of how many times we have recursively called this function. This
+     * prevents an infinite loop from occurring during a call to `getAll` via any exceptions thrown.
+     * Note that it is not correct to write a `ScopedDebugInfo` that throws an exception, and that
+     * the behavior described here is just a failsafe backstop against buggy formatters.
+     */
+    std::vector<std::string> getAll();
 
 private:
     std::vector<const Rec*> _stack;
+    int _loggingDepth = 0;
 };
 
 /** Each thread has its own stack of scoped debug info. */
@@ -883,7 +890,7 @@ inline ScopedDebugInfoStack& scopedDebugInfoStack() {
  * broad hint as to what the thread is doing. Pops that datum at scope
  * exit. By default, attaches to the thread_local ScopedDebugInfoStack.
  * If the thread encounters a fatal error, the thread's ScopedDebugInfoStack
- * is logged.
+ * is logged. The formatting of the data is done lazily during failure handling.
  *
  * Example:
  *
@@ -892,6 +899,14 @@ inline ScopedDebugInfoStack& scopedDebugInfoStack() {
  *         ScopedDebugInfo userIdDbg("userId", currentUser.id());
  *         somethingThatMightCrash(currentUser);
  *     }
+ *
+ * ScopedDebugInfo must only be used with trivially formattable values. Since it's diagnostic
+ * information, formatted during error handling, formatting must not itself fail. For example,
+ * formatting should not require synchronization or reading from disk. Since the result is logged,
+ * the formatting must follow the usual log redaction guidance.
+ *
+ * The lifetime of the ScopedDebugInfo must be carefully considered. By default, a ScopedDebugInfo
+ * is attached to a thread_local stack, so it must not outlive the thread that created it.
  */
 template <typename T>
 class ScopedDebugInfo {
@@ -912,6 +927,9 @@ private:
         std::string toString() const override {
             using namespace fmt::literals;
             return "{}: {}"_format(owner->label, owner->v);
+        }
+        StringData label() const override {
+            return owner->label;
         }
         const ScopedDebugInfo* owner;
     };

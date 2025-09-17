@@ -45,7 +45,6 @@
 #include "mongo/db/transaction_resources.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/util/assert_util_core.h"
-#include "mongo/util/decorable.h"
 
 namespace mongo {
 
@@ -73,23 +72,16 @@ void UserWriteBlockModeOpObserver::onInserts(OperationContext* opCtx,
             shard_role_details::getRecoveryUnit(opCtx)->onCommit(
                 [blockShardedDDL = collCSDoc.getBlockNewUserShardedDDL(),
                  blockWrites = collCSDoc.getBlockUserWrites(),
-                 insertedNss = collCSDoc.getNss()](OperationContext* opCtx,
-                                                   boost::optional<Timestamp>) {
-                    invariant(insertedNss.isEmpty());
-                    // Primaries take the global lock when writing to the
-                    // config.user_writes_critical_sections namespace. It must be ensured that this
-                    // lock is also taken on secondaries, when applying the related oplog entries.
-                    boost::optional<Lock::GlobalLock> globalLockIfNotPrimary;
-                    if (!opCtx->isEnforcingConstraints()) {
-                        globalLockIfNotPrimary.emplace(opCtx, MODE_IX);
-                    }
-
+                 blockUserWritesReason = collCSDoc.getBlockUserWritesReason().value_or(
+                     UserWritesBlockReasonEnum::kUnspecified)](OperationContext* opCtx,
+                                                               boost::optional<Timestamp>) {
                     if (blockShardedDDL) {
                         GlobalUserWriteBlockState::get(opCtx)->enableUserShardedDDLBlocking(opCtx);
                     }
 
                     if (blockWrites) {
-                        GlobalUserWriteBlockState::get(opCtx)->enableUserWriteBlocking(opCtx);
+                        GlobalUserWriteBlockState::get(opCtx)->enableUserWriteBlocking(
+                            opCtx, blockUserWritesReason);
                     }
                 });
         }
@@ -111,20 +103,11 @@ void UserWriteBlockModeOpObserver::onUpdate(OperationContext* opCtx,
             IDLParserContext("UserWriteBlockOpObserver"), args.updateArgs->updatedDoc);
 
         shard_role_details::getRecoveryUnit(opCtx)->onCommit(
-            [updatedNss = collCSDoc.getNss(),
-             blockShardedDDL = collCSDoc.getBlockNewUserShardedDDL(),
+            [blockShardedDDL = collCSDoc.getBlockNewUserShardedDDL(),
              blockWrites = collCSDoc.getBlockUserWrites(),
-             insertedNss = collCSDoc.getNss()](OperationContext* opCtx,
-                                               boost::optional<Timestamp>) {
-                invariant(updatedNss.isEmpty());
-                // Primaries take the global lock when writing to the
-                // config.user_writes_critical_sections namespace. It must be ensured that this lock
-                // is also taken on secondaries, when applying the related oplog entries.
-                boost::optional<Lock::GlobalLock> globalLockIfNotPrimary;
-                if (!opCtx->isEnforcingConstraints()) {
-                    globalLockIfNotPrimary.emplace(opCtx, MODE_IX);
-                }
-
+             blockUserWritesReason = collCSDoc.getBlockUserWritesReason().value_or(
+                 UserWritesBlockReasonEnum::kUnspecified)](OperationContext* opCtx,
+                                                           boost::optional<Timestamp>) {
                 if (blockShardedDDL) {
                     GlobalUserWriteBlockState::get(opCtx)->enableUserShardedDDLBlocking(opCtx);
                 } else {
@@ -132,7 +115,8 @@ void UserWriteBlockModeOpObserver::onUpdate(OperationContext* opCtx,
                 }
 
                 if (blockWrites) {
-                    GlobalUserWriteBlockState::get(opCtx)->enableUserWriteBlocking(opCtx);
+                    GlobalUserWriteBlockState::get(opCtx)->enableUserWriteBlocking(
+                        opCtx, blockUserWritesReason);
                 } else {
                     GlobalUserWriteBlockState::get(opCtx)->disableUserWriteBlocking(opCtx);
                 }
@@ -159,17 +143,7 @@ void UserWriteBlockModeOpObserver::onDelete(OperationContext* opCtx,
             IDLParserContext("UserWriteBlockOpObserver"), deletedDoc);
 
         shard_role_details::getRecoveryUnit(opCtx)->onCommit(
-            [deletedNss = collCSDoc.getNss()](OperationContext* opCtx,
-                                              boost::optional<Timestamp> _) {
-                invariant(deletedNss.isEmpty());
-                // Primaries take the global lock when writing to the
-                // config.user_writes_critical_sections namespace. It must be ensured that this lock
-                // is also taken on secondaries, when applying the related oplog entries.
-                boost::optional<Lock::GlobalLock> globalLockIfNotPrimary;
-                if (!opCtx->isEnforcingConstraints()) {
-                    globalLockIfNotPrimary.emplace(opCtx, MODE_IX);
-                }
-
+            [](OperationContext* opCtx, boost::optional<Timestamp> _) {
                 GlobalUserWriteBlockState::get(opCtx)->disableUserShardedDDLBlocking(opCtx);
                 GlobalUserWriteBlockState::get(opCtx)->disableUserWriteBlocking(opCtx);
             });

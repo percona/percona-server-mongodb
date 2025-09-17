@@ -274,6 +274,14 @@ public:
 
     OpDebug() = default;
 
+    /**
+     * Adds information about the current operation to "pAttrs". Since this information will end up
+     * in logs, typically as part of "Slow Query" logging, this method also handles redaction and
+     * removal of sensitive fields from any command BSON.
+     *
+     * The metrics/fields reported here should generally be kept in line with what is reported in
+     * append().
+     */
     void report(OperationContext* opCtx,
                 const SingleThreadedLockStats* lockStats,
                 const ResourceConsumption::OperationMetrics* operationMetrics,
@@ -282,14 +290,19 @@ public:
     void reportStorageStats(logv2::DynamicAttributes* pAttrs) const;
 
     /**
-     * Appends information about the current operation to "builder"
+     * Appends information about the current operation to "builder". This info typically ends up in
+     * the DB's profile collection. It is not ready to be logged as-is; redaction and removal of
+     * sensitive command fields are required first.
      *
-     * @param curop reference to the CurOp that owns this OpDebug
      * @param lockStats lockStats object containing locking information about the operation
+     *
+     * The metrics/fields reported here should generally be kept in line with what is reported in
+     * report().
      */
     void append(OperationContext* opCtx,
                 const SingleThreadedLockStats& lockStats,
                 FlowControlTicketholder::CurOp flowControlStats,
+                bool omitCommand,
                 BSONObjBuilder& builder) const;
 
     static std::function<BSONObj(ProfileFilter::Args args)> appendStaged(StringSet requestedFields,
@@ -1117,6 +1130,12 @@ public:
     bool getShouldOmitDiagnosticInformation() const {
         return _shouldOmitDiagnosticInformation;
     }
+
+    /**
+     * Walks the whole CurOp stack starting at the given object, returning true of any CurOp should
+     * omit diagnostic info.
+     */
+    static bool shouldCurOpStackOmitDiagnosticInformation(CurOp*);
 
     boost::optional<query_shape::QueryShapeHash> getQueryShapeHash() const {
         return _queryShapeHash;

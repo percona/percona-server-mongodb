@@ -595,7 +595,7 @@ void CurOp::raiseDbProfileLevel(int dbProfileLevel) {
 
 static constexpr size_t appendMaxElementSize = 50 * 1024;
 
-bool shouldOmitDiagnosticInformation(CurOp* curop) {
+bool CurOp::shouldCurOpStackOmitDiagnosticInformation(CurOp* curop) {
     do {
         if (curop->getShouldOmitDiagnosticInformation()) {
             return true;
@@ -628,7 +628,7 @@ bool CurOp::completeAndLogOperation(const logv2::LogOptions& logOptions,
         durationCount<Milliseconds>(*_debug.additiveMetrics.executionTime);
 
     // Do not log the slow query information if asked to omit it
-    if (shouldOmitDiagnosticInformation(this)) {
+    if (shouldCurOpStackOmitDiagnosticInformation(this)) {
         return false;
     }
 
@@ -1145,7 +1145,7 @@ void OpDebug::report(OperationContext* opCtx,
         pAttrs->add("type", networkOpToString(networkOp));
     }
 
-    pAttrs->add("isFromUserConnection", client->isFromUserConnection());
+    pAttrs->add("isFromUserConnection", client && client->isFromUserConnection());
     pAttrs->addDeepCopy("ns", toStringForLogging(curop.getNSS()));
     pAttrs->addDeepCopy("collectionType", getCollectionType(curop.getNSS()));
 
@@ -1458,6 +1458,7 @@ void OpDebug::reportStorageStats(logv2::DynamicAttributes* pAttrs) const {
 void OpDebug::append(OperationContext* opCtx,
                      const SingleThreadedLockStats& lockStats,
                      FlowControlTicketholder::CurOp flowControlStats,
+                     bool omitCommand,
                      BSONObjBuilder& b) const {
     auto& curop = *CurOp::get(opCtx);
 
@@ -1465,12 +1466,14 @@ void OpDebug::append(OperationContext* opCtx,
 
     b.append("ns", curop.getNS());
 
-    appendAsObjOrString(
-        "command", appendCommentField(opCtx, curop.opDescription()), appendMaxElementSize, &b);
+    if (!omitCommand) {
+        appendAsObjOrString(
+            "command", appendCommentField(opCtx, curop.opDescription()), appendMaxElementSize, &b);
 
-    auto originatingCommand = curop.originatingCommand();
-    if (!originatingCommand.isEmpty()) {
-        appendAsObjOrString("originatingCommand", originatingCommand, appendMaxElementSize, &b);
+        auto originatingCommand = curop.originatingCommand();
+        if (!originatingCommand.isEmpty()) {
+            appendAsObjOrString("originatingCommand", originatingCommand, appendMaxElementSize, &b);
+        }
     }
 
     if (!resolvedViews.empty()) {

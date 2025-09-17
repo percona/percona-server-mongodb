@@ -224,6 +224,10 @@ public:
         return "{ distinct : 'collection name' , key : 'a.b' , query : {} }";
     }
 
+    bool enableDiagnosticPrintingOnFailure() const final {
+        return true;
+    }
+
     AllowedOnSecondary secondaryAllowed(ServiceContext*) const override {
         return AllowedOnSecondary::kOptIn;
     }
@@ -357,6 +361,7 @@ public:
                              const BSONObj& cmdObj,
                              rpc::ReplyBuilderInterface* replyBuilder) override {
         CommandHelpers::handleMarkKillOnClientDisconnect(opCtx);
+
         // Acquire locks and resolve possible UUID. The RAII object is optional, because in the case
         // of a view, the locks need to be released.
 

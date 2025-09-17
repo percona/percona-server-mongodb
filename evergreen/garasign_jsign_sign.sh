@@ -1,6 +1,10 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 . "$DIR/prelude.sh"
 
+if [ "${push_name}" != "windows" ]; then
+  exit 0
+fi
+
 cd src
 
 echo "GRS_CONFIG_USER1_USERNAME=${garasign_jsign_username}" >> "signing-envfile"
@@ -10,7 +14,7 @@ set -o errexit
 set -o verbose
 
 msi_filename=mongodb-${push_name}-${push_arch}-${suffix}.msi
-/usr/bin/find build/ -type f | grep msi$ | xargs -I original_filename cp original_filename $msi_filename || true
+cp bazel-bin/src/mongo/installer/msi/mongodb-win32-x86_64-windows-${version}.msi $msi_filename
 
 # signing windows artifacts with jsign
 cat << 'EOF' > jsign_signing_commands.sh

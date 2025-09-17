@@ -837,8 +837,24 @@ last-continuous:
     ticket: SERVER-98664
   - test_file: jstests/sharding/check_metadata_consistency.js
     ticket: SERVER-102084
+  - test_file: jstests/replsets/auth_coordinateCommitTransaction.js
+    ticket: SERVER-103618
   - test_file: jstests/replsets/write_concern_stored_procedure.js
     ticket: SERVER-87126
+  - test_file: jstests/core_sharding/resharding/reshard_collection_atlas_log_ingestion.js
+    ticket: SERVER-100421
+  - test_file: jstests/sharding/conn_pool_stats.js
+    ticket: SERVER-102477
+  - test_file: jstests/noPassthrough/ftdc/ftdc_connection_reuse.js
+    ticket: SERVER-102477
+  - test_file: jstests/noPassthrough/network/set_step_params.js
+    ticket: SERVER-102477
+  - test_file: jstests/sharding/remove_shard_with_unsharded.js
+    ticket: SERVER-89883
+  - test_file: jstests/sharding/query/union_with_doubly_nested_lookup.js
+    ticket: SERVER-108341
+  - test_file: jstests/core/txns/multi_statement_transaction_abort.js
+    ticket: SERVER-84081
   suites: null
 last-lts:
   all:
@@ -1736,8 +1752,24 @@ last-lts:
     ticket: SERVER-100223
   - test_file: jstests/sharding/check_metadata_consistency.js
     ticket: SERVER-98664
+  - test_file: jstests/replsets/auth_coordinateCommitTransaction.js
+    ticket: SERVER-103618
   - test_file: jstests/sharding/check_metadata_consistency.js
     ticket: SERVER-102084
   - test_file: jstests/replsets/write_concern_stored_procedure.js
     ticket: SERVER-87126
+  - test_file: jstests/core_sharding/resharding/reshard_collection_atlas_log_ingestion.js
+    ticket: SERVER-100421
+  - test_file: jstests/sharding/conn_pool_stats.js
+    ticket: SERVER-102477
+  - test_file: jstests/noPassthrough/ftdc/ftdc_connection_reuse.js
+    ticket: SERVER-102477
+  - test_file: jstests/noPassthrough/network/set_step_params.js
+    ticket: SERVER-102477
+  - test_file: jstests/sharding/remove_shard_with_unsharded.js
+    ticket: SERVER-89883
+  - test_file: jstests/sharding/query/union_with_doubly_nested_lookup.js
+    ticket: SERVER-108341
+  - test_file: jstests/core/txns/multi_statement_transaction_abort.js
+    ticket: SERVER-84081
   suites: null

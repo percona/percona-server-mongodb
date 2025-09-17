@@ -2,18 +2,15 @@
 
 import os
 import os.path
-import time
 import shutil
+import time
 import uuid
-
-import yaml
 
 import pymongo
 import pymongo.errors
+import yaml
+
 from buildscripts.resmokelib.testing.fixtures import interface
-from buildscripts.resmokelib.testing.fixtures.fixturelib import FixtureLib
-from buildscripts.resmokelib.testing.fixtures.interface import _FIXTURES
-from buildscripts.resmokelib.testing.fixtures.mongot import MongoTFixture
 
 
 class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
@@ -462,3 +459,4 @@ def _add_testing_set_parameters(suite_set_parameters):
     # The placeholder is needed so older versions don't have this option won't have this value set.
     suite_set_parameters.setdefault("backtraceLogFile", True)
     suite_set_parameters.setdefault("disableTransitionFromLatestToLastContinuous", False)
+    suite_set_parameters.setdefault("oplogApplicationEnforcesSteadyStateConstraints", True)

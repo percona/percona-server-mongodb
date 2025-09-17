@@ -116,6 +116,10 @@ public:
         return true;
     }
 
+    bool enableDiagnosticPrintingOnFailure() const final {
+        return true;
+    }
+
     bool runWithRequestParser(OperationContext* opCtx,
                               const DatabaseName& dbName,
                               const BSONObj& cmdObj,
@@ -166,6 +170,27 @@ public:
         if (!isShardedCollection && ok) {
             CommandHelpers::filterCommandReplyForPassthrough(
                 shardResponses[0].swResponse.getValue().data, &output);
+        }
+
+        // If the command fails and one of the shards returns a WCE, attach the first WCE reported
+        // by the shards. In case of success, instead, the WCE is already attached by the
+        // `appendRawResponses` utility.
+        // TODO (SERVER-103580): Replace this logic with a generic implementation. For example,
+        // `appendRawResponses` could always attach the WCE anyway, even if the command fails.
+        if (!ok) {
+            for (const auto& shardRes : shardResponses) {
+                const auto& resStatus = shardRes.swResponse.getStatus();
+                if (!resStatus.isOK()) {
+                    continue;
+                }
+
+                const auto& resData = shardRes.swResponse.getValue().data;
+                if (resData["writeConcernError"]) {
+                    appendWriteConcernErrorToCmdResponse(
+                        shardRes.shardId, resData["writeConcernError"], rawResBuilder);
+                    break;
+                }
+            }
         }
 
         output.appendElements(rawResBuilder.obj());

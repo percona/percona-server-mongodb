@@ -139,7 +139,6 @@ bool runAggregationMapReduce(OperationContext* opCtx,
                              const BSONObj& cmd,
                              BSONObjBuilder& result,
                              boost::optional<ExplainOptions::Verbosity> verbosity) {
-
     if (_sampler.tick()) {
         LOGV2_WARNING(5725801,
                       "The map reduce command is deprecated. For more information, see "

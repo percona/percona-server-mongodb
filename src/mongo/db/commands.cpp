@@ -52,6 +52,8 @@
 #include "mongo/db/client.h"
 #include "mongo/db/cluster_role.h"
 #include "mongo/db/commands/test_commands_enabled.h"
+#include "mongo/db/curop.h"
+#include "mongo/db/curop_diagnostic_printer.h"
 #include "mongo/db/error_labels.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/tenant_id.h"
@@ -217,6 +219,13 @@ void CommandHelpers::runCommandInvocation(OperationContext* opCtx,
     if (hooks) {
         hooks->onBeforeRun(opCtx, request, invocation);
     }
+
+    // Capture diagnostics for failures such as tasserts, invariants, and segfaults that may occur
+    // during execution of eligible commands. No work is done on the hot-path; all computation of
+    // these diagnostics is done lazily during failure handling. This line just creates an RAII
+    // object which holds references to objects on this stack frame, which will be used to print
+    // diagnostics in the event of a failure.
+    ScopedDebugInfo cmdDiagnostics("curOpDiagnostics", diagnostic_printers::CurOpPrinter{opCtx});
 
     invocation->run(opCtx, response);
 

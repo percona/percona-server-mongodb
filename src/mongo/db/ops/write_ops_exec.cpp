@@ -395,6 +395,11 @@ void insertDocumentsAtomically(OperationContext* opCtx,
     // insert. In order to avoid that delete generating a second timestamp in a WUOW which
     // has un-timestamped writes (which is a violation of multi-timestamp constraints),
     // we must reserve the timestamp for the insert in advance.
+    // We take an exclusive lock on the metadata resource before reserving the timestamp.
+    if (collection.getCollectionPtr()->needsCappedLock()) {
+        Lock::ResourceLock heldUntilEndOfWUOW{
+            opCtx, ResourceId(RESOURCE_METADATA, collection.getCollectionPtr()->ns()), MODE_X};
+    }
     if (oplogEntryGroupType != WriteUnitOfWork::kGroupForPossiblyRetryableOperations &&
         !inTransaction && !oplogDisabled &&
         (!replicateVectoredInsertsTransactionally || collection.getCollectionPtr()->isCapped())) {
@@ -610,7 +615,10 @@ bool insertBatchAndHandleErrors(OperationContext* opCtx,
         },
         nss);
 
-    if (MONGO_unlikely(failAllInserts.shouldFail())) {
+    if (auto scoped = failAllInserts.scoped(); MONGO_unlikely(scoped.isActive())) {
+        tassert(9276700,
+                "failAllInserts failpoint active!",
+                !scoped.getData().hasField("tassert") || !scoped.getData().getBoolField("tassert"));
         uasserted(ErrorCodes::InternalError, "failAllInserts failpoint active!");
     }
 
@@ -821,7 +829,10 @@ UpdateResult performUpdate(OperationContext* opCtx,
         },
         nss);
 
-    if (MONGO_unlikely(failAllUpdates.shouldFail())) {
+    if (auto scoped = failAllUpdates.scoped(); MONGO_unlikely(scoped.isActive())) {
+        tassert(9276701,
+                "failAllUpdates failpoint active!",
+                !scoped.getData().hasField("tassert") || !scoped.getData().getBoolField("tassert"));
         uasserted(ErrorCodes::InternalError, "failAllUpdates failpoint active!");
     }
 
@@ -994,7 +1005,10 @@ long long performDelete(OperationContext* opCtx,
                   "Batch remove - hangDuringBatchRemove fail point enabled. Blocking until fail "
                   "point is disabled");
         });
-    if (MONGO_unlikely(failAllRemoves.shouldFail())) {
+    if (auto scoped = failAllRemoves.scoped(); MONGO_unlikely(scoped.isActive())) {
+        tassert(9276703,
+                "failAllRemoves failpoint active!",
+                !scoped.getData().hasField("tassert") || !scoped.getData().getBoolField("tassert"));
         uasserted(ErrorCodes::InternalError, "failAllRemoves failpoint active!");
     }
 
@@ -1379,7 +1393,10 @@ static SingleWriteResult performSingleUpdateOp(OperationContext* opCtx,
         },
         ns);
 
-    if (MONGO_unlikely(failAllUpdates.shouldFail())) {
+    if (auto scoped = failAllUpdates.scoped(); MONGO_unlikely(scoped.isActive())) {
+        tassert(9276702,
+                "failAllUpdates failpoint active!",
+                !scoped.getData().hasField("tassert") || !scoped.getData().getBoolField("tassert"));
         uasserted(ErrorCodes::InternalError, "failAllUpdates failpoint active!");
     }
 
@@ -1859,7 +1876,10 @@ static SingleWriteResult performSingleDeleteOp(OperationContext* opCtx,
                   "Batch remove - hangDuringBatchRemove fail point enabled. Blocking until fail "
                   "point is disabled");
         });
-    if (MONGO_unlikely(failAllRemoves.shouldFail())) {
+    if (auto scoped = failAllRemoves.scoped(); MONGO_unlikely(scoped.isActive())) {
+        tassert(9276704,
+                "failAllRemoves failpoint active!",
+                !scoped.getData().hasField("tassert") || !scoped.getData().getBoolField("tassert"));
         uasserted(ErrorCodes::InternalError, "failAllRemoves failpoint active!");
     }
 
@@ -3319,6 +3339,9 @@ size_t performOrderedTimeseriesWrites(OperationContext* opCtx,
         return request.getDocuments().size();
     }
 
+    // The atomic commit failed and might have populated 'errors'. To retry inserting each
+    // measurement one by one, first clear 'errors' so the retry starts with a clean state.
+    errors->clear();
     for (size_t i = 0; i < request.getDocuments().size(); ++i) {
         performUnorderedTimeseriesWritesWithRetries(
             opCtx, request, i, 1, errors, opTime, electionId, containsRetry);

@@ -1281,6 +1281,10 @@ public:
         return "command to apply inserts, updates and deletes in bulk";
     }
 
+    bool enableDiagnosticPrintingOnFailure() const final {
+        return true;
+    }
+
     class Invocation final : public InvocationBaseGen {
     public:
         Invocation(OperationContext* opCtx,
