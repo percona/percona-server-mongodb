@@ -532,6 +532,8 @@ try-import %workspace%/.bazelrc.common_bes
 # local git version info
 try-import %workspace%/.bazelrc.git
 
+import %workspace%/.bazelrc.psmdb
+
 # Used for build profiles and any settings a user wants to consistently use
 try-import %workspace%/.bazelrc.local
 

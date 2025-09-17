@@ -38,8 +38,6 @@ def main():
             )
             args += ["--build_enterprise=False", "--config=local"]
 
-        engflow_auth(args)
-
         write_workstation_bazelrc(args)
 
         args = test_runner_interface(
