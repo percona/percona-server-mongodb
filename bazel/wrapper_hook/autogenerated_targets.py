@@ -60,7 +60,7 @@ def get_bazel_labels_from_tags(args, bazel, tag):
     # The .cquery file is used to get info on which targets are compatible
     # with our current config. Without it dependent targets would just be skipped.
     proc = subprocess.run(
-        [bazel, "cquery", "--config=local"]
+        [bazel, "cquery"]
         + extra_args
         + [
             f"kind(extract_debuginfo_test, attr(tags, '\\b{tag}\\b', //src/...))",

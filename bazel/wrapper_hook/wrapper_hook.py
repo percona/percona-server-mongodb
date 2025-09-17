@@ -34,7 +34,6 @@ def main():
     enterprise = True
     if check_bazel_command_type(sys.argv[1:]) not in ["clean", "shutdown", "version", None]:
         args = sys.argv
-        engflow_auth(args)
 
         write_workstation_bazelrc(args)
 

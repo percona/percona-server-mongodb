@@ -1,9 +1,5 @@
 # Reference docs: https://bazel.build/run/bazelrc
 
-# coverity need to use the local command without remote execution auto
-# enabled.
-info --config=local
-
 # Don't use legacy toolchain resolution.
 common --incompatible_enable_cc_toolchain_resolution
 # https://github.com/bazelbuild/bazel/issues/8766
@@ -149,335 +145,12 @@ common --flag_alias=simple_build_id=//bazel/config:simple_build_id
 common --flag_alias=create_dwp=//bazel/config:create_dwp
 common --flag_alias=win_min_version=//bazel/config:win_min_version
 
-# Aliases for config flags: Percona-specific
-common --flag_alias=inmemory=//bazel/config:inmemory
-common --flag_alias=audit=//bazel/config:audit
-common --flag_alias=full_featured=//bazel/config:full_featured
-common --flag_alias=enable_fipsmode=//bazel/config:enable_fipsmode
-common --flag_alias=enable_fcbis=//bazel/config:enable_fcbis
-common --flag_alias=enable_oidc=//bazel/config:enable_oidc
-
-#############################################################################################################################
-# BUILD 'PROFILES' - this is the area to set up configurations of flags to be used by developers.
-# --enable_platform_specific_config=true is passed to every profile so more hardware specific 
-# configurations can override the defaults in these profiles. These represent the only supported flag configurations,
-# and should be the only thing passed on the command line in most scenarios
-
-# Every profile should explicitly specify every option used by every other profile, with the exception of the
-# profile modifiers
-
-# The base profiles are fast, opt and debug - these reflect the output directories artifacts will get placed into
-# and match the bazel compilation modes
-
-# Should a profile modify another profile, it should be named {original_profile}_{modifier_name} - example fast_static
-
-# You can use .bazelrc.local to modify the default build type you want to use locally
-
-# Current Profiles:
-# fastbuild
-# dbg
-# dbg_san
-# dbg_tsan
-# opt
-
-# Bazel will by default strip on fastbuild, if we want stripping we will handle it ourselves
-common --strip=never
-
-# Current default profile - fastbuild - this matches the config options of fastbuild. It does not just set --config=fastbuild
-# To avoid the bazel warning about passing multiple configs
-common -c fastbuild
-common --fission=yes
-common --//bazel/config:dwarf_version=5
-common --//bazel/config:compress_debug_compile=True
-common --//bazel/config:opt=off
-common --//bazel/config:dbg=True
-common --//bazel/config:dbg_level=1
-common --//bazel/config:debug_symbols=True
-common --//bazel/config:separate_debug=False
-common --//bazel/config:compiler_type=clang
-common --//bazel/config:linker=mold
-common --//bazel/config:linkstatic=True
-common --//bazel/config:build_enterprise=True
-common --//bazel/config:skip_archive=True
-common --//bazel/config:allocator=auto
-common --//bazel/config:asan=False
-common --//bazel/config:tsan=False
-common --//bazel/config:ubsan=False
-common --//bazel/config:libunwind=auto
-common --jobs=300
-common:macos --jobs=auto
-common:windows --jobs=auto
-common --enable_platform_specific_config=true
-
-# Profile for building fast with minimal debuggability - the build is fast ##################################################
---config=fastbuild
-common:fastbuild -c fastbuild
-common:fastbuild --fission=yes
-common:fastbuild --//bazel/config:dwarf_version=5
-common:fastbuild --//bazel/config:compress_debug_compile=True
-common:fastbuild --//bazel/config:opt=off
-common:fastbuild --//bazel/config:dbg=True
-common:fastbuild --//bazel/config:dbg_level=1
-common:fastbuild --//bazel/config:debug_symbols=True
-common:fastbuild --//bazel/config:separate_debug=False
-common:fastbuild --//bazel/config:compiler_type=clang
-common:fastbuild --//bazel/config:linker=mold
-common:fastbuild --//bazel/config:linkstatic=True
-common:fastbuild --//bazel/config:build_enterprise=True
-common:fastbuild --//bazel/config:skip_archive=True
-common:fastbuild --//bazel/config:allocator=auto
-common:fastbuild --//bazel/config:asan=False
-common:fastbuild --//bazel/config:tsan=False
-common:fastbuild --//bazel/config:ubsan=False
-common:fastbuild --//bazel/config:libunwind=auto
-common:fastbuild --enable_platform_specific_config=true
-
-# Profile for building highly debuggable code - the build is slow, the code is slow, the binaries are large #################
---config=dbg
-common:dbg -c dbg
-common:dbg --fission=yes
-common:dbg --//bazel/config:dwarf_version=5
-common:dbg --//bazel/config:compress_debug_compile=True
-common:dbg --//bazel/config:opt=off
-common:dbg --//bazel/config:dbg=True
-common:dbg --//bazel/config:dbg_level=2
-common:dbg --//bazel/config:debug_symbols=True
-common:dbg --//bazel/config:separate_debug=False
-common:dbg --//bazel/config:compiler_type=clang
-common:dbg --//bazel/config:linker=mold
-common:dbg --//bazel/config:linkstatic=True
-common:dbg --//bazel/config:build_enterprise=True
-common:dbg --//bazel/config:skip_archive=True
-common:dbg --//bazel/config:allocator=auto
-common:dbg --//bazel/config:asan=False
-common:dbg --//bazel/config:tsan=False
-common:dbg --//bazel/config:ubsan=False
-common:dbg --//bazel/config:libunwind=auto
-common:dbg --enable_platform_specific_config=true
-
-# Build with address and undefined sanitizers
---config=dbg_aubsan
-common:dbg_aubsan --config=dbg
-common:dbg_aubsan --//bazel/config:opt=debug
-common:dbg_aubsan --//bazel/config:linkstatic=False
-common:dbg_aubsan --//bazel/config:allocator=system
-common:dbg_aubsan --//bazel/config:asan=True
-common:dbg_aubsan --//bazel/config:ubsan=True
-common:dbg_aubsan --enable_platform_specific_config=true
-
-# Build with thread sanitizers
---config=dbg_tsan
-common:dbg_tsan --config=dbg
-common:dbg_tsan --//bazel/config:opt=debug
-common:dbg_tsan --//bazel/config:linkstatic=False
-common:dbg_tsan --//bazel/config:allocator=system
-common:dbg_tsan --//bazel/config:tsan=True
-common:dbg_tsan --//bazel/config:libunwind=off
-common:dbg_tsan --//bazel/config:skip_archive=False
-common:dbg_tsan --enable_platform_specific_config=true
-
-# Profile for building optimized code - the build is slow, the code is fast #################################################
---config=opt
-common:opt -c opt
-common:opt --fission=yes
-common:opt --//bazel/config:dwarf_version=5
-common:opt --//bazel/config:compress_debug_compile=True
-common:opt --//bazel/config:opt=on
-common:opt --//bazel/config:dbg=False
-common:opt --//bazel/config:dbg_level=2
-common:opt --//bazel/config:debug_symbols=True
-common:opt --//bazel/config:separate_debug=False
-common:opt --//bazel/config:compiler_type=gcc
-common:opt --//bazel/config:linker=auto
-common:opt --//bazel/config:linkstatic=True
-common:opt --//bazel/config:build_enterprise=True
-common:opt --//bazel/config:skip_archive=True
-common:opt --//bazel/config:allocator=auto
-common:opt --//bazel/config:asan=False
-common:opt --//bazel/config:tsan=False
-common:opt --//bazel/config:ubsan=False
-common:opt --//bazel/config:libunwind=auto
-common:opt --enable_platform_specific_config=true
-
---config=evg
-common:evg --config=opt
-common:evg --//bazel/config:opt=auto
-common:evg --//bazel/config:separate_debug=True
-common:evg --fission=no
-common:evg --enable_platform_specific_config=true
-
---config=evg_crypt
-common:evg_crypt --config=evg
-common:evg_crypt --//bazel/config:allocator=system
-common:evg_crypt --//bazel/config:js_engine=none
-common:evg_crypt --//bazel/config:ssl=False
-common:evg_crypt --//bazel/config:http_client=False
-common:evg_crypt --//bazel/config:shared_archive=True
-
---config=evg_crypt_dbg
-common:evg_crypt_dbg --config=evg_crypt
-common:evg_crypt_dbg --//bazel/config:opt=off
-common:evg_crypt_dbg --//bazel/config:dbg=True
-
---config=evg_crypt_test
-common:evg_crypt_test --config=evg_crypt
-common:evg_crypt_test --//bazel/config:shared_archive=False
-
---config=evg_stitch
-common:evg_stitch --config=evg
-common:evg_stitch --//bazel/config:build_enterprise=False
-common:evg_stitch --//bazel/config:ssl=False
-common:evg_stitch --//bazel/config:http_client=False
-common:evg_stitch --//bazel/config:shared_archive=True
-
---config=evg_stitch_test
-common:evg_stitch_test --config=evg_stitch
-common:evg_stitch_test --//bazel/config:shared_archive=False
-
-# TODO: Build the code as we would release it
-# common:opt_release --config=opt
-# common:opt_release --//bazel/config:separate_debug=True
-# common:opt_release --//bazel/config:build_enterprise=True
-# common:opt_release --//bazel/config:release=True
-# TODO: Open Source community build flags
-# common:community 
-#############################################################################################################################
-
---config=remote_link
-common:remote_link --strategy=CppLink=remote
-common:remote_link --strategy=CppArchive=remote
-common:remote_link --strategy=SolibSymlink=remote
-common:remote_link --strategy=ExtractDebugInfo=remote
-common:remote_link --strategy=StripDebugInfo=remote
-common:remote_link --features=-thin_archive
-
-# Coverage
-coverage --config=dbg
-coverage --compiler_type=clang
-coverage --linkstatic=False
-coverage --combined_report=lcov
-coverage --experimental_use_llvm_covmap
-coverage --experimental_generate_llvm_lcov
-coverage --remote_download_outputs=all
-coverage --fission=no
-# This is set in .bazelrc.evergreen:
-# coverage --config=no-remote-exec
-
 # code ownership configuration
 common --define codeowners_add_auto_approve_user=True
 
 # Don't detect the native toolchain on linux, only use the hermetic toolchains.
 # Opt out of this by passing --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=0 on the command line.
 common:linux --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
-
-# Only use fission and debug compression on Linux
-common:windows --fission=no
-common:windows --//bazel/config:create_dwp=False
-common:windows --//bazel/config:compress_debug_compile=False
-common:macos --fission=no
-common:macos --//bazel/config:create_dwp=False
-common:macos --//bazel/config:compress_debug_compile=False
-
-# Dynamic linking on Windows (DLL generation) is currently not supported.
-common:windows --//bazel/config:linkstatic=True
-
-# The only Windows compiler we support is MSVC.
-common:windows --//bazel/config:compiler_type=msvc
-common:windows --//bazel/config:linker=auto
-
-# Data dependencies don't work in bazel run or bazel test on windows without this
-startup --windows_enable_symlinks
-common:windows --enable_runfiles
-build:windows --action_env=MSYS=winsymlinks:nativestrict
-test:windows --action_env=MSYS=winsymlinks:nativestrict
-
-# Always use clang on macos
-common:macos --//bazel/config:compiler_type=clang
-common:macos --//bazel/config:linker=auto
-
-common:macos --macos_minimum_os=11.0
-# TODO(SERVER-102959): Find out why tests fail when mac is not in compilation mode dbg
-common:macos -c dbg
-
-# Remote execution and caching is the default, but only mongodb employees will be able to access
-# the engflow cluster. External builders should use the --config=local option
-
-# Enable remote build execution:
-common:linux --remote_executor=grpcs://sodalite.cluster.engflow.com
-common:windows --remote_executor=
-common:macos --remote_executor=
-
-# Enable remote cache (also necessary for remote build execution):
-common --experimental_remote_downloader=grpcs://sodalite.cluster.engflow.com
-common --remote_cache=grpcs://sodalite.cluster.engflow.com
-common --bes_backend=grpcs://sodalite.cluster.engflow.com
-common --bes_results_url=https://sodalite.cluster.engflow.com/invocation/
-common --remote_cache_compression=true 
-common --grpc_keepalive_time=30s
-common --nolegacy_important_outputs
-common --bes_keywords=repo:mongo
-common --remote_upload_local_results=False
-
-# Settings specific for clang-tidy
---config=clang-tidy
-common:clang-tidy --config=dbg
-common:clang-tidy --remote_download_outputs=all
-common:clang-tidy --build_tag_filters=-third_party,-mongo-tidy-tests,-third_party_debug,-mongo-tidy-tests_debug
-common:clang-tidy --//bazel/config:compiler_type=clang
-common:clang-tidy --keep_going
-common:clang-tidy --aspects @bazel_clang_tidy//clang_tidy:clang_tidy.bzl%clang_tidy_aspect
-common:clang-tidy --output_groups=report
-
---config=mod-scanner
-common:mod-scanner --config=dbg
-common:mod-scanner --build_tag_filters=-third_party,-mongo-tidy-tests,-third_party_debug,-mongo-tidy-tests_debug
-common:mod-scanner --//bazel/config:compiler_type=clang
-common:mod-scanner --//bazel/config:mongo_toolchain_version=v5
-common:mod-scanner --output_groups=report
-common:mod-scanner --aspects //modules_poc:mod_scanner.bzl%mod_scanner_aspect
-common:mod-scanner --remote_download_regex=.*\.mod_scanner_decls.json$
-
-# if you don't have access to the remote execution cluster above, use the local config
-# by passing "--config=local" on the bazel command line
---config=local
-common:local --remote_executor=
-common:local --experimental_remote_downloader=
-common:local --remote_cache=
-common:local --bes_backend=
-common:local --bes_results_url=
-common:local --tls_client_certificate=
-common:local --tls_client_key=
-common:local --remote_cache_compression=false
-common:local --grpc_keepalive_time=0s
-common:local --legacy_important_outputs
-common:local --jobs=auto
-common:local --//bazel/config:local_build=True
-
-
-# Disable remote execution but keep remote cache enabled
---config=no-remote-exec
-common:no-remote-exec --remote_executor=
-common:no-remote-exec --jobs=auto
-common:no-remote-exec --//bazel/config:local_build=True
-
-# Disable remote execution and caching for public releases
---config=public-release
-common:public-release --remote_executor=
-common:public-release --experimental_remote_downloader=
-common:public-release --remote_cache=
-common:public-release --bes_backend=
-common:public-release --bes_results_url=
-common:public-release --tls_client_certificate=
-common:public-release --tls_client_key=
-common:public-release --remote_cache_compression=false
-common:public-release --grpc_keepalive_time=0s
-common:public-release --legacy_important_outputs
-common:public-release --//bazel/config:release=True
-common:public-release --//bazel/config:local_build=True
-
---config=fission
-common:fission --fission=yes
-common:fission --remote_download_regex=.*\.dwo$
 
 # Avoid failing builds when BES metadata fails to upload.
 common --bes_upload_mode=fully_async
@@ -514,3 +187,104 @@ test --test_timeout=900
 common:macos --copt=-DBOOST_NO_CXX98_FUNCTION_BASE
 
 common --flag_alias=use_diagnostic_latches=//bazel/config:use_diagnostic_latches
+
+################################################################################
+# Percona-specific config flag aliases
+################################################################################
+common --flag_alias=inmemory=//bazel/config:inmemory
+common --flag_alias=audit=//bazel/config:audit
+common --flag_alias=full_featured=//bazel/config:full_featured
+common --flag_alias=enable_fipsmode=//bazel/config:enable_fipsmode
+common --flag_alias=enable_fcbis=//bazel/config:enable_fcbis
+common --flag_alias=enable_oidc=//bazel/config:enable_oidc
+
+################################################################################
+# Default values for Percona-specific build profiles
+################################################################################
+common --enable_platform_specific_config=true
+
+# Disable remote execution and remote cache
+common --remote_executor=
+common --experimental_remote_downloader=
+common --remote_cache=
+common --bes_backend=
+common --bes_results_url=
+common --tls_client_certificate=
+common --tls_client_key=
+common --remote_cache_compression=false
+common --remote_upload_local_results=false
+common --grpc_keepalive_time=0s
+common --legacy_important_outputs
+common --//bazel/config:local_build=True
+
+# enable additional modules
+common --//bazel/config:use_sasl_client=True
+common --//bazel/config:inmemory=True
+common --//bazel/config:audit=True
+
+# how to build
+common --jobs=auto
+common --fission=no
+common --verbose_failures=True
+common --//bazel/config:disable_warnings_as_errors=True
+common --//bazel/config:compiler_type=gcc
+common --//bazel/config:linker=gold
+common --//bazel/config:linkstatic=False
+common --//bazel/config:skip_archive=True
+common --//bazel/config:allocator=tcmalloc-google
+common --//bazel/config:libunwind=auto
+common --//bazel/config:dwarf_version=5
+common --//bazel/config:compress_debug_compile=True
+# Bazel will by default strip on fastbuild, if we want stripping we will handle
+# it ourselves
+common --strip=never
+
+################################################################################
+# Percona-specific build profiles
+################################################################################
+# Profile for quick builds with minimal debuggability and dynamic linking:
+# suitable for local development and running unit and integration tests on
+# continuous integration servers.
+--config=psmdb_dev
+common:psmdb_dev --compilation_mode fastbuild
+common:psmdb_dev --//bazel/config:opt=off
+common:psmdb_dev --//bazel/config:dbg_level=1
+
+# Same as `psmdb_dev` but with static linking
+--config=psmdb_dev_static
+common:psmdb_dev_static --config=psmdb_dev
+common:psmdb_dev_static --//bazel/config:linkstatic=True
+
+# Profile for building highly debuggable code: the build is slow,
+# the code is slow, the binaries are large.
+--config=psmdb_dbg
+common:psmdb_dbg --compilation_mode dbg
+common:psmdb_dbg --//bazel/config:opt=debug
+common:psmdb_dbg --//bazel/config:dbg_level=3
+
+# Profile for building the `install-mongo_fuzzer_test` target
+--config=psmdb_fuzzer
+common:psmdb_fuzzer --compilation_mode dbg
+common:psmdb_fuzzer --//bazel/config:compiler_type=clang
+common:psmdb_fuzzer --//bazel/config:linker=lld
+common:psmdb_fuzzer --//bazel/config:opt=debug
+common:psmdb_fuzzer --//bazel/config:allocator=system
+common:psmdb_fuzzer --//bazel/config:asan=True
+common:psmdb_fuzzer --//bazel/config:fsan=True
+common:psmdb_fuzzer --//bazel/config:use_ocsp_stapling=False
+
+# Profile for building optimized code: the build is slow, the code is fast.
+--config=psmdb_opt
+common:psmdb_opt --compilation_mode opt
+common:psmdb_opt --//bazel/config:opt=on
+common:psmdb_opt --//bazel/config:dbg=False
+
+# Profile for realeases, same as `opt` but with static linking
+--config=psmdb_opt_release
+common:psmdb_opt_release --config=psmdb_opt
+common:psmdb_opt_relesse --//bazel/config:linkstatic=True
+common:psmdb_opt_release --//bazel/config:release=True
+
+################################################################################
+# End of Percona-specific build profiles
+################################################################################

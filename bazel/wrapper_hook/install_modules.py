@@ -133,12 +133,7 @@ def install_modules(bazel):
         )
         if proc.returncode != 0:
             print("Failed to install modules using remote exec/cache, falling back to local...")
-            proc = subprocess.run(
-                cmd
-                + [
-                    "--config=local",
-                ]
-            )
+            proc = subprocess.run(cmd)
         deps_missing = search_for_modules(deps_needed, deps_installed)
         if deps_missing:
             raise Exception(f"Failed to install python deps {deps_missing}")
