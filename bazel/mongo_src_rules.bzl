@@ -1006,8 +1006,6 @@ ASAN_OPTIONS = [
     "handle_abort=1",
     "strict_string_checks=true",
     "detect_invalid_pointer_pairs=1",
-    # TODO SERVER-100334 Enable detect_stack_use_after_return once bugs it exposes are resolved.
-    "detect_stack_use_after_return=0",
 ]
 
 LSAN_OPTIONS = [
@@ -1574,7 +1572,7 @@ def force_includes_hdr(package_name, name):
 
     return []
 
-# TODO(SERVER-102596): Stop including this flag when ASP is able to upgrade mongoc and mongocxx
+# TODO(SERVER-103006): Stop including this flag when ASP is able to upgrade mongoc and mongocxx
 STREAMS_THIRD_PARTY_DIR = "src/mongo/db/modules/enterprise/src/streams/third_party"
 
 def package_specific_copt(package_name):
