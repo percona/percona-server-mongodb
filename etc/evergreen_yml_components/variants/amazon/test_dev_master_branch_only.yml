@@ -214,8 +214,6 @@ buildvariants:
     cron: "0 0 * * *" # Run once a day.
     expansions:
       <<: *amazon_linux2023_arm64_dynamic_expansions
-      scons_cache_scope: shared
-      scons_cache_mode: all
       has_packages: false
       jstestfuzz_num_generated_files: 40
       jstestfuzz_concurrent_num_files: 10
@@ -252,6 +250,7 @@ buildvariants:
       - name: .query_fuzzer
       - name: .updatefuzzer
       - name: .jstestfuzz
+      - name: .query_shape_hash_stability_fuzzer
 
   - <<: *enterprise-amazon-linux2023-arm64-all-feature-flags-template
     name: enterprise-amazon-linux2023-arm64-all-feature-flags-cluster-scalability-only
@@ -281,6 +280,7 @@ buildvariants:
     run_on:
       - amazon2023.3-arm64-large
     expansions:
+      build_timeout_seconds: 600
       bazel_compile_flags: >-
         --define=MONGO_DISTMOD=amazon2023
         --dbg_level=1

@@ -177,39 +177,41 @@ void ExpressionConstEval::transport(optimizer::ABT& n,
 
         // Swap the current node (n) for the result.
         swapAndUpdate(n, std::move(result));
-    } else if (std::any_of(varNames.begin(), varNames.end(), [&](auto&& varName) {
-                   return _varRefs.find(varName)->second == 0;
-               })) {
-        // Trim out the bind expressions which have not been referenced, then constant fold it
-        std::vector<optimizer::ProjectionName> newVarNames;
-        std::vector<optimizer::ABT> newNodes;
+    } else {
+        if (std::any_of(varNames.begin(), varNames.end(), [&](auto&& varName) {
+                return _varRefs.find(varName)->second == 0;
+            })) {
+            // Trim out the bind expressions which have not been referenced, then constant fold it
+            std::vector<optimizer::ProjectionName> newVarNames;
+            std::vector<optimizer::ABT> newNodes;
 
-        for (size_t idx = 0; idx < multiLet.numBinds(); ++idx) {
-            if (_varRefs[varNames[idx]] != 0) {
-                newVarNames.push_back(varNames[idx]);
-                newNodes.emplace_back(
-                    std::exchange(args[idx], optimizer::make<optimizer::Blackhole>()));
+            for (size_t idx = 0; idx < multiLet.numBinds(); ++idx) {
+                if (_varRefs[varNames[idx]] != 0) {
+                    newVarNames.push_back(varNames[idx]);
+                    newNodes.emplace_back(
+                        std::exchange(args[idx], optimizer::make<optimizer::Blackhole>()));
+                }
             }
+            newNodes.emplace_back(
+                std::exchange(args.back(), optimizer::make<optimizer::Blackhole>()));
+            auto trimmedMultiLet =
+                optimizer::make<optimizer::MultiLet>(std::move(newVarNames), std::move(newNodes));
+            swapAndUpdate(n, trimmedMultiLet);
         }
-        newNodes.emplace_back(std::exchange(args.back(), optimizer::make<optimizer::Blackhole>()));
-        auto trimmedMultiLet =
-            optimizer::make<optimizer::MultiLet>(std::move(newVarNames), std::move(newNodes));
-        swapAndUpdate(n, trimmedMultiLet);
-    }
 
-    if (auto maybeMultiLet = n.cast<optimizer::MultiLet>(); maybeMultiLet &&
-        std::any_of(maybeMultiLet->varNames().begin(),
-                    maybeMultiLet->varNames().end(),
-                    [&](auto&& varName) { return _varRefs.find(varName)->second == 1; })) {
+        auto& mayBeTrimmedVarNames = n.cast<optimizer::MultiLet>()->varNames();
+
         // For the bind expressions which have been referenced exactly once, schedule them for
         // inlining.
-        std::for_each(varNames.begin(), varNames.end(), [&](auto&& varName) {
-            if (_varRefs.find(varName)->second == 1) {
-                _singleRef.emplace(varName);
-            }
-        });
-        _changed = true;
+        std::for_each(
+            mayBeTrimmedVarNames.begin(), mayBeTrimmedVarNames.end(), [&](auto&& varName) {
+                if (_varRefs.find(varName)->second == 1) {
+                    _singleRef.emplace(varName);
+                    _changed = true;
+                }
+            });
     }
+
     for (auto&& name : varNames) {
         _varRefs.erase(name);
         _variableDefinitions.erase(name);
@@ -445,6 +447,35 @@ void ExpressionConstEval::transport(optimizer::ABT& n,
                 swapAndUpdate(n, optimizer::Constant::boolean(!shortCircuitValue));
             } else if (args.size() == 1) {
                 // if we are left with just one argument, replace the entire node with that value.
+                swapAndUpdate(n, std::exchange(args[0], optimizer::make<optimizer::Blackhole>()));
+            }
+            break;
+        }
+        case optimizer::Operations::Add: {
+            auto it = args.begin();
+            if (!it->cast<optimizer::Constant>()) {
+                return;
+            }
+            it++;
+            for (; it < args.end(); it++) {
+                optimizer::ABT& rhs = *it;
+                auto rhsConst = rhs.cast<optimizer::Constant>();
+                if (!rhsConst) {
+                    break;
+                }
+                optimizer::ABT& lhs = *(it - 1);
+                auto lhsConst = lhs.cast<optimizer::Constant>();
+
+                auto [lhsTag, lhsValue] = lhsConst->get();
+                auto [rhsTag, rhsValue] = rhsConst->get();
+
+                auto [_, resultType, resultValue] =
+                    sbe::value::genericAdd(lhsTag, lhsValue, rhsTag, rhsValue);
+                swapAndUpdate(rhs, optimizer::make<optimizer::Constant>(resultType, resultValue));
+            }
+            args.erase(args.begin(), it - 1);
+            invariant(args.size() > 0);
+            if (args.size() == 1) {
                 swapAndUpdate(n, std::exchange(args[0], optimizer::make<optimizer::Blackhole>()));
             }
             break;

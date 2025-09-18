@@ -52,7 +52,6 @@ mongo_cc_library(
         "//src/mongo/client:clientdriver_minimal",
         "//src/mongo/db:server_base",
         "//src/mongo/shell:mongojs",
-        "//src/mongo/util:fail_point",  # TODO(SERVER-93876): Remove.
         "//src/mongo/util:md5",  # TODO(SERVER-93876): Remove.
     ],
 )
@@ -255,7 +254,7 @@ mongo_cc_unit_test(
     ],
     copts = select({
         "@platforms//os:windows": [
-            # See the /Zc:preprocessor comment in third_party/mozjs/SConscript
+            # See the /Zc:preprocessor comment in third_party/mozjs/BUILD.bazel
             "/Zc:preprocessor",
             "/wd5104",
             "/wd5105",

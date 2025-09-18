@@ -37,7 +37,6 @@ mongo_cc_library(
     deps = [
         "//src/mongo:base",
         "//src/mongo/db:server_base",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/util:fail_point",
     ],
 )
 
@@ -97,7 +96,6 @@ mongo_cc_library(
         "//src/mongo/db:service_context",
         "//src/mongo/db/admission:execution_admission_context",  # TODO(SERVER-93876): Remove.
         "//src/mongo/util:background_job",
-        "//src/mongo/util:fail_point",  # TODO(SERVER-93876): Remove.
         "//src/mongo/util/concurrency:spin_lock",  # TODO(SERVER-93876): Remove.
     ],
 )
@@ -181,7 +179,6 @@ mongo_cc_library(
         "//src/mongo/db/commands:server_status_core",
         "//src/mongo/db/concurrency:flow_control_ticketholder",
         "//src/mongo/util:background_job",
-        "//src/mongo/util:fail_point",
     ],
 )
 
@@ -350,7 +347,6 @@ mongo_cc_library(
     deps = [
         ":storage_options",  # TODO(SERVER-93876): Remove.
         "//src/mongo:base",
-        "//src/mongo/util:fail_point",
     ],
 )
 
@@ -384,7 +380,6 @@ mongo_cc_library(
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",  # TODO(SERVER-93876): Remove.
         "//src/mongo/util:background_job",
-        "//src/mongo/util:fail_point",  # TODO(SERVER-93876): Remove.
         "//src/mongo/util/concurrency:spin_lock",  # TODO(SERVER-93876): Remove.
     ],
 )
@@ -440,7 +435,6 @@ mongo_cc_library(
     deps = [
         ":storage_options",
         "//src/mongo/db:server_base",
-        "//src/mongo/db:shard_role_api",
     ],
 )
 

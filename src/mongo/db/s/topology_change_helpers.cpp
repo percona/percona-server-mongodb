@@ -505,30 +505,6 @@ std::unique_ptr<Fetcher> createFetcher(OperationContext* opCtx,
                                      maxTimeMS /* getMore network timeout */);
 }
 
-std::unique_ptr<Fetcher> createFindFetcher(OperationContext* opCtx,
-                                           RemoteCommandTargeter& targeter,
-                                           const NamespaceString& nss,
-                                           const repl::ReadConcernLevel& readConcernLevel,
-                                           FetcherDocsCallbackFn processDocsCallback,
-                                           FetcherStatusCallbackFn processStatusCallback,
-                                           std::shared_ptr<executor::TaskExecutor> executor) {
-    FindCommandRequest findCommand(nss);
-    const auto readConcern = repl::ReadConcernArgs(readConcernLevel);
-    findCommand.setReadConcern(readConcern);
-    const Milliseconds maxTimeMS =
-        std::min(opCtx->getRemainingMaxTimeMillis(), Milliseconds(kRemoteCommandTimeout));
-    findCommand.setMaxTimeMS(durationCount<Milliseconds>(maxTimeMS));
-
-    return createFetcher(opCtx,
-                         targeter,
-                         nss.dbName(),
-                         maxTimeMS,
-                         findCommand.toBSON(),
-                         processDocsCallback,
-                         processStatusCallback,
-                         executor);
-}
-
 void deleteAllDocumentsInCollection(
     OperationContext* opCtx,
     RemoteCommandTargeter& targeter,
@@ -541,7 +517,7 @@ void deleteAllDocumentsInCollection(
     auto fetcherStatus =
         Status(ErrorCodes::InternalError, "Internal error running cursor callback in command");
     std::vector<BSONObj> docsToDelete;
-    auto fetcher = createFindFetcher(
+    auto fetcher = topology_change_helpers::createFindFetcher(
         opCtx,
         targeter,
         nss,
@@ -642,6 +618,30 @@ ShardIdentityType createShardIdentity(OperationContext* opCtx, const ShardId& sh
         repl::ReplicationCoordinator::get(opCtx)->getConfigConnectionString());
 
     return shardIdentity;
+}
+
+std::unique_ptr<Fetcher> createFindFetcher(OperationContext* opCtx,
+                                           RemoteCommandTargeter& targeter,
+                                           const NamespaceString& nss,
+                                           const repl::ReadConcernLevel& readConcernLevel,
+                                           FetcherDocsCallbackFn processDocsCallback,
+                                           FetcherStatusCallbackFn processStatusCallback,
+                                           std::shared_ptr<executor::TaskExecutor> executor) {
+    FindCommandRequest findCommand(nss);
+    const auto readConcern = repl::ReadConcernArgs(readConcernLevel);
+    findCommand.setReadConcern(readConcern);
+    const Milliseconds maxTimeMS =
+        std::min(opCtx->getRemainingMaxTimeMillis(), Milliseconds(kRemoteCommandTimeout));
+    findCommand.setMaxTimeMS(durationCount<Milliseconds>(maxTimeMS));
+
+    return createFetcher(opCtx,
+                         targeter,
+                         nss.dbName(),
+                         maxTimeMS,
+                         findCommand.toBSON(),
+                         processDocsCallback,
+                         processStatusCallback,
+                         executor);
 }
 
 long long getRangeDeletionCount(OperationContext* opCtx) {
@@ -827,7 +827,7 @@ Shard::CommandResponse runCommandForAddShard(OperationContext* opCtx,
 void setUserWriteBlockingState(
     OperationContext* opCtx,
     RemoteCommandTargeter& targeter,
-    UserWriteBlockingLevel level,
+    uint8_t level,
     bool block,
     boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
     std::shared_ptr<executor::TaskExecutor> executor) {
@@ -1414,7 +1414,7 @@ DrainingShardUsage getDrainingProgress(OperationContext* opCtx,
 // Sets the addOrRemoveShardInProgress cluster parameter to prevent new ShardingDDLCoordinators from
 // starting, and then drains the ongoing ones. Must be called under the kConfigsvrShardsNamespace
 // ddl lock.
-void blockDDLCoordinatorsAndDrain(OperationContext* opCtx) {
+void blockDDLCoordinatorsAndDrain(OperationContext* opCtx, bool persistRecoveryDocument) {
     if (MONGO_unlikely(skipBlockingDDLCoordinatorsDuringAddAndRemoveShard.shouldFail())) {
         return;
     }
@@ -1424,9 +1424,9 @@ void blockDDLCoordinatorsAndDrain(OperationContext* opCtx) {
     // reduce impact to concurrent DDL operations.
     waitUntilReadyToBlockNewDDLCoordinators(opCtx);
 
-    // Persist a recovery document before we set the addOrRemoveShardInProgress cluster parameter.
-    // This way, in case of crash, the new primary node will unset the parameter.
-    {
+    if (persistRecoveryDocument) {
+        // Persist a recovery document before we set the addOrRemoveShardInProgress cluster
+        // parameter. This way, in case of crash, the new primary node will unset the parameter.
         DBDirectClient client(opCtx);
         write_ops::checkWriteErrors(client.insert(write_ops::InsertCommandRequest(
             NamespaceString::kServerConfigurationNamespace,
@@ -1448,7 +1448,7 @@ void blockDDLCoordinatorsAndDrain(OperationContext* opCtx) {
 
 // Unsets the addOrRemoveShardInProgress cluster parameter. Must be called under the
 // kConfigsvrShardsNamespace ddl lock.
-void unblockDDLCoordinators(OperationContext* opCtx) {
+void unblockDDLCoordinators(OperationContext* opCtx, bool removeRecoveryDocument) {
     if (MONGO_unlikely(skipBlockingDDLCoordinatorsDuringAddAndRemoveShard.shouldFail())) {
         return;
     }
@@ -1457,8 +1457,8 @@ void unblockDDLCoordinators(OperationContext* opCtx) {
     setAddOrRemoveShardInProgressClusterParam(opCtx, false);
     LOGV2(5687905, "Unblocked new ShardingDDLCoordinators after topology change");
 
-    // Delete the recovery document.
-    {
+    if (removeRecoveryDocument) {
+        // Delete the recovery document.
         DBDirectClient client(opCtx);
         write_ops::checkWriteErrors(client.remove(write_ops::DeleteCommandRequest(
             NamespaceString::kServerConfigurationNamespace,

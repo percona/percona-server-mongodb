@@ -125,9 +125,18 @@ enum UserWriteBlockingLevel {
 void setUserWriteBlockingState(
     OperationContext* opCtx,
     RemoteCommandTargeter& targeter,
-    UserWriteBlockingLevel level,
+    uint8_t level,
     bool block,
     boost::optional<std::function<OperationSessionInfo(OperationContext*)>> osiGenerator,
+    std::shared_ptr<executor::TaskExecutor> executor);
+
+
+/**
+ * Retrieves all the user write blocks from the given replica set
+ */
+UserWriteBlockingLevel getUserWriteBlocksFromReplicaSet(
+    OperationContext* opCtx,
+    RemoteCommandTargeter& targeter,
     std::shared_ptr<executor::TaskExecutor> executor);
 
 /**
@@ -265,13 +274,13 @@ DrainingShardUsage getDrainingProgress(OperationContext* opCtx,
  * operations from beginning. Additionally persists a recovery document which tells that DDLs are
  * currently blocked.
  */
-void blockDDLCoordinatorsAndDrain(OperationContext* opCtx);
+void blockDDLCoordinatorsAndDrain(OperationContext* opCtx, bool persistRecoveryDocument = true);
 
 /**
  * Unsets the cluster parameter which prevents DDL operations from running. Additionally, cleans up
  * the recovery document.
  */
-void unblockDDLCoordinators(OperationContext* opCtx);
+void unblockDDLCoordinators(OperationContext* opCtx, bool removeRecoveryDocument = true);
 
 /**
  * Checks every collection in every database tracked on the config server to ensure that the local
@@ -344,6 +353,20 @@ boost::optional<ShardType> getShardIfExists(OperationContext* opCtx,
 void propagateClusterUserWriteBlockToReplicaSet(OperationContext* opCtx,
                                                 RemoteCommandTargeter& targeter,
                                                 std::shared_ptr<executor::TaskExecutor> executor);
+
+/**
+ * Creates a fetcher responsible for finding documents in a given namespace
+ */
+using FetcherDocsCallbackFn = std::function<bool(const std::vector<BSONObj>& batch)>;
+using FetcherStatusCallbackFn = std::function<void(const Status& status)>;
+
+std::unique_ptr<Fetcher> createFindFetcher(OperationContext* opCtx,
+                                           RemoteCommandTargeter& targeter,
+                                           const NamespaceString& nss,
+                                           const repl::ReadConcernLevel& readConcernLevel,
+                                           FetcherDocsCallbackFn processDocsCallback,
+                                           FetcherStatusCallbackFn processStatusCallback,
+                                           std::shared_ptr<executor::TaskExecutor> executor);
 
 }  // namespace topology_change_helpers
 }  // namespace mongo
