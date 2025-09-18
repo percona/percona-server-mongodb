@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,26 +27,24 @@
  *    it in the license file.
  */
 
-/**
- * BSONObj and its helpers
- *
- * "BSON" stands for "binary JSON" -- ie a binary way to represent objects that would be
- * represented in JSON (plus a few extensions useful for databases & other languages).
- *
- * http://www.bsonspec.org/
- */
-
 #pragma once
 
-#include "mongo/platform/basic.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/db/s/remove_shard_draining_progress_gen.h"
+#include "mongo/db/shard_id.h"
 
-#include "mongo/base/string_data.h"
-#include "mongo/bson/bsonelement.h"
-#include "mongo/bson/bsonmisc.h"
-#include "mongo/bson/bsonobj.h"
-#include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/bson/bsontypes.h"
-#include "mongo/bson/oid.h"
-#include "mongo/bson/ordering.h"
-#include "mongo/bson/timestamp.h"
-#include "mongo/bson/util/builder.h"
+namespace mongo {
+
+namespace topology_change_helpers {
+
+/**
+ * Runs the different stages of the remove shard command - checkPreconditionsAndStartDrain,
+ * checkDrainingStatus, and commit of the removal. Will retry the entire procedure after receiving
+ * a ConflictingOperationOnProgress error.
+ */
+RemoveShardProgress removeShard(OperationContext* opCtx,
+                                const ShardId& shardId,
+                                const std::string& replicaSetName);
+
+}  // namespace topology_change_helpers
+}  // namespace mongo

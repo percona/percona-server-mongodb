@@ -55,7 +55,7 @@ namespace mongo::crypto {
 JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath)
     : _issuer(issuer),
       _clock(clock),
-      _lastSuccessfulFetch(Date_t::min()),
+      _lastFetchQuiesceTime(Date_t::min()),
       _caFilePath(caFilePath) {}
 
 JWKSet JWKSFetcherImpl::fetch() {
@@ -75,7 +75,7 @@ JWKSet JWKSFetcherImpl::fetch() {
 
         auto jwksUri = metadata.getJwksUri();
         auto getJWKs = makeHTTPClient()->get(jwksUri);
-        _lastSuccessfulFetch = _clock->now();
+        _lastFetchQuiesceTime = _clock->now();
 
         ConstDataRange cdr = getJWKs.getCursor();
         StringData str;
@@ -90,7 +90,11 @@ JWKSet JWKSFetcherImpl::fetch() {
 
 bool JWKSFetcherImpl::quiesce() const {
     return _clock->now() <
-        (_lastSuccessfulFetch.get() + Seconds(gJWKSMinimumQuiescePeriodSecs.load()));
+        (_lastFetchQuiesceTime.get() + Seconds(gJWKSMinimumQuiescePeriodSecs.load()));
+}
+
+void JWKSFetcherImpl::setQuiesce(Date_t quiesce) {
+    _lastFetchQuiesceTime = quiesce;
 }
 
 }  // namespace mongo::crypto
