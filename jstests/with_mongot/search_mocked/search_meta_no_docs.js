@@ -30,7 +30,8 @@ const searchCmd = {
     search: coll.getName(),
     collectionUUID: collUUID,
     query: searchQuery,
-    $db: dbName
+    $db: dbName,
+    optimizationFlags: {omitSearchDocumentResults: true}
 };
 const cursorId = NumberLong(17);
 

@@ -3,9 +3,6 @@ filters:
   - "collection_compact*":
     approvers:
       - 10gen/server-rss-sydney
-  - "collection_validation*":
-    approvers:
-      - 10gen/server-validate
   - "health_log*":
     approvers:
       - 10gen/server-dbcheck
@@ -117,7 +114,7 @@ filters:
       - 10gen/server-catalog-and-routing
   - "local_oplog_info*":
     approvers:
-      - 10gen/server-replication
+      - 10gen/server-oplog
   - "document_validation*":
     approvers:
       - 10gen/query-execution-doc-validation

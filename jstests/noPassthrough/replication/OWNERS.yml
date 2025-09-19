@@ -3,3 +3,9 @@ filters:
   - "*":
     approvers:
       - 10gen/server-replication
+  - "*initial_sync*":
+    approvers:
+      - 10gen/server-initial-sync
+  - "*replication_recovery*":
+    approvers:
+      - 10gen/server-recovery

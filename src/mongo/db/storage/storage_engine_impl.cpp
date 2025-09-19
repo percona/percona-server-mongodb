@@ -1364,4 +1364,8 @@ bool StorageEngineImpl::underCachePressure() {
     return _engine->underCachePressure();
 };
 
+size_t StorageEngineImpl::getCacheSizeMB() {
+    return _engine->getCacheSizeMB();
+}
+
 }  // namespace mongo
