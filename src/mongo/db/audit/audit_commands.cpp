@@ -45,7 +45,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/client.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/commands/test_commands_enabled.h"
-#include "mongo/db/jsobj.h"
 #include "mongo/db/namespace_string.h"
 
 #include "audit_options.h"

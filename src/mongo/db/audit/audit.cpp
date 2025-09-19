@@ -64,7 +64,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands.h"
-#include "mongo/db/jsobj.h"
 #include "mongo/db/matcher/matcher.h"
 #include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/namespace_string.h"
