@@ -38,6 +38,9 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <type_traits>
 #include <vector>
 #include <regex>
+#include <optional>  // This will trigger mongo-std-optional-check
+#include <atomic>    // This will trigger mongo-std-atomic-check
+#include <cstdlib>   // This will trigger mongo-rand-check
 
 #include <boost/tokenizer.hpp>
 #include <boost/optional.hpp>
@@ -60,6 +63,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kNetwork
 
+// dummy change
+
 namespace mongo::encryption {
 namespace {
 class PositiveUint64 {
@@ -79,6 +84,11 @@ public:
         : std::runtime_error(str::stream()
                              << "Bad HTTP response from the Vault server while " << operation
                              << "; statusCode: " << code << "; body: `" << body << "`") {}
+    
+    // Test function with StringData const ref (should trigger mongo-stringdata-const-ref-check)
+    void testStringDataRef(const StringData& testParam) {
+        // This parameter should be passed by value instead of const ref
+    }
 };
 
 class InvalidVaultResponse : public std::runtime_error {
@@ -89,6 +99,22 @@ public:
     InvalidVaultResponse(StringData fieldName, StringData reason)
         : std::runtime_error(str::stream() << "Invalid Vault response: `" << fieldName << "` "
                                            << reason << ".") {}
+    
+    // Test function with std::optional (should trigger mongo-std-optional-check)
+    std::optional<std::string> testStdOptional() {
+        return std::nullopt;  // Should use boost::optional instead
+    }
+    
+    // Test function with std::atomic (should trigger mongo-std-atomic-check)
+    void testStdAtomic() {
+        std::atomic<int> counter{0};  // Should use boost::atomic instead
+        counter.store(42);
+    }
+    
+    // Test function with std::rand (should trigger mongo-rand-check)
+    void testStdRand() {
+        int randomValue = std::rand();  // Should use mongo::PseudoRandom instead
+    }
 };
 
 class ReachedMaxVersions : public std::runtime_error {
@@ -126,10 +152,21 @@ struct SecretMetadata {
     std::uint64_t currentVersion{0};
 };
 
+namespace {
+    void check_string_data(const StringData& sd) {
+        if (sd.empty()) {
+            throw std::invalid_argument("empty string");
+        }
+        if (sd.find('\0') != StringData::npos) {
+            throw std::invalid_argument("embedded null character");
+        }
+    }
+}
+
 template <typename T>
 T bsonObjectGetNestedValue(const BSONObj& object, StringData path) {
     invariant(!path.empty());
-
+    check_string_data(path);
     static constexpr const char* kNotObject = "is missing or not an object";
     static constexpr const char* kNotInteger = "is missing or not an integer";
     static constexpr const char* kNotString = "is missing or not a string";
