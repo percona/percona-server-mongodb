@@ -38,12 +38,11 @@ const clearCollection = function() {
     coll.drop();
     assert.commandWorked(testDB.createCollection(
         coll.getName(), {timeseries: {timeField: timeFieldName, metaField: metaFieldName}}));
-    assert.contains(bucketsColl.getName(), testDB.getCollectionNames());
 
     expectedStats.bucketCount = 0;
     expectedStats.numBucketInserts = 0;
     expectedStats.numBucketUpdates = 0;
-    // expectedStats.numBucketsOpenedDueToMetadata = 0;
+    expectedStats.numBucketsOpenedDueToMetadata = 0;
     expectedStats.numBucketsClosedDueToCount = 0;
     // expectedStats.numBucketsClosedDueToSize = 0;
     // expectedStats.numBucketsClosedDueToTimeForward = 0;
@@ -114,14 +113,13 @@ const checkCollStats = function(empty = false) {
                       tojson(stats.timeseries));
     }
 };
-
 checkCollStats(true);
 
 let docs = Array(3).fill({[timeFieldName]: ISODate(), [metaFieldName]: {a: 1}});
 assert.commandWorked(coll.insert(docs, {ordered: false}));
 expectedStats.bucketCount++;
 expectedStats.numBucketInserts++;
-// expectedStats.numBucketsOpenedDueToMetadata++;
+expectedStats.numBucketsOpenedDueToMetadata++;
 expectedStats.numCommits++;
 expectedStats.numMeasurementsCommitted += 3;
 expectedStats.avgNumMeasurementsPerCommit = 3;
@@ -132,7 +130,7 @@ assert.commandWorked(
     coll.insert({[timeFieldName]: ISODate(), [metaFieldName]: {a: 2}}, {ordered: false}));
 expectedStats.bucketCount++;
 expectedStats.numBucketInserts++;
-// expectedStats.numBucketsOpenedDueToMetadata++;
+expectedStats.numBucketsOpenedDueToMetadata++;
 expectedStats.numCommits++;
 expectedStats.numMeasurementsCommitted++;
 expectedStats.avgNumMeasurementsPerCommit = 2;
@@ -172,7 +170,7 @@ docs = Array(numDocs).fill({[timeFieldName]: ISODate(), [metaFieldName]: {a: 'li
 assert.commandWorked(coll.insert(docs, {ordered: false}));
 expectedStats.bucketCount += 2;
 expectedStats.numBucketInserts += 2;
-// expectedStats.numBucketsOpenedDueToMetadata++;
+expectedStats.numBucketsOpenedDueToMetadata++;
 expectedStats.numBucketsClosedDueToCount++;
 expectedStats.numCommits += 2;
 expectedStats.numMeasurementsCommitted += numDocs;
@@ -192,14 +190,13 @@ docs = docs.concat(
 assert.commandWorked(coll.insert(docs, {ordered: false}));
 expectedStats.bucketCount += 2;
 expectedStats.numBucketInserts += 2;
-// expectedStats.numBucketsOpenedDueToMetadata++;
+expectedStats.numBucketsOpenedDueToMetadata++;
 expectedStats.numBucketsClosedDueToCount++;
 expectedStats.numCommits += 2;
 expectedStats.numMeasurementsCommitted += 1001;
 expectedStats.avgNumMeasurementsPerCommit =
     Math.floor(expectedStats.numMeasurementsCommitted / expectedStats.numCommits);
 // expectedStats.numBucketQueriesFailed++;
-
 checkCollStats();
 
 // Assumes each bucket has a limit of 125kB on the measurements stored in the 'data' field.
@@ -215,7 +212,7 @@ docs = Array(numDocs).fill(
 assert.commandWorked(coll.insert(docs, {ordered: false}));
 expectedStats.bucketCount += numDocs;
 expectedStats.numBucketInserts += numDocs;
-// expectedStats.numBucketsOpenedDueToMetadata++;
+expectedStats.numBucketsOpenedDueToMetadata++;
 // expectedStats.numBucketsClosedDueToSize++;
 expectedStats.numCommits += numDocs;
 expectedStats.numMeasurementsCommitted += numDocs;
@@ -236,7 +233,7 @@ for (let i = 0; i < numDocs; i++) {
 assert.commandWorked(coll.insert(docs, {ordered: false}));
 expectedStats.bucketCount += numDocs;
 expectedStats.numBucketInserts += numDocs;
-// expectedStats.numBucketsOpenedDueToMetadata++;
+expectedStats.numBucketsOpenedDueToMetadata++;
 // expectedStats.numBucketsClosedDueToTimeForward++;
 expectedStats.numCommits += numDocs;
 expectedStats.numMeasurementsCommitted += numDocs;
@@ -259,7 +256,7 @@ const testIdleBucketExpiry = function(docFn) {
 
         expectedStats.bucketCount++;
         expectedStats.numBucketInserts++;
-        // expectedStats.numBucketsOpenedDueToMetadata++;
+        expectedStats.numBucketsOpenedDueToMetadata++;
         if (shouldExpire) {
             expectedStats.numBucketsArchivedDueToMemoryThreshold++;
         }
@@ -278,11 +275,9 @@ const testIdleBucketExpiry = function(docFn) {
                kIdleBucketExpiryMemoryUsageThreshold}`);
 };
 
-/*
 testIdleBucketExpiry(i => {
     return {[timeFieldName]: ISODate(), [metaFieldName]: {[i.toString()]: largeValue}};
 });
-*/
 testIdleBucketExpiry(i => {
     return {[timeFieldName]: ISODate(), [metaFieldName]: i, a: largeValue};
 });

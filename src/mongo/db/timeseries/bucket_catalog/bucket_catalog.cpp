@@ -154,8 +154,27 @@ RolloverReason determineBucketRolloverForMeasurement(BucketCatalog& catalog,
         // Update the bucket's 'rolloverReason'.
         bucket.rolloverReason = rolloverReason;
     }
-    bucketOpenedDueToMetadata = false;
     return rolloverReason;
+}
+
+/**
+ * Disallows query-based reopening if the rollover reason is time-forward.
+ * Once query-based reopening is disabled, it cannot be re-enabled.
+ */
+void decideQueryBasedReopening(const RolloverReason& rolloverReason,
+                               AllowQueryBasedReopening& allowQueryBasedReopening) {
+    switch (allowQueryBasedReopening) {
+        case AllowQueryBasedReopening::kDisallow: {
+            return;
+        }
+        case AllowQueryBasedReopening::kAllow: {
+            if (rolloverReason == RolloverReason::kTimeForward) {
+                allowQueryBasedReopening = AllowQueryBasedReopening::kDisallow;
+            }
+            return;
+        }
+    }
+    MONGO_UNREACHABLE;
 }
 
 /**
@@ -173,7 +192,7 @@ Bucket* findOpenBucketForMeasurement(BucketCatalog& catalog,
                                      const TimeseriesOptions& options,
                                      const StringDataComparator* comparator,
                                      uint64_t storageCacheSizeBytes,
-                                     internal::AllowQueryBasedReopening& allowQueryBasedReopening,
+                                     AllowQueryBasedReopening& allowQueryBasedReopening,
                                      ExecutionStatsController& stats,
                                      bool& bucketOpenedDueToMetadata) {
     // Gets a vector of potential buckets, starting with kSoftClose/kArchived buckets, followed by
@@ -183,7 +202,9 @@ Bucket* findOpenBucketForMeasurement(BucketCatalog& catalog,
                                                        stripeLock,
                                                        bucketKey,
                                                        measurementTimestamp,
-                                                       Seconds(*options.getBucketMaxSpanSeconds()));
+                                                       Seconds(*options.getBucketMaxSpanSeconds()),
+                                                       allowQueryBasedReopening,
+                                                       bucketOpenedDueToMetadata);
     if (potentialBuckets.empty()) {
         return nullptr;
     }
@@ -207,11 +228,7 @@ Bucket* findOpenBucketForMeasurement(BucketCatalog& catalog,
             return potentialBucket;
         }
 
-        // Skip query based reopening when 'measurementTimestamp' is later than the
-        // current open bucket's time range.
-        allowQueryBasedReopening = rolloverReason == RolloverReason::kTimeForward
-            ? internal::AllowQueryBasedReopening::kDisallow
-            : internal::AllowQueryBasedReopening::kAllow;
+        decideQueryBasedReopening(rolloverReason, allowQueryBasedReopening);
     }
 
     return nullptr;
@@ -292,7 +309,9 @@ uint64_t getMemoryUsage(const BucketCatalog& catalog) {
         catalog.trackingContexts.openBucketsById.allocated() +
         catalog.trackingContexts.openBucketsByKey.allocated() +
         catalog.trackingContexts.reopeningRequests.allocated() +
-        catalog.trackingContexts.stats.allocated() + catalog.trackingContexts.summaries.allocated();
+        catalog.trackingContexts.stats.allocated() +
+        catalog.trackingContexts.summaries.allocated() +
+        catalog.trackingContexts.measurementBatching.allocated();
 #endif
 }
 
@@ -329,6 +348,9 @@ void getDetailedMemoryUsage(const BucketCatalog& catalog, BSONObjBuilder& builde
                             static_cast<long long>(catalog.trackingContexts.stats.allocated()));
     subBuilder.appendNumber("summaries",
                             static_cast<long long>(catalog.trackingContexts.summaries.allocated()));
+    subBuilder.appendNumber(
+        "measurementBatching",
+        static_cast<long long>(catalog.trackingContexts.measurementBatching.allocated()));
 #endif
 }
 
@@ -625,11 +647,15 @@ std::vector<Bucket*> findAndRolloverOpenBuckets(BucketCatalog& catalog,
                                                 WithLock stripeLock,
                                                 const BucketKey& bucketKey,
                                                 const Date_t& time,
-                                                const Seconds& bucketMaxSpanSeconds) {
+                                                const Seconds& bucketMaxSpanSeconds,
+                                                AllowQueryBasedReopening& allowQueryBasedReopening,
+                                                bool& bucketOpenedDueToMetadata) {
     std::vector<Bucket*> potentialBuckets;
     auto openBuckets = internal::findOpenBuckets(stripe, stripeLock, bucketKey);
     Bucket* bucketWithoutRolloverAction = nullptr;
     for (const auto& openBucket : openBuckets) {
+        // We found at least one bucket with the same metadata.
+        bucketOpenedDueToMetadata = false;
         auto reason = openBucket->rolloverReason;
         auto action = getRolloverAction(reason);
         switch (action) {
@@ -668,6 +694,7 @@ std::vector<Bucket*> findAndRolloverOpenBuckets(BucketCatalog& catalog,
                     // We only want to rollover these buckets when we don't have an insertion
                     // conflict; otherwise, we will attempt to remove the bucket twice.
                     internal::rollover(catalog, stripe, stripeLock, *openBucket, reason);
+                    decideQueryBasedReopening(reason, allowQueryBasedReopening);
                 }
                 break;
             }
@@ -688,7 +715,8 @@ StatusWith<tracking::unique_ptr<Bucket>> getReopenedBucket(
     const std::variant<OID, std::vector<BSONObj>>& reopeningCandidate,
     BucketStateRegistry::Era catalogEra,
     const CompressAndWriteBucketFunc& compressAndWriteBucketFunc,
-    ExecutionStatsController& stats) {
+    ExecutionStatsController& stats,
+    bool& bucketOpenedDueToMetadata) {
     BSONObj reopenedBucketDoc = visit(
         OverloadedVisitor{
             [&](const OID& bucketId) {
@@ -706,6 +734,7 @@ StatusWith<tracking::unique_ptr<Bucket>> getReopenedBucket(
             getTrackingContext(catalog.trackingContexts, TrackingScope::kReopeningRequests),
             nullptr)};
     }
+    bucketOpenedDueToMetadata = false;
 
     if (!timeseries::isCompressedBucket(reopenedBucketDoc)) {
         // Compress the uncompressed bucket document and return.
@@ -758,7 +787,7 @@ Bucket& getEligibleBucket(OperationContext* opCtx,
     auto numReopeningsAttempted = 0;
     auto reopeningLimit = 3;
     do {
-        auto allowQueryBasedReopening = internal::AllowQueryBasedReopening::kAllow;
+        auto allowQueryBasedReopening = AllowQueryBasedReopening::kAllow;
         // 1. Try to find an eligible open bucket for the next measurement.
         if (auto eligibleBucket = findOpenBucketForMeasurement(catalog,
                                                                stripe,
@@ -777,20 +806,20 @@ Bucket& getEligibleBucket(OperationContext* opCtx,
 
         // 2. Attempt to reopen a bucket.
         // Explicitly pass in the lock which can be unlocked and relocked during reopening.
-        auto swReopenedBucket = potentiallyReopenBucket(
-            opCtx,
-            catalog,
-            stripe,
-            stripeLock,
-            bucketsColl,
-            bucketKey,
-            measurementTimestamp,
-            options,
-            era,
-            allowQueryBasedReopening == internal::AllowQueryBasedReopening::kAllow,
-            storageCacheSizeBytes,
-            compressAndWriteBucketFunc,
-            stats);
+        auto swReopenedBucket = potentiallyReopenBucket(opCtx,
+                                                        catalog,
+                                                        stripe,
+                                                        stripeLock,
+                                                        bucketsColl,
+                                                        bucketKey,
+                                                        measurementTimestamp,
+                                                        options,
+                                                        era,
+                                                        allowQueryBasedReopening,
+                                                        storageCacheSizeBytes,
+                                                        compressAndWriteBucketFunc,
+                                                        stats,
+                                                        bucketOpenedDueToMetadata);
         if (swReopenedBucket.isOK() && swReopenedBucket.getValue()) {
             auto& reopenedBucket = *swReopenedBucket.getValue();
             auto rolloverReason = determineBucketRolloverForMeasurement(catalog,
@@ -817,7 +846,7 @@ Bucket& getEligibleBucket(OperationContext* opCtx,
 
     // 3. Reopening can release and reacquire the stripe lock. Look for an eligible open bucket
     // again. If not found, allocate a new bucket this time.
-    auto allowQueryBasedReopening = internal::AllowQueryBasedReopening::kAllow;
+    auto allowQueryBasedReopening = AllowQueryBasedReopening::kAllow;
     if (auto eligibleBucket = findOpenBucketForMeasurement(catalog,
                                                            stripe,
                                                            stripeLock,
@@ -847,10 +876,11 @@ StatusWith<Bucket*> potentiallyReopenBucket(
     const Date_t& time,
     const TimeseriesOptions& options,
     BucketStateRegistry::Era catalogEra,
-    bool allowQueryBasedReopening,
+    const AllowQueryBasedReopening& allowQueryBasedReopening,
     uint64_t storageCacheSizeBytes,
     const CompressAndWriteBucketFunc& compressAndWriteBucketFunc,
-    ExecutionStatsController& stats) {
+    ExecutionStatsController& stats,
+    bool& bucketOpenedDueToMetadata) {
     // Get the information needed for reopening.
     boost::optional<std::variant<OID, std::vector<BSONObj>>> reopeningCandidate;
     boost::optional<InsertWaiter> reopeningConflict;
@@ -861,7 +891,7 @@ StatusWith<Bucket*> potentiallyReopenBucket(
         if (!reopeningConflict) {
             reopeningCandidate = archivedCandidate.get();
         }
-    } else if (allowQueryBasedReopening) {
+    } else if (allowQueryBasedReopening == AllowQueryBasedReopening::kAllow) {
         reopeningConflict = internal::checkForReopeningConflict(stripe, stripeLock, bucketKey);
         if (!reopeningConflict) {
             reopeningCandidate = internal::getQueryReopeningCandidate(
@@ -902,7 +932,8 @@ StatusWith<Bucket*> potentiallyReopenBucket(
                                                   reopeningCandidate.get(),
                                                   catalogEra,
                                                   compressAndWriteBucketFunc,
-                                                  stats);
+                                                  stats,
+                                                  bucketOpenedDueToMetadata);
 
         if (!swReopenedBucket.isOK()) {
             return swReopenedBucket.getStatus();

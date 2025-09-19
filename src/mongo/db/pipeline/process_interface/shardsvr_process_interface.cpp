@@ -134,19 +134,10 @@ void ShardServerProcessInterface::checkRoutingInfoEpochOrThrow(
     auto* catalogCache = Grid::get(expCtx->getOperationContext())->catalogCache();
 
     auto receivedVersion = [&] {
-        // Since we are only checking the epoch, don't advance the time in store of the index cache
-        auto currentShardingIndexCatalogInfo =
-            uassertStatusOK(
-                catalogCache->getCollectionRoutingInfo(expCtx->getOperationContext(), nss))
-                .getIndexesInfo();
-
         // Mark the cache entry routingInfo for the 'nss' if the entry is staler than
         // 'targetCollectionPlacementVersion'.
-        auto ignoreIndexVersion = ShardVersionFactory::make(
-            targetCollectionPlacementVersion,
-            currentShardingIndexCatalogInfo
-                ? boost::make_optional(currentShardingIndexCatalogInfo->getCollectionIndexes())
-                : boost::none);
+        auto ignoreIndexVersion =
+            ShardVersionFactory::make(targetCollectionPlacementVersion, boost::none);
 
         catalogCache->onStaleCollectionVersion(nss, ignoreIndexVersion);
         return ignoreIndexVersion;
@@ -159,11 +150,7 @@ void ShardServerProcessInterface::checkRoutingInfoEpochOrThrow(
             ? routingInfo.getCollectionVersion().placementVersion()
             : ChunkVersion::UNSHARDED();
 
-        auto ignoreIndexVersion = ShardVersionFactory::make(
-            foundVersion,
-            routingInfo.getIndexesInfo()
-                ? boost::make_optional(routingInfo.getIndexesInfo()->getCollectionIndexes())
-                : boost::none);
+        auto ignoreIndexVersion = ShardVersionFactory::make(foundVersion, boost::none);
         return ignoreIndexVersion;
     }();
 
@@ -486,7 +473,7 @@ void ShardServerProcessInterface::createTempCollection(OperationContext* opCtx,
         NamespaceString(NamespaceString::kAggTempCollections),
         std::vector<BSONObj>({BSON(
             "_id" << NamespaceStringUtil::serialize(nss, SerializationContext::stateDefault()))})});
-    writeToLocalShard(opCtx, bcr, generic_argument_util::kMajorityWriteConcern);
+    writeToLocalShard(opCtx, bcr, defaultMajorityWriteConcernDoNotUse());
 
     // Create the collection. Note we don't set the 'temp: true' option. The temporary-ness comes
     // from having registered on kAggTempCollections.
@@ -589,7 +576,7 @@ void ShardServerProcessInterface::dropTempCollection(OperationContext* opCtx,
         {write_ops::DeleteOpEntry(BSON("_id" << NamespaceStringUtil::serialize(
                                            nss, SerializationContext::stateDefault())),
                                   false /* multi */)}});
-    writeToLocalShard(opCtx, std::move(bcr), generic_argument_util::kMajorityWriteConcern);
+    writeToLocalShard(opCtx, std::move(bcr), defaultMajorityWriteConcernDoNotUse());
 }
 
 void ShardServerProcessInterface::createTimeseriesView(OperationContext* opCtx,

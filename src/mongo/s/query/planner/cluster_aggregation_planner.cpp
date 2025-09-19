@@ -146,7 +146,7 @@ Status appendCursorResponseToCommandResult(const ShardId& shardId,
                                            const BSONObj cursorResponse,
                                            BSONObjBuilder* result) {
     // If a write error was encountered, append it to the output buffer first.
-    if (auto wcErrorElem = cursorResponse[kWriteConcernErrorFieldName]) {
+    if (auto wcErrorElem = cursorResponse["writeConcernError"]) {
         appendWriteConcernErrorToCmdResponse(shardId, wcErrorElem, *result);
     }
 
@@ -345,13 +345,9 @@ BSONObj createCommandForMergingShard(Document serializedCommand,
 
     // Attach the IGNORED chunk version to the command. On the shard, this will skip the actual
     // version check but will nonetheless mark the operation as versioned.
-    auto mergeCmdObj = appendShardVersion(
-        mergeCmd.freeze().toBson(),
-        ShardVersionFactory::make(
-            ChunkVersion::IGNORED(),
-            cri.getIndexesInfo()
-                ? boost::make_optional(cri.getIndexesInfo()->getCollectionIndexes())
-                : boost::none));
+    auto mergeCmdObj =
+        appendShardVersion(mergeCmd.freeze().toBson(),
+                           ShardVersionFactory::make(ChunkVersion::IGNORED(), boost::none));
 
     // Attach query settings to the command.
     if (auto querySettingsBSON = mergeCtx->getQuerySettings().toBSON();
@@ -1017,7 +1013,7 @@ Status runPipelineOnSpecificShardOnly(const boost::intrusive_ptr<ExpressionConte
 
     // First append the properly constructed writeConcernError. It will then be skipped
     // in appendElementsUnique.
-    if (auto wcErrorElem = result[kWriteConcernErrorFieldName]) {
+    if (auto wcErrorElem = result["writeConcernError"]) {
         appendWriteConcernErrorToCmdResponse(shardId, wcErrorElem, *out);
     }
 

@@ -402,32 +402,16 @@ ResourcePattern CommandHelpers::resourcePatternForNamespace(const NamespaceStrin
     return ResourcePattern::forExactNamespace(ns);
 }
 
-bool CommandHelpers::appendCommandStatusNoThrow(BSONObjBuilder& result,
-                                                const Status& originalStatus) {
-    auto status = originalStatus;
-    boost::optional<WriteConcernErrorDetail> writeConcernErrorDetail;
-    if (originalStatus.code() == ErrorCodes::ErrorWithWriteConcernError) {
-        auto errorWithWriteConcernError =
-            originalStatus.extraInfo<ErrorWithWriteConcernErrorInfo>();
-
-        status = errorWithWriteConcernError->getMainStatus();
-        writeConcernErrorDetail.emplace(errorWithWriteConcernError->getWriteConcernErrorDetail());
-    }
-
+bool CommandHelpers::appendCommandStatusNoThrow(BSONObjBuilder& result, const Status& status) {
     appendSimpleCommandStatus(result, status.isOK(), status.reason());
-    if (!status.isOK() && !result.asTempObj().hasField("code")) {
+    BSONObj tmp = result.asTempObj();
+    if (!status.isOK() && !tmp.hasField("code")) {
         result.append("code", status.code());
         result.append("codeName", ErrorCodes::errorString(status.code()));
     }
-
     if (auto extraInfo = status.extraInfo()) {
         extraInfo->serialize(&result);
     }
-
-    if (writeConcernErrorDetail && !result.asTempObj().hasField(kWriteConcernErrorFieldName)) {
-        result.append(kWriteConcernErrorFieldName, writeConcernErrorDetail->toBSON());
-    }
-
     // If the command has errored, assert that it satisfies the IDL-defined requirements on a
     // command error reply.
     // Only validate error reply in test mode so that we don't expose users to errors if we
@@ -490,7 +474,7 @@ Status CommandHelpers::extractOrAppendOkAndGetStatus(BSONObjBuilder& reply) {
 void CommandHelpers::appendCommandWCStatus(BSONObjBuilder& result,
                                            const Status& awaitReplicationStatus,
                                            const WriteConcernResult& wcResult) {
-    if (!awaitReplicationStatus.isOK() && !result.hasField(kWriteConcernErrorFieldName)) {
+    if (!awaitReplicationStatus.isOK() && !result.hasField("writeConcernError")) {
         WriteConcernErrorDetail wcError;
         wcError.setStatus(awaitReplicationStatus);
         BSONObjBuilder errInfoBuilder;
@@ -499,7 +483,7 @@ void CommandHelpers::appendCommandWCStatus(BSONObjBuilder& result,
         }
         errInfoBuilder.append(kWriteConcernField, wcResult.wcUsed.toBSON());
         wcError.setErrInfo(errInfoBuilder.obj());
-        result.append(kWriteConcernErrorFieldName, wcError.toBSON());
+        result.append("writeConcernError", wcError.toBSON());
     }
 }
 
@@ -534,15 +518,15 @@ BSONObj CommandHelpers::appendMajorityWriteConcern(const BSONObj& cmdObj,
 
         parsedWC.w = WriteConcernOptions::kMajority;
         return appendWCToObj(cmdObj, parsedWC);
-    } else if (!defaultWC.usedDefaultConstructedWC) {
-        defaultWC.w = WriteConcernOptions::kMajority;
-        if (defaultWC.wTimeout < generic_argument_util::kMajorityWriteConcern.wTimeout) {
-            defaultWC.wTimeout = generic_argument_util::kMajorityWriteConcern.wTimeout;
-        }
-        return appendWCToObj(cmdObj, defaultWC);
-    } else {
-        return appendWCToObj(cmdObj, generic_argument_util::kMajorityWriteConcern);
     }
+
+    auto global = defaultMajorityWriteConcernDoNotUse();
+    if (defaultWC.usedDefaultConstructedWC)
+        return appendWCToObj(cmdObj, global);
+
+    defaultWC.w = WriteConcernOptions::kMajority;
+    defaultWC.wTimeout = std::max(defaultWC.wTimeout, global.wTimeout);
+    return appendWCToObj(cmdObj, defaultWC);
 }
 
 BSONObj CommandHelpers::filterCommandRequestForPassthrough(const BSONObj& cmdObj) {

@@ -13,7 +13,7 @@
 
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 import {getWinningPlanFromExplain, isCollscan, isIxscan} from "jstests/libs/query/analyze_plan.js";
-import {IndexBuildTest} from "jstests/noPassthrough/libs/index_build.js";
+import {IndexBuildTest} from "jstests/noPassthrough/libs/index_builds/index_build.js";
 
 const timeFieldName = "timestamp";
 
@@ -22,7 +22,6 @@ const bucketsColl = db.getCollection('system.buckets.' + coll.getName());
 coll.drop();
 
 assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: timeFieldName}}));
-assert.contains(bucketsColl.getName(), db.getCollectionNames());
 
 const shardKeyIndexCount = FixtureHelpers.isSharded(bucketsColl) ? 1 : 0;
 

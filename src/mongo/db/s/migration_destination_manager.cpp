@@ -33,9 +33,7 @@
 #include <boost/optional/optional.hpp>
 // IWYU pragma: no_include "cxxabi.h"
 #include <array>
-#include <list>
 #include <mutex>
-#include <ratio>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -43,6 +41,7 @@
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/client/read_preference.h"
 #include "mongo/db/auth/authorization_manager.h"
@@ -354,20 +353,7 @@ void replaceShardingIndexCatalogInShardIfNeeded(OperationContext* opCtx,
         return;
     }
 
-    auto optSii = uassertStatusOK(
-        Grid::get(opCtx)->catalogCache()->getCollectionIndexInfoWithRefresh(opCtx, nss));
-
-    if (optSii) {
-        std::vector<IndexCatalogType> indexes;
-        optSii->forEachIndex([&](const auto& index) {
-            indexes.push_back(index);
-            return true;
-        });
-        replaceCollectionShardingIndexCatalog(
-            opCtx, nss, uuid, optSii->getCollectionIndexes().indexVersion(), indexes);
-    } else {
-        clearCollectionShardingIndexCatalog(opCtx, nss, uuid);
-    }
+    clearCollectionShardingIndexCatalog(opCtx, nss, uuid);
 }
 
 // Throws if this configShard is currently draining.
@@ -1508,17 +1494,18 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             // range deletion task with an immediately satsifiable write concern and then wait for
             // majority after yielding the session.
             rangedeletionutil::persistRangeDeletionTaskLocally(
-                outerOpCtx, recipientDeletionTask, WriteConcernOptions());
+                outerOpCtx,
+                recipientDeletionTask,
+                ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter());
 
             runWithoutSession(outerOpCtx, [&] {
                 WriteConcernResult ignoreResult;
                 auto latestOpTime =
                     repl::ReplClientInfo::forClient(outerOpCtx->getClient()).getLastOp();
-                uassertStatusOK(
-                    waitForWriteConcern(outerOpCtx,
-                                        latestOpTime,
-                                        WriteConcerns::kMajorityWriteConcernShardingTimeout,
-                                        &ignoreResult));
+                uassertStatusOK(waitForWriteConcern(outerOpCtx,
+                                                    latestOpTime,
+                                                    defaultMajorityWriteConcernDoNotUse(),
+                                                    &ignoreResult));
             });
 
             timing->done(3);
@@ -1671,7 +1658,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             runWithoutSession(outerOpCtx, [&] {
                 auto awaitReplicationResult =
                     repl::ReplicationCoordinator::get(opCtx)->awaitReplication(
-                        opCtx, lastOpApplied, WriteConcerns::kMajorityWriteConcernShardingTimeout);
+                        opCtx, lastOpApplied, defaultMajorityWriteConcernDoNotUse());
                 uassertStatusOKWithContext(awaitReplicationResult.status,
                                            awaitReplicationResult.status.codeString());
             });
@@ -1792,7 +1779,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             // returns success to the donor, so that if the recipient steps down, the critical
             // section is kept taken while the donor commits the migration.
             ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
-                opCtx, _nss, critSecReason, ShardingCatalogClient::kMajorityWriteConcern);
+                opCtx, _nss, critSecReason, defaultMajorityWriteConcernDoNotUse());
 
             LOGV2(5899114, "Entered migration recipient critical section", logAttrs(_nss));
             timeInCriticalSection.emplace();
@@ -1823,10 +1810,7 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
         auto opCtx = newOpCtxPtr.get();
 
         ShardingRecoveryService::get(opCtx)->acquireRecoverableCriticalSectionBlockWrites(
-            opCtx,
-            _nss,
-            criticalSectionReason(*_sessionId),
-            ShardingCatalogClient::kMajorityWriteConcern);
+            opCtx, _nss, criticalSectionReason(*_sessionId), defaultMajorityWriteConcernDoNotUse());
 
         LOGV2_DEBUG(6064501,
                     2,
@@ -2059,7 +2043,7 @@ void MigrationDestinationManager::awaitCriticalSectionReleaseSignalAndCompleteMi
         opCtx,
         _nss,
         critSecReason,
-        ShardingCatalogClient::kMajorityWriteConcern,
+        defaultMajorityWriteConcernDoNotUse(),
         ShardingRecoveryService::NoCustomAction());
 
     const auto timeInCriticalSectionMs = timeInCriticalSection.millis();

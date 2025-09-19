@@ -343,7 +343,7 @@ void linearizeCSRSReads(OperationContext* opCtx) {
         "Linearize CSRS reads",
         NamespaceString::kServerConfigurationNamespace,
         {},
-        ShardingCatalogClient::kMajorityWriteConcern));
+        defaultMajorityWriteConcernDoNotUse()));
 }
 
 void removeTagsMetadataFromConfig(OperationContext* opCtx,
@@ -438,10 +438,8 @@ void removeCollAndChunksMetadataFromConfig(
     const auto& nss = coll.getNss();
     const auto& uuid = coll.getUuid();
 
-    ON_BLOCK_EXIT([&] {
-        Grid::get(opCtx)->catalogCache()->invalidateCollectionEntry_LINEARIZABLE(nss);
-        Grid::get(opCtx)->catalogCache()->invalidateIndexEntry_LINEARIZABLE(nss);
-    });
+    ON_BLOCK_EXIT(
+        [&] { Grid::get(opCtx)->catalogCache()->invalidateCollectionEntry_LINEARIZABLE(nss); });
 
     /*
     Data from config.collection are deleted using a transaction to guarantee an atomic update on
@@ -586,12 +584,9 @@ void performNoopMajorityWriteLocally(OperationContext* opCtx) {
     uassertStatusOK(getStatusFromWriteCommandReply(commandReply));
 
     WriteConcernResult ignoreResult;
-    const WriteConcernOptions majorityWriteConcern{
-        WriteConcernOptions::kMajority,
-        WriteConcernOptions::SyncMode::UNSET,
-        WriteConcernOptions::kWriteConcernTimeoutSharding};
     auto latestOpTime = repl::ReplClientInfo::forClient(opCtx->getClient()).getLastOp();
-    uassertStatusOK(waitForWriteConcern(opCtx, latestOpTime, majorityWriteConcern, &ignoreResult));
+    uassertStatusOK(waitForWriteConcern(
+        opCtx, latestOpTime, defaultMajorityWriteConcernDoNotUse(), &ignoreResult));
 }
 
 void sendDropCollectionParticipantCommandToShards(OperationContext* opCtx,
