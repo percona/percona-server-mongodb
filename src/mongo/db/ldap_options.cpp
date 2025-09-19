@@ -129,7 +129,7 @@ Status validateLDAPTransportSecurity(const std::string& value) {
 }
 
 Status validateLDAPUserToDNMapping(const std::string& mapping) {
-    if (!isArray(mapping))
+    if (!JParse(mapping).isArray())
         return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: User to DN mapping must be json array of objects"};
 
     BSONArray bsonmapping{fromjson(mapping)};

@@ -261,7 +261,7 @@ Status OidcIdentityProvidersServerParameter::setFromString(StringData str,
                                                            const boost::optional<TenantId>&) try {
     uassert(ErrorCodes::TypeMismatch,
             str::stream() << "`" << kParameterName << "` is not an array serialized to a string",
-            isArray(str));
+            JParse(str).isArray());
     paramDeserialize(*this, BSONArray{fromjson(str)});
     return Status::OK();
 } catch (const DBException& e) {
