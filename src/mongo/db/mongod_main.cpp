@@ -65,6 +65,8 @@
 #include "mongo/client/replica_set_monitor.h"
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/db/admission/execution_control_init.h"
+#include "mongo/db/admission/flow_control.h"
+#include "mongo/db/admission/flow_control_parameters_gen.h"
 #include "mongo/db/audit.h"
 #include "mongo/db/audit/audit_flusher.h"
 #include "mongo/db/audit/audit_options.h"
@@ -220,8 +222,6 @@
 #include "mongo/db/storage/disk_space_monitor.h"
 #include "mongo/db/storage/durable_history_pin.h"
 #include "mongo/db/storage/encryption_hooks.h"
-#include "mongo/db/storage/flow_control.h"
-#include "mongo/db/storage/flow_control_parameters_gen.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/oplog_cap_maintainer_thread.h"
 #include "mongo/db/storage/storage_engine.h"
