@@ -66,7 +66,8 @@ const readWriteActions = [
     "planCacheRead",
     "remove",
     "renameCollectionSameDB",
-    "update"
+    "update",
+    "performRawDataOperations",
 ];
 
 const readActions = [
@@ -79,7 +80,8 @@ const readActions = [
     "listCollections",
     "listIndexes",
     "listSearchIndexes",
-    "planCacheRead"
+    "planCacheRead",
+    "performRawDataOperations",
 ];
 
 const expectedPrivileges = [
