@@ -78,6 +78,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/change_streams* @10gen/query-execution-change-streams @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/multiplan_single_solutions.yml @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/query_settings.yml @10gen/query-execution-query-settings @svc-auto-approve-bot
+/buildscripts/resmokeconfig/matrix_suites/overrides/**/query_shape_hash_stability.yml @10gen/query-execution-query-settings @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/repeat_queries.yml @10gen/query-optimization-plan-cache @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/stepdown_primary_change_streams.yml @10gen/query-execution-change-streams @svc-auto-approve-bot
 
@@ -1065,7 +1066,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/noPassthrough/txns_too_large_for_cache/**/* @10gen/server-storage-engine-integration @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/validate/OWNERS.yml
-/jstests/noPassthrough/validate/**/* @10gen/server-rss-sydney @svc-auto-approve-bot
+/jstests/noPassthrough/validate/**/* @10gen/server-validate @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/versioning_protocol/OWNERS.yml
 /jstests/noPassthrough/versioning_protocol/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
@@ -1430,7 +1431,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/**/list*idl @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/shard_id* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/shard_role* @10gen/server-catalog-and-routing @svc-auto-approve-bot
-/src/mongo/db/**/traffic* @10gen/server-networking-and-observability @svc-auto-approve-bot
+/src/mongo/db/**/traffic* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/**/vector_clock* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/version_context* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/server_lifecycle_monitor* @10gen/server-programmability @svc-auto-approve-bot
