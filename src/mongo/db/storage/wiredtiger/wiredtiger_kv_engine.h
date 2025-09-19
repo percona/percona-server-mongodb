@@ -203,6 +203,10 @@ public:
      * Flushes any WiredTigerSizeStorer updates to the storage engine if necessary.
      */
     virtual void sizeStorerPeriodicFlush() {}
+
+    virtual EncryptionKeyDB* getEncryptionKeyDB() noexcept {
+        return nullptr;
+    }
 };
 
 class WiredTigerKVEngine final : public WiredTigerKVEngineBase {
@@ -493,7 +497,7 @@ public:
         return _canonicalName;
     }
 
-    EncryptionKeyDB* getEncryptionKeyDB() noexcept;
+    EncryptionKeyDB* getEncryptionKeyDB() noexcept override;
 
     /*
      * Always returns a non-null pointer and is valid for the lifetime of this KVEngine. However,
