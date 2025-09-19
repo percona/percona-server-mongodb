@@ -4182,7 +4182,7 @@ void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
     if (isEphemeral()) {
         auto [journalListener, token] = _getJournalListenerWithToken(opCtx, useListener);
         if (token) {
-            journalListener->onDurable(token.value());
+            journalListener->onDurable(*token);
         }
         return;
     }
@@ -4224,7 +4224,7 @@ void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
         }
 
         if (token) {
-            journalListener->onDurable(token.value());
+            journalListener->onDurable(*token);
         }
 
         LOGV2_DEBUG(22418, 4, "created checkpoint (forced)");
@@ -4245,7 +4245,7 @@ void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
         // The JournalListener is the only operation that meets this criteria currently.
         lk.unlock();
         if (token) {
-            journalListener->onDurable(token.value());
+            journalListener->onDurable(*token);
         }
 
         return;
@@ -4295,11 +4295,11 @@ void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
     // The JournalListener is the only operation that meets this criteria currently.
     lk.unlock();
     if (token) {
-        journalListener->onDurable(token.value());
+        journalListener->onDurable(*token);
     }
 }
 
-std::pair<JournalListener*, boost::optional<JournalListener::Token>>
+std::pair<JournalListener*, std::unique_ptr<JournalListener::Token>>
 WiredTigerKVEngine::_getJournalListenerWithToken(OperationContext* opCtx,
                                                  UseJournalListener useListener) {
     auto journalListener = [&]() -> JournalListener* {
@@ -4309,7 +4309,7 @@ WiredTigerKVEngine::_getJournalListenerWithToken(OperationContext* opCtx,
         stdx::unique_lock<stdx::mutex> lk(_journalListenerMutex);
         return _journalListener;
     }();
-    boost::optional<JournalListener::Token> token;
+    std::unique_ptr<JournalListener::Token> token;
     if (journalListener && useListener == UseJournalListener::kUpdate) {
         // Update a persisted value with the latest write timestamp that is safe across
         // startup recovery in the repl layer. Then report that timestamp as durable to the
@@ -4317,7 +4317,7 @@ WiredTigerKVEngine::_getJournalListenerWithToken(OperationContext* opCtx,
         // Note: only does a write if primary, otherwise just fetches the timestamp.
         token = journalListener->getToken(opCtx);
     }
-    return std::make_pair(journalListener, token);
+    return std::make_pair(journalListener, std::move(token));
 }
 
 Timestamp WiredTigerKVEngine::getStableTimestamp() const {
