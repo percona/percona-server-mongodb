@@ -172,9 +172,9 @@ mongo_cc_library(
         "//src/mongo/unittest:golden_test_base",
         "//src/mongo/util:buildinfo",
         "//src/mongo/util:icu",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/util/net:http_client",
         "//src/mongo/util:password",
         "//src/mongo/util:signal_handlers",
+        "//src/mongo/util/net:http_client",
     ],
 )
 

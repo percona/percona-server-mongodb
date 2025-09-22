@@ -1,7 +1,7 @@
 load("//bazel:mongo_src_rules.bzl", "mongo_cc_library", "mongo_cc_unit_test")
- 
+
 package(default_visibility = ["//visibility:public"])
- 
+
 exports_files(
     glob([
         "*.h",
@@ -110,8 +110,8 @@ mongo_cc_library(
         "master_key_provider.h",
     ],
     deps = [
-        ":key",
         ":encryption_options",
+        ":key",
         ":kmip_client",
         ":read_file_to_secure_string",
         ":vault_client",
@@ -138,6 +138,7 @@ mongo_cc_unit_test(
     srcs = [
         "key_id_test.cpp",
     ],
+    tags = ["mongo_unittest_second_group"],
     deps = [
         ":key",
     ],
@@ -148,6 +149,7 @@ mongo_cc_unit_test(
     srcs = [
         "vault_secret_metadata_locator_test.cpp",
     ],
+    tags = ["mongo_unittest_second_group"],
     deps = [
         ":vault_secret_metadata_locator",
     ],
@@ -158,10 +160,11 @@ mongo_cc_unit_test(
     srcs = [
         "encryption_status_test.cpp",
     ],
+    tags = ["mongo_unittest_fourth_group"],
     deps = [
         ":encryption_status",
-        "//src/mongo/db/commands:server_status_core",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/commands:server_status_core",
     ],
 )
 
@@ -170,6 +173,7 @@ mongo_cc_unit_test(
     srcs = [
         "vault_client_test.cpp",
     ],
+    tags = ["mongo_unittest_eighth_group"],
     deps = [
         ":vault_client",
         "//src/mongo/util/net:http_client",

@@ -8,12 +8,12 @@ idl_generator(
 )
 
 mongo_cc_library(
-    name="telemetry_base",
+    name = "telemetry_base",
     srcs = [
-        ":telemetry_parameter_gen",
         "telemetry_parameter.cpp",
         "telemetry_path.cpp",
         "telemetry_thread_base.cpp",
+        ":telemetry_parameter_gen",
     ],
     hdrs = [
         "telemetry_path.h",
@@ -21,42 +21,41 @@ mongo_cc_library(
         "telemetry_thread_base.h",
     ],
     deps = [
-        "//src/mongo/db:server_base",
-    "//src/mongo/db:service_context",
         "//src/mongo/db:ldap_options",
+        "//src/mongo/db:server_base",
+        "//src/mongo/db:service_context",
         "//src/mongo/db/auth:sasl_options",
         "//src/mongo/util:background_job",
     ] + select({
         "//bazel/config:oidc_enabled": [
-            "//src/mongo/db/auth/oidc:oidc",
+            "//src/mongo/db/auth/oidc",
         ],
         "//conditions:default": [],
     }) + select({
         "//bazel/config:full_featured_enabled": [
-            "//src/mongo/db/auth/oidc:oidc",
+            "//src/mongo/db/auth/oidc",
         ],
         "//conditions:default": [],
     }),
-    
 )
 
 mongo_cc_library(
-    name="telemetry_d",
+    name = "telemetry_d",
     srcs = [
         "telemetry_thread_d.cpp",
     ],
     deps = [
         ":telemetry_base",
         "//src/mongo/db/catalog:collection_options",
+        "//src/mongo/db/encryption:vault_client",
         "//src/mongo/db/repl:repl_server_parameters",
         "//src/mongo/db/repl:storage_interface",
-        "//src/mongo/db/encryption:vault_client",
         "//src/mongo/s:grid",
     ],
 )
 
 mongo_cc_library(
-    name="telemetry_s",
+    name = "telemetry_s",
     srcs = [
         "telemetry_thread_s.cpp",
     ],

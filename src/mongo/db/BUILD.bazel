@@ -356,8 +356,8 @@ mongo_cc_library(
     deps = [
         ":server_base",  # TODO(SERVER-93876): Remove.
         ":service_context",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/db/repl:repl_settings",
         "//src/mongo/db/encryption:encryption_options",
+        "//src/mongo/db/repl:repl_settings",
     ],
 )
 
@@ -389,7 +389,7 @@ mongo_cc_library(
     deps = [
         ":server_base",
         "//src/mongo:base",
-        "//src/mongo/util/options_parser:options_parser",
+        "//src/mongo/util/options_parser",
     ],
 )
 
@@ -401,7 +401,7 @@ mongo_cc_library(
     deps = [
         ":ldap_options",
         "//src/mongo/util/net:network",
-        "//src/mongo/util/options_parser:options_parser",
+        "//src/mongo/util/options_parser",
     ],
 )
 
@@ -658,7 +658,7 @@ mongo_cc_library(
     ],
     deps = [
         ":service_context",
-    ]
+    ],
 )
 
 mongo_cc_library(
@@ -3760,14 +3760,14 @@ mongo_cc_library(
         "//conditions:default": [],
     }) + select({
         "//bazel/config:full_featured_enabled": [
+            "//src/mongo/db/auth/oidc",
             "//src/mongo/db/repl:initial_syncer_fcb",
-            "//src/mongo/db/auth/oidc:oidc",
         ],
         "//bazel/config:fcbis_enabled": [
             "//src/mongo/db/repl:initial_syncer_fcb",
         ],
         "//bazel/config:oidc_enabled": [
-            "//src/mongo/db/auth/oidc:oidc",
+            "//src/mongo/db/auth/oidc",
         ],
         "//conditions:default": [],
     }) + select({
