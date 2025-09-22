@@ -96,6 +96,7 @@
 #include "mongo/db/s/config/sharding_catalog_manager.h"
 #include "mongo/db/s/drop_collection_coordinator.h"
 #include "mongo/db/s/migration_blocking_operation/multi_update_coordinator.h"
+#include "mongo/db/s/range_deletion_util.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service.h"
 #include "mongo/db/s/shard_authoritative_catalog_gen.h"
@@ -162,24 +163,6 @@ MONGO_FAIL_POINT_DEFINE(setFCVPauseAfterReadingConfigDropPedingDBs);
  * Ensures that only one instance of setFeatureCompatibilityVersion can run at a given time.
  */
 Lock::ResourceMutex commandMutex("setFCVCommandMutex");
-
-/**
- * Deletes the persisted default read/write concern document.
- */
-void deletePersistedDefaultRWConcernDocument(OperationContext* opCtx) {
-    DBDirectClient client(opCtx);
-    const auto commandResponse = client.runCommand([&] {
-        write_ops::DeleteCommandRequest deleteOp(NamespaceString::kConfigSettingsNamespace);
-        deleteOp.setDeletes({[&] {
-            write_ops::DeleteOpEntry entry;
-            entry.setQ(BSON("_id" << ReadWriteConcernDefaults::kPersistedDocumentId));
-            entry.setMulti(false);
-            return entry;
-        }()});
-        return deleteOp.serialize();
-    }());
-    uassertStatusOK(getStatusFromWriteCommandReply(commandResponse->getCommandReply()));
-}
 
 void abortAllReshardCollection(OperationContext* opCtx) {
     auto reshardingCoordinatorService = checked_cast<ReshardingCoordinatorService*>(
@@ -937,10 +920,21 @@ private:
     // _internalServerCleanupForDowngrade.
     void _upgradeServerMetadata(OperationContext* opCtx, const FCV requestedVersion) {
         auto role = ShardingState::get(opCtx)->pollClusterRole();
+        const auto originalVersion =
+            getTransitionFCVInfo(
+                serverGlobalParams.featureCompatibility.acquireFCVSnapshot().getVersion())
+                .from;
 
         if (role && role->has(ClusterRole::ConfigServer)) {
             _setShardedClusterCardinalityParameter(opCtx, requestedVersion);
             _initializePlacementHistory(opCtx, requestedVersion);
+        }
+
+        // TODO SERVER-103046: Remove once 9.0 becomes last lts.
+        if (role && role->has(ClusterRole::ShardServer) &&
+            feature_flags::gTerminateSecondaryReadsUponRangeDeletion
+                .isEnabledOnTargetFCVButDisabledOnOriginalFCV(requestedVersion, originalVersion)) {
+            rangedeletionutil::setPreMigrationShardVersionOnRangeDeletionTasks(opCtx);
         }
 
         _cleanUpDeprecatedCatalogMetadata(opCtx);

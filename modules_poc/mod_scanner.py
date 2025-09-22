@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import re
 
 import yaml
 
@@ -11,8 +10,10 @@ except ImportError:
     # from yaml import Loader, Dumper
 
 import dataclasses
+import functools
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -20,6 +21,7 @@ from glob import glob
 from pathlib import Path  # if you haven't already done so
 from typing import NoReturn
 
+import pyzstd
 from codeowners import CodeOwners
 
 file = Path(__file__).resolve()
@@ -93,24 +95,33 @@ DETAIL_REGEX = re.compile(r"(detail|internal)s?$")
 
 def get_visibility(c: Cursor, scanning_parent=False):
     if is_tu(c):
-        return "UNKNOWN"  # break recursion
+        return ("UNKNOWN", None)  # break recursion
 
-    prefix = "mongo::mod::"
-    shallow = "shallow::"
     if c.has_attrs():
         for child in c.get_children():
             if child.kind != CursorKind.ANNOTATE_ATTR:
                 continue
-            attr = child.spelling
-            if not attr.startswith(prefix):
+            terms = child.spelling.split("::")
+            if not (len(terms) >= 3 and terms.pop(0) == "mongo" and terms.pop(0) == "mod"):
                 continue
-            attr = attr[len(prefix) :]
-            if attr.startswith(shallow):
+            if terms[0] == "shallow":
+                terms.pop(0)
+                assert terms
                 if scanning_parent:
                     continue  # shallow doesn't apply to children
-                attr = attr[len(shallow) :]
-            assert attr in ("public", "private", "unfortunately_public")
-            return attr
+            attr = terms.pop(0)
+            if terms:
+                alt = "::".join(terms)
+                assert attr in ("use_replacement",)
+            else:
+                alt = None
+                assert attr in (
+                    "public",
+                    "private",
+                    "file_private",
+                    "needs_replacement",
+                )
+            return (attr, alt)
 
     # Some rules for implicitly private decls
     # TODO: Unfortunately these rules are violated on 64 declarations,
@@ -214,6 +225,7 @@ class Decl:
     defined: bool
     spelling: str
     visibility: str
+    alt: str
     sem_par: str
     lex_par: str
     used_from: dict[str, set[str]] = dataclasses.field(default_factory=dict, compare=False)
@@ -223,6 +235,7 @@ class Decl:
 
     @staticmethod
     def from_cursor(c: Cursor, mod=None):
+        vis, alt = get_visibility(c)
         return Decl(
             display_name=fully_qualified(c),
             spelling=c.spelling,
@@ -233,7 +246,8 @@ class Decl:
             kind=c.kind.name,
             mod=mod or mod_for_file(c.location.file),
             defined=c.is_definition(),
-            visibility=get_visibility(c),
+            visibility=vis,
+            alt=alt,
             sem_par=c.semantic_parent.get_usr(),
             lex_par=c.lexical_parent.get_usr(),
         )
@@ -689,7 +703,15 @@ def main():
         find_usages(mod_for_file(top_level.location.file), top_level)
     timer.mark("found usages")
 
-    with open(out_from_env or "decls.yaml", "w") as f:
+    out_file_name = out_from_env if out_from_env else "decls.yaml"
+    if out_file_name.endswith(".zst"):
+        uncompressed_file_name = out_file_name[: -len(".zst")]
+        open_func = functools.partial(pyzstd.ZstdFile, write_size=2 * 1024 * 1024)
+    else:
+        uncompressed_file_name = out_file_name
+        open_func = open
+
+    with open_func(out_file_name, "wb") as f:
         out = [dict(d.__dict__) for d in decls.values() if d.mod not in skip_mods]
         for decl in out:
             # del decl["spelling"]
@@ -709,10 +731,10 @@ def main():
             out = list(filter(lambda d: d["used_from"], out))
 
         timer.mark("processed")
-        if f.name.endswith(".json"):
-            json.dump(out, f)
+        if uncompressed_file_name.endswith(".json"):
+            f.write(json.dumps(out).encode())
         else:
-            assert f.name.endswith(".yaml")
+            assert out_file_name.endswith(".yaml")
             yaml.dump(out, f, Dumper=Dumper)
         timer.mark("dumped")
 

@@ -44,52 +44,38 @@ ExecutorFuture<void> RemoveShardCommitCoordinator::_runImpl(
     return ExecutorFuture<void>(**executor)
         .then(_buildPhaseHandler(
             Phase::kCheckPreconditions,
-            [this, executor = executor, anchor = shared_from_this()] {
-                const auto opCtxHolder = cc().makeOperationContext();
-                auto* opCtx = opCtxHolder.get();
-                getForwardableOpMetadata().setOn(opCtx);
-
+            [this, executor = executor, anchor = shared_from_this()](auto* opCtx) {
                 // TODO(SERVER-97816): Remove this call once 9.0 becomes lastLTS.
                 topology_change_helpers::resetDDLBlockingForTopologyChangeIfNeeded(opCtx);
 
                 _checkShardExistsAndIsDraining(opCtx);
+                _setReplicaSetNameOnDocument(opCtx);
             }))
         .then(_buildPhaseHandler(
             Phase::kJoinMigrationsAndCheckRangeDeletions,
             [this, anchor = shared_from_this()] { return _doc.getIsTransitionToDedicated(); },
-            [this, executor = executor, anchor = shared_from_this()] {
-                _joinMigrationsAndCheckRangeDeletions();
+            [this, executor = executor, anchor = shared_from_this()](auto* opCtx) {
+                _joinMigrationsAndCheckRangeDeletions(opCtx);
             }))
-        .then(_buildPhaseHandler(Phase::kStopDDLsAndCleanupData,
-                                 [this, executor = executor, anchor = shared_from_this()] {
-                                     const auto opCtxHolder = cc().makeOperationContext();
-                                     auto* opCtx = opCtxHolder.get();
-                                     getForwardableOpMetadata().setOn(opCtx);
-
-                                     _stopDDLOperations(opCtx);
-                                     _checkShardIsEmpty(opCtx);
-                                     if (_doc.getIsTransitionToDedicated()) {
-                                         _dropLocalCollections(opCtx);
-                                     }
-                                 }))
+        .then(_buildPhaseHandler(
+            Phase::kStopDDLsAndCleanupData,
+            [this, executor = executor, anchor = shared_from_this()](auto* opCtx) {
+                _stopDDLOperations(opCtx);
+                _checkShardIsEmpty(opCtx);
+                if (_doc.getIsTransitionToDedicated()) {
+                    _dropLocalCollections(opCtx);
+                }
+            }))
         .then(_buildPhaseHandler(Phase::kCommit,
-                                 [this, executor = executor, anchor = shared_from_this()] {
-                                     const auto opCtxHolder = cc().makeOperationContext();
-                                     auto* opCtx = opCtxHolder.get();
-                                     getForwardableOpMetadata().setOn(opCtx);
-
-                                     _commitRemoveShard(opCtx, executor);
-                                 }))
-        .then(_buildPhaseHandler(Phase::kResumeDDLs,
-                                 [this, executor = executor, anchor = shared_from_this()] {
-                                     const auto opCtxHolder = cc().makeOperationContext();
-                                     auto* opCtx = opCtxHolder.get();
-                                     getForwardableOpMetadata().setOn(opCtx);
-
-                                     _resumeDDLOperations(opCtx);
-                                     _updateClusterCardinalityParameterIfNeeded(opCtx);
-                                     _finalizeShardRemoval(opCtx);
-                                 }))
+                                 [this, executor = executor, anchor = shared_from_this()](
+                                     auto* opCtx) { _commitRemoveShard(opCtx, executor); }))
+        .then(_buildPhaseHandler(
+            Phase::kResumeDDLs,
+            [this, executor = executor, anchor = shared_from_this()](auto* opCtx) {
+                _resumeDDLOperations(opCtx);
+                _updateClusterCardinalityParameterIfNeeded(opCtx);
+                _finalizeShardRemoval(opCtx);
+            }))
         .onError([this, anchor = shared_from_this()](const Status& status) {
             if (status == ErrorCodes::RequestAlreadyFulfilled) {
                 return Status::OK();
@@ -141,11 +127,13 @@ void RemoveShardCommitCoordinator::_checkShardExistsAndIsDraining(OperationConte
             optShard->getDraining());
 }
 
-void RemoveShardCommitCoordinator::_joinMigrationsAndCheckRangeDeletions() {
-    auto opCtxHolder = cc().makeOperationContext();
-    auto* opCtx = opCtxHolder.get();
-    getForwardableOpMetadata().setOn(opCtx);
+void RemoveShardCommitCoordinator::_setReplicaSetNameOnDocument(OperationContext* opCtx) {
+    auto shard =
+        uassertStatusOK(Grid::get(opCtx)->shardRegistry()->getShard(opCtx, _doc.getShardId()));
+    _doc.setReplicaSetName(shard->getConnString().getReplicaSetName());
+}
 
+void RemoveShardCommitCoordinator::_joinMigrationsAndCheckRangeDeletions(OperationContext* opCtx) {
     topology_change_helpers::joinMigrations(opCtx);
     // The config server may be added as a shard again, so we locally drop its drained
     // sharded collections to enable that without user intervention. But we have to wait for
@@ -226,7 +214,7 @@ void RemoveShardCommitCoordinator::_commitRemoveShard(
 
     if (!_doc.getIsTransitionToDedicated()) {
         // Don't remove the config shard's RSM because it is used to target the config server.
-        ReplicaSetMonitor::remove(_doc.getReplicaSetName().toString());
+        ReplicaSetMonitor::remove(_doc.getReplicaSetName()->toString());
     }
 }
 
@@ -277,8 +265,7 @@ void RemoveShardCommitCoordinator::checkIfOptionsConflict(const BSONObj& stateDo
 
     const auto optionsMatch = [&] {
         stdx::lock_guard lk(_docMutex);
-        return _doc.getShardId() == otherDoc.getShardId() &&
-            _doc.getReplicaSetName() == otherDoc.getReplicaSetName();
+        return _doc.getShardId() == otherDoc.getShardId();
     }();
 
     uassert(ErrorCodes::ConflictingOperationInProgress,

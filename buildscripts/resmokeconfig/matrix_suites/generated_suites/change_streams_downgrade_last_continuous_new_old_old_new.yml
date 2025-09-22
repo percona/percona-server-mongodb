@@ -104,8 +104,6 @@ selector:
     - jstests/core/**/list_indexes_non_existent_ns.js
     - jstests/core/**/mr_preserve_indexes.js
     - jstests/core/**/distinct_index1.js
-    - jstests/core/**/explain/explain_count.js
-    - jstests/core/**/explain_server_params.js
     - jstests/core/**/expr_index_use.js
     - jstests/core/**/index_multikey.js
     - jstests/core/**/query/explain/optimized_match_explain.js
@@ -231,7 +229,7 @@ selector:
     - jstests/core/**/bench_test1.js
     - jstests/core/**/benchrun_pipeline_updates.js
     - jstests/core/**/cursora.js
-    - jstests/core/**/query/SERVER-23626.js
+    - jstests/core/**/query/function_prototype_bson_type.js
     - jstests/core/**/find_and_modify_new_upsert_sort.js
     - jstests/core/**/upsert_shell.js
     - jstests/core/**/mixed_version_replica_set.js

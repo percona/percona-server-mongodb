@@ -134,7 +134,7 @@ struct ServerGlobalParams {
     bool relaxPermChecks = false;  // --relaxPermChecks
 
     std::string logpath;  // Path to log file, if logging to a file; otherwise, empty.
-    logv2::LogTimestampFormat logTimestampFormat = logv2::LogTimestampFormat::kISO8601UTC;
+    logv2::LogTimestampFormat logTimestampFormat = logv2::LogTimestampFormat::kISO8601Local;
 
     bool logAppend = false;         // True if logging to a file in append mode.
     bool logRenameOnRotate = true;  // True if logging should rename log files on rotate

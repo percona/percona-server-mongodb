@@ -205,7 +205,8 @@ protected:
 
 private:
     const IndexDescriptor* getIndex(Database* db, const BSONObj& obj) {
-        CollectionPtr collection(
+        // TODO(SERVER-103409): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
+        CollectionPtr collection = CollectionPtr::CollectionPtr_UNSAFE(
             CollectionCatalog::get(&_opCtx)->lookupCollectionByNamespace(&_opCtx, nss));
         std::vector<const IndexDescriptor*> indexes;
         collection->getIndexCatalog()->findIndexesByKeyPattern(
@@ -246,10 +247,12 @@ TEST_F(PlanExecutorTest, DropIndexScanAgg) {
         MultipleCollectionAccessor collections(collection);
         auto transactionResourcesStasher =
             make_intrusive<ShardRoleTransactionResourcesStasherForPipeline>();
+        auto catalogResourceHandle =
+            make_intrusive<DSCursorCatalogResourceHandle>(transactionResourcesStasher);
         auto cursorSource =
             DocumentSourceCursor::create(collections,
                                          std::move(innerExec),
-                                         transactionResourcesStasher,
+                                         catalogResourceHandle,
                                          _expCtx,
                                          DocumentSourceCursor::CursorType::kRegular);
         auto pipeline = Pipeline::create({cursorSource}, _expCtx);
