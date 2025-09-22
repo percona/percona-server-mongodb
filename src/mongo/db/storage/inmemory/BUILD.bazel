@@ -10,10 +10,10 @@ idl_generator(
 mongo_cc_library(
     name = "storage_inmemory",
     srcs = [
-        ":inmemory_global_options_gen",
         "inmemory_global_options.cpp",
         "inmemory_init.cpp",
         "inmemory_options_init.cpp",
+        ":inmemory_global_options_gen",
     ],
     hdrs = [
         "inmemory_global_options.h",
@@ -29,13 +29,14 @@ mongo_cc_unit_test(
     srcs = [
         "inmemory_init_test.cpp",
     ],
+    tags = ["mongo_unittest_first_group"],
     deps = [
-        "//src/mongo/db/auth:authmocks",
         "//src/mongo/db:service_context",
         "//src/mongo/db:service_context_d",
         "//src/mongo/db:service_context_test_fixture",
-        "//src/mongo/db/storage/inmemory:storage_inmemory",
+        "//src/mongo/db/auth:authmocks",
         "//src/mongo/db/storage:storage_options",
+        "//src/mongo/db/storage/inmemory:storage_inmemory",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger_core",
     ],
@@ -46,6 +47,7 @@ mongo_cc_unit_test(
     srcs = [
         "inmemory_kv_engine_test.cpp",
     ],
+    tags = ["mongo_unittest_sixth_group"],
     deps = [
         "//src/mongo/db/auth:authmocks",
         "//src/mongo/db/repl:repl_coordinator_interface",

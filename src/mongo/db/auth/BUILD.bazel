@@ -515,7 +515,7 @@ mongo_cc_library(
         "//src/mongo/db:dbhelpers",
         "//src/mongo/db:ldap_options_init",
         "//src/mongo/db:server_base",
-        "//src/mongo/db/auth/external:externalsaslauth", # if MONGO_BUILD_SASL_CLIENT "//bazel/config:use_sasl_client_enabled"
+        "//src/mongo/db/auth/external:externalsaslauth",  # if MONGO_BUILD_SASL_CLIENT "//bazel/config:use_sasl_client_enabled"
         "//src/mongo/db/commands:authentication_commands",
         "//src/mongo/db/commands:umc_commands_idl",
         "//src/mongo/db/query:command_request_response",

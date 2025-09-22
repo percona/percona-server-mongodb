@@ -6,4 +6,3 @@ idl_generator(
     name = "perrconadecrypt_options_gen",
     src = "perconadecrypt_options.idl",
 )
-

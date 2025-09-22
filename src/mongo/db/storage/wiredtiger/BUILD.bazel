@@ -27,8 +27,8 @@ mongo_cc_library(
     target_compatible_with = WIREDTIGER_TARGET_COMPATIBLE_WITH,
     deps = [
         "//src/mongo:base",
-        "//src/mongo/db/encryption:encryption_options",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/encryption:encryption_options",
     ],
 )
 
@@ -112,11 +112,32 @@ mongo_cc_library(
         "//src/mongo/db/storage:snapshot_manager.h",
         "//src/mongo/db/storage/kv:kv_engine.h",
     ],
+    linkopts = [
+        # S3 and its dependencies
+        # order is important here
+        "-laws-cpp-sdk-transfer",
+        "-laws-cpp-sdk-s3",
+        "-laws-cpp-sdk-core",
+        "-laws-crt-cpp",
+        "-laws-c-event-stream",
+        "-laws-c-mqtt",
+        "-laws-c-s3",
+        "-laws-c-auth",
+        "-laws-c-http",
+        "-laws-c-compression",
+        "-laws-c-io",
+        "-laws-c-cal",
+        "-laws-c-sdkutils",
+        "-ls2n",
+        "-laws-checksums",
+        "-laws-c-common",
+        "-lcurl",
+    ],
     target_compatible_with = WIREDTIGER_TARGET_COMPATIBLE_WITH,
     deps = [
         "storage_wiredtiger_customization_hooks",
-        "//src/mongo/db:dbhelpers",
         "//src/mongo/bson/dotted_path:dotted_path_support",
+        "//src/mongo/db:dbhelpers",
         "//src/mongo/db:global_settings",
         "//src/mongo/db:mongod_options",
         "//src/mongo/db:record_id_helpers",
@@ -156,27 +177,6 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }),
-    linkopts = [
-        # S3 and its dependencies
-        # order is important here
-        "-laws-cpp-sdk-transfer",
-        "-laws-cpp-sdk-s3",
-        "-laws-cpp-sdk-core",
-        "-laws-crt-cpp",
-        "-laws-c-event-stream",
-        "-laws-c-mqtt",
-        "-laws-c-s3",
-        "-laws-c-auth",
-        "-laws-c-http",
-        "-laws-c-compression",
-        "-laws-c-io",
-        "-laws-c-cal",
-        "-laws-c-sdkutils",
-        "-ls2n",
-        "-laws-checksums",
-        "-laws-c-common",
-        "-lcurl",
-    ],
 )
 
 mongo_cc_library(
@@ -239,9 +239,10 @@ mongo_cc_unit_test(
     srcs = [
         "wiredtiger_encryption_test.cpp",
     ],
+    tags = ["mongo_unittest_seventh_group"],
     deps = [
         ":storage_wiredtiger_core",
-    ]
+    ],
 )
 
 mongo_cc_unit_test(
@@ -249,11 +250,12 @@ mongo_cc_unit_test(
     srcs = [
         "wiredtiger_kv_engine_encryption_key_test.cpp",
     ],
+    tags = ["mongo_unittest_eighth_group"],
     deps = [
         ":storage_wiredtiger",
+        "//src/mongo/db:service_context_d_test_fixture",
         "//src/mongo/db/auth:authmocks",
         "//src/mongo/db/encryption:key_management",
-        "//src/mongo/db:service_context_d_test_fixture",
         "//src/mongo/util:clock_source_mock",
         "//src/mongo/util:mock_periodic_runner",
         "//src/mongo/util:periodic_runner_factory",

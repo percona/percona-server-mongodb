@@ -16,8 +16,8 @@ mongo_cc_library(
     name = "audit_options",
     srcs = [
         "audit_options.cpp",
-        ":audit_parameters_gen",
         ":audit_options_gen",
+        ":audit_parameters_gen",
     ],
     hdrs = [
         "audit_options.h",
@@ -25,15 +25,15 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
-        "//src/mongo/util/options_parser:options_parser",
+        "//src/mongo/util/options_parser",
     ],
 )
 
 mongo_cc_library(
     name = "audit_impl",
     srcs = [
-        "audit_flusher.cpp",
         "audit.cpp",
+        "audit_flusher.cpp",
     ],
     hdrs = [
         "audit.h",
@@ -62,9 +62,9 @@ mongo_cc_library(
         ":audit_impl",
         ":audit_options",
         "//src/mongo/db:audit",
-        "//src/mongo/db/auth:auth",
-        "//src/mongo/db/auth:authprivilege",
         "//src/mongo/db:commands",
+        "//src/mongo/db/auth",
+        "//src/mongo/db/auth:authprivilege",
         "//src/mongo/db/commands:test_commands_enabled",
     ],
 )
@@ -74,6 +74,7 @@ mongo_cc_unit_test(
     srcs = [
         "audit_options_test.cpp",
     ],
+    tags = ["mongo_unittest_first_group"],
     deps = [
         ":audit_options",
         "//src/mongo/db:server_options_base",

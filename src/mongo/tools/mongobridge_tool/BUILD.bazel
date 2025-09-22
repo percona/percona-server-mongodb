@@ -28,11 +28,11 @@ mongo_cc_binary(
         "mongobridge_options_gen",
         "mongobridge_options_init.cpp",
     ],
-    tags = [
-        "dist_test",
-    ],
     header_deps = [
         "//src/mongo/util:version_impl",
+    ],
+    tags = [
+        "dist_test",
     ],
     deps = [
         "//src/mongo/db:dbmessage",

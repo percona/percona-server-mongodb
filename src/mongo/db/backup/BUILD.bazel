@@ -18,11 +18,11 @@ mongo_cc_library(
         "backupable.h",
     ],
     deps = [
-        "//src/mongo/db/exec/mutable_bson:mutable_bson",
-        "//src/mongo/db/auth:auth",
-        "//src/mongo/db/auth:authprivilege",
         "//src/mongo/db:commands",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/auth",
+        "//src/mongo/db/auth:authprivilege",
+        "//src/mongo/db/exec/mutable_bson",
         "//src/mongo/db/storage:storage_options",
     ],
 )

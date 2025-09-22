@@ -26,12 +26,17 @@ mongo_cc_library(
         "sasl_oidc_server_mechanism.h",
         "//src/mongo/crypto:jws_validated_token.h",
     ],
+    linkopts = [
+        "-lgssapi_krb5",
+        "-lldap",
+        "-lsasl2",
+    ],
     deps = [
-        "//src/mongo/db/auth:saslauth",
-        "//src/mongo/db/auth/oidc:oidc",
-        "//src/mongo/db/ldap:ldap_manager",
         "//src/mongo/db:ldap_options",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/auth:saslauth",
+        "//src/mongo/db/auth/oidc",
+        "//src/mongo/db/ldap:ldap_manager",
         "//src/mongo/util/net:http_client",
     ] + select({
         "//bazel/config:ssl_enabled": [
@@ -39,11 +44,6 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }),
-    linkopts = [
-        "-lgssapi_krb5",
-        "-lldap",
-        "-lsasl2",
-    ],
 )
 
 mongo_cc_unit_test(
@@ -51,8 +51,9 @@ mongo_cc_unit_test(
     srcs = [
         "sasl_oidc_server_mechanism_test.cpp",
     ],
+    tags = ["mongo_unittest_second_group"],
     deps = [
         ":externalsaslauth",
         "//src/mongo/db/auth/oidc:oidc_test_fixture",
-    ]
+    ],
 )

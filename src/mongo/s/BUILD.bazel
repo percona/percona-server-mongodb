@@ -1026,12 +1026,12 @@ mongo_cc_library(
         "//conditions:default": [],
     }) + select({
         "//bazel/config:full_featured_enabled": [
-            "//src/mongo/db/auth/oidc:oidc",
+            "//src/mongo/db/auth/oidc",
         ],
         "//conditions:default": [],
     }) + select({
         "//bazel/config:oidc_enabled": [
-            "//src/mongo/db/auth/oidc:oidc",
+            "//src/mongo/db/auth/oidc",
         ],
         "//conditions:default": [],
     }) + select({

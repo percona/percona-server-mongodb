@@ -234,7 +234,7 @@ mongo_cc_library(
             "//src/mongo/db/audit:audit_impl",
         ],
         "//conditions:default": [],
-    })
+    }),
 )
 
 mongo_cc_unit_test(
@@ -260,11 +260,11 @@ mongo_cc_unit_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = [
-        ":rpc_test_deps_shim",
         ":client_metadata",
         ":metadata",
         ":rewrite_state_change_errors",
         ":rpc",
+        ":rpc_test_deps_shim",
         "//src/mongo/client:clientdriver_minimal",
         "//src/mongo/db:service_context_non_d",
         "//src/mongo/db:service_context_test_fixture",
