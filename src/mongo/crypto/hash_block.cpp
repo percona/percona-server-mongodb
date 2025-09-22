@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2019-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,27 +27,49 @@
  *    it in the license file.
  */
 
-#include <utility>
-
-#include "mongo/db/repl_set_member_in_standalone_mode.h"
-#include "mongo/db/service_context.h"
-#include "mongo/util/decorable.h"
+#include "mongo/crypto/hash_block.h"
 
 namespace mongo {
+#if defined(MONGO_CONFIG_SSL) && MONGO_CONFIG_SSL_PROVIDER == MONGO_CONFIG_SSL_PROVIDER_OPENSSL && \
+    OPENSSL_VERSION_NUMBER < 0x10100000L
 namespace {
+HMAC_CTX* HMAC_CTX_new() {
+    void* ctx = OPENSSL_malloc(sizeof(HMAC_CTX));
 
-const auto& replSetMemberInStandaloneMode = ServiceContext::declareDecoration<bool>();
+    if (ctx != NULL) {
+        memset(ctx, 0, sizeof(HMAC_CTX));
+    }
+    return static_cast<HMAC_CTX*>(ctx);
+}
 
+void HMAC_CTX_free(HMAC_CTX* ctx) {
+    HMAC_CTX_cleanup(ctx);
+    OPENSSL_free(ctx);
+}
+
+void HMAC_CTX_reset(HMAC_CTX* ctx) {
+    // For OpenSSL versions 1.0.2 and prior, we do not
+    // have performance issues with creating a new context
+    // object.
+    HMAC_CTX_free(ctx);
+    ctx = HMAC_CTX_new();
+}
 }  // namespace
-
-bool getReplSetMemberInStandaloneMode(ServiceContext* serviceCtx) {
-    return replSetMemberInStandaloneMode(serviceCtx);
+#endif
+#if defined(MONGO_CONFIG_SSL) && (MONGO_CONFIG_SSL_PROVIDER == MONGO_CONFIG_SSL_PROVIDER_OPENSSL)
+HmacContext::HmacContext() {
+    hmac_ctx = HMAC_CTX_new();
+};
+HmacContext::~HmacContext() {
+    HMAC_CTX_free(hmac_ctx);
 }
 
-void setReplSetMemberInStandaloneMode(ServiceContext* serviceCtx,
-                                      bool isReplSetMemberInStandaloneMode) {
-    auto& replSetMemberInStandaloneModeBool = replSetMemberInStandaloneMode(serviceCtx);
-    replSetMemberInStandaloneModeBool = isReplSetMemberInStandaloneMode;
-}
+void HmacContext::reset() {
+    HMAC_CTX_reset(hmac_ctx);
+};
 
+HMAC_CTX* HmacContext::get() {
+    return hmac_ctx;
+}
+#endif
 }  // namespace mongo

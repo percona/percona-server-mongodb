@@ -1440,7 +1440,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/**/vector_clock* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/version_context* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/server_lifecycle_monitor* @10gen/server-programmability @svc-auto-approve-bot
-/src/mongo/db/**/repl_set_member_in_standalone_mode* @10gen/server-storage-engine-integration @svc-auto-approve-bot
 /src/mongo/db/**/server_recovery* @10gen/server-storage-engine-integration @svc-auto-approve-bot
 /src/mongo/db/**/mongod_options_replication.* @10gen/server-replication @svc-auto-approve-bot
 /src/mongo/db/**/mongod_options_storage.idl @10gen/server-storage-engine-integration @svc-auto-approve-bot
@@ -1468,6 +1467,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/auth/**/* @10gen/server-security @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/catalog/OWNERS.yml
+/src/mongo/db/catalog/**/BUILD.bazel @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/catalog/**/collection_compact* @10gen/server-rss-sydney @svc-auto-approve-bot
 /src/mongo/db/catalog/**/health_log* @10gen/server-dbcheck @svc-auto-approve-bot
 /src/mongo/db/catalog/**/import* @10gen/server-catalog-and-routing @10gen/server-storage-engine-integration @svc-auto-approve-bot

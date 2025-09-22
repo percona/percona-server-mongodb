@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2019-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,39 +29,24 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <initializer_list>
-
-#include "mongo/base/data_range.h"
-#include "mongo/base/string_data.h"
-#include "mongo/crypto/hash_block.h"
-#include "mongo/util/make_array_type.h"
-
 namespace mongo {
 
+class ServiceContext;
+
 /**
- * A Traits type for adapting HashBlock to sha256 hashes.
+ * Returns the boolean decoration on 'serviceCtx', which indicates whether or not this is a replica
+ * set member running in standalone mode.
  */
-struct SHA256BlockTraits {
-    using HashType = MakeArrayType<std::uint8_t, 32, SHA256BlockTraits>;
+bool getReplSetMemberInStandaloneMode(ServiceContext* serviceCtx);
 
-    static constexpr StringData name = "SHA256Block"_sd;
-
-    static void computeHash(std::initializer_list<ConstDataRange> input, HashType* output);
-
-    static void computeHmac(const uint8_t* key,
-                            size_t keyLen,
-                            std::initializer_list<ConstDataRange> input,
-                            HashType* output);
-
-    static void computeHmacWithCtx(HmacContext* ctx,
-                                   const uint8_t* key,
-                                   size_t keyLen,
-                                   std::initializer_list<ConstDataRange> input,
-                                   HashType* output);
-};
-
-using SHA256Block = HashBlock<SHA256BlockTraits>;
+/**
+ * Sets the boolean decoration on 'serviceCtx', which indicates whether or not this is a replica set
+ * member running in standalone mode.
+ *
+ * This method will hit an invariant if the decoration is reset after previously being set. The
+ * standalone mode is only set at startup and should not change.
+ */
+void setReplSetMemberInStandaloneMode(ServiceContext* serviceCtx,
+                                      bool isReplSetMemberInStandaloneMode);
 
 }  // namespace mongo
