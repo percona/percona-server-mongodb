@@ -29,76 +29,76 @@
 #
 
 global:
-  cpp_namespace: mongo
-  cpp_includes:
-    - "mongo/db/auth/oidc/match_pattern.h"
+    cpp_namespace: mongo
+    cpp_includes:
+        - "mongo/db/auth/oidc/match_pattern.h"
 
 imports:
-  - "mongo/db/basic_types.idl"
+    - "mongo/db/basic_types.idl"
 
 types:
-  MatchPattern:
-    description: "Serializable regular expression."
-    bson_serialization_type: string
-    cpp_type: "mongo::MatchPattern"
-    serializer: "mongo::MatchPattern::toString"
-    deserializer: "mongo::MatchPattern::fromString"
-    is_view: false
+    MatchPattern:
+        description: "Serializable regular expression."
+        bson_serialization_type: string
+        cpp_type: "mongo::MatchPattern"
+        serializer: "mongo::MatchPattern::toString"
+        deserializer: "mongo::MatchPattern::fromString"
+        is_view: false
 
 structs:
-  OidcIdentityProviderConfig:
-    description: Configuration of an individual OIDC identity provider (IdP)
-    strict: true
-    fields:
-      issuer:
-        type: string
-      authNamePrefix:
-        type: string
-      matchPattern:
-        type: MatchPattern
-        optional: true  # conditional
-      clientId:
-        type: string
-        optional: true  # conditional
-      audience:
-        type: string
-      requestScopes:
-        type: array<string>
-        optional: true
-      principalName:
-        type: string
-        default: '"sub"'
-      useAuthorizationClaim:
-        type: bool
-        default: true
-      authorizationClaim:
-        type: string
-        optional: true  # conditional
-      logClaims:
-        type: array<string>
-        # The IDL Parser does not support default values for arrays.
-        # This field has a default value which is set in paramDeserialize
-        # function in oidc_server_parameters.cpp.
-        optional: true
-      JWKSPollSecs:
-        type: int
-        default: 0
-        validator:
-          gte: 0
-      supportsHumanFlows:
-        type: bool
-        default: true
-      serverCAFile:
-        type: string
-        default: '""'
+    OidcIdentityProviderConfig:
+        description: Configuration of an individual OIDC identity provider (IdP)
+        strict: true
+        fields:
+            issuer:
+                type: string
+            authNamePrefix:
+                type: string
+            matchPattern:
+                type: MatchPattern
+                optional: true # conditional
+            clientId:
+                type: string
+                optional: true # conditional
+            audience:
+                type: string
+            requestScopes:
+                type: array<string>
+                optional: true
+            principalName:
+                type: string
+                default: '"sub"'
+            useAuthorizationClaim:
+                type: bool
+                default: true
+            authorizationClaim:
+                type: string
+                optional: true # conditional
+            logClaims:
+                type: array<string>
+                # The IDL Parser does not support default values for arrays.
+                # This field has a default value which is set in paramDeserialize
+                # function in oidc_server_parameters.cpp.
+                optional: true
+            JWKSPollSecs:
+                type: int
+                default: 0
+                validator:
+                    gte: 0
+            supportsHumanFlows:
+                type: bool
+                default: true
+            serverCAFile:
+                type: string
+                default: '""'
 
 server_parameters:
-  oidcIdentityProviders:
-    description: >-
-      identity provider (IdP) configurations for OpenID Connect Authentication
-    set_at: startup
-    cpp_class:
-      name: "OidcIdentityProvidersServerParameter"
-      data: "std::vector<OidcIdentityProviderConfig>"
-      override_set: true
-    redact: false
+    oidcIdentityProviders:
+        description: >-
+            identity provider (IdP) configurations for OpenID Connect Authentication
+        set_at: startup
+        cpp_class:
+            name: "OidcIdentityProvidersServerParameter"
+            data: "std::vector<OidcIdentityProviderConfig>"
+            override_set: true
+        redact: false

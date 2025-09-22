@@ -31,29 +31,29 @@
 global:
     cpp_namespace: "mongo"
     configs:
-        section: 'Audit Options'
-        source: [ cli, ini, yaml ]
+        section: "Audit Options"
+        source: [cli, ini, yaml]
         initializer:
             register: addAuditOptions
 
 configs:
     "auditLog.destination":
-        description: 'Output type: enables auditing functionality'
+        description: "Output type: enables auditing functionality"
         arg_vartype: String
         short_name: auditDestination
-        deprecated_name: 'audit.destination'
+        deprecated_name: "audit.destination"
     "auditLog.format":
-        description: 'Output format (supported formats are JSON and BSON; defaults to JSON)'
+        description: "Output format (supported formats are JSON and BSON; defaults to JSON)"
         arg_vartype: String
         short_name: auditFormat
-        deprecated_name: 'audit.format'
+        deprecated_name: "audit.format"
     "auditLog.filter":
-        description: 'JSON query filter on events, users, etc.'
+        description: "JSON query filter on events, users, etc."
         arg_vartype: String
         short_name: auditFilter
-        deprecated_name: 'audit.filter'
+        deprecated_name: "audit.filter"
     "auditLog.path":
-        description: 'Event destination file path and name'
+        description: "Event destination file path and name"
         arg_vartype: String
         short_name: auditPath
-        deprecated_name: 'audit.path'
+        deprecated_name: "audit.path"

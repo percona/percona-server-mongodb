@@ -36,7 +36,7 @@ global:
 server_parameters:
     redactClientLogData:
         description: "Redact log events before logging to avoid writing potentially sensitive data to the diagnostic log"
-        set_at: [ startup, runtime ]
+        set_at: [startup, runtime]
         cpp_class:
             name: RedactClientLogDataParameter
             override_set: true

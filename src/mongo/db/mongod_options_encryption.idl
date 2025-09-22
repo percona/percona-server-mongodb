@@ -33,84 +33,89 @@ global:
     cpp_includes:
         - "mongo/db/mongod_options_encryption.h"
     configs:
-        section: 'Encryption options'
-        source: [ yaml, cli ]
+        section: "Encryption options"
+        source: [yaml, cli]
         initializer:
             register: addMongodEncryptionOptions
 
 configs:
-    'security.enableEncryption':
-        description: 'Enable encryption for the WiredTiger storage engine'
+    "security.enableEncryption":
+        description: "Enable encryption for the WiredTiger storage engine"
         short_name: enableEncryption
         arg_vartype: Switch
 
-    'security.encryptionCipherMode':
-        description: 'The cipher mode to use for encryption at rest'
+    "security.encryptionCipherMode":
+        description: "The cipher mode to use for encryption at rest"
         short_name: encryptionCipherMode
         arg_vartype: String
-        requires: 'security.enableEncryption'
+        requires: "security.enableEncryption"
         validator:
             callback: validateEncryptionCipherModeSetting
 
-    'security.encryptionKeyFile':
-        description: 'The path to the local keyfile'
+    "security.encryptionKeyFile":
+        description: "The path to the local keyfile"
         short_name: encryptionKeyFile
         arg_vartype: String
-        requires: 'security.enableEncryption'
-        conflicts: ['security.vault.serverName', 'security.kmip.serverName']
+        requires: "security.enableEncryption"
+        conflicts: ["security.vault.serverName", "security.kmip.serverName"]
 
-    'security.vault.serverName':
-        description: 'Hostname or IP address of the Vault server'
+    "security.vault.serverName":
+        description: "Hostname or IP address of the Vault server"
         short_name: vaultServerName
         arg_vartype: String
-        requires: [ 'security.enableEncryption', 'security.vault.port', 'security.vault.tokenFile']
-        conflicts: ['security.encryptionKeyFile', 'security.kmip.serverName']
+        requires:
+            [
+                "security.enableEncryption",
+                "security.vault.port",
+                "security.vault.tokenFile",
+            ]
+        conflicts: ["security.encryptionKeyFile", "security.kmip.serverName"]
 
-    'security.vault.port':
-        description: 'Port name the Vault server is listening on'
+    "security.vault.port":
+        description: "Port name the Vault server is listening on"
         short_name: vaultPort
         arg_vartype: Int
-        requires: 'security.vault.serverName'
+        requires: "security.vault.serverName"
         validator:
             gte: 0
             lte: 65535
 
-    'security.vault.tokenFile':
+    "security.vault.tokenFile":
         description: "The path to file with Vault server's access token"
         short_name: vaultTokenFile
         arg_vartype: String
-        requires: 'security.vault.serverName'
+        requires: "security.vault.serverName"
 
-    'security.vault.secret':
-        description: 'The name of the Vault secret where the master key is stored'
+    "security.vault.secret":
+        description: "The name of the Vault secret where the master key is stored"
         short_name: vaultSecret
         arg_vartype: String
-        requires: 'security.vault.serverName'
+        requires: "security.vault.serverName"
 
-    'security.vault.secretVersion':
+    "security.vault.secretVersion":
         description: >-
             The version of the Vault secret where the master key is stored.
             Zero means the most recent version.
         short_name: vaultSecretVersion
         arg_vartype: UnsignedLongLong
-        requires: 'security.vault.secret'
+        requires: "security.vault.secret"
 
-    'security.vault.rotateMasterKey':
-        description: 'Rotate master key and re-encrypt keys db'
+    "security.vault.rotateMasterKey":
+        description: "Rotate master key and re-encrypt keys db"
         short_name: vaultRotateMasterKey
         arg_vartype: Switch
-        requires: 'security.vault.serverName'
+        requires: "security.vault.serverName"
 
-    'security.vault.serverCAFile':
+    "security.vault.serverCAFile":
         description: >-
             CA certificate that was used to sign Vault's certificates
             - should be used when the Vault's CA certificate is not trusted
             by the machine that is going to connect to the Vault server
         short_name: vaultServerCAFile
         arg_vartype: String
-        requires: 'security.vault.serverName'
+        requires: "security.vault.serverName"
 
-    'security.vault.checkMaxVersions':
+    "security.vault.checkMaxVersions":
         description: >-
             Before writing a new secret on a Vault server, verify that the
             present number of secret versions has not reached the value of the
@@ -118,18 +123,18 @@ configs:
             Default: `true`
         short_name: vaultCheckMaxVersions
         arg_vartype: Bool
-        requires: 'security.vault.serverName'
+        requires: "security.vault.serverName"
 
-    'security.vault.disableTLSForTesting':
+    "security.vault.disableTLSForTesting":
         description: >-
             Disable using TLS for Vault server connections
             - is suitable for connecting Vault server in -dev mode or
             Vault server with TLS disabled. Should not be used in production
         short_name: vaultDisableTLSForTesting
         arg_vartype: Switch
-        requires: 'security.vault.serverName'
+        requires: "security.vault.serverName"
 
-    'security.kmip.serverName':
+    "security.kmip.serverName":
         description: >-
             Hostname or IP address of the KMIP server. It may also be a
             comma-separated list of hostnames or IP addresses in which case
@@ -139,43 +144,44 @@ configs:
             IP address.
         short_name: kmipServerName
         arg_vartype: String
-        requires: [ 'security.enableEncryption', 'security.kmip.clientCertificateFile']
-        conflicts: ['security.encryptionKeyFile', 'security.vault.serverName']
+        requires:
+            ["security.enableEncryption", "security.kmip.clientCertificateFile"]
+        conflicts: ["security.encryptionKeyFile", "security.vault.serverName"]
 
-    'security.kmip.port':
-        description: 'Port number the KMIP server is listening on, default is 5696'
+    "security.kmip.port":
+        description: "Port number the KMIP server is listening on, default is 5696"
         short_name: kmipPort
         arg_vartype: Int
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
         validator:
             gte: 0
             lte: 65535
 
-    'security.kmip.serverCAFile':
+    "security.kmip.serverCAFile":
         description: >-
             CA certificate that was used to sign KMIP server's certificates
             - should be used when the KMIP server's CA certificate is not
             trusted by the machine that is going to connect to the KMIP server
         short_name: kmipServerCAFile
         arg_vartype: String
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
 
-    'security.kmip.clientCertificateFile':
-        description: 'Path to the PEM file with KMIP client private key and certificate chain'
+    "security.kmip.clientCertificateFile":
+        description: "Path to the PEM file with KMIP client private key and certificate chain"
         short_name: kmipClientCertificateFile
         arg_vartype: String
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
 
-    'security.kmip.clientCertificatePassword':
+    "security.kmip.clientCertificatePassword":
         description: >-
             Password for the KMIP client private key or/and certificate.
             Should be used only if either the private key or certificate
             is encrypted.
         short_name: kmipClientCertificatePassword
         arg_vartype: String
-        requires: 'security.kmip.clientCertificateFile'
+        requires: "security.kmip.clientCertificateFile"
 
-    'security.kmip.connectRetries':
+    "security.kmip.connectRetries":
         description: >-
             Number times `mongod` retries to get a response from a KMIP server.
             Maximum number of tries per each KMIP server equals to
@@ -184,34 +190,34 @@ configs:
             retry.
         short_name: kmipConnectRetries
         arg_vartype: Int
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
         validator:
             gte: 0
 
-    'security.kmip.connectTimeoutMS':
+    "security.kmip.connectTimeoutMS":
         description: >-
             Timeout in milliseconds to wait for a response from the KMIP server.
             If the `connectRetries` setting is specified, the `mongod` will wait
             up to the value specified with `connectTimeoutMS` for each retry.
         short_name: kmipConnectTimeoutMS
         arg_vartype: Int
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
         validator:
             gte: 1000
 
-    'security.kmip.keyIdentifier':
-        description: 'Name of the KMIP key to use'
+    "security.kmip.keyIdentifier":
+        description: "Name of the KMIP key to use"
         short_name: kmipKeyIdentifier
         arg_vartype: String
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
 
-    'security.kmip.rotateMasterKey':
-        description: 'Rotate master key and re-encrypt key db'
+    "security.kmip.rotateMasterKey":
+        description: "Rotate master key and re-encrypt key db"
         short_name: kmipRotateMasterKey
         arg_vartype: Switch
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
 
-    'security.kmip.activateKeys':
+    "security.kmip.activateKeys":
         description: >-
             Activates all new KMIP keys upon registering them on a KMIP server.
             When the option is `true` and `mongod` starts with a predefined
@@ -224,9 +230,9 @@ configs:
             Default: `true`
         short_name: kmipActivateKeys
         arg_vartype: Bool
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
 
-    'security.kmip.keyStatePollingSeconds':
+    "security.kmip.keyStatePollingSeconds":
         description: >-
             Time interval in seconds with which `mongod` polls the KMIP
             server in order to verify that the master encryption key is
@@ -238,9 +244,9 @@ configs:
             Default: 900
         short_name: kmipKeyStatePollingSeconds
         arg_vartype: Int
-        requires: 'security.kmip.serverName'
+        requires: "security.kmip.serverName"
 
-    'security.kmip.useLegacyProtocol':
+    "security.kmip.useLegacyProtocol":
         description: >-
             This option is supported for compatibility but has no effect.
             KMIP protocol version 1.0 is always used.

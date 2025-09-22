@@ -36,7 +36,7 @@ global:
 server_parameters:
     profilingRateLimit:
         description: "Rate limit value representing the fraction of queries to be profiled"
-        set_at: [ startup, runtime ]
+        set_at: [startup, runtime]
         cpp_class:
             name: RateLimitParameter
             override_set: true

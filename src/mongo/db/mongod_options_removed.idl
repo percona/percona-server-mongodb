@@ -29,25 +29,24 @@
 #
 
 global:
-  cpp_namespace: "mongo"
-  configs:
-    section: 'Removed options'
-    source: [ yaml, cli, ini ]
-    initializer:
-      register: addMongodRemovedOptions
+    cpp_namespace: "mongo"
+    configs:
+        section: "Removed options"
+        source: [yaml, cli, ini]
+        initializer:
+            register: addMongodRemovedOptions
 
 configs:
-    'storage.journal.enabled':
-        description: 'Now it is NOOP. Was: Enable journaling'
+    "storage.journal.enabled":
+        description: "Now it is NOOP. Was: Enable journaling"
         short_name: journal
         deprecated_short_name: dur
         arg_vartype: Switch
         hidden: true
 
     nojournal:
-        description: 'Now it is NOOP. Was: Disable journaling (journaling is on by default for 64 bit)'
+        description: "Now it is NOOP. Was: Disable journaling (journaling is on by default for 64 bit)"
         deprecated_short_name: nodur
         arg_vartype: Switch
-        source: [ cli, ini ]
+        source: [cli, ini]
         hidden: true
-

@@ -33,8 +33,8 @@ global:
     cpp_includes:
         - "mongo/db/ldap_options.h"
     configs:
-        section: 'LDAP options'
-        source: [ yaml, cli ]
+        section: "LDAP options"
+        source: [yaml, cli]
         initializer:
             register: addMongodLDAPAuthzOptions
 
@@ -48,11 +48,10 @@ server_parameters:
         redact: false
 
 configs:
-    'security.ldap.authz.queryTemplate':
+    "security.ldap.authz.queryTemplate":
         description: "Template of LDAP query to get list of user's roles"
         short_name: ldapAuthzQueryTemplate
         arg_vartype: String
-        requires: 'security.ldap.servers'
+        requires: "security.ldap.servers"
         validator:
             callback: validateLDAPAuthzQueryTemplate
-

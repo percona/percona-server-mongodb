@@ -29,149 +29,149 @@
 #
 
 global:
-  cpp_namespace: "mongo"
-  configs:
-    source: [ cli]
-    initializer:
-      register: addPerconaDecryptOptions
-  cpp_includes:
-    - "mongo/tools/perconadecrypt_options.h"
+    cpp_namespace: "mongo"
+    configs:
+        source: [cli]
+        initializer:
+            register: addPerconaDecryptOptions
+    cpp_includes:
+        - "mongo/tools/perconadecrypt_options.h"
 
 configs:
-  help:
-    description: "show this usage information"
-    short_name: help
-    arg_vartype: Switch
+    help:
+        description: "show this usage information"
+        short_name: help
+        arg_vartype: Switch
 
-  version:
-    description: 'show version information'
-    short_name: version
-    arg_vartype: Switch
+    version:
+        description: "show version information"
+        short_name: version
+        arg_vartype: Switch
 
-  inputPath:
-    description: "encrypted file to decrypt"
-    short_name: inputPath
-    arg_vartype: String
+    inputPath:
+        description: "encrypted file to decrypt"
+        short_name: inputPath
+        arg_vartype: String
 
-  outputPath:
-    description: "where to store decrypted result"
-    short_name: outputPath
-    arg_vartype: String
+    outputPath:
+        description: "where to store decrypted result"
+        short_name: outputPath
+        arg_vartype: String
 
-  encryptionKeyFile:
-    description: "the path to encryption key file"
-    short_name: encryptionKeyFile
-    arg_vartype: String
-    conflicts: [vaultServerName, kmipServerName]
+    encryptionKeyFile:
+        description: "the path to encryption key file"
+        short_name: encryptionKeyFile
+        arg_vartype: String
+        conflicts: [vaultServerName, kmipServerName]
 
-  encryptionCipherMode:
-    description: "the cipher mode to use for decryption (AES256-CBC/AES256-GCM)"
-    short_name: encryptionCipherMode
-    arg_vartype: String
-    validator:
-      callback: validateEncryptionCipherModeSetting
+    encryptionCipherMode:
+        description: "the cipher mode to use for decryption (AES256-CBC/AES256-GCM)"
+        short_name: encryptionCipherMode
+        arg_vartype: String
+        validator:
+            callback: validateEncryptionCipherModeSetting
 
-  vaultServerName:
-    description: "hostname or IP address of the Vault server"
-    short_name: vaultServerName
-    arg_vartype: String
-    requires: [ vaultPort, vaultTokenFile, vaultSecret, vaultSecretVersion ]
-    conflicts: [encryptionKeyFile, kmipServerName]
+    vaultServerName:
+        description: "hostname or IP address of the Vault server"
+        short_name: vaultServerName
+        arg_vartype: String
+        requires: [vaultPort, vaultTokenFile, vaultSecret, vaultSecretVersion]
+        conflicts: [encryptionKeyFile, kmipServerName]
 
-  vaultPort:
-    description: "port name the Vault server is listening on"
-    short_name: vaultPort
-    arg_vartype: Int
-    requires: vaultServerName
-    validator:
-      gte: 0
-      lte: 65535
+    vaultPort:
+        description: "port name the Vault server is listening on"
+        short_name: vaultPort
+        arg_vartype: Int
+        requires: vaultServerName
+        validator:
+            gte: 0
+            lte: 65535
 
-  vaultTokenFile:
-    description: "the path to file with Vault server's access token"
-    short_name: vaultTokenFile
-    arg_vartype: String
-    requires: vaultServerName
+    vaultTokenFile:
+        description: "the path to file with Vault server's access token"
+        short_name: vaultTokenFile
+        arg_vartype: String
+        requires: vaultServerName
 
-  vaultSecret:
-    description: "the name of the Vault secret where the master key is stored"
-    short_name: vaultSecret
-    arg_vartype: String
-    requires: vaultServerName
+    vaultSecret:
+        description: "the name of the Vault secret where the master key is stored"
+        short_name: vaultSecret
+        arg_vartype: String
+        requires: vaultServerName
 
-  vaultSecretVersion:
-    description: >-
-      The version of the Vault secret where the master key is stored.
-      Zero means the most recent version.
-    short_name: vaultSecretVersion
-    arg_vartype: UnsignedLongLong
-    requires: vaultSecret
+    vaultSecretVersion:
+        description: >-
+            The version of the Vault secret where the master key is stored.
+            Zero means the most recent version.
+        short_name: vaultSecretVersion
+        arg_vartype: UnsignedLongLong
+        requires: vaultSecret
 
-  vaultServerCAFile:
-    description: >-
-      CA certificate that was used to sign Vault's certificates
-      - should be used when the Vault's CA certificate is not trusted
-      by the machine that is going to connect to the Vault server
-    short_name: vaultServerCAFile
-    arg_vartype: String
-    requires: vaultServerName
+    vaultServerCAFile:
+        description: >-
+            CA certificate that was used to sign Vault's certificates
+            - should be used when the Vault's CA certificate is not trusted
+            by the machine that is going to connect to the Vault server
+        short_name: vaultServerCAFile
+        arg_vartype: String
+        requires: vaultServerName
 
-  vaultDisableTLSForTesting:
-    description: >-
-      disable using TLS for Vault server connections
-      - is suitable for connecting Vault server in -dev mode or
-      Vault server with TLS disabled. Should not be used in production
-    short_name: vaultDisableTLSForTesting
-    arg_vartype: Switch
-    requires: vaultServerName
+    vaultDisableTLSForTesting:
+        description: >-
+            disable using TLS for Vault server connections
+            - is suitable for connecting Vault server in -dev mode or
+            Vault server with TLS disabled. Should not be used in production
+        short_name: vaultDisableTLSForTesting
+        arg_vartype: Switch
+        requires: vaultServerName
 
-  kmipServerName:
-    description: >-
-      Hostname or IP address of the KMIP server. It may also be a
-      comma-separated list of hostnames or IP addresses in which case
-      they are tried one-by-one until a connection is successfully
-      established. The value of the `kmipPort` option is used as a port
-      number for each hostname or IP address.
-    short_name: kmipServerName
-    arg_vartype: String
-    requires: [ kmipClientCertificateFile, kmipKeyIdentifier ]
-    conflicts: [encryptionKeyFile, vaultServerName]
+    kmipServerName:
+        description: >-
+            Hostname or IP address of the KMIP server. It may also be a
+            comma-separated list of hostnames or IP addresses in which case
+            they are tried one-by-one until a connection is successfully
+            established. The value of the `kmipPort` option is used as a port
+            number for each hostname or IP address.
+        short_name: kmipServerName
+        arg_vartype: String
+        requires: [kmipClientCertificateFile, kmipKeyIdentifier]
+        conflicts: [encryptionKeyFile, vaultServerName]
 
-  kmipPort:
-    description: "port number the KMIP server is listening on, default is 5696"
-    short_name: kmipPort
-    arg_vartype: Int
-    requires: kmipServerName
-    validator:
-      gte: 0
-      lte: 65535
+    kmipPort:
+        description: "port number the KMIP server is listening on, default is 5696"
+        short_name: kmipPort
+        arg_vartype: Int
+        requires: kmipServerName
+        validator:
+            gte: 0
+            lte: 65535
 
-  kmipServerCAFile:
-    description: >-
-        CA certificate that was used to sign KMIP server's certificates
-        - should be used when the KMIP server's CA certificate is not
-        trusted by the machine that is going to connect to the KMIP server
-    short_name: kmipServerCAFile
-    arg_vartype: String
-    requires: kmipServerName
+    kmipServerCAFile:
+        description: >-
+            CA certificate that was used to sign KMIP server's certificates
+            - should be used when the KMIP server's CA certificate is not
+            trusted by the machine that is going to connect to the KMIP server
+        short_name: kmipServerCAFile
+        arg_vartype: String
+        requires: kmipServerName
 
-  kmipClientCertificateFile:
-    description: Path to the PEM file with KMIP client private key and certificate chain
-    short_name: kmipClientCertificateFile
-    arg_vartype: String
-    requires: kmipServerName
+    kmipClientCertificateFile:
+        description: Path to the PEM file with KMIP client private key and certificate chain
+        short_name: kmipClientCertificateFile
+        arg_vartype: String
+        requires: kmipServerName
 
-  kmipClientCertificatePassword:
-    description: >-
-      Password for the KMIP client private key or/and certificate.
-      Should be used only if either the private key or certificate
-      is encrypted.
-    short_name: kmipClientCertificatePassword
-    arg_vartype: String
-    requires: kmipClientCertificateFile
+    kmipClientCertificatePassword:
+        description: >-
+            Password for the KMIP client private key or/and certificate.
+            Should be used only if either the private key or certificate
+            is encrypted.
+        short_name: kmipClientCertificatePassword
+        arg_vartype: String
+        requires: kmipClientCertificateFile
 
-  kmipKeyIdentifier:
-    description: Name of the KMIP key to use
-    short_name: kmipKeyIdentifier
-    arg_vartype: String
-    requires: kmipServerName
+    kmipKeyIdentifier:
+        description: Name of the KMIP key to use
+        short_name: kmipKeyIdentifier
+        arg_vartype: String
+        requires: kmipServerName
