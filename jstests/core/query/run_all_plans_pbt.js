@@ -94,13 +94,17 @@ function hintedQueryHasSameResultsAsControlCollScan(getQuery, testHelpers) {
 const aggModel = getAggPipelineModel();
 
 // Test with a regular collection.
-testProperty(hintedQueryHasSameResultsAsControlCollScan,
-             {controlColl, experimentColl},
-             makeWorkloadModel({collModel: getCollectionModel(), aggModel, numQueriesPerRun}),
-             numRuns);
+testProperty(
+    hintedQueryHasSameResultsAsControlCollScan,
+    {controlColl, experimentColl},
+    // Hinting a partial index can return incorrect results due to SERVER-26413.
+    // TODO SERVER-26413 re-enable partial index coverage.
+    makeWorkloadModel(
+        {collModel: getCollectionModel({allowPartialIndexes: false}), aggModel, numQueriesPerRun}),
+    numRuns);
 
-// TODO SERVER-101271 re-enable PBT testing for time-series
-// // Test with a TS collection.
+// TODO SERVER-103381 re-enable timeseries PBT testing.
+// Test with a TS collection.
 // {
 //     // TODO SERVER-83072 re-enable $group in this test, by removing the filter below.
 //     const tsAggModel = aggModel.filter(query => {
@@ -111,12 +115,11 @@ testProperty(hintedQueryHasSameResultsAsControlCollScan,
 //         }
 //         return true;
 //     });
-//     testProperty(hintedQueryHasSameResultsAsControlCollScan,
-//                  {controlColl, experimentColl},
-//                  makeWorkloadModel({
-//                      collModel: getCollectionModel({isTS: true}),
-//                      aggModel: tsAggModel,
-//                      numQueriesPerRun
-//                  }),
-//                  numRuns);
+//     testProperty(
+//         hintedQueryHasSameResultsAsControlCollScan,
+//         {controlColl, experimentColl},
+//         makeWorkloadModel(
+//             {collModel: getCollectionModel({isTS: true}), aggModel: tsAggModel,
+//             numQueriesPerRun}),
+//         numRuns);
 // }
