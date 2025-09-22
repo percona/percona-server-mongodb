@@ -25,7 +25,7 @@ communication using HTTPS.
 
 The following command is an example of running all tests in this suite:
 
-``` sh
+```sh
 ./buildscripts/resmoke.py --suite=oidc [<other_resmoke_options>]
 ```
 
@@ -33,7 +33,7 @@ The following command is an example of running all tests in this suite:
 
 ### Usage
 
-``` text
+```text
 usage: oidc_idp_mock.py [-h] [-v] --cert <path> [--config-json {<json>}] [issuer_url]
 
 OIDC Identity Provider Mock
@@ -65,8 +65,8 @@ Currently, the following endpoints are implemented:
 - openid-configuration: `{issuer_url}/.well-known/openid-configuration` - for getting configuration,
 - token_endpoint: `{issuer_url}/token` - for creating an access token and refresh token (always equal to 'refresh_token'),
 - jwks_uri: `{issuer_url}/keys` - for getting the list of **JWKs**,
-- device_authorization_endpoint: `{issuer_url}/device/authorize` - to simulate *device authorization flow*,
-- token_introspection: `{issuer_url}/introspect` - to simulate *token introspection*.
+- device_authorization_endpoint: `{issuer_url}/device/authorize` - to simulate _device authorization flow_,
+- token_introspection: `{issuer_url}/introspect` - to simulate _token introspection_.
 
 ### Token Configuration
 
@@ -78,6 +78,7 @@ Currently, the following endpoints are implemented:
 - `introspection: <introspection_config>` - introspection configuration. See [introspection](#introspection) for details.
 
   If the following fields are not defined, the following default values will be applied:
+
   - `iss`: set to the `<issuer_url>` provided in the command line options,
   - `iat`: set to the current time,
   - `exp`: set to the current time + `expires_in_seconds`.
@@ -86,7 +87,7 @@ Currently, the following endpoints are implemented:
 
 Example configuration for an infinite number of tokens:
 
-``` js
+```js
 {
     token: {
         payload: {
@@ -103,31 +104,26 @@ Example configuration for an infinite number of tokens:
 
 Example configuration for two tokens with different parameters:
 
-``` js
+```js
 {
-    token: [
-        {
-            jwk_id: 0,
-            payload: {
-                sub: "user1",
-                aud: "audience",
-                claim: [
-                    "group1",
-                    "group2",
-                ]
-            }
-        },
-        {
-            jwk_id: 1,
-            payload: {
-                sub: "user2",
-                aud: "audience",
-                claim: [
-                    "group3"
-                ]
-            }
-        }
-    ]
+  token: [
+    {
+      jwk_id: 0,
+      payload: {
+        sub: "user1",
+        aud: "audience",
+        claim: ["group1", "group2"],
+      },
+    },
+    {
+      jwk_id: 1,
+      payload: {
+        sub: "user2",
+        aud: "audience",
+        claim: ["group3"],
+      },
+    },
+  ];
 }
 ```
 
@@ -142,7 +138,7 @@ By default, no faults are applied.
 
 Example:
 
-``` js
+```js
 {
     token: {
         payload: {
@@ -196,7 +192,7 @@ If any field is set to `"$remove"`, it will be removed from the response.
 
 If no introspection configuration is provided, the automatic introspection will be performed on every request:
 
-``` js
+```js
 token: {
     payload: {
         (...)
@@ -206,7 +202,7 @@ token: {
 
 With the following configuration, an automatic introspection will be performed, the `custom_field` will be added to the introspection response, the status code will be `400`, and the `sub` field will be removed from the response:
 
-``` js
+```js
 token: {
     payload: {
         (...)
@@ -222,7 +218,7 @@ token: {
 
 With the following configuration, no automatic introspection will be performed, the `error` field will be added to the introspection response, and the status code will be `400`:
 
-``` js
+```js
 token: {
     payload: {
         (...)
@@ -238,7 +234,7 @@ With the following configuration, the first introspection request will be perfor
 For the second request, the result will be `active: false` and the status code will be `200`.
 Such a configuration can be used to simulate token revocation.
 
-``` js
+```js
 token: {
     payload: {
         (...)
@@ -267,7 +263,7 @@ With the following configuration, the **IdP Server Mock** will:
 - the second token will miss the `iss`, `iat`, and `exp` fields in the payload,
 - every request for introspection of the second token will return `active: false` and the status code `200`.
 
-``` js
+```js
 {
     number_of_jwks: 2,
     token: [
@@ -306,7 +302,7 @@ With the following configuration, the **IdP Server Mock** will:
 
 With the following configuration, the **IdP Server Mock** will create multiple tokens without a claim.
 
-``` js
+```js
 {
     number_of_jwks: 2,
     token: {
@@ -336,7 +332,7 @@ See the [oidc_idp_mock.js](./oidc_idp_mock.js) file for details.
 
 ### Example Usage
 
-The following example configures one `OIDC IdP Mock` and one *OIDC Provider* for `mongod`.
+The following example configures one `OIDC IdP Mock` and one _OIDC Provider_ for `mongod`.
 
 It starts both the `OIDC IdP Mock` and `mongod` by calling the `setup()` function.
 
@@ -346,39 +342,38 @@ At the end, it ensures appropriate roles were assigned to the authenticated user
 
 The `teardown()` function stops both the `OIDC IdP Mock` and `mongod`.
 
-``` js
-import { OIDCFixture } from 'jstests/oidc/lib/oidc_fixture.js';
+```js
+import {OIDCFixture} from "jstests/oidc/lib/oidc_fixture.js";
 
 const idp_port = allocatePort();
-const issuer_url = "https://localhost:" + idp_port + "/issuer"
+const issuer_url = "https://localhost:" + idp_port + "/issuer";
 
 var idp_config = {
-    token: {
-        expires_in_seconds: 3600,
-        payload: {
-            aud: "audience",
-            sub: "user",
-            claim: [
-                "group1",
-                "group2",
-            ],
-        }
+  token: {
+    expires_in_seconds: 3600,
+    payload: {
+      aud: "audience",
+      sub: "user",
+      claim: ["group1", "group2"],
     },
+  },
 };
 
-var oidcProvider =
-{
-    issuer: issuer_url,
-    clientId: "clientId",
-    audience: "audience",
-    authNamePrefix: "test",
-    useAuthorizationClaim: true,
-    requestScopes: ["offline_access"],
-    supportsHumanFlows: true,
-    authorizationClaim: "claim"
+var oidcProvider = {
+  issuer: issuer_url,
+  clientId: "clientId",
+  audience: "audience",
+  authNamePrefix: "test",
+  useAuthorizationClaim: true,
+  requestScopes: ["offline_access"],
+  supportsHumanFlows: true,
+  authorizationClaim: "claim",
 };
 
-var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
+var test = new OIDCFixture({
+  oidcProviders: [oidcProvider],
+  idps: [{url: issuer_url, config: idp_config}],
+});
 test.setup();
 var conn = test.create_conn();
 var idp = test.get_idp(issuer_url);
