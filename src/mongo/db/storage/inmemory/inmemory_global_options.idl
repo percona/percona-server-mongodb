@@ -33,8 +33,8 @@ global:
     cpp_includes:
         - "mongo/db/storage/inmemory/inmemory_global_options.h"
     configs:
-        section: 'InMemory options'
-        source: [ cli, ini, yaml ]
+        section: "InMemory options"
+        source: [cli, ini, yaml]
 
 configs:
     # inMemory storage engine options
@@ -43,14 +43,14 @@ configs:
             The maximum memory in gigabytes to use for InMemory storage.
             See documentation for default.
         arg_vartype: Double
-        cpp_varname: 'inMemoryGlobalOptions.cacheSizeGB'
+        cpp_varname: "inMemoryGlobalOptions.cacheSizeGB"
         short_name: inMemorySizeGB
     "storage.inMemory.engineConfig.statisticsLogDelaySecs":
         description: >-
             The number of seconds between writes to statistics log.
             If 0 is specified then statistics will not be logged.
         arg_vartype: Int
-        cpp_varname: 'inMemoryGlobalOptions.statisticsLogDelaySecs'
+        cpp_varname: "inMemoryGlobalOptions.statisticsLogDelaySecs"
         short_name: inMemoryStatisticsLogDelaySecs
         hidden: true
         validator:
@@ -58,20 +58,20 @@ configs:
             lte: 100000
         default: 0
     "storage.inMemory.engineConfig.configString":
-        description: 'InMemory storage engine custom configuration settings'
+        description: "InMemory storage engine custom configuration settings"
         arg_vartype: String
-        cpp_varname: 'inMemoryGlobalOptions.engineConfig'
+        cpp_varname: "inMemoryGlobalOptions.engineConfig"
         short_name: inMemoryEngineConfigString
         hidden: true
     "storage.inMemory.collectionConfig.configString":
-        description: 'InMemory custom collection configuration settings'
+        description: "InMemory custom collection configuration settings"
         arg_vartype: String
-        cpp_varname: 'inMemoryGlobalOptions.collectionConfig'
+        cpp_varname: "inMemoryGlobalOptions.collectionConfig"
         short_name: inMemoryCollectionConfigString
         hidden: true
     "storage.inMemory.indexConfig.configString":
-        description: 'InMemory custom index configuration settings'
+        description: "InMemory custom index configuration settings"
         arg_vartype: String
-        cpp_varname: 'inMemoryGlobalOptions.indexConfig'
+        cpp_varname: "inMemoryGlobalOptions.indexConfig"
         short_name: inMemoryIndexConfigString
         hidden: true

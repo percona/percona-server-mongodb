@@ -33,8 +33,8 @@ global:
     cpp_includes:
         - "mongo/db/ldap_options.h"
     configs:
-        section: 'LDAP options'
-        source: [ yaml, cli ]
+        section: "LDAP options"
+        source: [yaml, cli]
 #        initializer:
 #            register: addLDAPOptions
 
@@ -64,7 +64,7 @@ server_parameters:
         description: "Provides mechanism to transform authenticated user name to a LDAP Distinguished Name (DN)"
         set_at: runtime
         cpp_varname: "ldapGlobalParams.ldapUserToDNMapping"
-        default: "[{match: \"(.+)\", substitution: \"{0}\"}]"
+        default: '[{match: "(.+)", substitution: "{0}"}]'
         validator:
             callback: validateLDAPUserToDNMappingServerParam
         redact: false
@@ -97,55 +97,55 @@ server_parameters:
         cpp_varname: "ldapGlobalParams.ldapConnectionPoolSizePerHost"
         default: 2
         validator:
-          gt: 0
+            gt: 0
         redact: false
 
 configs:
-    'security.ldap.servers':
-        description: 'Comma separated list of LDAP servers in format host:port'
+    "security.ldap.servers":
+        description: "Comma separated list of LDAP servers in format host:port"
         short_name: ldapServers
         arg_vartype: String
-    'security.ldap.transportSecurity':
-        description: 'Default is tls to use TLS secured connection to LDAP server. To disable it use none'
+    "security.ldap.transportSecurity":
+        description: "Default is tls to use TLS secured connection to LDAP server. To disable it use none"
         short_name: ldapTransportSecurity
         arg_vartype: String
         default: tls
         validator:
             callback: validateLDAPTransportSecurity
-    'security.ldap.bind.method':
-        description: 'The method used to authenticate to an LDAP server. simple or sasl. Default is simple'
+    "security.ldap.bind.method":
+        description: "The method used to authenticate to an LDAP server. simple or sasl. Default is simple"
         short_name: ldapBindMethod
         arg_vartype: String
         default: simple
         validator:
             callback: validateLDAPBindMethod
-    'security.ldap.bind.saslMechanisms':
-        description: 'Comma-separated list of SASL mechanisms which can be used to authenticate to an LDAP server. Default is DIGEST-MD5'
+    "security.ldap.bind.saslMechanisms":
+        description: "Comma-separated list of SASL mechanisms which can be used to authenticate to an LDAP server. Default is DIGEST-MD5"
         short_name: ldapBindSaslMechanisms
         arg_vartype: String
         default: DIGEST-MD5
-    'security.ldap.timeoutMS':
-        description: 'Timeout to wait for response from LDAP server in millisecons. Default is 10000'
+    "security.ldap.timeoutMS":
+        description: "Timeout to wait for response from LDAP server in millisecons. Default is 10000"
         short_name: ldapTimeoutMS
         arg_vartype: Int
-    'security.ldap.bind.queryUser':
-        description: 'LDAP user used to connect or query LDAP server'
+    "security.ldap.bind.queryUser":
+        description: "LDAP user used to connect or query LDAP server"
         short_name: ldapQueryUser
         arg_vartype: String
-    'security.ldap.bind.queryPassword':
-        description: 'Password used with queryUser to bind to an LDAP server'
+    "security.ldap.bind.queryPassword":
+        description: "Password used with queryUser to bind to an LDAP server"
         short_name: ldapQueryPassword
         arg_vartype: String
-        implicit: ''
+        implicit: ""
         redact: true
-    'security.ldap.userToDNMapping':
-        description: 'Provides mechanism to transform authenticated user name to a LDAP Distinguished Name (DN)'
+    "security.ldap.userToDNMapping":
+        description: "Provides mechanism to transform authenticated user name to a LDAP Distinguished Name (DN)"
         short_name: ldapUserToDNMapping
         arg_vartype: String
         validator:
             callback: validateLDAPUserToDNMapping
-    'security.ldap.validateLDAPServerConfig':
-        description: 'Forces LDAP server availability check on startup. Default is true'
+    "security.ldap.validateLDAPServerConfig":
+        description: "Forces LDAP server availability check on startup. Default is true"
         short_name: ldapValidateLDAPServerConfig
         arg_vartype: Bool
         default: true

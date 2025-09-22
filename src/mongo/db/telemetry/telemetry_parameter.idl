@@ -36,7 +36,7 @@ global:
 server_parameters:
     perconaTelemetry:
         description: "Control Percona telemetry functionality"
-        set_at: [ startup, runtime ]
+        set_at: [startup, runtime]
         cpp_class:
             name: TelemetryParameter
             data: AtomicWord<bool>

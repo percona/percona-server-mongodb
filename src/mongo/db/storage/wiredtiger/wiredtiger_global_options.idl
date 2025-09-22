@@ -282,7 +282,7 @@ configs:
             between each checkpoint; valid values are between 32 and 2048;
             defaults to 2048 (2GB)
         arg_vartype: Int
-        cpp_varname: 'wiredTigerGlobalOptions.checkpointSizeMB'
+        cpp_varname: "wiredTigerGlobalOptions.checkpointSizeMB"
         short_name: wiredTigerCheckpointSizeMB
         validator:
             gte: 32

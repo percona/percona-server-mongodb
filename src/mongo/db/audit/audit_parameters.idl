@@ -33,9 +33,9 @@ global:
 
 server_parameters:
     auditAuthorizationSuccess:
-           description: "When true, enables logging of successful authorizations"
-           set_at: [ startup, runtime ]
-           cpp_vartype: AtomicWord<bool>
-           cpp_varname: auditAuthorizationSuccess
-           default: false
-           redact: true
+        description: "When true, enables logging of successful authorizations"
+        set_at: [startup, runtime]
+        cpp_vartype: AtomicWord<bool>
+        cpp_varname: auditAuthorizationSuccess
+        default: false
+        redact: true
