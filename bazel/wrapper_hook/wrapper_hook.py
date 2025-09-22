@@ -27,6 +27,8 @@ def main():
     )
     from bazel.wrapper_hook.set_mongo_variables import write_mongo_variables_bazelrc
 
+    write_mongo_variables_bazelrc(sys.argv)
+
     # This is used to autogenerate a BUILD.bazel that creates
     # Filegroups for select tags - used to group targets for installing
     autogenerate_targets(sys.argv, sys.argv[1])
@@ -36,8 +38,6 @@ def main():
         args = sys.argv
 
         write_workstation_bazelrc(args)
-
-        write_mongo_variables_bazelrc(args)
 
         args = test_runner_interface(
             sys.argv[1:],
