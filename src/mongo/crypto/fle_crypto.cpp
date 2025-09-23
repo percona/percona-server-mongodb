@@ -1578,6 +1578,7 @@ UniqueMongoCrypt createMongoCrypt() {
     UniqueMongoCrypt crypt(mongocrypt_new());
 
     mongocrypt_setopt_log_handler(crypt.get(), mongocryptLogHandler, nullptr);
+    mongocrypt_setopt_enable_multiple_collinfo(crypt.get());
 
     return crypt;
 }
@@ -1654,9 +1655,37 @@ BSONObj runStateMachineForEncryption(mongocrypt_ctx_t* ctx,
                 break;
             }
             case MONGOCRYPT_CTX_NEED_MONGO_COLLINFO: {
-                // We don't expect these states to be reached because mongocrypt_t was already given
-                // the encryptedfield config map via mongocrypt_setopt_encrypted_field_config_map().
-                uasserted(7132301, "MONGOCRYPT_CTX_NEED_MONGO_COLLINFO not supported");
+                // If this state is reached, it is because the command is a $lookup aggregation
+                // where one or more namespaces referenced in the pipeline is an unencrypted
+                // collection; and libmongocrypt, in turn, wants to obtain the collinfo for those
+                // unencrypted namespaces. Since the namespace is unencrypted, we can provide
+                // libmongocrypt with a listCollections reply without any collection options.
+                // For FLE2 namespaces, we don't expect to be reached because mongocrypt_t should
+                // already have the encrypted field config provided to it by the caller via
+                // mongocrypt_setopt_encrypted_field_config_map().
+                MongoCryptBinary opbin = MongoCryptBinary::create();
+                if (!mongocrypt_ctx_mongo_op(ctx, opbin)) {
+                    errorContext = "mongocrypt_ctx_mongo_op failed"_sd;
+                    break;
+                }
+
+                // libmongocrypt supplies {name: <collection name>} filter for listCollections
+                BSONObj opobj = opbin.toBSON();
+                auto collName = opobj.getStringField("name");
+                uassert(10128800,
+                        "Invalid listCollections filter obtained from mongocrypt_ctx_mongo_op",
+                        !collName.empty());
+
+                BSONObjBuilder listCollectionReply;
+                listCollectionReply.append("name", collName);
+                listCollectionReply.append("type", "collection");
+                auto feed = MongoCryptBinary::createFromBSONObj(listCollectionReply.done());
+                auto feedOk = mongocrypt_ctx_mongo_feed(ctx, feed);
+                if (!feedOk) {
+                    errorContext = "mongocrypt_ctx_mongo_feed failed"_sd;
+                } else if (!mongocrypt_ctx_mongo_done(ctx)) {
+                    errorContext = "mongocrypt_ctx_mongo_done failed"_sd;
+                }
                 break;
             }
             case MONGOCRYPT_CTX_NEED_KMS: {
@@ -2227,8 +2256,7 @@ PrfBlock ESCCollection::generateId(const ESCTwiceDerivedTagToken& tagToken,
 
 PrfBlock ESCCollection::generateNonAnchorId(const ESCTwiceDerivedTagToken& tagToken,
                                             uint64_t cpos) {
-    HmacContext ctx;
-    return FLEUtil::prf(&ctx, tagToken.toCDR(), cpos);
+    return FLEUtil::prf(tagToken.toCDR(), cpos);
 }
 
 template <class TagToken, class ValueToken>
@@ -3700,19 +3728,15 @@ std::vector<EDCServerPayloadInfo> EDCServerCollection::getEncryptedFieldInfo(BSO
     return fields;
 }
 
-PrfBlock EDCServerCollection::generateTag(HmacContext* obj,
-                                          EDCTwiceDerivedToken edcTwiceDerived,
-                                          FLECounter count) {
-    HmacContext ctx;
-    return FLEUtil::prf(&ctx, edcTwiceDerived.toCDR(), count);
+PrfBlock EDCServerCollection::generateTag(EDCTwiceDerivedToken edcTwiceDerived, FLECounter count) {
+    return FLEUtil::prf(edcTwiceDerived.toCDR(), count);
 }
 
 PrfBlock EDCServerCollection::generateTag(const EDCServerPayloadInfo& payload) {
     auto edcTwiceDerived = EDCTwiceDerivedToken::deriveFrom(payload.payload.getEdcDerivedToken());
     dassert(payload.isRangePayload() == false);
     dassert(payload.counts.size() == 1);
-    HmacContext obj;
-    return generateTag(&obj, edcTwiceDerived, payload.counts[0]);
+    return generateTag(edcTwiceDerived, payload.counts[0]);
 }
 
 std::vector<PrfBlock> EDCServerCollection::generateTags(const EDCServerPayloadInfo& rangePayload) {
@@ -3730,12 +3754,10 @@ std::vector<PrfBlock> EDCServerCollection::generateTags(const EDCServerPayloadIn
     std::vector<PrfBlock> tags;
     tags.reserve(edgeTokenSets.size());
 
-    HmacContext obj;
     for (size_t i = 0; i < edgeTokenSets.size(); i++) {
         auto edcTwiceDerived =
             EDCTwiceDerivedToken::deriveFrom(edgeTokenSets[i].getEdcDerivedToken());
-        tags.push_back(
-            EDCServerCollection::generateTag(&obj, edcTwiceDerived, rangePayload.counts[i]));
+        tags.push_back(EDCServerCollection::generateTag(edcTwiceDerived, rangePayload.counts[i]));
     }
     return tags;
 }
@@ -3772,12 +3794,10 @@ std::vector<PrfBlock> EDCServerCollection::generateTagsForTextSearch(
     std::vector<PrfBlock> tags;
     tags.reserve(totalTagCount);
 
-    HmacContext hmacCtx;
     for (size_t i = 0; i < totalTagCount; i++) {
         auto edcTwiceDerived = EDCTwiceDerivedToken::deriveFrom(
             EDCDerivedFromDataTokenAndContentionFactor(edcDerivedTokens[i]));
-        tags.push_back(
-            EDCServerCollection::generateTag(&hmacCtx, edcTwiceDerived, textPayload.counts[i]));
+        tags.push_back(EDCServerCollection::generateTag(edcTwiceDerived, textPayload.counts[i]));
     }
     return tags;
 }
@@ -4659,19 +4679,19 @@ PrfBlock FLEUtil::blockToArray(const SHA256Block& block) {
     return data;
 }
 
-PrfBlock FLEUtil::prf(HmacContext* hmacCtx, ConstDataRange key, ConstDataRange cdr) {
+PrfBlock FLEUtil::prf(ConstDataRange key, ConstDataRange cdr) {
     uassert(6378002, "Invalid key length", key.length() == crypto::sym256KeySize);
 
     SHA256Block block;
-    SHA256Block::computeHmacWithCtx(hmacCtx, key.data<uint8_t>(), key.length(), {cdr}, &block);
+    SHA256Block::computeHmac(key.data<uint8_t>(), key.length(), {cdr}, &block);
     return blockToArray(block);
 }
 
-PrfBlock FLEUtil::prf(HmacContext* hmacCtx, ConstDataRange key, uint64_t value) {
+PrfBlock FLEUtil::prf(ConstDataRange key, uint64_t value) {
     std::array<char, sizeof(uint64_t)> bufValue;
     DataView(bufValue.data()).write<LittleEndian<uint64_t>>(value);
 
-    return prf(hmacCtx, key, bufValue);
+    return prf(key, bufValue);
 }
 
 StatusWith<std::vector<uint8_t>> FLEUtil::decryptData(ConstDataRange key,

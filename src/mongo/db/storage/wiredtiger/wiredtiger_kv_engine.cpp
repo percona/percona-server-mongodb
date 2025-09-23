@@ -111,6 +111,7 @@
 #include "mongo/db/storage/journal_listener.h"
 #include "mongo/db/storage/key_format.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
+#include "mongo/db/storage/oplog_truncate_markers.h"
 #include "mongo/db/storage/snapshot_window_options_gen.h"
 #include "mongo/db/storage/storage_file_util.h"
 #include "mongo/db/storage/storage_options.h"
@@ -128,7 +129,6 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_index.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_oplog_manager.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_oplog_truncate_markers.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_size_storer.h"
@@ -3081,7 +3081,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
         if (opCtx->getServiceContext()->userWritesAllowed() && !storageGlobalParams.repair &&
             !repl::ReplSettings::shouldSkipOplogSampling()) {
             static_cast<WiredTigerRecordStore::Oplog*>(ret.get())->setTruncateMarkers(
-                WiredTigerOplogTruncateMarkers::createOplogTruncateMarkers(opCtx, ret.get()));
+                OplogTruncateMarkers::createOplogTruncateMarkers(opCtx, *this, *ret));
         }
         getOplogManager()->stop();
         getOplogManager()->start(opCtx, *this, *ret);

@@ -3184,14 +3184,10 @@ export const authCommandsLib = {
         {
           testname: "_shardsvrCommitCreateDatabaseMetadata",
           command: {
-            _shardsvrCommitCreateDatabaseMetadata: "test.x",
+            _shardsvrCommitCreateDatabaseMetadata: 1,
             dbVersion: {uuid: new UUID(), timestamp: new Timestamp(1, 0), lastMod: NumberInt(1)}
           },
           skipSharded: true,
-          // TODO SERVER-103024: Enable this test
-          skipTest: function(conn) {
-            return true;
-          },
           testcases: [
             {
               runOnDb: adminDbName,
@@ -3205,12 +3201,8 @@ export const authCommandsLib = {
         },
         {
           testname: "_shardsvrCommitDropDatabaseMetadata",
-          command: {_shardsvrCommitDropDatabaseMetadata: "test.x"},
+          command: {_shardsvrCommitDropDatabaseMetadata: 1},
           skipSharded: true,
-          // TODO SERVER-103024: Enable this test
-          skipTest: function(conn) {
-            return true;
-          },
           testcases: [
             {
               runOnDb: adminDbName,
@@ -8067,6 +8059,26 @@ export const authCommandsLib = {
               cursor: {},
           },
           testcases: testcases_transformationOnly,
+        },
+        {
+          testname: "aggregate_$group_$doingMerge",
+          command: {
+              aggregate: "foo",
+              pipeline: [{$group: {_id: "$bar", avg: {$avg: "$b"}, $doingMerge: true}}],
+              cursor: {},
+          },
+          testcases: [
+            {
+                runOnDb: firstDbName,
+                privileges: [{resource: {db: firstDbName, collection: "foo"}, actions: ["find"]}],
+                expectAuthzFailure: true,
+            },
+            {
+              runOnDb: firstDbName,
+              roles: { __system: 1 },
+              expectFailure: true,
+            }
+          ]
         },
         {
           testname: "aggregate_$limit",

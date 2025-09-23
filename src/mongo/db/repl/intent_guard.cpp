@@ -50,7 +50,7 @@ const OperationContext* IntentGuard::getOperationContext() const {
 }
 
 boost::optional<IntentRegistry::Intent> IntentGuard::intent() const {
-    if (_opCtx) {
+    if (!_opCtx) {
         return boost::none;
     }
     return _token.intent();

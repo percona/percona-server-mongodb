@@ -27,49 +27,22 @@
  *    it in the license file.
  */
 
-#include "mongo/crypto/hash_block.h"
+#include "mongo/db/repl/intent_registry_test_fixture.h"
 
-namespace mongo {
-#if defined(MONGO_CONFIG_SSL) && MONGO_CONFIG_SSL_PROVIDER == MONGO_CONFIG_SSL_PROVIDER_OPENSSL && \
-    OPENSSL_VERSION_NUMBER < 0x10100000L
-namespace {
-HMAC_CTX* HMAC_CTX_new() {
-    void* ctx = OPENSSL_malloc(sizeof(HMAC_CTX));
+namespace mongo::rss::consensus {
+IntentRegistryTest::IntentRegistryTest()
+    : _intentRegistry(IntentRegistry::get(getServiceContext())) {}
 
-    if (ctx != NULL) {
-        memset(ctx, 0, sizeof(HMAC_CTX));
-    }
-    return static_cast<HMAC_CTX*>(ctx);
+bool IntentRegistryTest::containsToken(IntentRegistry::IntentToken token) const {
+    auto& tokenMap = _intentRegistry._tokenMaps[(size_t)token.intent()];
+    stdx::lock_guard<stdx::mutex> lock(tokenMap.lock);
+    return tokenMap.map.contains(token.id());
 }
 
-void HMAC_CTX_free(HMAC_CTX* ctx) {
-    HMAC_CTX_cleanup(ctx);
-    OPENSSL_free(ctx);
+size_t IntentRegistryTest::getMapSize(IntentRegistry::Intent intent) const {
+    auto& tokenMap = _intentRegistry._tokenMaps[(size_t)intent];
+    stdx::lock_guard<stdx::mutex> lock(tokenMap.lock);
+    return tokenMap.map.size();
 }
 
-void HMAC_CTX_reset(HMAC_CTX* ctx) {
-    // For OpenSSL versions 1.0.2 and prior, we do not
-    // have performance issues with creating a new context
-    // object.
-    HMAC_CTX_free(ctx);
-    ctx = HMAC_CTX_new();
-}
-}  // namespace
-#endif
-#if defined(MONGO_CONFIG_SSL) && (MONGO_CONFIG_SSL_PROVIDER == MONGO_CONFIG_SSL_PROVIDER_OPENSSL)
-HmacContext::HmacContext() {
-    hmac_ctx = HMAC_CTX_new();
-};
-HmacContext::~HmacContext() {
-    HMAC_CTX_free(hmac_ctx);
-}
-
-void HmacContext::reset() {
-    HMAC_CTX_reset(hmac_ctx);
-};
-
-HMAC_CTX* HmacContext::get() {
-    return hmac_ctx;
-}
-#endif
-}  // namespace mongo
+}  // namespace mongo::rss::consensus

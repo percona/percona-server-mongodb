@@ -326,10 +326,16 @@ const internalCommandsMap = {
         command: {_dropConnectionsToMongot: 1, hostAndPort: []},
     },
     _flushDatabaseCacheUpdates: {
+        skip: true,  // This command isn't valid when the shards are authoritative for DB metadata.
+                     // Also, it can not be used during the FCV upgrade. The command will be removed
+                     // in the future.
         testname: "_flushDatabaseCacheUpdates",
         command: {_flushDatabaseCacheUpdates: 'test'},
     },
     _flushDatabaseCacheUpdatesWithWriteConcern: {
+        skip: true,  // This command isn't valid when the shards are authoritative for DB metadata.
+                     // Also, it can not be used during the FCV upgrade. The command will be removed
+                     // in the future.
         testname: "_flushDatabaseCacheUpdatesWithWriteConcern",
         command: {_flushDatabaseCacheUpdatesWithWriteConcern: 'test', writeConcern: {w: 2}},
     },
@@ -511,13 +517,13 @@ const internalCommandsMap = {
     _shardsvrCommitCreateDatabaseMetadata: {
         testname: "_shardsvrCommitCreateDatabaseMetadata",
         command: {
-            _shardsvrCommitCreateDatabaseMetadata: "x.y",
+            _shardsvrCommitCreateDatabaseMetadata: 1,
             dbVersion: {uuid: new UUID(), timestamp: new Timestamp(1, 0), lastMod: NumberInt(1)}
         },
     },
     _shardsvrCommitDropDatabaseMetadata: {
         testname: "_shardsvrCommitDropDatabaseMetadata",
-        command: {_shardsvrCommitDropDatabaseMetadata: "x.y"},
+        command: {_shardsvrCommitDropDatabaseMetadata: 1},
     },
     _shardsvrDropCollection: {
         testname: "_shardsvrDropCollection",

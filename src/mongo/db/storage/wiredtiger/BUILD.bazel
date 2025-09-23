@@ -33,11 +33,6 @@ mongo_cc_library(
 )
 
 idl_generator(
-    name = "oplog_truncate_marker_parameters_gen",
-    src = "oplog_truncate_marker_parameters.idl",
-)
-
-idl_generator(
     name = "wiredtiger_global_options_gen",
     src = "wiredtiger_global_options.idl",
 )
@@ -48,10 +43,9 @@ mongo_cc_library(
     srcs = [
         "encryption_extension.c",
         "encryption_keydb.cpp",
-        "oplog_truncate_marker_parameters_gen",
-        "wiredtiger_backup_cursor_hooks.cpp",
         "temporary_wiredtiger_kv_engine.cpp",
         "temporary_wiredtiger_record_store.cpp",
+        "wiredtiger_backup_cursor_hooks.cpp",
         "wiredtiger_begin_transaction_block.cpp",
         "wiredtiger_compiled_configuration.cpp",
         "wiredtiger_connection.cpp",
@@ -67,9 +61,7 @@ mongo_cc_library(
         "wiredtiger_index_util.cpp",
         "wiredtiger_kv_engine.cpp",
         "wiredtiger_managed_session.cpp",
-        "wiredtiger_oplog_data.cpp",
         "wiredtiger_oplog_manager.cpp",
-        "wiredtiger_oplog_truncate_markers.cpp",
         "wiredtiger_prepare_conflict.cpp",
         "wiredtiger_record_store.cpp",
         "wiredtiger_recovery_unit.cpp",
@@ -100,9 +92,7 @@ mongo_cc_library(
         "wiredtiger_index_util.h",
         "wiredtiger_kv_engine.h",
         "wiredtiger_managed_session.h",
-        "wiredtiger_oplog_data.h",
         "wiredtiger_oplog_manager.h",
-        "wiredtiger_oplog_truncate_markers.h",
         "wiredtiger_prepare_conflict.h",
         "wiredtiger_record_store.h",
         "wiredtiger_recovery_unit.h",
@@ -159,6 +149,7 @@ mongo_cc_library(
         "//src/mongo/db/storage:execution_context",
         "//src/mongo/db/storage:index_entry_comparison",
         "//src/mongo/db/storage:master_key_rotation",
+        "//src/mongo/db/storage:oplog_truncate_markers",
         "//src/mongo/db/storage:prepare_conflict_tracker",
         "//src/mongo/db/storage:record_store_base",
         "//src/mongo/db/storage:recovery_unit_base",

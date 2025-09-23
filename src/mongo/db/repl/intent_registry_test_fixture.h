@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,40 +27,26 @@
  *    it in the license file.
  */
 
-#include "mongo/db/storage/wiredtiger/wiredtiger_oplog_data.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_oplog_truncate_markers.h"
+#include <utility>
 
-namespace mongo {
+#include "mongo/db/operation_context.h"
+#include "mongo/db/repl/intent_registry.h"
+#include "mongo/db/service_context.h"
+#include "mongo/db/service_context_d_test_fixture.h"
+#include "mongo/unittest/death_test.h"
+#include "mongo/unittest/unittest.h"
 
-WiredTigerOplogData::WiredTigerOplogData(const WiredTigerRecordStore::Oplog::Params& params)
-    : _maxSize(params.oplogMaxSize) {
-    invariant(_maxSize.load());
-}
+namespace mongo::rss::consensus {
+/**
+ * Test fixture for the Intent Registration system.
+ */
+class IntentRegistryTest : public ServiceContextMongoDTest {
+public:
+    IntentRegistryTest();
 
-std::shared_ptr<WiredTigerOplogTruncateMarkers> WiredTigerOplogData::getTruncateMarkers() const {
-    return _truncateMarkers;
-}
-
-void WiredTigerOplogData::setTruncateMarkers(
-    std::shared_ptr<WiredTigerOplogTruncateMarkers> markers) {
-    _truncateMarkers = std::move(markers);
-}
-
-int64_t WiredTigerOplogData::getMaxSize() const {
-    return _maxSize.load();
-}
-
-Status WiredTigerOplogData::updateSize(int64_t newSize) {
-    invariant(_maxSize.load());
-
-    if (_maxSize.load() == newSize) {
-        return Status::OK();
-    }
-
-    _maxSize.store(newSize);
-
-    invariant(_truncateMarkers);
-    _truncateMarkers->adjust(newSize);
-    return Status::OK();
-}
-}  // namespace mongo
+protected:
+    IntentRegistry& _intentRegistry;
+    bool containsToken(IntentRegistry::IntentToken token) const;
+    size_t getMapSize(IntentRegistry::Intent intent) const;
+};
+}  // namespace mongo::rss::consensus
