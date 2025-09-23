@@ -316,6 +316,11 @@ mongo_cc_library(
             "//src/mongo/util:periodic_runner_factory",
         ],
         "//conditions:default": [],
+    }) + select({
+        "//bazel/config:audit_enabled": [
+            "//src/mongo/db/audit:audit_impl",
+        ],
+        "//conditions:default": [],
     }),
 )
 
