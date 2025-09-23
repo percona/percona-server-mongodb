@@ -123,10 +123,9 @@ StorageEngine::LastShutdownState initializeStorageEngine(
         invariant(!service->getStorageEngine());
 
     if ((initFlags & StorageEngineInitFlags::kAllowNoLockFile) == StorageEngineInitFlags{}) {
-        auto scopedTimer = createTimeElapsedBuilderScopedTimer(
-            service->getFastClockSource(),
-            "Create storage engine lock file in the data directory",
-            startupTimeElapsedBuilder);
+        SectionScopedTimer scopedTimer(service->getFastClockSource(),
+                                       TimedSectionId::createLockFile,
+                                       startupTimeElapsedBuilder);
         createLockFile(service);
     }
 
@@ -193,19 +192,17 @@ StorageEngine::LastShutdownState initializeStorageEngine(
 
     std::unique_ptr<StorageEngineMetadata> metadata;
     if ((initFlags & StorageEngineInitFlags::kSkipMetadataFile) == StorageEngineInitFlags{}) {
-        auto scopedTimer =
-            createTimeElapsedBuilderScopedTimer(service->getFastClockSource(),
-                                                "Get metadata describing storage engine",
-                                                startupTimeElapsedBuilder);
+        SectionScopedTimer scopedTimer(service->getFastClockSource(),
+                                       TimedSectionId::getStorageEngineMetadata,
+                                       startupTimeElapsedBuilder);
         metadata = StorageEngineMetadata::forPath(dbpath);
     }
 
     // Validate options in metadata against current startup options.
     if (metadata.get()) {
-        auto scopedTimer = createTimeElapsedBuilderScopedTimer(
-            service->getFastClockSource(),
-            "Validate options in metadata against current startup options",
-            startupTimeElapsedBuilder);
+        SectionScopedTimer scopedTimer(service->getFastClockSource(),
+                                       TimedSectionId::validateMetadata,
+                                       startupTimeElapsedBuilder);
         uassertStatusOK(factory->validateMetadata(*metadata, storageGlobalParams));
     }
 
@@ -228,13 +225,14 @@ StorageEngine::LastShutdownState initializeStorageEngine(
     });
     auto& lockFile = StorageEngineLockFile::get(service);
     auto createScopedTimer = [service, startupTimeElapsedBuilder]() {
-        return createTimeElapsedBuilderScopedTimer(service->getFastClockSource(),
-                                                   "Write a new metadata for storage engine",
-                                                   startupTimeElapsedBuilder);
+        return SectionScopedTimer(service->getFastClockSource(),
+                                  TimedSectionId::writeNewMetadata,
+                                  startupTimeElapsedBuilder);
     };
     try {
-        auto scopedTimer = createTimeElapsedBuilderScopedTimer(
-            service->getFastClockSource(), "Create storage engine", startupTimeElapsedBuilder);
+        SectionScopedTimer scopedTimer(service->getFastClockSource(),
+                                       TimedSectionId::createStorageEngine,
+                                       startupTimeElapsedBuilder);
         if ((initFlags & StorageEngineInitFlags::kForRestart) == StorageEngineInitFlags{}) {
             auto storageEngine = std::unique_ptr<StorageEngine>(
                 factory->create(opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr));
@@ -265,8 +263,8 @@ StorageEngine::LastShutdownState initializeStorageEngine(
     }
 
     if (lockFile) {
-        auto scopedTimer = createTimeElapsedBuilderScopedTimer(
-            service->getFastClockSource(), "Write current PID to file", startupTimeElapsedBuilder);
+        SectionScopedTimer scopedTimer(
+            service->getFastClockSource(), TimedSectionId::writePID, startupTimeElapsedBuilder);
         uassertStatusOK(lockFile->writePid());
     }
 
