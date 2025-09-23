@@ -3715,7 +3715,7 @@ mongo_cc_library(
         "//src/mongo/db/pipeline/process_interface:mongod_process_interface_factory",
         "//src/mongo/db/query/query_settings:query_settings_service",
         "//src/mongo/db/query/stats",
-        "//src/mongo/db/repl:initial_syncer",
+        "//src/mongo/db/repl/initial_sync:initial_syncer",
         "//src/mongo/db/repl:repl_coordinator_impl",
         "//src/mongo/db/repl:replication_recovery",
         "//src/mongo/db/repl:serveronly_repl",
@@ -3761,10 +3761,10 @@ mongo_cc_library(
     }) + select({
         "//bazel/config:full_featured_enabled": [
             "//src/mongo/db/auth/oidc",
-            "//src/mongo/db/repl:initial_syncer_fcb",
+            "//src/mongo/db/repl/initial_sync:initial_syncer_fcb",
         ],
         "//bazel/config:fcbis_enabled": [
-            "//src/mongo/db/repl:initial_syncer_fcb",
+            "//src/mongo/db/repl/initial_sync:initial_syncer_fcb",
         ],
         "//bazel/config:oidc_enabled": [
             "//src/mongo/db/auth/oidc",
