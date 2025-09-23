@@ -71,7 +71,7 @@ public:
 
     DocumentSourceSearch(const boost::intrusive_ptr<ExpressionContext> expCtx,
                          InternalSearchMongotRemoteSpec spec,
-                         boost::optional<MongotQueryViewInfo> view = boost::none)
+                         boost::optional<SearchQueryViewSpec> view = boost::none)
         : DocumentSource(kStageName, expCtx), _spec(std::move(spec)), _view(view) {}
 
     const char* getSourceName() const override;
@@ -84,6 +84,16 @@ public:
 
     Id getId() const override {
         return id;
+    }
+
+    // A custom clone implementation is necessary to ensure that the _view information gets passed
+    // along to the new object. In sharded scenarios, if _view doesn't exist on the object then
+    // expCtx is checked for the view, which could hold incorrect information (see:
+    // createFromBson()).
+    boost::intrusive_ptr<DocumentSource> clone(
+        const boost::intrusive_ptr<ExpressionContext>& newExpCtx) const override {
+        auto expCtx = newExpCtx ? newExpCtx : pExpCtx;
+        return make_intrusive<DocumentSourceSearch>(expCtx, _spec, _view);
     }
 
     auto isStoredSource() const {
@@ -190,7 +200,7 @@ private:
     boost::optional<BSONObj> _remoteCursorVars;
 
     // If applicable, hold the view information.
-    boost::optional<MongotQueryViewInfo> _view;
+    boost::optional<SearchQueryViewSpec> _view;
 };
 
 }  // namespace mongo

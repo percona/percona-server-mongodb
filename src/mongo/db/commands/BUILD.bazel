@@ -107,6 +107,7 @@ idl_generator(
     src = "shardsvr_run_search_index_command.idl",
     deps = [
         "//src/mongo/db:basic_types_gen",
+        "//src/mongo/db/query/search:search_query_view_spec_gen",
         "//src/mongo/idl:generic_argument_gen",
     ],
 )
@@ -122,6 +123,7 @@ mongo_cc_library(
     deps = [
         "//src/mongo:base",
         "//src/mongo/db/concurrency:flow_control_ticketholder",
+        "//src/mongo/db/query/search:search_index_common",
         "//src/mongo/db/repl:read_concern_args",
         "//src/mongo/idl:idl_parser",
     ],
@@ -559,10 +561,22 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "server_status_metric",
+    srcs = [
+        "server_status_metric.cpp",
+    ],
+    hdrs = [
+        "server_status_metric.h",
+    ],
+    deps = [
+        "//src/mongo/db:server_base",
+    ],
+)
+
+mongo_cc_library(
     name = "server_status_core",
     srcs = [
         "server_status.cpp",
-        "server_status_metric.cpp",
     ],
     hdrs = [
         "server_status.h",
@@ -843,8 +857,8 @@ mongo_cc_library(
     }),
     deps = [
         "//src/mongo/db:profile_settings",
-        "//src/mongo/db:server_base",
         "//src/mongo/db/query/algebra",
+        "//src/mongo/db/sorter:sorter_base",
         "//src/mongo/db/storage/key_string",
     ],
 )
