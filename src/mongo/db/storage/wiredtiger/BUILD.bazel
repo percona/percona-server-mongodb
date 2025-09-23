@@ -77,6 +77,7 @@ mongo_cc_library(
         "wiredtiger_backup_cursor_hooks.h",
         "temporary_wiredtiger_kv_engine.h",
         "temporary_wiredtiger_record_store.h",
+        "temporary_wiredtiger_recovery_unit.h",
         "wiredtiger_begin_transaction_block.h",
         "wiredtiger_compiled_configuration.h",
         "wiredtiger_connection.h",

@@ -68,6 +68,16 @@ void addSingleSpillingStats(PlanSummaryStats::SpillingStage stage,
     // Attributes for logs don't support dynamically generated strings as attribute names, so we
     // have to hard-code all attribute names.
     switch (stage) {
+        case PlanSummaryStats::SpillingStage::BUCKET_AUTO:
+            appendCallback("bucketAutoSpills", static_cast<long long>(stats.getSpills()));
+            appendCallback("bucketAutoSpilledBytes",
+                           static_cast<long long>(stats.getSpilledBytes()));
+            appendCallback("bucketAutoSpilledRecords",
+                           static_cast<long long>(stats.getSpilledRecords()));
+            appendCallback("bucketAutoSpilledDataStorageSize",
+                           static_cast<long long>(stats.getSpilledDataStorageSize()));
+            return;
+
         case PlanSummaryStats::SpillingStage::GRAPH_LOOKUP:
             appendCallback("graphLookupSpills", static_cast<long long>(stats.getSpills()));
             appendCallback("graphLookupSpilledBytes",
@@ -110,6 +120,15 @@ void addSingleSpillingStats(PlanSummaryStats::SpillingStage stage,
             appendCallback("textOrSpilledRecords",
                            static_cast<long long>(stats.getSpilledRecords()));
             appendCallback("textOrSpilledDataStorageSize",
+                           static_cast<long long>(stats.getSpilledDataStorageSize()));
+            return;
+        case PlanSummaryStats::SpillingStage::HASH_LOOKUP:
+            appendCallback("hashLookupSpills", static_cast<long long>(stats.getSpills()));
+            appendCallback("hashLookupSpilledBytes",
+                           static_cast<long long>(stats.getSpilledBytes()));
+            appendCallback("hashLookupSpilledRecords",
+                           static_cast<long long>(stats.getSpilledRecords()));
+            appendCallback("hashLookupSpilledDataStorageSize",
                            static_cast<long long>(stats.getSpilledDataStorageSize()));
             return;
     }

@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,12 +27,27 @@
  *    it in the license file.
  */
 
-#include "mongo/db/storage/recovery_unit_noop.h"
+#include "mongo/s/write_ops/unified_write_executor/write_op_producer.h"
 
 namespace mongo {
+namespace unified_write_executor {
 
-RecoveryUnitNoop::RecoveryUnitNoop() = default;
+boost::optional<WriteOp> BulkWriteOpProducer::peekNext() {
+    if (_activeIndices.empty()) {
+        return boost::none;
+    }
+    return WriteOp(_request, *_activeIndices.begin());
+}
 
-RecoveryUnitNoop::~RecoveryUnitNoop() = default;
+void BulkWriteOpProducer::advance() {
+    if (!_activeIndices.empty()) {
+        _activeIndices.erase(*_activeIndices.begin());
+    }
+}
 
+void BulkWriteOpProducer::markOpReprocess(const WriteOp& op) {
+    _activeIndices.insert(op.getId());
+}
+
+}  // namespace unified_write_executor
 }  // namespace mongo

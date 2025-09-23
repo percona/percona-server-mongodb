@@ -180,3 +180,56 @@
 }
 ```
 
+## 9. BucketAuto
+### Pipeline
+```json
+[
+	{
+		"$bucketAuto" : {
+			"groupBy" : "$a",
+			"buckets" : 2,
+			"output" : {
+				"sum" : {
+					"$sum" : "$b"
+				}
+			}
+		}
+	}
+]
+```
+### Slow query spilling stats
+```json
+{
+	"bucketAutoSpilledBytes" : "X",
+	"bucketAutoSpilledDataStorageSize" : "X",
+	"bucketAutoSpilledRecords" : 13,
+	"bucketAutoSpills" : 7,
+	"usedDisk" : true
+}
+```
+
+## 10. HashLookup
+### Pipeline
+```json
+[
+	{
+		"$lookup" : {
+			"from" : "logs_spilling_md_students",
+			"localField" : "name",
+			"foreignField" : "name",
+			"as" : "matched"
+		}
+	}
+]
+```
+### Slow query spilling stats
+```json
+{
+	"hashLookupSpilledBytes" : "X",
+	"hashLookupSpilledDataStorageSize" : "X",
+	"hashLookupSpilledRecords" : 14,
+	"hashLookupSpills" : 16,
+	"usedDisk" : true
+}
+```
+
