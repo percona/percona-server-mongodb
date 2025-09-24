@@ -44,6 +44,7 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
+#include "mongo/db/exec/agg/stage.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/document_metadata_fields.h"
 #include "mongo/db/exec/document_value/value.h"
@@ -57,6 +58,7 @@
 #include "mongo/db/pipeline/sharded_agg_helpers_targeting_policy.h"
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/client_cursor/cursor_response_gen.h"
+#include "mongo/db/query/plan_summary_stats.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/service_context.h"
@@ -379,7 +381,8 @@ public:
     stdx::unordered_set<NamespaceString> getInvolvedCollections() const;
 
     /**
-     * Helpers to serialize a pipeline.
+     * Helpers to serialize a pipeline. If serializing for logging, use one of the "*forLogging"
+     * helpers, which handle redaction.
      */
     std::vector<Value> serialize(
         boost::optional<const SerializationOptions&> opts = boost::none) const;
@@ -389,15 +392,26 @@ public:
         const SourceContainer& container,
         boost::optional<const SerializationOptions&> opts = boost::none);
 
+    std::vector<BSONObj> serializeForLogging(
+        boost::optional<const SerializationOptions&> opts = boost::none) const;
+    static std::vector<BSONObj> serializeContainerForLogging(
+        const SourceContainer& container,
+        boost::optional<const SerializationOptions&> opts = boost::none);
+    static std::vector<BSONObj> serializePipelineForLogging(const std::vector<BSONObj>& pipeline);
+
     // The initial source is special since it varies between mongos and mongod.
     void addInitialSource(boost::intrusive_ptr<DocumentSource> source);
 
     void addFinalSource(boost::intrusive_ptr<DocumentSource> source);
 
     /**
-     * Returns the next result from the pipeline, or boost::none if there are no more results.
+     * Returns the next document from the pipeline, or boost::none if there are no more documents.
      */
     boost::optional<Document> getNext();
+    /**
+     * Returns the next result from the pipeline.
+     */
+    exec::agg::GetNextResult getNextResult();
 
     /**
      * Write the pipeline's operators to a std::vector<Value>, providing the level of detail
@@ -547,6 +561,11 @@ public:
         return CursorType_serializer(pipelineType);
     }
 
+    /**
+     * Method to accumulate the plan summary stats from all stages of the pipeline into the given
+     * `planSummaryStats` object.
+     */
+    void accumulatePipelinePlanSummaryStats(PlanSummaryStats& planSummaryStats);
 
 private:
     friend class PipelineDeleter;

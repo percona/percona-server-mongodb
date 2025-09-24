@@ -100,7 +100,7 @@ void noteStaleCollVersionResponses(OperationContext* opCtx,
                     4,
                     "Noting stale config response",
                     "shardId"_attr = error.endpoint.shardName,
-                    "status"_attr = error.error.getStatus());
+                    "status"_attr = redact(error.error.getStatus()));
 
         auto extraInfo = error.error.getStatus().extraInfo<StaleConfigInfo>();
         invariant(extraInfo);
@@ -117,7 +117,7 @@ void noteStaleDbVersionResponses(OperationContext* opCtx,
                     4,
                     "Noting stale database response",
                     "shardId"_attr = error.endpoint.shardName,
-                    "status"_attr = error.error.getStatus());
+                    "status"_attr = redact(error.error.getStatus()));
         auto extraInfo = error.error.getStatus().extraInfo<StaleDbRoutingVersion>();
         invariant(extraInfo);
         targeter->noteStaleDbVersionResponse(opCtx, *extraInfo);
@@ -131,7 +131,7 @@ void noteCannotImplicitlyCreateCollectionResponses(OperationContext* opCtx,
         LOGV2_DEBUG(8037202,
                     4,
                     "Noting cannot implicitly create collection response",
-                    "status"_attr = error.error.getStatus());
+                    "status"_attr = redact(error.error.getStatus()));
         auto extraInfo = error.error.getStatus().extraInfo<CannotImplicitlyCreateCollectionInfo>();
         invariant(extraInfo);
         targeter->noteCannotImplicitlyCreateCollectionResponse(opCtx, *extraInfo);
@@ -312,6 +312,7 @@ bool processErrorResponseFromLocal(OperationContext* opCtx,
                                    BatchWriteOp& batchOp,
                                    TargetedWriteBatch* batch,
                                    Status responseStatus,
+                                   const WriteConcernErrorDetail* wce,
                                    const ShardId& shardInfo,
                                    boost::optional<HostAndPort> shardHostAndPort) {
     if ((ErrorCodes::isShutdownError(responseStatus) ||
@@ -329,7 +330,7 @@ bool processErrorResponseFromLocal(OperationContext* opCtx,
                                            : "from failing to target a host in the shard ")
                       << shardInfo);
 
-    batchOp.noteBatchError(*batch, write_ops::WriteError(0, status));
+    batchOp.noteBatchError(*batch, write_ops::WriteError(0, status), wce);
 
     LOGV2_DEBUG(22908,
                 4,
@@ -427,6 +428,7 @@ void executeChildBatches(OperationContext* opCtx,
                                                                 batchOp,
                                                                 batch,
                                                                 responseStatus,
+                                                                nullptr,
                                                                 shardInfo,
                                                                 response.shardHostAndPort))) {
                     break;
@@ -469,6 +471,8 @@ void processResponseForOnlyFirstBatch(OperationContext* opCtx,
             if (!hasRecordedWriteResponseForFirstBatch) {
                 // Resolve the first child batch with the response of the write or a no-op response
                 // if there was no matching document.
+                // if the remote returned a 'writeConcernError', it will be part of the
+                // 'batchedCommandResponse' and handled here.
                 if ((abortBatch = processResponseFromRemote(opCtx,
                                                             targeter,
                                                             nextBatch.get()->getShardId(),
@@ -484,6 +488,11 @@ void processResponseForOnlyFirstBatch(OperationContext* opCtx,
                 // status.
                 BatchedCommandResponse noopBatchCommandResponse;
                 noopBatchCommandResponse.setStatus(Status::OK());
+                if (auto wce = batchedCommandResponse.getWriteConcernError(); wce != nullptr) {
+                    // Inject 'writeConcernError' from original response, so it won't be lost.
+                    auto wceCopy = std::make_unique<WriteConcernErrorDetail>(*wce);
+                    noopBatchCommandResponse.setWriteConcernError(wceCopy.release());
+                }
                 processResponseFromRemote(opCtx,
                                           targeter,
                                           nextBatch->getShardId(),
@@ -493,13 +502,16 @@ void processResponseForOnlyFirstBatch(OperationContext* opCtx,
                                           stats);
             }
         } else {
-            // The ARS failed to retrieve the response due to some sort of local failure.
-            if ((abortBatch = processErrorResponseFromLocal(opCtx,
-                                                            batchOp,
-                                                            nextBatch.get(),
-                                                            responseStatus,
-                                                            nextBatch->getShardId(),
-                                                            boost::none))) {
+            // The ARS failed to retrieve the response due to some sort of local failure, or a shard
+            // returned a non-ok response.
+            if ((abortBatch =
+                     processErrorResponseFromLocal(opCtx,
+                                                   batchOp,
+                                                   nextBatch.get(),
+                                                   responseStatus,
+                                                   batchedCommandResponse.getWriteConcernError(),
+                                                   nextBatch->getShardId(),
+                                                   boost::none))) {
                 break;
             }
         }
@@ -548,21 +560,39 @@ void executeTwoPhaseWrite(OperationContext* opCtx,
         return requestBuilder.obj();
     }();
 
+    boost::optional<WriteConcernErrorDetail> wce;
     auto swRes = write_without_shard_key::runTwoPhaseWriteProtocol(
-        opCtx, targeter.getNS(), std::move(cmdObj));
+        opCtx, targeter.getNS(), std::move(cmdObj), wce);
 
     Status responseStatus = swRes.getStatus();
     BatchedCommandResponse batchedCommandResponse;
+
+    // Adds a 'writeConcernError' from the remote shard to the response. Does nothing if the remote
+    // shard did not return a 'writeConcernError'.
+    auto appendWCEToResponse = [&]() {
+        if (wce.has_value()) {
+            auto wceCopy = std::make_unique<WriteConcernErrorDetail>(*wce);
+            batchedCommandResponse.setWriteConcernError(wceCopy.release());
+        }
+    };
+
     if (swRes.isOK()) {
         // Explicitly set the status of a no-op if there is no response.
         if (swRes.getValue().getResponse().isEmpty()) {
             batchedCommandResponse.setStatus(Status::OK());
+            appendWCEToResponse();
         } else {
+            // If parsing succeeds, the 'writeConcernError' will be part of 'batchedCommandResponse'
+            // here.
             std::string errMsg;
             if (!batchedCommandResponse.parseBSON(swRes.getValue().getResponse(), &errMsg)) {
                 responseStatus = {ErrorCodes::FailedToParse, errMsg};
             }
         }
+    } else {
+        // Remote shard returned an error, and the 'batchedCommandResponse' is still empty.
+        // We need to make sure to append any 'writeConcernError' from the shard to the response.
+        appendWCEToResponse();
     }
 
     processResponseForOnlyFirstBatch(opCtx,
@@ -798,7 +828,7 @@ void BatchWriteExec::executeBatch(OperationContext* opCtx,
             LOGV2_DEBUG(9986801,
                         4,
                         "Encountered a targeter error",
-                        "error"_attr = statusWithWriteType.getStatus(),
+                        "error"_attr = redact(statusWithWriteType.getStatus()),
                         "will refresh"_attr = !refreshedTargeter);
 
             // Don't do anything until a targeter refresh

@@ -306,7 +306,7 @@ ReshardingDonorService::DonorStateMachine::DonorStateMachine(
 
 ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockingWritesOrErrored(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-    const CancellationToken& abortToken) noexcept {
+    const CancellationToken& abortToken) {
     return resharding::WithAutomaticRetry([this, executor, abortToken] {
                return ExecutorFuture(**executor)
                    .then([this] {
@@ -393,7 +393,7 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockin
 
 ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_notifyCoordinatorAndAwaitDecision(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-    const CancellationToken& abortToken) noexcept {
+    const CancellationToken& abortToken) {
     if (_donorCtx.getState() == DonorStateEnum::kDone) {
         {
             stdx::lock_guard<stdx::mutex> lk(_mutex);
@@ -423,7 +423,7 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_notifyCoordinat
 ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_finishReshardingOperation(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
     const CancellationToken& stepdownToken,
-    bool aborted) noexcept {
+    bool aborted) {
     return resharding::WithAutomaticRetry([this, executor, stepdownToken, aborted] {
                if (!aborted) {
                    // If a failover occured after the donor transitioned to done locally, but before
@@ -671,10 +671,15 @@ void ReshardingDonorService::DonorStateMachine::
 
     int64_t bytesToClone = 0;
     int64_t documentsToClone = 0;
+    int64_t indexCount = 0;
 
     {
         auto opCtx = _cancelableOpCtxFactory->makeOperationContext(&cc());
         auto rawOpCtx = opCtx.get();
+
+        if (auto optionalCount = resharding::getIndexCount(rawOpCtx, _metadata.getSourceNss())) {
+            indexCount = *optionalCount;
+        }
 
         AutoGetCollection coll(rawOpCtx, _metadata.getSourceNss(), MODE_IS);
         if (coll) {
@@ -758,7 +763,7 @@ void ReshardingDonorService::DonorStateMachine::
                 "documentsToClone"_attr = documentsToClone,
                 "reshardingUUID"_attr = _metadata.getReshardingUUID());
 
-    _transitionToDonatingInitialData(minFetchTimestamp, bytesToClone, documentsToClone);
+    _transitionToDonatingInitialData(minFetchTimestamp, bytesToClone, documentsToClone, indexCount);
 }
 
 ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::
@@ -1131,12 +1136,16 @@ void ReshardingDonorService::DonorStateMachine::_transitionState(DonorShardConte
 }
 
 void ReshardingDonorService::DonorStateMachine::_transitionToDonatingInitialData(
-    Timestamp minFetchTimestamp, int64_t bytesToClone, int64_t documentsToClone) {
+    Timestamp minFetchTimestamp,
+    int64_t bytesToClone,
+    int64_t documentsToClone,
+    int64_t indexCount) {
     auto newDonorCtx = _donorCtx;
     newDonorCtx.setState(DonorStateEnum::kDonatingInitialData);
     newDonorCtx.setMinFetchTimestamp(minFetchTimestamp);
     newDonorCtx.setBytesToClone(bytesToClone);
     newDonorCtx.setDocumentsToClone(documentsToClone);
+    newDonorCtx.setIndexCount(indexCount);
     _transitionState(std::move(newDonorCtx));
 }
 

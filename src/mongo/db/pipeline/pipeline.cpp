@@ -65,6 +65,7 @@
 #include "mongo/db/pipeline/stage_constraints.h"
 #include "mongo/db/pipeline/transformer_interface.h"
 #include "mongo/db/query/explain_options.h"
+#include "mongo/db/query/plan_summary_stats_visitor.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/platform/atomic_word.h"
@@ -587,6 +588,32 @@ stdx::unordered_set<NamespaceString> Pipeline::getInvolvedCollections() const {
     return collectionNames;
 }
 
+
+std::vector<BSONObj> Pipeline::serializePipelineForLogging(const std::vector<BSONObj>& pipeline) {
+    std::vector<BSONObj> redacted;
+    for (auto&& b : pipeline) {
+        redacted.push_back(redact(b));
+    }
+    return redacted;
+}
+
+std::vector<BSONObj> Pipeline::serializeForLogging(
+    boost::optional<const SerializationOptions&> opts) const {
+    std::vector<BSONObj> serialized = serializeToBson(opts);
+    return serializePipelineForLogging(serialized);
+}
+
+std::vector<BSONObj> Pipeline::serializeContainerForLogging(
+    const SourceContainer& container, boost::optional<const SerializationOptions&> opts) {
+    std::vector<Value> serialized = serializeContainer(container, opts);
+    std::vector<BSONObj> redacted;
+    for (auto&& stage : serialized) {
+        invariant(stage.getType() == BSONType::Object);
+        redacted.push_back(redact(stage.getDocument().toBson()));
+    }
+    return redacted;
+}
+
 std::vector<Value> Pipeline::serializeContainer(const SourceContainer& container,
                                                 boost::optional<const SerializationOptions&> opts) {
     std::vector<Value> serializedSources;
@@ -640,10 +667,17 @@ boost::optional<Document> Pipeline::getNext() {
             nextResult = _sources.back()->getNext();
         }
         if (!nextResult.isEOF()) {
+            // We'll get here for both statuses 'GetNextResult::ReturnStatus::kAdvanced' and
+            // 'GetNextResult::ReturnStatus::kAdvancedControlDocument'.
             return nextResult.releaseDocument();
         }
     }
     return boost::none;
+}
+
+exec::agg::GetNextResult Pipeline::getNextResult() {
+    tassert(10394800, "cannon execute an empty aggregation pipeline", _sources.size());
+    return _sources.back()->getNext();
 }
 
 std::vector<Value> Pipeline::writeExplainOps(const SerializationOptions& opts) const {
@@ -1056,6 +1090,15 @@ std::unique_ptr<Pipeline, PipelineDeleter> Pipeline::makePipelineFromViewDefinit
                             std::make_move_iterator(currentPipeline.end()));
 
     return Pipeline::makePipeline(resolvedPipeline, subPipelineExpCtx, opts);
+}
+
+void Pipeline::accumulatePipelinePlanSummaryStats(PlanSummaryStats& planSummaryStats) {
+    auto visitor = PlanSummaryStatsVisitor(planSummaryStats);
+    for (auto&& source : this->getSources()) {
+        if (auto specificStats = source->getSpecificStats()) {
+            specificStats->acceptVisitor(&visitor);
+        }
+    }
 }
 
 }  // namespace mongo

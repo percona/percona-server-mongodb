@@ -52,6 +52,13 @@ public:
                        nssList,  // list of required namespaces for the routing operation
                    bool allowLocks = false);
 
+    // TODO SERVER-102931: Integrate the RouterAcquisitionSnapshot
+    /**
+     * Constructs a RoutingContext from pre-acquired routing tables.
+     */
+    RoutingContext(OperationContext* opCtx,
+                   const stdx::unordered_map<NamespaceString, CollectionRoutingInfo>& nssToCriMap);
+
     // Non-copyable, non-movable
     RoutingContext(const RoutingContext&) = delete;
     RoutingContext& operator=(const RoutingContext&) = delete;
@@ -59,8 +66,14 @@ public:
     ~RoutingContext();
 
     /**
-     * Returns the routing table mapped to a namespace. This is initialized at construction time and
-     * remains the same throughout the routing operation.
+     * Create a RoutingContext without using a CatalogCache, for testing
+     */
+    static RoutingContext createForTest(
+        stdx::unordered_map<NamespaceString, CollectionRoutingInfo> nssMap);
+
+    /**
+     * Returns the routing table mapped to a namespace. This is initialized at construction time
+     * and remains the same throughout the routing operation.
      */
     const CollectionRoutingInfo& getCollectionRoutingInfo(const NamespaceString& nss) const;
 
@@ -77,6 +90,7 @@ public:
     bool onStaleError(const NamespaceString& nss, const Status& status);
 
 private:
+    RoutingContext(stdx::unordered_map<NamespaceString, CollectionRoutingInfo> nssMap);
     /**
      * Obtain the routing table associated with a namespace from the CatalogCache. This returns the
      * latest routing table unless the read concern is snapshot with "atClusterTime" set. If an
@@ -87,9 +101,10 @@ private:
                                                                 bool allowLocks) const;
 
     CatalogCache* _catalogCache;
-    // Map from _nss -> CollectionRoutingInfo
-    stdx::unordered_map<NamespaceString,
-                        std::pair<const CollectionRoutingInfo, boost::optional<Status>>>
-        _nssToCriMap;
+    // Map from _nss -> (CollectionRoutingInfo, Status).
+    using NssCriMap =
+        stdx::unordered_map<NamespaceString,
+                            std::pair<const CollectionRoutingInfo, boost::optional<Status>>>;
+    NssCriMap _nssToCriMap;
 };
 }  // namespace mongo

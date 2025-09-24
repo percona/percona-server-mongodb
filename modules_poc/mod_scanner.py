@@ -32,8 +32,33 @@ sys.path.append(str(file.parent))
 # os.chdir(parent.parent)  # repo root (uncomment for python debugger)
 
 import cindex as clang
-from cindex import Config, Cursor, CursorKind, Index, LinkageKind, RefQualifierKind, TranslationUnit
+from cindex import (
+    AccessSpecifier,
+    Config,
+    Cursor,
+    CursorKind,
+    Index,
+    LinkageKind,
+    RefQualifierKind,
+    TranslationUnit,
+)
 from cindex import File as ClangFile
+
+
+def perr(*values):
+    print(*values, file=sys.stderr)
+
+
+def perr_exit(*values) -> NoReturn:
+    perr(*values)
+    sys.exit(1)
+
+
+if codeowners.path_to_regex("/**/bar").match("/foobar"):
+    # Detect an outdated version suffering from https://github.com/sbdchd/codeowners/issues/43.
+    # We need to update to at least 0.8.0 to get the fix.
+    perr_exit("please run buildscripts/poetry_sync.sh to update dependencies")
+
 
 # Monkey patch some features into clang's python binding. Keeping commented out for now in case we decide not to use modified lib.
 # clang.functionList.append(("clang_File_isEqual", [ClangFile, ClangFile], ctypes.c_int))
@@ -58,112 +83,6 @@ out_from_env = os.environ.get("MOD_SCANNER_OUTPUT", None)
 is_local = out_from_env is None
 
 
-# Copied from
-# https://github.com/sbdchd/codeowners/blob/53a7a9533ab455b0aa3f35f599558a2e1a1e97b7/codeowners/__init__.py#L17-L108
-# then modified to correctly handle **, fixing https://github.com/sbdchd/codeowners/issues/43.
-def path_to_regex(pattern: str):
-    """
-    ported from https://github.com/hmarr/codeowners/blob/d0452091447bd2a29ee508eebc5a79874fb5d4ff/match.go#L33
-
-    MIT License
-
-    Copyright (c) 2020 Harry Marr
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
-    """
-    regex = ""
-
-    slash_pos = pattern.find("/")
-    anchored = slash_pos > -1 and slash_pos != len(pattern) - 1
-
-    regex += r"\A" if anchored else r"(?:\A|/)"
-
-    matches_dir = pattern[-1] == "/"
-    matches_no_subdirs = pattern[-2:] == "/*"
-    pattern_trimmed = pattern.strip("/")
-
-    in_char_class = False
-    escaped = False
-
-    iterator = enumerate(pattern_trimmed)
-    for i, ch in iterator:
-        if escaped:
-            regex += re.escape(ch)
-            escaped = False
-            continue
-
-        if ch == "\\":
-            escaped = True
-        elif ch == "*":
-            if i + 1 < len(pattern_trimmed) and pattern_trimmed[i + 1] == "*":
-                left_anchored = i == 0
-                leading_slash = i > 0 and pattern_trimmed[i - 1] == "/"
-                right_anchored = i + 2 == len(pattern_trimmed)
-                trailing_slash = i + 2 < len(pattern_trimmed) and pattern_trimmed[i + 2] == "/"
-
-                if (left_anchored or leading_slash) and (right_anchored or trailing_slash):
-                    # MONGO CHANGE vvvv
-                    if trailing_slash:
-                        # Match behavior of glob.translate() from Python 3.13+
-                        # https://github.com/python/cpython/blob/0879ebc953fa7372a4d99f3f79889093f04cac67/Lib/glob.py#L291
-                        regex += "(?:.*/)?"
-                    else:
-                        regex += ".*"
-                    # ORIG CODE vvvv
-                    # regex += ".*"
-                    # MONGO CHANGE ^^^^
-
-                    next(iterator, None)
-                    next(iterator, None)
-                    continue
-            regex += "[^/]*"
-        elif ch == "?":
-            regex += "[^/]"
-        elif ch == "[":
-            in_char_class = True
-            regex += ch
-        elif ch == "]":
-            if in_char_class:
-                regex += ch
-                in_char_class = False
-            else:
-                regex += re.escape(ch)
-        else:
-            regex += re.escape(ch)
-
-    if in_char_class:
-        raise ValueError(f"unterminated character class in pattern {pattern}")
-
-    if matches_dir:
-        regex += "/"
-    elif matches_no_subdirs:
-        regex += r"\Z"
-    else:
-        regex += r"(?:\Z|/)"
-    return re.compile(regex)
-
-
-# Monkey-patch codeowners lib to work around https://github.com/sbdchd/codeowners/issues/43.
-# This must be done prior to the first usage of the library.
-codeowners.path_to_regex = path_to_regex
-
-
 with open(root / ".github/CODEOWNERS") as f:
     code_owners = CodeOwners(f.read())
 
@@ -172,8 +91,8 @@ with open(parent / "modules.yaml") as f:
     def parseModules():
         raw_mods = yaml.load(f, Loader=Loader)
         lines = []
-        for mod, globs in raw_mods.items():
-            for glob in globs:
+        for mod, info in raw_mods.items():
+            for glob in info["files"]:
                 lines.append(f"/{glob} @10gen/{mod}")
                 if glob.endswith(".idl"):
                     lines.append(f"/{glob[:-4]}_gen.* @10gen/{mod}")
@@ -184,15 +103,6 @@ with open(parent / "modules.yaml") as f:
         return "\n".join(lines)
 
     modules = CodeOwners(parseModules())
-
-
-def perr(*values):
-    print(*values, file=sys.stderr)
-
-
-def perr_exit(*values) -> NoReturn:
-    perr(*values)
-    sys.exit(1)
 
 
 class DecoratedCursor(Cursor):
@@ -375,43 +285,57 @@ def get_visibility(c: DecoratedCursor, scanning_parent=False):
                 )
             return (attr, alt)
 
-    # Some rules for implicitly private decls
-    # TODO: Unfortunately these rules are violated on 64 declarations,
-    # so it can't be enabled yet.
-    #
-    # - Some of the forTest methods appear to be intended as helpers for
-    #   consumers writing tests. We may want to use a different suffix like
-    #   "forTests" for that.
-    # - The usages of details namespace violations are more tricky, and there
-    #   appear to be a few kinds:
-    #   - True violations: we should fix these.
-    #   - Files not mapped to modules correctly: we should fix the mapping.
-    #   - APIs intended to be used from macro implementations: We might be
-    #     able to fix these by using clang_getFileLocation rather than
-    #     clang_getInstantiationLocation, but I don't think we want to do
-    #     that everywhere and it isn't currently exposed from python.
-    #     For now we may just want to mark those as public.
-    #   - Types not intended to be named directly by consumers, but used as
-    #     part of public APIs (eg return types or base classes) such that
-    #     consumers are expected to use their APIs. Maybe they should be
-    #     declared public anyway?
-    if 0:  # :(
-        if c.spelling.endswith("forTest"):
-            return "private"
+    # Apply high-priority defaults that override parent's visibility
+    if not scanning_parent:
+        # TODO consider making PROTECTED also default to module private
+        if c.access_specifier == AccessSpecifier.PRIVATE:
+            return ("private", None)
 
-        # details and internal namespaces
-        if c.kind == CursorKind.NAMESPACE and DETAIL_REGEX.match(c.spelling):
-            return "private"
+        # TODO: Unfortunately these rules are violated on 64 declarations,
+        # so it can't be enabled yet.
+        #
+        # - Some of the forTest methods appear to be intended as helpers for
+        #   consumers writing tests. We may want to use a different suffix like
+        #   "forTests" for that.
+        # - The usages of details namespace violations are more tricky, and there
+        #   appear to be a few kinds:
+        #   - True violations: we should fix these.
+        #   - Files not mapped to modules correctly: we should fix the mapping.
+        #   - APIs intended to be used from macro implementations: We might be
+        #     able to fix these by using clang_getFileLocation rather than
+        #     clang_getInstantiationLocation, but I don't think we want to do
+        #     that everywhere and it isn't currently exposed from python.
+        #     For now we may just want to mark those as public.
+        #   - Types not intended to be named directly by consumers, but used as
+        #     part of public APIs (eg return types or base classes) such that
+        #     consumers are expected to use their APIs. Maybe they should be
+        #     declared public anyway?
+        if 0:  # :(
+            if c.spelling.endswith("forTest"):
+                return "private"
 
-    if not c.normalized_parent:
-        return ("UNKNOWN", None)  # break recursion
+            # details and internal namespaces
+            if c.kind == CursorKind.NAMESPACE and DETAIL_REGEX.match(c.spelling):
+                return "private"
 
-    return get_visibility(c.normalized_parent, scanning_parent=True)
+    if c.normalized_parent:
+        parent_vis = get_visibility(c.normalized_parent, scanning_parent=True)
+    else:
+        parent_vis = ("UNKNOWN", None)  # break recursion
+
+    # Apply low-priority defaults that defer to parent's visibility
+    if not scanning_parent and parent_vis[0] == "UNKNOWN":
+        if normpath_for_file(c) in complete_headers:
+            return ("private", None)
+
+    return parent_vis
 
 
-def normpath_for_file(f: ClangFile | str | None) -> str | None:
+def normpath_for_file(f: Cursor | ClangFile | str | None) -> str | None:
     if f is None:
         return None
+    if isinstance(f, Cursor):
+        return normpath_for_file(f.location.file)
 
     name = f.name if type(f) == ClangFile else f
     if "/third_party/" in name:
@@ -426,6 +350,8 @@ def normpath_for_file(f: ClangFile | str | None) -> str | None:
 
 
 file_mod_map: dict[str | None, str | None] = {None: None}
+complete_headers = set[str]()
+incomplete_headers = set[str]()
 
 
 def mod_for_file(f: ClangFile | str | None) -> str | None:
@@ -525,6 +451,10 @@ def pretty_location(loc: clang.SourceLocation | clang.Cursor):
             # location, but have an extent. Use the start of the extent instead.
             extent_start = loc.extent.start  # type: clang.SourceLocation
             loc = extent_start
+    # NOTE: not using normpath_for_file() here because we don't want to convert
+    # bazel-out/blah/src/mongo/beep to src/mongo/beep. All paths output by pretty_location
+    # should be relative to the repo root. This is important for the browser to be able to
+    # load the file. We still want to use os.path.normpath to fix up foo/bar/../baz to  foo/baz.
     name = os.path.normpath(loc.file.name) if loc.file else "<unknown>"
     # return f"{name}({loc.line},{loc.column})"  # MSVC format
     return f"{name}:{loc.line}:{loc.column}"  # gcc format
@@ -660,6 +590,12 @@ def is_local_decl(c: Cursor):
 
 
 def find_usages(mod: str, c: Cursor):
+    if c.kind == CursorKind.ANNOTATE_ATTR and c.spelling.startswith("mongo::mod::"):
+        if not any(normpath_for_file(c) in s for s in (complete_headers, incomplete_headers)):
+            perr_exit(
+                f"{pretty_location(c)}:ERROR: usage of MONGO_MOD macro without directly including "
+                + '"mongo/util/modules.h" or modules_incompletely_marked_header.h'
+            )
     ref = c.referenced
     # Handle children first. This makes it possible to use early returns below
     for child in c.get_children():
@@ -710,6 +646,21 @@ def find_usages(mod: str, c: Cursor):
         # at the internal declaration. Make sure that this isn't causing us to skip
         # any first-party declarations.
         assert not ref.location.file or mod_for_file(ref.location.file) is None
+        return
+
+    if c.kind == CursorKind.CALL_EXPR and c.referenced.kind != CursorKind.CONSTRUCTOR:
+        # For a call expression like a.b(c) or a::b(c) the whole thing is considered a reference of
+        # a.b, but unfortunately the reported location is that of a, while we'd really want it to be
+        # that of b. This was frequently resulting in two usage locations being reported for each
+        # method call. Luckily, in most cases, the first child of the call expression (or one of its
+        # transitive children) is the sub-expression a.b, which has a reference to b with the right
+        # location. So we can safely ignore the call expression and rely on the post-order traversal
+        # already adding a relevant used_from reference for this expression. The one exception is
+        # that for constructor calls, the child refers to the *type* a::b, rather than the specific
+        # constructor a::b::b() chosen, so we still need to add this location (even if not ideal) to
+        # ensure that we mark the constructor's usage. I ran this with an assert to check that this
+        # doesn't cause us to lose any usages, but it is too slow to keep (O(n^2) for n calls to a
+        # method in a TU, causing some TUs to take several minutes).
         return
 
     if is_local_decl(ref):
@@ -828,14 +779,21 @@ timer = Timer()
 # TODO: this should probably be pulled out to a separate program, with all functions
 # only called by it moved out as well. That requires pulling mod_for_file() out to a lib.
 # It is only part of mod_scanner because it needs that function.
-def dump_modules() -> None:
-    out: dict[str, dict[str, dict[str, list[str]]]] = {}
+
+
+def glob_paths():
     for path in glob("src/mongo/**/*", recursive=True):
         if "/third_party/" in path:
             continue
         extensions = ("h", "cpp", "idl", "c", "defs", "inl", "hpp")
         if not any(path.endswith(f".{ext}") for ext in extensions):
             continue
+        yield path
+
+
+def dump_modules() -> None:
+    out: dict[str, dict[str, dict[str, list[str]]]] = {}
+    for path in glob_paths():
         mod = mod_for_file(path)
         assert mod  # None would mean not first-party, but that is already filtered out.
         (dir, leaf) = path.rsplit("/", 1)
@@ -849,6 +807,11 @@ def dump_modules() -> None:
             for files in dirs.values():
                 files.sort()
     yaml.dump(out, open("modules.yaml", "w"))
+
+
+def dump_list() -> None:
+    for line in sorted(f"{path} -- {mod_for_file(path)}" for path in glob_paths()):
+        print(line)
 
 
 def parseTU(args: list[str] | str):
@@ -907,6 +870,19 @@ def parseTU(args: list[str] | str):
     for d in tu.diagnostics:
         perr(d)
     timer.mark("parsed")
+
+    for include in tu.get_includes():
+        if "src/mongo" not in include.include.name:
+            continue
+
+        # Note: using bytes to avoid unicode handling overhead since the
+        # needles we are looking for are ascii-only.
+        content = Path(include.include.name).read_bytes()
+        if b'"mongo/util/modules.h"' in content:
+            complete_headers.add(normpath_for_file(include.include))
+        elif b'"mongo/util/modules_incompletely_marked_header.h"' in content:
+            incomplete_headers.add(normpath_for_file(include.include))
+    timer.mark("checked header completeness")
     return tu
 
 
@@ -917,8 +893,8 @@ def dump_unused_inputs(outPath: str, tu: TranslationUnit):
     universe = set(glob("src/mongo/**/*.h", recursive=True))
     timer.mark("globbed")
     for include in tu.get_includes():
-        if include.source:
-            universe.discard(include.source.name)
+        if include.include:
+            universe.discard(include.include.name)
     with open(outPath, "w") as file:
         file.write("\n".join(sorted(universe)))
     timer.mark("outfile written")
@@ -932,6 +908,10 @@ def main():
 
     if args == ["--dump-modules"]:
         dump_modules()
+        sys.exit()
+
+    if args == ["--dump-modules-list"]:
+        dump_list()
         sys.exit()
 
     tu = parseTU(args)

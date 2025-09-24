@@ -82,8 +82,7 @@ buildvariants:
       - name: .crypt
       - name: crypt_build_debug_and_test
 
-  - &amazon-linux2023-arm64-static-compile-variant
-    <<: *linux-arm64-dynamic-compile-params
+  - <<: *linux-arm64-dynamic-compile-params
     name: &amazon-linux2023-arm64-static-compile amazon-linux2023-arm64-static-compile
     display_name: "! Amazon Linux 2023 arm64 Enterprise Shared Library Compile & Static Analysis"
     tags: ["required", "bazel_check", "forbid_tasks_tagged_with_experimental"]
@@ -94,8 +93,9 @@ buildvariants:
       download_mongot_release: true
       compile_variant: *amazon-linux2023-arm64-static-compile
       evergreen_remote_exec: on
+      skip_debug_link: true
     tasks:
-      - name: compile_test_parallel_unittest_stream_TG
+      - name: run_unit_tests_TG
       - name: compile_test_parallel_core_stream_and_pretty_printer_tests_TG
         distros:
           - amazon2023-arm64-latest-large-localstorage
@@ -125,18 +125,6 @@ buildvariants:
       - name: .default .requires_compile_variant .requires_large_host !.incompatible_development_variant
         distros:
           - amazon2023-arm64-latest-xlarge
-
-  # TODO SERVER-101932: Delete this variant
-  - <<: *amazon-linux2023-arm64-static-compile-variant
-    name: amazon-linux2-arm64-static-compile
-    tags: []
-    display_name: "~ Temporary variant to make github happy (delete in SERVER-101932)"
-    activate: false
-    depends_on:
-      - name: run_bazel_clang_tidy
-        variant: *amazon-linux2023-arm64-static-compile
-    tasks:
-      - name: lint_pylinters
 
   - <<: *amazon_linux2023_arm64_static_compile_variant_dependency
     name: enterprise-amazon-linux2023-arm64
@@ -198,7 +186,7 @@ buildvariants:
       - name: compile_all_but_not_unittests_TG
         distros:
           - amazon2023-arm64-xlarge-commitqueue
-      - name: compile_test_parallel_unittest_stream_TG
+      - name: run_unit_tests_TG
         distros:
           - amazon2023-arm64-xlarge-commitqueue
       - name: compile_test_parallel_dbtest_stream_TG
@@ -386,6 +374,9 @@ buildvariants:
       - name: compile_test_and_package_serial_TG
         distros:
           - amazon2023-arm64-latest-large-m8g
+      - name: run_unit_tests_TG
+        distros:
+          - amazon2023-arm64-latest-large-m8g
       - name: .development_critical !.requires_large_host !.incompatible_community
       - name: .development_critical .requires_large_host !.incompatible_community
         distros:
@@ -418,6 +409,9 @@ buildvariants:
       - name: compile_test_and_package_serial_TG
         distros:
           - amazon2023-arm64-latest-large-m8g
+      - name: run_unit_tests_TG
+        distros:
+          - amazon2023-arm64-latest-large-m8g
       - name: .development_critical !.requires_large_host
       - name: .development_critical .requires_large_host
         distros:
@@ -439,6 +433,22 @@ buildvariants:
         --streams_release_build=True
     run_on:
       - amazon2023.3-xlarge
+    tasks:
+      - name: compile_and_package_serial_no_unittests_TG
+      - name: package_supplementary_data
+  - name: amazon2023-arm64-streams-compile
+    display_name: "* Compile Streams Amazon Linux 2023 arm64 for sys-perf"
+    tags: ["suggested"]
+    cron: "0 */4 * * *" # From the ${project_required_suggested_cron} parameter
+    expansions:
+      <<: *sys_perf_compile_expansions
+      compile_variant: amazon2023-arm64-streams-compile
+      bazel_compile_flags: >-
+        --define=MONGO_DISTMOD=amazon2023
+        --release=True
+        --streams_release_build=True
+    run_on:
+      - amazon2023.3-arm64-xlarge
     tasks:
       - name: compile_and_package_serial_no_unittests_TG
       - name: package_supplementary_data

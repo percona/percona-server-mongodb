@@ -15,6 +15,26 @@ In cases where multiple globs match a file, the current rule is that the
 longest glob wins. This is used as a simpler-to-implement version of
 most-specific glob wins, which we may switch to in the future.
 
+When submitting a review, you are strongly encouraged to include
+a generated diff of the changes to the modules list. This can be done by running:
+
+```bash
+python modules_poc/mod_scanner.py --dump-modules-list > modules.old
+# make your changes
+python modules_poc/mod_scanner.py --dump-modules-list > modules.new
+diff -u0 modules.old modules.new > modules.diff
+```
+
+Github will nicely format the diff if you put it in a block like this:
+
+````markdown
+```diff
+@@ -1234 +1234 @@
+-path/to/file -- old_module
++path/to/file -- new_module
+```
+````
+
 ### Showing assigned and unassigned files
 
 Run `modules_poc/mod_scanner.py --dump-modules` to produce a `modules.yaml` file
@@ -23,7 +43,7 @@ module name to team name to directory path to list of file names.
 For unassigned files it uses `__NONE__` as the module name, and for unowned
 files it uses `__NO_OWNER__` as the team, both of which conveniently sort first.
 For owned files it uses the part of the team-name after `@10gen/` with `-`
-replaced with `*` to be friendlier to querying. In cases where multiple teams
+replaced with `_` to be friendlier to querying. In cases where multiple teams
 own a file, the file is duplicated to each team's list.
 
 This file can be viewed directly in VSCode. The yaml plugin's breadcrumbs and

@@ -97,7 +97,7 @@ scratch
 /mongosniff*
 /mongotrafficreader*
 
-# binaries from db-contrib-tool
+# artifacts from db-contrib-tool
 /ksdecode*
 /mongo*
 /mongoauditdecrypt*
@@ -113,6 +113,11 @@ scratch
 /mqlrun*
 /perconadecrypt*
 /wt*
+/lock_gdb_test-*.py
+/optimizer_gdb_test-*.py
+/optimizer_gdb_test_program-*
+/pretty_printer_test-*.py
+/pretty_printer_test_program-*
 
 *.tgz
 *.zip

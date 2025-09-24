@@ -45,7 +45,6 @@
 #include "mongo/db/pipeline/document_source_single_document_transformation.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/query/explain_options.h"
-#include "mongo/db/query/plan_summary_stats_visitor.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/string_map.h"
@@ -59,27 +58,8 @@ using boost::intrusive_ptr;
 
 StringMap<DocumentSource::ParserRegistration> DocumentSource::parserMap;
 
-DocumentSource::DocumentSource(const StringData stageName,
-                               const intrusive_ptr<ExpressionContext>& pCtx)
-    : pSource(nullptr), pExpCtx(pCtx), _commonStats(stageName.rawData()) {
-    if (pExpCtx->shouldCollectDocumentSourceExecStats()) {
-        if (internalMeasureQueryExecutionTimeInNanoseconds.load()) {
-            _commonStats.executionTime.precision = QueryExecTimerPrecision::kNanos;
-        } else {
-            _commonStats.executionTime.precision = QueryExecTimerPrecision::kMillis;
-        }
-    }
-}
-
-void accumulatePipelinePlanSummaryStats(const Pipeline& pipeline,
-                                        PlanSummaryStats& planSummaryStats) {
-    auto visitor = PlanSummaryStatsVisitor(planSummaryStats);
-    for (auto&& source : pipeline.getSources()) {
-        if (auto specificStats = source->getSpecificStats()) {
-            specificStats->acceptVisitor(&visitor);
-        }
-    }
-}
+DocumentSource::DocumentSource(StringData stageName, const intrusive_ptr<ExpressionContext>& pCtx)
+    : Stage(stageName, pCtx) {}
 
 void DocumentSource::registerParser(std::string name,
                                     Parser parser,

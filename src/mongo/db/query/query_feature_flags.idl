@@ -241,11 +241,17 @@ feature_flags:
     featureFlagSbeUpgradeBinaryTrees:
         description: "Feature flag to enable N-ary ABT nodes"
         cpp_varname: gFeatureFlagSbeUpgradeBinaryTrees
-        default: false
         shouldBeFCVGated: false
+        incremental_rollout_phase: rollout
 
     featureFlagUUIDExpression:
         description: "Feature flag to enable $uuid expression"
         cpp_varname: gFeatureFlagUUIDExpression
+        default: false
+        shouldBeFCVGated: true
+
+    featureFlagPQSBackfill:
+        description: "Enables PQS representative query backfilling"
+        cpp_varname: gFeatureFlagPQSBackfill
         default: false
         shouldBeFCVGated: true

@@ -527,6 +527,12 @@ public:
         uassert(5563600,
                 "'phase' field is only valid to be specified on shards",
                 !request.getPhase() || (role && role->has(ClusterRole::ShardServer)));
+        // TODO (SERVER-97816): Remove feature flag check once 9.0 becomes last lts.
+        uassert(
+            1034131,
+            "'phase' field must be present on shards",
+            !feature_flags::gUseTopologyChangeCoordinators.isEnabledOnVersion(requestedVersion) ||
+                request.getPhase() || (!role || !role->hasExclusively(ClusterRole::ShardServer)));
 
         if (!request.getPhase() || request.getPhase() == SetFCVPhaseEnum::kStart) {
             {
@@ -563,6 +569,19 @@ public:
                         "Failing setFeatureCompatibilityVersion before reaching the FCV "
                         "transitional stage due to 'failBeforeTransitioning' failpoint set",
                         !failBeforeTransitioning.shouldFail());
+
+                // TODO (SERVER-103458): Remove once 9.0 becomes last lts.
+                if (role && role->has(ClusterRole::ConfigServer) &&
+                    feature_flags::gCheckInvalidDatabaseInGlobalCatalog
+                        .isEnabledOnTargetFCVButDisabledOnOriginalFCV(requestedVersion,
+                                                                      actualVersion)) {
+                    // Remove reference to the admin database from the config, it is leftover from
+                    // an old version.
+                    DBDirectClient client(opCtx);
+                    write_ops::checkWriteErrors(client.remove(write_ops::DeleteCommandRequest(
+                        NamespaceString::kConfigDatabasesNamespace,
+                        {{BSON(DatabaseType::kDbNameFieldName << "admin"), false /* multi */}})));
+                }
 
                 if (role && role->has(ClusterRole::ConfigServer)) {
                     uassert(

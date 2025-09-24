@@ -244,7 +244,7 @@ void populateCollectionUUIDMismatch(OperationContext* opCtx,
     LOGV2_DEBUG(9986812,
                 4,
                 "Encountered collection uuid mismatch when processing errors",
-                "error"_attr = error->getStatus());
+                "error"_attr = redact(error->getStatus()));
 
     auto info = error->getStatus().extraInfo<CollectionUUIDMismatchInfo>();
     if (info->actualCollection()) {
@@ -391,8 +391,10 @@ StatusWith<WriteType> targetWriteOps(OperationContext* opCtx,
 
         if (!targetStatus.isOK()) {
             write_ops::WriteError targetError(0, targetStatus);
-            LOGV2_DEBUG(
-                9986811, 4, "Encountered targeting error", "error"_attr = targetError.getStatus());
+            LOGV2_DEBUG(9986811,
+                        4,
+                        "Encountered targeting error",
+                        "error"_attr = redact(targetError.getStatus()));
 
             auto cancelBatches = [&]() {
                 for (TargetedBatchMap::iterator it = batchMap.begin(); it != batchMap.end();) {
@@ -408,7 +410,7 @@ StatusWith<WriteType> targetWriteOps(OperationContext* opCtx,
                 LOGV2_DEBUG(9986805,
                             4,
                             "Canceled batches due to targeting error",
-                            "error"_attr = targetError.getStatus());
+                            "error"_attr = redact(targetError.getStatus()));
                 dassert(batchMap.empty());
             };
 
@@ -928,11 +930,16 @@ WriteOp& BatchWriteOp::getWriteOp(int index) {
 }
 
 void BatchWriteOp::noteBatchError(const TargetedWriteBatch& targetedBatch,
-                                  const write_ops::WriteError& error) {
+                                  const write_ops::WriteError& error,
+                                  const WriteConcernErrorDetail* wce) {
     // Treat errors to get a batch response as failures of the contained writes
     BatchedCommandResponse emulatedResponse;
     emulatedResponse.setStatus(Status::OK());
     emulatedResponse.setN(0);
+    if (wce) {
+        auto wceCopy = std::make_unique<WriteConcernErrorDetail>(*wce);
+        emulatedResponse.setWriteConcernError(wceCopy.release());
+    }
 
     const int numErrors = _clientRequest.getWriteCommandRequestBase().getOrdered()
         ? 1

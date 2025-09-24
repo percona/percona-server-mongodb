@@ -224,10 +224,11 @@ void WriteOp::targetWrites(OperationContext* opCtx,
     const bool targetAllShards = [&]() {
         if (endpoints.size() > 1u && !inTransaction) {
             auto* clusterParameters = ServerParameterSet::getClusterParameterSet();
-            auto* clusterCardinalityParam = clusterParameters->get<
+            auto* onlyTargetDataOwningShardsForMultiWritesParam = clusterParameters->get<
                 ClusterParameterWithStorage<OnlyTargetDataOwningShardsForMultiWritesParam>>(
                 "onlyTargetDataOwningShardsForMultiWrites");
-            return !clusterCardinalityParam->getValue(boost::none).getEnabled();
+            return !onlyTargetDataOwningShardsForMultiWritesParam->getValue(boost::none)
+                        .getEnabled();
         }
         return false;
     }();
@@ -424,7 +425,7 @@ void WriteOp::_noteWriteWithoutShardKeyWithIdBatchResponseWithSingleWrite(
                 LOGV2_DEBUG(8083900,
                             4,
                             "Ignoring write without shard key with id child op error.",
-                            "error"_attr = childOp.error->serialize());
+                            "error"_attr = redact(childOp.error->serialize()));
                 childOp.state = WriteOpState_Completed;
                 childOp.error = boost::none;
             }

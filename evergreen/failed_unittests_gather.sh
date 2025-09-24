@@ -8,7 +8,7 @@ set -eou pipefail
 # Only run on unit test tasks so we don't target mongod binaries from cores.
 if [ "${task_name}" != "run_dbtest" ] \
   && [[ ${task_name} != integration_tests* ]] \
-  && [[ "${task_name}" != *run_unittests* ]]; then
+  && [[ "${task_name}" != unit_test_group*_no_sandbox ]]; then
   echo "Not gathering failed unittests binaries as this is not a unittest task: ${task_name}"
   exit 0
 fi
@@ -67,6 +67,13 @@ while read -r core_file; do
     if [ -f "$debug_file" ]; then
       echo "debug Copy $debug_file to $unittest_bin_dir"
       cp "$debug_file" "$unittest_bin_dir"
+    fi
+
+    # Include any dwp symbol files to go with the .debug files
+    dwp_file=$binary_file_location.dwp
+    if [ -f "$dwp_file" ]; then
+      echo "dwp Copy $dwp_file to $unittest_bin_dir"
+      cp "$dwp_file" "$unittest_bin_dir"
     fi
 
     # On macOS, these are called .dSYM and they are directories

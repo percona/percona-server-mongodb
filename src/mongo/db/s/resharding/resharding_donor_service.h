@@ -192,7 +192,7 @@ private:
      */
     ExecutorFuture<void> _runUntilBlockingWritesOrErrored(
         const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-        const CancellationToken& abortToken) noexcept;
+        const CancellationToken& abortToken);
 
     /**
      * Notifies the coordinator if the donor is in kBlockingWrites or kError and waits for
@@ -201,7 +201,7 @@ private:
      */
     ExecutorFuture<void> _notifyCoordinatorAndAwaitDecision(
         const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-        const CancellationToken& abortToken) noexcept;
+        const CancellationToken& abortToken);
 
     /**
      * Finishes the work left remaining on the donor after the coordinator persists its decision to
@@ -210,7 +210,7 @@ private:
     ExecutorFuture<void> _finishReshardingOperation(
         const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
         const CancellationToken& stepdownToken,
-        bool aborted) noexcept;
+        bool aborted);
 
     /**
      * The work inside this function must be run regardless of any work on _scopedExecutor ever
@@ -261,7 +261,8 @@ private:
     // Transitions the on-disk and in-memory state to DonorStateEnum::kDonatingInitialData.
     void _transitionToDonatingInitialData(Timestamp minFetchTimestamp,
                                           int64_t bytesToClone,
-                                          int64_t documentsToClone);
+                                          int64_t documentsToClone,
+                                          int64_t indexCount);
 
     // Transitions the on-disk and in-memory state to DonorStateEnum::kError.
     void _transitionToError(Status abortReason);

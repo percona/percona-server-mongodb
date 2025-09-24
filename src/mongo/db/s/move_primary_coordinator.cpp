@@ -181,9 +181,8 @@ ExecutorFuture<void> MovePrimaryCoordinator::_runImpl(
     const CancellationToken& token) noexcept {
     return ExecutorFuture<void>(**executor)
         .then([this, token, executor, anchor = shared_from_this()] {
-            const auto opCtxHolder = cc().makeOperationContext();
+            const auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
-            getForwardableOpMetadata().setOn(opCtx);
 
             const auto& toShardId = _doc.getToShardId();
 
@@ -352,9 +351,8 @@ ExecutorFuture<void> MovePrimaryCoordinator::runMovePrimaryWorkflow(
                                      logChange(opCtx, "end");
                                  }))
         .onError([this, anchor = shared_from_this()](const Status& status) {
-            const auto opCtxHolder = cc().makeOperationContext();
+            const auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
-            getForwardableOpMetadata().setOn(opCtx);
 
             const auto& failedPhase = _doc.getPhase();
             if (failedPhase == Phase::kClone || status == ErrorCodes::ShardNotFound) {
@@ -390,9 +388,8 @@ ExecutorFuture<void> MovePrimaryCoordinator::_cleanupOnAbort(
     const Status& status) noexcept {
     return ExecutorFuture<void>(**executor)
         .then([this, token, executor, status, anchor = shared_from_this()] {
-            const auto opCtxHolder = cc().makeOperationContext();
+            const auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
-            getForwardableOpMetadata().setOn(opCtx);
 
             _performNoopRetryableWriteOnAllShardsAndConfigsvr(
                 opCtx, getNewSession(opCtx), **executor);
@@ -822,18 +819,19 @@ void MovePrimaryCoordinator::unblockReadsAndWrites(OperationContext* opCtx) cons
     const bool clearDbInfo =
         _doc.getAuthoritativeMetadataAccessLevel() == AuthoritativeMetadataAccessLevelEnum::kNone;
 
-    const auto& beforeReleasingAction = clearDbInfo
-        ? static_cast<const ShardingRecoveryService::BeforeReleasingCustomAction&>(
-              ShardingRecoveryService::FilteringMetadataClearer())
-        : static_cast<const ShardingRecoveryService::BeforeReleasingCustomAction&>(
-              ShardingRecoveryService::NoCustomAction());
+    std::unique_ptr<ShardingRecoveryService::BeforeReleasingCustomAction> actionPtr;
+    if (clearDbInfo) {
+        actionPtr = std::make_unique<ShardingRecoveryService::FilteringMetadataClearer>();
+    } else {
+        actionPtr = std::make_unique<ShardingRecoveryService::NoCustomAction>();
+    }
 
     ShardingRecoveryService::get(opCtx)->releaseRecoverableCriticalSection(
         opCtx,
         NamespaceString(_dbName),
         _csReason,
         ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter(),
-        beforeReleasingAction,
+        *actionPtr,
         false /*throwIfReasonDiffers*/);
 }
 

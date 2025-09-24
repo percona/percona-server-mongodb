@@ -163,13 +163,13 @@ ReshardingCoordinator::ReshardingCoordinator(
 }
 
 void ReshardingCoordinator::_installCoordinatorDoc(
-    const ReshardingCoordinatorDocument& doc) noexcept {
+    const ReshardingCoordinatorDocument& doc) {
     invariant(doc.getReshardingUUID() == _coordinatorDoc.getReshardingUUID());
     _coordinatorDoc = doc;
 }
 
 void ReshardingCoordinator::installCoordinatorDocOnStateTransition(
-    OperationContext* opCtx, const ReshardingCoordinatorDocument& doc) noexcept {
+    OperationContext* opCtx, const ReshardingCoordinatorDocument& doc) {
     const auto previousState = _coordinatorDoc.getState();
 
     _installCoordinatorDoc(doc);
@@ -339,7 +339,7 @@ ExecutorFuture<void> ReshardingCoordinator::_initializeCoordinator(
 }
 
 ExecutorFuture<ReshardingCoordinatorDocument> ReshardingCoordinator::_runUntilReadyToCommit(
-    const std::shared_ptr<executor::ScopedTaskExecutor>& executor) noexcept {
+    const std::shared_ptr<executor::ScopedTaskExecutor>& executor) {
     return resharding::WithAutomaticRetry([this, executor] {
                return ExecutorFuture<void>(**executor)
                    .then([this, executor] { return _awaitAllDonorsReadyToDonate(executor); })
@@ -423,7 +423,7 @@ ExecutorFuture<ReshardingCoordinatorDocument> ReshardingCoordinator::_runUntilRe
 
 ExecutorFuture<void> ReshardingCoordinator::_commitAndFinishReshardOperation(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-    const ReshardingCoordinatorDocument& updatedCoordinatorDoc) noexcept {
+    const ReshardingCoordinatorDocument& updatedCoordinatorDoc) {
     return resharding::WithAutomaticRetry([this, executor, updatedCoordinatorDoc] {
                return ExecutorFuture<void>(**executor)
                    .then(
@@ -1207,7 +1207,7 @@ void ReshardingCoordinator::_startCommitMonitor(
         resharding::extractShardIdsFromParticipantEntries(_coordinatorDoc.getRecipientShards()),
         **executor,
         _ctHolder->getCommitMonitorToken(),
-        resharding::gReshardingDelayBeforeRemainingOperationTimeQueryMillis.load());
+        _coordinatorDoc.getDemoMode() ? 0 : resharding::gReshardingDelayBeforeRemainingOperationTimeQueryMillis.load());
 
     _commitMonitorQuiesced = _commitMonitor->waitUntilRecipientsAreWithinCommitThreshold()
                                  .thenRunOn(**executor)
@@ -1904,6 +1904,7 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     statsBuilder.append("numberOfDestinationShards", static_cast<int64_t>(numDestinationShards));
 
     BSONArrayBuilder donors;
+    int64_t maxDonorIndexes = 0;
     int64_t totalDocuments = 0;
     int64_t totalBytes = 0;
     int64_t totalWritesDuringCriticalSection = 0;
@@ -1917,6 +1918,9 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
         shardBuilder.append("documentsToClone", docs);
         totalBytes += bytes;
         totalDocuments += docs;
+        auto indexes = state.getIndexCount().value_or(0);
+        shardBuilder.append("indexCount", indexes);
+        maxDonorIndexes = std::max(maxDonorIndexes, indexes);
         if (const auto& phaseDurations = state.getPhaseDurations()) {
             shardBuilder.append("phaseDurations", *phaseDurations);
         }
@@ -1933,7 +1937,7 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     totalsBuilder.append("totalDocumentsToClone", totalDocuments);
     totalsBuilder.append("averageDocSize", totalDocuments > 0 ? (totalBytes / totalDocuments) : 0);
 
-    int64_t maxIndexes = 0;
+    int64_t maxRecipientIndexes = 0;
     int64_t totalBytesCloned = 0;
     int64_t totalDocumentsCloned = 0;
     int64_t totalOplogsFetched = 0;
@@ -1957,7 +1961,7 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
         totalOplogsApplied += applied;
         auto indexes = state.getNumOfIndexes().value_or(0);
         shardBuilder.append("indexCount", indexes);
-        maxIndexes = std::max(maxIndexes, indexes);
+        maxRecipientIndexes = std::max(maxRecipientIndexes, indexes);
         if (const auto& phaseDurations = state.getPhaseDurations()) {
             shardBuilder.append("phaseDurations", *phaseDurations);
         }
@@ -1968,7 +1972,8 @@ void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
     totalsBuilder.append("totalDocumentsCloned", totalDocumentsCloned);
     totalsBuilder.append("totalOplogsFetched", totalOplogsFetched);
     totalsBuilder.append("totalOplogsApplied", totalOplogsApplied);
-    totalsBuilder.append("maxRecipientIndexes", maxIndexes);
+    totalsBuilder.append("maxDonorIndexes", maxDonorIndexes);
+    totalsBuilder.append("maxRecipientIndexes", maxRecipientIndexes);
     statsBuilder.append("totals", totalsBuilder.obj());
 
     bool hadCriticalSection = false;

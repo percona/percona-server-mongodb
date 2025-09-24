@@ -35,6 +35,7 @@ global:
 
 imports:
     - "mongo/db/basic_types.idl"
+    - "mongo/db/s/user_writes_block_reason.idl"
 
 structs:
     userWriteBlockingCriticalSectionDocument:
@@ -55,3 +56,6 @@ structs:
             blockUserWrites:
                 type: bool
                 default: false
+            blockUserWritesReason:
+                type: UserWritesBlockReason
+                optional: true

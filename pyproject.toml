@@ -119,7 +119,7 @@ evergreen-lint = "^0.1.9"
 ruff = "^0.6.7"
 
 [tool.poetry.group.modules_poc.dependencies]
-codeowners = { version = "^0.7.0", markers = "platform_machine != 's390x' and platform_machine != 'ppc64le'" }
+codeowners = { version = "^0.8.0", markers = "platform_machine != 's390x' and platform_machine != 'ppc64le'" }
 progressbar2 = { version = "^4.4.2", markers = "platform_machine != 's390x' and platform_machine != 'ppc64le'" }
 textual = {extras = ["syntax"], version = "^1.0.0", markers = "platform_machine != 's390x' and platform_machine != 'ppc64le'" }
 tree-sitter = { version = "^0.24.0", markers = "platform_machine != 's390x' and platform_machine != 'ppc64le'" }
@@ -130,17 +130,11 @@ pyzstd = { version =  "^0.16.2", markers = "platform_machine != 's390x' and plat
 pypiwin32 = { version = ">=223", markers = "sys_platform == 'win32'" }
 pywin32 = { version = ">=225", markers = "sys_platform == 'win32'" }
 cryptography = "^44.0.2"
-mongo-ninja-python = [
-    { version = "1.11.1.7", markers = "platform_machine != 's390x' and platform_machine != 'ppc64le'" },
-]
-ninja = [
-    { version = ">=1.10.0", markers = "platform_machine == 's390x' or platform_machine == 'ppc64le'" },
-]
 
 [tool.poetry.group.testing.dependencies]
 curatorbin = "^1.2.4"
 PyKMIP = "0.10.0"
-evergreen-py = "^3.9.0"
+evergreen-py = "^3.11.0"
 mock = "^5.1.0"
 shrub-py = "^3.1.4"
 ocspresponder = "^0.5.0"
@@ -175,9 +169,6 @@ opentelemetry-api = "*"
 opentelemetry-sdk = "*"
 opentelemetry-exporter-otlp-proto-common = "*"
 opentelemetry-exporter-otlp-proto-grpc = { version = "*", markers = "platform_machine != 's390x' and platform_machine != 'ppc64le'" }
-
-[tool.poetry.group.tooling-metrics.dependencies]
-mongo-tooling-metrics = "1.0.8"
 
 # This can be installed with "poetry install -E libdeps"
 [project.optional-dependencies]

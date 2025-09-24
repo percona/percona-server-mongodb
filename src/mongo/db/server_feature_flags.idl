@@ -167,8 +167,8 @@ feature_flags:
         cpp_varname: gFeatureFlagIntentRegistration
         default: false
         shouldBeFCVGated: false
-    featureFlagPQSBackfill:
-        description: "Enables PQS representative query backfilling"
-        cpp_varname: gFeatureFlagPQSBackfill
+    featureFlagRecordDelinquentMetrics:
+        description: "Enables delinquent metrics recording"
+        cpp_varname: gFeatureFlagRecordDelinquentMetrics
         default: false
-        shouldBeFCVGated: true
+        shouldBeFCVGated: false

@@ -75,6 +75,7 @@
 #include "mongo/s/grid.h"
 #include "mongo/s/multi_statement_transaction_requests_sender.h"
 #include "mongo/s/query_analysis_sampler_util.h"
+#include "mongo/s/router_role.h"
 #include "mongo/s/shard_key_pattern.h"
 #include "mongo/s/shard_key_pattern_query_util.h"
 #include "mongo/util/assert_util.h"
@@ -82,16 +83,12 @@
 #include "mongo/util/duration.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/str.h"
-#include "mongo/util/string_map.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 
-using mongo::repl::ReadConcernArgs;
-using mongo::repl::ReadConcernLevel;
-
 namespace mongo {
-
 namespace cluster::unsplittable {
+
 ShardsvrReshardCollection makeMoveCollectionOrUnshardCollectionRequest(
     const DatabaseName& dbName,
     const NamespaceString& nss,
@@ -148,6 +145,7 @@ ShardsvrReshardCollection makeUnshardCollectionRequest(
         performVerification,
         oplogBatchApplierTaskCount);
 }
+
 }  // namespace cluster::unsplittable
 
 void appendWriteConcernErrorDetailToCmdResponse(const ShardId& shardId,
@@ -297,6 +295,7 @@ AsyncRequestsSender::Request buildDatabaseVersionedRequest(
 
     return {shardId, std::move(versionedCmd)};
 }
+
 }  // namespace
 
 std::vector<AsyncRequestsSender::Request> buildVersionedRequests(
@@ -367,10 +366,12 @@ std::vector<AsyncRequestsSender::Request> buildVersionedRequestsForTargetedShard
 std::vector<AsyncRequestsSender::Response> gatherResponsesImpl(
     OperationContext* opCtx,
     const DatabaseName& dbName,
+    const NamespaceString& nss,
     const ReadPreferenceSetting& readPref,
     Shard::RetryPolicy retryPolicy,
     const std::vector<AsyncRequestsSender::Request>& requests,
-    bool throwOnStaleShardVersionErrors) {
+    bool throwOnStaleShardVersionErrors,
+    RoutingContext* routingCtx = nullptr) {
 
     // Send the requests.
     MultiStatementTransactionRequestsSender ars(
@@ -395,6 +396,10 @@ std::vector<AsyncRequestsSender::Response> gatherResponsesImpl(
             // Check for special errors that require throwing out any accumulated results.
             auto& responseObj = response.swResponse.getValue().data;
             status = getStatusFromCommandResult(responseObj);
+
+            if (routingCtx) {
+                routingCtx->onResponseReceivedForNss(nss, status);
+            }
 
             // If we specify to throw on stale shard version errors, then we will early exit
             // from examining results. Otherwise, we will allow stale shard version errors to
@@ -439,21 +444,19 @@ std::vector<AsyncRequestsSender::Response> gatherResponsesImpl(
 std::vector<AsyncRequestsSender::Response> gatherResponses(
     OperationContext* opCtx,
     const DatabaseName& dbName,
+    const NamespaceString& nss,
     const ReadPreferenceSetting& readPref,
     Shard::RetryPolicy retryPolicy,
-    const std::vector<AsyncRequestsSender::Request>& requests) {
-    return gatherResponsesImpl(
-        opCtx, dbName, readPref, retryPolicy, requests, true /* throwOnStaleShardVersionErrors */);
-}
-
-std::vector<AsyncRequestsSender::Response> gatherResponsesNoThrowOnStaleShardVersionErrors(
-    OperationContext* opCtx,
-    const DatabaseName& dbName,
-    const ReadPreferenceSetting& readPref,
-    Shard::RetryPolicy retryPolicy,
-    const std::vector<AsyncRequestsSender::Request>& requests) {
-    return gatherResponsesImpl(
-        opCtx, dbName, readPref, retryPolicy, requests, false /* throwOnStaleShardVersionErrors */);
+    const std::vector<AsyncRequestsSender::Request>& requests,
+    RoutingContext* routingCtx) {
+    return gatherResponsesImpl(opCtx,
+                               dbName,
+                               nss,
+                               readPref,
+                               retryPolicy,
+                               requests,
+                               true /* throwOnStaleShardVersionErrors */,
+                               routingCtx);
 }
 
 BSONObj appendDbVersionIfPresent(BSONObj cmdObj, const CachedDatabaseInfo& dbInfo) {
@@ -571,7 +574,7 @@ std::vector<AsyncRequestsSender::Response> scatterGatherUnversionedTargetAllShar
         requests.emplace_back(std::move(shardId), cmdObj);
     }
 
-    return gatherResponses(opCtx, dbName, readPref, retryPolicy, requests);
+    return gatherResponses(opCtx, dbName, NamespaceString(dbName), readPref, retryPolicy, requests);
 }
 
 std::vector<AsyncRequestsSender::Response> scatterGatherUnversionedTargetConfigServerAndShards(
@@ -589,14 +592,13 @@ std::vector<AsyncRequestsSender::Response> scatterGatherUnversionedTargetConfigS
     for (auto&& shardId : shardIds)
         requests.emplace_back(std::move(shardId), cmdObj);
 
-    return gatherResponses(opCtx, dbName, readPref, retryPolicy, requests);
+    return gatherResponses(opCtx, dbName, NamespaceString(dbName), readPref, retryPolicy, requests);
 }
 
 std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRoutingTable(
     OperationContext* opCtx,
-    const DatabaseName& dbName,
     const NamespaceString& nss,
-    const CollectionRoutingInfo& cri,
+    RoutingContext& routingCtx,
     const BSONObj& cmdObj,
     const ReadPreferenceSetting& readPref,
     Shard::RetryPolicy retryPolicy,
@@ -605,17 +607,17 @@ std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRouting
     const boost::optional<BSONObj>& letParameters,
     const boost::optional<LegacyRuntimeConstants>& runtimeConstants,
     bool eligibleForSampling) {
-    auto expCtx = makeExpressionContextWithDefaultsForTargeter(opCtx,
-                                                               nss,
-                                                               cri,
-                                                               collation,
-                                                               boost::none /*explainVerbosity*/,
-                                                               letParameters,
-                                                               runtimeConstants);
+    auto expCtx =
+        makeExpressionContextWithDefaultsForTargeter(opCtx,
+                                                     nss,
+                                                     routingCtx.getCollectionRoutingInfo(nss),
+                                                     collation,
+                                                     boost::none /*explainVerbosity*/,
+                                                     letParameters,
+                                                     runtimeConstants);
     return scatterGatherVersionedTargetByRoutingTable(expCtx,
-                                                      dbName,
                                                       nss,
-                                                      cri,
+                                                      routingCtx,
                                                       cmdObj,
                                                       readPref,
                                                       retryPolicy,
@@ -626,26 +628,37 @@ std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRouting
 
 [[nodiscard]] std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRoutingTable(
     boost::intrusive_ptr<ExpressionContext> expCtx,
-    const DatabaseName& dbName,
     const NamespaceString& nss,
-    const CollectionRoutingInfo& cri,
+    RoutingContext& routingCtx,
     const BSONObj& cmdObj,
     const ReadPreferenceSetting& readPref,
     Shard::RetryPolicy retryPolicy,
     const BSONObj& query,
     const BSONObj& collation,
     bool eligibleForSampling) {
-    const auto requests = buildVersionedRequestsForTargetedShards(
-        expCtx, nss, cri, {} /* shardsToSkip */, cmdObj, query, collation, eligibleForSampling);
-    return gatherResponses(expCtx->getOperationContext(), dbName, readPref, retryPolicy, requests);
+    const auto requests =
+        buildVersionedRequestsForTargetedShards(expCtx,
+                                                nss,
+                                                routingCtx.getCollectionRoutingInfo(nss),
+                                                {} /* shardsToSkip */,
+                                                cmdObj,
+                                                query,
+                                                collation,
+                                                eligibleForSampling);
+    return gatherResponses(expCtx->getOperationContext(),
+                           nss.dbName(),
+                           nss,
+                           readPref,
+                           retryPolicy,
+                           requests,
+                           &routingCtx);
 }
 
 std::vector<AsyncRequestsSender::Response>
 scatterGatherVersionedTargetByRoutingTableNoThrowOnStaleShardVersionErrors(
     OperationContext* opCtx,
-    const DatabaseName& dbName,
     const NamespaceString& nss,
-    const CollectionRoutingInfo& cri,
+    RoutingContext& routingCtx,
     const std::set<ShardId>& shardsToSkip,
     const BSONObj& cmdObj,
     const ReadPreferenceSetting& readPref,
@@ -654,6 +667,7 @@ scatterGatherVersionedTargetByRoutingTableNoThrowOnStaleShardVersionErrors(
     const BSONObj& collation,
     const boost::optional<BSONObj>& letParameters,
     const boost::optional<LegacyRuntimeConstants>& runtimeConstants) {
+    const auto& cri = routingCtx.getCollectionRoutingInfo(nss);
     auto expCtx = makeExpressionContextWithDefaultsForTargeter(opCtx,
                                                                nss,
                                                                cri,
@@ -664,8 +678,14 @@ scatterGatherVersionedTargetByRoutingTableNoThrowOnStaleShardVersionErrors(
     const auto requests = buildVersionedRequestsForTargetedShards(
         expCtx, nss, cri, shardsToSkip, cmdObj, query, collation);
 
-    return gatherResponsesNoThrowOnStaleShardVersionErrors(
-        opCtx, dbName, readPref, retryPolicy, requests);
+    return gatherResponsesImpl(opCtx,
+                               nss.dbName(),
+                               nss,
+                               readPref,
+                               retryPolicy,
+                               requests,
+                               false /* throwOnStaleShardVersionErrors */,
+                               &routingCtx);
 }
 
 AsyncRequestsSender::Response executeCommandAgainstDatabasePrimaryOnlyAttachingDbVersion(
@@ -681,6 +701,7 @@ AsyncRequestsSender::Response executeCommandAgainstDatabasePrimaryOnlyAttachingD
     auto responses =
         gatherResponses(opCtx,
                         dbName,
+                        NamespaceString(dbName),
                         readPref,
                         retryPolicy,
                         std::vector<AsyncRequestsSender::Request>{AsyncRequestsSender::Request(
@@ -710,6 +731,7 @@ AsyncRequestsSender::Response executeCommandAgainstShardWithMinKeyChunk(
     auto responses = gatherResponses(
         opCtx,
         nss.dbName(),
+        nss,
         readPref,
         retryPolicy,
         buildVersionedRequestsForTargetedShards(
@@ -770,14 +792,14 @@ RawResponsesResult appendRawResponses(
         }
 
         const auto& resObj = shardResponse.swResponse.getValue().data;
+        if (!firstWriteConcernErrorReceived && resObj["writeConcernError"]) {
+            firstWriteConcernErrorReceived.emplace(shardId, resObj["writeConcernError"]);
+        }
+
         const auto commandStatus = getStatusFromCommandResult(resObj);
         if (!commandStatus.isOK()) {
             processError(shardId, commandStatus);
             continue;
-        }
-
-        if (!firstWriteConcernErrorReceived && resObj["writeConcernError"]) {
-            firstWriteConcernErrorReceived.emplace(shardId, resObj["writeConcernError"]);
         }
 
         successResponsesReceived.emplace_back(shardId, resObj);
@@ -817,13 +839,15 @@ RawResponsesResult appendRawResponses(
     }
     output->append("raw", rawShardResponses.done());
 
-    // If there were no errors, report success (possibly with a writeConcern error).
+    // Always add the WCE if any when the command fails
+    if (firstWriteConcernErrorReceived &&
+        (appendWriteConcernError || !genericErrorsReceived.empty())) {
+        appendWriteConcernErrorToCmdResponse(
+            firstWriteConcernErrorReceived->first, firstWriteConcernErrorReceived->second, *output);
+    }
+
+    // If there were no errors, report success.
     if (genericErrorsReceived.empty()) {
-        if (firstWriteConcernErrorReceived && appendWriteConcernError) {
-            appendWriteConcernErrorToCmdResponse(firstWriteConcernErrorReceived->first,
-                                                 firstWriteConcernErrorReceived->second,
-                                                 *output);
-        }
         return {
             true, shardsWithSuccessResponses, successARSResponses, firstStaleConfigErrorReceived};
     }
@@ -1018,10 +1042,10 @@ BSONObj forceReadConcernLocal(OperationContext* opCtx, BSONObj& cmd) {
     const auto& readConcernArgs = repl::ReadConcernArgs::get(opCtx);
     auto atClusterTime = readConcernArgs.getArgsAtClusterTime();
     auto afterClusterTime = readConcernArgs.getArgsAfterClusterTime();
-    BSONObjBuilder bob(cmd.removeField(ReadConcernArgs::kReadConcernFieldName));
+    BSONObjBuilder bob(cmd.removeField(repl::ReadConcernArgs::kReadConcernFieldName));
 
     repl::ReadConcernIdl newReadConcern;
-    newReadConcern.setLevel(ReadConcernLevel::kLocalReadConcern);
+    newReadConcern.setLevel(repl::ReadConcernLevel::kLocalReadConcern);
     // We should carry over the atClusterTime/afterClusterTime to keep causal consistency.
     if (atClusterTime) {
         // atClusterTime is only supported in snapshot readConcern, so we use afterClusterTime
@@ -1033,7 +1057,7 @@ BSONObj forceReadConcernLocal(OperationContext* opCtx, BSONObj& cmd) {
 
     {
         BSONObjBuilder newReadConcernBuilder(
-            bob.subobjStart(ReadConcernArgs::kReadConcernFieldName));
+            bob.subobjStart(repl::ReadConcernArgs::kReadConcernFieldName));
         newReadConcern.serialize(&newReadConcernBuilder);
     }
 

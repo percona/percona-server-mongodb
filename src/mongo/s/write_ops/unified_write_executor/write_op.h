@@ -27,66 +27,49 @@
  *    it in the license file.
  */
 
+#pragma once
+
 #include <boost/optional.hpp>
 #include <variant>
 
 #include "mongo/s/write_ops/batched_command_request.h"
 
+
 namespace mongo {
 namespace unified_write_executor {
-
-class BulkWriteOp {
-public:
-    using BulkWriteOpVariant =
-        std::variant<mongo::BulkWriteInsertOp, mongo::BulkWriteUpdateOp, mongo::BulkWriteDeleteOp>;
-
-    BulkWriteOp(const BulkWriteCommandRequest& request, int index)
-        : _request(request), _index(index) {}
-
-    NamespaceInfoEntry getNsInfo() {
-        auto nsIndex =
-            visit(OverloadedVisitor{
-                      [](const mongo::BulkWriteInsertOp& value) { return value.getInsert(); },
-                      [](const mongo::BulkWriteUpdateOp& value) { return value.getUpdate(); },
-                      [](const mongo::BulkWriteDeleteOp& value) {
-                          return value.getDeleteCommand();
-                      }},
-                  getOp());
-        return _request.getNsInfo()[nsIndex];
-    }
-
-    const BulkWriteOpVariant& getOp() const {
-        return _request.getOps()[_index];
-    }
-
-    size_t getIndex() const {
-        return _index;
-    }
-
-private:
-    const BulkWriteCommandRequest& _request;
-    size_t _index;
+enum WriteType {
+    kInsert = BatchedCommandRequest::BatchType_Insert,
+    kUpdate = BatchedCommandRequest::BatchType_Update,
+    kDelete = BatchedCommandRequest::BatchType_Delete,
+    kFindAndMod,  // TODO SERVER-103949 will use this type or remove it.
 };
 
 class WriteOp {
 public:
-    WriteOp(const BulkWriteCommandRequest& request, size_t index)
-        : _op(BulkWriteOp(request, index)) {}
+    WriteOp(const BulkWriteCommandRequest& request, int index) : _op(&request, index) {}
 
-    BulkWriteOp getBulkWriteOp() const {
-        return std::get<BulkWriteOp>(_op);
+    int getId() const {
+        return _op.getItemIndex();
     }
 
-    size_t getId() const {
-        return visit(
-            OverloadedVisitor{
-                [](const BulkWriteOp& op) { return op.getIndex(); },
-            },
-            _op);
+    const NamespaceString& getNss() const {
+        return _op.getNss();
+    }
+
+    WriteType getType() const {
+        return WriteType(_op.getOpType());
+    }
+
+    BatchItemRef getRef() const {
+        return _op;
+    }
+
+    bool isMulti() const {
+        return _op.isMulti();
     }
 
 private:
-    std::variant<BulkWriteOp> _op;
+    BatchItemRef _op;
 };
 
 }  // namespace unified_write_executor

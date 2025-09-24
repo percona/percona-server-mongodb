@@ -155,7 +155,8 @@ feature_flags:
     featureFlagUseTopologyChangeCoordinators:
         description: "Feature flag for enabling the coordinator based topology changes."
         cpp_varname: feature_flags::gUseTopologyChangeCoordinators
-        default: false
+        default: true
+        version: 8.2
         shouldBeFCVGated: true
     # TODO (SERVER-98118): remove once 9.0 becomes last LTS.
     featureFlagShardAuthoritativeDbMetadataCRUD:
@@ -203,7 +204,8 @@ feature_flags:
     featureFlagSnapshotFCVInDDLCoordinators:
         description: "Feature flag to enable snapshotting of the operation FCV at the start of DDL operations."
         cpp_varname: feature_flags::gSnapshotFCVInDDLCoordinators
-        default: false
+        default: true
+        version: 8.2
         shouldBeFCVGated: true
     # TODO (SERVER-103838): remove feature once 9.0 becomes LTS.
     featureFlagPersistRecipientPlacementInfoInMigrationRecoveryDoc:
@@ -214,4 +216,12 @@ feature_flags:
         cpp_varname: feature_flags::gPersistRecipientPlacementInfoInMigrationRecoveryDoc
         default: true
         version: 8.2
+        shouldBeFCVGated: true
+    # TODO (SERVER-103458): remove feature once 9.0 becomes LTS.
+    featureFlagCheckInvalidDatabaseInGlobalCatalog:
+        description:
+            "When enabled, metadata consistency check will ensure that there aren't any unexpected databases
+            in the global catalog."
+        cpp_varname: feature_flags::gCheckInvalidDatabaseInGlobalCatalog
+        default: false
         shouldBeFCVGated: true

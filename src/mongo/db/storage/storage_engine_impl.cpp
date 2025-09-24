@@ -55,6 +55,7 @@
 #include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/record_data.h"
 #include "mongo/db/storage/recovery_unit_noop.h"
+#include "mongo/db/storage/spill_table.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_repair_observer.h"
 #include "mongo/db/storage/write_unit_of_work.h"
@@ -120,8 +121,10 @@ void StorageEngineImpl::keydbDropDatabase(const DatabaseName& dbName) {
 
 StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
                                      std::unique_ptr<KVEngine> engine,
+                                     std::unique_ptr<KVEngine> spillKVEngine,
                                      StorageEngineOptions options)
     : _engine(std::move(engine)),
+      _spillKVEngine(std::move(spillKVEngine)),
       _options(std::move(options)),
       _dropPendingIdentReaper(_engine.get()),
       _minOfCheckpointAndOldestTimestampListener(
@@ -830,6 +833,9 @@ void StorageEngineImpl::cleanShutdown(ServiceContext* svcCtx) {
 
     _engine->cleanShutdown();
     // intentionally not deleting _engine
+    if (_spillKVEngine) {
+        _spillKVEngine->cleanShutdown();
+    }
 }
 
 StorageEngineImpl::~StorageEngineImpl() {}
@@ -957,6 +963,15 @@ Status StorageEngineImpl::repairRecordStore(OperationContext* opCtx,
     }
 
     return status;
+}
+
+std::unique_ptr<SpillTable> StorageEngineImpl::makeSpillTable(OperationContext* opCtx,
+                                                              KeyFormat keyFormat) {
+    invariant(_spillKVEngine);
+    std::unique_ptr<RecordStore> rs = _spillKVEngine->makeTemporaryRecordStore(
+        opCtx, ident::generateNewInternalIdent(), keyFormat);
+    LOGV2_DEBUG(10380301, 1, "Created spill table", "ident"_attr = rs->getIdent());
+    return std::make_unique<SpillTable>(std::move(rs));
 }
 
 std::unique_ptr<TemporaryRecordStore> StorageEngineImpl::makeTemporaryRecordStore(

@@ -541,9 +541,8 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
                 }
             }))
         .then([this, executor = executor, dbNss, anchor = shared_from_this()] {
-            auto opCtxHolder = cc().makeOperationContext();
+            auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
-            getForwardableOpMetadata().setOn(opCtx);
 
             if (MONGO_unlikely(dropDatabaseCoordinatorPauseAfterConfigCommit.shouldFail())) {
                 dropDatabaseCoordinatorPauseAfterConfigCommit.pauseWhileSet();
@@ -552,24 +551,24 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
             const bool clearDbInfo = _doc.getAuthoritativeMetadataAccessLevel() ==
                 AuthoritativeMetadataAccessLevelEnum::kNone;
 
-            const auto& beforeReleasingAction = clearDbInfo
-                ? static_cast<const ShardingRecoveryService::BeforeReleasingCustomAction&>(
-                      ShardingRecoveryService::FilteringMetadataClearer())
-                : static_cast<const ShardingRecoveryService::BeforeReleasingCustomAction&>(
-                      ShardingRecoveryService::NoCustomAction());
+            std::unique_ptr<ShardingRecoveryService::BeforeReleasingCustomAction> actionPtr;
+            if (clearDbInfo) {
+                actionPtr = std::make_unique<ShardingRecoveryService::FilteringMetadataClearer>();
+            } else {
+                actionPtr = std::make_unique<ShardingRecoveryService::NoCustomAction>();
+            }
 
             ShardingRecoveryService::get(opCtx)->releaseRecoverableCriticalSection(
                 opCtx,
                 dbNss,
                 _critSecReason,
                 defaultMajorityWriteConcern(),
-                beforeReleasingAction,
+                *actionPtr,
                 false /* throwIfReasonDiffers */);
         })
         .then([this, token, dbNss, executor = executor, anchor = shared_from_this()] {
-            auto opCtxHolder = cc().makeOperationContext();
+            auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
-            getForwardableOpMetadata().setOn(opCtx);
 
             if (_doc.getAuthoritativeMetadataAccessLevel() ==
                 AuthoritativeMetadataAccessLevelEnum::kNone) {
@@ -597,9 +596,8 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
             LOGV2(5494506, "Database dropped", "db"_attr = _dbName);
         })
         .then([this, anchor = shared_from_this()] {
-            auto opCtxHolder = cc().makeOperationContext();
+            auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
-            getForwardableOpMetadata().setOn(opCtx);
 
             BatchedCommandRequest request([&] {
                 write_ops::DeleteOpEntry deleteDatabaseEntryOp{

@@ -135,6 +135,7 @@
 #include "mongo/s/service_entry_point_router_role.h"
 #include "mongo/s/session_catalog_router.h"
 #include "mongo/s/sessions_collection_sharded.h"
+#include "mongo/s/set_cluster_server_parameter_router_impl.h"
 #include "mongo/s/sharding_initialization.h"
 #include "mongo/s/sharding_state.h"
 #include "mongo/s/transaction_router.h"
@@ -211,9 +212,9 @@ public:
         : _serviceContext(serviceContext) {}
     ~ShardingReplicaSetChangeListener() final = default;
 
-    void onFoundSet(const Key& key) noexcept final {}
+    void onFoundSet(const Key& key) final {}
 
-    void onConfirmedSet(const State& state) noexcept final {
+    void onConfirmedSet(const State& state) final {
         const auto& connStr = state.connStr;
 
         try {
@@ -231,7 +232,7 @@ public:
         }
     }
 
-    void onPossibleSet(const State& state) noexcept final {
+    void onPossibleSet(const State& state) final {
         try {
             Grid::get(_serviceContext)
                 ->shardRegistry()
@@ -245,7 +246,7 @@ public:
         }
     }
 
-    void onDroppedSet(const Key& key) noexcept final {}
+    void onDroppedSet(const Key& key) final {}
 
 private:
     ServiceContext* _serviceContext;
@@ -687,13 +688,16 @@ Status initializeSharding(
         LOGV2_WARNING(6203601, "Failed to warmup routing information", "error"_attr = redact(ex));
     }
 
+    // Pre-warm the connection pool may fail. Since this is just an optimization, any failure must
+    // not prevent mongos from starting.
     {
         SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
                                        TimedSectionId::preWarmConnectionPool,
                                        startupTimeElapsedBuilder);
         Status status = preWarmConnectionPool(opCtx);
         if (!status.isOK()) {
-            return status;
+            LOGV2_WARNING(
+                104223, "Failed to warmup the collection pool", "error"_attr = status.reason());
         }
     }
 
@@ -817,7 +821,7 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
     ReadWriteConcernDefaults::create(serviceContext->getService(ClusterRole::RouterServer),
                                      readWriteConcernDefaultsCacheLookupMongoS);
     ChangeStreamOptionsManager::create(serviceContext);
-    query_settings::initializeForRouter(serviceContext);
+    query_settings::initializeForRouter(serviceContext, setClusterParameterImplRouter);
 
     auto opCtxHolder = tc->makeOperationContext();
     auto const opCtx = opCtxHolder.get();

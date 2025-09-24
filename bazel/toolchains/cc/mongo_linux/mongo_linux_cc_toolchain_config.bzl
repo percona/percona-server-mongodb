@@ -11,34 +11,19 @@ load(
     "with_feature_set",
 )
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
+load(
+    "//bazel/toolchains/cc:mongo_custom_features.bzl",
+    "all_c_compile_actions",
+    "all_compile_actions",
+    "all_cpp_compile_actions",
+    "get_common_features",
+)
 load("//bazel/toolchains/cc/mongo_linux:mongo_defines.bzl", "DEFINES")
 
 COMPILERS = struct(
     CLANG = "clang",
     GCC = "gcc",
 )
-
-all_c_compile_actions = [
-    ACTION_NAMES.c_compile,
-    ACTION_NAMES.assemble,
-    ACTION_NAMES.preprocess_assemble,
-]
-
-all_cpp_compile_actions = [
-    ACTION_NAMES.cpp_compile,
-    ACTION_NAMES.linkstamp_compile,
-    ACTION_NAMES.cpp_header_parsing,
-    ACTION_NAMES.cpp_module_compile,
-    ACTION_NAMES.cpp_module_codegen,
-    ACTION_NAMES.clif_match,
-]
-
-all_compile_actions = \
-    all_c_compile_actions + \
-    all_cpp_compile_actions + \
-    [
-        ACTION_NAMES.lto_backend,
-    ]
 
 all_non_assembly_compile_actions = [
     ACTION_NAMES.c_compile,
@@ -1067,9 +1052,6 @@ def _impl(ctx):
             flag_set(
                 actions = all_link_actions,
                 flag_groups = [flag_group(flags = [
-                    # Explicitly enable GNU build id's if the linker supports it.
-                    "-Wl,--build-id",
-
                     # Explicitly use the new gnu hash section if the linker offers it.
                     "-Wl,--hash-style=gnu",
 
@@ -1083,6 +1065,20 @@ def _impl(ctx):
 
                     # If possible with the current linker, mark relocations as read-only.
                     "-Wl,-z,relro",
+                ])],
+            ),
+        ],
+    )
+
+    build_id_feature = feature(
+        name = "build_id",
+        enabled = ctx.attr.compiler == COMPILERS.CLANG or ctx.attr.compiler == COMPILERS.GCC,
+        flag_sets = [
+            flag_set(
+                actions = all_link_actions,
+                flag_groups = [flag_group(flags = [
+                    # Explicitly enable GNU build id's if the linker supports it.
+                    "-Wl,--build-id",
                 ])],
             ),
         ],
@@ -1210,7 +1206,8 @@ def _impl(ctx):
         compress_debug_sections_feature,
         rdynamic_feature,
         global_libs_feature,
-    ]
+        build_id_feature,
+    ] + get_common_features(ctx)
 
     return [
         cc_common.create_cc_toolchain_config_info(
@@ -1259,6 +1256,7 @@ mongo_linux_cc_toolchain_config = rule(
         "fission": attr.bool(mandatory = False),
         "debug_level": attr.int(mandatory = False),
         "disable_debug_symbols": attr.bool(mandatory = False),
+        "optimization_level": attr.string(mandatory = False),
     },
     provides = [CcToolchainConfigInfo],
 )

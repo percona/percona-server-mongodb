@@ -139,7 +139,7 @@ void ConvertToCappedCoordinator::_checkPreconditions(OperationContext* opCtx) {
         const auto acquisition = acquireCollectionOrViewMaybeLockFree(
             opCtx,
             CollectionAcquisitionRequest(nss(),
-                                         AcquisitionPrerequisites::kPretendUnsharded,
+                                         PlacementConcern::kPretendUnsharded,
                                          repl::ReadConcernArgs::get(opCtx),
                                          AcquisitionPrerequisites::kRead));
 
@@ -198,7 +198,7 @@ void ConvertToCappedCoordinator::_checkPreconditions(OperationContext* opCtx) {
             const auto acquisition = acquireCollectionOrViewMaybeLockFree(
                 opCtx,
                 CollectionAcquisitionRequest(NamespaceStringOrUUID{nss().dbName(), targetUUID},
-                                             AcquisitionPrerequisites::kPretendUnsharded,
+                                             PlacementConcern::kPretendUnsharded,
                                              repl::ReadConcernArgs::get(opCtx),
                                              AcquisitionPrerequisites::kRead));
 
@@ -220,9 +220,8 @@ ExecutorFuture<void> ConvertToCappedCoordinator::_runImpl(
     return ExecutorFuture<void>(**executor)
         .then([this, executor = executor, anchor = shared_from_this()]() {
             if (_doc.getPhase() == Phase::kUnset) {
-                auto opCtxHolder = cc().makeOperationContext();
+                auto opCtxHolder = makeOperationContext();
                 auto* opCtx = opCtxHolder.get();
-                getForwardableOpMetadata().setOn(opCtx);
                 // Best effort check of preconditions
                 _checkPreconditions(opCtx);
             }
@@ -337,7 +336,7 @@ ExecutorFuture<void> ConvertToCappedCoordinator::_runImpl(
                     auto collection = acquireCollectionMaybeLockFree(
                         opCtx,
                         CollectionAcquisitionRequest(nss(),
-                                                     AcquisitionPrerequisites::kPretendUnsharded,
+                                                     PlacementConcern::kPretendUnsharded,
                                                      repl::ReadConcernArgs::get(opCtx),
                                                      AcquisitionPrerequisites::kRead));
                     auto defaultCollator = collection.getCollectionPtr()->getDefaultCollator();
@@ -397,9 +396,8 @@ ExecutorFuture<void> ConvertToCappedCoordinator::_runImpl(
                     true /* throwIfReasonDiffers */);
             }))
         .onError([this, executor = executor, anchor = shared_from_this()](const Status& status) {
-            const auto opCtxHolder = cc().makeOperationContext();
+            const auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
-            getForwardableOpMetadata().setOn(opCtx);
 
             // If the convertToCapped command fails on the dataShard, not retry the operation if
             // we can ensure the collection hasn't been capped.
@@ -465,9 +463,8 @@ ExecutorFuture<void> ConvertToCappedCoordinator::_cleanupOnAbort(
     const Status& status) noexcept {
     return ExecutorFuture<void>(**executor)
         .then([this, token, executor = executor, status, anchor = shared_from_this()] {
-            const auto opCtxHolder = cc().makeOperationContext();
+            const auto opCtxHolder = makeOperationContext();
             auto* opCtx = opCtxHolder.get();
-            getForwardableOpMetadata().setOn(opCtx);
 
             if (_doc.getPhase() >= Phase::kAcquireCriticalSectionOnCoordinator) {
                 if (*_doc.getDataShard() != ShardingState::get(opCtx)->shardId()) {

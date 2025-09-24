@@ -19,13 +19,12 @@
 - featureFlagEgressGrpcForSearch
 - featureFlagTrackUnshardedCollectionsUponCreation
 - featureFlagTSBucketingParametersUnchanged
-- featureFlagMongodProxyProtocolSupport
 # TODO SERVER-99433: Delete featureFlagReplicaSetEndpoint.
 - featureFlagReplicaSetEndpoint
 - featureFlagGaplessFTDC
 # TODO SERVER-101589: start testing viewless timeseries in allFeatureFlag variant
 - featureFlagCreateViewlessTimeseriesCollections
-# TODO SERVER-102993: uncomment 'featureFlagSbeFull' once test tagging is changed.
-# - featureFlagSbeFull
+# TODO SERVER-67034: re-enable 'featureFlagSbeFull'.
+- featureFlagSbeFull
 # TODO (SERVER-103771): Delete featureFlagGlobalIndexesShardingCatalog.
 - featureFlagGlobalIndexesShardingCatalog

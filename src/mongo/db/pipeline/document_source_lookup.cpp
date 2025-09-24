@@ -640,7 +640,8 @@ DocumentSource::GetNextResult DocumentSourceLookUp::doGetNext() {
     std::unique_ptr<Pipeline, PipelineDeleter> pipeline;
     try {
         pipeline = buildPipeline(_fromExpCtx, inputDoc);
-        LOGV2_DEBUG(9497000, 5, "Built pipeline", "pipeline"_attr = pipeline->serializeToBson());
+        LOGV2_DEBUG(
+            9497000, 5, "Built pipeline", "pipeline"_attr = pipeline->serializeForLogging());
     } catch (const ExceptionForCat<ErrorCategory::StaleShardVersionError>& ex) {
         // If lookup on a sharded collection is disallowed and the foreign collection is sharded,
         // throw a custom exception.
@@ -671,8 +672,7 @@ DocumentSource::GetNextResult DocumentSourceLookUp::doGetNext() {
         objsize = safeSum;
         results.emplace_back(std::move(*result));
     }
-
-    accumulatePipelinePlanSummaryStats(*pipeline, _stats.planSummaryStats);
+    pipeline->accumulatePipelinePlanSummaryStats(_stats.planSummaryStats);
 
     // Check if pipeline uses disk.
     _stats.planSummaryStats.usedDisk = _stats.planSummaryStats.usedDisk || pipeline->usedDisk();
@@ -776,8 +776,8 @@ PipelinePtr DocumentSourceLookUp::buildPipeline(
                         "$lookup found view definition. ns: {namespace}, pipeline: {pipeline}. New "
                         "$lookup sub-pipeline: {new_pipe}",
                         logAttrs(e->getNamespace()),
-                        "pipeline"_attr = Value(e->getPipeline()),
-                        "new_pipe"_attr = _resolvedPipeline);
+                        "pipeline"_attr = Pipeline::serializePipelineForLogging(e->getPipeline()),
+                        "new_pipe"_attr = Pipeline::serializePipelineForLogging(_resolvedPipeline));
 
             // We can now safely optimize and reattempt attaching the cursor source.
             pipeline = Pipeline::makePipeline(_resolvedPipeline, fromExpCtx, pipelineOpts);
@@ -827,8 +827,8 @@ PipelinePtr DocumentSourceLookUp::buildPipeline(
                         "$lookup found view definition. ns: {namespace}, pipeline: {pipeline}. New "
                         "$lookup sub-pipeline: {new_pipe}",
                         logAttrs(e->getNamespace()),
-                        "pipeline"_attr = Value(e->getPipeline()),
-                        "new_pipe"_attr = _resolvedPipeline);
+                        "pipeline"_attr = Pipeline::serializePipelineForLogging(e->getPipeline()),
+                        "new_pipe"_attr = Pipeline::serializePipelineForLogging(_resolvedPipeline));
 
             // Try to attach the cursor source again.
             pipeline = pExpCtx->getMongoProcessInterface()->preparePipelineForExecution(
@@ -1093,7 +1093,7 @@ bool DocumentSourceLookUp::usedDisk() {
 
 void DocumentSourceLookUp::doDispose() {
     if (_pipeline) {
-        accumulatePipelinePlanSummaryStats(*_pipeline, _stats.planSummaryStats);
+        _pipeline->accumulatePipelinePlanSummaryStats(_stats.planSummaryStats);
         _pipeline->dispose(pExpCtx->getOperationContext());
         _pipeline.reset();
     }
@@ -1136,7 +1136,7 @@ DocumentSource::GetNextResult DocumentSourceLookUp::unwindResult() {
         // avoid missing the accumulation of stats on an early exit (below) if the input (i.e., left
         // side of the lookup) is done.
         if (_pipeline) {
-            accumulatePipelinePlanSummaryStats(*_pipeline, _stats.planSummaryStats);
+            _pipeline->accumulatePipelinePlanSummaryStats(_stats.planSummaryStats);
             _pipeline->dispose(pExpCtx->getOperationContext());
         }
 
@@ -1213,7 +1213,7 @@ void DocumentSourceLookUp::appendSpecificExecStats(MutableDocument& doc) const {
     std::transform(stats.indexesUsed.begin(),
                    stats.indexesUsed.end(),
                    std::back_inserter(indexesUsedVec),
-                   [](std::string idx) -> Value { return Value(idx); });
+                   [](const std::string& idx) -> Value { return Value(idx); });
     doc["indexesUsed"] = Value{std::move(indexesUsedVec)};
 }
 
