@@ -163,7 +163,7 @@ void assertTimeseriesBucketsCollection(const Collection* bucketsColl) {
 }
 
 std::vector<std::reference_wrapper<std::shared_ptr<timeseries::bucket_catalog::WriteBatch>>>
-determineBatchesToCommit(TimeseriesWriteBatches& batches) {
+determineBatchesToCommit(bucket_catalog::TimeseriesWriteBatches& batches) {
     stdx::unordered_set<bucket_catalog::WriteBatch*> processedBatches;
     std::vector<std::reference_wrapper<std::shared_ptr<timeseries::bucket_catalog::WriteBatch>>>
         batchesToCommit;
@@ -183,7 +183,7 @@ determineBatchesToCommit(TimeseriesWriteBatches& batches) {
     return batchesToCommit;
 }
 
-void sortBatchesToCommit(TimeseriesWriteBatches& batches) {
+void sortBatchesToCommit(bucket_catalog::TimeseriesWriteBatches& batches) {
     std::sort(batches.begin(), batches.end(), [](auto left, auto right) {
         return left.get()->bucketId.oid < right.get()->bucketId.oid;
     });
@@ -252,14 +252,14 @@ StatusWith<bucket_catalog::InsertResult> attemptInsertIntoBucket(
         getStorageCacheSizeBytes(opCtx));
 }
 
-TimeseriesWriteBatches insertIntoBucketCatalogForUpdate(
+bucket_catalog::TimeseriesWriteBatches insertIntoBucketCatalogForUpdate(
     OperationContext* opCtx,
     bucket_catalog::BucketCatalog& bucketCatalog,
     const CollectionPtr& bucketsColl,
     const std::vector<BSONObj>& measurements,
     const NamespaceString& bucketsNs,
     TimeseriesOptions& timeSeriesOptions) {
-    TimeseriesWriteBatches batches;
+    bucket_catalog::TimeseriesWriteBatches batches;
 
     for (const auto& measurement : measurements) {
         auto result = uassertStatusOK(attemptInsertIntoBucket(
@@ -353,7 +353,7 @@ void commitTimeseriesBucketsAtomically(
     const RecordId& recordId,
     const boost::optional<std::variant<write_ops::UpdateCommandRequest,
                                        write_ops::DeleteCommandRequest>>& modificationOp,
-    TimeseriesWriteBatches* batches,
+    bucket_catalog::TimeseriesWriteBatches* batches,
     const NamespaceString& bucketsNs,
     bool fromMigrate,
     StmtId stmtId,
@@ -437,9 +437,28 @@ void performAtomicWritesForUpdate(
     StmtId stmtId,
     std::set<bucket_catalog::BucketId>* bucketIds,
     const boost::optional<Date_t> currentMinTime) {
-    auto timeSeriesOptions = *coll->getTimeseriesOptions();
-    auto batches = insertIntoBucketCatalogForUpdate(
-        opCtx, sideBucketCatalog, coll, modifiedMeasurements, coll->ns(), timeSeriesOptions);
+    auto timeseriesOptions = *coll->getTimeseriesOptions();
+    auto storageCacheSizeBytes = getStorageCacheSizeBytes(opCtx);
+    std::vector<bucket_catalog::WriteStageErrorAndIndex> errorsAndIndices;
+
+    auto swWriteBatches =
+        bucket_catalog::prepareInsertsToBuckets(opCtx,
+                                                sideBucketCatalog,
+                                                coll.get(),
+                                                timeseriesOptions,
+                                                opCtx->getOpID(),
+                                                coll->getDefaultCollator(),
+                                                storageCacheSizeBytes,
+                                                /*earlyReturnOnError=*/true,
+                                                /*compressAndWriteBucketFunc=*/nullptr,
+                                                modifiedMeasurements,
+                                                0,
+                                                modifiedMeasurements.size(),
+                                                {},
+                                                errorsAndIndices);
+    uassertStatusOK(swWriteBatches);
+
+    auto& batches = swWriteBatches.getValue();
 
     auto modificationRequest = unchangedMeasurements
         ? boost::make_optional(write_ops_utils::makeModificationOp(

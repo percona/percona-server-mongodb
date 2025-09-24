@@ -287,6 +287,8 @@ public:
 
     size_t getCacheSizeMB() override;
 
+    bool hasOngoingLiveRestore() override;
+
 private:
     using CollIter = std::list<std::string>::iterator;
 
