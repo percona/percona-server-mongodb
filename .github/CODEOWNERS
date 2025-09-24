@@ -130,6 +130,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/retryable_writes* @10gen/server-transactions @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/rollback* @10gen/server-recovery @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/write_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/unified_write_executor.yml @10gen/query-execution-router @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/sharding_unified_write_executor.yml @10gen/query-execution-router @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokelib/OWNERS.yml
 /buildscripts/resmokelib/**/* @10gen/devprod-correctness @svc-auto-approve-bot
@@ -183,6 +185,10 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./etc/evergreen_yml_components/variants/mongot/OWNERS.yml
 /etc/evergreen_yml_components/variants/mongot/**/* @10gen/query-integration-search-testing @svc-auto-approve-bot
+
+# The following patterns are parsed from ./evergreen/OWNERS.yml
+/evergreen/**/restore_git_history_and_tags.sh @10gen/devprod-correctness @svc-auto-approve-bot
+/evergreen/**/retry_git.sh @10gen/devprod-correctness @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/OWNERS.yml
 /jstests/**/*analyze_shard_key* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -667,7 +673,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/hooks/**/run_inject_hello_failures.js @10gen/server-hello @svc-auto-approve-bot
 /jstests/hooks/**/run_reconfig_background.js @10gen/server-jstest-infra @svc-auto-approve-bot
 /jstests/hooks/**/lag_secondary_application.js @10gen/server-jstest-infra @svc-auto-approve-bot
-/jstests/hooks/**/magic_restore* @10gen/server-recovery @svc-auto-approve-bot
 /jstests/hooks/**/run_check_repl_oplogs.js @10gen/server-jstest-infra @svc-auto-approve-bot
 /jstests/hooks/**/run_cleanup_hello_failures.js @10gen/server-hello @svc-auto-approve-bot
 
@@ -1764,6 +1769,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/db/modules/enterprise/jstests/fle2_query_analysis/OWNERS.yml
 /src/mongo/db/modules/enterprise/jstests/fle2_query_analysis/**/* @10gen/query-integration-extensions @10gen/server-security @svc-auto-approve-bot
 
+# The following patterns are parsed from ./src/mongo/db/modules/enterprise/jstests/hooks/OWNERS.yml
+/src/mongo/db/modules/enterprise/jstests/hooks/**/magic_restore* @10gen/server-recovery @svc-auto-approve-bot
+
 # The following patterns are parsed from ./src/mongo/db/modules/enterprise/jstests/hot_backups/OWNERS.yml
 /src/mongo/db/modules/enterprise/jstests/hot_backups/**/* @10gen/server-backup-restore @svc-auto-approve-bot
 /src/mongo/db/modules/enterprise/jstests/hot_backups/**/magic_restore* @10gen/server-recovery @svc-auto-approve-bot
@@ -2127,8 +2135,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/repl/**/*noop_writer* @10gen/server-oplog @svc-auto-approve-bot
 /src/mongo/db/repl/**/*bgsync* @10gen/server-oplog @svc-auto-approve-bot
 /src/mongo/db/repl/**/*sync_source* @10gen/server-oplog @svc-auto-approve-bot
-/src/mongo/db/repl/**/*hello* @10gen/server-hello @svc-auto-approve-bot
-/src/mongo/db/repl/**/*topology_version* @10gen/server-hello @svc-auto-approve-bot
 /src/mongo/db/repl/**/*read_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
 /src/mongo/db/repl/**/*write_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
 /src/mongo/db/repl/**/*replication_recovery* @10gen/server-recovery @svc-auto-approve-bot
@@ -2138,6 +2144,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/repl/**/*external_state* @10gen/server-replication-coordinator @svc-auto-approve-bot
 /src/mongo/db/repl/**/*heartbeat* @10gen/server-replication-coordinator @svc-auto-approve-bot
 /src/mongo/db/repl/**/*topology_coordinator* @10gen/server-replication-coordinator @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/repl/hello/OWNERS.yml
+/src/mongo/db/repl/hello/**/* @10gen/server-hello @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/repl/initial_sync/OWNERS.yml
 /src/mongo/db/repl/initial_sync/**/* @10gen/server-initial-sync @svc-auto-approve-bot

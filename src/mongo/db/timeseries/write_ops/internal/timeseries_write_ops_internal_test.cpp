@@ -97,6 +97,10 @@ protected:
         const std::vector<BSONObj>& batchOfMeasurements,
         const std::vector<size_t>& numWriteBatches) const;
 
+    template <typename T>
+    void _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        BSONType type, std::vector<T> metaValues) const;
+
     void _testStageInsertBatchWithoutMetaFieldInCollWithMetaField(
         const NamespaceString& ns,
         const UUID& collectionUUID,
@@ -336,6 +340,57 @@ void TimeseriesWriteOpsInternalTest::
     _assertCollWithoutMetaField(ns);
     _testBuildBatchedInsertContextWithoutMetaField(
         ns, userMeasurementsBatch, correctIndexOrder, expectedIndicesWithErrors);
+}
+
+// _testBuildBatchedInsertContextWithMalformedMeasurements will accept a BSONType and an optional
+// std::vector<T> with only two elements that should store the values of meta values if we have a
+// non-constant BSONType.
+// We assert if the BSONType is non-constant and we don't have a metaValues vector.
+// We assert if metaValues.size() != 2.
+template <typename T>
+void TimeseriesWriteOpsInternalTest::
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        const BSONType type, std::vector<T> metaValues) const {
+    auto isConstantBSONType =
+        (std::find(_constantBSONTypes.begin(), _constantBSONTypes.end(), type) !=
+         _constantBSONTypes.end());
+    // We case on how we generate based on if we have the metaValues vector or not.
+    // We assert if there is no metaValues vector and a non-constant BSONType.
+    ASSERT(isConstantBSONType || metaValues.size() == 2);
+    auto measurement1 = (isConstantBSONType)
+        ? _generateMeasurementWithMetaFieldType(type, Date_t::fromMillisSinceEpoch(105))
+        : _generateMeasurementWithMetaFieldType(
+              type, Date_t::fromMillisSinceEpoch(105), metaValues[0]);
+    auto measurement2 = (isConstantBSONType)
+        ? _generateMeasurementWithMetaFieldType(type, boost::none)
+        : _generateMeasurementWithMetaFieldType(type, boost::none, metaValues[0]);
+    auto measurement3 = (isConstantBSONType)
+        ? _generateMeasurementWithMetaFieldType(type, boost::none)
+        : _generateMeasurementWithMetaFieldType(type, boost::none, metaValues[0]);
+    auto measurement4 = (isConstantBSONType)
+        ? _generateMeasurementWithMetaFieldType(type, Date_t::fromMillisSinceEpoch(103))
+        : _generateMeasurementWithMetaFieldType(
+              type, Date_t::fromMillisSinceEpoch(103), metaValues[1]);
+    auto measurement5 = (isConstantBSONType)
+        ? _generateMeasurementWithMetaFieldType(type, Date_t::fromMillisSinceEpoch(101))
+        : _generateMeasurementWithMetaFieldType(
+              type, Date_t::fromMillisSinceEpoch(101), metaValues[0]);
+    std::vector<BSONObj> userMeasurementsBatch{
+        measurement1, measurement2, measurement3, measurement4, measurement5};
+    stdx::unordered_map<bucket_catalog::BucketMetadata, std::vector<size_t>>
+        metaFieldMetadataToCorrectIndexOrderMap;
+    if (isConstantBSONType) {
+        metaFieldMetadataToCorrectIndexOrderMap.try_emplace(
+            *(getBucketMetadata(userMeasurementsBatch[0])), std::initializer_list<size_t>{4, 3, 0});
+    } else {
+        metaFieldMetadataToCorrectIndexOrderMap.try_emplace(
+            *(getBucketMetadata(userMeasurementsBatch[0])), std::initializer_list<size_t>{4, 0});
+        metaFieldMetadataToCorrectIndexOrderMap.try_emplace(
+            *(getBucketMetadata(userMeasurementsBatch[3])), std::initializer_list<size_t>{3});
+    }
+    stdx::unordered_set<size_t> expectedIndicesWithErrors{1, 2};
+    _testBuildBatchedInsertContextWithMetaField(
+        userMeasurementsBatch, metaFieldMetadataToCorrectIndexOrderMap, expectedIndicesWithErrors);
 }
 
 // numWriteBatches is the size of the writeBatches that should be generated from the
@@ -822,25 +877,42 @@ TEST_F(TimeseriesWriteOpsInternalTest,
 }
 
 TEST_F(TimeseriesWriteOpsInternalTest,
-       BuildBatchedInsertContextsWithMetaReportsMalformedMeasurements) {
-    std::vector<BSONObj> userMeasurementsBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-01-30T10:05:00.000Z"}, "tag":"a", "x":1})"),
-        mongo::fromjson(R"({"tag":"a", "x":2})"),  // Malformed measurement, missing time field
-        mongo::fromjson(R"({"x":3,"tag":"a"})"),   // Malformed measurement, missing time field
-        mongo::fromjson(R"({"time":{"$date":"2025-01-30T10:03:00.000Z"}, "tag":"b", "x":4})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-01-30T10:01:00.000Z"}, "tag":"a", "x":5})"),
-    };
-    stdx::unordered_map<bucket_catalog::BucketMetadata, std::vector<size_t>>
-        metaFieldMetadataToCorrectIndexOrderMap;
-    metaFieldMetadataToCorrectIndexOrderMap.try_emplace(
-        *(getBucketMetadata(userMeasurementsBatch[0])), /* for metaValue: "a" */
-        std::initializer_list<size_t>{4, 0});
-    metaFieldMetadataToCorrectIndexOrderMap.try_emplace(
-        *(getBucketMetadata(userMeasurementsBatch[3])), /* for metaValue: "b" */
-        std::initializer_list<size_t>{3});
-    stdx::unordered_set<size_t> expectedIndicesWithErrors{1, 2};
-    _testBuildBatchedInsertContextWithMetaField(
-        userMeasurementsBatch, metaFieldMetadataToCorrectIndexOrderMap, expectedIndicesWithErrors);
+       BuildBatchedInsertContextsWithConstantBSONTypeMetaReportsMalformedMeasurements) {
+    for (BSONType type : _constantBSONTypes) {
+        std::vector<StringData> emptyMetaValues{};
+        _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(type, emptyMetaValues);
+    }
+}
+
+TEST_F(TimeseriesWriteOpsInternalTest,
+       BuildBatchedInsertContextsWithNonConstantBSONTypeMetaReportsMalformedMeasurements) {
+    // For non-string component meta field types, we directly have to declare two meta values.
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        bsonTimestamp, std::vector<Timestamp>{Timestamp(1, 2), Timestamp(2, 3)});
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(NumberInt,
+                                                                         std::vector<int>{1, 2});
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        NumberLong, std::vector<long long>{0x0123456789abcdefll, 0x0123456789abcdeell});
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        NumberDecimal, std::vector<Decimal128>{Decimal128("1.45"), Decimal128("0.987")});
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        NumberDouble, std::vector<double>{1.4, 8.6});
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        jstOID, std::vector<OID>{OID("649f0704230f18da067519c4"), OID("64a33d9cdf56a62781061048")});
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        Bool, std::vector<bool>{true, false});
+    _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(
+        BinData,
+        std::vector<BSONBinData>{BSONBinData("", 0, BinDataGeneral),
+                                 BSONBinData("\x69\xb7", 2, BinDataGeneral)});
+
+    // For string component meta field types, we can don't need to directly declare the values; we
+    // can just use two different strings.
+    for (BSONType type : _stringComponentBSONTypes) {
+        std::vector<StringData> stringMetaValues{_metaValue, _metaValue2};
+        _testBuildBatchedInsertContextWithMalformedMeasurementsWithMetaField(type,
+                                                                             stringMetaValues);
+    }
 }
 
 TEST_F(TimeseriesWriteOpsInternalTest, BuildBatchedInsertContextsAllMeasurementsErrorNoMeta) {
@@ -862,8 +934,8 @@ TEST_F(TimeseriesWriteOpsInternalTest, BuildBatchedInsertContextsAllMeasurements
 
 TEST_F(TimeseriesWriteOpsInternalTest, BuildBatchedInsertContextsAllMeasurementsErrorWithMeta) {
     std::vector<BSONObj> userMeasurementsBatch{
-        mongo::fromjson(R"({"tag":"a", "x":2})"),  // Malformed measurement, missing time field
-        mongo::fromjson(R"({"tag":"a", "x":3})"),  // Malformed measurement, missing time field
+        BSON(_metaField << _metaValue << "x" << 2),  // Malformed measurement, missing time field
+        BSON(_metaField << _metaValue << "x" << 3),  // Malformed measurement, missing time field
     };
     stdx::unordered_map<bucket_catalog::BucketMetadata, std::vector<size_t>>
         metaFieldMetadataToCorrectIndexOrderMap;
@@ -1367,8 +1439,8 @@ TEST_F(TimeseriesWriteOpsInternalTest, PrepareInsertsBadMeasurementsAll) {
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> userMeasurementsBatch{
-        mongo::fromjson(R"({"tag":"a", "x":2})"),  // Malformed measurement, missing time field
-        mongo::fromjson(R"({"tag":"a", "x":3})"),  // Malformed measurement, missing time field
+        BSON(_metaField << _metaValue << "x" << 2),  // Malformed measurement, missing time field
+        BSON(_metaField << _metaValue << "x" << 3),  // Malformed measurement, missing time field
     };
 
     auto swWriteBatches = prepareInsertsToBuckets(_opCtx,
@@ -1397,12 +1469,14 @@ TEST_F(TimeseriesWriteOpsInternalTest, PrepareInsertsBadMeasurementsSome) {
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> userMeasurementsBatch{
-        mongo::fromjson(R"({"tag":"a", "x":2})"),  // Malformed measurement, missing time field
-        mongo::fromjson(R"({"time":{"$date":"2025-01-30T10:05:00.000Z"}, "tag":"a", "x":3})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-01-30T10:02:00.000Z"}, "tag":"a", "x":3})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-01-30T10:03:00.000Z"}, "tag":"b", "x":3})"),
-        mongo::fromjson(R"({"tag":"b", "x":3})"),  // Malformed measurement, missing time field
-        mongo::fromjson(R"({"time":{"$date":"2025-01-30T09:02:00.000Z"}, "tag":"b", "x":3})"),
+        BSON(_metaField << _metaValue << "x" << 2),  // Malformed measurement, missing time field
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5) << _metaField << _metaValue << "x" << 3),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2) << _metaField << _metaValue << "x" << 3),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3) << _metaField << _metaValue2 << "x"
+                        << 3),
+        BSON(_metaField << _metaValue2 << "x" << 3),  // Malformed measurement, missing time field
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(9) << _metaField << _metaValue2 << "x"
+                        << 3),
     };
 
     auto swWriteBatches = prepareInsertsToBuckets(_opCtx,
@@ -1434,17 +1508,17 @@ TEST_F(TimeseriesWriteOpsInternalTest, TestRewriteIndicesForSubsetOfBatch) {
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> originalUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:03:00.000Z"}})"), /*Sorted Order = 3*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Sorted Order = 1*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Sorted Order = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"), /*Sorted Order = 4*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"), /*Sorted Order = 0*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
     };
 
     std::vector<BSONObj> filteredUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:03:00.000Z"}})"), /*Original Index = 0*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Original Index = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"), /*Original Index = 3*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)), /*Original Index = 0*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)), /*Original Index = 2*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)), /*Original Index = 3*/
     };
 
     std::vector<size_t> originalIndices{0, 2, 3};
@@ -1489,16 +1563,16 @@ TEST_F(TimeseriesWriteOpsInternalTest, TestRewriteIndicesForSubsetOfBatchWithStm
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> originalUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Sorted Order = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"), /*Sorted Order = 0*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Sorted Order = 1*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
     };
 
     std::vector<StmtId> stmtIds{10, 20, 30};
 
     std::vector<BSONObj> filteredUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Original Index = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Original Index = 0*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)), /*Original Index = 2*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)), /*Original Index = 0*/
     };
 
     std::vector<size_t> originalIndices{2, 0};
@@ -1545,14 +1619,14 @@ TEST_F(TimeseriesWriteOpsInternalTest, TestRewriteIndicesForSubsetOfBatchWithSin
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> originalUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Sorted Order = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"), /*Sorted Order = 0*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Sorted Order = 1*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
     };
 
     std::vector<BSONObj> filteredUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Original Index = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Original Index = 0*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)), /*Original Index = 2*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)), /*Original Index = 0*/
     };
 
     std::vector<size_t> originalIndices{2, 0};
@@ -1596,14 +1670,14 @@ TEST_F(TimeseriesWriteOpsInternalTest, TestProcessErrorsForSubsetOfBatchWithErro
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> originalUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Sorted Order = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"), /*Sorted Order = 0*/
-        mongo::fromjson(R"({"x":1})"),                                       /*Sorted Order = 1*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON("x" << 1),
     };
 
     std::vector<BSONObj> filteredUserBatch{
-        mongo::fromjson(R"({"x":1})"),                                       /*Original Index = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Original Index = 0*/
+        BSON("x" << 1),                                      /*Original Index = 2*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)), /*Original Index = 0*/
     };
 
     std::vector<size_t> originalIndices{2, 0};
@@ -1641,13 +1715,13 @@ TEST_F(TimeseriesWriteOpsInternalTest, PrepareInsertsToBucketsRespectsStartIndex
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> originalUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Sorted Order = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"), /*Sorted Order = 0*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Sorted Order = 1*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:03:00.000Z"}})"), /*Sorted Order = 3*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:05:00.000Z"}})"), /*Sorted Order = 5*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"), /*Sorted Order = 4*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:06:00.000Z"}})"), /*Sorted Order = 6*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(6)),
     };
 
     std::unordered_set<size_t> expectedIndices = {2, 3, 4, 5, 6};
@@ -1686,19 +1760,13 @@ TEST_F(TimeseriesWriteOpsInternalTest, PrepareInsertsToBucketsRespectsStartIndex
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> originalUserBatch{
-        mongo::fromjson(
-            R"({"tag": "a", "time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Sorted Order = 2*/
-        mongo::fromjson(
-            R"({"tag": "b", "time":{"$date":"2025-03-06T10:00:00.000Z"}})"), /*Sorted Order = 0*/
-        mongo::fromjson(
-            R"({"tag": "b", "time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Sorted Order = 1*/
-        mongo::fromjson(
-            R"({"tag": "a", "time":{"$date":"2025-03-06T10:03:00.000Z"}})"), /*Sorted Order = 3*/
-        mongo::fromjson(
-            R"({"tag": "b", "time":{"$date":"2025-03-06T10:05:00.000Z"}})"), /*Sorted Order = 5*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"), /*Sorted Order = 4*/
-        mongo::fromjson(
-            R"({"tag": "a", "time":{"$date":"2025-03-06T10:06:00.000Z"}})"), /*Sorted Order = 6*/
+        BSON(_metaField << _metaValue << _timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_metaField << _metaValue2 << _timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_metaField << _metaValue2 << _timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_metaField << _metaValue << _timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_metaField << _metaValue2 << _timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
+        BSON(_metaField << _metaValue << _timeField << Date_t::fromMillisSinceEpoch(6)),
     };
 
     std::unordered_set<size_t> expectedIndices = {2, 3, 4, 5, 6};
@@ -1740,13 +1808,13 @@ TEST_F(TimeseriesWriteOpsInternalTest, PrepareInsertsToBucketsRespectsDocsToRetr
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> originalUserBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Sorted Order = 2*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"), /*Sorted Order = 0*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Sorted Order = 1*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:03:00.000Z"}})"), /*Sorted Order = 3*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:05:00.000Z"}})"), /*Sorted Order = 5*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"), /*Sorted Order = 4*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:06:00.000Z"}})"), /*Sorted Order = 6*/
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(6)),
     };
 
     std::vector<size_t> docsToRetry = {0, 2, 4};
@@ -1788,19 +1856,13 @@ TEST_F(TimeseriesWriteOpsInternalTest, PrepareInsertsToBucketsRespectsDocsToRetr
     const auto& bucketsColl = autoColl.getCollection();
 
     std::vector<BSONObj> originalUserBatch{
-        mongo::fromjson(
-            R"({"tag": "a", "time":{"$date":"2025-03-06T10:02:00.000Z"}})"), /*Sorted Order = 2*/
-        mongo::fromjson(
-            R"({"tag": "b", "time":{"$date":"2025-03-06T10:00:00.000Z"}})"), /*Sorted Order = 0*/
-        mongo::fromjson(
-            R"({"tag": "b", "time":{"$date":"2025-03-06T10:01:00.000Z"}})"), /*Sorted Order = 1*/
-        mongo::fromjson(
-            R"({"tag": "a", "time":{"$date":"2025-03-06T10:03:00.000Z"}})"), /*Sorted Order = 3*/
-        mongo::fromjson(
-            R"({"tag": "b", "time":{"$date":"2025-03-06T10:05:00.000Z"}})"), /*Sorted Order = 5*/
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"), /*Sorted Order = 4*/
-        mongo::fromjson(
-            R"({"tag": "a", "time":{"$date":"2025-03-06T10:06:00.000Z"}})"), /*Sorted Order = 6*/
+        BSON(_metaField << _metaValue << _timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_metaField << _metaValue2 << _timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_metaField << _metaValue2 << _timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_metaField << _metaValue << _timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_metaField << _metaValue2 << _timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
+        BSON(_metaField << _metaValue << _timeField << Date_t::fromMillisSinceEpoch(6)),
     };
 
     std::vector<size_t> docsToRetry = {0, 2, 4, 5};
@@ -1839,11 +1901,10 @@ TEST_F(TimeseriesWriteOpsInternalTest, PrepareInsertsToBucketsRespectsDocsToRetr
 }
 
 TEST_F(TimeseriesWriteOpsInternalTest, StageUnorderedWritesToBucketCatalogHandlesDocsToRetry) {
-
     std::vector<BSONObj> userBatch{
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:02:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "b", "time":{"$date":"2025-03-06T10:00:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "b", "time":{"$date":"2025-03-06T10:01:00.000Z"}})"),
+        BSON(_metaField << _metaValue << _timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_metaField << _metaValue2 << _timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_metaField << _metaValue2 << _timeField << Date_t::fromMillisSinceEpoch(1)),
     };
     std::vector<size_t> docsToRetry{1};
     std::vector<bucket_catalog::UserBatchIndex> expectedIndices{1};
@@ -1853,12 +1914,12 @@ TEST_F(TimeseriesWriteOpsInternalTest, StageUnorderedWritesToBucketCatalogHandle
 TEST_F(TimeseriesWriteOpsInternalTest,
        StageUnorderedWritesToBucketCatalogHandlesExecutedStatementsNoMeta) {
     std::vector<BSONObj> userBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:03:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:05:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
     };
     std::vector<StmtId> stmtIds{0, 10, 20, 30, 40, 50};
     std::vector<StmtId> executedStmtIds{0, 10, 20};
@@ -1875,12 +1936,12 @@ TEST_F(TimeseriesWriteOpsInternalTest,
 TEST_F(TimeseriesWriteOpsInternalTest,
        StageUnorderedWritesToBucketCatalogHandlesExecutedStatementsWithMeta) {
     std::vector<BSONObj> userBatch{
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:02:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:00:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:03:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:01:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:05:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:04:00.000Z"}})"),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
     };
     std::vector<StmtId> stmtIds{0, 10, 20, 30, 40, 50};
     std::vector<StmtId> executedStmtIds{0, 10, 20};
@@ -1897,12 +1958,12 @@ TEST_F(TimeseriesWriteOpsInternalTest,
 TEST_F(TimeseriesWriteOpsInternalTest,
        StageUnorderedWritesToBucketCatalogHandlesDocsToRetryAndExecutedStatementsNoMeta) {
     std::vector<BSONObj> userBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:03:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:05:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
     };
     std::vector<StmtId> stmtIds{0, 10, 20, 30, 40, 50};
     std::vector<StmtId> executedStmtIds{0, 10, 20};
@@ -1915,12 +1976,12 @@ TEST_F(TimeseriesWriteOpsInternalTest,
 TEST_F(TimeseriesWriteOpsInternalTest,
        StageUnorderedWritesToBucketCatalogHandlesDocsToRetryAndExecutedStatementsWithMeta) {
     std::vector<BSONObj> userBatch{
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:02:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:00:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:03:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:01:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:05:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:04:00.000Z"}})"),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
     };
     std::vector<StmtId> stmtIds{0, 10, 20, 30, 40, 50};
     std::vector<StmtId> executedStmtIds{0, 10, 20};
@@ -1935,12 +1996,12 @@ TEST_F(
     StageUnorderedWritesToBucketCatalogHandlesDocsToRetryWithExecutedStatementsReverseOrderingNoMeta) {
     // Measurements are sorted in perfectly reverse order by time.
     std::vector<BSONObj> userBatch{
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:05:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:04:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:03:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:02:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:01:00.000Z"}})"),
-        mongo::fromjson(R"({"time":{"$date":"2025-03-06T10:00:00.000Z"}})"),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
     };
 
     std::vector<StmtId> executedStmtIds{0, 20, 40, 50};
@@ -1956,12 +2017,12 @@ TEST_F(
     StageUnorderedWritesToBucketCatalogHandlesDocsToRetryWithExecutedStatementsReverseOrderingWithMeta) {
     // Measurements are sorted in perfectly reverse order by time.
     std::vector<BSONObj> userBatch{
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:05:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:04:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:03:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:02:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:01:00.000Z"}})"),
-        mongo::fromjson(R"({"tag": "a", "time":{"$date":"2025-03-06T10:00:00.000Z"}})"),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(5)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(4)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(3)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(2)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(1)),
+        BSON(_timeField << Date_t::fromMillisSinceEpoch(0)),
     };
 
     std::vector<StmtId> executedStmtIds{0, 20, 40, 50};
