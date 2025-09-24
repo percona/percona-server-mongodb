@@ -282,7 +282,7 @@ common:psmdb_opt --//bazel/config:dbg=False
 # Profile for realeases, same as `opt` but with static linking
 --config=psmdb_opt_release
 common:psmdb_opt_release --config=psmdb_opt
-common:psmdb_opt_relesse --//bazel/config:linkstatic=True
+common:psmdb_opt_release --//bazel/config:linkstatic=True
 common:psmdb_opt_release --//bazel/config:release=True
 
 ################################################################################
