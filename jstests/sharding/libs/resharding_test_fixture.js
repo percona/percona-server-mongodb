@@ -32,6 +32,7 @@ export var ReshardingTest = class {
         periodicNoopIntervalSecs: periodicNoopIntervalSecs = undefined,
         writePeriodicNoops: writePeriodicNoops = undefined,
         enableElections: enableElections = false,
+        chainingAllowed: chainingAllowed = true,
         logComponentVerbosity: logComponentVerbosity = undefined,
         oplogSize: oplogSize = undefined,
         maxNumberOfTransactionOperationsInSingleOplogEntry:
@@ -65,6 +66,8 @@ export var ReshardingTest = class {
         this._writePeriodicNoops = writePeriodicNoops;
         /** @private */
         this._enableElections = enableElections;
+        /** @private */
+        this._chainingAllowed = chainingAllowed;
         /** @private */
         this._logComponentVerbosity = logComponentVerbosity;
         this._oplogSize = oplogSize;
@@ -135,8 +138,14 @@ export var ReshardingTest = class {
 
             // Increase the likelihood that writes which aren't yet majority-committed end up
             // getting rolled back.
-            rsOptions.settings = {catchUpTimeoutMillis: 0};
-            configReplSetTestOptions.settings = {catchUpTimeoutMillis: 0};
+            rsOptions.settings = {
+                catchUpTimeoutMillis: 0,
+                chainingAllowed: this._chainingAllowed,
+            };
+            configReplSetTestOptions.settings = {
+                catchUpTimeoutMillis: 0,
+                chainingAllowed: this._chainingAllowed,
+            };
             this._initiateWithDefaultElectionTimeout = true;
 
             rsOptions.setParameter.enableElectionHandoff = 0;
@@ -1276,6 +1285,11 @@ export var ReshardingTest = class {
         this._st.getAllNodes().forEach((conn) => {
             awaitRSClientHosts(conn, {host: newPrimaryConn.host}, {ok: true, ismaster: true});
         });
+    }
+
+    updatePrimaryShard(primaryShardName) {
+        jsTest.log(`ReshardingTestFixture updating primary shard to ${primaryShardName}`);
+        this._primaryShardName = primaryShardName;
     }
 
     /**
