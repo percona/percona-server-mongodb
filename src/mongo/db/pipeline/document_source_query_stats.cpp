@@ -75,7 +75,7 @@ REGISTER_DOCUMENT_SOURCE_WITH_FEATURE_FLAG(queryStats,
                                            DocumentSourceQueryStats::LiteParsed::parse,
                                            DocumentSourceQueryStats::createFromBson,
                                            AllowedWithApiStrict::kNeverInVersion1,
-                                           feature_flags::gFeatureFlagQueryStats);
+                                           &feature_flags::gFeatureFlagQueryStats);
 ALLOCATE_DOCUMENT_SOURCE_ID(queryStats, DocumentSourceQueryStats::id)
 
 namespace {
@@ -265,14 +265,11 @@ boost::optional<Document> DocumentSourceQueryStats::toDocument(
                       "queryStatsFailToReparseQueryShape fail point is enabled");
         }
 
-        return Document{
-            {"key", std::move(queryStatsKey)},
-            {"keyHash", keyHash},
-            {"queryShapeHash", queryShapeHash},
-            {"metrics",
-             queryStatsEntry.toBSON(feature_flags::gFeatureFlagQueryStatsDataBearingNodes.isEnabled(
-                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot()))},
-            {"asOf", partitionReadTime}};
+        return Document{{"key", std::move(queryStatsKey)},
+                        {"keyHash", keyHash},
+                        {"queryShapeHash", queryShapeHash},
+                        {"metrics", queryStatsEntry.toBSON()},
+                        {"asOf", partitionReadTime}};
     } catch (const DBException& ex) {
         queryStatsHmacApplicationErrors.increment();
         const auto& hash = absl::HashOf(key);
