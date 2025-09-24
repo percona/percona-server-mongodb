@@ -42,7 +42,9 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/storage_engine_lock_file.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
+#include "mongo/db/storage/wiredtiger/spill_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_index.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
@@ -52,6 +54,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #if __has_feature(address_sanitizer)
 #include <sanitizer/lsan_interface.h>
 #endif
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
 namespace mongo {
 
@@ -86,6 +90,28 @@ public:
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
         kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);
 
+        std::unique_ptr<SpillKVEngine> spillKVEngine;
+        if (feature_flags::gFeatureFlagCreateSpillKVEngine.isEnabled()) {
+            boost::system::error_code ec;
+            boost::filesystem::remove_all(params.getSpillDbPath(), ec);
+            if (ec) {
+                LOGV2_WARNING(29145,
+                              "Failed to clear dbpath of the internal WiredTiger instance",
+                              "error"_attr = ec.message());
+            }
+
+            WiredTigerKVEngineBase::WiredTigerConfig wtConfig =
+                getWiredTigerConfigFromStartupOptions(true /* usingSpillKVEngine */);
+            // TODO(SERVER-103753): Compute cache size properly.
+            wtConfig.cacheSizeMB = 100;
+            wtConfig.inMemory = params.inMemory;
+            wtConfig.logEnabled = false;
+            spillKVEngine =
+                std::make_unique<SpillKVEngine>(getCanonicalName().toString(),
+                                                params.getSpillDbPath(),
+                                                getGlobalServiceContext()->getFastClockSource(),
+                                                std::move(wtConfig));
+        }
 
         // Register the ServerStatusSection for the in-memory storage engine
         // and do that only once.
@@ -99,7 +125,8 @@ public:
         options.directoryPerDB = params.directoryperdb;
         options.directoryForIndexes = wiredTigerGlobalOptions.directoryForIndexes;
         options.forRepair = params.repair;
-        return std::make_unique<StorageEngineImpl>(opCtx, std::move(kv), options);
+        return std::make_unique<StorageEngineImpl>(
+            opCtx, std::move(kv), std::move(spillKVEngine), options);
     }
 
     virtual StringData getCanonicalName() const {
