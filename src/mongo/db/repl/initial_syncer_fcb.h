@@ -570,6 +570,9 @@ private:
     const std::string _cfgDBPath;                                      // TODO:
     std::unique_ptr<BackupCursorInfo> _backupCursorInfo;               // TODO:
 
+    // Flag that we need to switch back to the original dbpath
+    bool _needToSwitchBackToOriginalDBPath = false;  // (M)
+
     // This is invoked with the final status of the initial sync. If startup() fails, this callback
     // is never invoked. The caller gets the last applied optime when the initial sync completes
     // successfully or an error status.
