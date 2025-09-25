@@ -1043,7 +1043,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
 
     LOGV2(128440, "Initial sync attempt finishing up");
 
-    stdx::lock_guard<stdx::mutex> lock(_mutex);
+    stdx::unique_lock<stdx::mutex> lock(_mutex);
 
     auto runTime = _initialSyncState ? _initialSyncState->timer.millis() : 0;
     int rollBackId = -1;
@@ -1055,6 +1055,25 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
         operationsRetried = _sharedData->getTotalRetries(sdLock);
         totalTimeUnreachableMillis =
             durationCount<Milliseconds>(_sharedData->getTotalTimeUnreachable(sdLock));
+    }
+
+    // Before cleaning temporary directories we need to switch back to configured db path if current
+    // storage engine uses temporary location. In case of shutdown we shouldn't try to shutdown
+    // storage engine working in temporary directory because that directory will be deleted. In case
+    // of initial sync attempt retry we also need to switch back.
+    if (_needToSwitchBackToOriginalDBPath) {
+        auto opCtx = makeOpCtx();
+        lock.unlock();
+        Status status = _switchStorageLocation(
+            opCtx.get(), _cfgDBPath, startup_recovery::StartupRecoveryMode::kReplicaSetMember);
+        lock.lock();
+        if (!status.isOK()) {
+            // We failed to switch back to original db path. This is a serious error because we
+            // cannot proceed with retry or shutdown. We should crash to avoid running in a bad
+            // state.
+            LOGV2_FATAL(128467, "Failed to switch back to original db path", "error"_attr = status);
+        }
+        _needToSwitchBackToOriginalDBPath = false;
     }
 
     // Remove temporary directories created by the initial syncer.
@@ -2267,6 +2286,7 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         return;
     }
+    _needToSwitchBackToOriginalDBPath = true;
 
     // do some cleanup
     auto* consistencyMarkers = _replicationProcess->getConsistencyMarkers();
@@ -2395,6 +2415,7 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         return;
     }
+    _needToSwitchBackToOriginalDBPath = true;
 
     // Delete the list of files obtained from the local backup cursor
     status = _deleteLocalFiles();
@@ -2420,6 +2441,7 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         return;
     }
+    _needToSwitchBackToOriginalDBPath = false;
 
     // schedule next task
     status = _scheduleWorkAndSaveHandle(
