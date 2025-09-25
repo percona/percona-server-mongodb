@@ -49,6 +49,31 @@ namespace consensus {
  * Implementation of the Intent Registration system, used by operations to declare intents which are
  * required for access into the Storage layer.
  */
+
+class ReplicationStateTransitionGuard {
+    friend class IntentRegistry;
+    std::function<void()> _releaseCallback;
+    ReplicationStateTransitionGuard(std::function<void()> cb) : _releaseCallback(cb) {}
+
+public:
+    ReplicationStateTransitionGuard() = default;
+    ReplicationStateTransitionGuard(const ReplicationStateTransitionGuard&) = delete;
+    ReplicationStateTransitionGuard(ReplicationStateTransitionGuard&&) noexcept = default;
+    ReplicationStateTransitionGuard& operator=(const ReplicationStateTransitionGuard&) = delete;
+    ReplicationStateTransitionGuard& operator=(ReplicationStateTransitionGuard&&) noexcept =
+        default;
+
+    void release() {
+        if (_releaseCallback) {
+            _releaseCallback();
+            _releaseCallback = nullptr;
+        }
+    }
+    ~ReplicationStateTransitionGuard() {
+        release();
+    }
+};
+
 class IntentRegistry {
     friend class IntentRegistryTest;
 
@@ -115,7 +140,8 @@ public:
      * that conflict with the ongoing state transtion from registering their
      * intent.
      */
-    stdx::future<bool> killConflictingOperations(InterruptionType interruption);
+    stdx::future<ReplicationStateTransitionGuard> killConflictingOperations(
+        InterruptionType interruption);
 
     /**
      * Marks the IntentRegistry enabled and resets the active and last interruption.
@@ -129,6 +155,16 @@ public:
 
     void setDrainTimeout(uint32_t sec);
 
+    /**
+     * Returns the Intent held by an opCtx (boost::none if it is not holding any).
+     */
+    boost::optional<Intent> getHeldIntent(OperationContext* opCtx) const;
+
+    /**
+     * Checks if the opCtx is holding an Intent.
+     */
+    bool isIntentHeld(OperationContext* opCtx) const;
+
 
 private:
     struct tokenMap {
@@ -137,9 +173,14 @@ private:
         stdx::unordered_map<IntentToken::idType, OperationContext*> map;
     };
 
+    struct opCtxIntentMap {
+        stdx::mutex lock;
+        stdx::unordered_map<OperationContext*, Intent> map;
+    };
+
     bool _validIntent(Intent intent) const;
-    bool _killOperationsByIntent(Intent intent);
-    bool _waitForDrain(Intent intent, std::chrono::milliseconds timeout);
+    void _killOperationsByIntent(Intent intent);
+    void _waitForDrain(Intent intent, std::chrono::milliseconds timeout);
     static std::string _intentToString(Intent intent);
 
     bool _enabled = true;
@@ -148,6 +189,7 @@ private:
     bool _activeInterruption = false;
     InterruptionType _lastInterruption = InterruptionType::None;
     std::vector<tokenMap> _tokenMaps;
+    mutable opCtxIntentMap _opCtxIntentMap;
     std::chrono::seconds _drainTimeoutSec =
         std::chrono::seconds(repl::fassertOnLockTimeoutForStepUpDown.load());
 };

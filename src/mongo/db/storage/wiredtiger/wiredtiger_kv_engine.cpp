@@ -412,7 +412,7 @@ static void copy_keydb_files(const boost::filesystem::path& from,
                     if (!fs::exists(to))
                         fs::create_directories(to);
                 }
-                fs::copy_file(p.path(), to / p.path().filename(), fs::copy_option::none);
+                fs::copy_file(p.path(), to / p.path().filename(), fs::copy_options::none);
                 copiedFiles.push_back(p.path());
             }
         }
@@ -2796,7 +2796,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
                 fs::create_directories(destDir);
                 existDirs.insert(destDir);
             }
-            // fs::copy_file(srcFile, destFile, fs::copy_option::none);
+            // fs::copy_file(srcFile, destFile, fs::copy_options::none);
             // copy_file cannot copy part of file so we need to use
             // more fine-grained copy
             copy_file_size(opCtx, srcFile, destFile, fsize, progressMeter);
