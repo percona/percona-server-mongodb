@@ -1,0 +1,100 @@
+################################################################################
+# Percona-specific config flag aliases
+################################################################################
+common --flag_alias=inmemory=//bazel/config:inmemory
+common --flag_alias=audit=//bazel/config:audit
+common --flag_alias=full_featured=//bazel/config:full_featured
+common --flag_alias=enable_fipsmode=//bazel/config:enable_fipsmode
+common --flag_alias=enable_fcbis=//bazel/config:enable_fcbis
+common --flag_alias=enable_oidc=//bazel/config:enable_oidc
+
+################################################################################
+# Default values for Percona-specific build profiles
+################################################################################
+common --enable_platform_specific_config=true
+
+# Disable remote execution and remote cache
+common --remote_executor=
+common --experimental_remote_downloader=
+common --remote_cache=
+common --bes_backend=
+common --bes_results_url=
+common --tls_client_certificate=
+common --tls_client_key=
+common --remote_cache_compression=false
+common --remote_upload_local_results=false
+common --grpc_keepalive_time=0s
+common --legacy_important_outputs
+common --//bazel/config:local_build=True
+
+# enable additional modules
+common --//bazel/config:use_sasl_client=True
+common --//bazel/config:inmemory=True
+common --//bazel/config:audit=True
+
+# how to build
+common --jobs=auto
+common --fission=no
+common --verbose_failures=True
+common --//bazel/config:disable_warnings_as_errors=True
+common --//bazel/config:compiler_type=gcc
+common --//bazel/config:linker=gold
+common --//bazel/config:linkstatic=False
+common --//bazel/config:skip_archive=True
+common --//bazel/config:allocator=tcmalloc-google
+common --//bazel/config:libunwind=auto
+common --//bazel/config:dwarf_version=5
+common --//bazel/config:compress_debug_compile=True
+# Bazel will by default strip on fastbuild, if we want stripping we will handle
+# it ourselves
+common --strip=never
+
+################################################################################
+# Percona-specific build profiles
+################################################################################
+# Profile for quick builds with minimal debuggability and dynamic linking:
+# suitable for local development and running unit and integration tests on
+# continuous integration servers.
+--config=psmdb_dev
+common:psmdb_dev --compilation_mode fastbuild
+common:psmdb_dev --//bazel/config:opt=off
+common:psmdb_dev --//bazel/config:dbg_level=1
+
+# Same as `psmdb_dev` but with static linking
+--config=psmdb_dev_static
+common:psmdb_dev_static --config=psmdb_dev
+common:psmdb_dev_static --//bazel/config:linkstatic=True
+
+# Profile for building highly debuggable code: the build is slow,
+# the code is slow, the binaries are large.
+--config=psmdb_dbg
+common:psmdb_dbg --compilation_mode dbg
+common:psmdb_dbg --//bazel/config:opt=debug
+common:psmdb_dbg --//bazel/config:dbg_level=3
+
+# Profile for building the `install-mongo_fuzzer_test` target
+--config=psmdb_fuzzer
+common:psmdb_fuzzer --compilation_mode dbg
+common:psmdb_fuzzer --//bazel/config:compiler_type=clang
+common:psmdb_fuzzer --//bazel/config:linker=lld
+common:psmdb_fuzzer --//bazel/config:opt=debug
+common:psmdb_fuzzer --//bazel/config:allocator=system
+common:psmdb_fuzzer --//bazel/config:asan=True
+common:psmdb_fuzzer --//bazel/config:fsan=True
+common:psmdb_fuzzer --//bazel/config:use_ocsp_stapling=False
+
+# Profile for building optimized code: the build is slow, the code is fast.
+--config=psmdb_opt
+common:psmdb_opt --compilation_mode opt
+common:psmdb_opt --//bazel/config:opt=on
+common:psmdb_opt --//bazel/config:dbg=False
+
+# Profile for realeases, same as `opt` but with static linking
+--config=psmdb_opt_release
+common:psmdb_opt_release --config=psmdb_opt
+common:psmdb_opt_release --//bazel/config:linkstatic=True
+common:psmdb_opt_release --//bazel/config:release=True
+
+################################################################################
+# End of Percona-specific build profiles
+################################################################################
