@@ -163,7 +163,7 @@ int EncryptionKeyDB::_openWiredTiger(const std::string& path, const std::string&
         invariant(!ret, "this scope guard should be dismissed in case of anny failure");
         invariant(conn, "connection should be initialized if there is no error");
         _fastClockSource = std::make_unique<SystemClockSource>();
-        _connection = std::make_unique<WiredTigerConnection>(conn, _fastClockSource.get());
+        _connection = std::make_unique<WiredTigerConnection>(conn, _fastClockSource.get(), /*sessionCacheMax=*/33000);
     });
 
     // MongoDB 4.4 will always run in compatibility version 10.0.
@@ -528,7 +528,7 @@ void EncryptionKeyDB::reconfigure(const char *newCfg) {
     invariantWTOK(conn->reconfigure(conn, newCfg), nullptr);
     LOGV2(29079, "KeyDB reconfigure complete", "duration"_attr = Date_t::now() - startTime);
 
-    _connection = std::make_unique<WiredTigerConnection>(conn, _fastClockSource.get());
+    _connection = std::make_unique<WiredTigerConnection>(conn, _fastClockSource.get(), /*sessionCacheMax=*/33000);
 }
 
 }  // namespace mongo
