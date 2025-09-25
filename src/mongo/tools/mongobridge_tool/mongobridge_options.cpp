@@ -45,7 +45,6 @@
 #include "mongo/util/options_parser/startup_options.h"
 #include "mongo/util/options_parser/value.h"
 #include "mongo/util/version.h"
-#include "mongo/util/version_constants.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kBridge
 
@@ -63,8 +62,8 @@ void printMongoBridgeHelp(std::ostream* out) {
 }
 
 void printMongoBridgeVersion(std::ostream* out) {
-    *out << "mongobridge version v" << version::kVersion << std::endl;
-    *out << "git version: " << version::kGitVersion << std::endl;
+    *out << "mongobridge version v" << VersionInfoInterface::instance().version() << std::endl;
+    *out << "git version: " << VersionInfoInterface::instance().gitVersion() << std::endl;
     *out << std::flush;
 }
 
