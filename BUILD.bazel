@@ -17,7 +17,6 @@ exports_files([
     ".prettierrc",
     "pyproject.toml",
     "poetry.lock",
-    "symbols.orderfile",
 ])
 
 npm_link_all_packages(name = "node_modules")
@@ -402,6 +401,7 @@ mongo_install(
     ],
 )
 
+# Pre-built binaries downloaded from an archive-dist-test task.
 filegroup(
     name = "installed-dist-test",
     srcs = glob([
@@ -414,6 +414,14 @@ filegroup(
     name = "jstestfuzz_generated_tests",
     srcs = glob([
         "jstestfuzz/out/*.js",
+    ]),
+)
+
+# Multiversion binaries downloaded using db-contrib-tool, setting --linkDir to this directory.
+filegroup(
+    name = "multiversion_binaries",
+    srcs = glob([
+        "multiversion_binaries/**",
     ]),
 )
 
