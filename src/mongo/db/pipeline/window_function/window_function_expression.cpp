@@ -105,7 +105,7 @@ intrusive_ptr<Expression> Expression::parse(BSONObj obj,
                 const auto& featureFlag = parserRegistration.featureFlag;
 
                 if (featureFlag) {
-                    expCtx->throwIfParserShouldRejectFeature(exprName, *featureFlag);
+                    expCtx->ignoreFeatureInParserOrRejectAndThrow(exprName, *featureFlag);
                 }
 
                 auto allowedWithApi = parserRegistration.allowedWithApi;
@@ -154,7 +154,10 @@ void Expression::registerParser(std::string functionName,
                                 Parser parser,
                                 FeatureFlag* featureFlag,
                                 AllowedWithApiStrict allowedWithApi) {
-    invariant(parserMap.find(functionName) == parserMap.end());
+    auto op = parserMap.find(functionName);
+    massert(10021101,
+            str::stream() << "Duplicate parsers (" << functionName << ") registered.",
+            op == parserMap.end());
     ExpressionParserRegistration r{parser, featureFlag, allowedWithApi};
     operatorCountersWindowAccumulatorExpressions.addCounter(functionName);
     parserMap.emplace(std::move(functionName), std::move(r));

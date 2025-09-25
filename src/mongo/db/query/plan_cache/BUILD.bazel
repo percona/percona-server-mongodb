@@ -66,6 +66,7 @@ mongo_cc_benchmark(
         "//src/mongo/db/pipeline",
         "//src/mongo/db/pipeline:expression_context_for_test",
         "//src/mongo/db/query:canonical_query_base",
+        "//src/mongo/db/query:query_fcv_environment_for_test",
         "//src/mongo/db/query:query_test_service_context",
         "//src/third_party/benchmark",
     ],
@@ -82,6 +83,7 @@ mongo_cc_benchmark(
     tags = ["query_bm"],
     deps = [
         "plan_cache_test_util",
+        "//src/mongo/db:service_context_d",
         "//src/mongo/db/catalog:catalog_impl",
         "//src/mongo/db/catalog:collection_mock",
         "//src/mongo/db/query:canonical_query_base",
@@ -113,6 +115,7 @@ mongo_cc_unit_test(
     ],
     deps = [
         "plan_cache_test_util",
+        "//src/mongo/db:service_context_d",
         "//src/mongo/db/catalog:collection_mock",
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/pipeline:expression_context_for_test",

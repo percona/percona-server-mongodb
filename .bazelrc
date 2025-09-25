@@ -50,6 +50,9 @@ common --cache_test_results=no
 # Stream the test output so users can see the test progression.
 common --test_output=streamed
 
+# when using remote asset api, fallback to the direct urls to download
+common --experimental_remote_downloader_local_fallback
+
 # Build only what is necessary to run the *_test and test_suite rules that were
 # not filtered due to their size, timeout, tag, or language.
 test --build_tests_only
@@ -174,6 +177,7 @@ common --//bazel/config:dbg_level=1
 common --//bazel/config:debug_symbols=True
 common --//bazel/config:separate_debug=False
 common --//bazel/config:compiler_type=clang
+common --//bazel/config:linker=mold
 common --//bazel/config:linkstatic=True
 common --//bazel/config:build_enterprise=True
 common --//bazel/config:skip_archive=True
@@ -199,6 +203,7 @@ common:fastbuild --//bazel/config:dbg_level=1
 common:fastbuild --//bazel/config:debug_symbols=True
 common:fastbuild --//bazel/config:separate_debug=False
 common:fastbuild --//bazel/config:compiler_type=clang
+common:fastbuild --//bazel/config:linker=mold
 common:fastbuild --//bazel/config:linkstatic=True
 common:fastbuild --//bazel/config:build_enterprise=True
 common:fastbuild --//bazel/config:skip_archive=True
@@ -221,6 +226,7 @@ common:dbg --//bazel/config:dbg_level=2
 common:dbg --//bazel/config:debug_symbols=True
 common:dbg --//bazel/config:separate_debug=False
 common:dbg --//bazel/config:compiler_type=clang
+common:dbg --//bazel/config:linker=auto
 common:dbg --//bazel/config:linkstatic=True
 common:dbg --//bazel/config:build_enterprise=True
 common:dbg --//bazel/config:skip_archive=True
@@ -264,6 +270,7 @@ common:opt --//bazel/config:dbg_level=2
 common:opt --//bazel/config:debug_symbols=True
 common:opt --//bazel/config:separate_debug=False
 common:opt --//bazel/config:compiler_type=gcc
+common:opt --//bazel/config:linker=auto
 common:opt --//bazel/config:linkstatic=True
 common:opt --//bazel/config:build_enterprise=True
 common:opt --//bazel/config:skip_archive=True
@@ -363,6 +370,7 @@ common:windows --//bazel/config:linkstatic=True
 
 # The only Windows compiler we support is MSVC.
 common:windows --//bazel/config:compiler_type=msvc
+common:windows --//bazel/config:linker=auto
 
 # Data dependencies don't work in bazel run or bazel test on windows without this
 startup --windows_enable_symlinks
@@ -372,6 +380,7 @@ test:windows --action_env=MSYS=winsymlinks:nativestrict
 
 # Always use clang on macos
 common:macos --//bazel/config:compiler_type=clang
+common:macos --//bazel/config:linker=auto
 
 common:macos --macos_minimum_os=11.0
 # TODO(SERVER-102959): Find out why tests fail when mac is not in compilation mode dbg
@@ -399,6 +408,7 @@ common:windows --remote_executor=
 common:macos --remote_executor=
 
 # Enable remote cache (also necessary for remote build execution):
+common --experimental_remote_downloader=grpcs://sodalite.cluster.engflow.com
 common --remote_cache=grpcs://sodalite.cluster.engflow.com
 common --bes_backend=grpcs://sodalite.cluster.engflow.com
 common --bes_results_url=https://sodalite.cluster.engflow.com/invocation/
@@ -435,6 +445,7 @@ common:mod-scanner --remote_download_regex=.*\.mod_scanner_decls.json$
 # by passing "--config=local" on the bazel command line
 --config=local
 common:local --remote_executor=
+common:local --experimental_remote_downloader=
 common:local --remote_cache=
 common:local --bes_backend=
 common:local --bes_results_url=
@@ -453,6 +464,7 @@ common:no-remote-exec --jobs=auto
 # Disable remote execution and caching for public releases
 --config=public-release
 common:public-release --remote_executor=
+common:public-release --experimental_remote_downloader=
 common:public-release --remote_cache=
 common:public-release --bes_backend=
 common:public-release --bes_results_url=

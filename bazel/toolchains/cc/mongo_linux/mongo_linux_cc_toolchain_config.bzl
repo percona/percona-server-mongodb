@@ -3,6 +3,8 @@
 load(
     "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
     "action_config",
+    "env_entry",
+    "env_set",
     "feature",
     "flag_group",
     "flag_set",
@@ -13,17 +15,14 @@ load(
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
 load(
     "//bazel/toolchains/cc:mongo_custom_features.bzl",
+    "COMPILERS",
+    "LINKERS",
     "all_c_compile_actions",
     "all_compile_actions",
     "all_cpp_compile_actions",
     "get_common_features",
 )
 load("//bazel/toolchains/cc/mongo_linux:mongo_defines.bzl", "DEFINES")
-
-COMPILERS = struct(
-    CLANG = "clang",
-    GCC = "gcc",
-)
 
 all_non_assembly_compile_actions = [
     ACTION_NAMES.c_compile,
@@ -89,9 +88,6 @@ def _impl(ctx):
                             # Do not resolve our symlinked resource prefixes to real paths. This is required to
                             # make includes resolve correctly.
                             "-no-canonical-prefixes",
-
-                            # Replace compile timestamp-related macros for reproducible binaries with consistent hashes.
-                            "-Wno-builtin-macro-redefined",
                         ],
                     ),
                 ],
@@ -760,18 +756,6 @@ def _impl(ctx):
         ],
     )
 
-    # -Wno-invalid-offsetof is only valid for C++ but not for C
-    no_invalid_offsetof_warning_feature = feature(
-        name = "no_invalid_offsetof_warning",
-        enabled = False,
-        flag_sets = [
-            flag_set(
-                actions = all_cpp_compile_actions,
-                flag_groups = [flag_group(flags = ["-Wno-invalid-offsetof"])],
-            ),
-        ],
-    )
-
     # -Wno-class-memaccess is only valid for C++ but not for C
     no_class_memaccess_warning_feature = feature(
         name = "no_class_memaccess_warning",
@@ -807,7 +791,7 @@ def _impl(ctx):
                     "-Wno-deprecated-declarations",
                     "-Wno-deprecated-non-prototype",
                     "-Wno-missing-template-arg-list-after-template-kw",
-                    "-Wno-deprecated-this-capture",
+                    "-Wno-sign-compare",
                 ])],
             ),
         ],
@@ -826,6 +810,12 @@ def _impl(ctx):
                     "-Wno-deprecated-declarations",
                     "-Wno-class-memaccess",
                     "-Wno-uninitialized",
+                    "-Wno-array-bounds",
+                    "-Wno-sign-compare",
+                    "-Wno-stringop-overflow",
+                    "-Wno-stringop-overread",
+                    "-Wno-restrict",
+                    "-Wno-dangling-pointer",
                 ])],
             ),
             flag_set(
@@ -876,24 +866,9 @@ def _impl(ctx):
                     # Warn on comparison between signed and unsigned integer expressions.
                     "-Wsign-compare",
 
-                    # Do not warn on unknown pragmas.
-                    "-Wno-unknown-pragmas",
-
                     # Warn if a precompiled header (see Precompiled Headers) is found in the
                     # search path but can't be used.
                     "-Winvalid-pch",
-
-                    # This warning was added in g++-4.8.
-                    "-Wno-unused-local-typedefs",
-
-                    # Prevents warning about using deprecated features (such as auto_ptr in
-                    # c++11) Using -Wno-error=deprecated-declarations does not seem to work
-                    # on some compilers, including at least g++-4.6.
-                    "-Wno-deprecated-declarations",
-
-                    # New in clang-3.4, trips up things mostly in third_party, but in a few
-                    # places in the primary mongo sources as well.
-                    "-Wno-unused-const-variable",
 
                     # This has been suppressed in gcc 4.8, due to false positives, but not
                     # in clang. So we explicitly disable it here.
@@ -925,10 +900,6 @@ def _impl(ctx):
                     # error.
                     "-Wno-tautological-constant-out-of-range-compare",
 
-                    # Clang likes to warn about unused private fields, but some of our
-                    # third_party libraries have such things.
-                    "-Wno-unused-private-field",
-
                     # As of clang in Android NDK 17, these warnings appears in boost and/or
                     # ICU, and get escalated to errors
                     "-Wno-tautological-constant-compare",
@@ -940,32 +911,12 @@ def _impl(ctx):
                     # instances.
                     "-Wno-inconsistent-missing-override",
 
-                    # Don't issue warnings about potentially evaluated expressions
-                    "-Wno-potentially-evaluated-expression",
-
-                    # Disable warning about templates that can't be implicitly instantiated.
-                    # It is an attempt to make a link error into an easier-to-debug compiler
-                    # failure, but it triggers false positives if explicit instantiation is
-                    # used in a TU that can see the full definition. This is a problem at
-                    # least for the S2 headers.
-                    "-Wno-undefined-var-template",
-
                     # This warning was added in clang-4.0, but it warns about code that is
                     # required on some platforms. Since the warning just states that
                     # 'explicit instantiation of [a template] that occurs after an explicit
                     # specialization has no effect', it is harmless on platforms where it
                     # isn't required
                     "-Wno-instantiation-after-specialization",
-
-                    # This warning was added in clang-5 and flags many of our lambdas. Since
-                    # it isn't actively harmful to capture unused variables we are
-                    # suppressing for now with a plan to fix later.
-                    "-Wno-unused-lambda-capture",
-
-                    # This warning was added in Apple clang version 11 and flags many
-                    # explicitly defaulted move constructors and assignment operators for
-                    # being implicitly deleted, which is not useful.
-                    "-Wno-defaulted-function-deleted",
                 ])],
             ),
         ],
@@ -1141,6 +1092,32 @@ def _impl(ctx):
         ],
     )
 
+    gcc_no_ignored_attributes_features = feature(
+        name = "gcc_no_ignored_attributes",
+        enabled = ctx.attr.compiler == COMPILERS.GCC,
+        flag_sets = [
+            flag_set(
+                actions = all_compile_actions,
+                flag_groups = [flag_group(flags = [
+                    "-Wno-ignored-attributes",
+                ])],
+            ),
+        ],
+    )
+
+    # Some of the linux versions are missing libatomic.so.1 - this is a hack so mold will use the one contained
+    # within the mongo toolchain rather than needing one installed on the machine
+    mold_shared_libraries_feature = feature(
+        name = "mold_shared_libraries",
+        enabled = ctx.attr.linker == LINKERS.MOLD,
+        env_sets = [
+            env_set(
+                actions = all_link_actions,
+                env_entries = [env_entry(key = "LD_LIBRARY_PATH", value = "external/mongo_toolchain_v5/stow/gcc-v5/lib64/")],
+            ),
+        ],
+    )
+
     features = [
         enable_all_warnings_feature,
         general_clang_or_gcc_warnings_feature,
@@ -1187,7 +1164,6 @@ def _impl(ctx):
         overloaded_virtual_warning_feature,
         no_overloaded_virtual_warning_feature,
         pessimizing_move_warning_feature,
-        no_invalid_offsetof_warning_feature,
         no_class_memaccess_warning_feature,
         no_interference_size_warning_feature,
         disable_warnings_for_third_party_libraries_clang_feature,
@@ -1203,6 +1179,8 @@ def _impl(ctx):
         rdynamic_feature,
         global_libs_feature,
         build_id_feature,
+        gcc_no_ignored_attributes_features,
+        mold_shared_libraries_feature,
     ] + get_common_features(ctx)
 
     return [
@@ -1237,6 +1215,7 @@ mongo_linux_cc_toolchain_config = rule(
         "cxx_builtin_include_directories": attr.string_list(mandatory = True),
         "cpu": attr.string(mandatory = True),
         "compiler": attr.string(mandatory = True),
+        "linker": attr.string(mandatory = True),
         "distro": attr.string(mandatory = False),
         "extra_cflags": attr.string_list(mandatory = False),
         "extra_cxxflags": attr.string_list(mandatory = False),

@@ -51,7 +51,7 @@
 #include "mongo/db/s/collection_critical_section_document_gen.h"
 #include "mongo/db/s/collection_metadata.h"
 #include "mongo/db/s/collection_sharding_runtime.h"
-#include "mongo/db/s/database_sharding_state.h"
+#include "mongo/db/s/database_sharding_runtime.h"
 #include "mongo/db/s/migration_source_manager.h"
 #include "mongo/db/s/operation_sharding_state.h"
 #include "mongo/db/s/range_deletion_task_gen.h"
@@ -285,9 +285,9 @@ void ShardServerOpObserver::onInserts(OperationContext* opCtx,
                             DisableLockerRuntimeOrderingChecks disableChecks{opCtx};
                             lockDbIfNotPrimary.emplace(opCtx, insertedNss.dbName(), MODE_IX);
                         }
-                        auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(
+                        auto scopedDsr = DatabaseShardingRuntime::assertDbLockedAndAcquireExclusive(
                             opCtx, insertedNss.dbName());
-                        scopedDss->enterCriticalSectionCatchUpPhase(opCtx, reason);
+                        scopedDsr->enterCriticalSectionCatchUpPhase(reason);
                     } else {
                         // Primaries take locks when writing to certain internal namespaces. It must
                         // be ensured that those locks are also taken on secondaries, when
@@ -439,9 +439,9 @@ void ShardServerOpObserver::onUpdate(OperationContext* opCtx,
                         lockDbIfNotPrimary.emplace(opCtx, updatedNss.dbName(), MODE_IX);
                     }
 
-                    auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(
+                    auto scopedDsr = DatabaseShardingRuntime::assertDbLockedAndAcquireExclusive(
                         opCtx, updatedNss.dbName());
-                    scopedDss->enterCriticalSectionCommitPhase(opCtx, reason);
+                    scopedDsr->enterCriticalSectionCommitPhase(reason);
                 } else {
                     // Primaries take locks when writing to certain internal namespaces. It must
                     // be ensured that those locks are also taken on secondaries, when
@@ -566,34 +566,33 @@ void ShardServerOpObserver::onModifyCollectionShardingIndexCatalog(OperationCont
         case ShardingIndexCatalogOpEnum::rename: {
             auto renameEntry = ShardingIndexCatalogRenameEntry::parse(
                 IDLParserContext("OplogModifyCatalogEntryContext"), indexDoc);
-            shard_role_details::getRecoveryUnit(opCtx)->onCommit(
-                [renameEntry](OperationContext* opCtx, boost::optional<Timestamp>) {
-                    std::vector<IndexCatalogType> fromIndexes;
-                    boost::optional<UUID> uuid;
-                    {
-                        auto fromCSR =
-                            CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
-                                opCtx, renameEntry.getFromNss());
-                        auto indexCache = fromCSR->getIndexesInCritSec(opCtx);
-                        indexCache->forEachGlobalIndex([&](const auto& index) {
-                            fromIndexes.push_back(index);
-                            return true;
-                        });
-                        uuid.emplace(indexCache->getCollectionIndexes().uuid());
-
-                        fromCSR->clearIndexes(opCtx);
-                    }
-                    auto toCSR =
+            shard_role_details::getRecoveryUnit(opCtx)->onCommit([renameEntry](
+                                                                     OperationContext* opCtx,
+                                                                     boost::optional<Timestamp>) {
+                std::vector<IndexCatalogType> fromIndexes;
+                boost::optional<UUID> uuid;
+                {
+                    auto fromCSR =
                         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
-                            opCtx, renameEntry.getToNss());
-                    uassert(7079505,
-                            fmt::format("The critical section for collection {} must be taken in "
-                                        "order to execute this command",
-                                        renameEntry.getToNss().toStringForErrorMsg()),
-                            toCSR->getCriticalSectionSignal(
-                                opCtx, ShardingMigrationCriticalSection::kWrite));
-                    toCSR->replaceIndexes(opCtx, fromIndexes, {*uuid, renameEntry.getLastmod()});
-                });
+                            opCtx, renameEntry.getFromNss());
+                    auto indexCache = fromCSR->getIndexesInCritSec(opCtx);
+                    indexCache->forEachGlobalIndex([&](const auto& index) {
+                        fromIndexes.push_back(index);
+                        return true;
+                    });
+                    uuid.emplace(indexCache->getCollectionIndexes().uuid());
+
+                    fromCSR->clearIndexes(opCtx);
+                }
+                auto toCSR = CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(
+                    opCtx, renameEntry.getToNss());
+                uassert(7079505,
+                        fmt::format("The critical section for collection {} must be taken in "
+                                    "order to execute this command",
+                                    renameEntry.getToNss().toStringForErrorMsg()),
+                        toCSR->getCriticalSectionSignal(ShardingMigrationCriticalSection::kWrite));
+                toCSR->replaceIndexes(opCtx, fromIndexes, {*uuid, renameEntry.getLastmod()});
+            });
             break;
         }
         default:
@@ -689,16 +688,16 @@ void ShardServerOpObserver::onDelete(OperationContext* opCtx,
                         lockDbIfNotPrimary.emplace(opCtx, deletedNss.dbName(), MODE_IX);
                     }
 
-                    auto scopedDss = DatabaseShardingState::assertDbLockedAndAcquireExclusive(
+                    auto scopedDsr = DatabaseShardingRuntime::assertDbLockedAndAcquireExclusive(
                         opCtx, deletedNss.dbName());
 
                     // Secondaries that are in oplog application must clear the database metadata
                     // before releasing the in-memory critical section.
                     if (!opCtx->isEnforcingConstraints() && clearDbInfo) {
-                        scopedDss->clearDbInfo_DEPRECATED(opCtx);
+                        scopedDsr->clearDbInfo_DEPRECATED(opCtx);
                     }
 
-                    scopedDss->exitCriticalSection(opCtx, reason);
+                    scopedDsr->exitCriticalSection(reason);
                 } else {
                     // Primaries take locks when writing to certain internal namespaces. It must
                     // be ensured that those locks are also taken on secondaries, when
@@ -927,8 +926,8 @@ void ShardServerOpObserver::onCreateDatabaseMetadata(OperationContext* opCtx,
     auto dbMetadata = entry.getDb();
     auto dbName = dbMetadata.getDbName();
 
-    auto scopedDss = DatabaseShardingState::acquireExclusive(opCtx, dbName);
-    scopedDss->setDbInfo(opCtx, dbMetadata);
+    auto scopedDsr = DatabaseShardingRuntime::acquireExclusive(opCtx, dbName);
+    scopedDsr->setDbInfo(opCtx, dbMetadata);
 }
 
 void ShardServerOpObserver::onDropDatabaseMetadata(OperationContext* opCtx,
@@ -938,8 +937,8 @@ void ShardServerOpObserver::onDropDatabaseMetadata(OperationContext* opCtx,
 
     auto dbName = entry.getDbName();
 
-    auto scopedDss = DatabaseShardingState::acquireExclusive(opCtx, dbName);
-    scopedDss->clearDbInfo(opCtx);
+    auto scopedDsr = DatabaseShardingRuntime::acquireExclusive(opCtx, dbName);
+    scopedDsr->clearDbInfo();
 }
 
 }  // namespace mongo

@@ -286,7 +286,10 @@ void ShardingMongoDTestFixture::tearDown() {
         }
     }
 
+    FilteringMetadataCache::get(getServiceContext())->clearForUnitTests();
+
     CollectionShardingStateFactory::clear(getServiceContext());
+    DatabaseShardingStateFactory::clear(getServiceContext());
     Grid::get(operationContext())->clearForUnitTests();
 
     ShardingTestFixtureCommon::tearDown();

@@ -47,7 +47,6 @@
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/timestamp.h"
-#include "mongo/db/catalog/collection_options.h"
 #include "mongo/db/encryption/master_key_provider.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
@@ -357,14 +356,20 @@ public:
 
     Status createRecordStore(const NamespaceString& ns,
                              StringData ident,
-                             KeyFormat keyFormat = KeyFormat::Long,
-                             bool isTimeseries = false,
-                             const BSONObj& storageEngineCollectionOptions = BSONObj()) override;
+                             const RecordStore::Options& options) override {
+        // Parameters required for a standard WiredTigerRecordStore.
+        return _createRecordStore(ns,
+                                  ident,
+                                  options.keyFormat,
+                                  options.storageEngineCollectionOptions,
+                                  options.customBlockCompressor);
+    }
 
     std::unique_ptr<RecordStore> getRecordStore(OperationContext* opCtx,
                                                 const NamespaceString& nss,
                                                 StringData ident,
-                                                const CollectionOptions& options) override;
+                                                const RecordStore::Options& options,
+                                                boost::optional<UUID> uuid) override;
 
     std::unique_ptr<RecordStore> getTemporaryRecordStore(OperationContext* opCtx,
                                                          StringData ident,
@@ -458,9 +463,7 @@ public:
 
     Status recoverOrphanedIdent(const NamespaceString& nss,
                                 StringData ident,
-                                KeyFormat keyFormat = KeyFormat::Long,
-                                bool isTimeseries = false,
-                                const BSONObj& storageEngineCollectionOptions = BSONObj()) override;
+                                const RecordStore::Options& options) override;
 
     bool hasIdent(RecoveryUnit&, StringData ident) const override;
 
@@ -711,6 +714,12 @@ private:
     typedef std::tuple<boost::filesystem::path, boost::filesystem::path, std::shared_ptr<WiredTigerSession>, WT_CURSOR*> DBTuple;
     // srcPath, destPath, filename, size to copy
     typedef std::tuple<boost::filesystem::path, boost::filesystem::path, boost::uintmax_t, std::time_t> FileTuple;
+
+    Status _createRecordStore(const NamespaceString& ns,
+                              StringData ident,
+                              KeyFormat keyFormat,
+                              const BSONObj& storageEngineCollectionOptions,
+                              boost::optional<std::string> customBlockCompressor);
 
     void _checkpoint(WiredTigerSession& session);
 

@@ -297,14 +297,17 @@ public:
     boost::intrusive_ptr<ExpressionContext> copyWith(
         NamespaceString ns,
         boost::optional<UUID> uuid = boost::none,
-        boost::optional<std::unique_ptr<CollatorInterface>> updatedCollator = boost::none) const;
+        boost::optional<std::unique_ptr<CollatorInterface>> updatedCollator = boost::none,
+        boost::optional<std::pair<NamespaceString, std::vector<BSONObj>>> view = boost::none) const;
 
     /**
      * Returns an ExpressionContext that is identical to 'this' except for the 'subPipelineDepth'
      * and 'needsMerge' fields.
      */
     boost::intrusive_ptr<ExpressionContext> copyForSubPipeline(
-        NamespaceString nss, boost::optional<UUID> uuid = boost::none) {
+        NamespaceString nss,
+        boost::optional<UUID> uuid = boost::none,
+        boost::optional<std::pair<NamespaceString, std::vector<BSONObj>>> view = boost::none) {
         uassert(ErrorCodes::MaxSubPipelineDepthExceeded,
                 str::stream() << "Maximum number of nested sub-pipelines exceeded. Limit is "
                               << internalMaxSubPipelineViewDepth.load(),
@@ -312,7 +315,7 @@ public:
         // Initialize any referenced system variables now so that the subpipeline has the same
         // values for these variables.
         this->initializeReferencedSystemVariables();
-        auto newCopy = copyWith(std::move(nss), uuid);
+        auto newCopy = copyWith(std::move(nss), uuid, boost::none, view);
         newCopy->_params.subPipelineDepth += 1;
         // The original expCtx might have been attached to an aggregation pipeline running on the
         // shards. We must reset 'needsMerge' in order to get fully merged results for the
@@ -519,9 +522,30 @@ public:
 
     /**
      * Throws if the provided feature flag is not enabled according to the expressions
-     * VersionContext and IncrementalFeatureRolloutContext.
+     * VersionContext and IncrementalFeatureRolloutContext. This function assumes the caller has
+     * verified that the feature flag should be checked.
      */
     void throwIfParserShouldRejectFeature(StringData name, FeatureFlag& flag);
+
+    /**
+     * Returns true if parsers should not check if feature flags are enabled on the expressions
+     * VersionContext or IncrementalFeatureRolloutContext and false otherwise.
+     *
+     * TODO SERVER-99552 remove function when support is added for 'VersionContext' for all DDL
+     * operations in replica sets. Currently, secondaries can fail to apply oplog entries when
+     * creating collections that have validators or views that depend on expressions with new query
+     * features.
+     */
+    bool shouldParserIgnoreFeatureFlagCheck() const {
+        return !_params.opCtx->isEnforcingConstraints() &&
+            (_params.isParsingCollectionValidator || _params.isParsingViewDefinition);
+    }
+
+    /**
+     * Throws only if the parser should check the feature flag and the feature flag provided is not
+     * enabled in the expressions VersionContext and IncrementalFeatureRolloutContext
+     */
+    void ignoreFeatureInParserOrRejectAndThrow(StringData name, FeatureFlag& flag);
 
     void setOperationContext(OperationContext* opCtx) {
         _params.opCtx = opCtx;
@@ -966,8 +990,8 @@ public:
             VersionContext::getDecoration(getOperationContext()));
     }
 
-    bool isFeatureFlagStreamsEnabled() const {
-        return _featureFlagStreams.get(VersionContext::getDecoration(getOperationContext()));
+    bool shouldParserAllowStreams() const {
+        return shouldParserIgnoreFeatureFlagCheck() || _featureFlagStreams.get(_params.vCtx);
     }
 
     bool isMapReduceCommand() const {

@@ -1432,7 +1432,17 @@ functions:
       env:
         evergreen_remote_exec: ${evergreen_remote_exec|off}
         author_email: ${author_email}
-      add_expansions_to_env: true
+        build_id: ${build_id}
+        distro_id: ${distro_id}
+        execution: ${execution}
+        project: ${project}
+        revision: ${revision}
+        revision_order_id: ${revision_order_id}
+        task_id: ${task_id}
+        task_name: ${task_name}
+        build_variant: ${build_variant}
+        version_id: ${version_id}
+        requester: ${requester}
       args:
         - "src/evergreen/bazel_test.sh"
 
@@ -1519,13 +1529,6 @@ functions:
     - *set_bazel_test_silent_fail # TODO SERVER-99431 Remove once bazel coverage timeouts are under control.
     - *f_expansions_write
     - *bazel_coverage_sh
-
-  "run resmoke suite with bazel":
-    - *f_expansions_write
-    - *bazel_test_sh
-    - command: attach.results
-      params:
-        file_location: report.json
 
   "generate version expansions": &generate_version_expansions
     command: subprocess.exec

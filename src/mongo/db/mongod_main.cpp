@@ -183,6 +183,7 @@
 #include "mongo/db/s/collection_sharding_state_factory_shard.h"
 #include "mongo/db/s/config/configsvr_coordinator_service.h"
 #include "mongo/db/s/config_server_op_observer.h"
+#include "mongo/db/s/database_sharding_state_factory_shard.h"
 #include "mongo/db/s/ddl_lock_manager.h"
 #include "mongo/db/s/migration_blocking_operation/multi_update_coordinator.h"
 #include "mongo/db/s/migration_chunk_cloner_source_op_observer.h"
@@ -1567,6 +1568,8 @@ void setUpSharding(ServiceContext* service) {
     ShardingState::create(service);
     CollectionShardingStateFactory::set(
         service, std::make_unique<CollectionShardingStateFactoryShard>(service));
+    DatabaseShardingStateFactory::set(service,
+                                      std::make_unique<DatabaseShardingStateFactoryShard>());
 }
 
 namespace {
@@ -1940,17 +1943,6 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         ReplicaSetMonitor::shutdown();
     }
 
-    auto sr = Grid::get(serviceContext)->isInitialized()
-        ? Grid::get(serviceContext)->shardRegistry()
-        : nullptr;
-    if (sr) {
-        SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
-                                       TimedSectionId::shutDownShardRegistry,
-                                       &shutdownTimeElapsedBuilder);
-        LOGV2_OPTIONS(4784919, {LogComponent::kSharding}, "Shutting down the shard registry");
-        sr->shutdown();
-    }
-
     if (ShardingState::get(serviceContext)->enabled()) {
         SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
                                        TimedSectionId::shutDownTransactionCoord,
@@ -1969,25 +1961,8 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         validator->shutDown();
     }
 
-    if (TestingProctor::instance().isEnabled()) {
-        auto pool = Grid::get(serviceContext)->isInitialized()
-            ? Grid::get(serviceContext)->getExecutorPool()
-            : nullptr;
-        if (pool) {
-            SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
-                                           TimedSectionId::shutDownExecutorPool,
-                                           &shutdownTimeElapsedBuilder);
-            LOGV2_OPTIONS(6773200, {LogComponent::kSharding}, "Shutting down the ExecutorPool");
-            pool->shutdownAndJoin();
-        }
-    }
-
-    if (Grid::get(serviceContext)->isShardingInitialized()) {
-        SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
-                                       TimedSectionId::shutDownCatalogCache,
-                                       &shutdownTimeElapsedBuilder);
-        LOGV2_OPTIONS(6773201, {LogComponent::kSharding}, "Shutting down the CatalogCache");
-        Grid::get(serviceContext)->catalogCache()->shutDownAndJoin();
+    if (auto grid = Grid::get(serviceContext)) {
+        grid->shutdown(opCtx, &shutdownTimeElapsedBuilder, false /* isMongos */);
     }
 
     LOGV2_OPTIONS(9439300, {LogComponent::kSharding}, "Shutting down the filtering metadata cache");

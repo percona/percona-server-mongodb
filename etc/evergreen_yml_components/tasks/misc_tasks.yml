@@ -70,7 +70,7 @@ tasks:
             --runAllFeatureFlagTests
 
   - <<: *antithesis_task_template
-    name: antithesis_concurrency_sharded_replication_with_balancer_and_config_transitions
+    name: antithesis_concurrency_sharded_replication_with_balancer_and_config_transitions_and_add_remove_shard
     tags:
       [
         "assigned_to_jira_team_devprod_correctness",
@@ -82,12 +82,12 @@ tasks:
       - func: "do setup for antithesis"
       - func: "antithesis image build and push"
         vars:
-          suite: concurrency_sharded_replication_with_balancer_and_config_transitions
+          suite: concurrency_sharded_replication_with_balancer_and_config_transitions_and_add_remove_shard
           resmoke_args: >-
             --runAllFeatureFlagTests
 
   - <<: *antithesis_task_template
-    name: antithesis_jstestfuzz_sharded_with_config_transitions
+    name: antithesis_jstestfuzz_sharded_with_config_transitions_and_add_remove_shard
     tags:
       [
         "assigned_to_jira_team_devprod_correctness",
@@ -99,7 +99,7 @@ tasks:
       - func: "do setup for antithesis"
       - func: "antithesis image build and push"
         vars:
-          suite: jstestfuzz_sharded_with_config_transitions
+          suite: jstestfuzz_sharded_with_config_transitions_and_add_remove_shard
           resmoke_args: >-
             --runAllFeatureFlagTests
 
@@ -696,6 +696,7 @@ tasks:
       - func: "cleanup environment"
       - func: "set up venv"
       - func: "upload pip requirements"
+      - func: "get engflow creds"
       - command: subprocess.exec
         type: test
         params:
@@ -903,6 +904,7 @@ tasks:
       - func: "cleanup environment"
       - func: "set up venv"
       - func: "upload pip requirements"
+      - func: "get engflow creds"
       - command: subprocess.exec
         params:
           binary: bash
@@ -1143,14 +1145,19 @@ tasks:
       - func: "git get project and add git tag"
       - func: "do setup"
       - func: "get engflow creds"
-      - func: "run resmoke suite with bazel"
+      - func: "f_expansions_write"
+      - func: "bazel test"
         vars:
           targets: //buildscripts/resmokeconfig:core
+          compiling_for_test: true
           bazel_args: >-
             --config=no-remote-exec
             --test_output=all
             --workspace_status_command="bazel/resmoke/volatile_status.sh"
             --//bazel/resmoke:in_evergreen
+      - command: attach.results
+        params:
+          file_location: report.json
 
   # Experimental task running the jstestfuzz suite bazel target. To be removed with SERVER-103537.
   - name: bazel_test_jstestfuzz
@@ -1166,14 +1173,18 @@ tasks:
           jstestfuzz_vars: "--numGeneratedFiles 2 --jsTestsDir ../jstests"
           npm_command: "jstestfuzz"
       - func: "get engflow creds"
-      - func: "run resmoke suite with bazel"
+      - func: "bazel test"
         vars:
-          target: //buildscripts/resmokeconfig:jstestfuzz
-          args: >-
+          targets: //buildscripts/resmokeconfig:jstestfuzz
+          compiling_for_test: true
+          bazel_args: >-
             --config=no-remote-exec
             --test_output=all
             --workspace_status_command="bazel/resmoke/volatile_status.sh"
             --//bazel/resmoke:in_evergreen
+      - command: attach.results
+        params:
+          file_location: report.json
 
   - name: unit_test_group1_no_sandbox
     tags: ["assigned_to_jira_team_devprod_build", "auxiliary"]

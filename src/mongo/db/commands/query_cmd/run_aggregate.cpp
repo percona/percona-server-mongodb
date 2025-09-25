@@ -798,9 +798,11 @@ Status runAggregateOnView(ResolvedViewAggExState& resolvedViewAggExState,
     // With the view & collation resolved, we can relinquish locks.
     aggCatalogState->relinquishResources();
 
+    OperationContext* opCtx = resolvedViewAggExState.getOpCtx();
+    auto& originalNss = resolvedViewAggExState.getOriginalNss();
+
     auto status{Status::OK()};
-    if (!OperationShardingState::get(resolvedViewAggExState.getOpCtx())
-             .shouldBeTreatedAsFromRouter(resolvedViewAggExState.getOpCtx())) {
+    if (!OperationShardingState::get(opCtx).shouldBeTreatedAsFromRouter(opCtx)) {
         // Non sharding-aware operation.
         // Run the translated query on the view on this node.
         status = _runAggregate(resolvedViewAggExState, result);
@@ -809,16 +811,14 @@ Status runAggregateOnView(ResolvedViewAggExState& resolvedViewAggExState,
 
         // Stash the shard role for the resolved view nss, in case it was set, as we are about to
         // transition into the router role for it.
-        const ScopedStashShardRole scopedUnsetShardRole{resolvedViewAggExState.getOpCtx(),
-                                                        resolvedView.getNamespace()};
+        const ScopedStashShardRole scopedUnsetShardRole{opCtx, resolvedView.getNamespace()};
 
-        sharding::router::CollectionRouter router(
-            resolvedViewAggExState.getOpCtx()->getServiceContext(),
-            resolvedView.getNamespace(),
-            false  // retryOnStaleShard=false
+        sharding::router::CollectionRouter router(opCtx->getServiceContext(),
+                                                  resolvedView.getNamespace(),
+                                                  false  // retryOnStaleShard=false
         );
         status = router.route(
-            resolvedViewAggExState.getOpCtx(),
+            opCtx,
             "runAggregateOnView",
             [&](OperationContext* opCtx, const CollectionRoutingInfo& cri) {
                 // TODO: SERVER-77402 Use a ShardRoleLoop here and remove this usage of
@@ -856,12 +856,15 @@ Status runAggregateOnView(ResolvedViewAggExState& resolvedViewAggExState,
             });
     }
 
+    // Set the namespace of the curop back to the view namespace so ctx records stats on this view
+    // namespace on destruction.
     {
-        // Set the namespace of the curop back to the view namespace so ctx records
-        // stats on this view namespace on destruction.
-        stdx::lock_guard<Client> lk(*resolvedViewAggExState.getOpCtx()->getClient());
-        CurOp::get(resolvedViewAggExState.getOpCtx())
-            ->setNS(lk, resolvedViewAggExState.getOriginalNss());
+        // It's possible this resolvedViewAggExState will be unusable by the time _runAggregate
+        // returns, so we must use opCtx and originalNss variables instead of trying to retrieve
+        // from resolvedViewAggExState.
+        // TODO SERVER-93536 Clarify ownership of aggExState.
+        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        CurOp::get(opCtx)->setNS(lk, originalNss);
     }
 
     return status;
@@ -891,14 +894,6 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
     auto pipeline = Pipeline::parse(requestForQueryStats.getPipeline(), expCtx);
     expCtx->stopExpressionCounters();
 
-    // Register query stats with the pre-optimized pipeline. Exclude queries against collections
-    // with encrypted fields. We still collect query stats on collection-less aggregations.
-    bool hasEncryptedFields = aggCatalogState.lockAcquired() &&
-        aggCatalogState.getMainCollectionOrView().collectionExists() &&
-        aggCatalogState.getMainCollectionOrView()
-            .getCollectionPtr()
-            ->getCollectionOptions()
-            .encryptedFieldConfig;
 
     // Perform the query settings lookup and attach it to 'expCtx'.
     query_shape::DeferredQueryShape deferredShape{[&]() {
@@ -916,7 +911,10 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
             aggExState.getOriginalNss(),
             requestForQueryStats.getQuerySettings()));
 
-    if (!hasEncryptedFields) {
+    // Register query stats with the pre-optimized pipeline. Exclude queries with encrypted fields
+    // as indicated by the inclusion of encryptionInformation in the request. We still collect query
+    // stats on collection-less aggregations.
+    if (!aggExState.getRequest().getEncryptionInformation()) {
         // If this is a query over a resolved view, we want to register query stats with the
         // original user-given request and pipeline, rather than the new request generated when
         // resolving the view.
@@ -1184,6 +1182,8 @@ Status runAggregate(
     AggExState aggExState(
         opCtx, request, liteParsedPipeline, cmdObj, privileges, usedExternalDataSources, verbosity);
 
+    // NOTE: It's possible this aggExState will be unusable by the time _runAggregate returns.
+    // TODO SERVER-93536 Clarify ownership of aggExState.
     Status status = _runAggregate(aggExState, result);
 
     // The aggregation pipeline may change the namespace of the curop and we need to set it back to
