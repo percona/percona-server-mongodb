@@ -624,7 +624,7 @@ std::string getIpByHost(const std::string& host) {
 
 void appendCommonInfo(BSONObjBuilder& builder, StringData atype, Client* client) {
     builder << AuditFields::type(atype);
-    builder << AuditFields::timestamp(jsTime());
+    builder << AuditFields::timestamp(Date_t::now());
     builder << AuditFields::local(
         BSON("ip" << getIpByHost(getHostNameCached()) << "port" << serverGlobalParams.port));
     if (client->hasRemote()) {
