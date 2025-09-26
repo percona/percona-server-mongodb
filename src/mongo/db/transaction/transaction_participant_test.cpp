@@ -7315,7 +7315,7 @@ TEST_F(TxnParticipantTest, LastOpSetWhenUnstashingForAlreadyAbortedTxn) {
 TEST_F(TxnParticipantTest, LastOpNotSetWhenUnstashingForNonAbort) {
     // Test that non-abort commands do not set lastOp when unstashing.
     repl::ReplClientInfo::forClient(opCtx()->getClient()).clearLastOp();
-    repl::ReplClientInfo::forClient(opCtx()->getClient()).clearLastOpSetFlag(opCtx());
+    repl::ReplClientInfo::forClient(opCtx()->getClient()).clearLastOpSetFlag_forTest(opCtx());
     const auto lsid = makeLogicalSessionIdWithTxnUUIDForTest();
     opCtx()->setLogicalSessionId(lsid);
     auto sessionCheckout = checkOutSession();

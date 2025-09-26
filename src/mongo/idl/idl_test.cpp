@@ -659,6 +659,48 @@ TEST(IDLOneTypeTests, TestObjectTypeNegative) {
     }
 }
 
+TEST(IDLStatusType, ParseAndSerialize) {
+    ErrorExtraInfoExample::EnableParserForTest scoped;
+
+    IDLParserContext ctxt("");
+
+    const auto testErrorCode = ErrorCodes::ForTestingErrorExtraInfo;
+    const auto testErrMsg = "Test errmsg for IDL parsed Status";
+    const auto testStatusBSON =
+        BSON("code" << testErrorCode << "codeName" << "ForTestingErrorExtraInfo"
+                    << "errmsg" << testErrMsg << "data" << 1234);
+    const auto testDoc = BSON("value" << testStatusBSON);
+    const auto testStruct = One_status_type::parse(ctxt, testDoc);
+
+    const auto testStatus = Status(testErrorCode, testErrMsg, testStatusBSON);
+
+    // Check that the Status from the IDL parsed struct and the test Status are equal.
+    ASSERT_EQ(testStatus, testStruct.getValue());
+
+    // Check that the IDL parsed struct serializes to the same BSON value as the original BSON.
+    BSONObjBuilder builder;
+    testStruct.serialize(&builder);
+    auto serializedDoc = builder.obj();
+    ASSERT_BSONOBJ_EQ_UNORDERED(testDoc, serializedDoc);
+}
+
+TEST(IDLStatusType, OKNotAllowed) {
+    ErrorExtraInfoExample::EnableParserForTest scoped;
+
+    IDLParserContext ctxt("");
+
+    // Test that serialization of an OK status is not allowed.
+    const auto testDoc =
+        BSON("value" << BSON("ok" << 1 << "code" << ErrorCodes::OK << "codeName" << "OK"));
+    ASSERT_THROWS_CODE(One_status_type::parse(ctxt, testDoc), DBException, 7418501);
+
+    // Test that deserialization of an OK status is not allowed.
+    One_status_type statusStruct;
+    statusStruct.setValue(Status::OK());
+    BSONObjBuilder builder;
+    ASSERT_THROWS_CODE(statusStruct.serialize(&builder), DBException, 7418500);
+}
+
 // Trait check used in TestLoopbackVariant.
 template <typename T>
 struct IsVector : std::false_type {};
@@ -2653,206 +2695,6 @@ TEST(IDLCustomType, TestDerivedParser) {
     }
 }
 
-// Chained type testing
-// Check each of types
-// Check for round-tripping of fields and documents
-
-// Positive: demonstrate a class struct chained types
-TEST(IDLChainedType, TestChainedType) {
-    IDLParserContext ctxt("root");
-
-    auto testDoc = BSON("field1" << "abc"
-                                 << "field2" << 5);
-
-    auto testStruct = Chained_struct_only::parse(ctxt, testDoc);
-
-    assert_same_types<decltype(testStruct.getChainedType()), const mongo::ChainedType&>();
-    assert_same_types<decltype(testStruct.getAnotherChainedType()),
-                      const mongo::AnotherChainedType&>();
-
-    ASSERT_EQUALS(testStruct.getChainedType().getField1(), "abc");
-    ASSERT_EQUALS(testStruct.getAnotherChainedType().getField2(), 5);
-
-    // Positive: Test we can roundtrip from the just parsed document
-    {
-        BSONObjBuilder builder;
-        testStruct.serialize(&builder);
-        auto loopbackDoc = builder.obj();
-
-        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
-    }
-
-    // Positive: Test we can serialize from nothing the same document
-    {
-        BSONObjBuilder builder;
-        Chained_struct_only one_new;
-        ChainedType ct;
-        ct.setField1("abc");
-        one_new.setChainedType(ct);
-        AnotherChainedType act;
-        act.setField2(5);
-        one_new.setAnotherChainedType(act);
-        one_new.serialize(&builder);
-
-        auto serializedDoc = builder.obj();
-        ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
-    }
-}
-
-// Positive: demonstrate a struct with chained types ignoring extra fields
-TEST(IDLChainedType, TestExtraFields) {
-    IDLParserContext ctxt("root");
-
-    auto testDoc = BSON("field1" << "abc"
-                                 << "field2" << 5 << "field3" << 123456);
-
-    auto testStruct = Chained_struct_only::parse(ctxt, testDoc);
-    ASSERT_EQUALS(testStruct.getChainedType().getField1(), "abc");
-    ASSERT_EQUALS(testStruct.getAnotherChainedType().getField2(), 5);
-}
-
-
-// Negative: demonstrate a struct with chained types with duplicate fields
-TEST(IDLChainedType, TestDuplicateFields) {
-    IDLParserContext ctxt("root");
-
-    auto testDoc = BSON("field1" << "abc"
-                                 << "field2" << 5 << "field2" << 123456);
-
-    ASSERT_THROWS_CODE(Chained_struct_only::parse(ctxt, testDoc),
-                       AssertionException,
-                       ErrorCodes::IDLDuplicateField);
-}
-
-
-// Positive: demonstrate a struct with chained structs
-TEST(IDLChainedType, TestChainedStruct) {
-    IDLParserContext ctxt("root");
-
-    auto testDoc =
-        BSON("anyField" << 123.456 << "objectField" << BSON("random" << "pair") << "field3"
-                        << "abc");
-
-    auto testStruct = Chained_struct_mixed::parse(ctxt, testDoc);
-
-    assert_same_types<decltype(testStruct.getChained_any_basic_type()), Chained_any_basic_type&>();
-    assert_same_types<decltype(testStruct.getChainedObjectBasicType()),
-                      Chained_object_basic_type&>();
-
-    ASSERT_EQUALS(testStruct.getField3(), "abc");
-
-    // Positive: Test we can roundtrip from the just parsed document
-    {
-        BSONObjBuilder builder;
-        testStruct.serialize(&builder);
-        auto loopbackDoc = builder.obj();
-
-        // Serializer should include fields with default values.
-        ASSERT_BSONOBJ_EQ(BSON("anyField" << 123.456 << "objectField" << BSON("random" << "pair")
-                                          << "enumField"  // Should be ahead of 'field3'.
-                                          << "zero"
-                                          << "field3"
-                                          << "abc"),
-                          loopbackDoc);
-    }
-}
-
-// Negative: demonstrate a struct with chained structs and extra fields
-TEST(IDLChainedType, TestChainedStructWithExtraFields) {
-    IDLParserContext ctxt("root");
-
-    // Extra field
-    {
-        auto testDoc = BSON("field3" << "abc"
-                                     << "anyField" << 123.456 << "objectField"
-                                     << BSON("random" << "pair") << "extraField" << 787);
-        ASSERT_THROWS(Chained_struct_mixed::parse(ctxt, testDoc), AssertionException);
-    }
-
-
-    // Duplicate any
-    {
-        auto testDoc = BSON("field3" << "abc"
-                                     << "anyField" << 123.456 << "objectField"
-                                     << BSON("random" << "pair") << "anyField" << 787);
-        ASSERT_THROWS_CODE(Chained_struct_mixed::parse(ctxt, testDoc),
-                           AssertionException,
-                           ErrorCodes::IDLDuplicateField);
-    }
-
-    // Duplicate object
-    {
-        auto testDoc = BSON("objectField" << BSON("fake" << "thing") << "field3"
-                                          << "abc"
-                                          << "anyField" << 123.456 << "objectField"
-                                          << BSON("random" << "pair"));
-        ASSERT_THROWS_CODE(Chained_struct_mixed::parse(ctxt, testDoc),
-                           AssertionException,
-                           ErrorCodes::IDLDuplicateField);
-    }
-
-    // Duplicate field3
-    {
-        auto testDoc = BSON("field3" << "abc"
-                                     << "anyField" << 123.456 << "objectField"
-                                     << BSON("random" << "pair") << "field3"
-                                     << "def");
-        ASSERT_THROWS_CODE(Chained_struct_mixed::parse(ctxt, testDoc),
-                           AssertionException,
-                           ErrorCodes::IDLDuplicateField);
-    }
-}
-
-
-// Positive: demonstrate a struct with chained structs and types
-TEST(IDLChainedType, TestChainedMixedStruct) {
-    IDLParserContext ctxt("root");
-
-    auto testDoc = BSON("field1" << "abc"
-                                 << "field2" << 5 << "stringField"
-                                 << "def"
-                                 << "field3" << 456);
-
-    auto testStruct = Chained_struct_type_mixed::parse(ctxt, testDoc);
-
-    assert_same_types<decltype(testStruct.getChained_type()), const mongo::ChainedType&>();
-    assert_same_types<decltype(testStruct.getAnotherChainedType()),
-                      const mongo::AnotherChainedType&>();
-
-    ASSERT_EQUALS(testStruct.getChained_type().getField1(), "abc");
-    ASSERT_EQUALS(testStruct.getAnotherChainedType().getField2(), 5);
-    ASSERT_EQUALS(testStruct.getChainedStringBasicType().getStringField(), "def");
-    ASSERT_EQUALS(testStruct.getField3(), 456);
-
-    // Positive: Test we can roundtrip from the just parsed document
-    {
-        BSONObjBuilder builder;
-        testStruct.serialize(&builder);
-        auto loopbackDoc = builder.obj();
-
-        ASSERT_BSONOBJ_EQ(testDoc, loopbackDoc);
-    }
-
-    // Positive: Test we can serialize from nothing the same document
-    {
-        BSONObjBuilder builder;
-        Chained_struct_type_mixed one_new;
-        ChainedType ct;
-        ct.setField1("abc");
-        one_new.setChained_type(ct);
-        AnotherChainedType act;
-        act.setField2(5);
-        one_new.setAnotherChainedType(act);
-        one_new.setField3(456);
-        Chained_string_basic_type csbt;
-        csbt.setStringField("def");
-        one_new.setChainedStringBasicType(csbt);
-        one_new.serialize(&builder);
-
-        auto serializedDoc = builder.obj();
-        ASSERT_BSONOBJ_EQ(testDoc, serializedDoc);
-    }
-}
 // Positive: demonstrate a class derived from an IDL parser.
 TEST(IDLEnum, TestEnum) {
 
@@ -5422,13 +5264,6 @@ TEST(IDLOwnershipTests, ParseViewStructIsNotOwned) {
     }
 
     {
-        ViewStructChainedType view_struct_chained_type;
-        auto tmp = BSON("view_type" << BSON("a" << "b"));
-        view_struct_chained_type = ViewStructChainedType::parse(ctxt, tmp);
-        ASSERT_FALSE(view_struct_chained_type.isOwned());
-    }
-
-    {
         ViewStructWithViewStructMember view_struct_member;
         auto tmp = BSON("view_struct" << BSON("view_type" << BSON("a" << "b")));
         view_struct_member = ViewStructWithViewStructMember::parse(ctxt, tmp);
@@ -5449,16 +5284,6 @@ TEST(IDLOwnershipTests, ChainedParseSharingOwnershipTmpBSON) {
     // accessing free'd memory which should error on ASAN and debug builds.
     ASSERT_BSONOBJ_EQ(view_struct_chained_struct.getView_type(), BSON("a" << "b"));
     ASSERT_TRUE(view_struct_chained_struct.isOwned());
-
-    ViewStructChainedType view_struct_chained_type;
-    {
-        auto tmp = BSON("view_type" << BSON("a" << "b"));
-        view_struct_chained_type = ViewStructChainedType::parseSharingOwnership(ctxt, tmp);
-        ASSERT_TRUE(view_struct_chained_type.isOwned());
-    }
-    ASSERT_BSONOBJ_EQ(view_struct_chained_type.getViewChainedType().getView_type(),
-                      BSON("view_type" << BSON("a" << "b")));
-    ASSERT_TRUE(view_struct_chained_type.isOwned());
 
     ViewStructWithViewStructMember view_struct_member;
     {

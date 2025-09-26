@@ -1075,8 +1075,6 @@ mongo_cc_library(
     deps = [
         "//src/mongo:base",
         "//src/mongo/client:clientdriver_network",
-        "//src/mongo/db/auth",
-        "//src/mongo/db/auth:authorization_manager_global",
         "//src/mongo/util/net:network",
     ],
 )
@@ -1379,6 +1377,7 @@ mongo_cc_library(
         "rollback_impl.h",
     ],
     deps = [
+        ":intent_registry",
         ":optime",
         ":repl_coordinator_interface",
         ":replica_set_aware_service",
@@ -1544,6 +1543,7 @@ mongo_cc_library(
     deps = [
         "data_replicator_external_state_impl",
         "delayable_timeout_callback",
+        "intent_registry",
         "repl_coordinator_interface",
         "repl_server_parameters",
         "repl_settings",

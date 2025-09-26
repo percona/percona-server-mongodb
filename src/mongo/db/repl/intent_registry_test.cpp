@@ -47,6 +47,12 @@ auto executePerIntent = [](const std::function<void(IntentRegistry::Intent)>& f,
     }
 };
 
+#ifdef _WIN32
+uint32_t kPostInterruptSleepMs = 1000;
+#else
+uint32_t kPostInterruptSleepMs = 100;
+#endif
+
 TEST_F(IntentRegistryTest, RegisterDeregisterIntent) {
     _intentRegistry.enable();
     std::vector<IntentRegistry::IntentToken> tokens;
@@ -103,7 +109,7 @@ TEST_F(IntentRegistryTest, DestroyingGuardDeregistersIntent) {
 
 TEST_F(IntentRegistryTest, KillConflictingOperationsStepUp) {
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     auto serviceContext = getServiceContext();
     size_t client_i = 0;
     std::vector<std::pair<ServiceContext::UniqueClient, ServiceContext::UniqueOperationContext>>
@@ -123,8 +129,9 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsStepUp) {
     executePerIntent(createIntentGuards, 10);
 
     // killConflictingOperations with interruptionType StepUp should not kill any operations.
-    auto kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepUp);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepUp,
+                                                          timeout_sec);
+    std::this_thread::sleep_for(std::chrono::milliseconds(kPostInterruptSleepMs));
     kill.get();
     // Assert no operations were killed and no intents were deregistered.
     for (auto& guard : guards) {
@@ -140,7 +147,7 @@ DEATH_TEST_F(IntentRegistryTest, KillConflictingOperationsDrainTimeout, "9795401
     // This test checks that killConflictingOperations correctly fasserts when there is an interrupt
     // and the intents are not deregistered within the drain timeout.
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     auto serviceContext = getServiceContext();
     size_t client_i = 0;
 
@@ -162,8 +169,8 @@ DEATH_TEST_F(IntentRegistryTest, KillConflictingOperationsDrainTimeout, "9795401
 
     // killConflictingOperations will timeout if there is an existing kill and the intents are not
     // deregistered within the drain timeout.
-    auto kill =
-        _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown);
+    auto kill = _intentRegistry.killConflictingOperations(
+        IntentRegistry::InterruptionType::Shutdown, timeout_sec);
     kill.get();
 }
 
@@ -172,7 +179,7 @@ DEATH_TEST_F(IntentRegistryTest, KillConflictingOperationsDrainSingleTimerTimeou
     // and it takes each intent to be deregistered less than a timeout period,
     // but total time it takes all three types of intents to deregister excceeds that period
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     auto serviceContext = getServiceContext();
     size_t client_i = 0;
 
@@ -196,8 +203,8 @@ DEATH_TEST_F(IntentRegistryTest, KillConflictingOperationsDrainSingleTimerTimeou
 
     // killConflictingOperations will timeout if there is an existing kill and the intents are not
     // deregistered within the drain timeout.
-    auto kill =
-        _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown);
+    auto kill = _intentRegistry.killConflictingOperations(
+        IntentRegistry::InterruptionType::Shutdown, timeout_sec);
     // total deregister time 2.1s > 2s
     std::this_thread::sleep_for(5s);
     // Deregister Write
@@ -215,7 +222,7 @@ DEATH_TEST_F(IntentRegistryTest, KillConflictingOperationsOngoingKillTimeout, "9
     // This test checks that killConflictingOperations correctly fasserts when a new interrupt
     // is received while there is an ongoing interruption.
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     auto serviceContext = getServiceContext();
     size_t client_i = 0;
 
@@ -237,9 +244,11 @@ DEATH_TEST_F(IntentRegistryTest, KillConflictingOperationsOngoingKillTimeout, "9
 
     // killConflictingOperations will timeout if another interrupt is recieved while there is an
     // ongoing interrupt.
-    auto kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepUp);
+    auto kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepUp,
+                                                          timeout_sec);
     auto guard = kill.get();
-    kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown);
+    kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown,
+                                                     timeout_sec);
     // We deregister all the intent guard, but transition guard is still alive and prevents from
     // another interrupt to proceed
     guards.clear();
@@ -250,7 +259,7 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsReleaseGuard) {
     // This test checks that killConflictingOperations can be called again after transition guard
     // returned by previous operation was released.
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     auto serviceContext = getServiceContext();
     size_t client_i = 0;
 
@@ -270,19 +279,66 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsReleaseGuard) {
     };
     executePerIntent(createIntentGuards, 10);
 
-    auto kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepUp);
+    auto kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepUp,
+                                                          timeout_sec);
     auto int_guard = kill.get();
     int_guard.release();
-    kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown);
+    kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown,
+                                                     timeout_sec);
     guards.clear();
     kill.get();
 }
+
+TEST_F(IntentRegistryTest, KillConflictingOperationsBackToBack) {
+    // This test checks that 2 consequitive calls for killConflictingOperations can be made if the
+    // first finishes on time
+    _intentRegistry.enable();
+    uint32_t timeout_sec = 10;
+    auto serviceContext = getServiceContext();
+    size_t client_i = 0;
+
+    std::vector<std::pair<ServiceContext::UniqueClient, ServiceContext::UniqueOperationContext>>
+        contexts;
+    std::vector<std::unique_ptr<IntentGuard>> guards;
+
+    // Create and register 10 IntentGuards of each Intent type.
+    auto createIntentGuards = [&](IntentRegistry::Intent intent) {
+        contexts.emplace_back();
+        contexts.back().first =
+            serviceContext->getService()->makeClient(std::to_string(client_i++));
+        contexts.back().second = contexts.back().first->makeOperationContext();
+        auto opCtx = contexts.back().second.get();
+        guards.emplace_back(std::make_unique<IntentGuard>(intent, opCtx));
+        ASSERT_TRUE(guards.back()->intent() != boost::none);
+    };
+    executePerIntent(createIntentGuards, 10);
+
+    auto killsd = _intentRegistry.killConflictingOperations(
+        IntentRegistry::InterruptionType::StepDown, timeout_sec);
+    // Killing all writes to let stepdown kill finish in separate thread
+    std::jthread killwrites = std::jthread([&] {
+        for (auto& guard : guards) {
+            if (guard->intent() == IntentRegistry::Intent::Write) {
+                guard.reset();
+            }
+        }
+        std::this_thread::sleep_for(1s);
+        auto sdguard = killsd.get();
+        sdguard.release();
+    });
+    // Another call for kill conflicting ops, will block till above thread finishes;
+    auto killsh = _intentRegistry.killConflictingOperations(
+        IntentRegistry::InterruptionType::Shutdown, timeout_sec);
+    guards.clear();
+    killsh.get();
+}
+
 
 TEST_F(IntentRegistryTest, KillConflictingOperationsDestroyGuard) {
     // This test checks that killConflictingOperations can be called again after transition guard
     // returned by previous operation was destroyed.
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     auto serviceContext = getServiceContext();
     size_t client_i = 0;
 
@@ -302,12 +358,14 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsDestroyGuard) {
     };
     executePerIntent(createIntentGuards, 10);
 
-    auto kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepUp);
+    auto kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepUp,
+                                                          timeout_sec);
     {
         // Get a guard and immediately destroy to enable additional interrupt
         auto int_guard = kill.get();
     }
-    kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown);
+    kill = _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown,
+                                                     timeout_sec);
     guards.clear();
     kill.get();
 }
@@ -315,7 +373,7 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsDestroyGuard) {
 
 TEST_F(IntentRegistryTest, KillConflictingOperationsShutdown) {
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     auto serviceContext = getServiceContext();
     size_t client_i = 0;
     std::vector<std::pair<ServiceContext::UniqueClient, ServiceContext::UniqueOperationContext>>
@@ -336,9 +394,9 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsShutdown) {
 
     // killConflictingOperations with a Shutdown interruption should kill all operations
     // registered.
-    auto kill =
-        _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Shutdown);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto kill = _intentRegistry.killConflictingOperations(
+        IntentRegistry::InterruptionType::Shutdown, timeout_sec);
+    std::this_thread::sleep_for(std::chrono::milliseconds(kPostInterruptSleepMs));
 
     // Any attempt to register an intent during a Shutdown interruption should throw an
     // exception.
@@ -390,7 +448,7 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsShutdown) {
 
 TEST_F(IntentRegistryTest, KillConflictingOperationsRollback) {
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     auto serviceContext = getServiceContext();
     size_t client_i = 0;
     std::vector<std::pair<ServiceContext::UniqueClient, ServiceContext::UniqueOperationContext>>
@@ -411,9 +469,9 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsRollback) {
 
     // killConflictingOperations with a Rollback interruption should kill all operations
     // registered.
-    auto kill =
-        _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::Rollback);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto kill = _intentRegistry.killConflictingOperations(
+        IntentRegistry::InterruptionType::Rollback, timeout_sec);
+    std::this_thread::sleep_for(std::chrono::milliseconds(kPostInterruptSleepMs));
 
     // Any attempt to register an intent during a Rollback interruption should throw an
     // exception.
@@ -464,7 +522,7 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsRollback) {
 TEST_F(IntentRegistryTest, KillConflictingOperationsStepDown) {
     auto serviceContext = getServiceContext();
     _intentRegistry.enable();
-    _intentRegistry.setDrainTimeout(10);
+    uint32_t timeout_sec = 10;
     size_t client_i = 0;
     std::vector<std::pair<ServiceContext::UniqueClient, ServiceContext::UniqueOperationContext>>
         contexts;
@@ -485,9 +543,9 @@ TEST_F(IntentRegistryTest, KillConflictingOperationsStepDown) {
     // killConflictingOperations with a StepDown interruption should kill all operations
     // registered with Write Intent, and will reject any attempts to register a Write Intent
     // while the interruption is ongoing.
-    auto kill =
-        _intentRegistry.killConflictingOperations(IntentRegistry::InterruptionType::StepDown);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto kill = _intentRegistry.killConflictingOperations(
+        IntentRegistry::InterruptionType::StepDown, timeout_sec);
+    std::this_thread::sleep_for(std::chrono::milliseconds(kPostInterruptSleepMs));
     {
         auto clientWrite = serviceContext->getService()->makeClient("testClientWrite");
         auto opCtxWrite = clientWrite->makeOperationContext();

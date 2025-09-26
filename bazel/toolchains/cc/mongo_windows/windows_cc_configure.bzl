@@ -908,4 +908,24 @@ def configure_windows_toolchain(repository_ctx):
 def get_tmp_dir(repository_ctx):
     return escape_string(_get_temp_env(repository_ctx).replace("\\", "\\\\"))
 
+# get_vc_redist_version returns the VC Redist version as v<xx...>.
+# It will read the MONGO_VC_REDIST_FULL_VERSION variable and
+# if it not defined, then none is returned.
+def get_vc_redist_version(repository_ctx):
+    return _get_env_var(repository_ctx, "MONGO_VC_REDIST_FULL_VERSION")
+
+def is_msvc_exists(repository_ctx, vc_path):
+    full_version = _get_vc_full_version(repository_ctx, vc_path)
+    tools_path = "%s\\Tools\\MSVC\\%s\\bin\\HostX64" % (vc_path, full_version)
+
+    # For native windows(10) on arm64 builds host toolchain runs in an emulated x86 environment
+    if repository_ctx.path(tools_path).exists:
+        return True, full_version
+
+    tools_path = "%s\\Tools\\MSVC\\%s\\bin\\HostX86" % (vc_path, full_version)
+    return repository_ctx.path(tools_path).exists, full_version
+
+def is_msvc_version_set(repository_ctx):
+    return _get_env_var(repository_ctx, "BAZEL_VC_FULL_VERSION") != None
+
 ###

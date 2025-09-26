@@ -183,36 +183,6 @@ determineBatchesToCommit(bucket_catalog::TimeseriesWriteBatches& batches) {
     return batchesToCommit;
 }
 
-void sortBatchesToCommit(bucket_catalog::TimeseriesWriteBatches& batches) {
-    std::sort(batches.begin(), batches.end(), [](auto left, auto right) {
-        return left.get()->bucketId.oid < right.get()->bucketId.oid;
-    });
-}
-
-BSONObj makeBucketDocument(const std::vector<BSONObj>& measurements,
-                           const NamespaceString& nss,
-                           const UUID& collectionUUID,
-                           const TimeseriesOptions& options,
-                           const StringDataComparator* comparator) {
-    tracking::Context trackingContext;
-    auto res = uassertStatusOK(bucket_catalog::internal::extractBucketingParameters(
-        trackingContext, collectionUUID, options, measurements[0]));
-    auto time = res.second;
-    auto [oid, _] = bucket_catalog::internal::generateBucketOID(time, options);
-    write_ops_utils::BucketDocument bucketDoc =
-        write_ops_utils::makeNewDocumentForWrite(nss,
-                                                 collectionUUID,
-                                                 oid,
-                                                 measurements,
-                                                 res.first.metadata.toBSON(),
-                                                 options,
-                                                 comparator,
-                                                 boost::none);
-
-    invariant(bucketDoc.compressedBucket);
-    return *bucketDoc.compressedBucket;
-}
-
 void getOpTimeAndElectionId(OperationContext* opCtx,
                             boost::optional<repl::OpTime>* opTime,
                             boost::optional<OID>* electionId) {
@@ -331,7 +301,6 @@ void commitTimeseriesBucketsAtomically(
         auto& mainBucketCatalog =
             bucket_catalog::GlobalBucketCatalog::get(opCtx->getServiceContext());
         for (auto batch : batchesToCommit) {
-            auto metadata = getMetadata(sideBucketCatalog, batch.get()->bucketId);
             auto prepareCommitStatus =
                 prepareCommit(sideBucketCatalog, batch, coll->getDefaultCollator());
             if (!prepareCommitStatus.isOK()) {
@@ -340,7 +309,7 @@ void commitTimeseriesBucketsAtomically(
             }
 
             write_ops_utils::makeWriteRequestFromBatch(
-                opCtx, batch, metadata, bucketsNs, &insertOps, &updateOps);
+                opCtx, batch, bucketsNs, &insertOps, &updateOps);
 
             // Starts tracking the newly inserted bucket in the main bucket catalog as a direct
             // write to prevent other writers from modifying it.

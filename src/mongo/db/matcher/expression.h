@@ -73,6 +73,9 @@ class CollatorInterface;
 class MatchExpression;
 class TreeMatchExpression;
 
+// TODO(SERVER-105040): Avoid having to fwd declare this.
+struct IndexEntry;
+
 typedef StatusWith<std::unique_ptr<MatchExpression>> StatusWithMatchExpression;
 
 class MatchExpression {
@@ -446,13 +449,8 @@ public:
         virtual void debugString(StringBuilder* builder) const = 0;
         virtual TagData* clone() const = 0;
         virtual Type getType() const = 0;
-
-        template <typename H>
-        friend H AbslHashValue(H state, const TagData& tagData) {
-            tagData.hash(absl::HashState::Create(&state));
-            return state;
-        }
-        virtual void hash(absl::HashState state) const = 0;
+        virtual void hashWithIndexEntry(absl::HashState state,
+                                        const std::vector<IndexEntry>& indexes) const = 0;
     };
 
     /**
@@ -488,7 +486,7 @@ public:
      * this no longer holds.
      *
      * If 'options.literalPolicy' is set to 'kToDebugTypeString', the result is no longer expected
-     * to re-parse, since we will put strings in places where strings may not be accpeted
+     * to re-parse, since we will put strings in places where strings may not be accepted
      * syntactically (e.g. a number is always expected, as in with the $mod expression).
      *
      * includePath:

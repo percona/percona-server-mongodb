@@ -208,6 +208,12 @@ public:
     virtual void notifyReplStartupRecoveryComplete(RecoveryUnit&) {}
 
     /**
+     * The storage engine can save several elements of ReplSettings on construction.  Standalone
+     * mode is one such setting that can change after construction and need to be updated.
+     */
+    virtual void setInStandaloneMode(bool inStandaloneMode) {}
+
+    /**
      * Returns a new interface to the storage engine's recovery unit.  The recovery
      * unit is the durability interface.  For details, see recovery_unit.h
      */

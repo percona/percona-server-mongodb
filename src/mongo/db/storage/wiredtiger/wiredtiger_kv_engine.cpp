@@ -1229,6 +1229,11 @@ void WiredTigerKVEngine::notifyReplStartupRecoveryComplete(RecoveryUnit& ru) {
     }
 }
 
+void WiredTigerKVEngine::setInStandaloneMode(bool inStandaloneMode) {
+    if (_inStandaloneMode != inStandaloneMode)
+        _inStandaloneMode = inStandaloneMode;
+}
+
 void WiredTigerKVEngine::_openWiredTiger(const std::string& path, const std::string& wtOpenConfig) {
     // MongoDB 4.4 will always run in compatibility version 10.0.
     std::string configStr = wtOpenConfig + ",compatibility=(require_min=\"10.0.0\")";

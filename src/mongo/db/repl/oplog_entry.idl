@@ -95,11 +95,10 @@ enums:
             kCommitTransaction: "commitTransaction"
             kAbortTransaction: "abortTransaction"
             kImportCollection: "importCollection"
-            kModifyCollectionShardingIndexCatalog: "modifyCollectionShardingIndexCatalog"
             kCreateDatabaseMetadata: "createDatabaseMetadata"
             kDropDatabaseMetadata: "dropDatabaseMetadata"
-            kPromoteToTransitionalShardedCluster: "promoteToTransitionalShardedCluster"
-            kPromoteToFullShardedCluster: "promoteToFullShardedCluster"
+            kBeginPromotionToShardedCluster: "beginPromotionToShardedCluster"
+            kCompletePromotionToShardedCluster: "completePromotionToShardedCluster"
 
 types:
     zeroOneManyStmtId:

@@ -38,8 +38,11 @@ common --experimental_cc_shared_library
 # Reuse sandboxes to save sandbox execution and deletion times.
 common --experimental_reuse_sandbox_directories
 
-# Enable Build without the Bytes
-common --remote_download_outputs=toplevel
+# Seeing as we link locally, you'll end up with 99% of the files locally anyways.
+# Using remote download all save some build time because it will immediately download an object
+# file when it is available, where toplevel will wait until the local linking job needs it
+# before starting the download.
+common --remote_download_outputs=all
 
 # Files we always want to download for debugging and error checking
 common --remote_download_regex=.*\.(dwo|h|cpp)$
@@ -488,11 +491,15 @@ common --define=MONGO_VERSION=8.2.0-alpha
 # Default distmod if not specified.
 common --define=MONGO_DISTMOD=""
 
+# Pin down the Microsoft Visual compiler. If you would like to use
+# the default compiler version installed in this host, comment the line.
+common --action_env=BAZEL_VC_FULL_VERSION=14.31.31103
+
+# Default the Visual C Redistribution to v14.3 for Windows installer.
+common --action_env=MONGO_VC_REDIST_FULL_VERSION=v143
+
 # Default if .git directory is not present
 common --define=GIT_COMMIT_HASH="nogitversion"
-
-# The version of Visual C++ to use
-common --define=MSVC_VERSION="14.3"
 
 # TODO(WT-12780): delete this once wiredtiger switches to /.bazelrc.evergreen.
 try-import %workspace%/.bazelrc.evergreen_engflow_creds

@@ -34,17 +34,4 @@ namespace mongo {
 
 MONGO_FAIL_POINT_DEFINE(failReleaseMemoryAfterCursorCheckout);
 
-void serializeErrorStatusToBSON(const Status& status,
-                                StringData fieldName,
-                                BSONObjBuilder* builder) {
-    BSONObjBuilder statusBuilder(builder->subobjStart(fieldName));
-    status.serializeErrorToBSON(&statusBuilder);
-}
-
-Status deserializeErrorStatusFromBSON(const BSONElement& statusBSON) {
-    return Status(ErrorCodes::Error(statusBSON["code"].Int()),
-                  statusBSON["errmsg"].String(),
-                  statusBSON.Obj());
-}
-
 }  // namespace mongo

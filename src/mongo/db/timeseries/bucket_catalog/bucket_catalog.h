@@ -228,16 +228,6 @@ public:
 };
 
 /**
- * Returns the metadata for the given bucket in the following format:
- *     {<metadata field name>: <value>}
- * All measurements in the given bucket share same metadata value.
- *
- * Returns an empty document if the given bucket cannot be found or if this time-series collection
- * was not created with a metadata field name.
- */
-BSONObj getMetadata(BucketCatalog& catalog, const BucketId& bucketId);
-
-/**
  * Returns the memory usage of the bucket catalog across all stripes from the approximated memory
  * usage, and the tracked memory usage from the tracking::Allocator.
  */
@@ -341,16 +331,6 @@ void resetBucketOIDCounter();
 void appendExecutionStats(const BucketCatalog& catalog,
                           const UUID& collectionUUID,
                           BSONObjBuilder& builder);
-
-/**
- * Returns a tuple of InsertContext 'insertContext', Date_t 'time', where insertContext contains
- * information needed to insert a measurement into the correct bucket and time refers to the
- * timeField value of the measurement we are inserting.
- */
-StatusWith<std::tuple<InsertContext, Date_t>> prepareInsert(BucketCatalog& catalog,
-                                                            const UUID& collectionUUID,
-                                                            const TimeseriesOptions& options,
-                                                            const BSONObj& measurementDoc);
 
 /**
  * Determines if 'measurement' will cause rollover to 'bucket'.
@@ -594,4 +574,12 @@ StatusWith<TimeseriesWriteBatches> prepareInsertsToBuckets(
     const std::vector<size_t>& indices,
     std::vector<WriteStageErrorAndIndex>& errorsAndIndices);
 
+/**
+ * Extracts the information from the input 'doc' that is used to map the document to a bucket.
+ */
+StatusWith<std::pair<BucketKey, Date_t>> extractBucketingParameters(
+    tracking::Context&,
+    const UUID& collectionUUID,
+    const TimeseriesOptions& options,
+    const BSONObj& doc);
 }  // namespace mongo::timeseries::bucket_catalog

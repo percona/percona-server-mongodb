@@ -70,7 +70,7 @@ void ReplClientInfo::setLastOp(OperationContext* opCtx, const OpTime& ot) {
     lastOpInfo(opCtx).lastOpSetExplicitly = true;
 }
 
-void ReplClientInfo::clearLastOpSetFlag(OperationContext* opCtx) {
+void ReplClientInfo::clearLastOpSetFlag_forTest(OperationContext* opCtx) {
     lastOpInfo(opCtx).lastOpSetExplicitly = false;
 }
 

@@ -31,6 +31,7 @@
 #include "mongo/client/replica_set_monitor.h"
 #include "mongo/db/s/remove_shard_exception.h"
 #include "mongo/db/s/sharding_logging.h"
+#include "mongo/s/grid.h"
 
 #include "mongo/db/s/topology_change_helpers.h"
 
@@ -72,8 +73,8 @@ ExecutorFuture<void> RemoveShardCommitCoordinator::_runImpl(
         .then(_buildPhaseHandler(
             Phase::kResumeDDLs,
             [this, executor = executor, anchor = shared_from_this()](auto* opCtx) {
-                _resumeDDLOperations(opCtx);
                 _updateClusterCardinalityParameterIfNeeded(opCtx);
+                _resumeDDLOperations(opCtx);
                 _finalizeShardRemoval(opCtx);
             }))
         .onError([this, anchor = shared_from_this()](const Status& status) {

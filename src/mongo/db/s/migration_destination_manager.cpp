@@ -88,7 +88,6 @@
 #include "mongo/db/s/range_deletion_task_gen.h"
 #include "mongo/db/s/range_deletion_util.h"
 #include "mongo/db/s/shard_filtering_metadata_refresh.h"
-#include "mongo/db/s/sharding_index_catalog_ddl_util.h"
 #include "mongo/db/s/sharding_recovery_service.h"
 #include "mongo/db/s/sharding_runtime_d_params_gen.h"
 #include "mongo/db/s/sharding_statistics.h"
@@ -337,23 +336,6 @@ bool isFirstMigration(OperationContext* opCtx, const NamespaceString& nss) {
         return metadata.isSharded() && !metadata.currentShardHasAnyChunks();
     }
     return false;
-}
-
-void replaceShardingIndexCatalogInShardIfNeeded(OperationContext* opCtx,
-                                                const NamespaceString& nss,
-                                                const UUID& uuid) {
-    auto currentShardHasAnyChunks = [&]() -> bool {
-        const auto csr = CollectionShardingRuntime::acquireShared(opCtx, nss);
-        const auto optMetadata = csr->getCurrentMetadataIfKnown();
-        return optMetadata && optMetadata->currentShardHasAnyChunks();
-    }();
-
-    // Early return, this shard already contains chunks, so there is no need for consolidate.
-    if (currentShardHasAnyChunks) {
-        return;
-    }
-
-    clearCollectionShardingIndexCatalog(opCtx, nss, uuid);
 }
 
 // Throws if this configShard is currently draining.
@@ -1176,9 +1158,13 @@ void _cloneCollectionIndexesAndOptions(
 
         // Acquire the exclusive collection lock to eventually create the collection and clone the
         // remaining indexes.
-        AutoGetDb autoDb(opCtx, nss.dbName(), MODE_IX);
-        Lock::CollectionLock collLock(opCtx, nss, MODE_X);
-        auto db = autoDb.ensureDbExists(opCtx);
+        AutoGetCollection autoColl(opCtx,
+                                   nss,
+                                   MODE_X,
+                                   AutoGetCollection::Options{}.deadline(
+                                       opCtx->getServiceContext()->getPreciseClockSource()->now() +
+                                       Milliseconds(migrationLockAcquisitionMaxWaitMS.load())));
+        auto db = autoColl.ensureDbExists(opCtx);
 
         auto collection = CollectionCatalog::get(opCtx)->lookupCollectionByNamespace(opCtx, nss);
         if (collection) {
@@ -1466,14 +1452,6 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             bool strictIndexSync = isFirstMigration(altOpCtx.get(), _nss);
             _cloneCollectionIndexesAndOptions(
                 altOpCtx.get(), _nss, donorCollectionOptionsAndIndexes, strictIndexSync);
-
-            // Get the global indexes and install them.
-            if (feature_flags::gGlobalIndexesShardingCatalog.isEnabled(
-                    VersionContext::getDecoration(altOpCtx.get()),
-                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
-                replaceShardingIndexCatalogInShardIfNeeded(
-                    altOpCtx.get(), _nss, donorCollectionOptionsAndIndexes.uuid);
-            }
 
             timing->done(2);
             migrateThreadHangAtStep2.pauseWhileSet();

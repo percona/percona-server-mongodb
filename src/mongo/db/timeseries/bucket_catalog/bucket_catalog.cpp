@@ -187,19 +187,6 @@ BatchedInsertContext::BatchedInsertContext(
       stats(stats),
       measurementsTimesAndIndices(measurementsTimesAndIndices) {};
 
-BSONObj getMetadata(BucketCatalog& catalog, const BucketId& bucketId) {
-    auto const& stripe = *catalog.stripes[internal::getStripeNumber(catalog, bucketId)];
-    stdx::lock_guard stripeLock{stripe.mutex};
-
-    const Bucket* bucket =
-        internal::findBucket(catalog.bucketStateRegistry, stripe, stripeLock, bucketId);
-    if (!bucket) {
-        return {};
-    }
-
-    return bucket->key.metadata.toBSON();
-}
-
 uint64_t getMemoryUsage(const BucketCatalog& catalog) {
 #ifndef MONGO_CONFIG_DEBUG_BUILD
     return catalog.trackingContexts.global.allocated();
@@ -493,7 +480,7 @@ StatusWith<std::tuple<InsertContext, Date_t>> prepareInsert(BucketCatalog& catal
                                                             const UUID& collectionUUID,
                                                             const TimeseriesOptions& options,
                                                             const BSONObj& measurementDoc) {
-    auto res = internal::extractBucketingParameters(
+    auto res = extractBucketingParameters(
         getTrackingContext(catalog.trackingContexts, TrackingScope::kOpenBucketsByKey),
         collectionUUID,
         options,
@@ -1240,5 +1227,37 @@ StatusWith<TimeseriesWriteBatches> prepareInsertsToBuckets(
     }
 
     return results;
+}
+
+StatusWith<std::pair<BucketKey, Date_t>> extractBucketingParameters(
+    tracking::Context& trackingContext,
+    const UUID& collectionUUID,
+    const TimeseriesOptions& options,
+    const BSONObj& doc) {
+    Date_t time;
+    BSONElement metadata;
+
+    if (!options.getMetaField().has_value()) {
+        auto swTime = extractTime(doc, options.getTimeField());
+        if (!swTime.isOK()) {
+            return swTime.getStatus();
+        }
+        time = swTime.getValue();
+    } else {
+        auto swDocTimeAndMeta =
+            extractTimeAndMeta(doc, options.getTimeField(), options.getMetaField().value());
+        if (!swDocTimeAndMeta.isOK()) {
+            return swDocTimeAndMeta.getStatus();
+        }
+        time = swDocTimeAndMeta.getValue().first;
+        metadata = swDocTimeAndMeta.getValue().second;
+    }
+
+    // Buckets are spread across independently-lockable stripes to improve parallelism. We map a
+    // bucket to a stripe by hashing the BucketKey.
+    auto key = BucketKey{collectionUUID,
+                         BucketMetadata{trackingContext, metadata, options.getMetaField()}};
+
+    return {std::make_pair(std::move(key), time)};
 }
 }  // namespace mongo::timeseries::bucket_catalog

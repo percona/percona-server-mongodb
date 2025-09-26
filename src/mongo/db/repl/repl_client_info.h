@@ -96,7 +96,7 @@ public:
      * Resets the last op set explicitly flag on this client.
      * Used for tests only.
      */
-    void clearLastOpSetFlag(OperationContext* opCtx);
+    void clearLastOpSetFlag_forTest(OperationContext* opCtx);
 
     /**
      * Use this to set the LastOp to the latest known OpTime in the oplog. On primary, The OpTime

@@ -68,7 +68,6 @@ core.bson:
     - src/mongo/dbtests/jsobjtests.cpp
     - src/mongo/dbtests/jsontests.cpp
     - src/mongo/db/hasher* # TODO move to bson/ or at least rename to be less generic
-    - src/mongo/db/json.h # TODO delete this forwarding header which is only included in 5 places
 
 core.idl:
   files:
@@ -102,6 +101,8 @@ core.servers:
     - src/mongo/db/mongod_options_test.cpp
     - src/mongo/db/service_context_d_test_fixture*
     - src/mongo/db/global_settings*
+    - src/mongo/db/mongod_options_sharding*
+    - src/mongo/db/replica_set_endpoint*
     - src/mongo/s/mongos.cpp
     - src/mongo/s/mongos_main.*
     - src/mongo/s/mongos_options*
@@ -158,6 +159,10 @@ query:
     jira: TODO
   files:
     - src/mongo/db/aggregated_index_usage_tracker*
+    - src/mongo/db/api_parameters*
+    - src/mongo/db/field_ref*
+    - src/mongo/db/traffic_*
+    - src/mongo/db/validate_api_parameters*
     - src/mongo/db/bulk_write_shard_test.cpp
     - src/mongo/db/collection_index_usage_tracker*
     - src/mongo/db/commands/filemd5_cmd.cpp # TODO SERVER-88071: Deprecate/remove this command.
@@ -197,11 +202,14 @@ query:
     - src/mongo/dbtests/counttests.cpp
     - src/mongo/dbtests/documentsourcetests.cpp
     - src/mongo/dbtests/extensions_callback_real_test.cpp
+    - src/mongo/dbtests/insert_test.cpp
+    - src/mongo/dbtests/plan_ranking.cpp
     - src/mongo/dbtests/jstests.cpp
     - src/mongo/dbtests/matchertests.cpp
     - src/mongo/dbtests/plan_executor_invalidation_test.cpp
     - src/mongo/dbtests/query*
     - src/mongo/dbtests/updatetests.cpp
+    - src/mongo/replay
     - src/mongo/scripting/
     - src/mongo/db/namespace_spec.idl # only used by query
     - src/mongo/util/safe_num*
@@ -220,16 +228,6 @@ catalog:
     - src/mongo/dbtests/indexcatalogtests.cpp
     - src/mongo/util/namespace_string* # needs to be same module as db/namespace_string.h
 
-replication:
-  meta:
-    slack: TODO
-    jira: TODO
-  files:
-    - src/mongo/db/repl/ # excluding ./dbcheck*
-    - src/mongo/db/op_observer/op_observer_impl* # specific files
-    - src/mongo/db/op_observer/fcv_op_observer* # specific files
-    - src/mongo/db/op_observer/find_and_modify_images_op_observer* # specific files
-
 replication_coordinator:
   meta:
     slack: server-replication
@@ -245,12 +243,15 @@ transactions:
     slack: server-replication
     jira: Replication
   files:
+    - src/mongo/db/commands/*transaction*
+    - src/mongo/db/commands/*txn*
     - src/mongo/db/transaction/
     - src/mongo/db/*transaction*
     - src/mongo/db/*txn*
     - src/mongo/db/s/*transaction*
     - src/mongo/db/s/*txn*
     - src/mongo/s/*transaction*
+    - src/mongo/db/session/
 
 recovery:
   meta:
@@ -261,6 +262,17 @@ recovery:
     - src/mongo/db/repl/*rollback*
     - src/mongo/db/modules/enterprise/src/magic_restore
     - src/mongo/dbtests/rollbacktests.cpp
+
+fcv:
+  meta:
+    slack: server-fcv
+    jira: Replication
+  files:
+    - src/mongo/db/feature_compatibility*
+    - src/mongo/db/commands/feature_compatibility*
+    - src/mongo/db/commands/set_feature_compatibility_version*
+    - src/mongo/db/op_observer/fcv_op_observer*
+    - src/mongo/unittest/ensure_fcv.h
 
 access_control:
   meta:
@@ -282,7 +294,7 @@ workload_simulation:
     slack: server-workload-scheduling
     jira: server-workload-scheduling
   files:
-    - src/mongo/tools/workload_simulation/*
+    - src/mongo/tools/workload_simulation/
 
 security:
   meta:
@@ -313,21 +325,36 @@ shard_role:
     - src/mongo/db/s/
     - src/mongo/db/service_entry_point_shard_role[._]*
 
+causal_consistency:
+  meta:
+    slack: server-sharding
+    jira: Cluster Scalability
+  files:
+    - src/mongo/db/keys_collection*
+
 data_movement:
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-sharding
+    jira: Cluster Scalability
   files:
+    - src/mongo/db/cloner*
     - src/mongo/db/s/migration* # note the filename pattern
+    - src/mongo/db/s/active_migrations*
+    - src/mongo/db/s/range_delet*
+    - src/mongo/db/s/balancer
     - src/mongo/db/s/resharding
+    - src/mongo/s/resharding
+    - src/mongo/s/migration_blocking_operation*
 
 observability:
   meta:
     slack: server-networking-observability
     jira: Networking & Observability
   files:
+    - src/mongo/db/connection_health_metrics_parameter.idl
     - src/mongo/db/operation_cpu_timer*
     - src/mongo/db/process_health/
+    - src/mongo/executor/split_timer*
     - src/mongo/watchdog/
 
 observability.logging:
@@ -335,6 +362,7 @@ observability.logging:
     slack: server-networking-observability
     jira: Networking & Observability
   files:
+    - src/mongo/db/log_process_details*
     - src/mongo/logv2/
 
 observability.tracing:
@@ -352,12 +380,26 @@ observability.ftdc:
   files:
     - src/mongo/db/ftdc/
 
+observability.commands:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/db/commands/parse_log_component_settings*
+    - src/mongo/db/commands/xray_commands*
+
 networking:
   meta:
     slack: server-networking-observability
     jira: Networking & Observability
   files:
     - src/mongo/client/
+    - src/mongo/dbtests/clienttests.cpp
+    - src/mongo/dbtests/mock_dbclient_conn_test.cpp
+    - src/mongo/dbtests/mock/mock_conn_registry*
+    - src/mongo/dbtests/mock/mock_dbclient_connection*
+    - src/mongo/dbtests/mock/mock_remote_db_server*
+    - src/mongo/dbtests/socktests.cpp
     - src/mongo/executor/async_rpc*
     - src/mongo/executor/async_client*
     - src/mongo/executor/connection_pool*
@@ -376,11 +418,45 @@ networking.core:
     jira: Networking & Observability
   files:
     - src/mongo/db/dbmessage*
+    - src/mongo/db/max_time.h
     - src/mongo/db/op_msg*
+    - src/mongo/db/operation_id*
+    - src/mongo/db/operation_key_manager*
+    - src/mongo/db/shutdown_in_progress_quiesce_info*
     - src/mongo/db/wire_version*
     - src/mongo/rpc/
     - src/mongo/transport/
     - src/mongo/util/net/
+
+networking.commands:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/db/commands/command_mirroring_test.cpp
+    - src/mongo/db/commands/conn_pool_stats.cpp
+    - src/mongo/db/commands/conn_pool_sync.cpp
+    - src/mongo/db/commands/drop_connections_command.cpp
+    - src/mongo/db/commands/http_client.cpp
+    - src/mongo/db/commands/http_client.idl
+    - src/mongo/db/commands/traffic_recording_cmds.cpp
+    - src/mongo/db/commands/whats_my_sni_command.cpp
+    - src/mongo/db/commands/whats_my_uri_cmd.cpp
+
+networking.execution:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/db/baton*
+    - src/mongo/db/default_baton*
+    - src/mongo/executor/async_multicaster*
+    - src/mongo/executor/async_request_executor*
+    - src/mongo/executor/async_timer_*
+    - src/mongo/executor/async_transaction_rpc.h
+    - src/mongo/executor/executor_integration_test_*
+    - src/mongo/executor/exhaust_response_reader_*
+    - src/mongo/executor/pinned_connection_task_executor*
 
 networking.mirrored_reads:
   meta:
@@ -559,3 +635,48 @@ atlas-streams:
 installer:
   files:
     - src/mongo/installer/
+
+initial_sync:
+  meta:
+    slack: server-replication
+    jira: Server Replication
+  files:
+    - src/mongo/db/modules/enterprise/src/fcbis/
+    - src/mongo/db/repl/initial_sync/
+
+oplog:
+  meta:
+    slack: server-replication
+    jira: Server Replication
+  files:
+    - src/mongo/db/op_observer/op_observer*
+    - src/mongo/db/op_observer/operation_logger*
+    - src/mongo/db/catalog/local_oplog_info*
+    - src/mongo/db/commands/oplog*
+    - src/mongo/db/commands/apply_ops*
+    - src/mongo/db/repl/*oplog*
+    - src/mongo/db/repl/*noop_writer*
+    - src/mongo/db/repl/*bgsync*
+    - src/mongo/db/repl/*sync_source*
+
+replication:
+  meta:
+    slack: server-replication
+    jira: Server Replication
+  files:
+    - src/mongo/db/repl/ # excluding ./dbcheck*
+    - src/mongo/db/op_observer/find_and_modify_images_op_observer* # specific files
+    - src/mongo/db/mongod_options_replication*
+    - src/mongo/db/concurrency/replication_state_transition_lock_guard*
+    - src/mongo/dbtests/mock_replica_set_test.cpp
+    - src/mongo/dbtests/replica_set_tests.cpp
+    - src/mongo/dbtests/repltests.cpp
+    - src/mongo/dbtests/mock/mock_replica_set*
+
+rs_aware_service:
+  meta:
+    slack: server-replication
+    jira: Server Replication
+  files:
+    - src/mongo/db/repl/*primary_only_service*
+    - src/mongo/db/repl/*replica_set_aware_service*

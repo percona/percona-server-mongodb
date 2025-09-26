@@ -60,6 +60,7 @@ REGISTER_INTERNAL_DOCUMENT_SOURCE(_internalChangeStreamTransform,
                                   LiteParsedDocumentSourceChangeStreamInternal::parse,
                                   DocumentSourceChangeStreamTransform::createFromBson,
                                   true);
+ALLOCATE_DOCUMENT_SOURCE_ID(_internalChangeStreamTransform, DocumentSourceChangeStreamTransform::id)
 
 intrusive_ptr<DocumentSourceChangeStreamTransform> DocumentSourceChangeStreamTransform::create(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
@@ -205,6 +206,12 @@ void serializeSpec(const DocumentSourceChangeStreamSpec& spec,
                        opts,
                        DocumentSourceChangeStreamSpec::kShowRawUpdateDescriptionFieldName,
                        spec.getShowRawUpdateDescription());
+    if (spec.getVersion()) {
+        serializeSpecField(builder,
+                           opts,
+                           DocumentSourceChangeStreamSpec::kVersionFieldName,
+                           ChangeStreamReaderVersion_serializer(*spec.getVersion()));
+    }
 }
 
 }  // namespace

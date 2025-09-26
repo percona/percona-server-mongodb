@@ -627,12 +627,16 @@ void reconcileCatalogAndRestartUnfinishedIndexBuilds(
  * Sets the appropriate flag on the service context decorable 'replSetMemberInStandaloneMode' to
  * 'true' if this is a replica set node running in standalone mode, otherwise 'false'.
  */
-void setReplSetMemberInStandaloneMode(OperationContext* opCtx, StartupRecoveryMode mode) {
+void setReplSetMemberInStandaloneMode(OperationContext* opCtx,
+                                      StartupRecoveryMode mode,
+                                      StorageEngine* engine) {
     if (mode == StartupRecoveryMode::kReplicaSetMember) {
         setReplSetMemberInStandaloneMode(opCtx->getServiceContext(), false);
+        engine->setInStandaloneMode(false);
         return;
     } else if (mode == StartupRecoveryMode::kReplicaSetMemberInStandalone) {
         setReplSetMemberInStandaloneMode(opCtx->getServiceContext(), true);
+        engine->setInStandaloneMode(true);
         return;
     }
 
@@ -642,6 +646,7 @@ void setReplSetMemberInStandaloneMode(OperationContext* opCtx, StartupRecoveryMo
     if (usingReplication) {
         // Not in standalone mode.
         setReplSetMemberInStandaloneMode(opCtx->getServiceContext(), false);
+        engine->setInStandaloneMode(false);
         return;
     }
 
@@ -650,10 +655,12 @@ void setReplSetMemberInStandaloneMode(OperationContext* opCtx, StartupRecoveryMo
         opCtx, NamespaceString::kSystemReplSetNamespace);
     if (collection && !collection->isEmpty(opCtx)) {
         setReplSetMemberInStandaloneMode(opCtx->getServiceContext(), true);
+        engine->setInStandaloneMode(true);
         return;
     }
 
     setReplSetMemberInStandaloneMode(opCtx->getServiceContext(), false);
+    engine->setInStandaloneMode(false);
 }
 
 // Perform startup procedures for --repair mode.
@@ -741,7 +748,7 @@ void startupRepair(OperationContext* opCtx,
         fassertNoTrace(4805001, repair::repairDatabase(opCtx, storageEngine, *it));
 
         // This must be set before rebuilding index builds on replicated collections.
-        setReplSetMemberInStandaloneMode(opCtx, StartupRecoveryMode::kAuto);
+        setReplSetMemberInStandaloneMode(opCtx, StartupRecoveryMode::kAuto, storageEngine);
         dbNames.erase(it);
     }
 
@@ -817,6 +824,8 @@ bool offlineValidateCollection(OperationContext* opCtx, NamespaceString nss) {
 
 // Perform collection validation for all collections on a databases
 bool offlineValidateDb(OperationContext* opCtx, DatabaseName dbName) {
+    auto databaseHolder = DatabaseHolder::get(opCtx);
+    databaseHolder->openDb(opCtx, dbName);
     bool allResultsValid = true;
     if (!gValidateCollectionName.empty()) {
         NamespaceString userNss = NamespaceStringUtil::deserialize(dbName, gValidateCollectionName);
@@ -847,8 +856,6 @@ void offlineValidate(OperationContext* opCtx) {
 
     } else {
         for (const auto& dbName : CollectionCatalog::get(opCtx)->getAllDbNames()) {
-            auto databaseHolder = DatabaseHolder::get(opCtx);
-            databaseHolder->openDb(opCtx, dbName);
             allResultsValid &= offlineValidateDb(opCtx, dbName);
         }
     }
@@ -875,7 +882,7 @@ void startupRecovery(OperationContext* opCtx,
 
     // Determine whether this is a replica set node running in standalone mode. This must be set
     // before determining whether to restart index builds.
-    setReplSetMemberInStandaloneMode(opCtx, mode);
+    setReplSetMemberInStandaloneMode(opCtx, mode, storageEngine);
 
     // Initialize FCV before rebuilding indexes that may have features dependent on FCV.
     {

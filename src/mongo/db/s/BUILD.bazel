@@ -240,17 +240,6 @@ idl_generator(
 )
 
 idl_generator(
-    name = "sharded_index_catalog_commands_gen",
-    src = "sharded_index_catalog_commands.idl",
-    deps = [
-        "//src/mongo/db:basic_types_gen",
-        "//src/mongo/s:index_version_gen",
-        "//src/mongo/s:sharding_types_gen",
-        "//src/mongo/s/catalog:type_index_catalog_gen",
-    ],
-)
-
-idl_generator(
     name = "sharding_config_server_parameters_gen",
     src = "sharding_config_server_parameters.idl",
 )
@@ -450,7 +439,6 @@ idl_generator(
         "//src/mongo/db:basic_types_gen",
         "//src/mongo/db/session:logical_session_id_gen",
         "//src/mongo/s:database_version_gen",
-        "//src/mongo/s:error_status_gen",
     ],
 )
 
@@ -478,6 +466,16 @@ idl_generator(
     src = "remove_shard_draining_progress.idl",
     deps = [
         "//src/mongo/db:basic_types_gen",
+    ],
+)
+
+idl_generator(
+    name = "complete_promotion_to_sharded_cluster_coordinator_document_gen",
+    src = "complete_promotion_to_sharded_cluster_coordinator_document.idl",
+    deps = [
+        ":sharding_ddl_coordinator_gen",
+        "//src/mongo/db:basic_types_gen",
+        "//src/mongo/s:sharding_types_gen",
     ],
 )
 
@@ -645,14 +643,12 @@ mongo_cc_library(
         "periodic_sharded_index_consistency_checker.cpp",
         "sharding_ddl_util.cpp",
         "sharding_ddl_util_detail.cpp",
-        "sharding_index_catalog_util.cpp",
         "sharding_util.cpp",
         "split_chunk_request_type.cpp",
         "topology_change_helpers.cpp",
         "type_shard_identity.cpp",
         ":participant_block_gen",
         ":remove_tags_gen",
-        ":sharded_index_catalog_commands_gen",
         ":sharding_config_server_parameters_gen",
         "//src/mongo/db/s/balancer:auto_merger_policy.cpp",
         "//src/mongo/db/s/balancer:balance_stats.cpp",
@@ -680,7 +676,6 @@ mongo_cc_library(
         "periodic_sharded_index_consistency_checker.h",
         "sharding_ddl_util.h",
         "sharding_ddl_util_detail.h",
-        "sharding_index_catalog_util.h",
         "sharding_util.h",
         "split_chunk_request_type.h",
         "topology_change_helpers.h",
@@ -741,6 +736,7 @@ mongo_cc_library(
         "//src/mongo/db/index_builds:index_builds_coordinator",
         "//src/mongo/db/pipeline:sharded_agg_helpers",
         "//src/mongo/db/pipeline/process_interface:shardsvr_process_interface",
+        "//src/mongo/db/repl:change_stream_oplog_notification",
         "//src/mongo/db/repl:read_concern_args",
         "//src/mongo/db/repl:repl_coordinator_interface",
         "//src/mongo/db/repl:replica_set_aware_service",
@@ -1048,7 +1044,6 @@ mongo_cc_library(
         "shard_metadata_util.cpp",
         "shard_server_catalog_cache_loader_impl.cpp",
         "shard_server_op_observer.cpp",
-        "sharding_index_catalog_ddl_util.cpp",
         "sharding_initialization_mongod.cpp",
         "sharding_initialization_waiter.cpp",
         "sharding_ready.cpp",
@@ -1157,7 +1152,6 @@ mongo_cc_library(
         "shard_server_catalog_cache_loader.h",
         "shard_server_catalog_cache_loader_impl.h",
         "shard_server_op_observer.h",
-        "sharding_index_catalog_ddl_util.h",
         "sharding_initialization_mongod.h",
         "sharding_initialization_waiter.h",
         "sharding_ready.h",
@@ -1373,6 +1367,8 @@ mongo_cc_library(
         "collmod_coordinator_document_gen",
         "compact_structured_encryption_data_coordinator.cpp",
         "compact_structured_encryption_data_coordinator_gen",
+        "complete_promotion_to_sharded_cluster_coordinator.cpp",
+        "complete_promotion_to_sharded_cluster_coordinator_document_gen",
         "configure_query_analyzer_cmd.cpp",
         "convert_to_capped_coordinator.cpp",
         "convert_to_capped_coordinator_document_gen",
@@ -1423,7 +1419,6 @@ mongo_cc_library(
         "shardsvr_collmod_participant_command.cpp",
         "shardsvr_commit_create_database_metadata_command.cpp",
         "shardsvr_commit_drop_database_metadata_command.cpp",
-        "shardsvr_commit_index_participant_command.cpp",
         "shardsvr_commit_reshard_collection_command.cpp",
         "shardsvr_compact_structured_encryption_data_command.cpp",
         "shardsvr_convert_to_capped_command.cpp",
@@ -1435,11 +1430,9 @@ mongo_cc_library(
         "shardsvr_drop_collection_participant_command.cpp",
         "shardsvr_drop_database_command.cpp",
         "shardsvr_drop_database_participant_command.cpp",
-        "shardsvr_drop_index_catalog_entry_participant_command.cpp",
         "shardsvr_drop_indexes_command.cpp",
         "shardsvr_fetch_coll_metadata_command.cpp",
         "shardsvr_get_stats_for_balancing_command.cpp",
-        "shardsvr_index_catalog_test_commands.cpp",
         "shardsvr_join_ddl_coordinators_command.cpp",
         "shardsvr_join_migrations_command.cpp",
         "shardsvr_merge_all_chunks_on_shard_command.cpp",
@@ -1488,7 +1481,6 @@ mongo_cc_library(
         "//src/mongo/db/s/config:configsvr_clear_jumbo_flag_command.cpp",
         "//src/mongo/db/s/config:configsvr_collmod_command.cpp",
         "//src/mongo/db/s/config:configsvr_commit_chunk_migration_command.cpp",
-        "//src/mongo/db/s/config:configsvr_commit_index_command.cpp",
         "//src/mongo/db/s/config:configsvr_commit_move_primary_command.cpp",
         "//src/mongo/db/s/config:configsvr_commit_refine_collection_shard_key.cpp",
         "//src/mongo/db/s/config:configsvr_commit_reshard_collection_command.cpp",
@@ -1498,7 +1490,6 @@ mongo_cc_library(
         "//src/mongo/db/s/config:configsvr_coordinator_gen",
         "//src/mongo/db/s/config:configsvr_coordinator_service.cpp",
         "//src/mongo/db/s/config:configsvr_create_database_command.cpp",
-        "//src/mongo/db/s/config:configsvr_drop_index_catalog_command.cpp",
         "//src/mongo/db/s/config:configsvr_ensure_chunk_version_is_greater_than_command.cpp",
         "//src/mongo/db/s/config:configsvr_get_historical_placement_info.cpp",
         "//src/mongo/db/s/config:configsvr_merge_all_chunks_on_shard_command.cpp",
@@ -1521,6 +1512,7 @@ mongo_cc_library(
         "//src/mongo/db/s/config:configsvr_transition_to_dedicated_config_server_command.cpp",
         "//src/mongo/db/s/config:configsvr_update_zone_key_range_command.cpp",
         "//src/mongo/db/s/config:remove_shard_command_helpers.cpp",
+        "//src/mongo/db/s/config:set_cluster_parameter_configsvr_impl.cpp",
         "//src/mongo/db/s/config:set_cluster_parameter_coordinator.cpp",
         "//src/mongo/db/s/config:set_cluster_parameter_coordinator_document_gen",
         "//src/mongo/db/s/config:set_user_write_block_mode_coordinator.cpp",
@@ -1548,6 +1540,7 @@ mongo_cc_library(
         "clone_authoritative_metadata_coordinator.h",
         "collmod_coordinator.h",
         "compact_structured_encryption_data_coordinator.h",
+        "complete_promotion_to_sharded_cluster_coordinator.h",
         "convert_to_capped_coordinator.h",
         "create_collection_coordinator.h",
         "create_database_coordinator.h",
@@ -1570,6 +1563,7 @@ mongo_cc_library(
         "//src/mongo/db/s/config:configsvr_coordinator_service.h",
         "//src/mongo/db/s/config:known_collections.h",
         "//src/mongo/db/s/config:remove_shard_command_helpers.h",
+        "//src/mongo/db/s/config:set_cluster_parameter_configsvr_impl.h",
         "//src/mongo/db/s/config:set_cluster_parameter_coordinator.h",
         "//src/mongo/db/s/config:set_user_write_block_mode_coordinator.h",
         "//src/mongo/db/s/migration_blocking_operation:migration_blocking_operation_coordinator.h",

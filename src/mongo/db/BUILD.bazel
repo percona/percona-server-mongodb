@@ -705,6 +705,11 @@ mongo_cc_library(
 )
 
 idl_generator(
+    name = "mirror_maestro_feature_flag_gen",
+    src = "mirror_maestro_feature_flags.idl",
+)
+
+idl_generator(
     name = "mirror_maestro_gen",
     src = "mirror_maestro.idl",
     deps = [
@@ -1442,6 +1447,7 @@ mongo_cc_library(
         "//src/mongo/db/timeseries:timeseries_options",
         "//src/mongo/db/timeseries:timeseries_write_util",
         "//src/mongo/db/timeseries/bucket_catalog",
+        "//src/mongo/db/timeseries/write_ops:timeseries_write_ops_utils",
         "//src/mongo/db/update:update_driver",
         "//src/mongo/scripting",
         "//src/mongo/util:background_job",
@@ -1724,7 +1730,6 @@ mongo_cc_library(
         "//src/mongo/db/auth",
         "//src/mongo/db/auth:authprivilege",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/repl:repl_coordinator_interface",
-        "//src/mongo/transport:transport_layer_common",  # TODO(SERVER-93876): Remove.
     ],
 )
 
@@ -1875,6 +1880,7 @@ mongo_cc_library(
         "index_names.cpp",
         "keypattern.cpp",
         "logical_time.cpp",
+        "mirror_maestro_feature_flag_gen",
         "namespace_string.cpp",
         "read_write_concern_provenance.cpp",
         "server_options.cpp",
@@ -1909,8 +1915,10 @@ mongo_cc_library(
         "//src/mongo/db/repl:read_concern_gen",
         "//src/mongo/db/repl:read_concern_idl.cpp",
         "//src/mongo/idl:command_generic_argument.cpp",
+        "//src/mongo/idl:error_status_idl.cpp",
         "//src/mongo/idl:generic_argument.cpp",
         "//src/mongo/idl:generic_argument_gen",
+        "//src/mongo/rpc:get_status_from_command_result.cpp",
         "//src/mongo/rpc/metadata:audit_metadata_gen",
         "//src/mongo/s:chunk_version.cpp",
         "//src/mongo/s:chunk_version_gen",
@@ -3806,8 +3814,6 @@ mongo_cc_library(
     deps = [
         ":service_context_d",
         ":service_context_test_fixture",
-        "//src/mongo/db/auth:auth_impl_internal",
-        "//src/mongo/db/auth:authserver",
         "//src/mongo/db/catalog:catalog_impl",
         "//src/mongo/db/commands:mongod",
         "//src/mongo/db/index_builds:index_builds_coordinator_mongod",

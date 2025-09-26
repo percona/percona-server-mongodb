@@ -66,11 +66,6 @@ public:
         return {NamespaceFilter::kConfigAndSystem, NamespaceFilter::kConfigAndSystem};
     }
 
-    void onModifyCollectionShardingIndexCatalog(OperationContext* opCtx,
-                                                const NamespaceString& nss,
-                                                const UUID& /*uuid*/,
-                                                BSONObj indexDoc) override;
-
     void onCreateIndex(OperationContext* opCtx,
                        const NamespaceString& nss,
                        const UUID& uuid,
@@ -141,11 +136,11 @@ public:
 
     void onDropDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) override;
 
-    void onPromoteToTransitionalShardedCluster(OperationContext* opCtx,
-                                               const repl::OplogEntry& op) override {};
+    void onBeginPromotionToShardedCluster(OperationContext* opCtx,
+                                          const repl::OplogEntry& op) override {};
 
-    void onPromoteToFullyShardedCluster(OperationContext* opCtx,
-                                        const repl::OplogEntry& op) override {};
+    void onCompletePromotionToShardedCluster(OperationContext* opCtx,
+                                             const repl::OplogEntry& op) override {};
 };
 
 }  // namespace mongo

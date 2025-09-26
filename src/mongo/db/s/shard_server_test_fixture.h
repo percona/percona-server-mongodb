@@ -29,7 +29,6 @@
 
 #pragma once
 
-#include "mongo/s/client/shard.h"
 #include <memory>
 #include <string>
 

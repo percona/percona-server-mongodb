@@ -98,6 +98,8 @@ public:
 
     void notifyReplStartupRecoveryComplete(RecoveryUnit&) override;
 
+    void setInStandaloneMode(bool inStandaloneMode) override;
+
     std::unique_ptr<RecoveryUnit> newRecoveryUnit() override;
 
     bool supportsCappedCollections() const override {
