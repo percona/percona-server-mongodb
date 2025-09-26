@@ -227,7 +227,7 @@ void TelemetryThreadBase::shutdown() {
 
 // auxiliary function
 boost::filesystem::path TelemetryThreadBase::sdPath(StringData sd) {
-    return {sd.rawData(), sd.rawData() + sd.size()};  // NOLINT(*-pointer-arithmetic)
+    return {sd.data(), sd.data() + sd.size()};  // NOLINT(*-pointer-arithmetic)
 }
 
 // auxiliary function

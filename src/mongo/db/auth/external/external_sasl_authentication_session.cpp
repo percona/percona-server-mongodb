@@ -97,8 +97,8 @@ Status SaslExternalLDAPServerMechanism::initializeConnection() {
 StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::processInitialClientPayload(const StringData& payload) {
     _results.initialize_results();
     _results.result = sasl_server_start(_saslConnection,
-                                       mechanismName().rawData(),
-                                       payload.rawData(),
+                                       mechanismName().data(),
+                                       payload.data(),
                                        static_cast<unsigned>(payload.size()),
                                        &_results.output,
                                        &_results.length);
@@ -108,7 +108,7 @@ StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::proce
 StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::processNextClientPayload(const StringData& payload) {
     _results.initialize_results();
     _results.result = sasl_server_step(_saslConnection,
-                                      payload.rawData(),
+                                      payload.data(),
                                       static_cast<unsigned>(payload.size()),
                                       &_results.output,
                                       &_results.length);
@@ -154,7 +154,7 @@ StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
     OperationContext* opCtx, StringData inputData) {
     if (_step++ == 0) {
         // [authz-id]\0authn-id\0pwd
-        const char* authz_id = inputData.rawData();
+        const char* authz_id = inputData.data();
         const char* authn_id = authz_id + std::strlen(authz_id) + 1; // authentication id
         const char* pw = authn_id + std::strlen(authn_id) + 1; // password
 

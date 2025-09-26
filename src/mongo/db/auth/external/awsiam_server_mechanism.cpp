@@ -144,7 +144,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(StringDat
     auto reply =
         http->request(HttpClient::HttpMethod::kPOST,
                       "https://" + awsStsHost(),
-                      {kSTSGetCallerIdentityBody.rawData(), kSTSGetCallerIdentityBody.size()});
+                      {kSTSGetCallerIdentityBody.data(), kSTSGetCallerIdentityBody.size()});
     LOGV2_DEBUG(29114, 3, "STS GetCallerIdentity HTTP status", "code"_attr = reply.code);
     if (reply.code != 200) {
         return Status(ErrorCodes::AuthenticationFailed,

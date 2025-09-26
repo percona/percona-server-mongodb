@@ -68,7 +68,7 @@ DocumentSourceBackupCursor::LiteParsed::parse(const NamespaceString& nss,
 }
 
 const char* DocumentSourceBackupCursor::getSourceName() const {
-    return kStageName.rawData();
+    return kStageName.data();
 }
 
 Value DocumentSourceBackupCursor::serialize(const SerializationOptions& opts) const {

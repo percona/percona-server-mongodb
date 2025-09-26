@@ -31,6 +31,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/ldap_options.h"
 #include "mongo/db/ldap_options_gen.h"
+#include "mongo/util/str.h"
 
 #include <regex>
 
@@ -110,7 +111,7 @@ Status validateLDAPBindMethod(const std::string& value) {
     constexpr auto kSimple = "simple"_sd;
     constexpr auto kSasl = "sasl"_sd;
 
-    if (!kSimple.equalCaseInsensitive(value) && !kSasl.equalCaseInsensitive(value)) {
+    if (!str::equalCaseInsensitive(kSimple, value) && !str::equalCaseInsensitive(kSasl, value)) {
         return {ErrorCodes::BadValue, "security.ldap.bind.method expects one of 'simple' or 'sasl'"};
     }
 
@@ -121,7 +122,7 @@ Status validateLDAPTransportSecurity(const std::string& value) {
     constexpr auto kNone = "none"_sd;
     constexpr auto kTls = "tls"_sd;
 
-    if (!kNone.equalCaseInsensitive(value) && !kTls.equalCaseInsensitive(value)) {
+    if (!str::equalCaseInsensitive(kNone, value) && !str::equalCaseInsensitive(kTls, value)) {
         return {ErrorCodes::BadValue, "security.ldap.transportSecurity expects one of 'none' or 'tls'"};
     }
 

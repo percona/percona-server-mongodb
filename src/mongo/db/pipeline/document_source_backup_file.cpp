@@ -78,7 +78,7 @@ std::unique_ptr<DocumentSourceBackupFile::LiteParsed> DocumentSourceBackupFile::
 }
 
 const char* DocumentSourceBackupFile::getSourceName() const {
-    return kStageName.rawData();
+    return kStageName.data();
 }
 
 Value DocumentSourceBackupFile::serialize(const SerializationOptions& opts) const {

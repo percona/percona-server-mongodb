@@ -48,7 +48,7 @@ public:
     }
 
     const char* what() const noexcept override {
-        return _info.getField("what").valueStringData().rawData();
+        return _info.getField("what").valueStringData().data();
     }
 
 private:

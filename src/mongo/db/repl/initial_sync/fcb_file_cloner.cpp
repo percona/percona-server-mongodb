@@ -125,7 +125,7 @@ void FCBFileCloner::preStage() {
             str::stream() << "Path " << _relativePathString
                           << " must not escape its parent directory.",
             StringData(_localFilePath.generic_string())
-                .startsWith(syncTargetTempDBPath.generic_string()));
+                .starts_with(syncTargetTempDBPath.generic_string()));
 
     // Create and open files and any parent directories.
     if (boost::filesystem::exists(_localFilePath)) {

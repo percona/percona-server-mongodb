@@ -141,7 +141,7 @@ std::string canonicalizeGSSAPIUser(const StringData v) {
     gss_OID mech_type = &mech_krb5;
 
     gss_result gr;
-    gss_buffer_desc input_name_buffer{.length = v.size(), .value = const_cast<char*>(v.rawData())};
+    gss_buffer_desc input_name_buffer{.length = v.size(), .value = const_cast<char*>(v.data())};
     auto_gss_name_t gssname;
     gr.major = gss_import_name(&gr.minor, &input_name_buffer, GSS_C_NT_USER_NAME, &gssname);
     gr.check("gss_import_name");
@@ -235,7 +235,7 @@ StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processInitial
     _results.initialize_results();
     _results.result = sasl_server_start(_saslConnection,
                                         _mechanismName.c_str(),
-                                        payload.rawData(),
+                                        payload.data(),
                                         static_cast<unsigned>(payload.size()),
                                         &_results.output,
                                         &_results.length);
@@ -246,7 +246,7 @@ StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processNextCli
     const StringData& payload) {
     _results.initialize_results();
     _results.result = sasl_server_step(_saslConnection,
-                                       payload.rawData(),
+                                       payload.data(),
                                        static_cast<unsigned>(payload.size()),
                                        &_results.output,
                                        &_results.length);
