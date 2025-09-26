@@ -88,7 +88,6 @@ public:
                                           const StorageGlobalParams& params,
                                           const StorageEngineLockFile* lockFile,
                                           bool isReplSet,
-                                          bool shouldSkipOplogSampling,
                                           bool shouldRecoverFromOplogAsStandalone,
                                           bool inStandaloneMode) const override {
         if (lockFile && lockFile->createdByUncleanShutdown()) {
@@ -153,7 +152,6 @@ public:
                                                  params.inMemory,
                                                  params.repair,
                                                  isReplSet,
-                                                 shouldSkipOplogSampling,
                                                  shouldRecoverFromOplogAsStandalone,
                                                  inStandaloneMode,
                                                  opCtx->getServiceContext()->getPeriodicRunner());

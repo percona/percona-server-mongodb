@@ -70,7 +70,6 @@ public:
                                                   const StorageGlobalParams& params,
                                                   const StorageEngineLockFile*,
                                                   bool isReplSet,
-                                                  bool shouldSkipOplogSampling,
                                                   bool shouldRecoverFromOplogAsStandalone,
                                                   bool inStandaloneMode) const {
         syncInMemoryAndWiredTigerOptions();
@@ -92,7 +91,6 @@ public:
                                                  ephemeral,
                                                  params.repair,
                                                  isReplSet,
-                                                 shouldSkipOplogSampling,
                                                  shouldRecoverFromOplogAsStandalone,
                                                  inStandaloneMode);
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);

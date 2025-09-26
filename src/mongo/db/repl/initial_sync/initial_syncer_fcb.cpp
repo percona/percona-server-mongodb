@@ -63,6 +63,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/feature_compatibility_version_parser.h"
+#include "mongo/db/global_settings.h"
 #include "mongo/db/index_builds/index_builds_coordinator.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
@@ -76,6 +77,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/repl_server_parameters_gen.h"
+#include "mongo/db/repl/repl_set_member_in_standalone_mode.h"
 #include "mongo/db/repl/replication_auth.h"
 #include "mongo/db/repl/replication_consistency_markers.h"
 #include "mongo/db/repl/replication_coordinator.h"
@@ -1700,10 +1702,15 @@ Status InitialSyncerFCB::_switchStorageLocation(
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
     auto lastShutdownState =
-        reinitializeStorageEngine(opCtx, StorageEngineInitFlags{}, [&newLocation, opCtx] {
-            storageGlobalParams.dbpath = newLocation;
-            repl::clearLocalOplogPtr(opCtx->getServiceContext());
-        });
+        reinitializeStorageEngine(opCtx,
+                                  StorageEngineInitFlags{},
+                                  getGlobalReplSettings().isReplSet(),
+                                  repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
+                                  getReplSetMemberInStandaloneMode(getGlobalServiceContext()),
+                                  [&newLocation, opCtx] {
+                                      storageGlobalParams.dbpath = newLocation;
+                                      repl::clearLocalOplogPtr(opCtx->getServiceContext());
+                                  });
     opCtx->getServiceContext()->getStorageEngine()->notifyStorageStartupRecoveryComplete();
     if (StorageEngine::LastShutdownState::kClean != lastShutdownState) {
         return {ErrorCodes::InternalError,

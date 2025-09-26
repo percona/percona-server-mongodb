@@ -1013,7 +1013,6 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     bool ephemeral,
     bool repair,
     bool isReplSet,
-    bool shouldSkipOplogSampling,
     bool shouldRecoverFromOplogAsStandalone,
     bool inStandaloneMode,
     PeriodicRunner* periodicRunner,
@@ -1031,7 +1030,6 @@ WiredTigerKVEngine::WiredTigerKVEngine(
       _ephemeral(ephemeral),
       _inRepairMode(repair),
       _isReplSet(isReplSet),
-      _shouldSkipOplogSampling(shouldSkipOplogSampling),
       _shouldRecoverFromOplogAsStandalone(shouldRecoverFromOplogAsStandalone),
       _inStandaloneMode(inStandaloneMode) {
     // When the storage engine is configured to be in-memory, it should also be ephemeral.

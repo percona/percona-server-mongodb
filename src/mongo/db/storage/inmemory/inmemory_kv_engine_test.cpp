@@ -72,7 +72,6 @@ public:
                                    true,
                                    false,
                                    getGlobalReplSettings().isReplSet(),
-                                   repl::ReplSettings::shouldSkipOplogSampling(),
                                    repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
                                    getReplSetMemberInStandaloneMode(getGlobalServiceContext())));
         repl::ReplicationCoordinator::set(

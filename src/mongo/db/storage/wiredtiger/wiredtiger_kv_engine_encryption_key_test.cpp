@@ -448,7 +448,6 @@ protected:
             false,
             false,
             getGlobalReplSettings().isReplSet(),
-            repl::ReplSettings::shouldSkipOplogSampling(),
             repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
             getReplSetMemberInStandaloneMode(getGlobalServiceContext()),
             _runner.get(),
