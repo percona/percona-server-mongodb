@@ -365,6 +365,7 @@ mongo_cc_library(
         "//src/mongo/db/pipeline/window_function:window_function_count.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_covariance.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_expression.cpp",
+        "//src/mongo/db/pipeline/window_function:window_function_expression_gen",
         "//src/mongo/db/pipeline/window_function:window_function_integral.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_min_max_scaler_util.cpp",
         "//src/mongo/db/pipeline/window_function:window_function_percentile.cpp",
@@ -433,6 +434,7 @@ mongo_cc_library(
     srcs = [
         "//src/mongo/db/query/query_shape:agg_cmd_shape.cpp",
         "//src/mongo/db/query/query_stats:agg_key.cpp",
+        "//src/mongo/db/exec/agg:document_source_to_stage_registry.cpp",
         "//src/mongo/db/exec/agg:stage.cpp",
         "//src/mongo/db/exec/agg:exec_pipeline.cpp",
         "//src/mongo/db/exec/agg:pipeline_builder.cpp",
@@ -543,6 +545,7 @@ mongo_cc_library(
     hdrs = [
         "//src/mongo/db/query/query_shape:agg_cmd_shape.h",
         "//src/mongo/db/query/query_stats:agg_key.h",
+        "//src/mongo/db/exec/agg:document_source_to_stage_registry.h",
         "//src/mongo/db/exec/agg:exec_pipeline.h",
         "//src/mongo/db/exec/agg:pipeline_builder.h",
         "//src/mongo/db/exec/agg:stage.h",
@@ -1429,6 +1432,7 @@ mongo_cc_unit_test(
         ],
     }) + [
         "//src/mongo/db/catalog:collection_mock.h",
+        "//src/mongo/db/exec/agg:document_source_to_stage_registry_test.cpp",
         "//src/mongo/db/pipeline/document_source_internal_unpack_bucket_test:create_predicates_on_bucket_level_field_test.cpp",
         "//src/mongo/db/pipeline/document_source_internal_unpack_bucket_test:extract_or_build_project_to_internalize_test.cpp",
         "//src/mongo/db/pipeline/document_source_internal_unpack_bucket_test:extract_project_for_pushdown_test.cpp",

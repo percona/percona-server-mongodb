@@ -42,6 +42,7 @@
 #include "mongo/db/s/metrics/sharding_data_transform_cumulative_metrics.h"
 #include "mongo/db/s/metrics/sharding_data_transform_metrics.h"
 #include "mongo/db/s/metrics/sharding_data_transform_metrics_observer_interface.h"
+#include "mongo/db/s/resharding/resharding_cumulative_metrics.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/duration.h"
@@ -112,6 +113,27 @@ public:
 
     void setLastOpEndingChunkImbalance(int64_t imbalanceCount);
 
+    ReshardingCumulativeMetrics::AnyState getState() const {
+        return _state.load();
+    }
+
+    template <typename T>
+    void onStateTransition(T before, boost::none_t after) {
+        getTypedCumulativeMetrics()->template onStateTransition<T>(before, boost::none);
+    }
+
+    template <typename T>
+    void onStateTransition(boost::none_t before, T after) {
+        setState(after);
+        getTypedCumulativeMetrics()->template onStateTransition<T>(boost::none, after);
+    }
+
+    template <typename T>
+    void onStateTransition(T before, T after) {
+        setState(after);
+        getTypedCumulativeMetrics()->template onStateTransition<T>(before, after);
+    }
+
 protected:
     static constexpr auto kNoDate = Date_t::min();
     using UniqueScopedObserver = ShardingDataTransformCumulativeMetrics::UniqueScopedObserver;
@@ -130,6 +152,13 @@ protected:
         }
         return duration_cast<T>(end - start);
     }
+
+    template <typename T>
+    void setState(T state) {
+        static_assert(std::is_assignable_v<ReshardingCumulativeMetrics::AnyState, T>);
+        _state.store(state);
+    }
+
     void restoreDocumentsProcessed(int64_t documentCount, int64_t totalDocumentsSizeBytes);
     void restoreWritesToStashCollections(int64_t writesToStashCollections);
     virtual std::string createOperationDescription() const;
@@ -137,6 +166,7 @@ protected:
     virtual boost::optional<Milliseconds> getRecipientHighEstimateRemainingTimeMillis() const = 0;
 
     ShardingDataTransformCumulativeMetrics* getCumulativeMetrics();
+    ReshardingCumulativeMetrics* getTypedCumulativeMetrics();
     ClockSource* getClockSource() const;
     UniqueScopedObserver registerInstanceMetrics();
 
@@ -165,6 +195,8 @@ private:
 
     AtomicWord<int64_t> _readsDuringCriticalSection;
     AtomicWord<int64_t> _writesDuringCriticalSection;
+
+    AtomicWord<ReshardingCumulativeMetrics::AnyState> _state;
 };
 
 }  // namespace mongo

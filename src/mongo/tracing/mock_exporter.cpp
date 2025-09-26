@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2023-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,25 +27,36 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/tracing/mock_exporter.h"
 
-#include <absl/hash/hash.h>
-
-#include "mongo/db/fts/fts_query.h"
+#include "mongo/config.h"
 
 namespace mongo {
-namespace fts {
-/**
- * FTSQuery's hash function compatible with absl::Hash. Designed be consistent with
- * 'FTSQuery::equivalent()'.
- */
-template <typename H>
-H AbslHashValue(H h, const FTSQuery& ftsQuery) {
-    return H::combine(std::move(h),
-                      ftsQuery.getQuery(),
-                      ftsQuery.getLanguage(),
-                      ftsQuery.getCaseSensitive(),
-                      ftsQuery.getDiacriticSensitive());
+namespace tracing {
+
+using opentelemetry::sdk::trace::Recordable;
+
+void MockRecordable::SetAttribute(opentelemetry::nostd::string_view key,
+                                  const opentelemetry::common::AttributeValue& value) noexcept {
+    attributes[std::string{key}] = value;
 }
-}  // namespace fts
+
+std::unique_ptr<Recordable> MockExporter::MakeRecordable() noexcept {
+    return std::unique_ptr<Recordable>(new MockRecordable());
+}
+
+opentelemetry::sdk::common::ExportResult MockExporter::Export(
+    const opentelemetry::nostd::span<std::unique_ptr<Recordable>>& spans) noexcept {
+    for (auto& span : spans) {
+        MockRecordable* mock = dynamic_cast<MockRecordable*>(span.get());
+        if (mock != nullptr) {
+            std::ignore = span.release();
+            _exportedSpans.push_back(std::unique_ptr<MockRecordable>(mock));
+        }
+    }
+
+    return opentelemetry::sdk::common::ExportResult::kSuccess;
+}
+
+}  // namespace tracing
 }  // namespace mongo

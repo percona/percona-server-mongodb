@@ -184,6 +184,9 @@ query:
     - src/mongo/db/query/
     - src/mongo/db/s/query_analysis* # note the filename pattern
     - src/mongo/db/s/*query*analyzer* # note the filename pattern
+    - src/mongo/db/s/shard_filtering_util*
+    - src/mongo/db/s/document_source_visitor_docs_needed_bounds.cpp
+    - src/mongo/db/s/query_cmd
     - src/mongo/db/stats/
     - src/mongo/db/update/
     - src/mongo/db/update_index_data*
@@ -199,8 +202,19 @@ query:
     - src/mongo/dbtests/plan_executor_invalidation_test.cpp
     - src/mongo/dbtests/query*
     - src/mongo/dbtests/updatetests.cpp
+    - src/mongo/s/cluster_cursor_stats.cpp
+    - src/mongo/s/cluster_write*
+    - src/mongo/s/commands/cluster_query_settings_cmds.cpp
+    - src/mongo/s/commands/cluster_query_without_shard_key_cmd.cpp
+    - src/mongo/s/commands/cluster_write_without_shard_key_cmd.cpp
+    - src/mongo/s/query/
+    - src/mongo/s/request_types/cluster_commands_without_shard_key.idl
+    - src/mongo/s/write_ops/
     - src/mongo/replay
     - src/mongo/scripting/
+    - src/mongo/s/commands/query_cmd
+    - src/mongo/s/shard_targeting_helpers*
+    - src/mongo/s/query/planner
     - src/mongo/db/namespace_spec.idl # only used by query
     - src/mongo/util/safe_num*
 
@@ -318,7 +332,7 @@ routing_and_topology:
 
     # sharding_environment: Fundamental mutable state that all sharding components rely.
     - src/mongo/s/grid.*
-    - src/mongo/s/sharding_state.*
+    - src/mongo/db/s/sharding_state.*
     - src/mongo/db/s/sharding_initialization[._]*
     # TODO: This file overlaps between shard_catalog, ddl and routing_and_topology. Putting it in
     # this module because it is "generic infrastructure", but likely its contents need to be moved
@@ -366,6 +380,8 @@ routing_and_topology:
     - src/mongo/db/write_block_bypass[._]*
     - src/mongo/db/op_observer/user_write_block_mode*
     - src/mongo/s/cluster_identity_loader[._]*
+    - src/mongo/s/service_entry_point_router_role[._]*
+    - src/mongo/s/commands/strategy*
 
 replication_coordinator:
   meta:
@@ -584,6 +600,8 @@ observability.commands:
   files:
     - src/mongo/db/commands/parse_log_component_settings*
     - src/mongo/db/commands/xray_commands*
+    - src/mongo/s/commands/cluster_ftdc_commands.cpp
+    - src/mongo/s/commands/cluster_netstat_cmd.cpp
 
 networking:
   meta:
@@ -624,6 +642,7 @@ networking.core:
     - src/mongo/rpc/
     - src/mongo/transport/
     - src/mongo/util/net/
+    - src/mongo/s/load_balancer_support*
 
 networking.commands:
   meta:
@@ -639,6 +658,8 @@ networking.commands:
     - src/mongo/db/commands/traffic_recording_cmds.cpp
     - src/mongo/db/commands/whats_my_sni_command.cpp
     - src/mongo/db/commands/whats_my_uri_cmd.cpp
+    - src/mongo/s/commands/cluster_hello_cmd.cpp
+    - src/mongo/s/commands/cluster_whats_my_uri_cmd.cpp
 
 networking.execution:
   meta:
@@ -654,6 +675,10 @@ networking.execution:
     - src/mongo/executor/executor_integration_test_*
     - src/mongo/executor/exhaust_response_reader_*
     - src/mongo/executor/pinned_connection_task_executor*
+    - src/mongo/s/append_raw_responses_test.cpp
+    - src/mongo/s/async_requests_sender*
+    - src/mongo/s/async_rpc_shard_retry_policy.h
+    - src/mongo/s/async_rpc_shard_targeter*
 
 networking.mirrored_reads:
   meta:
@@ -756,12 +781,12 @@ storage_engine_integration:
     - src/mongo/db/commands/fsync*
     - src/mongo/db/commands/dbcommands*
     - src/mongo/db/commands/resize_oplog*
-    - src/mongo/db/concurrency/exception_util*
     - src/mongo/db/op_observer/batched_write*
     - src/mongo/db/stats/storage_stats*
     - src/mongo/dbtests/dbhelper_tests.cpp
     - src/mongo/dbtests/dbtests*
     - src/mongo/dbtests/storage_debug_util*
+    - src/mongo/s/commands/storage_engine
 
 validate:
   meta:

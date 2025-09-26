@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2023-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,23 +29,23 @@
 
 #pragma once
 
-#include <absl/hash/hash.h>
 #include <boost/optional.hpp>
 
-#include "mongo/bson/bsonobj.h"
-#include "mongo/bson/simple_bsonobj_comparator.h"
+#include "mongo/s/multi_statement_transaction_requests_sender.h"
+#include "mongo/s/write_ops/unified_write_executor/write_op_batcher.h"
 
-namespace mongo::query_stats {
+namespace mongo {
+namespace unified_write_executor {
 
-/**
- * An abseil compatible hash function for BSONObjects. Note that this hasher ignores any collation
- * and uses the "simple" comparisons. This is fine and correct for query stats, but this is
- * intentionally placed within the 'query_stats' namespace to avoid polluting the whole codebase
- * with this helper which could cause an accidental bug where we ignore the request's collation.
- */
-template <typename H>
-H AbslHashValue(H h, const BSONObj& obj) {
-    return H::combine(std::move(h), simpleHash(obj));
-}
+using WriteBatchResponse = std::map<ShardId, StatusWith<executor::RemoteCommandResponse>>;
 
-}  // namespace mongo::query_stats
+class WriteBatchExecutor {
+public:
+    WriteBatchResponse execute(OperationContext* opCtx, const WriteBatch& batch);
+
+private:
+    WriteBatchResponse _execute(OperationContext* opCtx, const SimpleWriteBatch& batch);
+};
+
+}  // namespace unified_write_executor
+}  // namespace mongo

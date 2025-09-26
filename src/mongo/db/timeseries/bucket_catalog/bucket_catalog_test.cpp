@@ -55,6 +55,7 @@
 #include "mongo/db/timeseries/timeseries_test_fixture.h"
 #include "mongo/db/timeseries/write_ops/timeseries_write_ops_utils_internal.h"
 #include "mongo/stdx/thread.h"
+#include "mongo/stdx/unordered_set.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
@@ -110,7 +111,7 @@ protected:
         const boost::optional<unsigned long>& rehydrateEra = boost::none,
         const boost::optional<unsigned long>& loadBucketIntoCatalogEra = boost::none,
         const boost::optional<BucketKey>& bucketKey = boost::none,
-        const boost::optional<BucketDocumentValidator>& documentValidator = boost::none);
+        const boost::optional<internal::BucketDocumentValidator>& documentValidator = boost::none);
 
     BSONObj _getCompressedBucketDoc(const BSONObj& bucketDoc);
 
@@ -517,7 +518,7 @@ Status BucketCatalogTest::_reopenBucket(
     const boost::optional<unsigned long>& rehydrateEra,
     const boost::optional<unsigned long>& loadBucketIntoCatalogEra,
     const boost::optional<BucketKey>& bucketKey,
-    const boost::optional<BucketDocumentValidator>& documentValidator) {
+    const boost::optional<internal::BucketDocumentValidator>& documentValidator) {
     const NamespaceString ns = coll->ns().getTimeseriesViewNamespace();
     const UUID uuid = coll->uuid();
     const boost::optional<TimeseriesOptions> options = coll->getTimeseriesOptions();
@@ -2365,12 +2366,13 @@ TEST_F(BucketCatalogTest, ReopeningFailedDueToMinMaxCalculation) {
         [](const BSONObj& document) -> std::pair<Collection::SchemaValidationResult, Status> {
         return {Collection::SchemaValidationResult::kPass, Status::OK()};
     };
-    ASSERT_NOT_OK(_reopenBucket(autoColl.getCollection(),
-                                compressedBucketDoc,
-                                boost::none,
-                                boost::none,
-                                boost::none,
-                                boost::optional<BucketDocumentValidator>{alwaysPassValidator}));
+    ASSERT_NOT_OK(
+        _reopenBucket(autoColl.getCollection(),
+                      compressedBucketDoc,
+                      boost::none,
+                      boost::none,
+                      boost::none,
+                      boost::optional<internal::BucketDocumentValidator>{alwaysPassValidator}));
     auto stats = internal::getCollectionExecutionStats(*_bucketCatalog, _uuid1);
     ASSERT_EQ(1, stats->numBucketReopeningsFailedDueToMinMaxCalculation.load());
 }
@@ -5582,7 +5584,7 @@ TEST_F(BucketCatalogTest, PrepareInsertsToBucketsRespectsStartIndexNoMeta) {
         BSON(_timeField << Date_t::fromMillisSinceEpoch(6)),
     };
 
-    std::unordered_set<size_t> expectedIndices = {2, 3, 4, 5, 6};
+    stdx::unordered_set<size_t> expectedIndices = {2, 3, 4, 5, 6};
     size_t startIndex = 2;
     size_t numDocsToStage = 5;
 
@@ -5606,8 +5608,8 @@ TEST_F(BucketCatalogTest, PrepareInsertsToBucketsRespectsStartIndexNoMeta) {
 
     auto writeBatch = writeBatches.front();
     ASSERT_EQ(writeBatch->measurements.size(), numDocsToStage);
-    ASSERT_EQ(std::unordered_set<size_t>(writeBatch->userBatchIndices.begin(),
-                                         writeBatch->userBatchIndices.end()),
+    ASSERT_EQ(stdx::unordered_set<size_t>(writeBatch->userBatchIndices.begin(),
+                                          writeBatch->userBatchIndices.end()),
               expectedIndices);
 }
 
@@ -5627,7 +5629,7 @@ TEST_F(BucketCatalogTest, PrepareInsertsToBucketsRespectsStartIndexWithMeta) {
         BSON(_metaField << _metaValue << _timeField << Date_t::fromMillisSinceEpoch(6)),
     };
 
-    std::unordered_set<size_t> expectedIndices = {2, 3, 4, 5, 6};
+    stdx::unordered_set<size_t> expectedIndices = {2, 3, 4, 5, 6};
     size_t startIndex = 2;
     size_t numDocsToStage = 5;
 
@@ -5649,7 +5651,7 @@ TEST_F(BucketCatalogTest, PrepareInsertsToBucketsRespectsStartIndexWithMeta) {
     auto writeBatches = swWriteBatches.getValue();
     ASSERT_EQ(writeBatches.size(), 3);
 
-    std::unordered_set<size_t> actualIndices;
+    stdx::unordered_set<size_t> actualIndices;
     for (auto& batch : writeBatches) {
         for (auto index : batch->userBatchIndices) {
             actualIndices.insert(index);
@@ -5702,9 +5704,9 @@ TEST_F(BucketCatalogTest, PrepareInsertsToBucketsRespectsDocsToRetryNoMeta) {
 
     auto writeBatch = writeBatches.front();
     ASSERT_EQ(writeBatch->measurements.size(), docsToRetry.size());
-    ASSERT_EQ(std::unordered_set<size_t>(writeBatch->userBatchIndices.begin(),
-                                         writeBatch->userBatchIndices.end()),
-              std::unordered_set<size_t>(docsToRetry.begin(), docsToRetry.end()));
+    ASSERT_EQ(stdx::unordered_set<size_t>(writeBatch->userBatchIndices.begin(),
+                                          writeBatch->userBatchIndices.end()),
+              stdx::unordered_set<size_t>(docsToRetry.begin(), docsToRetry.end()));
 }
 
 TEST_F(BucketCatalogTest, PrepareInsertsToBucketsRespectsDocsToRetryWithMeta) {
@@ -5748,14 +5750,14 @@ TEST_F(BucketCatalogTest, PrepareInsertsToBucketsRespectsDocsToRetryWithMeta) {
     auto writeBatches = swWriteBatches.getValue();
     ASSERT_EQ(writeBatches.size(), 3);
 
-    std::unordered_set<size_t> actualIndices;
+    stdx::unordered_set<size_t> actualIndices;
     for (auto& batch : writeBatches) {
         for (auto index : batch->userBatchIndices) {
             actualIndices.insert(index);
         }
     }
 
-    ASSERT_EQ(actualIndices, std::unordered_set<size_t>(docsToRetry.begin(), docsToRetry.end()));
+    ASSERT_EQ(actualIndices, stdx::unordered_set<size_t>(docsToRetry.begin(), docsToRetry.end()));
 }
 
 TEST_F(BucketCatalogTest, CreateOrderedPotentialBucketsVectorWithoutAnyBuckets) {

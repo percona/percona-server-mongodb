@@ -35,7 +35,6 @@
 #include <opentelemetry/exporters/otlp/otlp_file_exporter_options.h>
 #include <opentelemetry/exporters/otlp/otlp_http_exporter_factory.h>
 #include <opentelemetry/exporters/otlp/otlp_http_exporter_options.h>
-#include <opentelemetry/sdk/trace/batch_span_processor_options.h>
 #include <opentelemetry/sdk/trace/processor.h>
 #include <opentelemetry/sdk/trace/simple_processor_factory.h>
 #include <opentelemetry/sdk/trace/tracer_provider.h>
@@ -43,6 +42,7 @@
 #include <opentelemetry/trace/provider.h>
 
 #include "mongo/logv2/log.h"
+#include "mongo/stdx/chrono.h"
 #include "mongo/tracing/trace_settings_gen.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kControl
@@ -122,6 +122,8 @@ Status initialize(std::string name) {
         return initializeFile(name, gOpenTelemetryTraceDirectory);
     } else {
         LOGV2(9859700, "Not initializing OpenTelemetry");
+        // Ensure there is no default No-Op TraceProvider.
+        opentelemetry::trace::Provider::SetTracerProvider({});
         return Status::OK();
     }
 }
@@ -129,7 +131,7 @@ Status initialize(std::string name) {
 void shutdown() {
     if (!gOpenTelemetryHttpEndpoint.empty() || !gOpenTelemetryTraceDirectory.empty()) {
         auto tracer = opentelemetry::trace::Provider::GetTracerProvider()->GetTracer("mongodb");
-        tracer->Close(std::chrono::seconds{1});
+        tracer->Close(stdx::chrono::seconds{1});
 
         trace_api::Provider::SetTracerProvider({});
     }
