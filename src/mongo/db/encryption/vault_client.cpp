@@ -49,7 +49,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/json.h"
 #include "mongo/db/encryption/read_file_to_secure_string.h"
 #include "mongo/db/encryption/vault_secret_metadata_locator.h"
-#include "mongo/db/json.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/assert_util_core.h"

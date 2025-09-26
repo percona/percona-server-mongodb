@@ -32,7 +32,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/platform/basic.h"
 
 
-#include "mongo/db/json.h"
+#include "mongo/bson/json.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/db/storage/storage_engine_init.h"
