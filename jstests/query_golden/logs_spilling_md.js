@@ -9,6 +9,7 @@
 
 import {findMatchingLogLine} from "jstests/libs/log.js";
 import {code, linebreak, section, subSection} from "jstests/libs/pretty_md.js";
+import {getPlanStage, getWinningPlanFromExplain} from "jstests/libs/query/analyze_plan.js";
 
 function getServerParameter(knob) {
     return assert.commandWorked(db.adminCommand({getParameter: 1, [knob]: 1}))[knob];
@@ -185,7 +186,88 @@ outputPipelineAndSlowQueryLog(
 students.drop();
 people.drop();
 
-// TODO SERVER-99887 - add $setWindowFields test
+section("HashLookupUnwind");
+
+const locations = db[jsTestName() + "_locations"];
+locations.drop();
+const animals = db[jsTestName() + "_animals"];
+animals.drop();
+
+const locationsDocs = [
+    {
+        name: "doghouse",
+        coordinates: [25.0, 60.0],
+        extra: {breeds: ["terrier", "dachshund", "bulldog"]}
+    },
+    {
+        _id: "bullpen",
+        coordinates: [-25.0, -60.0],
+        extra: {breeds: "Scottish Highland", feeling: "bullish"}
+    },
+    {
+        name: "volcano",  // no animals are in this location, so no $lookup matches
+        coordinates: [-1111.0, 2222.0],
+        extra: {breeds: "basalt", feeling: "hot"}
+    }
+];
+const animasDocs = [
+    {_id: "dog", locationName: "doghouse", colors: ["chartreuse", "taupe"]},
+    {_id: "bull", locationId: "bullpen", colors: ["red", "blue"]},
+    {_id: "trout", colors: ["mauve"]},  // no "locationId" field, so no $lookup matches
+];
+
+assert.commandWorked(locations.insertMany(locationsDocs));
+assert.commandWorked(animals.insertMany(animasDocs));
+
+outputPipelineAndSlowQueryLog(
+    animals,
+    [
+        {
+            $lookup: {from: locations.getName(), localField: "locationName", foreignField: "name", as: "location"}
+        },
+        {$unwind: "$location"},
+        {
+            $project: {
+                locationName: false,
+                "location.extra": false,
+                "location.coordinates": false,
+                "colors": false
+            }
+        },
+    ],
+    "$lookup-$unwind");
+
+locations.drop();
+animals.drop();
+
+saveParameterToRestore("internalDocumentSourceSetWindowFieldsMaxMemoryBytes");
+section("SetWindowFields");
+
+assert.commandWorked(coll.insertMany([{a: 1, b: 1}, {a: 1, b: 2}, {a: 2, b: 1}, {a: 2, b: 2}]));
+
+const setWindowFieldsPipeline =
+    [{$setWindowFields: {partitionBy: "$a", sortBy: {b: 1}, output: {sum: {$sum: "$b"}}}}];
+
+function getSetWindowFieldsMemoryLimit() {
+    const explain = coll.explain().aggregate(setWindowFieldsPipeline);
+    // If $setWindowFields was pushed down to SBE, set a lower limit. We can't set it to 1 byte for
+    // Classic because DocumentSourceSetWindowFields will fail if it still doesn't fit into memory
+    // limit after spilling.
+    if (getPlanStage(getWinningPlanFromExplain(explain), "WINDOW")) {
+        return 1;
+    } else {
+        return 500;
+    }
+}
+
+setServerParameter("internalDocumentSourceSetWindowFieldsMaxMemoryBytes",
+                   getSetWindowFieldsMemoryLimit());
+
+outputPipelineAndSlowQueryLog(coll, setWindowFieldsPipeline, "$setWindowFields");
+outputPipelineAndSlowQueryLog(
+    coll, setWindowFieldsPipeline.concat([{$limit: 1}]), "$setWindowFields + $limit");
+
+coll.drop();
 
 for (let restore of parametersToRestore) {
     setServerParameter(restore.knob, restore.value);

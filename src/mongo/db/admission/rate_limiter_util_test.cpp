@@ -85,21 +85,21 @@ TEST_F(RateLimiterTest, ConcurrentTokenAcquisitionWithQueueing) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
         const int maxTokens = 5;
         const int refreshRate = 4;
-        const size_t numThreads = 20;
-        const Milliseconds tokenInterval = Milliseconds(1002) / refreshRate;
+        const int64_t numThreads = 20;
+        const Milliseconds tokenInterval = Milliseconds(1000) / refreshRate;
 
         RateLimiter rateLimiter(refreshRate, maxTokens, INT_MAX);
 
-        std::vector<unittest::JoinThread> threads;
         auto clientsWithOps = makeClientsWithOpCtxs(numThreads);
 
         stdx::mutex mutex;
         stdx::condition_variable cv;
-        size_t acquiredTokens = 0;
+        int64_t acquiredTokens = 0;
 
         std::vector<double> tokenAcquisitionTimes;
 
-        for (size_t i = 0; i < numThreads; i++) {
+        std::vector<unittest::JoinThread> threads;
+        for (int64_t i = 0; i < numThreads; i++) {
             threads.emplace_back(monitor.spawn([&, threadNum = i]() {
                 ASSERT_OK(rateLimiter.acquireToken(clientsWithOps[threadNum].second.get()));
                 stdx::lock_guard lg(mutex);
@@ -115,17 +115,25 @@ TEST_F(RateLimiterTest, ConcurrentTokenAcquisitionWithQueueing) {
             }));
         }
 
-        auto client = getServiceContext()->getService()->makeClient("test client");
-        auto opCtx = client->makeOperationContext();
-
         // Make sure the initial burstRate fulfills the first requests
         {
             stdx::unique_lock<stdx::mutex> lk(mutex);
-            ASSERT_DOES_NOT_THROW(opCtx->waitForConditionOrInterrupt(
-                cv, mutex, [&] { return acquiredTokens == maxTokens; }));
+            ASSERT_DOES_NOT_THROW(cv.wait(lk, [&] { return acquiredTokens == maxTokens; }));
         }
 
-        // Until we start moving the mock clock forward, no other requests will be fulfilled.
+        // Make sure we've enqueued all the remaining waiters so that we don't race with advancing
+        // the mock clock.
+        int64_t maxBackoffMillis{5000};
+        int64_t backoffTimeMillis{2};
+        while (rateLimiter.getNumWaiters() != numThreads - maxTokens &&
+               backoffTimeMillis < maxBackoffMillis) {
+            sleepmillis(backoffTimeMillis);
+            backoffTimeMillis *= backoffTimeMillis;
+        }
+
+        // Until we start moving the mock clock forward, no other requests will be fulfilled and all
+        // other requests will be waiting.
+        ASSERT_EQ(rateLimiter.getNumWaiters(), numThreads - maxTokens);
         ASSERT_EQ(acquiredTokens, maxTokens);
 
         // Advancing time less than tokenInterval doesn't cause a token to be acquired.
@@ -136,17 +144,16 @@ TEST_F(RateLimiterTest, ConcurrentTokenAcquisitionWithQueueing) {
 
         // For each remaining token, ensure that the rate limiter gives out a token every 1000 /
         // refreshRate milliseconds.
-        for (size_t i = 1; i <= numThreads - maxTokens; i++) {
+        for (int64_t i = 1; i <= numThreads - maxTokens; i++) {
             stdx::unique_lock<stdx::mutex> lk(mutex);
             advanceTime(tokenInterval);
-            ASSERT_DOES_NOT_THROW(opCtx->waitForConditionOrInterrupt(
-                cv, mutex, [&] { return acquiredTokens == maxTokens + i; }));
+            ASSERT_DOES_NOT_THROW(cv.wait(lk, [&] { return acquiredTokens == maxTokens + i; }));
         }
 
         ASSERT_EQ(acquiredTokens, numThreads);
 
         // Assert that the tokens were acquired at the correct intervals.
-        for (size_t i = 0; i < numThreads; i++) {
+        for (int64_t i = 0; i < numThreads; i++) {
             if (i < maxTokens) {
                 ASSERT_APPROX_EQUAL(tokenAcquisitionTimes[i], 1, 1e-3);
             } else {
@@ -164,35 +171,43 @@ TEST_F(RateLimiterTest, RejectOverMaxWaiters) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
         RateLimiter rateLimiter(.01, 1.0, 1);
         auto clientsWithOps = makeClientsWithOpCtxs(3);
+        Notification<void> firstTokenAcquired;
+        Notification<void> hasFailed;
+        Status status1 = Status::OK();
+        Status status2 = Status::OK();
         std::vector<unittest::JoinThread> threads;
 
         // Expect the first token acquisition to succeed.
-        Notification<void> firstTokenAcquired;
         threads.emplace_back(monitor.spawn([&]() {
             ASSERT_OK(rateLimiter.acquireToken(clientsWithOps[0].second.get()));
             firstTokenAcquired.set();
         }));
 
-        // The next token acquisition is queued because the refresh rate is low and is eventually
-        // cancelled.
-        Notification<void> clientEnqueued;
+        // Enqueue two requests, both of which will queue due to the low refreshRate. Whichever
+        // request comes in second will be rejected.
         threads.emplace_back(monitor.spawn([&]() {
             firstTokenAcquired.get();
-            clientEnqueued.set();
-            Status token = rateLimiter.acquireToken(clientsWithOps[1].second.get());
-            ASSERT_EQ(token, Status(ErrorCodes::InterruptedAtShutdown, ""));
+            status1 = rateLimiter.acquireToken(clientsWithOps[1].second.get());
+            if (!hasFailed) {
+                hasFailed.set();
+            }
         }));
-
-        // The final token acquisition is rejected because it is above the maximum queue depth.
-        Notification<void> hasFailed;
         threads.emplace_back(monitor.spawn([&]() {
-            clientEnqueued.get();
-            Status token = rateLimiter.acquireToken(clientsWithOps[2].second.get());
-            ASSERT_EQ(token, Status(ErrorCodes::TemporarilyUnavailable, ""));
-            hasFailed.set();
+            firstTokenAcquired.get();
+            status2 = rateLimiter.acquireToken(clientsWithOps[2].second.get());
+            if (!hasFailed) {
+                hasFailed.set();
+            }
         }));
 
+        // Wait until one of the operations has failed.
         hasFailed.get();
+
+        // Assert that one of the failures was due to TemporarilyUnavailable
+        auto unavailableStatus = Status(ErrorCodes::TemporarilyUnavailable, "");
+        ASSERT(status1 == unavailableStatus || status2 == unavailableStatus);
+
+        // Interrupt the other token acquisition.
         getServiceContext()->setKillAllOperations();
     });
 }
@@ -201,20 +216,18 @@ TEST_F(RateLimiterTest, QueueingDisabled) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
         RateLimiter rateLimiter(.01, 1.0, 0);
         auto clientsWithOps = makeClientsWithOpCtxs(2);
-        std::vector<unittest::JoinThread> threads;
-
-        // Expect the first token acquisition to succeed.
         Notification<void> firstTokenAcquired;
+
+        std::vector<unittest::JoinThread> threads;
+        // Expect the first token acquisition to succeed.
         threads.emplace_back(monitor.spawn([&]() {
             ASSERT_OK(rateLimiter.acquireToken(clientsWithOps[0].second.get()));
             firstTokenAcquired.set();
         }));
 
         // The next token acquisition attempt fails because it would need to queue.
-        Notification<void> clientEnqueued;
         threads.emplace_back(monitor.spawn([&]() {
             firstTokenAcquired.get();
-            clientEnqueued.set();
             Status token = rateLimiter.acquireToken(clientsWithOps[1].second.get());
             ASSERT_EQ(token, Status(ErrorCodes::TemporarilyUnavailable, ""));
         }));
@@ -225,13 +238,13 @@ TEST_F(RateLimiterTest, InterruptedDueToOperationKilled) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
         RateLimiter rateLimiter(.01, 1.0, INT_MAX);
         auto clientsWithOps = makeClientsWithOpCtxs(2);
+        Notification<void> firstTokenAcquired;
         std::vector<unittest::JoinThread> threads;
 
         // Expect the first token acquisition to succeed.
-        Notification<void> firstTokenAcquired;
         threads.emplace_back(monitor.spawn([&]() {
-            firstTokenAcquired.set();
             ASSERT_OK(rateLimiter.acquireToken(clientsWithOps[0].second.get()));
+            firstTokenAcquired.set();
         }));
 
         // The second token acquisition queues until its opCtx is killed below.
@@ -250,13 +263,13 @@ TEST_F(RateLimiterTest, InterruptedDueToOperationDeadline) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
         RateLimiter rateLimiter(.01, 1.0, INT_MAX);
         auto clientsWithOps = makeClientsWithOpCtxs(2);
+        Notification<void> firstTokenAcquired;
         std::vector<unittest::JoinThread> threads;
 
         // Expect the first token acquisition to succeed.
-        Notification<void> firstTokenAcquired;
         threads.emplace_back(monitor.spawn([&]() {
-            firstTokenAcquired.set();
             ASSERT_OK(rateLimiter.acquireToken(clientsWithOps[0].second.get()));
+            firstTokenAcquired.set();
         }));
 
         // The second token acquisition queues until its opCtx deadline passes.
@@ -278,10 +291,10 @@ TEST_F(RateLimiterTest, InterruptedDueToKillAllOperations) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
         RateLimiter rateLimiter(.01, 1.0, INT_MAX);
         auto clientsWithOps = makeClientsWithOpCtxs(2);
+        Notification<void> firstTokenAcquired;
         std::vector<unittest::JoinThread> threads;
 
         // Expect the first token acquisition to succeed.
-        Notification<void> firstTokenAcquired;
         threads.emplace_back(monitor.spawn([&]() {
             ASSERT_OK(rateLimiter.acquireToken(clientsWithOps[0].second.get()));
             firstTokenAcquired.set();

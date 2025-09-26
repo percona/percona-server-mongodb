@@ -1380,30 +1380,41 @@ Timestamp StorageInterfaceImpl::getLatestOplogTimestamp(OperationContext* opCtx)
 
 StatusWith<StorageInterface::CollectionSize> StorageInterfaceImpl::getCollectionSize(
     OperationContext* opCtx, const NamespaceString& nss) {
-    AutoGetCollectionForRead autoColl(opCtx, nss);
+    const auto coll =
+        acquireCollection(opCtx,
+                          CollectionAcquisitionRequest(nss,
+                                                       PlacementConcern::kPretendUnsharded,
+                                                       repl::ReadConcernArgs::get(opCtx),
+                                                       AcquisitionPrerequisites::kRead),
+                          MODE_IS);
 
-    auto collectionResult =
-        getCollection(autoColl, nss, "Unable to get total size of documents in collection.");
-    if (!collectionResult.isOK()) {
-        return collectionResult.getStatus();
+    if (!coll.exists()) {
+        return {
+            ErrorCodes::NamespaceNotFound,
+            str::stream() << "Collection [" << nss.toStringForErrorMsg()
+                          << "] not found. Unable to get total size of documents in collection."};
     }
-    const auto& collection = *collectionResult.getValue();
 
-    return collection->dataSize(opCtx);
+    return coll.getCollectionPtr()->dataSize(opCtx);
 }
 
 StatusWith<StorageInterface::CollectionCount> StorageInterfaceImpl::getCollectionCount(
     OperationContext* opCtx, const NamespaceStringOrUUID& nsOrUUID) {
-    AutoGetCollectionForRead autoColl(opCtx, nsOrUUID);
+    const auto coll =
+        acquireCollection(opCtx,
+                          CollectionAcquisitionRequest(nsOrUUID,
+                                                       PlacementConcern::kPretendUnsharded,
+                                                       repl::ReadConcernArgs::get(opCtx),
+                                                       AcquisitionPrerequisites::kRead),
+                          MODE_IS);
 
-    auto collectionResult =
-        getCollection(autoColl, nsOrUUID, "Unable to get number of documents in collection.");
-    if (!collectionResult.isOK()) {
-        return collectionResult.getStatus();
+    if (!coll.exists()) {
+        return {ErrorCodes::NamespaceNotFound,
+                str::stream() << "Collection [" << nsOrUUID.toStringForErrorMsg()
+                              << "] not found. Unable to get number of documents in collection."};
     }
-    const auto& collection = *collectionResult.getValue();
 
-    return collection->numRecords(opCtx);
+    return coll.getCollectionPtr()->numRecords(opCtx);
 }
 
 Status StorageInterfaceImpl::setCollectionCount(OperationContext* opCtx,
@@ -1428,17 +1439,22 @@ Status StorageInterfaceImpl::setCollectionCount(OperationContext* opCtx,
 
 StatusWith<UUID> StorageInterfaceImpl::getCollectionUUID(OperationContext* opCtx,
                                                          const NamespaceString& nss) {
-    AutoGetCollectionForRead autoColl(opCtx, nss);
+    const auto coll =
+        acquireCollection(opCtx,
+                          CollectionAcquisitionRequest(nss,
+                                                       PlacementConcern::kPretendUnsharded,
+                                                       repl::ReadConcernArgs::get(opCtx),
+                                                       AcquisitionPrerequisites::kRead),
+                          MODE_IS);
 
-    auto collectionResult = getCollection(
-        autoColl,
-        nss,
-        str::stream() << "Unable to get UUID of " << nss.toStringForErrorMsg() << " collection.");
-    if (!collectionResult.isOK()) {
-        return collectionResult.getStatus();
+    if (!coll.exists()) {
+        return {ErrorCodes::NamespaceNotFound,
+                str::stream() << "Collection [" << nss.toStringForErrorMsg()
+                              << "] not found. Unable to get UUID of " << nss.toStringForErrorMsg()
+                              << " collection."};
     }
-    const auto& collection = *collectionResult.getValue();
-    return collection->uuid();
+
+    return coll.uuid();
 }
 
 void StorageInterfaceImpl::setStableTimestamp(ServiceContext* serviceCtx,
@@ -1518,8 +1534,7 @@ void StorageInterfaceImpl::initializeStorageControlsForReplication(
     // oplog history deletion, in which case we need to start the thread to
     // periodically execute deletion via oplog truncate markers. OplogTruncateMarkers are a
     // replacement for capped collection deletion of the oplog collection history.
-    if (serviceCtx->getStorageEngine()->supportsOplogTruncateMarkers() &&
-        !ReplSettings::shouldSkipOplogSampling()) {
+    if (!ReplSettings::shouldSkipOplogSampling()) {
         auto maintainerThread = OplogCapMaintainerThread::get(serviceCtx);
         maintainerThread->start();
     }

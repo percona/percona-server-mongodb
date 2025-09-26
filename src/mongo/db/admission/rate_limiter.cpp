@@ -137,6 +137,10 @@ RateLimiter::Stats* RateLimiter::getRateLimiterStats() {
     return _impl->stats.get();
 }
 
+int64_t RateLimiter::getNumWaiters() {
+    return _impl->numWaiters.load();
+}
+
 void RateLimiter::setRefreshRatePerSec(double refreshRatePerSec) {
     auto lk = _impl->rwMutex.writeLock();
     _impl->tokenBucket.reset(refreshRatePerSec, _impl->tokenBucket.burst());

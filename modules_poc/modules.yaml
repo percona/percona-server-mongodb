@@ -125,7 +125,7 @@ core.commands:
     - src/mongo/db/commands/test_commands[._]*
     - src/mongo/db/commands/generic.*
     - src/mongo/db/commands/generic_servers.*
-    - src/mongo/db/commmands/parameters.*
+    - src/mongo/db/commands/parameters.*
     - src/mongo/s/request_types/wait_for_fail_point.idl
     - src/mongo/s/commands/cluster_build_info.cpp
     - src/mongo/s/commands/cluster_kill_op.cpp
@@ -208,16 +208,10 @@ replication:
   files:
     - src/mongo/db/repl/ # excluding ./dbcheck*
     - src/mongo/db/transaction/
-    - src/mongo/db/op_observer/op_observer_impl* # specific files
+    - src/mongo/db/op_observer/op_observer*
+    - src/mongo/db/op_observer/operation_logger*
     - src/mongo/db/op_observer/fcv_op_observer* # specific files
     - src/mongo/db/op_observer/find_and_modify_images_op_observer* # specific files
-
-storage_engine:
-  meta:
-    slack: TODO
-    jira: TODO
-  files:
-    - src/third_party/wiredtiger/
 
 access_control:
   meta:
@@ -290,116 +284,157 @@ networking:
     slack: TODO
     jira: TODO
   files:
-    - src/mongo/db/rpc/
+    - src/mongo/rpc/
     - src/mongo/util/net
     - src/mongo/transport
 
 timeseries_bucket_catalog: # authoritative: @10gen/server-timeseries-bucket-catalog
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
     - src/mongo/db/timeseries/bucket_catalog
 
 collection_write_path: # authoritative: @10gen/server-collection-write-path
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
     - src/mongo/db/collection_crud
     - src/mongo/db/timeseries # excluding ./bucket_catalog
-    - src/mongo/db/commands/collection_to_capped* # specific files
+    - src/mongo/db/commands/collection_to_capped*
 
 bsoncolumn: # authoritative: @10gen/server-bsoncolumn
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
     - src/mongo/bson/util/bsonobj_traversal.h
     - src/mongo/bson/column
 
 external_sorter: # authoritative: @10gen/server-external-sorter
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
     - src/mongo/db/sorter
 
 index_builds: # authoritative: @10gen/server-index-builds
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
     - src/mongo/db/index_builds
-    - src/mongo/db/index/index_access_methods* # specific files
-    - src/mongo/db/catalog/index_key_validate* # specific files
-    - src/mongo/db/catalog/index_spec_validate* # specific files
-    - src/mongo/db/commands/create_indexes* # specific files
-    - src/mongo/db/commands/set_index_commit_quorum* # specific files
-    - src/mongo/db/commands/vote*index_build* # specific files
-    - src/mongo/dbtests/indexupdatetests.cpp # specific file
+    - src/mongo/db/index/index_access_method*
+    - src/mongo/db/catalog/index_key_validate*
+    - src/mongo/db/catalog/index_spec_validate*
+    - src/mongo/db/commands/create_indexes*
+    - src/mongo/db/commands/set_index_commit_quorum*
+    - src/mongo/db/commands/vote*index_build*
+    - src/mongo/dbtests/index_builds/*
+    - src/mongo/dbtests/indexupdatetests.cpp
 
 key_string: # authoritative: @10gen/server-key-string
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
     - src/mongo/db/storage/key_string
 
-storage_engine_integration: # authoritative: @10gen/server-storage-engine-integration
+storage_engine_api:
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-rss-sydney
+    jira: RSS Sydney
   files:
-    - src/mongo/db/storage # excluding ./key_string
-    - src/mongo/db/record_id* # specific files
-    - src/mongo/db/repair* # specific files
-    - src/mongo/db/prepare_conflict_tracker* # specific files
-    - src/mongo/db/server_recovery* # specific files
-    - src/mongo/db/mongod_options_storage.idl # specific file
-    - src/mongo/db/dbhelpers* # specific files
-    - src/mongo/db/dbcommands.idl # specific file
-    - src/mongo/db/catalog/import* # specific files
-    - src/mongo/db/catalog/index_repair* # specific files
-    - src/mongo/db/commands/fsync* # specific files
-    - src/mongo/db/commands/dbcommands* # specific files
-    - src/mongo/db/commands/resize_oplog* # specific files
-    - src/mongo/db/op_observer/batched_write* # specific files
-    - src/mongo/db/stats/storage_stats* # specific files
-    - src/mongo/dbtests/storage_debug_util* # specific files
+    - src/mongo/db/repair*
+    - src/mongo/db/storage/wiredtiger
+    - src/mongo/db/storage/kv/kv_engine*
+    - src/mongo/db/storage/devnull
+    - src/mongo/db/storage/storage_engine*
+    - src/mongo/db/storage/record_store*
+    - src/mongo/db/storage/durable_catalog*
+    - src/mongo/db/storage/recovery_unit*
+    - src/mongo/db/storage/sorted_data_interface*
+    - src/mongo/db/startup_recovery*
+    - src/mongo/db/modules/enterprise/src/inmemory
 
-validate: # authoritative: @10gen/server-validate
+storage_engine_integration:
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
-    - src/mongo/db/catalog/collection_validation* # specific files
-    - src/mongo/db/catalog/throttle_cursor* # specific files
-    - src/mongo/db/commands/validate.cpp # specific file
+    - src/mongo/db/storage # excluding ./key_string, ./wiredtiger, ./devnull, some of ./kv
+    - src/mongo/db/record_id*
+    - src/mongo/db/server_recovery*
+    - src/mongo/db/mongod_options_storage.idl
+    - src/mongo/db/dbhelpers*
+    - src/mongo/db/dbcommands.idl
+    - src/mongo/db/catalog/import*
+    - src/mongo/db/catalog/index_repair*
+    - src/mongo/db/commands/fsync*
+    - src/mongo/db/commands/dbcommands*
+    - src/mongo/db/commands/resize_oplog*
+    - src/mongo/db/concurrency/exception_util*
+    - src/mongo/db/op_observer/batched_write*
+    - src/mongo/db/stats/storage_stats*
+    - src/mongo/dbtests/dbhelper_tests.cpp
+    - src/mongo/dbtests/dbtests*
+    - src/mongo/dbtests/storage_debug_util*
+
+validate:
+  meta:
+    slack: server-rss-sydney
+    jira: RSS Sydney
+  files:
+    - src/mongo/db/catalog/throttle_cursor*
+    - src/mongo/db/commands/validate.cpp
     - src/mongo/db/validate
-    - src/mongo/dbtests/validate.cpp # specific file
+    - src/mongo/dbtests/validate_tests.cpp
 
-dbcheck: # authoritative: @10gen/server-dbcheck
+dbcheck:
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-rss-sydney
+    jira: RSS Sydney
   files:
-    - src/mongo/db/catalog/health_log* # specific files
-    - src/mongo/db/commands/dbcheck* # specific files
-    - src/mongo/db/concurrency/deferred_writer* # specific files
-    - src/mongo/db/repl/dbcheck* # specific files
+    - src/mongo/db/catalog/health_log*
+    - src/mongo/db/commands/dbcheck*
+    - src/mongo/db/concurrency/deferred_writer*
+    - src/mongo/dbtests/deferred_writer.cpp
+    - src/mongo/db/repl/dbcheck*
+
+server_backup_restore:
+  meta:
+    slack: server-rss-sydney
+    jira: RSS Sydney
+  files:
+    - src/mongo/db/modules/enterprise/src/hot_backups
+    - src/mongo/db/modules/enterprise/src/live_import
+    - src/mongo/db/modules/enterprise/src/queryable
+    - src/mongo/db/modules/enterprise/src/util/document_source_visitor_registry_enterprise.h
+    - src/mongo/db/storage/backup*
+
+server_rss_sydney:
+  meta:
+    slack: server-rss-sydney
+    jira: RSS Sydney
+  files:
+    - src/mongo/db/periodic_runner_cache_pressure_rollback*
+    - src/mongo/db/catalog/collection_compact*
+    - src/mongo/db/commands/*compact*
+    - src/mongo/db/commands/dbhash*
+    - src/mongo/db/storage/compact_options*
 
 ttl: # authoritative: @10gen/server-ttl
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
     - src/mongo/db/ttl
 
 tracking_allocators: # authoritative: @10gen/server-tracking-allocators
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-storage-execution
+    jira: Storage Execution
   files:
     - src/mongo/util/tracking
 

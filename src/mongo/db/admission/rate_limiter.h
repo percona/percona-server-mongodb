@@ -65,6 +65,8 @@ public:
 
     Stats* getRateLimiterStats();
 
+    int64_t getNumWaiters();
+
     /**
      * The number of tokens issued per second when rate-limiting has kicked in. Tokens will be
      * issued smoothly, rather than all at once every 1 second.
