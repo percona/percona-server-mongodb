@@ -68,7 +68,11 @@ public:
     virtual ~InMemoryFactory() {}
     virtual std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
                                                   const StorageGlobalParams& params,
-                                                  const StorageEngineLockFile*) const {
+                                                  const StorageEngineLockFile*,
+                                                  bool isReplSet,
+                                                  bool shouldSkipOplogSampling,
+                                                  bool shouldRecoverFromOplogAsStandalone,
+                                                  bool inStandaloneMode) const {
         syncInMemoryAndWiredTigerOptions();
 
         size_t cacheMB = WiredTigerUtil::getCacheSizeMB(wiredTigerGlobalOptions.cacheSizeGB);
@@ -86,7 +90,11 @@ public:
                                                  getGlobalServiceContext()->getFastClockSource(),
                                                  std::move(wtConfig),
                                                  ephemeral,
-                                                 params.repair);
+                                                 params.repair,
+                                                 isReplSet,
+                                                 shouldSkipOplogSampling,
+                                                 shouldRecoverFromOplogAsStandalone,
+                                                 inStandaloneMode);
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
         kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);
 

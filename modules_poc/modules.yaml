@@ -157,20 +157,31 @@ query:
     slack: TODO
     jira: TODO
   files:
+    - src/mongo/db/aggregated_index_usage_tracker*
+    - src/mongo/db/bulk_write_shard_test.cpp
+    - src/mongo/db/collection_index_usage_tracker*
+    - src/mongo/db/commands/filemd5_cmd.cpp # TODO SERVER-88071: Deprecate/remove this command.
     - src/mongo/db/commands/profile*
+    - src/mongo/db/commands/sysprofile*
     - src/mongo/db/commands/query_cmd/
     - src/mongo/db/commands/server_status*
     - src/mongo/db/commands/set_profiling_*
     - src/mongo/db/commands/shardsvr_resolve_view_command*
     - src/mongo/db/commands/top_command*
     - src/mongo/db/exec/
+    - src/mongo/db/change_collection*
+    - src/mongo/db/change_stream*
+    - src/mongo/db/op_observer/change_stream_pre_images_op_observer*
+    - src/mongo/db/set_change_stream*
     - src/mongo/db/fle_*
     - src/mongo/db/curop*
     - src/mongo/db/fts/
     - src/mongo/db/geo/
+    - src/mongo/db/index_names*
     - src/mongo/db/index/ # mostly query, except index_access_method owned by storex
     - src/mongo/db/matcher/
     - src/mongo/db/memory_tracking/
+    - src/mongo/db/multi_key_path_tracker*
     - src/mongo/db/modules/enterprise/src/fle/query_analysis
     - src/mongo/db/op_debug*
     - src/mongo/db/pipeline/
@@ -180,9 +191,17 @@ query:
     - src/mongo/db/s/*query*analyzer* # note the filename pattern
     - src/mongo/db/stats/
     - src/mongo/db/update/
+    - src/mongo/db/update_index_data*
     - src/mongo/db/views/
+    - src/mongo/db/yieldable.h
+    - src/mongo/dbtests/counttests.cpp
+    - src/mongo/dbtests/documentsourcetests.cpp
     - src/mongo/dbtests/extensions_callback_real_test.cpp
     - src/mongo/dbtests/jstests.cpp
+    - src/mongo/dbtests/matchertests.cpp
+    - src/mongo/dbtests/plan_executor_invalidation_test.cpp
+    - src/mongo/dbtests/query*
+    - src/mongo/dbtests/updatetests.cpp
     - src/mongo/scripting/
     - src/mongo/db/namespace_spec.idl # only used by query
     - src/mongo/util/safe_num*
@@ -207,11 +226,41 @@ replication:
     jira: TODO
   files:
     - src/mongo/db/repl/ # excluding ./dbcheck*
-    - src/mongo/db/transaction/
-    - src/mongo/db/op_observer/op_observer*
-    - src/mongo/db/op_observer/operation_logger*
+    - src/mongo/db/op_observer/op_observer_impl* # specific files
     - src/mongo/db/op_observer/fcv_op_observer* # specific files
     - src/mongo/db/op_observer/find_and_modify_images_op_observer* # specific files
+
+replication_coordinator:
+  meta:
+    slack: server-replication
+    jira: Replication
+  files:
+    - src/mongo/db/repl/*replication_coordinator*
+    - src/mongo/db/repl/*external_state*
+    - src/mongo/db/repl/*heartbeat*
+    - src/mongo/db/repl/*topology_coordinator*
+
+transactions:
+  meta:
+    slack: server-replication
+    jira: Replication
+  files:
+    - src/mongo/db/transaction/
+    - src/mongo/db/*transaction*
+    - src/mongo/db/*txn*
+    - src/mongo/db/s/*transaction*
+    - src/mongo/db/s/*txn*
+    - src/mongo/s/*transaction*
+
+recovery:
+  meta:
+    slack: server-replication
+    jira: Replication
+  files:
+    - src/mongo/db/repl/*replication_recovery*
+    - src/mongo/db/repl/*rollback*
+    - src/mongo/db/modules/enterprise/src/magic_restore
+    - src/mongo/dbtests/rollbacktests.cpp
 
 access_control:
   meta:
@@ -272,21 +321,80 @@ data_movement:
     - src/mongo/db/s/migration* # note the filename pattern
     - src/mongo/db/s/resharding
 
-logging:
+observability:
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/db/operation_cpu_timer*
+    - src/mongo/db/process_health/
+    - src/mongo/watchdog/
+
+observability.logging:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
   files:
     - src/mongo/logv2/
 
+observability.tracing:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/tracing/
+    - src/mongo/util/tracing_support*
+
+observability.ftdc:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/db/ftdc/
+
 networking:
   meta:
-    slack: TODO
-    jira: TODO
+    slack: server-networking-observability
+    jira: Networking & Observability
   files:
+    - src/mongo/client/
+    - src/mongo/executor/async_rpc*
+    - src/mongo/executor/async_client*
+    - src/mongo/executor/connection_pool*
+    - src/mongo/executor/connection_metrics.h
+    - src/mongo/executor/network*
+    - src/mongo/executor/remote_command*
+    - src/mongo/executor/test_network*
+    - src/mongo/executor/mock_network*
+    - src/mongo/executor/mock_async_rpc*
+    - src/mongo/executor/pooled_async_client_factory.h
+    - src/mongo/executor/egress_*
+
+networking.core:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/db/dbmessage*
+    - src/mongo/db/op_msg*
+    - src/mongo/db/wire_version*
     - src/mongo/rpc/
-    - src/mongo/util/net
-    - src/mongo/transport
+    - src/mongo/transport/
+    - src/mongo/util/net/
+
+networking.mirrored_reads:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/db/mirror*
+
+networking.mongo_bridge:
+  meta:
+    slack: server-networking-observability
+    jira: Networking & Observability
+  files:
+    - src/mongo/tools/mongobridge_tool/
 
 timeseries_bucket_catalog: # authoritative: @10gen/server-timeseries-bucket-catalog
   meta:

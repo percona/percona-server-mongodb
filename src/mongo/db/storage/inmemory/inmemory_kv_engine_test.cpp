@@ -34,8 +34,10 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/init.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
+#include "mongo/db/repl/repl_set_member_in_standalone_mode.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+#include "mongo/db/global_settings.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/util/clock_source_mock.h"
 
@@ -62,8 +64,17 @@ public:
             "log=(enabled=false),"
             "file_manager=(close_idle_time=0),"
             "checkpoint=(wait=0,log_size=0)";
-        _engine.reset(new WiredTigerKVEngine(
-            kInMemoryEngineName, _dbpath.path(), _cs.get(), std::move(wtConfig), true, false));
+        _engine.reset(
+            new WiredTigerKVEngine(kInMemoryEngineName,
+                                   _dbpath.path(),
+                                   _cs.get(),
+                                   std::move(wtConfig),
+                                   true,
+                                   false,
+                                   getGlobalReplSettings().isReplSet(),
+                                   repl::ReplSettings::shouldSkipOplogSampling(),
+                                   repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
+                                   getReplSetMemberInStandaloneMode(getGlobalServiceContext())));
         repl::ReplicationCoordinator::set(
             svcCtx,
             std::unique_ptr<repl::ReplicationCoordinator>(

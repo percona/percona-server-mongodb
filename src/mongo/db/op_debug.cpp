@@ -778,7 +778,7 @@ std::function<BSONObj(ProfileFilter::Args)> OpDebug::appendStaged(StringSet requ
         }
     };
 
-    addIfNeeded("ts", [](auto field, auto args, auto& b) { b.append(field, jsTime()); });
+    addIfNeeded("ts", [](auto field, auto args, auto& b) { b.append(field, Date_t::now()); });
     addIfNeeded("client", [](auto field, auto args, auto& b) {
         b.append(field, args.opCtx->getClient()->clientAddress());
     });

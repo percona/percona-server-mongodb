@@ -55,6 +55,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokeconfig/matrix_suites/OWNERS.yml
 /buildscripts/resmokeconfig/matrix_suites/**/*
+/buildscripts/resmokeconfig/matrix_suites/generated_suites/*viewless_timeseries.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokeconfig/matrix_suites/mappings/OWNERS.yml
 /buildscripts/resmokeconfig/matrix_suites/mappings/**/*
@@ -72,6 +73,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/mappings/**/replica_sets_jscore_pqs* @10gen/query-execution-query-settings @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/mappings/**/sharded_collections_pqs* @10gen/query-execution-query-settings @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/mappings/**/sharded_collections_query_shape_hash_stability* @10gen/query-execution-query-settings @10gen/query-integration-observability @svc-auto-approve-bot
+/buildscripts/resmokeconfig/matrix_suites/mappings/**/*viewless_timeseries* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/mappings/**/sharding_pqs* @10gen/query-execution-query-settings @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/mappings/**/update_fuzzer* @10gen/query-execution-write-exec @svc-auto-approve-bot
 
@@ -83,6 +85,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/query_settings.yml @10gen/query-execution-query-settings @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/query_shape_hash_stability.yml @10gen/query-execution-query-settings @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/repeat_queries.yml @10gen/query-optimization @svc-auto-approve-bot
+/buildscripts/resmokeconfig/matrix_suites/overrides/**/*viewless_timeseries.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/stepdown_primary_change_streams.yml @10gen/query-execution-change-streams @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokeconfig/suites/OWNERS.yml
@@ -120,6 +123,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/fcv* @10gen/server-fcv @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/jstestfuzz_replication* @10gen/server-jstest-infra @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/magic_restore* @10gen/server-recovery @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/mongot* @10gen/query-integration-search @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/multiversion* @10gen/server-jstest-infra @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/replica_sets* @10gen/server-jstest-infra @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/read_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
@@ -1632,6 +1636,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/commands/query_cmd/**/killcursors* @10gen/query-execution @svc-auto-approve-bot
 /src/mongo/db/commands/query_cmd/**/map_reduce* @10gen/query-integration-extensions @svc-auto-approve-bot
 /src/mongo/db/commands/query_cmd/**/mr_* @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/commands/query_cmd/**/release_memory_cmd.cpp @10gen/query-execution @svc-auto-approve-bot
 /src/mongo/db/commands/query_cmd/**/update_metrics.* @10gen/query-execution @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/concurrency/OWNERS.yml
@@ -2070,6 +2075,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/query/**/wildcard_test_utils.h @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/mock_yield_policies.h @10gen/query-execution-yielding @svc-auto-approve-bot
 /src/mongo/db/query/**/*yield_policy* @10gen/query-execution-yielding @svc-auto-approve-bot
+/src/mongo/db/query/**/oplog_wait_config.h @10gen/query-execution-yielding @svc-auto-approve-bot
 /src/mongo/db/query/**/*plan_executor* @10gen/query-execution-classic @svc-auto-approve-bot
 /src/mongo/db/query/**/plan_insert_listener* @10gen/query-execution-classic @svc-auto-approve-bot
 /src/mongo/db/query/**/sbe* @10gen/query-execution-sbe @svc-auto-approve-bot

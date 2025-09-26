@@ -86,7 +86,11 @@ public:
 
     std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
                                           const StorageGlobalParams& params,
-                                          const StorageEngineLockFile* lockFile) const override {
+                                          const StorageEngineLockFile* lockFile,
+                                          bool isReplSet,
+                                          bool shouldSkipOplogSampling,
+                                          bool shouldRecoverFromOplogAsStandalone,
+                                          bool inStandaloneMode) const override {
         if (lockFile && lockFile->createdByUncleanShutdown()) {
             LOGV2_WARNING(22302, "Recovering data from the last clean checkpoint.");
 
@@ -148,6 +152,10 @@ public:
                                                  std::move(wtConfig),
                                                  params.inMemory,
                                                  params.repair,
+                                                 isReplSet,
+                                                 shouldSkipOplogSampling,
+                                                 shouldRecoverFromOplogAsStandalone,
+                                                 inStandaloneMode,
                                                  opCtx->getServiceContext()->getPeriodicRunner());
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
         kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);

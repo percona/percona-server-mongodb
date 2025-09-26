@@ -41,6 +41,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonmisc.h"
+#include "mongo/db/global_settings.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/error.h"
 #include "mongo/db/encryption/key.h"
@@ -48,6 +49,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/key_operations.h"
 #include "mongo/db/encryption/master_key_provider.h"
+#include "mongo/db/repl/repl_set_member_in_standalone_mode.h"
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
@@ -445,6 +447,10 @@ protected:
             std::move(wtConfig),
             false,
             false,
+            getGlobalReplSettings().isReplSet(),
+            repl::ReplSettings::shouldSkipOplogSampling(),
+            repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
+            getReplSetMemberInStandaloneMode(getGlobalServiceContext()),
             _runner.get(),
             FakeMasterKeyProviderFactory(_vaultServer, _kmipServer));
         engine->notifyStorageStartupRecoveryComplete();
