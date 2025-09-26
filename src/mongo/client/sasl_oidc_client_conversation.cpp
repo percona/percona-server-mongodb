@@ -307,7 +307,7 @@ StatusWith<bool> SaslOIDCClientConversation::_secondStep(StringData input,
     if (_accessToken.empty()) {
         // Currently, only device authorization flow is supported for token acquisition.
         // Parse device authorization endpoint from input.
-        ConstDataRange inputCdr(input.rawData(), input.size());
+        ConstDataRange inputCdr(input.data(), input.size());
         auto payload = inputCdr.read<Validated<BSONObj>>().val;
         auto serverReply = auth::OIDCMechanismServerStep1::parse(
             IDLParserContext{"oidcServerStep1Reply"}, payload);

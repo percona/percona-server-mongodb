@@ -518,7 +518,7 @@ REGISTER_DOCUMENT_SOURCE(lookup,
 ALLOCATE_DOCUMENT_SOURCE_ID(lookup, DocumentSourceLookUp::id)
 
 const char* DocumentSourceLookUp::getSourceName() const {
-    return kStageName.rawData();
+    return kStageName.data();
 }
 
 bool DocumentSourceLookUp::foreignShardedLookupAllowed() const {
@@ -644,7 +644,7 @@ DocumentSource::GetNextResult DocumentSourceLookUp::doGetNext() {
         pipeline = buildPipeline(_fromExpCtx, inputDoc);
         LOGV2_DEBUG(
             9497000, 5, "Built pipeline", "pipeline"_attr = pipeline->serializeForLogging());
-    } catch (const ExceptionForCat<ErrorCategory::StaleShardVersionError>& ex) {
+    } catch (const ExceptionFor<ErrorCategory::StaleShardVersionError>& ex) {
         // If lookup on a sharded collection is disallowed and the foreign collection is sharded,
         // throw a custom exception.
         if (auto staleInfo = ex.extraInfo<StaleConfigInfo>(); staleInfo &&

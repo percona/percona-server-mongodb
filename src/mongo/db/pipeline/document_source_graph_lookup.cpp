@@ -124,7 +124,7 @@ REGISTER_DOCUMENT_SOURCE(graphLookup,
 ALLOCATE_DOCUMENT_SOURCE_ID(graphLookup, DocumentSourceGraphLookUp::id)
 
 const char* DocumentSourceGraphLookUp::getSourceName() const {
-    return kStageName.rawData();
+    return kStageName.data();
 }
 
 DocumentSource::GetNextResult DocumentSourceGraphLookUp::doGetNext() {
@@ -549,7 +549,7 @@ void DocumentSourceGraphLookUp::performSearch() {
     try {
         doBreadthFirstSearch();
         _visitedFromValues.clear();
-    } catch (const ExceptionForCat<ErrorCategory::StaleShardVersionError>& ex) {
+    } catch (const ExceptionFor<ErrorCategory::StaleShardVersionError>& ex) {
         // If lookup on a sharded collection is disallowed and the foreign collection is sharded,
         // throw a custom exception.
         if (auto staleInfo = ex.extraInfo<StaleConfigInfo>(); staleInfo &&

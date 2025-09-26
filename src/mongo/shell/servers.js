@@ -371,6 +371,7 @@ MongoRunner.logicalOptions = {
     arbiter: true,
     binVersion: true,
     waitForConnect: true,
+    waitForConnectTimeoutMS: true,
     bridgeOptions: true,
     skipValidation: true,
     backupOnRestartDir: true,
@@ -952,6 +953,7 @@ MongoRunner.runMongod = function(opts) {
     var useHostName = true;
     var runId = null;
     var waitForConnect = true;
+    var waitForConnectTimeoutMS = undefined;
     var fullOptions = opts;
 
     if (isObject(opts)) {
@@ -968,6 +970,7 @@ MongoRunner.runMongod = function(opts) {
         env = opts.env;
         runId = opts.runId;
         waitForConnect = opts.waitForConnect;
+        waitForConnectTimeoutMS = opts.waitForConnectTimeoutMS;
 
         let backupOnRestartDir = jsTest.options()["backupOnRestartDir"] || false;
 
@@ -994,7 +997,7 @@ MongoRunner.runMongod = function(opts) {
         opts = MongoRunner.arrOptions("mongod", opts);
     }
 
-    var mongod = MongoRunner._startWithArgs(opts, env, waitForConnect);
+    var mongod = MongoRunner._startWithArgs(opts, env, waitForConnect, waitForConnectTimeoutMS);
     if (!mongod) {
         return null;
     }
@@ -1030,6 +1033,7 @@ MongoRunner.runMongos = function(opts) {
     var useHostName = false;
     var runId = null;
     var waitForConnect = true;
+    var waitForConnectTimeoutMS = undefined;
     var fullOptions = opts;
 
     if (isObject(opts)) {
@@ -1039,11 +1043,12 @@ MongoRunner.runMongos = function(opts) {
         useHostName = opts.useHostName || opts.useHostname;
         runId = opts.runId;
         waitForConnect = opts.waitForConnect;
+        waitForConnectTimeoutMS = opts.waitForConnectTimeoutMS;
         env = opts.env;
         opts = MongoRunner.arrOptions("mongos", opts);
     }
 
-    var mongos = MongoRunner._startWithArgs(opts, env, waitForConnect);
+    var mongos = MongoRunner._startWithArgs(opts, env, waitForConnect, waitForConnectTimeoutMS);
     if (!mongos) {
         return null;
     }
@@ -1557,7 +1562,9 @@ function appendSetParameterArgs(argArray) {
  * @param {int} [port] the port of the node to connect to.
  * @returns a new Mongo connection object, or null if the process gracefully terminated.
  */
-MongoRunner.awaitConnection = function({pid, port} = {}) {
+MongoRunner.awaitConnection = function({pid, port, waitTimeoutMS} = {
+    waitTimeoutMS: 600 * 1000
+}) {
     var conn = null;
     assert.soon(function() {
         try {
@@ -1577,7 +1584,7 @@ MongoRunner.awaitConnection = function({pid, port} = {}) {
             }
         }
         return false;
-    }, "unable to connect to mongo program on port " + port, 600 * 1000);
+    }, "unable to connect to mongo program on port " + port, waitTimeoutMS);
     return conn;
 };
 
@@ -1588,7 +1595,7 @@ MongoRunner.awaitConnection = function({pid, port} = {}) {
  *     returns connection to process on success;
  *     otherwise returns null if we fail to connect.
  */
-MongoRunner._startWithArgs = function(argArray, env, waitForConnect) {
+MongoRunner._startWithArgs = function(argArray, env, waitForConnect, waitForConnectTimeoutMS) {
     // TODO: Make there only be one codepath for starting mongo processes
 
     // The config fuzzer does not apply all fuzzed configurations to mongo binaries executed via
@@ -1623,7 +1630,8 @@ MongoRunner._startWithArgs = function(argArray, env, waitForConnect) {
         };
     }
 
-    return MongoRunner.awaitConnection({pid, port});
+    return MongoRunner.awaitConnection(
+        {pid: pid, port: port, waitTimeoutMS: waitForConnectTimeoutMS});
 };
 
 /**

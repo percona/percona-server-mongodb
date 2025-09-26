@@ -12,6 +12,7 @@
 /perf.data
 /perf.data.old
 /massif.out.*
+/modules_dump.yaml
 venv
 
 *~
