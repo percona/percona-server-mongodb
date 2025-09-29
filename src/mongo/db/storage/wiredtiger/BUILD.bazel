@@ -43,8 +43,8 @@ mongo_cc_library(
     srcs = [
         "encryption_extension.c",
         "encryption_keydb.cpp",
-        "spill_kv_engine.cpp",
-        "spill_record_store.cpp",
+        "spill_wiredtiger_kv_engine.cpp",
+        "spill_wiredtiger_record_store.cpp",
         "wiredtiger_backup_cursor_hooks.cpp",
         "wiredtiger_begin_transaction_block.cpp",
         "wiredtiger_compiled_configuration.cpp",
@@ -74,9 +74,9 @@ mongo_cc_library(
     hdrs = [
         "encryption_keydb.h",
         "encryption_keydb_c_api.h",
-        "spill_kv_engine.h",
-        "spill_record_store.h",
         "spill_recovery_unit.h",
+        "spill_wiredtiger_kv_engine.h",
+        "spill_wiredtiger_record_store.h",
         "wiredtiger_backup_cursor_hooks.h",
         "wiredtiger_begin_transaction_block.h",
         "wiredtiger_compiled_configuration.h",
@@ -298,7 +298,7 @@ mongo_cc_unit_test(
 mongo_cc_unit_test(
     name = "storage_wiredtiger_record_store_and_index_test",
     srcs = [
-        "spill_record_store_test.cpp",
+        "spill_wiredtiger_record_store_test.cpp",
         "wiredtiger_index_test.cpp",
         "wiredtiger_record_store_test.cpp",
         "wiredtiger_standard_index_test.cpp",
