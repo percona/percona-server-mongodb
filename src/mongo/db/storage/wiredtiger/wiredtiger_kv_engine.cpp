@@ -34,10 +34,6 @@
     LOGV2_DEBUG_OPTIONS(                             \
         ID, DLEVEL, {logv2::LogComponent::kReplicationRollback}, MESSAGE, ##__VA_ARGS__)
 
-#ifdef _WIN32
-#define NVALGRIND
-#endif
-
 #include <absl/container/node_hash_map.h>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/filesystem.hpp>
@@ -48,7 +44,6 @@
 #include <fmt/format.h>
 #include <libarchive/archive.h>
 #include <libarchive/archive_entry.h>
-#include <valgrind/valgrind.h>
 // IWYU pragma: no_include "boost/system/detail/error_code.hpp"
 #include <wiredtiger.h>
 
@@ -161,7 +156,6 @@ MONGO_FAIL_POINT_DEFINE(WTPreserveSnapshotHistoryIndefinitely);
 MONGO_FAIL_POINT_DEFINE(WTSetOldestTSToStableTS);
 MONGO_FAIL_POINT_DEFINE(WTRollbackToStableReturnOnEBUSY);
 MONGO_FAIL_POINT_DEFINE(hangBeforeUnrecoverableRollbackError);
-MONGO_FAIL_POINT_DEFINE(WTDisableFastShutDown);
 MONGO_FAIL_POINT_DEFINE(WTFailImportSortedDataInterface);
 
 const std::string kPinOldestTimestampAtStartupName = "_wt_startup";
@@ -1171,7 +1165,8 @@ WiredTigerKVEngine::~WiredTigerKVEngine() {
     // storage engine.
     ServerParameterSet::getNodeParameterSet()->remove("wiredTigerEngineRuntimeConfig");
 
-    cleanShutdown();
+    bool memLeakAllowed = true;
+    cleanShutdown(memLeakAllowed);
 
     _restEncr.reset(nullptr);
     _connection.reset(nullptr);
@@ -1311,7 +1306,7 @@ void WiredTigerKVEngine::_openWiredTiger(const std::string& path, const std::str
                         "details"_attr = wtRCToStatus(ret, nullptr).reason());
 }
 
-void WiredTigerKVEngine::cleanShutdown() {
+void WiredTigerKVEngine::cleanShutdown(bool memLeakAllowed) {
     LOGV2(22317, "WiredTigerKVEngine shutting down");
     // Ensure that key db is destroyed on exit
     ON_BLOCK_EXIT([&] { _restEncr.reset(nullptr); });
@@ -1346,20 +1341,9 @@ void WiredTigerKVEngine::cleanShutdown() {
 
     _waitUntilDurableSession.reset();
 
-    // We want WiredTiger to leak memory for faster shutdown except when we are running tools to
-    // look for memory leaks.
-    bool leak_memory = !kAddressSanitizerEnabled;
     std::string closeConfig = "";
 
-    if (RUNNING_ON_VALGRIND) {  // NOLINT
-        leak_memory = false;
-    }
-
-    if (MONGO_unlikely(WTDisableFastShutDown.shouldFail())) {
-        leak_memory = false;
-    }
-
-    if (leak_memory) {
+    if (memLeakAllowed) {
         closeConfig = "leak_memory=true,";
     }
 

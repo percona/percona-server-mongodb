@@ -603,8 +603,8 @@ private:
         return std::move(sm);
     }
 
-    RAIIServerParameterControllerForTest featureFlagController{
-        "featureFlagRateLimitIngressConnectionEstablishment", true};
+    RAIIServerParameterControllerForTest featureEnabled{
+        "ingressConnectionEstablishmentRateLimiterEnabled", true};
     unittest::MinimumLoggedSeverityGuard logSeverityGuard{logv2::LogComponent::kDefault,
                                                           logv2::LogSeverity::Debug(4)};
 };
@@ -632,8 +632,8 @@ TEST_F(ConnectionEstablishmentQueueingTest, RejectEstablishmentWhenQueueingDisab
 
     // Rejected connections should be counted in both server status sections.
     ASSERT_EQ(getConnectionStats()["rejected"].numberLong(), 1);
-    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["totalRejected"].numberLong(), 1);
-    ASSERT_EQ(getConnectionStats()["queued"].numberLong(), 0);
+    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["rejected"].numberLong(), 1);
+    ASSERT_EQ(getConnectionStats()["queuedForEstablishment"].numberLong(), 0);
     ASSERT_EQ(getConnectionStats()["totalCreated"].numberLong(), 2);
 
     joinSessions();
@@ -657,9 +657,10 @@ TEST_F(ConnectionEstablishmentQueueingTest, InterruptQueuedEstablishments) {
     startSession();
 
     // Ensure the session queues.
-    waitUntil([&] { return getConnectionStats()["queued"].numberLong() == 1; });
-    // Queued connections should be counted in "queued", "totalCreated", and "available" stats.
-    ASSERT_EQ(getConnectionStats()["queued"].numberLong(), 1);
+    waitUntil([&] { return getConnectionStats()["queuedForEstablishment"].numberLong() == 1; });
+    // Queued connections should be counted in "queuedForEstablishment", "totalCreated", and
+    // "available" stats.
+    ASSERT_EQ(getConnectionStats()["queuedForEstablishment"].numberLong(), 1);
     ASSERT_EQ(getConnectionStats()["available"].numberLong(), initialAvailable - 1);
     ASSERT_EQ(getConnectionStats()["totalCreated"].numberLong(), 2);
 
@@ -670,7 +671,7 @@ TEST_F(ConnectionEstablishmentQueueingTest, InterruptQueuedEstablishments) {
     getServiceContext()->setKillAllOperations();
     expect<Event::sepEndSession>();
 
-    ASSERT_EQ(getConnectionStats()["queued"].numberLong(), 0);
+    ASSERT_EQ(getConnectionStats()["queuedForEstablishment"].numberLong(), 0);
 
     joinSessions();
 }
@@ -678,7 +679,8 @@ TEST_F(ConnectionEstablishmentQueueingTest, InterruptQueuedEstablishments) {
 TEST_F(ConnectionEstablishmentQueueingTest, BypassQueueingEstablishment) {
     std::string ip = "127.0.0.1";
     RAIIServerParameterControllerForTest exemptionsGuard(
-        "maxEstablishingConnectionsOverride", BSON("ranges" << BSONArray(BSON("0" << ip))));
+        "ingressConnectionEstablishmentRateLimiterBypass",
+        BSON("ranges" << BSONArray(BSON("0" << ip))));
     RAIIServerParameterControllerForTest refreshRate{"ingressConnectionEstablishmentRatePerSec",
                                                      1.0};
     RAIIServerParameterControllerForTest burstSize{"ingressConnectionEstablishmentBurstSize", 1};
@@ -693,14 +695,14 @@ TEST_F(ConnectionEstablishmentQueueingTest, BypassQueueingEstablishment) {
                          SockAddr::create("192.168.0.53", 27017, AF_INET));
     startSession();
     expect<Event::sepEndSession>();
-    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["totalRejected"].numberLong(), 1);
+    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["rejected"].numberLong(), 1);
 
     // Exempted ips get through.
     initializeNewSession(HostAndPort(ip, 27017), SockAddr::create(ip, 27017, AF_INET));
     startSession();
     expect<Event::sessionSourceMessage>(kClosedSessionError);
     expect<Event::sepEndSession>();
-    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["totalExempted"].numberLong(), 1);
+    ASSERT_EQ(getConnectionStats()["establishmentRateLimit"]["exempted"].numberLong(), 1);
 
     joinSessions();
 }

@@ -395,7 +395,8 @@ Status dropCollectionsWithPrefix(OperationContext* opCtx,
     return status;
 }
 
-void shutDownCollectionCatalogAndGlobalStorageEngineCleanly(ServiceContext* service) {
+void shutDownCollectionCatalogAndGlobalStorageEngineCleanly(ServiceContext* service,
+                                                            bool memLeakAllowed) {
     if (auto truncateMarkers = LocalOplogInfo::get(service)->getTruncateMarkers()) {
         truncateMarkers->kill();
     }
@@ -409,7 +410,7 @@ void shutDownCollectionCatalogAndGlobalStorageEngineCleanly(ServiceContext* serv
         catalog.onCloseCatalog();
         catalog.deregisterAllCollectionsAndViews(service);
     });
-    shutdownGlobalStorageEngineCleanly(service);
+    shutdownGlobalStorageEngineCleanly(service, memLeakAllowed);
 }
 
 StorageEngine::LastShutdownState startUpStorageEngineAndCollectionCatalog(

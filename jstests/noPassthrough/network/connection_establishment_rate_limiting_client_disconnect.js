@@ -43,14 +43,15 @@ const testKillOnClientDisconnect = (conn) => {
     if (isLinux()) {
         assert.soon(() => checkLog.checkContainsOnceJson(
                         conn, 20883));  // Interrupted operation as its client disconnected
-        assert.soon(
-            () => (1 ==
-                   getConnectionStats(
-                       conn)["establishmentRateLimit"]["totalInterruptedDueToClientDisconnect"]));
+        assert.soon(() =>
+                        (1 ==
+                         getConnectionStats(
+                             conn)["establishmentRateLimit"]["interruptedDueToClientDisconnect"]));
     }
 };
 
 const testKillOnClientDisconnectOpts = {
+    ingressConnectionEstablishmentRateLimiterEnabled: true,
     ingressConnectionEstablishmentRatePerSec: 1,
     ingressConnectionEstablishmentBurstSize: 1,
     ingressConnectionEstablishmentMaxQueueDepth: maxQueueSize,
