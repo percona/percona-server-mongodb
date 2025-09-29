@@ -74,7 +74,18 @@ public:
                                                   bool inStandaloneMode) const {
         syncInMemoryAndWiredTigerOptions();
 
-        size_t cacheMB = WiredTigerUtil::getCacheSizeMB(wiredTigerGlobalOptions.cacheSizeGB);
+        size_t cacheMB = WiredTigerUtil::getMainCacheSizeMB(wiredTigerGlobalOptions.cacheSizeGB);
+        const double memoryThresholdPercentage = 0.8;
+        ProcessInfo p;
+        if (p.supported()) {
+            if (cacheMB > memoryThresholdPercentage * p.getMemSizeMB()) {
+                LOGV2_OPTIONS(
+                    29146,
+                    {logv2::LogTag::kStartupWarnings},
+                    "The configured WiredTiger cache size is more than 80% of available RAM");
+            }
+        }
+
         const bool ephemeral = true;
         WiredTigerKVEngine::WiredTigerConfig wtConfig = getWiredTigerConfigFromStartupOptions();
         wtConfig.cacheSizeMB = cacheMB;
