@@ -59,6 +59,89 @@ REGISTER_DOCUMENT_SOURCE_WITH_FEATURE_FLAG(scoreFusion,
                                            AllowedWithApiStrict::kNeverInVersion1,
                                            &feature_flags::gFeatureFlagSearchHybridScoringFull);
 namespace {
+
+// The ScoreFusionScoringOptions class validates and stores the normalization,
+// combination.method, and combination.expression fields. combination.expression is not
+// immediately parsed into an expression because any pipelines variables it references will be
+// considered undefined and will therefore throw an error at parsing time.
+// combination.expression will only be parsed into an expression when the enclosing $let var
+// (which defines the pipeline variables) is constructed.
+class ScoreFusionScoringOptions {
+public:
+    ScoreFusionScoringOptions(const ScoreFusionSpec& spec) {
+        _normalizationMethod = spec.getInput().getNormalization();
+        auto& combination = spec.getCombination();
+        // The default combination method is avg if no combination method is specified.
+        ScoreFusionCombinationMethodEnum combinationMethod = ScoreFusionCombinationMethodEnum::kAvg;
+        boost::optional<IDLAnyType> combinationExpression = boost::none;
+        if (combination.has_value() && combination->getMethod().has_value()) {
+            combinationMethod = combination->getMethod().get();
+            uassert(10017300,
+                    "combination.expression should only be specified when combination.method "
+                    "has the value \"expression\"",
+                    (combinationMethod != ScoreFusionCombinationMethodEnum::kExpression &&
+                     !combination->getExpression().has_value()) ||
+                        (combinationMethod == ScoreFusionCombinationMethodEnum::kExpression &&
+                         combination->getExpression().has_value()));
+            combinationExpression = combination->getExpression();
+            uassert(10017301,
+                    "both combination.expression and combination.weights cannot be specified",
+                    !(combination->getWeights().has_value() && combinationExpression.has_value()));
+        }
+        _combinationMethod = std::move(combinationMethod);
+        _combinationExpression = std::move(combinationExpression);
+    }
+
+    ScoreFusionNormalizationEnum getNormalizationMethod() const {
+        return _normalizationMethod;
+    }
+
+    std::string getNormalizationString(ScoreFusionNormalizationEnum normalization) const {
+        switch (normalization) {
+            case ScoreFusionNormalizationEnum::kSigmoid:
+                return "sigmoid";
+            case ScoreFusionNormalizationEnum::kMinMaxScaler:
+                return "minMaxScaler";
+            case ScoreFusionNormalizationEnum::kNone:
+                return "none";
+            default:
+                // Only one of the above options can be specified for normalization.
+                MONGO_UNREACHABLE_TASSERT(9467100);
+        }
+    }
+
+    ScoreFusionCombinationMethodEnum getCombinationMethod() const {
+        return _combinationMethod;
+    }
+
+    std::string getCombinationMethodString(ScoreFusionCombinationMethodEnum comboMethod) const {
+        switch (comboMethod) {
+            case ScoreFusionCombinationMethodEnum::kExpression:
+                return "custom expression";
+            case ScoreFusionCombinationMethodEnum::kAvg:
+                return "average";
+            default:
+                // Only one of the above options can be specified for combination.method.
+                MONGO_UNREACHABLE_TASSERT(9467101);
+        }
+    }
+
+    boost::optional<IDLAnyType> getCombinationExpression() const {
+        return _combinationExpression;
+    }
+
+private:
+    // The default normalization value is ScoreFusionCombinationMethodEnum::kNone. The IDL
+    // handles the default behavior.
+    ScoreFusionNormalizationEnum _normalizationMethod;
+    // The default combination.method value is ScoreFusionCombinationMethodEnum::kAvg. The IDL
+    // handles the default behavior.
+    ScoreFusionCombinationMethodEnum _combinationMethod;
+    // This field should only be populated when combination.method has the value
+    // ScoreFusionCombinationMethodEnum::kExpression.
+    boost::optional<IDLAnyType> _combinationExpression = boost::none;
+};
+
 // Description that gets set as part of $scoreFusion's scoreDetails metadata.
 static const std::string scoreFusionScoreDetailsDescription =
     "the value calculated by combining the scores (either normalized or raw) across "
@@ -162,8 +245,8 @@ boost::intrusive_ptr<DocumentSource> buildScoreAddFieldsStage(
 }
 
 /**
- * Builds and returns an $addFields stage. Here, rawScore refers the incoming score from the input
- * pipeline prior to any normalization or weighting:
+ * Builds and returns an $addFields stage. Here, rawScore refers to the incoming score from the
+ * input pipeline prior to any normalization or weighting:
  * {$addFields:
  *     {<inputPipelineName>_rawScore:
  *         {
@@ -195,8 +278,43 @@ boost::intrusive_ptr<DocumentSource> buildReplaceRootStage(
 }
 
 /**
+ * Builds and returns an $addFields stage that materializes scoreDetails for an individual input
+ * pipeline. The way we materialize scoreDetails depends on if the input pipeline generates "score"
+ * or "scoreDetails" metadata.
+ *
+ * Later, these individual input pipeline scoreDetails will be gathered together in order to build
+ * scoreDetails for the overall $scoreFusion pipeline (see calculateFinalScoreDetails()).
+ */
+boost::intrusive_ptr<DocumentSource> addInputPipelineScoreDetails(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
+    const StringData inputPipelinePrefix,
+    const bool inputGeneratesScoreDetails) {
+    const std::string scoreDetails = fmt::format("{}_scoreDetails", inputPipelinePrefix);
+    BSONObjBuilder bob;
+    {
+        BSONObjBuilder addFieldsBob(bob.subobjStart("$addFields"_sd));
+
+        if (inputGeneratesScoreDetails) {
+            // If the input pipeline generates scoreDetails (for example, $search may generate
+            // searchScoreDetails), then we'll use the existing details:
+            // {$addFields: {prefix_scoreDetails: details: {$meta: "scoreDetails"}}}}
+            addFieldsBob.append(scoreDetails, BSON("details" << BSON("$meta" << "scoreDetails")));
+        } else {
+            // All $scoreFusion input pipelines must be scored (generate a score).
+
+            // Build our own scoreDetails for the pipeline like:
+            // {$addFields: {prefix_scoreDetails: {details: []}}}
+            addFieldsBob.append(scoreDetails, BSON("details" << BSONArrayBuilder().arr()));
+        }
+    }
+    const auto spec = bob.obj();
+    return DocumentSourceAddFields::createFromBson(spec.firstElement(), expCtx);
+}
+
+/**
  * Adds the following stages for scoreDetails:
  * {$addFields: {<inputPipelineName>_rawScore: { "$meta": "score" } } }
+ * {$setMetadata: {score: "$<inputPipelineName>_score"}
  * {$addFields: {<inputPipelineName>_scoreDetails: ...} }. See addScoreDetails' comment for what the
  * possible values for <inputPipelineName>_scoreDetails are.
  */
@@ -212,12 +330,8 @@ std::list<boost::intrusive_ptr<DocumentSource>> buildInputPipelineScoreDetails(
             expCtx,
             ExpressionFieldPath::parse(expCtx.get(), scoreName, expCtx->variablesParseState),
             DocumentMetadataFields::MetaType::kScore);
-    // All input pipleines for $scoreFusion generate score metadata so always pass true for the
-    // 'inputGeneratesScore' parameter.
-    const bool inputGeneratesScore = true;
     boost::intrusive_ptr<DocumentSource> scoreDetailsAddFields =
-        hybrid_scoring_util::score_details::addScoreDetails(
-            expCtx, inputPipelineName, inputGeneratesScore, inputGeneratesScoreDetails);
+        addInputPipelineScoreDetails(expCtx, inputPipelineName, inputGeneratesScoreDetails);
     std::list<boost::intrusive_ptr<DocumentSource>> initialScoreDetails = {
         std::move(rawScoreAddFields),
         std::move(setPipelineScoreMetadata),
@@ -261,7 +375,7 @@ std::list<boost::intrusive_ptr<DocumentSource>> buildFirstPipelineStages(
         std::list<boost::intrusive_ptr<DocumentSource>> initialScoreDetailsStages =
             buildInputPipelineScoreDetails(
                 inputPipelineOneName, inputGeneratesScoreDetails, expCtx);
-        outputStages.splice(outputStages.end(), initialScoreDetailsStages);
+        outputStages.splice(outputStages.end(), std::move(initialScoreDetailsStages));
     }
     return outputStages;
 }
@@ -357,7 +471,7 @@ BSONObj groupEachScore(
 boost::intrusive_ptr<DocumentSource> buildSetScoreStage(
     const auto& expCtx,
     const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& inputPipelines,
-    const DocumentSourceScoreFusion::ScoreFusionScoringOptions scoreFusionScoringOptions) {
+    const ScoreFusionScoringOptions scoreFusionScoringOptions) {
     ScoreFusionCombinationMethodEnum combinationMethod =
         scoreFusionScoringOptions.getCombinationMethod();
     // Default is to average the scores.
@@ -483,7 +597,7 @@ boost::intrusive_ptr<DocumentSource> buildUnionWithPipelineStage(
 
  */
 boost::intrusive_ptr<DocumentSource> constructScoreDetailsMetadata(
-    const DocumentSourceScoreFusion::ScoreFusionScoringOptions scoreFusionScoringOptions,
+    const ScoreFusionScoringOptions scoreFusionScoringOptions,
     const boost::intrusive_ptr<ExpressionContext>& expCtx) {
     BSONObjBuilder combinationBob(
         BSON("method" << scoreFusionScoringOptions.getCombinationMethodString(
@@ -524,7 +638,7 @@ boost::intrusive_ptr<DocumentSource> constructScoreDetailsMetadata(
  */
 std::list<boost::intrusive_ptr<DocumentSource>> buildScoreAndMergeStages(
     const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& inputPipelines,
-    const DocumentSourceScoreFusion::ScoreFusionScoringOptions metadata,
+    const ScoreFusionScoringOptions metadata,
     const StringMap<double>& weights,
     const bool includeScoreDetails,
     const boost::intrusive_ptr<ExpressionContext>& expCtx) {
@@ -571,9 +685,11 @@ std::unique_ptr<DocumentSourceScoreFusion::LiteParsed> DocumentSourceScoreFusion
 
     // Parse each pipeline.
     std::vector<LiteParsedPipeline> liteParsedPipelines;
-    for (const auto& elem : inputPipesObj) {
-        liteParsedPipelines.emplace_back(nss, parsePipelineFromBSON(elem));
-    }
+    std::transform(
+        inputPipesObj.begin(),
+        inputPipesObj.end(),
+        std::back_inserter(liteParsedPipelines),
+        [nss](const auto& elem) { return LiteParsedPipeline(nss, parsePipelineFromBSON(elem)); });
 
     return std::make_unique<DocumentSourceScoreFusion::LiteParsed>(
         spec.fieldName(), nss, std::move(liteParsedPipelines));
@@ -584,17 +700,16 @@ std::unique_ptr<DocumentSourceScoreFusion::LiteParsed> DocumentSourceScoreFusion
  * the input pipeline names to pipeline objects and a map of pipeline names to score paths.
  */
 std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>
-parseAndValidateScoredSelectionPipelines(const BSONElement& elem,
-                                         const ScoreFusionSpec& spec,
+parseAndValidateScoredSelectionPipelines(const ScoreFusionSpec& spec,
                                          const boost::intrusive_ptr<ExpressionContext>& pExpCtx) {
     std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>> inputPipelines;
-    for (const auto& elem : spec.getInput().getPipelines()) {
-        auto pipeline = Pipeline::parse(parsePipelineFromBSON(elem), pExpCtx);
+    for (const auto& innerPipelineBsonElem : spec.getInput().getPipelines()) {
+        auto pipeline = Pipeline::parse(parsePipelineFromBSON(innerPipelineBsonElem), pExpCtx);
         // Ensure that all pipelines are valid scored selection pipelines.
         scoreFusionPipelineValidator(*pipeline);
 
         // Validate pipeline name.
-        auto inputName = elem.fieldName();
+        auto inputName = innerPipelineBsonElem.fieldName();
         uassertStatusOKWithContext(
             FieldPath::validateFieldName(inputName),
             "$scoreFusion pipeline names must follow the naming rules of field path expressions.");
@@ -647,9 +762,7 @@ std::list<boost::intrusive_ptr<DocumentSource>> constructDesugaredOutput(
                                                                 inputGeneratesScoreDetails,
                                                                 inputPipelineStages,
                                                                 pExpCtx);
-            for (auto&& stage : firstPipelineStages) {
-                outputStages.emplace_back(stage);
-            }
+            outputStages.splice(outputStages.end(), std::move(firstPipelineStages));
         } else {
             // For the input pipelines other than the first,
             // we wrap then in a $unionWith stage to append it to the total desugared output.
@@ -669,12 +782,10 @@ std::list<boost::intrusive_ptr<DocumentSource>> constructDesugaredOutput(
     // the correct user input after performing the necessary error checks (ex: verify that if
     // combination.method is 'custom', then the combination.expression should've been specified).
     // Average is the default combination method if no other method is specified.
-    DocumentSourceScoreFusion::ScoreFusionScoringOptions scoreFusionScoringOptions(spec);
+    ScoreFusionScoringOptions scoreFusionScoringOptions(spec);
     auto finalStages = buildScoreAndMergeStages(
         inputPipelines, scoreFusionScoringOptions, weights, includeScoreDetails, pExpCtx);
-    for (auto&& stage : finalStages) {
-        outputStages.emplace_back(stage);
-    }
+    outputStages.splice(outputStages.end(), std::move(finalStages));
     return outputStages;
 }
 
@@ -688,7 +799,7 @@ std::list<boost::intrusive_ptr<DocumentSource>> DocumentSourceScoreFusion::creat
 
     auto spec = ScoreFusionSpec::parse(IDLParserContext(kStageName), elem.embeddedObject());
 
-    const auto& inputPipelines = parseAndValidateScoredSelectionPipelines(elem, spec, pExpCtx);
+    const auto& inputPipelines = parseAndValidateScoredSelectionPipelines(spec, pExpCtx);
     return constructDesugaredOutput(spec, inputPipelines, pExpCtx);
 }
 }  // namespace mongo

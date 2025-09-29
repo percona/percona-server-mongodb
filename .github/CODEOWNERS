@@ -162,7 +162,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharding_unified_write_executor.yml @10gen/query-execution-router @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharded_collections_jscore_passthrough_with_config_transitions_and_add_remove_shard.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharding_jscore_passthrough_with_config_transitions_and_add_remove_shard.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
-/buildscripts/resmokeconfig/suites/**/jstestfuzz_sharded_with_config_transitions_and_add_remove_shard.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/jstestfuzz_sharded_with_config_transitions* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/query_correctness_query_shape_hash_stability_generated_test.yml @10gen/query-execution-query-settings @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokelib/OWNERS.yml
@@ -1289,6 +1289,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/*txn* @10gen/server-transactions @svc-auto-approve-bot
 /jstests/sharding/**/*_with_id_without_shard_key* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/*zone* @10gen/server-cluster-scalability @svc-auto-approve-bot
+/jstests/sharding/**/addShard_block_setFCV.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/analyze_shard_key/OWNERS.yml
 /jstests/sharding/analyze_shard_key/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot

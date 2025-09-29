@@ -107,6 +107,7 @@ DocumentSourceUnionWith::DocumentSourceUnionWith(
     const DocumentSourceUnionWith& original,
     const boost::intrusive_ptr<ExpressionContext>& newExpCtx)
     : DocumentSource(kStageName, newExpCtx),
+      exec::agg::Stage(kStageName, newExpCtx),
       _pipeline(original._pipeline->clone(
           newExpCtx ? newExpCtx->copyForSubPipeline(
                           newExpCtx->getResolvedNamespace(original._userNss).ns,
@@ -124,6 +125,7 @@ DocumentSourceUnionWith::DocumentSourceUnionWith(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     std::unique_ptr<Pipeline, PipelineDeleter> pipeline)
     : DocumentSource(kStageName, expCtx),
+      exec::agg::Stage(kStageName, expCtx),
       _pipeline(std::move(pipeline)),
       _variablesParseState(_variables.useIdGenerator()) {
     if (!_pipeline->getContext()->getNamespaceString().isOnInternalDb()) {
@@ -412,7 +414,6 @@ void DocumentSourceUnionWith::doDispose() {
         _pipeline.get_deleter().dismissDisposal();
         _stats.planSummaryStats.usedDisk =
             _stats.planSummaryStats.usedDisk || _pipeline->usedDisk();
-        std::cout << "BANANA UnionWith::doDispose called on " << this << "\n";
         _execPipeline->accumulatePlanSummaryStats(_stats.planSummaryStats);
 
         if (!_pipeline->getContext()->getExplain()) {

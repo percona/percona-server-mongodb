@@ -39,7 +39,6 @@
 #include "mongo/db/exec/matcher/matcher_geo.h"
 #include "mongo/db/field_ref.h"
 #include "mongo/db/geo/geometry_container.h"
-#include "mongo/db/matcher/expression.h"
 #include "mongo/db/matcher/expression_always_boolean.h"
 #include "mongo/db/matcher/expression_expr.h"
 #include "mongo/db/matcher/expression_geo.h"
@@ -338,24 +337,21 @@ bool _isSubsetOf(const MatchExpression* lhs, const ExistsMatchExpression* rhs) {
                 return false;
             }
 
-            if (internalQueryPlannerDisableDottedPathIsSubsetOfExistsTrue.load()) {
-                // If the path is dotted it is not safe to return true here because of the case
-                // where the document contains an array that doesn't contain objects at a point in
-                // the path where we want to access sub-objects (i.e. there are more elements to the
-                // path). For example:
-                // - Document: {a: []}
-                // - find({"a.b": {$ne: null}}) returns the document
-                // - find({"a.b": {$exists: true}}) does not
-                // So in this case, the {$ne: null} expression is NOT a subset of the $exists
-                // expression. It is also unsafe to return true if the path is dotted but has a
-                // numeric:
-                // - Document: {a: []}
-                // - find({"a.0": {$ne: null}}) returns the document
-                // - find({"a.0": {$exists: true}}) does not
-                // Therefore it is sufficient to just inspect the path for a dot here.
-                if (lhs->getChild(0)->path().find('.') != std::string::npos) {
-                    return false;
-                }
+            // If the path is dotted it is not safe to return true here because of the case where
+            // the document contains an array that doesn't contain objects at a point in the path
+            // where we want to access sub-objects (i.e. there are more elements to the path). For
+            // example:
+            // - Document: {a: []}
+            // - find({"a.b": {$ne: null}}) returns the document
+            // - find({"a.b": {$exists: true}}) does not
+            // So in this case, the {$ne: null} expression is NOT a subset of the $exists
+            // expression. It is also unsafe to return true if the path is dotted but has a numeric:
+            // - Document: {a: []}
+            // - find({"a.0": {$ne: null}}) returns the document
+            // - find({"a.0": {$exists: true}}) does not
+            // Therefore it is sufficient to just inspect the path for a dot here.
+            if (lhs->getChild(0)->path().find('.') != std::string::npos) {
+                return false;
             }
 
             switch (lhs->getChild(0)->matchType()) {
@@ -702,15 +698,17 @@ std::unique_ptr<MatchExpression> splitMatchExpressionForColumns(
 
 namespace expression {
 
-bool hasExistenceOrTypePredicateOnPath(const MatchExpression& expr, StringData path) {
+bool hasPredicateOnPaths(const MatchExpression& expr,
+                         mongo::MatchExpression::MatchType searchType,
+                         const stdx::unordered_set<std::string>& paths) {
     if (expr.getCategory() == MatchExpression::MatchCategory::kLeaf) {
-        return ((expr.matchType() == MatchExpression::MatchType::EXISTS ||
-                 expr.matchType() == MatchExpression::MatchType::TYPE_OPERATOR) &&
-                expr.path() == path);
+        const FieldRef* fieldRef = expr.fieldRef();
+        return ((expr.matchType() == searchType) &&
+                paths.contains(toStdStringViewForInterop(fieldRef->dottedField())));
     }
     for (size_t i = 0; i < expr.numChildren(); i++) {
         MatchExpression* child = expr.getChild(i);
-        if (hasExistenceOrTypePredicateOnPath(*child, path)) {
+        if (hasPredicateOnPaths(*child, searchType, paths)) {
             return true;
         }
     }

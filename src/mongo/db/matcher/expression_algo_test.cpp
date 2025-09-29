@@ -700,8 +700,6 @@ TEST(ExpressionAlgoIsSubsetOf, NinAndExists) {
 }
 
 TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_Nin_Dotted_Path) {
-    RAIIServerParameterControllerForTest controller(
-        "internalQueryPlannerDisableDottedPathIsSubsetOfExistsTrue", true);
     ParsedMatchExpressionForTest aBExists("{'a.b': {$exists: true}}");
     ParsedMatchExpressionForTest aBNin("{'a.b': {$nin: [1, 2, 3]}}");
     ParsedMatchExpressionForTest aBNinWithNull("{'a.b': {$nin: [1, null, 3]}}");
@@ -711,19 +709,6 @@ TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_Nin_Dotted_Path) {
     // This behavior is inconsistent with how top-level fields work. The behavior is similar to the
     // one described in SERVER-36681.
     ASSERT_FALSE(expression::isSubsetOf(aBNinWithNull.get(), aBExists.get()));
-}
-
-TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_Nin_Dotted_Path_Knob_Disabled) {
-    RAIIServerParameterControllerForTest controller(
-        "internalQueryPlannerDisableDottedPathIsSubsetOfExistsTrue", false);
-    ParsedMatchExpressionForTest aBExists("{'a.b': {$exists: true}}");
-    ParsedMatchExpressionForTest aBNin("{'a.b': {$nin: [1, 2, 3]}}");
-    ParsedMatchExpressionForTest aBNinWithNull("{'a.b': {$nin: [1, null, 3]}}");
-
-    ASSERT_FALSE(expression::isSubsetOf(aBNin.get(), aBExists.get()));
-
-    // This behavior was changed in SERVER-36635 and is True only when the above knob is disabled.
-    ASSERT_TRUE(expression::isSubsetOf(aBNinWithNull.get(), aBExists.get()));
 }
 
 TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_NE) {
@@ -738,8 +723,6 @@ TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_NE) {
 }
 
 TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_NE_Dotted_Path) {
-    RAIIServerParameterControllerForTest controller(
-        "internalQueryPlannerDisableDottedPathIsSubsetOfExistsTrue", true);
     ParsedMatchExpressionForTest aBExists("{'a.b': {$exists: true}}");
     ParsedMatchExpressionForTest aBNotEqual1("{'a.b': {$ne: 1}}");
     ParsedMatchExpressionForTest aBNotEqualNull("{'a.b': {$ne: null}}");
@@ -750,22 +733,7 @@ TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_NE_Dotted_Path) {
     ASSERT_FALSE(expression::isSubsetOf(aBNotEqualNull.get(), aBExists.get()));
 }
 
-TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_NE_Dotted_Path_Knob_Disabled) {
-    RAIIServerParameterControllerForTest controller(
-        "internalQueryPlannerDisableDottedPathIsSubsetOfExistsTrue", false);
-    ParsedMatchExpressionForTest aBExists("{'a.b': {$exists: true}}");
-    ParsedMatchExpressionForTest aBNotEqual1("{'a.b': {$ne: 1}}");
-    ParsedMatchExpressionForTest aBNotEqualNull("{'a.b': {$ne: null}}");
-
-    ASSERT_FALSE(expression::isSubsetOf(aBNotEqual1.get(), aBExists.get()));
-
-    // This behavior was changed in SERVER-36635 and is True only when the above knob is disabled.
-    ASSERT_TRUE(expression::isSubsetOf(aBNotEqualNull.get(), aBExists.get()));
-}
-
 TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_NE_Dotted_Numeric) {
-    RAIIServerParameterControllerForTest controller(
-        "internalQueryPlannerDisableDottedPathIsSubsetOfExistsTrue", true);
     ParsedMatchExpressionForTest a0Exists("{'a.0': {$exists: true}}");
     ParsedMatchExpressionForTest a0NotEqual1("{'a.0': {$ne: 1}}");
     ParsedMatchExpressionForTest a0NotEqualNull("{'a.0': {$ne: null}}");
@@ -774,19 +742,6 @@ TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_NE_Dotted_Numeric) {
 
     // This behavior is inconsistent with how top-level fields work. See SERVER-36681.
     ASSERT_FALSE(expression::isSubsetOf(a0NotEqualNull.get(), a0Exists.get()));
-}
-
-TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_NE_Dotted_Numeric_Knob_Disabled) {
-    RAIIServerParameterControllerForTest controller(
-        "internalQueryPlannerDisableDottedPathIsSubsetOfExistsTrue", false);
-    ParsedMatchExpressionForTest a0Exists("{'a.0': {$exists: true}}");
-    ParsedMatchExpressionForTest a0NotEqual1("{'a.0': {$ne: 1}}");
-    ParsedMatchExpressionForTest a0NotEqualNull("{'a.0': {$ne: null}}");
-
-    ASSERT_FALSE(expression::isSubsetOf(a0NotEqual1.get(), a0Exists.get()));
-
-    // This behavior was changed in SERVER-36635 and is True only when the above knob is disabled.
-    ASSERT_TRUE(expression::isSubsetOf(a0NotEqualNull.get(), a0Exists.get()));
 }
 
 TEST(ExpressionAlgoIsSubsetOf, Compare_Exists_EQ) {
@@ -2276,99 +2231,99 @@ TEST(IsPathPrefixOf, ComputesPrefixesCorrectly) {
     ASSERT_FALSE(expression::isPathPrefixOf("a.b", "a"));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, IdentifiesLeavesCorrectly) {
+TEST(hasPredicateOnPaths, IdentifiesLeavesCorrectly) {
     BSONObj matchPredicate = fromjson("{$and: [{a: {$exists: true}}, {b: {$lte: 2}}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_TRUE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "a"_sd));
-    ASSERT_FALSE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "b"_sd));
+    ASSERT_TRUE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::EXISTS, {"a"}));
+    ASSERT_FALSE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::EXISTS, {"b"}));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, HandlesMultiplePredicatesWithSamePath) {
+TEST(hasPredicateOnPaths, HandlesMultiplePredicatesWithSamePath) {
     BSONObj matchPredicate = fromjson("{$and: [{a: {$gt: 5000}}, {a: {$exists: false}}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_TRUE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "a"_sd));
+    ASSERT_TRUE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::EXISTS, {"a"}));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, DeeperTreeTest) {
+TEST(hasPredicateOnPaths, DeeperTreeTest) {
     BSONObj matchPredicate = fromjson(
         "{$and: [{q: {$gt: 5000}}, {$and: [{z: {$lte: 50}},"
         "{$or: [{f : {$gte: 4}}, {a : {$exists : true}}]}]}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_TRUE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "a"_sd));
+    ASSERT_TRUE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::EXISTS, {"a"}));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, HandlesDottedPathsInDeepTree) {
+TEST(hasPredicateOnPaths, HandlesDottedPathsInDeepTree) {
     BSONObj matchPredicate = fromjson(
         "{$and: [{q: {$gt: 5000}}, {$and: [{z: {$lte: 50}},"
         "{$or: [{f : {$gte: 4}}, {'a.b.c.d' : {$exists : true}}]}]}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_TRUE(expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(),
-                                                              "a.b.c.d"_sd));
+    ASSERT_TRUE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::EXISTS, {"a.b.c.d"}));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, ReturnsFalseWhenExistsOnlyOnPrefix) {
+TEST(hasPredicateOnPaths, ReturnsFalseWhenExistsOnlyOnPrefix) {
     BSONObj matchPredicate = fromjson(
         "{$and: [{q: {$gt: 5000}}, {$and: [{z: {$lte: 50}},"
         "{$or: [{f : {$gte: 4}}, {'a' : {$exists : true}}]}]}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_FALSE(expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(),
-                                                               "a.b"_sd));
+    ASSERT_FALSE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::EXISTS, {"a.b"}));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, ReturnsFalseWhenExistsOnSubpath) {
+TEST(hasPredicateOnPaths, ReturnsFalseWhenExistsOnSubpath) {
     BSONObj matchPredicate = fromjson(
         "{$and: [{q: {$gt: 5000}}, {$and: [{z: {$lte: 50}},"
         "{$or: [{f : {$gte: 4}}, {'a.b' : {$exists : true}}]}]}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_FALSE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "a"_sd));
+    ASSERT_FALSE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::EXISTS, {"a"}));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, FindsTypeUsage) {
+TEST(hasPredicateOnPaths, FindsTypeUsage) {
     BSONObj matchPredicate = fromjson("{$and: [{a: {$type: 'string'}}, {b: {$lte: 2}}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_TRUE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "a"_sd));
-    ASSERT_FALSE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "b"_sd));
+    ASSERT_TRUE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::TYPE_OPERATOR, {"a"}));
+    ASSERT_FALSE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::TYPE_OPERATOR, {"b"}));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, IdentifiesBothExistsAndType) {
+TEST(hasPredicateOnPaths, IdentifiesBothExistsAndType) {
     BSONObj matchPredicate = fromjson("{$and: [{a: {$type: 'string'}}, {b: {$exists : true}}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_TRUE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "a"_sd));
-    ASSERT_TRUE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "b"_sd));
+    ASSERT_TRUE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::TYPE_OPERATOR, {"a"}));
+    ASSERT_TRUE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::EXISTS, {"b"}));
 }
 
-TEST(hasExistenceOrTypePredicateOnPath, FindsTypeInSecondPredicate) {
+TEST(hasPredicateOnPaths, FindsTypeInSecondPredicate) {
     BSONObj matchPredicate = fromjson("{$and: [{a: {$gt: 0}}, {a: {$type: 'long'}}]}");
     boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
     auto swMatchExpression = MatchExpressionParser::parse(matchPredicate, std::move(expCtx));
     ASSERT_OK(swMatchExpression.getStatus());
-    ASSERT_TRUE(
-        expression::hasExistenceOrTypePredicateOnPath(*swMatchExpression.getValue().get(), "a"_sd));
+    ASSERT_TRUE(expression::hasPredicateOnPaths(
+        *swMatchExpression.getValue().get(), MatchExpression::MatchType::TYPE_OPERATOR, {"a"}));
 }
 
 struct RemoveImprecisePredicateTestCase {
