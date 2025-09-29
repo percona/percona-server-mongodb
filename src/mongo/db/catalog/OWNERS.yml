@@ -5,7 +5,7 @@ filters:
       - 10gen/server-catalog-and-routing
   - "collection_compact*":
     approvers:
-      - 10gen/server-rss-sydney
+      - 10gen/server-compact
   - "health_log*":
     approvers:
       - 10gen/server-dbcheck
@@ -82,6 +82,10 @@ filters:
   - "collection_yield_restore*":
     approvers:
       - 10gen/server-catalog-and-routing
+  - "durable_catalog*":
+    approvers:
+      - 10gen/server-catalog-and-routing
+      - 10gen/server-storage-engine-integration
   - "historical_catalogid_tracker*":
     approvers:
       - 10gen/server-catalog-and-routing

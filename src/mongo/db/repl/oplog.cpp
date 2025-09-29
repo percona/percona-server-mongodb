@@ -82,6 +82,7 @@
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/op_observer/op_observer_util.h"
 #include "mongo/db/pipeline/change_stream_preimage_gen.h"
+#include "mongo/db/profile_settings.h"
 #include "mongo/db/query/find_command.h"
 #include "mongo/db/query/write_ops/delete.h"
 #include "mongo/db/query/write_ops/delete_request_gen.h"
@@ -640,7 +641,12 @@ void createOplog(OperationContext* opCtx,
 
     const ReplSettings& replSettings = ReplicationCoordinator::get(opCtx)->getSettings();
 
-    OldClientContext ctx(opCtx, oplogCollectionName);
+    AutoStatsTracker statsTracker(opCtx,
+                                  oplogCollectionName,
+                                  Top::LockType::WriteLocked,
+                                  AutoStatsTracker::LogMode::kUpdateTopAndCurOp,
+                                  DatabaseProfileSettings::get(service).getDatabaseProfileLevel(
+                                      oplogCollectionName.dbName()));
     const Collection* collection =
         CollectionCatalog::get(opCtx)->lookupCollectionByNamespace(opCtx, oplogCollectionName);
 
@@ -677,9 +683,14 @@ void createOplog(OperationContext* opCtx,
     options.cappedSize = sz;
     options.autoIndexId = CollectionOptions::NO;
 
+    Database* db = nullptr;
     writeConflictRetry(opCtx, "createCollection", oplogCollectionName, [&] {
         WriteUnitOfWork uow(opCtx);
-        invariant(ctx.db()->createCollection(opCtx, oplogCollectionName, options));
+        if (!db) {
+            auto databaseHolder = DatabaseHolder::get(opCtx);
+            db = databaseHolder->openDb(opCtx, oplogCollectionName.dbName(), nullptr);
+        }
+        invariant(db->createCollection(opCtx, oplogCollectionName, options));
         acquireOplogCollectionForLogging(opCtx);
         if (!isReplSet) {
             service->getOpObserver()->onOpMessage(opCtx, BSONObj());
@@ -1041,6 +1052,17 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
           if (!opCtx->writesAreReplicated()) {
               opTime = entry.getOpTime();
           }
+
+          // renameCollectionForApplyOps assumes that the operation is being applied exclusively,
+          // with no concurrent writers. This holds because this function is only called either from
+          // - The applyOps command, which acquires the global lock in MODE_X, or
+          // - Oplog application, which processes DDLs like rename individually, in their own batch.
+          tassert(
+              10374401,
+              "expected either an exclusive global lock, or to be applying the rename exclusively",
+              mode != repl::OplogApplication::Mode::kApplyOpsCmd ||
+                  shard_role_details::getLocker(opCtx)->isW());
+
           return renameCollectionForApplyOps(
               opCtx, entry.getUuid(), entry.getTid(), entry.getObject(), opTime);
       },

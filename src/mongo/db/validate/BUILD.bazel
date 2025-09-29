@@ -64,7 +64,6 @@ mongo_cc_library(
         "//src/mongo/db/catalog:index_catalog",
         "//src/mongo/db/catalog:throttle_cursor",
         "//src/mongo/db/repl:repl_coordinator_interface",
-        "//src/mongo/db/storage:durable_catalog",
         "//src/mongo/db/storage:storage_options",
         "//src/mongo/db/views",
     ],
@@ -122,7 +121,7 @@ mongo_cc_unit_test(
     ],
     tags = [
         "mongo_unittest_first_group",
-        "server-rss-sydney-smoke",
+        "server-integration-smoke",
     ],
     deps = [
         ":collection_validation",

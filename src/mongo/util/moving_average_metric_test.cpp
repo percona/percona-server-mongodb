@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2022-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,22 +27,35 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/util/moving_average_metric.h"
 
-#include "mongo/db/record_id.h"
-#include "mongo/db/storage/bson_collection_catalog_entry.h"
+#include "mongo/db/commands/server_status_metric.h"
+#include "mongo/unittest/unittest.h"
 
 namespace mongo {
-namespace durable_catalog {
-/**
- * Parsed catalog entry of a single `_mdb_catalog` document.
- */
-struct CatalogEntry {
-    RecordId catalogId;
-    std::string ident;
-    const BSONObj indexIdents;
-    std::shared_ptr<BSONCollectionCatalogEntry::MetaData> metadata;
-};
+namespace {
 
-}  // namespace durable_catalog
+TEST(MovingAverageMetricTest, MetricBuilderMovingAverage) {
+    MetricTreeSet trees;
+    auto& someAverageMetricThing =
+        *MetricBuilder<MovingAverageMetric>{"some.averageMetricThing"}.bind(0.2).setTreeSet(&trees);
+
+    // No mention of "averageMetricThing" at first.
+    {
+        BSONObjBuilder b;
+        appendMergedTrees({&trees[ClusterRole::None]}, b);
+        ASSERT_BSONOBJ_EQ(b.obj(), BSON("metrics" << BSON("some" << BSONObj{})));
+    }
+
+    // But once we `addSample`, the metric appears (and its first value is the first sample).
+    {
+        someAverageMetricThing.addSample(-8.3);
+        BSONObjBuilder b;
+        appendMergedTrees({&trees[ClusterRole::None]}, b);
+        ASSERT_BSONOBJ_EQ(b.obj(),
+                          BSON("metrics" << BSON("some" << BSON("averageMetricThing" << -8.3))));
+    }
+}
+
+}  // namespace
 }  // namespace mongo

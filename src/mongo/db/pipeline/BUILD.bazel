@@ -668,6 +668,7 @@ mongo_cc_library(
         "//src/mongo/db/pipeline/window_function:window_function_exec_non_removable_common.h",
         "//src/mongo/s:shard_key_pattern_query_util.h",
         "//src/mongo/s/query/exec:async_results_merger.h",
+        "//src/mongo/s/query/exec:next_high_watermark_determining_strategy.h",
         "//src/mongo/db/pipeline/window_function:window_function_exec_non_removable_range.h",
         "//src/mongo/db/pipeline/window_function:window_function_exec_non_removable_range_common.h",
         "//src/mongo/s/query/exec:router_stage_merge.h",
@@ -1415,7 +1416,6 @@ mongo_cc_unit_test(
         "pipeline_test.cpp",
         "plan_executor_pipeline_test.cpp",
         "resume_token_test.cpp",
-        "sampling_based_initial_split_policy_test.cpp",
         "semantic_analysis_test.cpp",
         "sequential_document_cache_test.cpp",
         "serverless_aggregation_context_fixture.cpp",
@@ -1482,7 +1482,6 @@ mongo_cc_unit_test(
         "//src/mongo/s/query/exec:sharded_agg_test_fixture.h",
     ],
     tags = [
-        "compile_requires_large_memory_gcc",
         # Trying to access /data/db/ is incompatible with the sandbox
         "code_coverage_quarantine",
         "code_coverage_quarantine_SERVER-98846",

@@ -37,14 +37,34 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildfarm/**/* @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/OWNERS.yml
-/buildscripts/ @10gen/devprod-build @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/ @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/burn_in_tests.py @10gen/devprod-correctness @svc-auto-approve-bot
-/buildscripts/publish_new_bazel_version.py @10gen/devprod-build @svc-auto-approve-bot
+/buildscripts/auto_install_db_contrib_tool.sh @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/resmoke.py @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/setup_multiversion_mongodb.py @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/setup_spawnhost_coredump @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/hang_analyzer.py @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/evergreen_resmoke_job_count.py @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/evergreen_gen_smoke_test_tasks.py @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/resmoke_tests_runtime_validate.py @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/powercycle* @10gen/devprod-correctness @svc-auto-approve-bot
 /buildscripts/golden_test.py @10gen/query-optimization @svc-auto-approve-bot
+
+# The following patterns are parsed from ./buildscripts/antithesis/OWNERS.yml
+/buildscripts/antithesis/ @10gen/devprod-correctness @svc-auto-approve-bot
+
+# The following patterns are parsed from ./buildscripts/bazel_rules_mongo/OWNERS.yml
+/buildscripts/bazel_rules_mongo/ @10gen/devprod-build @10gen/devprod-correctness @svc-auto-approve-bot
+
+# The following patterns are parsed from ./buildscripts/bazel_testbuilds/OWNERS.yml
+/buildscripts/bazel_testbuilds/ @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/cost_model/OWNERS.yml
 /buildscripts/cost_model/**/* @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/cost_model/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+
+# The following patterns are parsed from ./buildscripts/docs/OWNERS.yml
+/buildscripts/docs/ @10gen/devprod-correctness @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/idl/OWNERS.yml
 /buildscripts/idl/**/* @10gen/server-programmability @svc-auto-approve-bot
@@ -53,6 +73,12 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/idl/**/idl_check_compatibility.py @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/idl/**/idl_compatibility_errors.py @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/idl/**/test_compatibility.py @10gen/query-optimization @svc-auto-approve-bot
+
+# The following patterns are parsed from ./buildscripts/resmoke_proxy/OWNERS.yml
+/buildscripts/resmoke_proxy/ @10gen/devprod-correctness @svc-auto-approve-bot
+
+# The following patterns are parsed from ./buildscripts/resmokeconfig/OWNERS.yml
+/buildscripts/resmokeconfig/ @10gen/devprod-correctness @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokeconfig/matrix_suites/OWNERS.yml
 /buildscripts/resmokeconfig/matrix_suites/**/*
@@ -118,7 +144,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/vector_search* @10gen/query-integration-search @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/query_golden* @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/queryable_wt* @10gen/server-backup-restore @svc-auto-approve-bot
-/buildscripts/resmokeconfig/suites/**/read_only* @10gen/server-rss-sydney @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/read_only* @10gen/server-storage-engine-api @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/no_passthrough_network* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/cwrwc* @10gen/server-rw-concerns @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/fcv* @10gen/server-fcv @svc-auto-approve-bot
@@ -140,7 +166,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/query_correctness_query_shape_hash_stability_generated_test.yml @10gen/query-execution-query-settings @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokelib/OWNERS.yml
-/buildscripts/resmokelib/**/* @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/resmokelib/ @10gen/devprod-correctness @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokelib/testing/OWNERS.yml
 /buildscripts/resmokelib/testing/**/queryable_server.py @10gen/server-backup-restore @svc-auto-approve-bot
@@ -168,12 +194,15 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./buildscripts/smoke_tests/OWNERS.yml
 /buildscripts/smoke_tests/**/server_programmability.yml @10gen/server-programmability @svc-auto-approve-bot
 /buildscripts/smoke_tests/**/catalog_and_routing.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
-/buildscripts/smoke_tests/**/rss_sydney.yml @10gen/server-rss-sydney @svc-auto-approve-bot
-/buildscripts/smoke_tests/**/rss_sydney_backup.yml @10gen/server-rss-sydney @svc-auto-approve-bot
+/buildscripts/smoke_tests/**/server_integration.yml @10gen/server-storage-engine-api @svc-auto-approve-bot
+/buildscripts/smoke_tests/**/server_integration_backup.yml @10gen/server-backup-restore @svc-auto-approve-bot
 /buildscripts/smoke_tests/**/server_collection_write_path.yml @10gen/server-collection-write-path @svc-auto-approve-bot
 /buildscripts/smoke_tests/**/server_index_builds.yml @10gen/server-index-builds @svc-auto-approve-bot
 /buildscripts/smoke_tests/**/server_storage_engine_integration.yml @10gen/server-storage-engine-integration @svc-auto-approve-bot
 /buildscripts/smoke_tests/**/server_ttl.yml @10gen/server-ttl @svc-auto-approve-bot
+
+# The following patterns are parsed from ./buildscripts/timeouts/OWNERS.yml
+/buildscripts/timeouts/ @10gen/devprod-correctness @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/tracing_profiler/OWNERS.yml
 /buildscripts/tracing_profiler/**/* @10gen/query @svc-auto-approve-bot
@@ -675,7 +704,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/decimal/**/decimal_update.js @10gen/query-execution-write-exec @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/disk/OWNERS.yml
-/jstests/disk/**/* @10gen/server-rss-sydney @svc-auto-approve-bot
+/jstests/disk/**/* @10gen/server-storage-engine-api @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/fail_point/OWNERS.yml
 /jstests/fail_point/**/* @10gen/server-programmability @svc-auto-approve-bot
@@ -860,6 +889,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/targetedTestsLastLtsFeatures/**/bindata_convert_numeric_view_upgrade_downgrade.js @10gen/query-execution-classic @svc-auto-approve-bot
 /jstests/multiVersion/targetedTestsLastLtsFeatures/**/error_and_log_validation_action.js @10gen/query-execution @svc-auto-approve-bot
 /jstests/multiVersion/targetedTestsLastLtsFeatures/**/create_coll_validator_new_feature_no_applyops_check.js @10gen/query-optimization @svc-auto-approve-bot
+/jstests/multiVersion/targetedTestsLastLtsFeatures/**/profile_filter_query_feature_flag.js @10gen/query-integration-observability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/targetedTestsLastLtsFeatures/storage_engine/OWNERS.yml
 /jstests/multiVersion/targetedTestsLastLtsFeatures/storage_engine/**/* @10gen/server-storage-engine-integration @svc-auto-approve-bot
@@ -904,7 +934,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/noPassthrough/collStats/**/* @10gen/server-storage-engine-integration @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/compact/OWNERS.yml
-/jstests/noPassthrough/compact/**/* @10gen/server-rss-sydney @svc-auto-approve-bot
+/jstests/noPassthrough/compact/**/* @10gen/server-compact @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/compression/OWNERS.yml
 /jstests/noPassthrough/compression/**/* @10gen/server-storage-engine-integration @svc-auto-approve-bot
@@ -934,7 +964,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/noPassthrough/direct_conn_to_shard/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/directoryperdb/OWNERS.yml
-/jstests/noPassthrough/directoryperdb/**/* @10gen/server-rss-sydney @svc-auto-approve-bot
+/jstests/noPassthrough/directoryperdb/**/* @10gen/server-storage-engine-api @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/feature_compatibility_version/OWNERS.yml
 /jstests/noPassthrough/feature_compatibility_version/**/* @10gen/server-fcv @svc-auto-approve-bot
@@ -1205,7 +1235,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/query_golden_sharding/**/* @10gen/query-optimization @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/readonly/OWNERS.yml
-/jstests/readonly/**/* @10gen/server-rss-sydney @svc-auto-approve-bot
+/jstests/readonly/**/* @10gen/server-storage-engine-api @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/replsets/OWNERS.yml
 /jstests/replsets/**/* @10gen/server-replication @svc-auto-approve-bot
@@ -1511,7 +1541,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/**/mirror* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/**/wire_version* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/**/shutdown_in_progress_quiesce_info* @10gen/server-networking-and-observability @svc-auto-approve-bot
-/src/mongo/db/**/periodic_runner_cache_pressure_rollback* @10gen/server-rss-sydney @svc-auto-approve-bot
+/src/mongo/db/**/periodic_runner_cache_pressure_rollback* @10gen/server-storage-engine-api @svc-auto-approve-bot
 /src/mongo/db/**/startup_warnings_mongod_thp_test* @10gen/server-workload-scheduling @svc-auto-approve-bot
 /src/mongo/db/**/namespace_string* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/database_name* @10gen/server-catalog-and-routing @svc-auto-approve-bot
@@ -1528,7 +1558,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/catalog/OWNERS.yml
 /src/mongo/db/catalog/**/BUILD.bazel @10gen/server-catalog-and-routing @svc-auto-approve-bot
-/src/mongo/db/catalog/**/collection_compact* @10gen/server-rss-sydney @svc-auto-approve-bot
+/src/mongo/db/catalog/**/collection_compact* @10gen/server-compact @svc-auto-approve-bot
 /src/mongo/db/catalog/**/health_log* @10gen/server-dbcheck @svc-auto-approve-bot
 /src/mongo/db/catalog/**/import* @10gen/server-catalog-and-routing @10gen/server-storage-engine-integration @svc-auto-approve-bot
 /src/mongo/db/catalog/**/index_key_validate* @10gen/server-index-builds @svc-auto-approve-bot
@@ -1554,6 +1584,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/catalog/**/collection_uuid_mismatch* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/catalog/**/collection_writer_test.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/catalog/**/collection_yield_restore* @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/src/mongo/db/catalog/**/durable_catalog* @10gen/server-catalog-and-routing @10gen/server-storage-engine-integration @svc-auto-approve-bot
 /src/mongo/db/catalog/**/historical_catalogid_tracker* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/catalog/**/index_catalog* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/catalog/**/index_catalog_entry_helpers* @10gen/query-execution-write-exec @svc-auto-approve-bot
@@ -1621,8 +1652,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/commands/**/apply_ops* @10gen/server-oplog @svc-auto-approve-bot
 /src/mongo/db/commands/**/set_feature_compatibility_version* @10gen/server-catalog-and-routing @10gen/server-fcv @svc-auto-approve-bot
 /src/mongo/db/commands/**/snapshot_management* @10gen/server-replication @svc-auto-approve-bot
-/src/mongo/db/commands/**/*compact* @10gen/server-rss-sydney @svc-auto-approve-bot
-/src/mongo/db/commands/**/dbhash* @10gen/server-rss-sydney @svc-auto-approve-bot
+/src/mongo/db/commands/**/*compact* @10gen/server-compact @svc-auto-approve-bot
+/src/mongo/db/commands/**/dbhash* @10gen/server-dbhash @svc-auto-approve-bot
 /src/mongo/db/commands/**/server_status* @10gen/query-integration-observability @svc-auto-approve-bot
 /src/mongo/db/commands/**/sysprofile* @10gen/query-execution @svc-auto-approve-bot
 /src/mongo/db/commands/**/fle* @10gen/server-security @svc-auto-approve-bot
@@ -1634,7 +1665,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/commands/**/drop_connections_command.cpp @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/commands/**/http_client.* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/commands/**/parse_log_component_settings* @10gen/server-networking-and-observability @svc-auto-approve-bot
-/src/mongo/db/commands/**/traffic_recording_cmds.cpp @10gen/server-networking-and-observability @svc-auto-approve-bot
+/src/mongo/db/commands/**/traffic_recording_cmds.cpp @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/commands/**/whats_my_sni_command.cpp @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/commands/**/whats_my_uri_cmd.cpp @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/db/commands/**/xray_commands.* @10gen/server-networking-and-observability @svc-auto-approve-bot
@@ -1929,6 +1960,15 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/*.idl @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/accumulation_statement* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/accumulator* @10gen/query-execution-classic @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_covariance.cpp @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_exp_moving_avg.cpp @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_for_window_functions.h @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_integral.cpp @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_js_* @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_locf.cpp @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_percentile* @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_test.cpp @10gen/query-execution-classic @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/accumulator_internal_construct_stats.cpp @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/aggregation_request* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/aggregation_context_fixture.h @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/aggregation_mongod_context_fixture.h @10gen/query-optimization @svc-auto-approve-bot
@@ -2014,7 +2054,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/document_source_list_cluster_catalog* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/*list_catalog* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/*sharded_data_distribution* @10gen/server-catalog-and-routing @svc-auto-approve-bot
-/src/mongo/db/pipeline/**/sampling_based_initial_split_policy_test.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/pipeline/search/OWNERS.yml
 /src/mongo/db/pipeline/search/**/* @10gen/query-integration-search @svc-auto-approve-bot
@@ -2248,6 +2287,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/repl/**/*read_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
 /src/mongo/db/repl/**/*write_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
 /src/mongo/db/repl/**/*replication_recovery* @10gen/server-recovery @svc-auto-approve-bot
+/src/mongo/db/repl/**/*rollback* @10gen/server-recovery @svc-auto-approve-bot
 /src/mongo/db/repl/**/*replica_set_aware_service* @10gen/server-rs-aware-service @svc-auto-approve-bot
 /src/mongo/db/repl/**/*primary_only_service* @10gen/server-rs-aware-service @svc-auto-approve-bot
 /src/mongo/db/repl/**/*replication_coordinator* @10gen/server-replication-coordinator @svc-auto-approve-bot
@@ -2415,6 +2455,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/s/config/**/configsvr_commit_chunk_migration_command.cpp @10gen/server-cluster-scalability @svc-auto-approve-bot
 /src/mongo/db/s/config/**/configsvr_move_range_command.cpp @10gen/server-cluster-scalability @svc-auto-approve-bot
 /src/mongo/db/s/config/**/*reshard* @10gen/server-cluster-scalability @svc-auto-approve-bot
+/src/mongo/db/s/config/**/sampling_based_initial_split_policy_test.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/s/metrics/OWNERS.yml
 /src/mongo/db/s/metrics/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -2453,12 +2494,12 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/db/storage/OWNERS.yml
 /src/mongo/db/storage/**/* @10gen/server-storage-engine-integration @svc-auto-approve-bot
 /src/mongo/db/storage/**/backup* @10gen/server-backup-restore @svc-auto-approve-bot
-/src/mongo/db/storage/**/compact_options* @10gen/server-rss-sydney @svc-auto-approve-bot
+/src/mongo/db/storage/**/compact_options* @10gen/server-compact @svc-auto-approve-bot
+/src/mongo/db/storage/**/mdb_catalog* @10gen/server-storage-engine-api @10gen/server-storage-engine-integration @svc-auto-approve-bot
 /src/mongo/db/storage/**/storage_engine* @10gen/server-storage-engine-api @svc-auto-approve-bot
 /src/mongo/db/storage/**/record_store* @10gen/server-storage-engine-api @svc-auto-approve-bot
 /src/mongo/db/storage/**/recovery_unit* @10gen/server-storage-engine-api @svc-auto-approve-bot
 /src/mongo/db/storage/**/sorted_data_interface* @10gen/server-storage-engine-api @svc-auto-approve-bot
-/src/mongo/db/storage/**/durable_catalog* @10gen/server-catalog-and-routing @10gen/server-storage-engine-api @10gen/server-storage-engine-integration @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/storage/devnull/OWNERS.yml
 /src/mongo/db/storage/devnull/**/* @10gen/server-storage-engine-api @svc-auto-approve-bot
@@ -2883,6 +2924,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/util/**/log_and_backoff* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/util/**/read_through_cache* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/util/**/version_constants_gen.py @10gen/devprod-build @svc-auto-approve-bot
+/src/mongo/util/**/moving_average* @10gen/server-networking-and-observability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/util/cmdline_utils/OWNERS.yml
 /src/mongo/util/cmdline_utils/**/* @10gen/server-security @svc-auto-approve-bot

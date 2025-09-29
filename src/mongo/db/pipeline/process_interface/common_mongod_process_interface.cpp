@@ -53,6 +53,7 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/db_raii.h"
 #include "mongo/db/dbhelpers.h"
+#include "mongo/db/exec/agg/pipeline_builder.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/index/index_descriptor.h"
@@ -86,8 +87,8 @@
 #include "mongo/db/stats/storage_stats.h"
 #include "mongo/db/stats/top.h"
 #include "mongo/db/storage/backup_cursor_hooks.h"
-#include "mongo/db/storage/durable_catalog.h"
 #include "mongo/db/storage/feature_document_util.h"
+#include "mongo/db/storage/mdb_catalog.h"
 #include "mongo/db/storage/record_data.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
@@ -794,10 +795,11 @@ boost::optional<Document> CommonMongodProcessInterface::doLookupSingleDocument(
         return boost::none;
     }
 
-    auto lookedUpDocument = pipeline->getNext();
+    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources());
+    auto lookedUpDocument = execPipeline->getNext();
 
     // Ensure that there are no two documents for the same 'documentKey'.
-    if (auto next = pipeline->getNext()) {
+    if (auto next = execPipeline->getNext()) {
         uasserted(ErrorCodes::TooManyMatchingDocuments,
                   str::stream() << "found more than one document with document key "
                                 << documentKey.toString() << " [" << lookedUpDocument->toString()

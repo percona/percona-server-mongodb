@@ -45,6 +45,7 @@
 #include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/collection_catalog.h"
 #include "mongo/db/catalog/collection_catalog_helper.h"
+#include "mongo/db/catalog/durable_catalog.h"
 #include "mongo/db/catalog/index_catalog_entry_impl.h"
 #include "mongo/db/catalog/index_key_validate.h"
 #include "mongo/db/collection_index_usage_tracker.h"
@@ -77,8 +78,8 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/storage/durable_catalog.h"
 #include "mongo/db/storage/kv/kv_engine.h"
+#include "mongo/db/storage/mdb_catalog.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_engine_init.h"
@@ -1376,7 +1377,7 @@ Status IndexCatalogImpl::resetUnfinishedIndexForRecovery(OperationContext* opCtx
         if (auto released = _frozenIndexes.release(entry->descriptor())) {
             return released;
         }
-        MONGO_UNREACHABLE;
+        MONGO_UNREACHABLE_TASSERT(10083504);
     }();
 
     LOGV2(6987700,
@@ -1454,7 +1455,7 @@ Status IndexCatalogImpl::dropIndexEntry(OperationContext* opCtx,
         if (auto released = _frozenIndexes.release(entry->descriptor())) {
             return released;
         }
-        MONGO_UNREACHABLE;
+        MONGO_UNREACHABLE_TASSERT(10083505);
     }();
 
     _rebuildIndexUpdateIdentifier();

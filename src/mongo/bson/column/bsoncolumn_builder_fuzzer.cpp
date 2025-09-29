@@ -62,8 +62,8 @@ extern "C" int LLVMFuzzerTestOneInput(const char* Data, size_t Size) {
         int repetition;
         if (!mongo::bsoncolumn::createFuzzedElement(ptr, end, elementMemory, repetition, element))
             return 0;  // Bad input string to element generation
-        size_t additionalSize = repetition * element.size();
-        if (totalSize + additionalSize > mongo::BSONObjMaxInternalSize + (1 << 10)) {
+        int maxElementSize = (mongo::BSONObjMaxInternalSize + (1 << 10) - totalSize) / repetition;
+        if (element.size() > maxElementSize) {
             // We want to allow the inputs to exceed max obj size, but it's not worth
             // testing overly far ahead since our run generation can exceed the
             // fuzzer memory limit if left unchecked.
@@ -73,7 +73,7 @@ extern "C" int LLVMFuzzerTestOneInput(const char* Data, size_t Size) {
                 ptr, end, elementMemory, element, repetition, generatedElements)) {
             return 0;  // Bad input string to run generation
         }
-        totalSize += additionalSize;
+        totalSize += repetition * element.size();
     }
 
     // Exercise the builder
@@ -102,12 +102,6 @@ extern "C" int LLVMFuzzerTestOneInput(const char* Data, size_t Size) {
                             << base64::encode(diff.data(), diff.size()));
 
     // Verify binary reopen gives identical state as intermediate
-    // TODO SERVER-100659: Remove this limitation when reopen is more robust to large number of
-    // measurements
-    if (generatedElements.size() > 20000) {
-        return 0;
-    }
-
     // TODO SERVER-100659: Uncomment this after reopen bug is fixed
     /*
     BSONColumnBuilder reopen(diff.data(), diff.size());

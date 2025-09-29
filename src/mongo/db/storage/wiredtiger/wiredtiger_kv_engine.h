@@ -263,6 +263,9 @@ public:
 
     Status reconfigureLogging() override;
 
+    // Calls WT_CONNECTION::reconfigure on the underlying WT_CONNECTION held by this class.
+    int reconfigure(const char* str);
+
     /**
      * Flushes any WiredTigerSizeStorer updates to the storage engine if necessary.
      */
@@ -539,11 +542,6 @@ public:
     Timestamp getStableTimestamp() const override;
     Timestamp getOldestTimestamp() const override;
     Timestamp getCheckpointTimestamp() const override;
-
-    // wiredtiger specific
-    // Calls WT_CONNECTION::reconfigure on the underlying WT_CONNECTION
-    // held by this class
-    int reconfigure(const char* str);
 
     void syncSizeInfo(bool sync) const;
 

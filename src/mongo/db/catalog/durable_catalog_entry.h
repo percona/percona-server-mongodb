@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2023-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,30 +29,23 @@
 
 #pragma once
 
+#include "mongo/bson/bsonobj.h"
+#include "mongo/db/catalog/durable_catalog_entry_metadata.h"
+#include "mongo/db/record_id.h"
+
+#include <string>
+
 namespace mongo {
-
-template <typename Base>
-class WithOplogApplicationLatencyMetricsInterfaceUpdatingCumulativeMetrics : public Base {
-public:
-    template <typename... Args>
-    WithOplogApplicationLatencyMetricsInterfaceUpdatingCumulativeMetrics(Args&&... args)
-        : Base{std::forward<Args>(args)...} {}
-
-    void onBatchRetrievedDuringOplogFetching(Milliseconds elapsed) {
-        Base::getTypedCumulativeMetrics()->onBatchRetrievedDuringOplogFetching(elapsed);
-    }
-
-    void onLocalInsertDuringOplogFetching(const Milliseconds& elapsed) {
-        Base::getTypedCumulativeMetrics()->onLocalInsertDuringOplogFetching(elapsed);
-    }
-
-    void onBatchRetrievedDuringOplogApplying(const Milliseconds& elapsed) {
-        Base::getTypedCumulativeMetrics()->onBatchRetrievedDuringOplogApplying(elapsed);
-    }
-
-    void onOplogLocalBatchApplied(Milliseconds elapsed) {
-        Base::getTypedCumulativeMetrics()->onOplogLocalBatchApplied(elapsed);
-    }
+namespace durable_catalog {
+/**
+ * Parsed catalog entry of a single `_mdb_catalog` document.
+ */
+struct CatalogEntry {
+    RecordId catalogId;
+    std::string ident;
+    const BSONObj indexIdents;
+    std::shared_ptr<durable_catalog::CatalogEntryMetaData> metadata;
 };
 
+}  // namespace durable_catalog
 }  // namespace mongo
