@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2020-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,39 +29,28 @@
 
 #pragma once
 
-#include "mongo/db/operation_context.h"
-#include "mongo/db/query/canonical_query.h"
-#include "mongo/db/repl/oplog.h"
-
-#include <cstddef>
+#include "mongo/bson/timestamp.h"
+#include "mongo/db/storage/storage_engine.h"
 
 namespace mongo {
-class Collection;
-class CollectionPtr;
+namespace catalog_repair {
 
-namespace trial_period {
 /**
- * Returns the number of times that we are willing to work a plan during a trial period.
+ * Drop abandoned idents using two-phase drop at the stable timestamp. Idents may be needed for
+ * reads between the oldest and stable timestamps. If successful, returns a ReconcileResult with
+ * indexes that need to be rebuilt or builds that need to be restarted.
  *
- * Calculated with the following formula, where "|collection|" denotes the approximate number of
- * documents in the collection:
- *
- *   max(maxWorksParam, collFraction * |collection|)
+ * Abandoned internal idents require special handling based on the context known only to the
+ * caller. For example, on starting from a previous unclean shutdown, we would always drop all
+ * unknown internal idents. If we started from a clean shutdown, the internal idents may contain
+ * information for resuming index builds.
  */
-size_t getTrialPeriodMaxWorks(OperationContext* opCtx,
-                              const CollectionPtr& collection,
-                              int maxWorksParam,
-                              double collFraction);
+StatusWith<StorageEngine::ReconcileResult> reconcileCatalogAndIdents(
+    OperationContext* opCtx,
+    StorageEngine* engine,
+    Timestamp stableTs,
+    StorageEngine::LastShutdownState lastShutdownState,
+    bool forRepair);
 
-/**
- * Returns the max number of documents which we should allow any plan to return during the
- * trial period. As soon as any plan hits this number of documents, the trial period ends.
- */
-size_t getTrialPeriodNumToReturn(const CanonicalQuery& query);
-
-/**
- * Returns the fraction of the collection that we are allowed to scan for each candidate plan.
- */
-double getCollFractionPerCandidatePlan(const CanonicalQuery& query, size_t numSolutions);
-}  // namespace trial_period
+}  // namespace catalog_repair
 }  // namespace mongo
