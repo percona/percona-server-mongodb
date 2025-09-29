@@ -44,7 +44,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
-#include "mongo/db/storage/wiredtiger/spill_kv_engine.h"
+#include "mongo/db/storage/wiredtiger/spill_wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_index.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
@@ -96,7 +96,7 @@ public:
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
         kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);
 
-        std::unique_ptr<SpillKVEngine> spillKVEngine;
+        std::unique_ptr<SpillWiredTigerKVEngine> spillWiredTigerKVEngine;
         if (feature_flags::gFeatureFlagCreateSpillKVEngine.isEnabled()) {
             boost::system::error_code ec;
             boost::filesystem::remove_all(params.getSpillDbPath(), ec);
@@ -107,13 +107,13 @@ public:
             }
 
             WiredTigerKVEngineBase::WiredTigerConfig wtConfig =
-                getWiredTigerConfigFromStartupOptions(true /* usingSpillKVEngine */);
+                getWiredTigerConfigFromStartupOptions(true /* usingSpillWiredTigerKVEngine */);
             // TODO(SERVER-103753): Compute cache size properly.
             wtConfig.cacheSizeMB = 100;
             wtConfig.inMemory = params.inMemory;
             wtConfig.logEnabled = false;
-            spillKVEngine =
-                std::make_unique<SpillKVEngine>(getCanonicalName().toString(),
+            spillWiredTigerKVEngine =
+                std::make_unique<SpillWiredTigerKVEngine>(getCanonicalName().toString(),
                                                 params.getSpillDbPath(),
                                                 getGlobalServiceContext()->getFastClockSource(),
                                                 std::move(wtConfig));
@@ -132,7 +132,7 @@ public:
         options.directoryForIndexes = wiredTigerGlobalOptions.directoryForIndexes;
         options.forRepair = params.repair;
         return std::make_unique<StorageEngineImpl>(
-            opCtx, std::move(kv), std::move(spillKVEngine), options);
+            opCtx, std::move(kv), std::move(spillWiredTigerKVEngine), options);
     }
 
     virtual StringData getCanonicalName() const {
