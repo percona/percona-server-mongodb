@@ -204,6 +204,7 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
 DocumentSourceBackupCursor::DocumentSourceBackupCursor(
     StorageEngine::BackupOptions&& options, const intrusive_ptr<ExpressionContext>& expCtx)
     : DocumentSource(kStageName, expCtx),
+      exec::agg::Stage(kStageName, expCtx),
       _backupOptions(options),
       _backupCursorState(pExpCtx->getMongoProcessInterface()->openBackupCursor(
           pExpCtx->getOperationContext(), _backupOptions)),

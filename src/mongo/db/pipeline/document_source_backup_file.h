@@ -49,7 +49,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-class DocumentSourceBackupFile final : public DocumentSource {
+class DocumentSourceBackupFile final : public DocumentSource, public exec::agg::Stage {
 public:
     static constexpr StringData kStageName = "$_backupFile"_sd;
 

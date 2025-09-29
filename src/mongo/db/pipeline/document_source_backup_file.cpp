@@ -178,6 +178,7 @@ DocumentSourceBackupFile::DocumentSourceBackupFile(const intrusive_ptr<Expressio
                                                    long long byteOffset,
                                                    std::ifstream file)
     : DocumentSource(kStageName, expCtx),
+     exec::agg::Stage(kStageName, expCtx),
       _dataBuf(),
       _backupId(backupId),
       _filePath(std::move(filePath)),

@@ -142,6 +142,7 @@ DocumentSourceBackupCursorExtend::DocumentSourceBackupCursorExtend(
     const UUID& backupId,
     const Timestamp& extendTo)
     : DocumentSource(kStageName, expCtx),
+      exec::agg::Stage(kStageName, expCtx),
       _backupId(backupId),
       _extendTo(extendTo),
       _backupCursorExtendState(pExpCtx->getMongoProcessInterface()->extendBackupCursor(

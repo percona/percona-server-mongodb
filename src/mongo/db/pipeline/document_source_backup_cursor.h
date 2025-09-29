@@ -39,7 +39,7 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-class DocumentSourceBackupCursor : public DocumentSource {
+class DocumentSourceBackupCursor : public DocumentSource, public exec::agg::Stage {
 public:
     static constexpr StringData kStageName = "$backupCursor"_sd;
 
