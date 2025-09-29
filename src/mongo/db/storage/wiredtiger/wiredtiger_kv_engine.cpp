@@ -3250,6 +3250,7 @@ Status WiredTigerKVEngine::dropSortedDataInterface(RecoveryUnit& ru, StringData 
 
 std::unique_ptr<SortedDataInterface> WiredTigerKVEngine::getSortedDataInterface(
     OperationContext* opCtx,
+    RecoveryUnit& ru,
     const NamespaceString& nss,
     const UUID& uuid,
     StringData ident,
@@ -3259,6 +3260,7 @@ std::unique_ptr<SortedDataInterface> WiredTigerKVEngine::getSortedDataInterface(
     if (config.isIdIndex) {
         return std::make_unique<WiredTigerIdIndex>(
             opCtx,
+            ru,
             WiredTigerUtil::buildTableUri(ident),
             uuid,
             ident,
@@ -3268,6 +3270,7 @@ std::unique_ptr<SortedDataInterface> WiredTigerKVEngine::getSortedDataInterface(
     if (config.unique) {
         return std::make_unique<WiredTigerIndexUnique>(
             opCtx,
+            ru,
             WiredTigerUtil::buildTableUri(ident),
             uuid,
             ident,
@@ -3278,6 +3281,7 @@ std::unique_ptr<SortedDataInterface> WiredTigerKVEngine::getSortedDataInterface(
 
     return std::make_unique<WiredTigerIndexStandard>(
         opCtx,
+        ru,
         WiredTigerUtil::buildTableUri(ident),
         uuid,
         ident,
@@ -3381,14 +3385,14 @@ Status WiredTigerKVEngine::alterMetadata(StringData uri, StringData config) {
     return wtRCToStatus(ret, session);
 }
 
-Status WiredTigerKVEngine::dropIdent(RecoveryUnit* ru,
+Status WiredTigerKVEngine::dropIdent(RecoveryUnit& ru,
                                      StringData ident,
                                      bool identHasSizeInfo,
                                      const StorageEngine::DropIdentCallback& onDrop) {
     string uri = WiredTigerUtil::buildTableUri(ident);
 
-    WiredTigerRecoveryUnit* wtRu = checked_cast<WiredTigerRecoveryUnit*>(ru);
-    wtRu->getSessionNoTxn()->closeAllCursors(uri);
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+    wtRu.getSessionNoTxn()->closeAllCursors(uri);
 
     WiredTigerSession session(_connection.get());
 

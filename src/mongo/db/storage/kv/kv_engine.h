@@ -109,6 +109,7 @@ public:
                                                                  KeyFormat keyFormat) = 0;
 
     virtual std::unique_ptr<SortedDataInterface> getSortedDataInterface(OperationContext* opCtx,
+                                                                        RecoveryUnit& ru,
                                                                         const NamespaceString& nss,
                                                                         const UUID& uuid,
                                                                         StringData ident,
@@ -234,7 +235,7 @@ public:
      * removal immediately, we enqueue it to be removed at a later time. If a callback is specified,
      * it will be run upon the drop if this function returns an OK status.
      */
-    virtual Status dropIdent(RecoveryUnit* ru,
+    virtual Status dropIdent(RecoveryUnit& ru,
                              StringData ident,
                              bool identHasSizeInfo,
                              const StorageEngine::DropIdentCallback& onDrop = nullptr) = 0;
