@@ -67,6 +67,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_snapshot_manager.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/logv2/log_component.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/mutex.h"
@@ -894,7 +895,7 @@ private:
     // Replication settings, passed in from constructor to avoid dependency on repl
     bool _isReplSet;
     bool _shouldRecoverFromOplogAsStandalone;
-    bool _inStandaloneMode;
+    Atomic<bool> _inStandaloneMode;
 };
 
 /**

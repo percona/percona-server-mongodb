@@ -1228,8 +1228,7 @@ void WiredTigerKVEngine::notifyReplStartupRecoveryComplete(RecoveryUnit& ru) {
 }
 
 void WiredTigerKVEngine::setInStandaloneMode(bool inStandaloneMode) {
-    if (_inStandaloneMode != inStandaloneMode)
-        _inStandaloneMode = inStandaloneMode;
+    _inStandaloneMode.store(inStandaloneMode);
 }
 
 void WiredTigerKVEngine::_openWiredTiger(const std::string& path, const std::string& wtOpenConfig) {
@@ -2957,8 +2956,8 @@ void WiredTigerKVEngine::setOldestActiveTransactionTimestampCallback(
 
 std::unique_ptr<RecoveryUnit> WiredTigerKVEngine::newRecoveryUnit() {
     auto ru = std::make_unique<WiredTigerRecoveryUnit>(_connection.get());
-    if (MONGO_unlikely(
-            allowUntimestampedWrites(_inStandaloneMode, _shouldRecoverFromOplogAsStandalone))) {
+    if (MONGO_unlikely(allowUntimestampedWrites(_inStandaloneMode.load(),
+                                                _shouldRecoverFromOplogAsStandalone))) {
         ru->allowAllUntimestampedWrites();
     }
     return ru;
