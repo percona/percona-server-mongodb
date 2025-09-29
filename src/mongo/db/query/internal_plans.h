@@ -29,12 +29,6 @@
 
 #pragma once
 
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
-#include <boost/smart_ptr/intrusive_ptr.hpp>
-#include <cstdint>
-#include <memory>
-
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/catalog/collection.h"
 #include "mongo/db/catalog/index_catalog.h"
@@ -54,6 +48,13 @@
 #include "mongo/db/record_id.h"
 #include "mongo/db/s/shard_key_index_util.h"
 #include "mongo/db/shard_role.h"
+
+#include <cstdint>
+#include <memory>
+
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+#include <boost/smart_ptr/intrusive_ptr.hpp>
 
 namespace mongo {
 
@@ -89,6 +90,23 @@ public:
     };
 
     /**
+     * Convenient struct used to store all parameters needed to create a collectionScan executor.
+     */
+    struct CreateCollectionScanParams {
+        OperationContext* opCtx;
+        VariantCollectionPtrOrAcquisition collection;
+        PlanYieldPolicy::YieldPolicy yieldPolicy;
+        Direction direction = FORWARD;
+        const boost::optional<RecordId>& resumeAfterRecordId = boost::none;
+        boost::optional<RecordIdBound> minRecord = boost::none;
+        boost::optional<RecordIdBound> maxRecord = boost::none;
+        CollectionScanParams::ScanBoundInclusion boundInclusion =
+            CollectionScanParams::ScanBoundInclusion::kIncludeBothStartAndEndRecords;
+        bool shouldReturnEofOnFilterMismatch = false;
+        size_t plannerOptions = 0;
+    };
+
+    /**
      * Returns a sampling of the given collection with up to 'numSamples'. If the caller doesn't
      * provide a value for 'numSamples' then the executor will return an infinite stream of random
      * documents of the collection.
@@ -117,6 +135,9 @@ public:
         CollectionScanParams::ScanBoundInclusion boundInclusion =
             CollectionScanParams::ScanBoundInclusion::kIncludeBothStartAndEndRecords,
         bool shouldReturnEofOnFilterMismatch = false);
+
+    static std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> collectionScan(
+        CreateCollectionScanParams&& params);
 
     static std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> collectionScan(
         OperationContext* opCtx,
@@ -226,7 +247,7 @@ private:
     static std::unique_ptr<PlanStage> _collectionScan(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         WorkingSet* ws,
-        const CollectionPtr* collection,
+        VariantCollectionPtrOrAcquisition coll,
         Direction direction,
         const boost::optional<RecordId>& resumeAfterRecordId = boost::none,
         const boost::optional<RecordId>& minRecord = boost::none,
@@ -235,7 +256,7 @@ private:
     static std::unique_ptr<PlanStage> _collectionScan(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         WorkingSet* ws,
-        const CollectionPtr* collection,
+        VariantCollectionPtrOrAcquisition coll,
         const CollectionScanParams& params,
         const MatchExpression* filter = nullptr);
 

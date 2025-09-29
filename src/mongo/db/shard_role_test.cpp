@@ -27,14 +27,7 @@
  *    it in the license file.
  */
 
-#include <algorithm>
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
-#include <fmt/format.h>
-#include <string>
-
-#include <absl/container/node_hash_map.h>
+#include "mongo/db/shard_role.h"
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
@@ -68,7 +61,6 @@
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_id.h"
-#include "mongo/db/shard_role.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/tenant_id.h"
@@ -87,6 +79,15 @@
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/future.h"
+
+#include <algorithm>
+#include <string>
+
+#include <absl/container/node_hash_map.h>
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+#include <fmt/format.h>
 
 namespace mongo {
 namespace {
@@ -2090,67 +2091,6 @@ TEST_F(ShardRoleTest, ReadSourceDoesNotChangeOnSecondary) {
         RecoveryUnit::ReadSource::kNoTimestamp,
         shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
 }
-
-TEST_F(ShardRoleTest, ReadSourceChecksForNestedAcquisitionsCorrectOrdering) {
-    createTestCollection(operationContext(), NamespaceString::kSystemReplSetNamespace);
-
-    ASSERT_OK(repl::ReplicationCoordinator::get(getServiceContext())
-                  ->setFollowerMode(repl::MemberState::RS_SECONDARY));
-
-    const auto replicatedAcquisition = acquireCollectionMaybeLockFree(
-        operationContext(),
-        CollectionAcquisitionRequest(NamespaceString::kRsOplogNamespace,
-                                     PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
-                                     repl::ReadConcernArgs::kLocal,
-                                     AcquisitionPrerequisites::kRead));
-
-    ASSERT_TRUE(replicatedAcquisition.exists());
-
-    ASSERT_EQUALS(
-        RecoveryUnit::ReadSource::kLastApplied,
-        shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
-
-    // Unreplicated collections can use kLastApplied just fine, so acquiring an unreplicated
-    // collection after a replicated one is ok.
-    const auto unreplicatedAcquisition = acquireCollectionMaybeLockFree(
-        operationContext(),
-        CollectionAcquisitionRequest(NamespaceString::kSystemReplSetNamespace,
-                                     PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
-                                     repl::ReadConcernArgs::kLocal,
-                                     AcquisitionPrerequisites::kRead));
-}
-
-DEATH_TEST_REGEX_F(ShardRoleTest,
-                   ReadSourceChecksForNestedAcquisitionsIncorrectOrdering,
-                   "Tripwire assertion.*10141601") {
-    createTestCollection(operationContext(), NamespaceString::kSystemReplSetNamespace);
-
-    ASSERT_OK(repl::ReplicationCoordinator::get(getServiceContext())
-                  ->setFollowerMode(repl::MemberState::RS_SECONDARY));
-
-    const auto unreplicatedAcquisition = acquireCollectionMaybeLockFree(
-        operationContext(),
-        CollectionAcquisitionRequest(NamespaceString::kSystemReplSetNamespace,
-                                     PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
-                                     repl::ReadConcernArgs::kLocal,
-                                     AcquisitionPrerequisites::kRead));
-
-    ASSERT_TRUE(unreplicatedAcquisition.exists());
-
-    ASSERT_EQUALS(
-        RecoveryUnit::ReadSource::kNoTimestamp,
-        shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
-
-    // With the testing proctor enabled, an acquisition which would need the read source to
-    // change should throw.
-    const auto replicatedAcquisition = acquireCollectionMaybeLockFree(
-        operationContext(),
-        CollectionAcquisitionRequest(NamespaceString::kRsOplogNamespace,
-                                     PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
-                                     repl::ReadConcernArgs::kLocal,
-                                     AcquisitionPrerequisites::kRead));
-}
-
 
 TEST_F(ShardRoleTest, RestoreChangesReadSourceAfterStepUp) {
     const auto nss = nssShardedCollection1;

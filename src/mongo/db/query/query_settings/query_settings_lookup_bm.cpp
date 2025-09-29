@@ -28,8 +28,6 @@
  */
 
 
-#include <benchmark/benchmark.h>
-
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/query/query_settings/query_settings_service.h"
 #include "mongo/db/query/query_shape/find_cmd_shape.h"
@@ -39,6 +37,8 @@
 #include "mongo/platform/random.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/processinfo.h"
+
+#include <benchmark/benchmark.h>
 
 namespace mongo::query_settings {
 namespace {
@@ -307,7 +307,8 @@ public:
                 // Update the query shape configurations by adding a new one, which will be used for
                 // the lookup.
                 auto queryShapeConfigurationsWithTimestamp =
-                    query_settings::getAllQueryShapeConfigurations(opCtx.get(), tid);
+                    query_settings::QuerySettingsService::get(opCtx.get())
+                        .getAllQueryShapeConfigurations(tid);
                 auto&& queryShapeConfigurations =
                     queryShapeConfigurationsWithTimestamp.queryShapeConfigurations;
                 queryShapeConfigurations.push_back(hitQueryShapeConfiguration);

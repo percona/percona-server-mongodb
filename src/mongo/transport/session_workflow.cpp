@@ -28,18 +28,7 @@
  */
 
 
-#include <array>
-#include <boost/smart_ptr.hpp>
-#include <cstddef>
-#include <fmt/format.h>
-#include <memory>
-#include <ratio>
-#include <string>
-#include <type_traits>
-
-#include <boost/move/utility_core.hpp>
-#include <boost/optional/optional.hpp>
-#include <boost/smart_ptr/intrusive_ptr.hpp>
+#include "mongo/transport/session_workflow.h"
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
@@ -74,8 +63,8 @@
 #include "mongo/transport/service_entry_point.h"
 #include "mongo/transport/service_executor.h"
 #include "mongo/transport/session.h"
+#include "mongo/transport/session_establishment_rate_limiter.h"
 #include "mongo/transport/session_manager.h"
-#include "mongo/transport/session_workflow.h"
 #include "mongo/transport/transport_layer_manager.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/clock_source.h"
@@ -88,6 +77,19 @@
 #include "mongo/util/net/ssl_peer_info.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/timer.h"
+
+#include <array>
+#include <cstddef>
+#include <memory>
+#include <ratio>
+#include <string>
+#include <type_traits>
+
+#include <boost/move/utility_core.hpp>
+#include <boost/optional/optional.hpp>
+#include <boost/smart_ptr.hpp>
+#include <boost/smart_ptr/intrusive_ptr.hpp>
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kExecutor
 
@@ -538,8 +540,6 @@ private:
         executor()->yieldIfAppropriate();
     }
 
-    void _waitForEstabilshmentRateLimit();
-
     SessionWorkflow* const _workflow;
     ServiceContext* const _serviceContext;
     ServiceEntryPoint* _sep;
@@ -804,10 +804,16 @@ void SessionWorkflow::Impl::_scheduleIteration() try {
         }
 
         try {
-            // If this is the first iteration of the session workflow, we must acquire an
-            // "establishment token" to respect connection establishment rate limits.
+            // If this is the first iteration of the session workflow, we must call into
+            // "throttleIfNeeded" to respect connection establishment rate limits.
             if (MONGO_unlikely(_inFirstIteration)) {
-                _waitForEstabilshmentRateLimit();
+                if (gFeatureFlagRateLimitIngressConnectionEstablishment.isEnabled()) {
+                    uassertStatusOK(session()
+                                        ->getTransportLayer()
+                                        ->getSessionManager()
+                                        ->getSessionEstablishmentRateLimiter()
+                                        .throttleIfNeeded(client()));
+                }
                 _inFirstIteration = false;
             }
 
@@ -833,22 +839,6 @@ void SessionWorkflow::Impl::_scheduleIteration() try {
                           "Unable to schedule a new loop for the session workflow",
                           "error"_attr = error);
     _onLoopError(error);
-}
-
-void SessionWorkflow::Impl::_waitForEstabilshmentRateLimit() {
-    auto sm = session()->getTransportLayer()->getSessionManager();
-    auto exemptionsList = sm->getSessionEstablishmentRateLimitExemptionList();
-
-    if (gFeatureFlagRateLimitIngressConnectionEstablishment.isEnabled() &&
-        !(exemptionsList && session()->isExemptedByCIDRList(*exemptionsList))) {
-        // Create an opCtx for interruptibility and to make queued waiters return tokens when the
-        // client has disconnected.
-        auto establishmentOpCtx = client()->makeOperationContext();
-        establishmentOpCtx->markKillOnClientDisconnect();
-        // Acquire a token or block until one becomes available.
-        uassertStatusOK(
-            sm->getSessionEstablishmentRateLimiter().acquireToken(establishmentOpCtx.get()));
-    }
 }
 
 void SessionWorkflow::Impl::terminate() {

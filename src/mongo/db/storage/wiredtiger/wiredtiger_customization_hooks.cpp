@@ -27,8 +27,7 @@
  *    it in the license file.
  */
 
-#include <memory>
-#include <utility>
+#include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
 
 #include <boost/none.hpp>
 
@@ -36,11 +35,13 @@
 #include "mongo/base/string_data.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/database_name_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/namespace_string_util.h"
+
+#include <memory>
+#include <utility>
 
 namespace mongo {
 namespace {

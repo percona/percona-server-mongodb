@@ -27,13 +27,7 @@
  *    it in the license file.
  */
 
-#include <algorithm>
-#include <boost/move/utility_core.hpp>
-#include <utility>
-#include <vector>
-
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
+#include "mongo/db/repl/dbcheck/dbcheck.h"
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
@@ -56,7 +50,6 @@
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/query/record_id_bound.h"
 #include "mongo/db/record_id_helpers.h"
-#include "mongo/db/repl/dbcheck/dbcheck.h"
 #include "mongo/db/repl/dbcheck/dbcheck_gen.h"
 #include "mongo/db/repl/dbcheck/dbcheck_idl.h"
 #include "mongo/db/repl/oplog.h"
@@ -71,6 +64,14 @@
 #include "mongo/util/duration.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/uuid.h"
+
+#include <algorithm>
+#include <utility>
+#include <vector>
+
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 namespace mongo {
@@ -1193,6 +1194,11 @@ Status dbCheckBatchOnSecondary(OperationContext* opCtx,
         bool logIndexSpec = (secondaryIndexCheckParameters &&
                              (secondaryIndexCheckParameters.get().getValidateMode() ==
                               mongo::DbCheckValidationModeEnum::extraIndexKeysCheck));
+        // If logIndexSpec is true, then we checked indexDescriptor for null in the switch above and
+        // returned Status::OK() if it was null. Therefore, we can safely use
+        // indexDescriptor->infoObj() to construct logEntry below.
+        // To appease Coverity, we add the following invariant.
+        invariant(!logIndexSpec || indexDescriptor);
         auto logEntry = dbCheckBatchHealthLogEntry(
             secondaryIndexCheckParameters,
             entry.getBatchId(),
@@ -1212,7 +1218,7 @@ Status dbCheckBatchOnSecondary(OperationContext* opCtx,
             logIndexSpec ? boost::make_optional(indexDescriptor->infoObj()) : boost::none);
 
         // TODO(SERVER-78399): Remove 'batchesProcessed' logic and expect that
-        // 'getLogBatchToHealthLog' from the enry always exists.
+        // 'getLogBatchToHealthLog' from the entry always exists.
         batchesProcessed++;
         bool shouldLog = (batchesProcessed % gDbCheckHealthLogEveryNBatches.load() == 0);
         if (entry.getLogBatchToHealthLog()) {

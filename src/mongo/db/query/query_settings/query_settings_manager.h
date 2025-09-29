@@ -30,14 +30,6 @@
 
 #pragma once
 
-#include <absl/container/flat_hash_map.h>
-#include <boost/optional/optional.hpp>
-#include <cstddef>
-#include <string>
-#include <type_traits>
-#include <utility>
-#include <vector>
-
 #include "mongo/base/data_view.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -54,20 +46,16 @@
 #include "mongo/platform/rwmutex.h"
 #include "mongo/stdx/trusted_hasher.h"
 
-namespace mongo {
-/**
- * Truncates the 256 bit QueryShapeHash by taking only the first sizeof(size_t) bytes.
- */
-class QueryShapeHashHasher {
-public:
-    size_t operator()(const query_shape::QueryShapeHash& hash) const {
-        return ConstDataView(reinterpret_cast<const char*>(hash.data())).read<size_t>();
-    }
-};
-template <>
-struct IsTrustedHasher<QueryShapeHashHasher, query_shape::QueryShapeHash> : std::true_type {};
+#include <cstddef>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
-namespace query_settings {
+#include <absl/container/flat_hash_map.h>
+#include <boost/optional/optional.hpp>
+
+namespace mongo::query_settings {
 
 using QueryInstance = BSONObj;
 
@@ -180,5 +168,4 @@ private:
     absl::flat_hash_map<boost::optional<TenantId>, VersionedQueryShapeConfigurations>
         _tenantIdToVersionedQueryShapeConfigurationsMap;
 };
-};  // namespace query_settings
-}  // namespace mongo
+};  // namespace mongo::query_settings

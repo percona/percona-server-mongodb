@@ -29,18 +29,19 @@
 
 #pragma once
 
-#include <boost/optional/optional.hpp>
+#include "mongo/base/status.h"
+#include "mongo/base/status_with.h"
+#include "mongo/db/database_name.h"
+#include "mongo/db/storage/backup_block.h"
+#include "mongo/db/storage/storage_engine.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "mongo/base/status.h"
-#include "mongo/base/status_with.h"
-#include "mongo/db/database_name.h"
-#include "mongo/db/storage/backup_block.h"
-#include "mongo/db/storage/storage_engine.h"
+#include <boost/optional/optional.hpp>
 
 namespace boost {
 namespace filesystem {

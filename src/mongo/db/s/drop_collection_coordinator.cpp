@@ -29,18 +29,6 @@
 
 #include "mongo/db/s/drop_collection_coordinator.h"
 
-#include <absl/container/node_hash_map.h>
-#include <algorithm>
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <boost/smart_ptr.hpp>
-#include <fmt/format.h>
-#include <tuple>
-#include <utility>
-#include <vector>
-
-#include <boost/optional/optional.hpp>
-
 #include "mongo/base/error_codes.h"
 #include "mongo/db/cancelable_operation_context.h"
 #include "mongo/db/catalog/drop_collection.h"
@@ -65,6 +53,18 @@
 #include "mongo/s/grid.h"
 #include "mongo/util/future_impl.h"
 #include "mongo/util/uuid.h"
+
+#include <algorithm>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include <absl/container/node_hash_map.h>
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+#include <boost/smart_ptr.hpp>
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
@@ -288,22 +288,36 @@ void DropCollectionCoordinator::_commitDropCollection(
     std::shared_ptr<executor::ScopedTaskExecutor> executor,
     const CancellationToken& token) {
     const auto collIsSharded = bool(_doc.getCollInfo());
-    const auto primaryShardId = ShardingState::get(opCtx)->shardId();
 
+    // Define the identity of the shard that will be in charge of notifying change streams.
+    // The value needs to be persisted once retrieved: tracked collections require a data-bearing
+    // shard (prior to the DDL commit) as the notifier and this information may not be longer
+    // available in the routing table in case of stepdown and retry of this coordinator.
     const auto changeStreamsNotifierShardId = [&]() {
+        auto primaryShardId = ShardingState::get(opCtx)->shardId();
+
+        if (!_doc.getChangeStreamPreciseShardTargetingEnabled()) {
+            return primaryShardId;
+        }
+
         if (_doc.getChangeStreamsNotifier()) {
             return _doc.getChangeStreamsNotifier().value();
         }
 
-        const auto notifierShardId = collIsSharded
-            ? sharding_ddl_util::pickDataBearingShard(opCtx, _doc.getCollInfo()->getUuid()).value()
+        boost::optional<ShardId> notifierShardId = collIsSharded
+            ? sharding_ddl_util::pickDataBearingShard(opCtx, _doc.getCollInfo()->getUuid())
             : primaryShardId;
+
+        tassert(10361100,
+                "Unable to retrieve the identity of a data bearing shard for the collection beng "
+                "dropped",
+                notifierShardId.has_value());
 
         auto newDoc = _doc;
         newDoc.setChangeStreamsNotifier(notifierShardId);
         _updateStateDocument(opCtx, std::move(newDoc));
 
-        return notifierShardId;
+        return *notifierShardId;
     }();
 
     LOGV2_DEBUG(5390504,

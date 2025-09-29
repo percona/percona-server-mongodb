@@ -30,9 +30,6 @@
 
 #include "mongo/tools/mongobridge_tool/mongobridge_options.h"
 
-#include <algorithm>
-#include <iostream>
-
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/logv2/log_component.h"
@@ -45,6 +42,9 @@
 #include "mongo/util/options_parser/startup_options.h"
 #include "mongo/util/options_parser/value.h"
 #include "mongo/util/version.h"
+
+#include <algorithm>
+#include <iostream>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kBridge
 

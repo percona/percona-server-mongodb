@@ -29,17 +29,6 @@
 
 #include "mongo/db/shard_role.h"
 
-#include <algorithm>
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <boost/optional.hpp>
-#include <boost/optional/optional.hpp>
-#include <boost/utility/in_place_factory.hpp>  // IWYU pragma: keep
-#include <fmt/format.h>
-#include <iterator>
-
-#include <absl/meta/type_traits.h>
-
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
@@ -83,6 +72,17 @@
 #include "mongo/util/str.h"
 #include "mongo/util/testing_proctor.h"
 #include "mongo/util/time_support.h"
+
+#include <algorithm>
+#include <iterator>
+
+#include <absl/meta/type_traits.h>
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional.hpp>
+#include <boost/optional/optional.hpp>
+#include <boost/utility/in_place_factory.hpp>  // IWYU pragma: keep
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
@@ -640,28 +640,6 @@ void checkShardingPlacement(OperationContext* opCtx,
         // will have the namespace set.
         if (ar.nssOrUUID.isNamespaceString()) {
             checkPlacementVersion(opCtx, ar.nssOrUUID.nss(), ar.placementConcern);
-        }
-    }
-}
-
-void checkReadSourceCompatible(
-    OperationContext* opCtx,
-    const ResolvedNamespaceOrViewAcquisitionRequests& acquisitionRequests) {
-    for (auto& ar : acquisitionRequests) {
-        auto& prerequisites = ar.prerequisites;
-        if (SnapshotHelper::wouldChangeReadSourceToLastApplied(opCtx, prerequisites.nss)) {
-            // TODO (SERVER-103165): enable assertions outside of testing environment once we are
-            // confident there are no instances of this behavior.
-            if (TestingProctor::instance().isEnabled()) {
-                tasserted(10141601,
-                          "Cannot change the read source after another acquisition has already "
-                          "potentially used the existing snapshot");
-            } else {
-                LOGV2_WARNING(10141602,
-                              "Changing the read source after another acquisition has already "
-                              "potentially used the existing snapshot",
-                              "nss"_attr = prerequisites.nss);
-            }
         }
     }
 }
@@ -1274,12 +1252,6 @@ CollectionOrViewAcquisitions acquireCollectionsOrViewsLockFree(
 
         auto sortedAcquisitionRequests = shard_role_details::generateSortedAcquisitionRequests(
             opCtx, *catalog, acquisitionRequests, lockFreeReadsResources);
-
-        // Make sure that we won't change the read source after already acquiring a snapshot.
-        if (!openSnapshot) {
-            checkReadSourceCompatible(opCtx, sortedAcquisitionRequests);
-        }
-
         return acquireResolvedCollectionsOrViewsWithoutTakingLocks(
             opCtx, *catalog, sortedAcquisitionRequests);
     } catch (...) {

@@ -27,19 +27,12 @@
  *    it in the license file.
  */
 
-#include <boost/cstdint.hpp>
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <cstdint>
-#include <mutex>
-
-#include <boost/optional/optional.hpp>
+#include "mongo/db/error_labels.h"
 
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/client.h"
 #include "mongo/db/curop.h"
-#include "mongo/db/error_labels.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
@@ -50,6 +43,14 @@
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
+
+#include <cstdint>
+#include <mutex>
+
+#include <boost/cstdint.hpp>
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
 
 namespace mongo {
 namespace {
@@ -213,6 +214,22 @@ TEST_F(ErrorLabelBuilderTest, NonTransientTransactionErrorsHaveNoTransientTransa
                               repl::OpTime{},
                               repl::OpTime{});
     ASSERT_FALSE(builder.isTransientTransactionError());
+}
+
+TEST_F(ErrorLabelBuilderTest, SystemOverloadedErrorLabel) {
+    OperationSessionInfoFromClient sessionInfo{LogicalSessionFromClient(UUID::gen())};
+    std::string commandName = "find";
+    ErrorLabelBuilder builder(opCtx(),
+                              sessionInfo,
+                              commandName,
+                              ErrorCodes::AdmissionQueueOverflow,
+                              boost::none,
+                              false /* isInternalClient */,
+                              false /* isMongos */,
+                              false /* isComingFromRouter */,
+                              repl::OpTime{},
+                              repl::OpTime{});
+    ASSERT_TRUE(builder.isSystemOverloadedError());
 }
 
 TEST_F(ErrorLabelBuilderTest, TransientTransactionErrorsHaveTransientTransactionErrorLabel) {
@@ -761,6 +778,25 @@ TEST_F(ErrorLabelBuilderTest, NoWritesPerformedLabelNotAppliedIfUnknown) {
                               repl::OpTime{},
                               repl::OpTime{});
     ASSERT_FALSE(builder.isErrorWithNoWritesPerformed());
+}
+
+TEST_F(ErrorLabelBuilderTest, SystemOverloadedErrorLabelApplied) {
+    OperationSessionInfoFromClient sessionInfo{LogicalSessionFromClient(UUID::gen())};
+    sessionInfo.setTxnNumber(1);
+    std::string commandName = "find";
+    auto actualErrorLabels = getErrorLabels(opCtx(),
+                                            sessionInfo,
+                                            commandName,
+                                            ErrorCodes::AdmissionQueueOverflow,
+                                            boost::none,
+                                            false /* isInternalClient */,
+                                            false /* isMongos */,
+                                            false /* isComingFromRouter */,
+                                            kOpTime,
+                                            kOpTime);
+    BSONArrayBuilder expectedLabelArray;
+    expectedLabelArray << ErrorLabel::kSystemOverloadedError;
+    ASSERT_BSONOBJ_EQ(actualErrorLabels, BSON(kErrorLabelsFieldName << expectedLabelArray.arr()));
 }
 
 TEST_F(ErrorLabelBuilderTest, NoWritesPerformedAndRetryableWriteAppliesBothLabels) {

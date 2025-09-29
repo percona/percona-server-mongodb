@@ -29,13 +29,6 @@
 
 #pragma once
 
-#include <initializer_list>
-#include <memory>
-#include <string>
-#include <vector>
-
-#include <boost/serialization/strong_typedef.hpp>
-
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/storage/engine_extension.h"
@@ -47,6 +40,13 @@
 #include "mongo/db/storage/temporary_record_store.h"
 #include "mongo/util/periodic_runner.h"
 #include "mongo/util/str.h"
+
+#include <initializer_list>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <boost/serialization/strong_typedef.hpp>
 
 namespace mongo {
 

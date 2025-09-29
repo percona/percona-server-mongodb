@@ -29,9 +29,9 @@
 
 
 #include <cstdint>
-#include <fmt/format.h>
 
 #include <absl/container/node_hash_map.h>
+#include <fmt/format.h>
 // IWYU pragma: no_include "boost/container/detail/flat_tree.hpp"
 #include <boost/container/flat_set.hpp>
 #include <boost/container/small_vector.hpp>
@@ -41,9 +41,6 @@
 // IWYU pragma: no_include "boost/move/algo/detail/set_difference.hpp"
 #include <boost/move/algo/move.hpp>
 // IWYU pragma: no_include "boost/move/detail/iterator_to_raw_pointer.hpp"
-#include <boost/move/utility_core.hpp>
-#include <boost/optional/optional.hpp>
-
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonelement.h"
@@ -79,6 +76,9 @@
 #include "mongo/util/string_map.h"
 #include "mongo/util/testing_proctor.h"
 #include "mongo/util/uuid.h"
+
+#include <boost/move/utility_core.hpp>
+#include <boost/optional/optional.hpp>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
@@ -1009,7 +1009,20 @@ void KeyStringIndexConsistency::_foundInconsistency(OperationContext* opCtx,
             infoBuilder.append("idKey", idKeyBuilder.obj());
         }
 
-        results.addMissingIndexEntry(infoBuilder.obj());
+        auto obj = infoBuilder.obj();
+        if (auto elem = obj.getField("idKey"); !elem.eoo() && elem.isABSONObj()) {
+            auto subObj = elem.Obj();
+            if (auto subElem = subObj.getField("_id"); !subElem.eoo() && subElem.isNull()) {
+                LOGV2(8721500,
+                      "Unexpected null _id in missingIndexEntries",
+                      "recordId"_attr = recordId.toStringHumanReadable(),
+                      "recordData"_attr = data,
+                      "generatedObject"_attr = obj,
+                      "indexKey"_attr = indexKey,
+                      "rehydratedKey"_attr = rehydratedKey);
+            }
+        }
+        results.addMissingIndexEntry(std::move(obj));
     } else {
         results.addExtraIndexEntry(infoBuilder.obj());
     }

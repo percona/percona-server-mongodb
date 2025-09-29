@@ -28,16 +28,7 @@
  */
 
 
-#include <absl/container/node_hash_map.h>
-#include <boost/move/utility_core.hpp>
-#include <boost/optional/optional.hpp>
-#include <boost/smart_ptr.hpp>
-#include <cmath>
-#include <memory>
-#include <mutex>
-#include <string>
-#include <utility>
-#include <vector>
+#include "mongo/db/mirror_maestro.h"
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
@@ -50,7 +41,6 @@
 #include "mongo/db/client_out_of_line_executor.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/commands/server_status.h"
-#include "mongo/db/mirror_maestro.h"
 #include "mongo/db/mirror_maestro_gen.h"
 #include "mongo/db/mirroring_sampler.h"
 #include "mongo/db/namespace_string.h"
@@ -81,6 +71,18 @@
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/synchronized_value.h"
+
+#include <cmath>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <absl/container/node_hash_map.h>
+#include <boost/move/utility_core.hpp>
+#include <boost/optional/optional.hpp>
+#include <boost/smart_ptr.hpp>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 
@@ -385,13 +387,17 @@ void MirrorMaestroImpl::tryMirror(const std::shared_ptr<CommandInvocation>& invo
 
     auto imr = _topologyVersionObserver.getCached();
     auto samplingParams = MirroringSampler::SamplingParameters(params.getSamplingRate());
-    if (!_sampler.shouldSample(imr, samplingParams)) {
+    auto mirrorMode = _sampler.getMirrorMode(imr, samplingParams);
+    if (!mirrorMode.shouldMirror()) {
         // If we wouldn't select a host, then nothing more to do
         return;
     }
 
-    auto hosts = _sampler.getRawMirroringTargets(imr);
-    invariant(!hosts.empty());
+    std::vector<HostAndPort> hostsForGeneralMirror;
+    if (mirrorMode.generalEnabled) {
+        hostsForGeneralMirror = _sampler.getRawMirroringTargetsForGeneralMode(imr);
+        invariant(!hostsForGeneralMirror.empty());
+    }
 
     auto clientExecutor = ClientOutOfLineExecutor::get(Client::getCurrent());
     auto clientExecutorHandle = clientExecutor->getHandle();
@@ -400,7 +406,7 @@ void MirrorMaestroImpl::tryMirror(const std::shared_ptr<CommandInvocation>& invo
     // move the consumption (i.e., `consumeAllTasks`) to the baton.
     clientExecutor->consumeAllTasks();
 
-    auto mirrorCount = std::ceil(params.getSamplingRate() * hosts.size());
+    auto mirrorCount = std::ceil(params.getSamplingRate() * hostsForGeneralMirror.size());
 
     if (MONGO_unlikely(mirrorMaestroTracksPending.shouldFail())) {
         gMirroredReadsSection.pending.fetchAndAdd(mirrorCount);
@@ -410,7 +416,7 @@ void MirrorMaestroImpl::tryMirror(const std::shared_ptr<CommandInvocation>& invo
     // out-of-line. This means the command itself can return quickly and we do the arduous work of
     // building new bsons and evaluating randomness in a less important context.
     auto requestState = std::make_unique<MirroredRequestState>(
-        this, std::move(hosts), invocation, std::move(params), mirrorCount);
+        this, std::move(hostsForGeneralMirror), invocation, std::move(params), mirrorCount);
     ExecutorFuture(_executor)  //
         .getAsync([clientExecutorHandle,
                    requestState = std::move(requestState)](const auto& status) mutable {

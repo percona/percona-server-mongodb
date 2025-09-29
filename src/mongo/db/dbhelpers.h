@@ -29,13 +29,13 @@
 
 #pragma once
 
-#include <memory>
-
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/query/write_ops/update_result.h"
 #include "mongo/db/record_id.h"
+
+#include <memory>
 
 namespace mongo {
 
@@ -163,6 +163,13 @@ struct Helpers {
     static Status insert(OperationContext* opCtx,
                          const CollectionAcquisition& coll,
                          const BSONObj& doc);
+
+    /**
+     * Deletes document from collection 'coll' via RecordId 'rid'.
+     */
+    static void deleteByRid(OperationContext* opCtx,
+                            const CollectionAcquisition& coll,
+                            RecordId rid);
 
     // TODO: this should be somewhere else probably
     /* Takes object o, and returns a new object with the

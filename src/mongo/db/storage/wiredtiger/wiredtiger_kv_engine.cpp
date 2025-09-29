@@ -50,36 +50,11 @@
 #include <libarchive/archive_entry.h>
 #include <valgrind/valgrind.h>
 // IWYU pragma: no_include "boost/system/detail/error_code.hpp"
+#include <wiredtiger.h>
+
 #include <boost/move/utility_core.hpp>
 #include <boost/optional/optional.hpp>
-#include <wiredtiger.h>
 // IWYU pragma: no_include "cxxabi.h"
-#include <algorithm>
-#include <cerrno>
-#include <chrono>
-#include <cstddef>
-#include <exception>
-#include <iomanip>
-#include <limits>
-#include <memory>
-#include <mutex>
-#include <regex>
-#include <sstream>
-#include <utility>
-
-
-#include <aws/core/Aws.h>
-#include <aws/core/auth/AWSCredentialsProvider.h>
-#include <aws/core/utils/logging/AWSLogging.h>
-#include <aws/core/utils/logging/FormattedLogSystem.h>
-#include <aws/s3/S3Client.h>
-#include <aws/s3/model/AbortMultipartUploadRequest.h>
-#include <aws/s3/model/CreateBucketRequest.h>
-#include <aws/s3/model/CreateMultipartUploadRequest.h>
-#include <aws/s3/model/ListObjectsRequest.h>
-#include <aws/s3/model/PutObjectRequest.h>
-#include <aws/transfer/TransferManager.h>
-
 #include "mongo/base/checked_cast.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/parse_number.h"
@@ -148,6 +123,31 @@
 #include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
 #include "mongo/util/version/releases.h"
+
+#include <algorithm>
+#include <cerrno>
+#include <chrono>
+#include <cstddef>
+#include <exception>
+#include <iomanip>
+#include <limits>
+#include <memory>
+#include <mutex>
+#include <regex>
+#include <sstream>
+#include <utility>
+
+#include <aws/core/Aws.h>
+#include <aws/core/auth/AWSCredentialsProvider.h>
+#include <aws/core/utils/logging/AWSLogging.h>
+#include <aws/core/utils/logging/FormattedLogSystem.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/AbortMultipartUploadRequest.h>
+#include <aws/s3/model/CreateBucketRequest.h>
+#include <aws/s3/model/CreateMultipartUploadRequest.h>
+#include <aws/s3/model/ListObjectsRequest.h>
+#include <aws/s3/model/PutObjectRequest.h>
+#include <aws/transfer/TransferManager.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
