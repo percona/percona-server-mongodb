@@ -191,6 +191,7 @@ variables:
       - func: "f_expansions_write"
       - func: "run hang analyzer"
       - func: "wait for resmoke to shutdown"
+      - func: "save bazel run logs"
 
 ################################################
 #                    Tasks                     #
@@ -2455,7 +2456,7 @@ tasks:
           <<: *jstestfuzz_config_vars
           num_files: ${jstestfuzz_concurrent_num_files|10}
           num_tasks: 5
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded_causal_consistency
           resmoke_args: --numClientsPerFixture=10
 
@@ -2480,7 +2481,7 @@ tasks:
           <<: *jstestfuzz_config_vars
           num_files: ${jstestfuzz_concurrent_num_files|10}
           num_tasks: 2
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded_kill_terminate_stepdown
           resmoke_args: --numClientsPerFixture=10
 
@@ -2509,7 +2510,7 @@ tasks:
           <<: *jstestfuzz_config_vars
           num_files: ${jstestfuzz_concurrent_num_files|10}
           num_tasks: 2
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded_kill_terminate_stepdown
           resmoke_args: >-
             --numClientsPerFixture=10
@@ -2593,7 +2594,7 @@ tasks:
           <<: *jstestfuzz_config_vars
           num_files: ${jstestfuzz_concurrent_num_files|10}
           num_tasks: 5
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded
           resmoke_args: --numClientsPerFixture=10
 
@@ -2616,7 +2617,7 @@ tasks:
           <<: *jstestfuzz_config_vars
           num_files: ${jstestfuzz_concurrent_num_files|10}
           num_tasks: 5
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded_notablescan
           resmoke_args: --numClientsPerFixture=10
 
@@ -2638,7 +2639,7 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           <<: *jstestfuzz_config_vars
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded_causal_consistency
           resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
 
@@ -2663,7 +2664,7 @@ tasks:
           <<: *jstestfuzz_config_vars
           num_files: 5
           num_tasks: 5
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded_kill_terminate_stepdown
           resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
 
@@ -2687,7 +2688,7 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           <<: *jstestfuzz_config_vars
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded
           resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
 
@@ -2711,7 +2712,7 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           <<: *jstestfuzz_config_vars
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           resmoke_args: >-
             --mongodSetParameters='{logComponentVerbosity: {command: 2}}'
             --runNoFeatureFlagTests
@@ -2734,7 +2735,7 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           <<: *jstestfuzz_config_vars
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded_notablescan
           resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
 
@@ -2756,7 +2757,7 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           <<: *jstestfuzz_config_vars
-          jstestfuzz_vars: --jsTestsDir ../jstests
+          jstestfuzz_vars: --jsTestsDir jstests
           suite: jstestfuzz_sharded_with_config_transitions_and_add_remove_shard
           resmoke_args: "--mongodSetParameters='{logComponentVerbosity: {command: 2}}'"
 

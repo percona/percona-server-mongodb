@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,55 +27,15 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/s/database_sharding_state_factory_mock.h"
 
-#include <vector>
-
-#include "mongo/bson/bsonobj.h"
-#include "mongo/db/pipeline/expression_context.h"
-#include "mongo/db/storage/record_store.h"
+#include "mongo/db/s/database_sharding_state_mock.h"
 
 namespace mongo {
 
-/**
- * A class that writes records to a temporary record store. Performs writes in batches and
- * accumulates statistics.
- */
-class RecordStoreBatchWriter {
-public:
-    RecordStoreBatchWriter(ExpressionContext* expCtx, RecordStore* rs) : _expCtx(expCtx), _rs(rs) {}
-
-    void write(RecordId recordId, BSONObj obj);
-
-    /**
-     * The caller is the owner of the data in recordData and should make sure to keep it alive until
-     * the data has been flushed.
-     */
-    void write(RecordId recordId, RecordData recordData);
-
-    void flush();
-
-    int64_t writtenRecords() const {
-        return _writtenRecords;
-    }
-
-    int64_t writtenBytes() const {
-        return _writtenBytes;
-    }
-
-private:
-    static constexpr size_t kMaxWriteRecordCount = 1000;
-    static constexpr size_t kMaxWriteRecordSize = 16 * 1024 * 1024;
-
-    ExpressionContext* _expCtx;
-    RecordStore* _rs;
-
-    std::vector<Record> _records;
-    std::vector<BSONObj> _ownedObjects;
-    size_t _batchSize = 0;
-
-    int64_t _writtenRecords = 0;
-    int64_t _writtenBytes = 0;
-};
+std::unique_ptr<DatabaseShardingState> DatabaseShardingStateFactoryMock::make(
+    const DatabaseName& dbName) {
+    return std::make_unique<DatabaseShardingStateMock>(dbName);
+}
 
 }  // namespace mongo

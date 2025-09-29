@@ -35,9 +35,9 @@
 #include <algorithm>
 #include <boost/container/vector.hpp>
 #include <boost/move/utility_core.hpp>
-
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
+#include <memory>
 
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonelement.h"
@@ -162,16 +162,16 @@ StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
     invariant(!shard_role_details::getLocker(opCtx)->isLocked() ||
               shard_role_details::getLocker(opCtx)->isW());
     Lock::GlobalWrite globalLk(opCtx);
-    loadDurableCatalog(opCtx,
-                       _options.lockFileCreatedByUncleanShutdown ? LastShutdownState::kUnclean
-                                                                 : LastShutdownState::kClean);
+    loadMDBCatalog(opCtx,
+                   _options.lockFileCreatedByUncleanShutdown ? LastShutdownState::kUnclean
+                                                             : LastShutdownState::kClean);
 
     // We can dismiss recoveryUnitResetGuard now.
     recoveryUnitResetGuard.dismiss();
 }
 
-void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
-                                           LastShutdownState lastShutdownState) {
+void StorageEngineImpl::loadMDBCatalog(OperationContext* opCtx,
+                                       LastShutdownState lastShutdownState) {
     bool catalogExists =
         _engine->hasIdent(*shard_role_details::getRecoveryUnit(opCtx), kCatalogInfo);
     if (_options.forRepair && catalogExists) {
@@ -184,8 +184,8 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
 
         if (status.code() == ErrorCodes::DataModifiedByRepair) {
             LOGV2_WARNING(22264, "Catalog data modified by repair", "error"_attr = status);
-            repairObserver->invalidatingModification(str::stream() << "DurableCatalog repaired: "
-                                                                   << status.reason());
+            repairObserver->invalidatingModification(str::stream()
+                                                     << "MDBCatalog repaired: " << status.reason());
         } else {
             fassertNoTrace(50926, status);
         }
@@ -213,17 +213,17 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
         opCtx, kCatalogInfoNamespace, kCatalogInfo, catalogRecordStoreOpts, boost::none /* uuid */);
 
     if (shouldLog(::mongo::logv2::LogComponent::kStorageRecovery, kCatalogLogLevel)) {
-        LOGV2_FOR_RECOVERY(4615631, kCatalogLogLevel.toInt(), "loadDurableCatalog:");
+        LOGV2_FOR_RECOVERY(4615631, kCatalogLogLevel.toInt(), "loadMDBCatalog:");
         _dumpCatalog(opCtx);
     }
 
     LOGV2(9529901,
           "Initializing durable catalog",
           "numRecords"_attr = _catalogRecordStore->numRecords());
-    _catalog.reset(new DurableCatalog(_catalogRecordStore.get(),
-                                      _options.directoryPerDB,
-                                      _options.directoryForIndexes,
-                                      _engine.get()));
+    _catalog = std::make_unique<MDBCatalog>(_catalogRecordStore.get(),
+                                            _options.directoryPerDB,
+                                            _options.directoryForIndexes,
+                                            _engine.get());
     _catalog->init(opCtx);
 
     LOGV2(9529902, "Retrieving all idents from storage engine");
@@ -231,8 +231,7 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
         _engine->getAllIdents(*shard_role_details::getRecoveryUnit(opCtx));
     std::sort(identsKnownToStorageEngine.begin(), identsKnownToStorageEngine.end());
 
-    std::vector<DurableCatalog::EntryIdentifier> catalogEntries =
-        _catalog->getAllCatalogEntries(opCtx);
+    std::vector<MDBCatalog::EntryIdentifier> catalogEntries = _catalog->getAllCatalogEntries(opCtx);
 
     // Perform a read on the catalog at the `oldestTimestamp` and record the record stores (via
     // their catalogId) that existed.
@@ -265,7 +264,7 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
             if (ident::isCollectionIdent(ident)) {
                 bool isOrphan = !std::any_of(catalogEntries.begin(),
                                              catalogEntries.end(),
-                                             [this, &ident](DurableCatalog::EntryIdentifier entry) {
+                                             [this, &ident](MDBCatalog::EntryIdentifier entry) {
                                                  return entry.ident == ident;
                                              });
                 if (isOrphan) {
@@ -283,8 +282,8 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
                             clustered_util::makeDefaultClusteredIdIndex();
                     }
 
-                    StatusWith<std::string> statusWithNs =
-                        _catalog->newOrphanedIdent(opCtx, ident, optionsWithUUID);
+                    StatusWith<std::string> statusWithNs = durable_catalog::newOrphanedIdent(
+                        opCtx, ident, optionsWithUUID, _catalog.get());
 
                     if (statusWithNs.isOK()) {
                         wuow.commit();
@@ -328,7 +327,7 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
     LOGV2(9529903,
           "Initializing all collections in durable catalog",
           "numEntries"_attr = catalogEntries.size());
-    for (DurableCatalog::EntryIdentifier entry : catalogEntries) {
+    for (MDBCatalog::EntryIdentifier entry : catalogEntries) {
         if (_options.forRestore) {
             // When restoring a subset of user collections from a backup, the collections not
             // restored are in the catalog but are unknown to the storage engine. The catalog
@@ -345,7 +344,7 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
                       "ident"_attr = collectionIdent);
 
                 WriteUnitOfWork wuow(opCtx);
-                fassert(6260801, _catalog->_removeEntry(opCtx, entry.catalogId));
+                fassert(6260801, _catalog->removeEntry(opCtx, entry.catalogId));
                 wuow.commit();
 
                 continue;
@@ -376,7 +375,7 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
                                   logAttrs(entry.nss),
                                   "error"_attr = status);
                     WriteUnitOfWork wuow(opCtx);
-                    fassert(50716, _catalog->_removeEntry(opCtx, entry.catalogId));
+                    fassert(50716, _catalog->removeEntry(opCtx, entry.catalogId));
 
                     if (_options.forRepair) {
                         StorageRepairObserver::get(getGlobalServiceContext())
@@ -399,7 +398,7 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
             // where there are collections in the catalog that are unknown to the storage engine
             // after restoring from backed up data files. See SERVER-55552.
             WriteUnitOfWork wuow(opCtx);
-            fassert(5555200, _catalog->_removeEntry(opCtx, entry.catalogId));
+            fassert(5555200, _catalog->removeEntry(opCtx, entry.catalogId));
             wuow.commit();
 
             LOGV2_INFO(5555201,
@@ -418,10 +417,10 @@ void StorageEngineImpl::loadDurableCatalog(OperationContext* opCtx,
     shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
 }
 
-void StorageEngineImpl::closeDurableCatalog(OperationContext* opCtx) {
+void StorageEngineImpl::closeMDBCatalog(OperationContext* opCtx) {
     dassert(shard_role_details::getLocker(opCtx)->isLocked());
     if (shouldLog(::mongo::logv2::LogComponent::kStorageRecovery, kCatalogLogLevel)) {
-        LOGV2_FOR_RECOVERY(4615632, kCatalogLogLevel.toInt(), "closeDurableCatalog:");
+        LOGV2_FOR_RECOVERY(4615632, kCatalogLogLevel.toInt(), "closeMDBCatalog:");
         _dumpCatalog(opCtx);
     }
 
@@ -443,7 +442,8 @@ Status StorageEngineImpl::_recoverOrphanedCollection(OperationContext* opCtx,
           "ident"_attr = collectionIdent);
 
     WriteUnitOfWork wuow(opCtx);
-    const auto catalogEntry = _catalog->getParsedCatalogEntry(opCtx, catalogId);
+    const auto catalogEntry =
+        durable_catalog::getParsedCatalogEntry(opCtx, catalogId, _catalog.get());
     const auto md = catalogEntry->metadata;
     const auto recordStoreOptions = getRecordStoreOptions(collectionName, md->options);
     Status status =
@@ -465,7 +465,7 @@ Status StorageEngineImpl::_recoverOrphanedCollection(OperationContext* opCtx,
 
 void StorageEngineImpl::_checkForIndexFiles(
     OperationContext* opCtx,
-    const DurableCatalog::EntryIdentifier& entry,
+    const MDBCatalog::EntryIdentifier& entry,
     std::vector<std::string>& identsKnownToStorageEngine) const {
     std::vector<std::string> indexIdents = _catalog->getIndexIdents(opCtx, entry.catalogId);
     for (const std::string& indexIdent : indexIdents) {
@@ -562,15 +562,15 @@ bool StorageEngineImpl::_handleInternalIdent(OperationContext* opCtx,
 
 /**
  * This method reconciles differences between idents the KVEngine is aware of and the
- * DurableCatalog. There are three differences to consider:
+ * MDBCatalog. There are three differences to consider:
  *
- * First, a KVEngine may know of an ident that the DurableCatalog does not. This method will drop
+ * First, a KVEngine may know of an ident that the MDBCatalog does not. This method will drop
  * the ident from the KVEngine.
  *
- * Second, a DurableCatalog may have a collection ident that the KVEngine does not. This is an
+ * Second, a MDBCatalog may have a collection ident that the KVEngine does not. This is an
  * illegal state and this method fasserts.
  *
- * Third, a DurableCatalog may have an index ident that the KVEngine does not. This method will
+ * Third, a MDBCatalog may have an index ident that the KVEngine does not. This method will
  * rebuild the index.
  */
 StatusWith<StorageEngine::ReconcileResult> StorageEngineImpl::reconcileCatalogAndIdents(
@@ -630,7 +630,7 @@ StatusWith<StorageEngine::ReconcileResult> StorageEngineImpl::reconcileCatalogAn
         }
 
         // In repair context, any orphaned collection idents from the engine should already be
-        // recovered in the catalog in loadDurableCatalog().
+        // recovered in the catalog in loadMDBCatalog().
         invariant(!(ident::isCollectionIdent(it) && _options.forRepair));
 
         // Leave drop-pending idents alone.
@@ -668,10 +668,9 @@ StatusWith<StorageEngine::ReconcileResult> StorageEngineImpl::reconcileCatalogAn
     // engine. An omission here is fatal. A missing ident could mean a collection drop was rolled
     // back. Note that startup already attempts to open tables; this should only catch errors in
     // other contexts such as `recoverToStableTimestamp`.
-    std::vector<DurableCatalog::EntryIdentifier> catalogEntries =
-        _catalog->getAllCatalogEntries(opCtx);
+    std::vector<MDBCatalog::EntryIdentifier> catalogEntries = _catalog->getAllCatalogEntries(opCtx);
     if (!_options.forRepair) {
-        for (const DurableCatalog::EntryIdentifier& entry : catalogEntries) {
+        for (const MDBCatalog::EntryIdentifier& entry : catalogEntries) {
             if (engineIdents.find(entry.ident) == engineIdents.end()) {
                 return {ErrorCodes::UnrecoverableRollbackError,
                         str::stream()
@@ -686,8 +685,9 @@ StatusWith<StorageEngine::ReconcileResult> StorageEngineImpl::reconcileCatalogAn
     //
     // Also, remove unfinished builds except those that were background index builds started on a
     // secondary.
-    for (const DurableCatalog::EntryIdentifier& entry : catalogEntries) {
-        const auto catalogEntry = _catalog->getParsedCatalogEntry(opCtx, entry.catalogId);
+    for (const MDBCatalog::EntryIdentifier& entry : catalogEntries) {
+        const auto catalogEntry =
+            durable_catalog::getParsedCatalogEntry(opCtx, entry.catalogId, _catalog.get());
         auto md = catalogEntry->metadata;
 
         // Batch up the indexes to remove them from `metaData` outside of the iterator.
@@ -1361,11 +1361,11 @@ bool StorageEngineImpl::waitUntilUnjournaledWritesDurable(OperationContext* opCt
     return _engine->waitUntilUnjournaledWritesDurable(opCtx, stableCheckpoint);
 }
 
-DurableCatalog* StorageEngineImpl::getDurableCatalog() {
+MDBCatalog* StorageEngineImpl::getMDBCatalog() {
     return _catalog.get();
 }
 
-const DurableCatalog* StorageEngineImpl::getDurableCatalog() const {
+const MDBCatalog* StorageEngineImpl::getMDBCatalog() const {
     return _catalog.get();
 }
 

@@ -30,12 +30,13 @@
 #include <memory>
 
 #include "mongo/bson/bsonmisc.h"
+#include "mongo/bson/json.h"
 #include "mongo/db/catalog/create_collection.h"
+#include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/commands/query_cmd/aggregation_execution_state.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/s/collection_sharding_runtime.h"
-#include "mongo/db/s/database_sharding_runtime.h"
 #include "mongo/db/s/shard_filtering_metadata_refresh.h"
 #include "mongo/db/s/shard_server_test_fixture.h"
 #include "mongo/db/views/view_catalog_helpers.h"
@@ -59,23 +60,20 @@ protected:
         return _dbVersion;
     }
 
-    // Install database metadata for the "test" database and fills the cache.
-    void installDatabaseMetadata(OperationContext* opCtx, const DatabaseVersion& dbVersion) {
-        AutoGetDb autoDb(opCtx, _dbName, MODE_X, {}, {});
-        auto scopedDsr = DatabaseShardingRuntime::assertDbLockedAndAcquireExclusive(opCtx, _dbName);
-        scopedDsr->setDbInfo_DEPRECATED(opCtx, {_dbName, kMyShardName, dbVersion});
-        getCatalogCacheMock()->setDatabaseReturnValue(
-            _dbName, CatalogCacheMock::makeDatabaseInfo(_dbName, kMyShardName, dbVersion));
-        _dbVersion = dbVersion;
-    }
-
     // Install sharded collection metadata for an unsharded collection and fills the cache.
-    void installUnshardedCollectionMetadata(OperationContext* opCtx, const NamespaceString& nss) {
+    void installUnshardedCollectionMetadata(OperationContext* opCtx,
+                                            const NamespaceString& nss,
+                                            bool requiresExtendedRangeSupport = false) {
         AutoGetCollection coll(
             opCtx,
             NamespaceStringOrUUID(nss),
             MODE_IX,
             AutoGetCollection::Options{}.viewMode(auto_get_collection::ViewMode::kViewsPermitted));
+
+        if (requiresExtendedRangeSupport) {
+            coll->setRequiresTimeseriesExtendedRangeSupport(opCtx);
+        }
+
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
             ->setFilteringMetadata(opCtx, CollectionMetadata::UNTRACKED());
         auto cm = ChunkManager(RoutingTableHistoryValueHandle{OptionalRoutingTableHistory{}},
@@ -90,7 +88,8 @@ protected:
     // Install sharded collection metadata for 1 chunk sharded collection and fills the cache.
     void installShardedCollectionMetadata(OperationContext* opCtx,
                                           const NamespaceString& nss,
-                                          ShardId shardName) {
+                                          ShardId shardName,
+                                          bool requiresExtendedRangeSupport = false) {
         // Made up a shard version
         const ShardVersion shardVersion = ShardVersionFactory::make(
             ChunkVersion(CollectionGeneration{OID::gen(), Timestamp(5, 0)},
@@ -136,6 +135,11 @@ protected:
         const auto collectionMetadata = CollectionMetadata(cm, shardName);
 
         AutoGetCollection coll(opCtx, NamespaceStringOrUUID(nss), MODE_IX);
+
+        if (requiresExtendedRangeSupport) {
+            coll->setRequiresTimeseriesExtendedRangeSupport(opCtx);
+        }
+
         CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)
             ->setFilteringMetadata(opCtx, collectionMetadata);
 
@@ -161,6 +165,29 @@ protected:
             installShardedCollectionMetadata(opCtx, nss, kMyShardName);
         } else {
             installUnshardedCollectionMetadata(opCtx, nss);
+        }
+
+        return nss;
+    }
+
+    NamespaceString createTimeseriesCollection(StringData coll,
+                                               bool sharded,
+                                               bool requiresExtendedRangeSupport) {
+        auto nss = NamespaceString::createNamespaceString_forTest(_dbName, coll);
+        auto bucketsNss = nss.makeTimeseriesBucketsNamespace();
+        auto opCtx = operationContext();
+        OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
+            opCtx);
+
+        auto timeseriesOptions = BSON("timeField" << "timestamp");
+        uassertStatusOK(createCollection(
+            opCtx, _dbName, BSON("create" << coll << "timeseries" << timeseriesOptions)));
+
+        if (sharded) {
+            installShardedCollectionMetadata(
+                opCtx, bucketsNss, kMyShardName, requiresExtendedRangeSupport);
+        } else {
+            installUnshardedCollectionMetadata(opCtx, bucketsNss, requiresExtendedRangeSupport);
         }
 
         return nss;
@@ -303,7 +330,6 @@ void AggregationExecutionStateTest::setUp() {
     serverGlobalParams.clusterRole = {ClusterRole::ShardServer, ClusterRole::RouterServer};
 
     auto dbType = createTestDatabase(UUID::gen(), Timestamp(1, 0));
-    installDatabaseMetadata(operationContext(), dbType.getVersion());
 
     Grid::get(operationContext())->setShardingInitialized();
 }
@@ -479,6 +505,51 @@ TEST_F(AggregationExecutionStateTest, CreateDefaultAggCatalogStateView) {
     ASSERT_FALSE(aggCatalogState->getUUID().has_value());
 
     ASSERT_DOES_NOT_THROW(aggCatalogState->relinquishResources());
+}
+
+TEST_F(AggregationExecutionStateTest, UnshardedSecondaryNssRequiresExtendedRangeSupport) {
+    StringData main{"coll"};
+    StringData timeseriesColl{"timeseries"};
+
+    createTestCollection(main, false /*sharded*/);
+    createTimeseriesCollection(
+        timeseriesColl, false /*sharded*/, true /*requiresExtendedRangeSupport*/);
+
+    auto aggExState = createDefaultAggExStateWithSecondaryCollections(main, timeseriesColl);
+    auto aggCatalogState = aggExState->createAggCatalogState();
+    auto expCtx = aggCatalogState->createExpressionContext();
+
+    ASSERT_TRUE(expCtx->getRequiresTimeseriesExtendedRangeSupport());
+}
+
+TEST_F(AggregationExecutionStateTest, ShardedSecondaryNssRequiresExtendedRangeSupport) {
+    StringData main{"coll"};
+    StringData timeseriesColl{"timeseries"};
+
+    createTestCollection(main, true /*sharded*/);
+    createTimeseriesCollection(
+        timeseriesColl, true /*sharded*/, true /*requiresExtendedRangeSupport*/);
+
+    auto aggExState = createDefaultAggExStateWithSecondaryCollections(main, timeseriesColl);
+    auto aggCatalogState = aggExState->createAggCatalogState();
+    auto expCtx = aggCatalogState->createExpressionContext();
+
+    ASSERT_TRUE(expCtx->getRequiresTimeseriesExtendedRangeSupport());
+}
+
+TEST_F(AggregationExecutionStateTest, SecondaryNssNoExtendedRangeSupport) {
+    StringData main{"coll"};
+    StringData timeseriesColl{"timeseries"};
+
+    createTestCollection(main, false /*sharded*/);
+    createTimeseriesCollection(
+        timeseriesColl, false /*sharded*/, false /*requiresExtendedRangeSupport*/);
+
+    auto aggExState = createDefaultAggExStateWithSecondaryCollections(main, timeseriesColl);
+    auto aggCatalogState = aggExState->createAggCatalogState();
+    auto expCtx = aggCatalogState->createExpressionContext();
+
+    ASSERT_FALSE(expCtx->getRequiresTimeseriesExtendedRangeSupport());
 }
 
 TEST_F(AggregationExecutionStateTest, CreateOplogAggCatalogState) {

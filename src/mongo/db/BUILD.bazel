@@ -2159,12 +2159,14 @@ mongo_cc_unit_test(
 mongo_cc_library(
     name = "common",
     srcs = [
+        "cursor_in_use_info.cpp",
         "field_parser.cpp",
         "field_ref.cpp",
         "field_ref_set.cpp",
         "txn_retry_counter_too_old_info.cpp",
     ],
     hdrs = [
+        "cursor_in_use_info.h",
         "field_parser.h",
         "field_ref.h",
         "field_ref_set.h",
@@ -3809,9 +3811,13 @@ mongo_cc_library(
     name = "service_context_d_test_fixture",
     srcs = [
         "service_context_d_test_fixture.cpp",
+        "//src/mongo/db/s:database_sharding_state_factory_mock.cpp",
+        "//src/mongo/db/s:database_sharding_state_mock.cpp",
     ],
     hdrs = [
         "service_context_d_test_fixture.h",
+        "//src/mongo/db/s:database_sharding_state_factory_mock.h",
+        "//src/mongo/db/s:database_sharding_state_mock.h",
     ],
     deps = [
         ":service_context_d",

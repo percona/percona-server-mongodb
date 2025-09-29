@@ -81,7 +81,7 @@
 #include "mongo/db/server_recovery.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/disk_space_util.h"
-#include "mongo/db/storage/durable_catalog.h"
+#include "mongo/db/storage/mdb_catalog.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_options.h"
@@ -112,7 +112,6 @@
 namespace mongo {
 
 MONGO_FAIL_POINT_DEFINE(hangAfterIndexBuildFirstDrain);
-MONGO_FAIL_POINT_DEFINE(hangAfterIndexBuildSecondDrain);
 MONGO_FAIL_POINT_DEFINE(hangAfterIndexBuildDumpsInsertsFromBulk);
 MONGO_FAIL_POINT_DEFINE(hangAfterIndexBuildDumpsInsertsFromBulkLock);
 MONGO_FAIL_POINT_DEFINE(hangAfterInitializingIndexBuild);
@@ -127,7 +126,6 @@ MONGO_FAIL_POINT_DEFINE(hangIndexBuildBeforeWaitingUntilMajorityOpTime);
 MONGO_FAIL_POINT_DEFINE(hangBeforeUnregisteringAfterCommit);
 MONGO_FAIL_POINT_DEFINE(failSetUpResumeIndexBuild);
 MONGO_FAIL_POINT_DEFINE(failIndexBuildWithError);
-MONGO_FAIL_POINT_DEFINE(failIndexBuildWithErrorInSecondDrain);
 MONGO_FAIL_POINT_DEFINE(hangIndexBuildOnSetupBeforeTakingLocks);
 MONGO_FAIL_POINT_DEFINE(hangAbortIndexBuildByBuildUUIDAfterLocks);
 MONGO_FAIL_POINT_DEFINE(hangOnStepUpAsyncTaskBeforeCheckingCommitQuorum);
@@ -153,7 +151,6 @@ public:
         BSONObjBuilder phases{indexBuilds.subobjStart("phases")};
         phases.append("scanCollection", scanCollection.loadRelaxed());
         phases.append("drainSideWritesTable", drainSideWritesTable.loadRelaxed());
-        phases.append("drainSideWritesTablePreCommit", drainSideWritesTablePreCommit.loadRelaxed());
         phases.append("waitForCommitQuorum", waitForCommitQuorum.loadRelaxed());
         phases.append("drainSideWritesTableOnCommit", drainSideWritesTableOnCommit.loadRelaxed());
         phases.append("processConstraintsViolatonTableOnCommit",
@@ -169,7 +166,6 @@ public:
     AtomicWord<int> failedDueToDataCorruption{0};
     AtomicWord<int> scanCollection{0};
     AtomicWord<int> drainSideWritesTable{0};
-    AtomicWord<int> drainSideWritesTablePreCommit{0};
     AtomicWord<int> waitForCommitQuorum{0};
     AtomicWord<int> drainSideWritesTableOnCommit{0};
     AtomicWord<int> processConstraintsViolatonTableOnCommit{0};
@@ -812,8 +808,7 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
 
     CollectionWriter collection(opCtx, resumeInfo.getCollectionUUID());
     invariant(collection);
-    auto durableCatalog = DurableCatalog::get(opCtx);
-
+    const auto mdbCatalog = MDBCatalog::get(opCtx);
     for (const auto& spec : specs) {
         std::string indexName =
             spec.getStringField(IndexDescriptor::kIndexNameFieldName).toString();
@@ -836,8 +831,7 @@ Status IndexBuildsCoordinator::_setUpResumeIndexBuild(OperationContext* opCtx,
                               << durableBuildUUID,
                 durableBuildUUID == buildUUID);
 
-        auto indexIdent =
-            durableCatalog->getIndexIdent(opCtx, collection->getCatalogId(), indexName);
+        auto indexIdent = mdbCatalog->getIndexIdent(opCtx, collection->getCatalogId(), indexName);
         uassert(
             4841703,
             str::stream() << "No index ident found on disk that matches the index build to resume: "
@@ -2875,7 +2869,6 @@ void IndexBuildsCoordinator::_resumeIndexBuildFromPhase(
 
     _insertKeysFromSideTablesWithoutBlockingWrites(opCtx, replState);
     _signalPrimaryForCommitReadiness(opCtx, replState);
-    _insertKeysFromSideTablesBlockingWrites(opCtx, replState, indexBuildOptions);
     _waitForNextIndexBuildActionAndCommit(opCtx, replState, indexBuildOptions);
 }
 
@@ -2981,7 +2974,6 @@ void IndexBuildsCoordinator::_buildIndex(OperationContext* opCtx,
     _scanCollectionAndInsertSortedKeysIntoIndex(opCtx, replState);
     _insertKeysFromSideTablesWithoutBlockingWrites(opCtx, replState);
     _signalPrimaryForCommitReadiness(opCtx, replState);
-    _insertKeysFromSideTablesBlockingWrites(opCtx, replState, indexBuildOptions);
     _waitForNextIndexBuildActionAndCommit(opCtx, replState, indexBuildOptions);
 }
 
@@ -3086,44 +3078,6 @@ void IndexBuildsCoordinator::_insertKeysFromSideTablesWithoutBlockingWrites(
         hangAfterIndexBuildFirstDrain.pauseWhileSet(opCtx);
     }
 }
-void IndexBuildsCoordinator::_insertKeysFromSideTablesBlockingWrites(
-    OperationContext* opCtx,
-    std::shared_ptr<ReplIndexBuildState> replState,
-    const IndexBuildOptions& indexBuildOptions) {
-    indexBuildsSSS.drainSideWritesTablePreCommit.addAndFetch(1);
-    const NamespaceStringOrUUID dbAndUUID(replState->dbName, replState->collectionUUID);
-
-    failIndexBuildWithErrorInSecondDrain.executeIf(
-        [](const BSONObj& data) {
-            uasserted(data["error"].safeNumberInt(),
-                      "failIndexBuildWithErrorInSecondDrain failpoint triggered");
-        },
-        [&](const BSONObj& data) {
-            return UUID::parse(data["buildUUID"]) == replState->buildUUID;
-        });
-
-    // Perform the second drain while stopping writes on the collection.
-    {
-        // Skip RSTL to avoid deadlocks with prepare conflicts and state transitions. See
-        // SERVER-42621.
-        const auto kAutoGetCollectionOptionsWithSkipRSTL =
-            makeAutoGetCollectionOptions(/*skipRSTL=*/true);
-        AutoGetCollection autoGetColl(
-            opCtx, dbAndUUID, MODE_S, kAutoGetCollectionOptionsWithSkipRSTL);
-
-        uassertStatusOK(_indexBuildsManager.drainBackgroundWrites(
-            opCtx,
-            replState->buildUUID,
-            getReadSourceForDrainBeforeCommitQuorum(*replState),
-            IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
-    }
-
-    if (MONGO_unlikely(hangAfterIndexBuildSecondDrain.shouldFail())) {
-        LOGV2(20667, "Hanging after index build second drain");
-        hangAfterIndexBuildSecondDrain.pauseWhileSet();
-    }
-}
-
 /**
  * Continue the third phase of catching up on all remaining writes that occurred and then commit.
  * Accepts a commit timestamp for the index (null if not available).

@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,41 +27,24 @@
  *    it in the license file.
  */
 
-#include "mongo/db/pipeline/spilling/record_store_batch_writer.h"
+#include "mongo/db/cursor_in_use_info.h"
+#include "mongo/base/init.h"  // IWYU pragma: keep
+#include "mongo/bson/bsonelement.h"
+#include "mongo/bson/bsonobjbuilder.h"
 
 namespace mongo {
+namespace {
 
-void RecordStoreBatchWriter::write(RecordId recordId, BSONObj obj) {
-    _ownedObjects.push_back(obj.getOwned());
-    const BSONObj& ownedObj = _ownedObjects.back();
-    write(recordId, RecordData{ownedObj.objdata(), ownedObj.objsize()});
+MONGO_INIT_REGISTER_ERROR_EXTRA_INFO(CursorInUseInfo);
+
+}  // namespace
+
+void CursorInUseInfo::serialize(BSONObjBuilder* bob) const {
+    bob->append("commandName", _commandName);
 }
 
-void RecordStoreBatchWriter::write(RecordId recordId, RecordData recordData) {
-    _records.emplace_back(Record{std::move(recordId), recordData});
-    _batchSize += _records.back().id.memUsage() + _records.back().data.size();
-    if (_records.size() > kMaxWriteRecordCount || _batchSize > kMaxWriteRecordSize) {
-        flush();
-    }
-}
-
-void RecordStoreBatchWriter::flush() {
-    if (_records.empty()) {
-        return;
-    }
-    // By passing a vector of null timestamps, these inserts are not timestamped individually, but
-    // rather with the timestamp of the owning operation. We don't care about the timestamps.
-    std::vector<Timestamp> timestamps(_records.size());
-
-    _expCtx->getMongoProcessInterface()->writeRecordsToRecordStore(
-        _expCtx, _rs, &_records, timestamps);
-
-    _writtenRecords += _records.size();
-    _writtenBytes += _batchSize;
-
-    _records.clear();
-    _ownedObjects.clear();
-    _batchSize = 0;
+std::shared_ptr<const ErrorExtraInfo> CursorInUseInfo::parse(const BSONObj& obj) {
+    return std::make_shared<CursorInUseInfo>(obj["commandName"].checkAndGetStringData());
 }
 
 }  // namespace mongo

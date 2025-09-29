@@ -78,12 +78,17 @@ alias(
 
 alias(
     name = "codeowners",
-    actual = "@bazel_rules_mongo//codeowners:codeowners_add_auto_approver",
+    actual = "@bazel_rules_mongo//codeowners:codeowners",
 )
 
 alias(
     name = "engflow_auth",
     actual = "@bazel_rules_mongo//engflow_auth:engflow_auth",
+)
+
+alias(
+    name = "mongo-tidy-test",
+    actual = "//src/mongo/tools/mongo_tidy_checks/tests:MongoTidyCheck_unittest",
 )
 
 setup_mongo_toolchain_aliases()
