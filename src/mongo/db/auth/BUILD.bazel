@@ -229,6 +229,7 @@ mongo_cc_library(
         "//src/mongo/db/auth:sasl_options_init",
         "//src/mongo/db/auth:saslauth",
         "//src/mongo/db/auth:user_cache_invalidator",
+        "//src/mongo/db/auth/external:externalsaslauth",
         "//src/mongo/db/commands:authentication_commands",
         "//src/mongo/db/repl:repl_coordinator_interface",
         "//src/mongo/s:grid",
