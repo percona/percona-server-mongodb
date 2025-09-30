@@ -21,22 +21,37 @@ filegroup(
 )
 
 mongo_cc_library(
+    name = "sasl_oidc_server_mechanism",
+    srcs = [
+        "//src/mongo/db/auth/external:sasl_oidc_server_mechanism.cpp",
+    ],
+    deps = [
+        "//src/mongo/db:service_context",
+        "//src/mongo/db/auth:saslauth",
+        "//src/mongo/db/auth/oidc:oidc",
+    ],
+)
+
+mongo_cc_library(
     name = "externalsaslauth",
     srcs = [
         "//src/mongo/db/auth/external:awsiam_server_mechanism.cpp",
         "//src/mongo/db/auth/external:cyrus_sasl_server_session.cpp",
         "//src/mongo/db/auth/external:external_sasl_authentication_session.cpp",
         "//src/mongo/db/auth/external:gssapi_server_mechanism.cpp",
-        "//src/mongo/db/auth/external:sasl_oidc_server_mechanism.cpp",
     ],
     deps = [
         "//src/mongo/db/auth:saslauth",
-        "//src/mongo/db/auth/oidc:oidc",
         "//src/mongo/db/ldap:ldap_manager",
         "//src/mongo/db:ldap_options",
         "//src/mongo/db:service_context",
         "//src/mongo/util/net:http_client",
     ] + select({
+        "//bazel/config:oidc_selected": [
+            "//src/mongo/db/auth/external:sasl_oidc_server_mechanism",
+        ],
+        "//conditions:default": [],
+    }) + select({
         "//bazel/config:ssl_enabled": [
             "//src/mongo/client:sasl_aws_protocol_common_idl",
         ],
@@ -55,7 +70,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/auth/external:sasl_oidc_server_mechanism_test.cpp",
     ],
     deps = [
-        "//src/mongo/db/auth/external:externalsaslauth",
+        "//src/mongo/db/auth/external:sasl_oidc_server_mechanism",
         "//src/mongo/db/auth/oidc:oidc_test_fixture",
     ]
 )
