@@ -2951,6 +2951,14 @@ config_setting(
     },
 )
 
+selects.config_setting_group(
+    name = "fipsmode_selected",
+    match_any = [
+        "fipsmode_enabled",
+        "full_featured_enabled",
+    ],
+)
+
 # --------------------------------------
 # fcbis
 # --------------------------------------
@@ -2972,6 +2980,14 @@ config_setting(
     flag_values = {
         "//bazel/config:enable_fcbis": "False",
     },
+)
+
+selects.config_setting_group(
+    name = "fcbis_selected",
+    match_any = [
+        "fcbis_enabled",
+        "full_featured_enabled",
+    ],
 )
 
 # --------------------------------------
@@ -2996,3 +3012,12 @@ config_setting(
         "//bazel/config:enable_oidc": "False",
     },
 )
+
+selects.config_setting_group(
+    name = "oidc_selected",
+    match_any = [
+        "oidc_enabled",
+        "full_featured_enabled",
+    ],
+)
+

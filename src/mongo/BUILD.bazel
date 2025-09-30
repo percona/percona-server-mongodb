@@ -104,24 +104,17 @@ generate_config_header(
         },
         "//conditions:default": {},
     }) | select({
-        "//bazel/config:full_featured_enabled": {
-            "PERCONA_FIPSMODE_ENABLED": "1",
-            "PERCONA_FCBIS_ENABLED": "1",
-            "PERCONA_OIDC_ENABLED": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:fipsmode_enabled": {
+        "//bazel/config:fipsmode_selected": {
             "PERCONA_FIPSMODE_ENABLED": "1",
         },
         "//conditions:default": {},
     }) | select({
-        "//bazel/config:fcbis_enabled": {
+        "//bazel/config:fcbis_selected": {
             "PERCONA_FCBIS_ENABLED": "1",
         },
         "//conditions:default": {},
     }) | select({
-        "//bazel/config:oidc_enabled": {
+        "//bazel/config:oidc_selected": {
             "PERCONA_OIDC_ENABLED": "1",
         },
         "//conditions:default": {},

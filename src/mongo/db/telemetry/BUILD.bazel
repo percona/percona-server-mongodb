@@ -40,12 +40,7 @@ mongo_cc_library(
         "//src/mongo/db/telemetry:telemetry_parameter_idl",
         "//src/mongo/util:background_job",
     ] + select({
-        "//bazel/config:oidc_enabled": [
-            "//src/mongo/db/auth/oidc:oidc",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:full_featured_enabled": [
+        "//bazel/config:oidc_selected": [
             "//src/mongo/db/auth/oidc:oidc",
         ],
         "//conditions:default": [],

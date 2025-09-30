@@ -989,16 +989,13 @@ generate_config_header(
         "//bazel/config:build_enterprise_enabled": {"build_enterprise_enabled": "1"},
         "//conditions:default": {},
     }) | select({
-        "//bazel/config:full_featured_enabled": {"fipsmode_enabled": "1"},
-        "//bazel/config:fipsmode_enabled": {"fipsmode_enabled": "1"},
+        "//bazel/config:fipsmode_selected": {"fipsmode_enabled": "1"},
         "//conditions:default": {},
     }) | select({
-        "//bazel/config:full_featured_enabled": {"fcbis_enabled": "1"},
-        "//bazel/config:fcbis_enabled": {"fcbis_enabled": "1"},
+        "//bazel/config:fcbis_selected": {"fcbis_enabled": "1"},
         "//conditions:default": {},
     }) | select({
-        "//bazel/config:full_featured_enabled": {"oidc_enabled": "1"},
-        "//bazel/config:oidc_enabled": {"oidc_enabled": "1"},
+        "//bazel/config:oidc_selected": {"oidc_enabled": "1"},
         "//conditions:default": {},
     }),
     logfile = "version_constants_gen.log",

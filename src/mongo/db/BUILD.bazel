@@ -2793,18 +2793,12 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:full_featured_enabled": [
-            "//src/mongo/db/repl:initial_syncer_fcb",
-            "//src/mongo/db/auth/oidc:oidc",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:fcbis_enabled": [
+        "//bazel/config:fcbis_selected": [
             "//src/mongo/db/repl:initial_syncer_fcb",
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:oidc_enabled": [
+        "//bazel/config:oidc_selected": [
             "//src/mongo/db/auth/oidc:oidc",
         ],
         "//conditions:default": [],
@@ -2946,17 +2940,12 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:full_featured_enabled": [
-            "//src/mongo/db/auth/oidc:oidc_commands",
-        ],
-        "//conditions:default": [],
-    }) + select({
         "//bazel/config:inmemory_enabled": [
             "//src/mongo/db/storage/inmemory:storage_inmemory",
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:oidc_enabled": [
+        "//bazel/config:oidc_selected": [
             "//src/mongo/db/auth/oidc:oidc_commands",
         ],
         "//conditions:default": [],
