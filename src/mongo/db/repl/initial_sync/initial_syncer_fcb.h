@@ -531,10 +531,9 @@ private:
 
     StatusWith<std::vector<std::string>> _getBackupFiles();
 
-    Status _switchStorageLocation(
-        OperationContext* opCtx,
-        const std::string& newLocation,
-        boost::optional<startup_recovery::StartupRecoveryMode> = boost::none);
+    Status _switchStorageLocation(OperationContext* opCtx,
+                                  const std::string& newLocation,
+                                  bool runRecovery = false);
 
     Status _killBackupCursor(WithLock lk);
 
