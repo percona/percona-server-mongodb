@@ -34,14 +34,10 @@ Source6:        mongod.pp
 Source7:        percona-server-mongodb-enable-auth.sh
 Source999:      call-home.sh
 
-%if  0%{?amzn} == 2023 || 0%{?rhel} > 6
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
 Requires(post):   systemd
 Requires(preun):  systemd
 Requires(postun): systemd
-%else
-Requires(post):   /sbin/chkconfig
-Requires(preun):  /sbin/chkconfig
-Requires(preun):  /sbin/service
 %endif
 
 
@@ -91,7 +87,7 @@ This metapackage will install the mongo shell, import/export tools, other client
 %package mongos
 Group:          Applications/Databases
 Summary:        Percona Server for MongoDB sharded cluster query router
-%if  0%{?amzn} == 2023 || 0%{?rhel} > 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 8
 Requires: percona-telemetry-agent
 %endif
 Conflicts: Percona-Server-MongoDB-mongos Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
@@ -103,7 +99,7 @@ Group:          Applications/Databases
 Summary:        Percona Server for MongoDB database server
 Requires: policycoreutils
 Requires: percona-mongodb-mongosh
-%if  0%{?amzn} == 2023 || 0%{?rhel} > 7
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 8
 Requires: percona-telemetry-agent
 %endif
 Conflicts: Percona-Server-MongoDB-server Percona-Server-MongoDB-32-server Percona-Server-MongoDB-34-server Percona-Server-MongoDB-36-server mongodb-org-server
@@ -143,6 +139,8 @@ export USE_SSE=1
 export PATH=/usr/local/go/bin:$PATH
 %if  0%{?amzn} == 2023
 export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
+%elif 0%{?rhel} == 10
+export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v5/bin"
 %else
 export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
 %endif
@@ -159,9 +157,6 @@ pushd $RPM_BUILD_DIR/%{src_dir}/aws-sdk-cpp
 %if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
         cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF
         cmake --build . --target install
-%else
-        cmake3 CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF
-        cmake3 --build . --target install
 %endif
 
     popd
@@ -232,9 +227,6 @@ sed -i 's|/var/log/mongodb/mongod.log|/var/log/mongo/mongod.log|' %{buildroot}/%
 %if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
   install -m 755 -d %{buildroot}/%{_unitdir}
   install -m 644 %{SOURCE2} %{buildroot}/%{_unitdir}/mongod.service
-%else
-  install -m 755 -d %{buildroot}/etc/rc.d/init.d
-  install -m 750 %{SOURCE5} %{buildroot}/etc/rc.d/init.d/mongod
 %endif
 #
 install -m 644 %{SOURCE3} %{buildroot}/%{_sysconfdir}/sysconfig/mongod
@@ -268,8 +260,6 @@ install -m 644 $RPM_BUILD_DIR/%{src_dir}/manpages/* %{buildroot}/%{_mandir}/man1
 %{_bindir}/percona-server-mongodb-enable-auth.sh
 %if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
 %{_unitdir}/mongod.service
-%else
-/etc/rc.d/init.d/mongod
 %endif
 /etc/selinux/targeted/modules/active/modules/mongod.pp
 %attr(0750,mongod,mongod) %dir %{mongo_home}
@@ -337,15 +327,9 @@ fi
   if [ $1 == 1 ]; then
     /usr/bin/systemctl enable mongod >/dev/null 2>&1 || :
   fi
-%else
-  if [ $1 == 1 ]; then
-      /sbin/chkconfig --add mongod
-  fi
 %endif
-%if  0%{?amzn} == 2023 || 0%{?rhel} > 5
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
 /usr/sbin/semodule -i /etc/selinux/targeted/modules/active/modules/mongod.pp
-%else
-/usr/sbin/semodule -i /etc/selinux/targeted/modules/active/modules/mongod.pp 2> /dev/null
 %endif
 echo " * To start the service, configure your engine and start mongod"
 parse_yaml() {
@@ -404,10 +388,6 @@ if [ $1 -gt 1 ]; then
     if [ $SERVER_TO_START == 1 ]; then
 %if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
     /usr/sbin/service mongod restart
-%else
-if [ -x %{_sysconfdir}/init.d/mongod ] ; then
-  %{_sysconfdir}/init.d/mongod restart
-fi
 %endif
     fi
 fi
@@ -430,10 +410,6 @@ install -d -m 2775 -o mongod -g percona-telemetry /usr/local/percona/telemetry/p
 %preun server
 %if  0%{?amzn} == 2023 || 0%{?rhel} >= 7
 %systemd_preun mongod.service
-%else
-if [ -x %{_sysconfdir}/init.d/mongod ] ; then
-  %{_sysconfdir}/init.d/mongod stop
-fi
 %endif
 
 %postun server
