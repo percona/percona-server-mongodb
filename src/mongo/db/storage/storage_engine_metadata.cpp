@@ -146,7 +146,7 @@ void StorageEngineMetadata::setStorageEngineOptions(const BSONObj& storageEngine
 
     BSONElement encryptionElem = _storageEngineOptions.getField("encryption");
     if (!encryptionElem.eoo()) {
-        if (encryptionElem.type() != BSONType::Object) {
+        if (encryptionElem.type() != BSONType::object) {
             throw std::runtime_error("The 'encryption' field is not an object");
         }
         try {

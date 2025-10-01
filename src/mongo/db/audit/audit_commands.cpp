@@ -109,7 +109,7 @@ namespace mongo {
             bool ok = true;
             const BSONElement &e = jsobj["logApplicationMessage"];
 
-            if (e.type() == String) {
+            if (e.type() == BSONType::string) {
                 audit::logApplicationMessage(Client::getCurrent(), e.checkAndGetStringData());
             } else {
                 errmsg = "logApplicationMessage only accepts string messages";

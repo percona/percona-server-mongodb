@@ -220,7 +220,7 @@ void validate(const OidcIdentityProvidersServerParameter& param) {
 void paramDeserialize(OidcIdentityProvidersServerParameter& param, const BSONArray& arr) {
     for (std::size_t i{0u}; const BSONElement& elem : arr) {
         IDLParserContext ctx{str::stream() << kParameterName << "[" << i++ << "]"};
-        ctx.checkAndAssertType(elem, mongo::Object);
+        ctx.checkAndAssertType(elem, mongo::BSONType::object);
         auto config{OidcIdentityProviderConfig::parse(ctx, elem.Obj())};
 
         // The default value for array fields is not supported by IDL,
@@ -250,7 +250,7 @@ void OidcIdentityProvidersServerParameter::append(OperationContext*,
 Status OidcIdentityProvidersServerParameter::set(const BSONElement& elem,
                                                  const boost::optional<TenantId>&) try {
     IDLParserContext ctx{kParameterName};
-    ctx.checkAndAssertType(elem, mongo::Array);
+    ctx.checkAndAssertType(elem, mongo::BSONType::array);
     paramDeserialize(*this, BSONArray(elem.Obj()));
     return Status::OK();
 } catch (const DBException& e) {

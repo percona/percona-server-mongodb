@@ -70,7 +70,7 @@ std::unique_ptr<KeyId> KeyId::fromStorageEngineEncryptionOptions(const BSONObj& 
         if (result) {
             throw std::runtime_error("more that one encryption method is specified");
         }
-        if (elem.type() != BSONType::Object) {
+        if (elem.type() != BSONType::object) {
             throw std::runtime_error(str::stream()
                                      << "'" << factory->first << "' is not a BSON object");
         }
@@ -89,7 +89,7 @@ std::unique_ptr<VaultSecretId> VaultSecretId::create(const BSONObj& o) {
     if (pathElem.eoo()) {
         throw std::runtime_error("no 'path' field");
     }
-    if (pathElem.type() != BSONType::String) {
+    if (pathElem.type() != BSONType::string) {
         throw std::runtime_error("the 'path' field is not a string");
     }
     std::string path = pathElem.String();
@@ -103,7 +103,7 @@ std::unique_ptr<VaultSecretId> VaultSecretId::create(const BSONObj& o) {
     }
     // Version is serialized as string to wark aroud BSON limitations.
     // @see `VaultSecretId::_serializeImpl`.
-    if (versionElem.type() != BSONType::String) {
+    if (versionElem.type() != BSONType::string) {
         throw std::runtime_error("the 'version' field is not a string");
     }
     std::istringstream versionStr(versionElem.String());
@@ -122,7 +122,7 @@ std::unique_ptr<KmipKeyId> KmipKeyId::create(const BSONObj& o) {
     if (keyIdElem.eoo()) {
         throw std::runtime_error("no 'keyId' field");
     }
-    if (keyIdElem.type() != BSONType::String) {
+    if (keyIdElem.type() != BSONType::string) {
         throw std::runtime_error("the 'keyId' field is not a string");
     }
     std::string keyId = keyIdElem.String();

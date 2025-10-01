@@ -139,7 +139,7 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
     uassert(ErrorCodes::FailedToParse,
             str::stream() << kStageName << " parameters must be specified in an object, but found: "
                           << typeName(spec.type()),
-            spec.type() == Object);
+            spec.type() == BSONType::object);
 
     StorageEngine::BackupOptions options;
 
@@ -151,35 +151,35 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a boolean value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::Bool);
+                    elem.type() == BSONType::boolean);
             options.disableIncrementalBackup = elem.boolean();
         } else if (fieldName == kIncrementalBackup) {
             uassert(ErrorCodes::TypeMismatch,
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a boolean value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::Bool);
+                    elem.type() == BSONType::boolean);
             options.incrementalBackup = elem.boolean();
         } else if (fieldName == kBlockSize) {
             uassert(ErrorCodes::TypeMismatch,
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be an integer value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::NumberInt);
+                    elem.type() == BSONType::numberInt);
             options.blockSizeMB = elem.Int();
         } else if (fieldName == kThisBackupName) {
             uassert(ErrorCodes::TypeMismatch,
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a string value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::String);
+                    elem.type() == BSONType::string);
             options.thisBackupName = elem.String();
         } else if (fieldName == kSrcBackupName) {
             uassert(ErrorCodes::TypeMismatch,
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a string value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::String);
+                    elem.type() == BSONType::string);
             options.srcBackupName = elem.String();
         } else {
             uasserted(ErrorCodes::FailedToParse,

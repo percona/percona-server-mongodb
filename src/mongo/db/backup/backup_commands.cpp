@@ -127,7 +127,7 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* opCtx,
         status = se->hotBackup(opCtx, dest);
 
     } else if (archiveElem) {
-        if (archiveElem.type() != BSONType::String) {
+        if (archiveElem.type() != BSONType::string) {
             errmsg = "'archive' field must be a path string";
             return false;
         }
@@ -140,7 +140,7 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* opCtx,
         status = se->hotBackupTar(opCtx, archiveElem.String());
 
     } else if (s3Elem) {
-        if (s3Elem.type() != BSONType::Object) {
+        if (s3Elem.type() != BSONType::object) {
             errmsg = "'s3' field must be an object";
             return false;
         }

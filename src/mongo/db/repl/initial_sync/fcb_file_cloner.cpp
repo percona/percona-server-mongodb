@@ -282,7 +282,7 @@ void FCBFileCloner::writeDataToFilesystemCallback(const executor::TaskExecutor::
             const auto& dataElem = doc["data"];
             uassert(6113312,
                     str::stream() << "Expected file data to be type BinDataGeneral. " << doc,
-                    dataElem.type() == BinData && dataElem.binDataType() == BinDataGeneral);
+                    dataElem.type() == BSONType::binData && dataElem.binDataType() == BinDataType::BinDataGeneral);
             int dataLength = 0;
             const char* data = dataElem.binData(dataLength);
             _localFile.write(data, dataLength);

@@ -139,20 +139,20 @@ T bsonObjectGetNestedValue(const BSONObj& object, const StringData& path) {
     tokenizer::iterator cur = next++;
     BSONElement elem = object[*cur];
     for (; next != tok.end(); cur = next, elem = elem[*cur], ++next) {
-        if (elem.type() != mongo::Object) {
+        if (elem.type() != BSONType::object) {
             throw InvalidVaultResponse(*cur, kNotObject);
         }
     }
 
     if constexpr (std::is_same_v<long long, T>) {
-        return elem.type() == mongo::NumberInt || elem.type() == mongo::NumberLong
+        return elem.type() == BSONType::numberInt || elem.type() == BSONType::numberLong
             ? elem.numberLong()
             : throw InvalidVaultResponse(path, kNotInteger);
     } else if constexpr (std::is_same_v<std::string, T>) {
-        return elem.type() == mongo::String ? elem.String()
+        return elem.type() == BSONType::string ? elem.String()
                                             : throw InvalidVaultResponse(path, kNotString);
     } else if constexpr (std::is_same_v<BSONObj, T>) {
-        return elem.type() == mongo::Object ? elem.Obj()
+        return elem.type() == BSONType::object ? elem.Obj()
                                             : throw InvalidVaultResponse(path, kNotObject);
     } else {
         MONGO_STATIC_ASSERT_MSG(!std::is_same_v<T, T>, "unsupported type");

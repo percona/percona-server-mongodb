@@ -116,7 +116,7 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupFile::createFromBson(
     uassert(ErrorCodes::FailedToParse,
             str::stream() << kStageName << " parameters must be specified in an object, but found: "
                           << typeName(spec.type()),
-            spec.type() == Object);
+            spec.type() == BSONType::object);
 
     auto backupId = UUID::fromCDR(std::array<unsigned char, UUID::kNumBytes>{});
     std::string filePath;
@@ -130,21 +130,21 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupFile::createFromBson(
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a binary data value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::BinData);
+                    elem.type() == BSONType::binData);
             backupId = uassertStatusOK(UUID::parse(elem));
         } else if (fieldName == kFile) {
             uassert(ErrorCodes::TypeMismatch,
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a string value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::String);
+                    elem.type() == BSONType::string);
             filePath = elem.String();
         } else if (fieldName == kByteOffset) {
             uassert(ErrorCodes::TypeMismatch,
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a long integer value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::NumberLong);
+                    elem.type() == BSONType::numberLong);
             byteOffset = elem.Long();
         } else {
             uasserted(ErrorCodes::FailedToParse,
@@ -178,7 +178,7 @@ DocumentSourceBackupFile::DocumentSourceBackupFile(const intrusive_ptr<Expressio
                                                    long long byteOffset,
                                                    std::ifstream file)
     : DocumentSource(kStageName, expCtx),
-     exec::agg::Stage(kStageName, expCtx),
+      exec::agg::Stage(kStageName, expCtx),
       _dataBuf(),
       _backupId(backupId),
       _filePath(std::move(filePath)),

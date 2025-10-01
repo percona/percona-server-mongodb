@@ -92,7 +92,7 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupCursorExtend::createFromBson(
     uassert(ErrorCodes::FailedToParse,
             str::stream() << kStageName << " parameters must be specified in an object, but found: "
                           << typeName(spec.type()),
-            spec.type() == Object);
+            spec.type() == BSONType::object);
 
     boost::optional<UUID> backupId = boost::none;
     boost::optional<Timestamp> extendTo;
@@ -105,7 +105,7 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupCursorExtend::createFromBson(
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a UUID value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::BinData && elem.binDataType() == BinDataType::newUUID);
+                    elem.type() == BSONType::binData && elem.binDataType() == BinDataType::newUUID);
             auto res = UUID::parse(elem);
             uassert(ErrorCodes::TypeMismatch,
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
@@ -117,7 +117,7 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupCursorExtend::createFromBson(
                     str::stream() << "The '" << fieldName << "' parameter of the " << kStageName
                                   << " stage must be a Timestamp value, but found: "
                                   << typeName(elem.type()),
-                    elem.type() == BSONType::Date || elem.type() == BSONType::bsonTimestamp);
+                    elem.type() == BSONType::date || elem.type() == BSONType::timestamp);
             extendTo = elem.timestamp();
         } else {
             uasserted(ErrorCodes::FailedToParse,

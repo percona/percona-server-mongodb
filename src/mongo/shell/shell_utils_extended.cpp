@@ -216,7 +216,7 @@ BSONObj parseJsonCanonical(const BSONObj& args, void* data) {
     uassert(51021,
             "the first argument to parseJsonCanonical() must be a string containing "
             "Json in canonical mode <http://dochub.mongodb.org/core/mongodbextendedjson>",
-            e.type() == mongo::String);
+            e.type() == BSONType::string);
     return BSON("" << fromjson(e.str()));
 }
 

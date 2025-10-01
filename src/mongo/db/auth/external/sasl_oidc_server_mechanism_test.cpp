@@ -106,7 +106,7 @@ TEST_F(SaslOidcServerMechanismTest, requestScopes_notEmpty) {
 
     const auto& requestScopes = obj.getField("requestScopes");
     ASSERT_TRUE(requestScopes.ok());
-    ASSERT_EQ(requestScopes.type(), BSONType::Array);
+    ASSERT_EQ(requestScopes.type(), BSONType::array);
     ASSERT_EQ(requestScopes.Array().size(), 2);
     ASSERT_EQ(requestScopes.Array()[0].String(), "scope1");
     ASSERT_EQ(requestScopes.Array()[1].String(), "scope2");

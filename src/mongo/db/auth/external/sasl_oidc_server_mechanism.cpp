@@ -225,7 +225,7 @@ void SaslOidcServerMechanism::processPrincipalName(const OidcIdentityProviderCon
             fmt::format("{} '{}' claim format is not string",
                         OidcIdentityProviderConfig::kPrincipalNameFieldName,
                         idp.getPrincipalName()),
-            principalNameField.type() == BSONType::String);
+            principalNameField.type() == BSONType::string);
 
     // If the incoming SASL-step-1 request contained a principal name, verify that name equals to
     // what `mongod` sees in the token.
@@ -282,16 +282,16 @@ void SaslOidcServerMechanism::processAuthorizationClaim(const OidcIdentityProvid
     };
 
     switch (authClaim.type()) {
-        case BSONType::String:
+        case BSONType::string:
             addRole(authClaim.String());
             break;
-        case BSONType::Array:
+        case BSONType::array:
             for (const auto& c : authClaim.Array()) {
                 uassert(ErrorCodes::BadValue,
                         fmt::format("{} '{}' value is not a string",
                                     OidcIdentityProviderConfig::kAuthorizationClaimFieldName,
                                     authorizationClaim),
-                        c.type() == BSONType::String);
+                        c.type() == BSONType::string);
                 addRole(c.String());
             }
             break;

@@ -165,7 +165,7 @@ TEST_F(OidcListKeysTest, Run_NoJWKManagers) {
     const auto result = runCmd();
     ASSERT_OK(result);
     const auto& keySets = result.getValue().getField("keySets");
-    ASSERT_EQ(keySets.type(), BSONType::Object);
+    ASSERT_EQ(keySets.type(), BSONType::object);
     ASSERT_TRUE(keySets.Obj().isEmpty());
 }
 
@@ -206,17 +206,17 @@ TEST_F(OidcListKeysTest, Run) {
     // Check if the keySets field exists.
     const auto& keySets = result.getValue().getField("keySets");
     ASSERT_TRUE(keySets.ok());
-    ASSERT_EQ(keySets.type(), BSONType::Object);
+    ASSERT_EQ(keySets.type(), BSONType::object);
 
     // Check if the key set for issuer1 exists
     const auto& keySet1 = keySets.Obj().getField(issuer1);
     ASSERT_TRUE(keySet1.ok());
-    ASSERT_EQ(keySet1.type(), BSONType::Object);
+    ASSERT_EQ(keySet1.type(), BSONType::object);
 
     // Check if the keys array exists for issuer1
     const auto& keys1 = keySet1.Obj().getField("keys");
     ASSERT_TRUE(keys1.ok());
-    ASSERT_EQ(keys1.type(), BSONType::Array);
+    ASSERT_EQ(keys1.type(), BSONType::array);
 
     // Expect one JWK ...
     const auto& keysArray1 = keys1.Array();
@@ -225,18 +225,18 @@ TEST_F(OidcListKeysTest, Run) {
     // .. which should be equal to the jwk1.
     const auto& key1 = keysArray1[0];
     ASSERT_TRUE(key1.ok());
-    ASSERT_EQ(key1.type(), BSONType::Object);
+    ASSERT_EQ(key1.type(), BSONType::object);
     ASSERT_BSONOBJ_EQ(key1.Obj(), jwk1);
 
     // Check if the key set for issuer2 exists
     const auto& keySet2 = keySets.Obj().getField(issuer2);
     ASSERT_TRUE(keySet2.ok());
-    ASSERT_EQ(keySet2.type(), BSONType::Object);
+    ASSERT_EQ(keySet2.type(), BSONType::object);
 
     // Check if the keys array exists for issuer2
     const auto& keys2 = keySet2.Obj().getField("keys");
     ASSERT_TRUE(keys2.ok());
-    ASSERT_EQ(keys2.type(), BSONType::Array);
+    ASSERT_EQ(keys2.type(), BSONType::array);
 
     // Expect two JWKs ...
     const auto& keysArray2 = keys2.Array();
@@ -245,13 +245,13 @@ TEST_F(OidcListKeysTest, Run) {
     // ... the first one should be equal to the jwk2 ...
     const auto& key2 = keysArray2[0];
     ASSERT_TRUE(key2.ok());
-    ASSERT_EQ(key2.type(), BSONType::Object);
+    ASSERT_EQ(key2.type(), BSONType::object);
     ASSERT_BSONOBJ_EQ(key2.Obj(), jwk2);
 
     // ... the second one should be equal to the jwk3.
     const auto& key3 = keysArray2[1];
     ASSERT_TRUE(key3.ok());
-    ASSERT_EQ(key3.type(), BSONType::Object);
+    ASSERT_EQ(key3.type(), BSONType::object);
     ASSERT_BSONOBJ_EQ(key3.Obj(), jwk3);
 }
 
@@ -275,18 +275,18 @@ TEST_F(OidcRefreshKeysTest, Run_OneJwkManager_Failed) {
     ASSERT_OK(result);
 
     const BSONElement okField{result.getValue().getField("ok")};
-    ASSERT_EQ(okField.type(), BSONType::NumberInt);
+    ASSERT_EQ(okField.type(), BSONType::numberInt);
     ASSERT_EQ(okField.numberInt(), 0);
 
     const BSONElement errmsgField{result.getValue().getField("errmsg")};
-    ASSERT_EQ(errmsgField.type(), BSONType::String);
+    ASSERT_EQ(errmsgField.type(), BSONType::string);
     ASSERT_EQ(errmsgField.str(), "Failed to load a JWKS from one or more IdPs");
 
     const BSONElement failuresField{result.getValue().getField("failures")};
-    ASSERT_EQ(failuresField.type(), BSONType::Array);
+    ASSERT_EQ(failuresField.type(), BSONType::array);
     std::vector<BSONElement> failures{failuresField.Array()};
     ASSERT_EQ(failures.size(), 1);
-    ASSERT_EQ(failures[0].type(), BSONType::Object);
+    ASSERT_EQ(failures[0].type(), BSONType::object);
 
     const BSONObj expectedFailure{
         BSON("issuer" << issuer << "error"
@@ -328,20 +328,20 @@ TEST_F(OidcRefreshKeysTest, Run_MultipleJwkManagers_Failed) {
     ASSERT_OK(result);
 
     const BSONElement okField{result.getValue().getField("ok")};
-    ASSERT_EQ(okField.type(), BSONType::NumberInt);
+    ASSERT_EQ(okField.type(), BSONType::numberInt);
     ASSERT_EQ(okField.numberInt(), 0);
 
     const BSONElement errmsgField{result.getValue().getField("errmsg")};
-    ASSERT_EQ(errmsgField.type(), BSONType::String);
+    ASSERT_EQ(errmsgField.type(), BSONType::string);
     ASSERT_EQ(errmsgField.str(), "Failed to load a JWKS from one or more IdPs");
 
     // the first two JWK fetchers failed
     const BSONElement failuresField{result.getValue().getField("failures")};
-    ASSERT_EQ(failuresField.type(), BSONType::Array);
+    ASSERT_EQ(failuresField.type(), BSONType::array);
     std::vector<BSONElement> failures{failuresField.Array()};
     ASSERT_EQ(failures.size(), 2);
-    ASSERT_EQ(failures[0].type(), BSONType::Object);
-    ASSERT_EQ(failures[1].type(), BSONType::Object);
+    ASSERT_EQ(failures[0].type(), BSONType::object);
+    ASSERT_EQ(failures[1].type(), BSONType::object);
 
     auto expectedFailure = [](const std::string issuer) {
         return BSON("issuer" << issuer << "error"
