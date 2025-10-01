@@ -179,7 +179,7 @@ void serializeResolvedRoles(BSONObjBuilder* user,
         BSONArrayBuilder arBuilder(user->subarrayStart("inheritedAuthenticationRestrictions"));
         if (roleDoc) {
             auto ar = roleDoc.value()["authenticationRestrictions"];
-            if ((ar.type() == Array) && (ar.Obj().nFields() > 0)) {
+            if ((ar.type() == BSONType::array) && (ar.Obj().nFields() > 0)) {
                 arBuilder.append(ar);
             }
         }
@@ -210,8 +210,9 @@ std::vector<RoleName> filterAndMapRole(BSONObjBuilder* builder,
 
     for (const auto& elem : role) {
         if (elem.fieldNameStringData() == kRolesFieldName) {
-            uassert(
-                ErrorCodes::BadValue, "Invalid roles field, expected array", elem.type() == Array);
+            uassert(ErrorCodes::BadValue,
+                    "Invalid roles field, expected array",
+                    elem.type() == BSONType::array);
             for (const auto& roleName : elem.Obj()) {
                 subRoles.push_back(RoleName::parseFromBSON(roleName, tenant));
             }
@@ -359,7 +360,7 @@ StatusWith<ResolvedRoleData> AuthorizationBackendLocal::resolveRoles(
 
             BSONElement elem;
             if ((processRoles || walkIndirect) && (elem = roleDoc["roles"])) {
-                if (elem.type() != Array) {
+                if (elem.type() != BSONType::array) {
                     return {ErrorCodes::BadValue,
                             str::stream()
                                 << "Invalid 'roles' field in role document '" << role
@@ -380,13 +381,13 @@ StatusWith<ResolvedRoleData> AuthorizationBackendLocal::resolveRoles(
             }
 
             if (processPrivs && (elem = roleDoc["privileges"])) {
-                if (elem.type() != Array) {
+                if (elem.type() != BSONType::array) {
                     return {ErrorCodes::UnsupportedFormat,
                             str::stream()
                                 << "Invalid 'privileges' field in role document '" << role << "'"};
                 }
                 for (const auto& privElem : elem.Obj()) {
-                    if (privElem.type() != Object) {
+                    if (privElem.type() != BSONType::object) {
                         return {ErrorCodes::UnsupportedFormat,
                                 fmt::format("Expected privilege document as object, got {}",
                                             typeName(privElem.type()))};
@@ -399,7 +400,7 @@ StatusWith<ResolvedRoleData> AuthorizationBackendLocal::resolveRoles(
             }
 
             if (processRests && (elem = roleDoc["authenticationRestrictions"])) {
-                if (elem.type() != Array) {
+                if (elem.type() != BSONType::array) {
                     return {ErrorCodes::UnsupportedFormat,
                             str::stream()
                                 << "Invalid 'authenticationRestrictions' field in role document '"

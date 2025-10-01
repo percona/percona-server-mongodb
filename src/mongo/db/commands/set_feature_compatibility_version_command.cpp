@@ -37,6 +37,8 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/client/dbclient_cursor.h"
+#include "mongo/crypto/encryption_fields_util.h"
+#include "mongo/crypto/fle_crypto.h"
 #include "mongo/db/audit.h"
 #include "mongo/db/auth/action_type.h"
 #include "mongo/db/auth/authorization_session.h"
@@ -279,11 +281,11 @@ void handleDropPendingDBsGarbage(OperationContext* parentOpCtx) {
                 const auto bsonVersion = batch[0][DatabaseType::kVersionFieldName];
                 tassert(10291400,
                         "The version field is expected to exist and be an object",
-                        bsonVersion.type() == BSONType::Object);
+                        bsonVersion.type() == BSONType::object);
                 const BSONElement bsonTimestamp = bsonVersion[DatabaseVersion::kTimestampFieldName];
                 tassert(10291401,
                         "The timestamp field is expected to exist and be a timestamp",
-                        bsonTimestamp.type() == BSONType::bsonTimestamp);
+                        bsonTimestamp.type() == BSONType::timestamp);
                 timestamp = bsonTimestamp.timestamp();
                 return true;
             }));
@@ -1226,6 +1228,31 @@ private:
                         return collection->getValidationAction() ==
                             ValidationActionEnum::errorAndLog;
                     });
+            }
+        }
+
+        if (gFeatureFlagQETextSearchPreview.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
+                requestedVersion, originalVersion)) {
+            auto checkForStringSearchQueryType = [](const Collection* collection) {
+                const auto& encryptedFields =
+                    collection->getCollectionOptions().encryptedFieldConfig;
+                if (encryptedFields &&
+                    hasQueryTypeMatching(encryptedFields.get(), isFLE2TextQueryType)) {
+                    uasserted(ErrorCodes::CannotDowngrade,
+                              fmt::format(
+                                  "Collection {} (UUID: {}) has an encrypted field with query type "
+                                  "substringPreview, suffixPreview, or prefixPreview, which "
+                                  "are not compatible with the target FCV. Please drop this "
+                                  "collection before trying to downgrade FCV.",
+                                  collection->ns().toStringForErrorMsg(),
+                                  collection->uuid().toString()));
+                }
+                return true;
+            };
+            for (const auto& dbName : DatabaseHolder::get(opCtx)->getNames()) {
+                Lock::DBLock dbLock(opCtx, dbName, MODE_IS);
+                catalog::forEachCollectionFromDb(
+                    opCtx, dbName, MODE_IS, checkForStringSearchQueryType);
             }
         }
     }
