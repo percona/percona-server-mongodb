@@ -1064,8 +1064,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
     if (_needToSwitchBackToOriginalDBPath) {
         auto opCtx = makeOpCtx();
         lock.unlock();
-        Status status = _switchStorageLocation(
-            opCtx.get(), _cfgDBPath, startup_recovery::StartupRecoveryMode::kReplicaSetMember);
+        Status status = _switchStorageLocation(opCtx.get(), _cfgDBPath, true);
         lock.lock();
         if (!status.isOK()) {
             // We failed to switch back to original db path. This is a serious error because we

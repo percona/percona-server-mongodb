@@ -788,8 +788,7 @@ WiredTigerKVEngine::DataAtRestEncryption::create(
         keyProvider->registerKeyStateVerificationJob((invariant(pr), *pr), *masterKeyId));
 }
 
-std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerConfig& wtConfig,
-                                       bool ephemeral) {
+std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerConfig& wtConfig) {
     std::stringstream ss;
     ss << "create,";
     ss << "cache_size=" << wtConfig.cacheSizeMB << "M,";
@@ -912,11 +911,11 @@ std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerC
         ss << "timing_stress_for_test=[history_store_checkpoint_delay,checkpoint_slow],";
     }
 
-    if (gFeatureFlagPrefetch.isEnabled() && !wtConfig.inMemory) {
+    if (wtConfig.prefetchEnabled && gFeatureFlagPrefetch.isEnabled() && !wtConfig.inMemory) {
         ss << "prefetch=(available=true,default=false),";
     }
 
-    if (!wtConfig.liveRestorePath.empty() && !ephemeral) {
+    if (wtConfig.restoreEnabled && !wtConfig.liveRestorePath.empty() && !wtConfig.inMemory) {
         ss << "live_restore=(enabled=true,path=\"" << wtConfig.liveRestorePath
            << "\",threads_max=" << wtConfig.liveRestoreThreadsMax
            << ",read_size=" << wtConfig.liveRestoreReadSizeMB << "MB"
@@ -928,7 +927,7 @@ std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerC
     ss << WiredTigerExtensions::get(getGlobalServiceContext())->getOpenExtensionsConfig();
     ss << wtConfig.extraOpenOptions;
 
-    if (!ephemeral && WiredTigerUtil::willRestoreFromBackup()) {
+    if (wtConfig.restoreEnabled && !wtConfig.inMemory && WiredTigerUtil::willRestoreFromBackup()) {
         ss << WiredTigerUtil::generateRestoreConfig() << ",";
     }
 
@@ -1007,7 +1006,6 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     const std::string& path,
     ClockSource* clockSource,
     WiredTigerConfig wtConfig,
-    bool ephemeral,
     bool repair,
     bool isReplSet,
     bool shouldRecoverFromOplogAsStandalone,
@@ -1024,14 +1022,10 @@ WiredTigerKVEngine::WiredTigerKVEngine(
       _sizeStorerSyncTracker(clockSource,
                              gWiredTigerSizeStorerPeriodicSyncHits,
                              Milliseconds{gWiredTigerSizeStorerPeriodicSyncPeriodMillis}),
-      _ephemeral(ephemeral),
       _inRepairMode(repair),
       _isReplSet(isReplSet),
       _shouldRecoverFromOplogAsStandalone(shouldRecoverFromOplogAsStandalone),
       _inStandaloneMode(inStandaloneMode) {
-    // When the storage engine is configured to be in-memory, it should also be ephemeral.
-    invariant(!_wtConfig.inMemory || _ephemeral);
-
     _pinnedOplogTimestamp.store(Timestamp::max().asULL());
     boost::filesystem::path journalPath = path;
     journalPath /= "journal";
@@ -1049,7 +1043,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
         }
     }
 
-    std::string config = generateWTOpenConfigString(_wtConfig, isEphemeral());
+    std::string config = generateWTOpenConfigString(_wtConfig);
     LOGV2(22315, "Opening WiredTiger", "config"_attr = config);
 
     auto startTime = Date_t::now();
@@ -2154,7 +2148,7 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
                                                    std::vector<FileTuple>& filesList,
                                                    boost::uintmax_t& totalfsize) {
     // Nothing to backup for ephemeral engine.
-    if (_ephemeral) {
+    if (isEphemeral()) {
         return EngineExtension::hotBackup(opCtx, path);
     }
 
@@ -2923,7 +2917,7 @@ void WiredTigerKVEngine::syncSizeInfo(bool sync) const {
             }
         } catch (const AssertionException& ex) {
             // re-throw exception if it's not WT_CACHE_FULL.
-            if (_ephemeral && ex.code() == ErrorCodes::ExceededMemoryLimit) {
+            if (isEphemeral() && ex.code() == ErrorCodes::ExceededMemoryLimit) {
                 LOGV2_ERROR(29000,
                             "size storer failed to sync cache... ignoring: {ex_what}",
                             "ex_what"_attr = ex.what());

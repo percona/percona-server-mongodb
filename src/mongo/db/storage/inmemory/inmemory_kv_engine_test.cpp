@@ -69,7 +69,6 @@ public:
                                    _dbpath.path(),
                                    _cs.get(),
                                    std::move(wtConfig),
-                                   true,
                                    false,
                                    getGlobalReplSettings().isReplSet(),
                                    repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),

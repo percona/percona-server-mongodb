@@ -86,7 +86,6 @@ public:
             }
         }
 
-        const bool ephemeral = true;
         WiredTigerKVEngine::WiredTigerConfig wtConfig = getWiredTigerConfigFromStartupOptions();
         wtConfig.cacheSizeMB = cacheMB;
         wtConfig.inMemory = params.inMemory;
@@ -99,7 +98,6 @@ public:
                                                  params.dbpath,
                                                  getGlobalServiceContext()->getFastClockSource(),
                                                  std::move(wtConfig),
-                                                 ephemeral,
                                                  params.repair,
                                                  isReplSet,
                                                  shouldRecoverFromOplogAsStandalone,

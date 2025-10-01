@@ -150,7 +150,6 @@ public:
                                                  params.dbpath,
                                                  getGlobalServiceContext()->getFastClockSource(),
                                                  std::move(wtConfig),
-                                                 params.inMemory,
                                                  params.repair,
                                                  isReplSet,
                                                  shouldRecoverFromOplogAsStandalone,
@@ -175,6 +174,8 @@ public:
                 WiredTigerUtil::getSpillCacheSizeMB(spillWiredTigerGlobalOptions.cacheSizeGB);
             wtConfig.inMemory = params.inMemory;
             wtConfig.logEnabled = false;
+            wtConfig.prefetchEnabled = false;
+            wtConfig.restoreEnabled = false;
             spillWiredTigerKVEngine = std::make_unique<SpillWiredTigerKVEngine>(
                 getCanonicalName().toString(),
                 params.getSpillDbPath(),

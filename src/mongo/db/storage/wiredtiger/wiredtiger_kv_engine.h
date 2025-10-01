@@ -214,6 +214,10 @@ public:
         bool inMemory{false};
         // This specifies the value for the log.enabled configuration parameter.
         bool logEnabled{true};
+        // Specifies whether prefetch is enabled.
+        bool prefetchEnabled{true};
+        // Specifies whether restore is enabled.
+        bool restoreEnabled{true};
         // This specifies the value for the log.compressor configuration parameter.
         std::string logCompressor{"snappy"};
         // This specifies the value for the live_restore.path configuration parameter.
@@ -313,7 +317,6 @@ public:
                        const std::string& path,
                        ClockSource* cs,
                        WiredTigerConfig wtConfig,
-                       bool ephemeral,
                        bool repair,
                        bool isReplSet,
                        bool shouldRecoverFromOplogAsStandalone,
@@ -355,7 +358,7 @@ public:
     }
 
     bool isEphemeral() const override {
-        return _ephemeral;
+        return _wtConfig.inMemory;
     }
 
     void setOldestActiveTransactionTimestampCallback(
@@ -818,8 +821,6 @@ private:
     mutable ElapsedTracker _sizeStorerSyncTracker;
     mutable stdx::mutex _sizeStorerSyncTrackerMutex;
 
-    // When the storage engine is ephemeral, data doesn't need to persist after a restart.
-    bool _ephemeral{false};
     const bool _inRepairMode;
 
     std::unique_ptr<WiredTigerSessionSweeper> _sessionSweeper;
@@ -901,8 +902,7 @@ private:
 /**
  * Generates config string for wiredtiger_open() from the given config options.
  */
-std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerConfig& wtConfig,
-                                       bool ephemeral);
+std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerConfig& wtConfig);
 
 /**
  * Returns a WiredTigerKVEngineBase::WiredTigerConfig populated with config values provided at
