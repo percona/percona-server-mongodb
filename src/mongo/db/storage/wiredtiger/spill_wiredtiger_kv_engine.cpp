@@ -32,7 +32,6 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/db/storage/key_format.h"
-#include "mongo/db/storage/wiredtiger/spill_wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
@@ -53,17 +52,16 @@ SpillWiredTigerKVEngine::SpillWiredTigerKVEngine(const std::string& canonicalNam
                                                  ClockSource* clockSource,
                                                  WiredTigerConfig wtConfig)
     : WiredTigerKVEngineBase(canonicalName, path, clockSource, std::move(wtConfig)) {
-    if (!_wtConfig.inMemory) {
-        if (!boost::filesystem::exists(path)) {
-            try {
-                boost::filesystem::create_directories(path);
-            } catch (std::exception& e) {
-                LOGV2_ERROR(10380302,
-                            "Error creating data directory",
-                            "directory"_attr = path,
-                            "error"_attr = e.what());
-                throw;
-            }
+    tassert(10588600, "SpillWiredTigerKVEngine should not be in-memory", !_wtConfig.inMemory);
+    if (!boost::filesystem::exists(path)) {
+        try {
+            boost::filesystem::create_directories(path);
+        } catch (std::exception& e) {
+            LOGV2_ERROR(10380302,
+                        "Error creating data directory",
+                        "directory"_attr = path,
+                        "error"_attr = e.what());
+            throw;
         }
     }
 
@@ -109,7 +107,7 @@ void SpillWiredTigerKVEngine::_openWiredTiger(const std::string& path,
 std::unique_ptr<RecordStore> SpillWiredTigerKVEngine::getTemporaryRecordStore(RecoveryUnit& ru,
                                                                               StringData ident,
                                                                               KeyFormat keyFormat) {
-    SpillWiredTigerRecordStore::Params params;
+    WiredTigerRecordStore::Params params;
     params.baseParams.uuid = boost::none;
     params.baseParams.ident = ident.toString();
     params.baseParams.engineName = _canonicalName;
@@ -118,7 +116,11 @@ std::unique_ptr<RecordStore> SpillWiredTigerKVEngine::getTemporaryRecordStore(Re
     // We don't log writes to spill tables.
     params.baseParams.isLogged = false;
     params.baseParams.forceUpdateWithFullDocument = false;
-    return std::make_unique<SpillWiredTigerRecordStore>(this, std::move(params));
+    params.inMemory = false;
+    params.sizeStorer = nullptr;
+    params.tracksSizeAdjustments = false;
+    return std::make_unique<WiredTigerRecordStore>(
+        this, WiredTigerRecoveryUnitBase::get(ru), std::move(params));
 }
 
 std::unique_ptr<RecordStore> SpillWiredTigerKVEngine::makeTemporaryRecordStore(
@@ -192,8 +194,6 @@ void SpillWiredTigerKVEngine::cleanShutdown(bool memLeakAllowed) {
 
     auto startTime = Date_t::now();
     LOGV2(10158006, "Closing spill WiredTiger", "closeConfig"_attr = closeConfig);
-    // WT_CONNECTION::close() takes a checkpoint. To ensure this is fast, we delete the tables
-    // created by this KVEngine in SpillWiredTigerRecordStore destructor.
     invariantWTOK(_conn->close(_conn, closeConfig.c_str()), nullptr);
     LOGV2(10158007, "Closed spill WiredTiger ", "duration"_attr = Date_t::now() - startTime);
     _conn = nullptr;

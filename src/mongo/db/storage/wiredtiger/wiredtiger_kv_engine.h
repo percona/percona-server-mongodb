@@ -263,6 +263,10 @@ public:
         return _wtConfig.cacheSizeMB;
     }
 
+    bool isEphemeral() const override {
+        return _wtConfig.inMemory;
+    }
+
     virtual Status alterMetadata(StringData uri, StringData config) {
         MONGO_UNREACHABLE;
     }
@@ -357,10 +361,6 @@ public:
     bool hasDataBeenCheckpointed(
         StorageEngine::CheckpointIteration checkpointIteration) const override {
         return _wtConfig.inMemory || _finishedCheckpointIteration.load() > checkpointIteration;
-    }
-
-    bool isEphemeral() const override {
-        return _wtConfig.inMemory;
     }
 
     void setOldestActiveTransactionTimestampCallback(
