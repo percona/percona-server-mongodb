@@ -753,7 +753,7 @@ bool mechanismRequiresPassword(const MongoURI& uri) {
             auth::kMechanismGSSAPI, auth::kMechanismMongoX509, auth::kMechanismMongoOIDC};
         const std::string& authMechanism = authMechanisms.value();
         for (const auto& mechanism : passwordlessMechanisms) {
-            if (mechanism.toString() == authMechanism) {
+            if (mechanism == authMechanism) {
                 return false;
             }
         }

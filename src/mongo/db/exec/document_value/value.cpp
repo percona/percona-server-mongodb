@@ -625,7 +625,7 @@ string Value::coerceToString() const {
         case BSONType::code:
         case BSONType::symbol:
         case BSONType::string:
-            return getRawData().toString();
+            return std::string{getRawData()};
 
         case BSONType::timestamp:
             return getTimestamp().toStringPretty();

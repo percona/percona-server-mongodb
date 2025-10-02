@@ -73,7 +73,7 @@ Status FTSQueryImpl::parse(TextIndexVersion textIndexVersion) {
         QueryToken t = (isNgram) ? i.nextForNgram() : i.next();
 
         if (t.type == QueryToken::TEXT) {
-            string s = t.data.toString();
+            string s = std::string{t.data};
 
             if (inPhrase && inNegation) {
                 // don't add term
@@ -108,9 +108,9 @@ Status FTSQueryImpl::parse(TextIndexVersion textIndexVersion) {
                     unsigned phraseLength = t.offset - phraseStart;
                     StringData phrase = StringData(getQuery()).substr(phraseStart, phraseLength);
                     if (inNegation) {
-                        _negatedPhrases.push_back(phrase.toString());
+                        _negatedPhrases.push_back(std::string{phrase});
                     } else {
-                        _positivePhrases.push_back(phrase.toString());
+                        _positivePhrases.push_back(std::string{phrase});
                     }
 
                     // Do not reset 'inNegation' here, since a negation should continue until the
@@ -171,7 +171,7 @@ void FTSQueryImpl::_addTerms(FTSTokenizer* tokenizer, const string& sentence, bo
     // If we are case-insensitive, we can also used this for positive, and negative terms
     // Some terms may be expanded into multiple words in some non-English languages
     while (tokenizer->moveNext()) {
-        string word = tokenizer->get().toString();
+        string word = std::string{tokenizer->get()};
 
         if (!negated) {
             _termsForBounds.insert(word);
@@ -202,7 +202,7 @@ void FTSQueryImpl::_addTerms(FTSTokenizer* tokenizer, const string& sentence, bo
 
     // If we want case-sensitivity or diacritic sensitivity, get the correct token.
     while (tokenizer->moveNext()) {
-        string word = tokenizer->get().toString();
+        string word = std::string{tokenizer->get()};
 
         activeTerms.insert(word);
     }

@@ -95,7 +95,7 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
     if (!metadata) {
         metadataNeedsWriting = true;
         metadata = std::make_unique<StorageEngineMetadata>(storageGlobalParams.dbpath);
-        metadata->setStorageEngine(factory->getCanonicalName().toString());
+        metadata->setStorageEngine(std::string{factory->getCanonicalName()});
     }
     if (futureConfigured) {
         metadataNeedsWriting = true;
@@ -378,7 +378,7 @@ void registerStorageEngine(ServiceContext* service,
     // and all factories should be added before we pick a storage engine.
     invariant(!service->getStorageEngine());
 
-    auto name = factory->getCanonicalName().toString();
+    auto name = std::string{factory->getCanonicalName()};
     storageFactories(service).emplace(name, std::move(factory));
 }
 
@@ -387,7 +387,7 @@ bool isRegisteredStorageEngine(ServiceContext* service, StringData name) {
 }
 
 StorageEngine::Factory* getFactoryForStorageEngine(ServiceContext* service, StringData name) {
-    const auto result = storageFactories(service).find(name.toString());
+    const auto result = storageFactories(service).find(std::string{name});
     if (result == storageFactories(service).end()) {
         return nullptr;
     }

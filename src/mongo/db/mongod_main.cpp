@@ -1065,8 +1065,17 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         startFLECrud(serviceContext);
 
         DiskSpaceMonitor::start(serviceContext);
-        auto diskMonitor = DiskSpaceMonitor::get(serviceContext);
-        IndexBuildsCoordinator::get(serviceContext)->registerKillIndexBuildAction(*diskMonitor);
+        const bool filesNotAllInSameDirectory =
+            storageEngine->isUsingDirectoryPerDb() || storageEngine->isUsingDirectoryForIndexes();
+        if (filesNotAllInSameDirectory) {
+            LOGV2(7333400,
+                  "The index builds DiskSpaceMonitor action which periodically checks if we "
+                  "have enough disk space to build indexes will not run when the storage engine "
+                  "stores data files in different directories");
+        } else {
+            auto diskMonitor = DiskSpaceMonitor::get(serviceContext);
+            IndexBuildsCoordinator::get(serviceContext)->registerKillIndexBuildAction(*diskMonitor);
+        }
     }
 
     startClientCursorMonitor();
@@ -1298,7 +1307,7 @@ MONGO_INITIALIZER_GENERAL(ForkServer, ("EndStartupOptionHandling"), ("default"))
  * and can be found in the /proc filesystem.
  */
 Status shutdownProcessByDBPathPidFile(const std::string& dbpath) {
-    auto pidfile = (boost::filesystem::path(dbpath) / kLockFileBasename.toString()).string();
+    auto pidfile = (boost::filesystem::path(dbpath) / std::string{kLockFileBasename}).string();
     if (!boost::filesystem::exists(pidfile)) {
         return {ErrorCodes::OperationFailed,
                 str::stream() << "There doesn't seem to be a server running with dbpath: "
