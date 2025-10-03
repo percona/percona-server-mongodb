@@ -330,8 +330,10 @@ configs:
     # WiredTiger storage engine options
     "storage.wiredTiger.engineConfig.cacheSizeGB":
         description: >-
-            Maximum amount of memory to allocate for cache;
-            Defaults to 1/2 of physical RAM
+            Maximum amount of memory to allocate for cache in GB;
+            Defaults to 1/2 of physical RAM. Only one of either
+            wiredTigerCacheSizePct or wiredTigerCacheSizeGB can
+            be provided
         arg_vartype: Double
         cpp_varname: "wiredTigerGlobalOptions.cacheSizeGB"
         short_name: wiredTigerCacheSizeGB
@@ -350,6 +352,18 @@ configs:
             gte: 32
             lte: 2048
         default: 2048
+    "storage.wiredTiger.engineConfig.cacheSizePct":
+        description: >-
+            Maximum amount of memory to allocate for cache as a percentage of physical RAM;
+            Defaults to 1/2 of physical RAM and a minimum of 256MB. Only one of either
+            wiredTigerCacheSizePct or wiredTigerCacheSizeGB can
+            be provided
+        arg_vartype: Double
+        cpp_varname: "wiredTigerGlobalOptions.cacheSizePct"
+        short_name: wiredTigerCacheSizePct
+        validator:
+            gte: 0
+            lte: 0.8
     "storage.wiredTiger.engineConfig.statisticsLogDelaySecs":
         # FTDC supersedes WiredTiger's statistics logging.
         description: >-
