@@ -178,19 +178,10 @@ configs:
         deprecated_name: "net.ssl.FIPSMode"
         deprecated_short_name: sslFIPSMode
         arg_vartype: Switch
-        cpp_varname: sslGlobalParams.sslFIPSMode
-        condition:
-            constexpr: 'kFIPSModeEnabled'
-    "net.tls.FIPSMode":
-        description: "Activate FIPS 140-2 mode at startup"
-        short_name: tlsFIPSMode
-        deprecated_name: "net.ssl.FIPSMode"
-        deprecated_short_name: sslFIPSMode
-        arg_vartype: Switch
-        cpp_varname: sslGlobalParams.sslFIPSMode
-        hidden: true
-        condition:
-            constexpr: '!kFIPSModeEnabled'
+        cpp_varname: "sslGlobalParams.sslFIPSMode"
+        hidden:
+            expr: "kFIPSModeEnabled"
+            is_constexpr: true
         validator:
             callback: validateSslFIPSMode
 

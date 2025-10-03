@@ -106,20 +106,12 @@ configs:
         deprecated_short_name: sslFIPSMode
         arg_vartype: Switch
         cpp_varname: "sslGlobalParams.sslFIPSMode"
-        requires: tls
-        condition:
-            constexpr: 'kFIPSModeEnabled'
-
-    "tls.FIPSMode":
-        description: "Activate FIPS 140-2 mode at startup"
-        short_name: tlsFIPSMode
-        deprecated_name: "ssl.FIPSMode"
-        deprecated_short_name: sslFIPSMode
-        arg_vartype: Switch
-        cpp_varname: "sslGlobalParams.sslFIPSMode"
-        hidden: true
-        condition:
-            constexpr: '!kFIPSModeEnabled'
+        requires:
+            expr: 'kFIPSModeEnabled ? "tls" : ""'
+            is_constexpr: true
+        hidden:
+            expr: "kFIPSModeEnabled"
+            is_constexpr: true
         validator:
             callback: validateSslFIPSMode
 

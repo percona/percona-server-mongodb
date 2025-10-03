@@ -30,6 +30,7 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/util/net/ssl_options.h"
+#include "mongo/util/net/fipsmode_config.h"
 
 #include <absl/strings/str_split.h>
 #include <boost/filesystem/operations.hpp>
@@ -222,8 +223,11 @@ std::string SSLParams::tlsModeFormat(int mode) {
     }
 }
 
-#if !defined(PERCONA_FIPSMODE_ENABLED)
 Status validateSslFIPSMode([[maybe_unused]] const bool& value) {
+    if constexpr (kFIPSModeEnabled) {
+        return Status::OK();
+    }
+
     return Status(
         ErrorCodes::BadValue,
         "Support for the FIPS mode (--tlsFIPSMode) is available in the Percona Supported Builds of "
@@ -233,7 +237,6 @@ Status validateSslFIPSMode([[maybe_unused]] const bool& value) {
         "You can also subscribe to support to receive Percona Supported Builds, see "
         "(https://www.percona.com/services/support) for more information.");
 }
-#endif
 
 
 }  // namespace mongo
