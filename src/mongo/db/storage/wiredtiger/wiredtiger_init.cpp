@@ -61,6 +61,7 @@
 #include "mongo/db/storage/wiredtiger/spill_wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/spill_wiredtiger_server_status.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_global_options_gen.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_index.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
@@ -174,6 +175,8 @@ public:
                 getWiredTigerConfigFromStartupOptions(true /* usingSpillWiredTigerKVEngine */);
             wtConfig.cacheSizeMB =
                 WiredTigerUtil::getSpillCacheSizeMB(spillWiredTigerGlobalOptions.cacheSizeGB);
+            wtConfig.evictionThreadsMin = gSpillWiredTigerEvictionThreadsMin;
+            wtConfig.evictionThreadsMax = gSpillWiredTigerEvictionThreadsMax;
             wtConfig.inMemory = false;
             wtConfig.logEnabled = false;
             wtConfig.prefetchEnabled = false;
