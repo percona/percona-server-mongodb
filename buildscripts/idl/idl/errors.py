@@ -368,6 +368,16 @@ class ParserContext(object):
             return True
         return False
 
+    def is_sequence_mapping_or_scalar(self, node, node_name):
+        # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], str) -> bool
+        """Return True if this YAML node is a Sequence of Mappings or Scalars."""
+        if self._is_node_type(node, node_name, "sequence"):
+            for seq_node in node.value:
+                if not self.is_scalar_or_mapping_node(seq_node, node_name):
+                    return False
+            return True
+        return False
+
     def is_scalar_sequence_or_scalar_node(self, node, node_name):
         # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], str) -> bool
         """Return True if the YAML node is a Scalar or Sequence."""
@@ -382,6 +392,23 @@ class ParserContext(object):
 
         if node.id == "sequence":
             return self.is_scalar_sequence(node, node_name)
+
+        return True
+
+    def is_scalar_or_sequence_or_mapping_node(self, node, node_name):
+        # type: (Union[yaml.nodes.MappingNode, yaml.nodes.ScalarNode, yaml.nodes.SequenceNode], str) -> bool
+        """Return True if the YAML node is a Scalar or Mapping."""
+        if not node.id == "scalar" and not node.id == "sequence" and not node.id == "mapping":
+            self._add_node_error(
+                node,
+                ERROR_ID_IS_NODE_TYPE_SCALAR_OR_MAPPING,
+                "Illegal node type '%s' for '%s', expected either node type 'scalar', 'sequence' or 'mapping'"
+                % (node.id, node_name),
+            )
+            return False
+
+        if node.id == "sequence":
+            return self.is_sequence_mapping_or_scalar(node, node_name)
 
         return True
 

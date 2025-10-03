@@ -113,8 +113,8 @@ OptionDescription::OptionDescription(const std::string& dottedName,
       _deprecatedDottedNames(deprecatedDottedNames),
       _deprecatedSingleNames(deprecatedSingleNames) {}
 
-OptionDescription& OptionDescription::hidden() {
-    _isVisible = false;
+OptionDescription& OptionDescription::hidden(bool isHidden) {
+    _isVisible = !isHidden;
     return *this;
 }
 
@@ -246,6 +246,10 @@ OptionDescription& OptionDescription::incompatibleWith(const std::string& otherD
 }
 
 OptionDescription& OptionDescription::requiresOption(const std::string& otherDottedName) {
+    if (otherDottedName.empty()) {
+        // No-op if empty
+        return *this;
+    }
     return addConstraint(new RequiresOtherKeyConstraint(_dottedName, otherDottedName));
 }
 

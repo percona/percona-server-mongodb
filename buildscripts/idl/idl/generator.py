@@ -3431,11 +3431,11 @@ class _CppSourceFileWriter(_CppFileWriterBase):
                 )
                 self._writer.write_line(".setSources(moe::%s)" % (opt.source))
                 if opt.hidden:
-                    self._writer.write_line(".hidden()")
+                    self._writer.write_line(".hidden(%s)" % (_get_expression(opt.hidden)))
                 if opt.redact:
                     self._writer.write_line(".redact()")
                 for requires in opt.requires:
-                    self._writer.write_line(".requiresOption(%s)" % (_encaps(requires)))
+                    self._writer.write_line(".requiresOption(%s)" % (_get_expression(requires)))
                 for conflicts in opt.conflicts:
                     self._writer.write_line(".incompatibleWith(%s)" % (_encaps(conflicts)))
                 if opt.default:
