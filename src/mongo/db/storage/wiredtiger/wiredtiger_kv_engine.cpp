@@ -814,7 +814,8 @@ WiredTigerKVEngine::DataAtRestEncryption::create(
         keyProvider->registerKeyStateVerificationJob((invariant(pr), *pr), *masterKeyId));
 }
 
-std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerConfig& wtConfig) {
+std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerConfig& wtConfig,
+                                       StringData extensionsConfig) {
     std::stringstream ss;
     ss << "create,";
     ss << "cache_size=" << wtConfig.cacheSizeMB << "M,";
@@ -952,7 +953,7 @@ std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerC
 
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())
               ->getTableCreateConfig("system");
-    ss << WiredTigerExtensions::get(getGlobalServiceContext())->getOpenExtensionsConfig();
+    ss << std::string{extensionsConfig};
     ss << wtConfig.extraOpenOptions;
 
     if (wtConfig.restoreEnabled && !wtConfig.inMemory && WiredTigerUtil::willRestoreFromBackup()) {
@@ -1071,7 +1072,8 @@ WiredTigerKVEngine::WiredTigerKVEngine(
         }
     }
 
-    std::string config = generateWTOpenConfigString(_wtConfig);
+    std::string config = generateWTOpenConfigString(
+        _wtConfig, WiredTigerExtensions::get(getGlobalServiceContext()).getOpenExtensionsConfig());
     LOGV2(22315, "Opening WiredTiger", "config"_attr = config);
 
     auto startTime = Date_t::now();

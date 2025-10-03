@@ -917,7 +917,7 @@ CommonMongodProcessInterface::fieldsHaveSupportingUniqueIndex(
                                                         : SupportingUniqueIndex::None;
     }
     auto indexIterator = collection.getCollectionPtr()->getIndexCatalog()->getIndexIterator(
-        opCtx, IndexCatalog::InclusionPolicy::kReady);
+        IndexCatalog::InclusionPolicy::kReady);
     auto result = SupportingUniqueIndex::None;
     while (indexIterator->more()) {
         const IndexCatalogEntry* entry = indexIterator->next();
@@ -1116,7 +1116,7 @@ std::unique_ptr<SpillTable> CommonMongodProcessInterface::createSpillTable(
     const boost::intrusive_ptr<ExpressionContext>& expCtx, KeyFormat keyFormat) const {
     assertIgnorePrepareConflictsBehavior(expCtx);
     Lock::GlobalLock lk(expCtx->getOperationContext(), MODE_IS);
-    if (feature_flags::gFeatureFlagCreateSpillKVEngine.isEnabled() && !gDisableSpillKVEngine) {
+    if (feature_flags::gFeatureFlagCreateSpillKVEngine.isEnabled()) {
         return expCtx->getOperationContext()
             ->getServiceContext()
             ->getStorageEngine()

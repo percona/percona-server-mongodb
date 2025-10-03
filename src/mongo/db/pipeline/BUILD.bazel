@@ -123,6 +123,7 @@ mongo_cc_library(
         "document_source_list_mql_entities_gen",
         "document_source_list_sampled_queries_gen",
         "document_source_list_sessions_gen",
+        "document_source_lookup_gen",
         "document_source_merge_gen",
         "document_source_merge_modes_gen",
         "document_source_merge_spec.cpp",
@@ -514,6 +515,7 @@ mongo_cc_library(
         "pipeline.cpp",
         "pipeline_test_util.cpp",
         "redact_processor.cpp",
+        "//src/mongo/db/extension/host:document_source_extension.cpp",
         "//src/mongo/db/pipeline/search:document_source_internal_search_id_lookup.cpp",
         "//src/mongo/db/pipeline/search:document_source_internal_search_mongot_remote.cpp",
         "//src/mongo/db/pipeline/search:document_source_list_search_indexes.cpp",
@@ -625,6 +627,7 @@ mongo_cc_library(
         "pipeline.h",
         "pipeline_test_util.h",
         "redact_processor.h",
+        "//src/mongo/db/extension/host:document_source_extension.h",
         "//src/mongo/db/pipeline/search:document_source_internal_search_id_lookup.h",
         "//src/mongo/db/pipeline/search:document_source_internal_search_mongot_remote.h",
         "//src/mongo/db/pipeline/search:document_source_list_search_indexes.h",
@@ -866,6 +869,15 @@ idl_generator(
     name = "document_source_list_sessions_gen",
     src = "document_source_list_sessions.idl",
     deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
+idl_generator(
+    name = "document_source_lookup_gen",
+    src = "document_source_lookup.idl",
+    deps = [
+        ":aggregate_command_gen",
         "//src/mongo/db:basic_types_gen",
     ],
 )
@@ -1389,6 +1401,7 @@ mongo_cc_unit_test(
         "expression_compare_test.cpp",
         "expression_context_test.cpp",
         "expression_convert_test.cpp",
+        "expression_create_uuid_test.cpp",
         "expression_date_test.cpp",
         "expression_field_path_test.cpp",
         "expression_find_internal_test.cpp",
@@ -1402,7 +1415,6 @@ mongo_cc_unit_test(
         "expression_test.cpp",
         "expression_test_api_version_test.cpp",
         "expression_trim_test.cpp",
-        "expression_uuid_test.cpp",
         "expression_walker_test.cpp",
         "field_path_test.cpp",
         "granularity_rounder_powers_of_two_test.cpp",

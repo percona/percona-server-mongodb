@@ -148,8 +148,8 @@ void fillOutIndexEntries(OperationContext* opCtx,
     bool apiStrict = APIParameters::get(opCtx).getAPIStrict().value_or(false);
 
     std::vector<const IndexCatalogEntry*> indexCatalogEntries;
-    auto ii = collection->getIndexCatalog()->getIndexIterator(
-        opCtx, IndexCatalog::InclusionPolicy::kReady);
+    auto ii =
+        collection->getIndexCatalog()->getIndexIterator(IndexCatalog::InclusionPolicy::kReady);
     while (ii->more()) {
         const IndexCatalogEntry* ice = ii->next();
 
@@ -441,12 +441,10 @@ void QueryPlannerParams::applyQuerySettingsOrIndexFiltersForMainCollection(
 void QueryPlannerParams::fillOutSecondaryCollectionsPlannerParams(
     OperationContext* opCtx,
     const CanonicalQuery& canonicalQuery,
-    const MultipleCollectionAccessor& collections,
-    bool checkPipelineExistence) {
-    if (checkPipelineExistence && canonicalQuery.cqPipeline().empty()) {
+    const MultipleCollectionAccessor& collections) {
+    if (canonicalQuery.cqPipeline().empty()) {
         return;
     }
-
     auto fillOutSecondaryInfo = [&](const NamespaceString& nss,
                                     const CollectionPtr& secondaryColl) {
         CollectionInfo secondaryInfo;
@@ -578,8 +576,8 @@ std::vector<IndexEntry> getIndexEntriesForDistinct(
     const bool mayUnwindArrays =
         !(distinctArgs.plannerOptions & QueryPlannerParams::STRICT_DISTINCT_ONLY);
 
-    auto ii = collectionPtr->getIndexCatalog()->getIndexIterator(
-        opCtx, IndexCatalog::InclusionPolicy::kReady);
+    auto ii =
+        collectionPtr->getIndexCatalog()->getIndexIterator(IndexCatalog::InclusionPolicy::kReady);
     while (ii->more()) {
         const IndexCatalogEntry* ice = ii->next();
         const IndexDescriptor* desc = ice->descriptor();

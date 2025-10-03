@@ -424,7 +424,7 @@ public:
     void visit(const ExpressionInternalOwningShard* expr) final {}
     void visit(const ExpressionInternalIndexKey* expr) final {}
     void visit(const ExpressionInternalKeyStringValue* expr) final {}
-    void visit(const ExpressionUUID* expr) final {}
+    void visit(const ExpressionCreateUUID* expr) final {}
 
 private:
     ExpressionVisitorContext* _context;
@@ -607,7 +607,7 @@ public:
     void visit(const ExpressionInternalOwningShard* expr) final {}
     void visit(const ExpressionInternalIndexKey* expr) final {}
     void visit(const ExpressionInternalKeyStringValue* expr) final {}
-    void visit(const ExpressionUUID* expr) final {}
+    void visit(const ExpressionCreateUUID* expr) final {}
 
 private:
     ExpressionVisitorContext* _context;
@@ -3399,9 +3399,9 @@ public:
         unsupportedExpression("$setField");
     }
 
-    void visit(const ExpressionUUID* expr) final {
-        // TODO(SERVER-101161): Support $uuid in SBE.
-        unsupportedExpression("$uuid");
+    void visit(const ExpressionCreateUUID* expr) final {
+        // TODO(SERVER-101161): Support $createUUID in SBE.
+        unsupportedExpression("$createUUID");
     }
 
     void visit(const ExpressionTsSecond* expr) final {
@@ -4432,11 +4432,15 @@ SbExpr generateExpressionFieldPath(StageBuilderState& state,
             return b.makeNothingConstant();
         } else {
             auto slot = state.getBuiltinVarSlot(varId);
-            uassert(5611301,
-                    str::stream() << "Builtin variable '$$" << fieldPath.fullPath()
-                                  << "' (id=" << varId << ") is not available",
-                    slot.has_value());
-
+            if (!slot.has_value()) {
+                std::stringstream message;
+                message << "Builtin variable '$$" << fieldPath.fullPath() << "' (id=" << varId
+                        << ") is not available";
+                if (varId == Variables::kUserRolesId && !enableAccessToUserRoles.load()) {
+                    message << " as the server is not configured to accept it";
+                }
+                uasserted(5611301, message.str());
+            }
             inputExpr = SbExpr{SbSlot{*slot}};
         }
     } else {

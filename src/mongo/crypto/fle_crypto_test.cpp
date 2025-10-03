@@ -140,6 +140,8 @@ static UUID indexKey2Id = uassertStatusOK(UUID::parse(kIndexKey2Id));
 static UUID indexKey3Id = uassertStatusOK(UUID::parse(kIndexKey3Id));
 static UUID userKeyId = uassertStatusOK(UUID::parse(kUserKeyId));
 
+HmacContext hmacCtx;
+
 std::vector<char> testValue = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19};
 std::vector<char> testValue2 = {0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29};
 
@@ -582,8 +584,8 @@ TEST_F(ServiceContextTest, FLE_ESC_RoundTrip) {
 
 
     {
-        BSONObj doc =
-            ESCCollection::generateNullDocument(escTwiceTag, escTwiceValue, 123, 123456789);
+        BSONObj doc = ESCCollection::generateNullDocument(
+            &hmacCtx, escTwiceTag, escTwiceValue, 123, 123456789);
         auto swDoc = ESCCollection::decryptNullDocument(escTwiceValue, doc);
         ASSERT_OK(swDoc.getStatus());
         ASSERT_EQ(swDoc.getValue().position, 123);
@@ -592,8 +594,8 @@ TEST_F(ServiceContextTest, FLE_ESC_RoundTrip) {
 
 
     {
-        BSONObj doc =
-            ESCCollection::generateInsertDocument(escTwiceTag, escTwiceValue, 123, 123456789);
+        BSONObj doc = ESCCollection::generateInsertDocument(
+            &hmacCtx, escTwiceTag, escTwiceValue, 123, 123456789);
         auto swDoc = ESCCollection::decryptDocument(escTwiceValue, doc);
         ASSERT_OK(swDoc.getStatus());
         ASSERT_EQ(swDoc.getValue().compactionPlaceholder, false);
@@ -603,7 +605,7 @@ TEST_F(ServiceContextTest, FLE_ESC_RoundTrip) {
 
     {
         BSONObj doc = ESCCollection::generateCompactionPlaceholderDocument(
-            escTwiceTag, escTwiceValue, 123, 456789);
+            &hmacCtx, escTwiceTag, escTwiceValue, 123, 456789);
         auto swDoc = ESCCollection::decryptDocument(escTwiceValue, doc);
         ASSERT_OK(swDoc.getStatus());
         ASSERT_EQ(swDoc.getValue().compactionPlaceholder, true);
@@ -613,15 +615,15 @@ TEST_F(ServiceContextTest, FLE_ESC_RoundTrip) {
 
     {
         // Non-anchor documents don't work with decryptAnchorDocument()
-        BSONObj doc = ESCCollection::generateNonAnchorDocument(escTwiceTag, 123);
+        BSONObj doc = ESCCollection::generateNonAnchorDocument(&hmacCtx, escTwiceTag, 123);
         auto swDoc = ESCCollection::decryptAnchorDocument(escTwiceValue, doc);
         ASSERT_NOT_OK(swDoc.getStatus());
         ASSERT_EQ(ErrorCodes::Error::NoSuchKey, swDoc.getStatus().code());
     }
 
     {
-        BSONObj doc =
-            ESCCollection::generateAnchorDocument(escTwiceTag, escTwiceValue, 123, 456789);
+        BSONObj doc = ESCCollection::generateAnchorDocument(
+            &hmacCtx, escTwiceTag, escTwiceValue, 123, 456789);
         auto swDoc = ESCCollection::decryptAnchorDocument(escTwiceValue, doc);
         ASSERT_OK(swDoc.getStatus());
         ASSERT_EQ(swDoc.getValue().position, 0);
@@ -629,8 +631,8 @@ TEST_F(ServiceContextTest, FLE_ESC_RoundTrip) {
     }
 
     {
-        BSONObj doc =
-            ESCCollection::generateNullAnchorDocument(escTwiceTag, escTwiceValue, 123, 456789);
+        BSONObj doc = ESCCollection::generateNullAnchorDocument(
+            &hmacCtx, escTwiceTag, escTwiceValue, 123, 456789);
         auto swDoc = ESCCollection::decryptAnchorDocument(escTwiceValue, doc);
         ASSERT_OK(swDoc.getStatus());
         ASSERT_EQ(swDoc.getValue().position, 123);
@@ -683,31 +685,6 @@ private:
     boost::optional<int64_t> _overrideCount;
 };
 
-// Test Empty Collection
-TEST_F(ServiceContextTest, FLE_ESC_EmuBinary_Empty) {
-    TestKeyVault keyVault;
-
-    TestDocumentCollection coll;
-    ConstDataRange value(testValue);
-
-    auto c1 = CollectionsLevel1Token::deriveFrom(getIndexKey());
-    auto escToken = ESCToken::deriveFrom(c1);
-
-    ESCDerivedFromDataToken escDatakey = ESCDerivedFromDataToken::deriveFrom(escToken, value);
-
-    auto escDerivedToken =
-        ESCDerivedFromDataTokenAndContentionFactorToken::deriveFrom(escDatakey, 0);
-
-    auto escTwiceTag = ESCTwiceDerivedTagToken::deriveFrom(escDerivedToken);
-    auto escTwiceValue = ESCTwiceDerivedValueToken::deriveFrom(escDerivedToken);
-
-
-    auto i = ESCCollection::emuBinary(coll, escTwiceTag, escTwiceValue);
-
-    ASSERT_TRUE(i.has_value());
-    ASSERT_EQ(i.value(), 0);
-}
-
 namespace {
 
 std::tuple<ESCTwiceDerivedTagToken, ESCTwiceDerivedValueToken> generateEmuBinaryTokens(
@@ -741,8 +718,8 @@ EmuBinaryResult EmuBinaryV2Test(boost::optional<std::pair<uint64_t, uint64_t>> n
         auto nullApos = nullAnchor->first;
         auto nullCpos = nullAnchor->second;
         // insert null anchor
-        auto doc =
-            ESCCollection::generateNullAnchorDocument(tagToken, valueToken, nullApos, nullCpos);
+        auto doc = ESCCollection::generateNullAnchorDocument(
+            &hmacCtx, tagToken, valueToken, nullApos, nullCpos);
         coll.insert(doc);
     }
 
@@ -752,8 +729,8 @@ EmuBinaryResult EmuBinaryV2Test(boost::optional<std::pair<uint64_t, uint64_t>> n
     uint64_t lastAnchorCpos = anchorCposStart;
     auto anchorEnd = anchorStart + anchorCount;
     for (auto apos = anchorStart; apos < anchorEnd; apos++) {
-        auto doc =
-            ESCCollection::generateAnchorDocument(tagToken, valueToken, apos, lastAnchorCpos);
+        auto doc = ESCCollection::generateAnchorDocument(
+            &hmacCtx, tagToken, valueToken, apos, lastAnchorCpos);
         coll.insert(doc);
         if (lastAnchorCpos < anchorCposEnd) {
             lastAnchorCpos++;
@@ -763,11 +740,12 @@ EmuBinaryResult EmuBinaryV2Test(boost::optional<std::pair<uint64_t, uint64_t>> n
     // insert non-anchors with positions between nonAnchorStart and nonAnchorEnd (exclusive)
     uint64_t nonAnchorEnd = nonAnchorStart + nonAnchorCount;
     for (auto cpos = nonAnchorStart; cpos < nonAnchorEnd; cpos++) {
-        auto doc = ESCCollection::generateNonAnchorDocument(tagToken, cpos);
+        auto doc = ESCCollection::generateNonAnchorDocument(&hmacCtx, tagToken, cpos);
         coll.insert(doc);
     }
 
-    auto res = ESCCollection::emuBinaryV2(coll, tagToken, valueToken);
+    HmacContext hmacCtx;
+    auto res = ESCCollection::emuBinaryV2(&hmacCtx, coll, tagToken, valueToken);
 
     return res;
 }
@@ -1013,128 +991,6 @@ TEST_F(ServiceContextTest, FLE_ESC_EmuBinaryV2_AllRecordTypes_NullAnchorHasOldAn
     ASSERT_EQ(res.apos.value(), 50);
     ASSERT_TRUE(res.cpos.has_value());
     ASSERT_EQ(res.cpos.value(), 79);
-}
-
-// Test one new field in esc
-TEST_F(ServiceContextTest, FLE_ESC_EmuBinary) {
-    TestKeyVault keyVault;
-
-    TestDocumentCollection coll;
-    ConstDataRange value(testValue);
-
-    auto c1 = CollectionsLevel1Token::deriveFrom(getIndexKey());
-    auto escToken = ESCToken::deriveFrom(c1);
-
-    ESCDerivedFromDataToken escDatakey = ESCDerivedFromDataToken::deriveFrom(escToken, value);
-
-    auto escDerivedToken =
-        ESCDerivedFromDataTokenAndContentionFactorToken::deriveFrom(escDatakey, 0);
-
-    auto escTwiceTag = ESCTwiceDerivedTagToken::deriveFrom(escDerivedToken);
-    auto escTwiceValue = ESCTwiceDerivedValueToken::deriveFrom(escDerivedToken);
-
-    for (int j = 1; j <= 5; j++) {
-        BSONObj doc = ESCCollection::generateInsertDocument(escTwiceTag, escTwiceValue, j, j);
-        coll.insert(doc);
-    }
-
-
-    // Test with various fake counts to ensure enumBinary works with bad estimates and the original
-    // exact count.
-    int64_t origCount = coll.getDocumentCount();
-    std::vector<int64_t> testVectors{0, 2, 3, 13, 500, origCount};
-
-    for (const auto v : testVectors) {
-        coll.setOverrideCount(v);
-        auto i = ESCCollection::emuBinary(coll, escTwiceTag, escTwiceValue);
-
-        ASSERT_TRUE(i.has_value());
-        ASSERT_EQ(i.value(), 5);
-    }
-}
-
-
-// Test two new fields in esc
-TEST_F(ServiceContextTest, FLE_ESC_EmuBinary2) {
-    TestKeyVault keyVault;
-
-    TestDocumentCollection coll;
-    ConstDataRange value(testValue);
-
-    auto c1 = CollectionsLevel1Token::deriveFrom(getIndexKey());
-    auto escToken = ESCToken::deriveFrom(c1);
-
-
-    ESCDerivedFromDataToken escDatakey2 = ESCDerivedFromDataToken::deriveFrom(escToken, testValue2);
-
-    auto escDerivedToken2 =
-        ESCDerivedFromDataTokenAndContentionFactorToken::deriveFrom(escDatakey2, 0);
-
-    auto escTwiceTag2 = ESCTwiceDerivedTagToken::deriveFrom(escDerivedToken2);
-    auto escTwiceValue2 = ESCTwiceDerivedValueToken::deriveFrom(escDerivedToken2);
-
-    for (int j = 1; j <= 5; j++) {
-        BSONObj doc = ESCCollection::generateInsertDocument(escTwiceTag2, escTwiceValue2, j, j);
-        coll.insert(doc);
-    }
-
-    ESCDerivedFromDataToken escDatakey = ESCDerivedFromDataToken::deriveFrom(escToken, value);
-
-    auto escDerivedToken =
-        ESCDerivedFromDataTokenAndContentionFactorToken::deriveFrom(escDatakey, 0);
-
-    auto escTwiceTag = ESCTwiceDerivedTagToken::deriveFrom(escDerivedToken);
-    auto escTwiceValue = ESCTwiceDerivedValueToken::deriveFrom(escDerivedToken);
-
-
-    for (int j = 1; j <= 13; j++) {
-        BSONObj doc = ESCCollection::generateInsertDocument(escTwiceTag, escTwiceValue, j, j);
-        coll.insert(doc);
-    }
-
-    // Test with various fake counts to ensure enumBinary works with bad estimates and the original
-    // exact count.
-    int64_t origCount = coll.getDocumentCount();
-    std::vector<int64_t> testVectors{0, 2, 5, 13, 19, 500, origCount};
-
-    for (const auto v : testVectors) {
-        coll.setOverrideCount(v);
-        auto i = ESCCollection::emuBinary(coll, escTwiceTag, escTwiceValue);
-
-        ASSERT_TRUE(i.has_value());
-        ASSERT_EQ(i.value(), 13);
-
-        i = ESCCollection::emuBinary(coll, escTwiceTag2, escTwiceValue2);
-
-        ASSERT_TRUE(i.has_value());
-        ASSERT_EQ(i.value(), 5);
-    }
-}
-
-// Test Emulated Binary with null record
-TEST_F(ServiceContextTest, FLE_ESC_EmuBinary_NullRecord) {
-    TestKeyVault keyVault;
-
-    TestDocumentCollection coll;
-    ConstDataRange value(testValue);
-
-    auto c1 = CollectionsLevel1Token::deriveFrom(getIndexKey());
-    auto escToken = ESCToken::deriveFrom(c1);
-
-    ESCDerivedFromDataToken escDatakey = ESCDerivedFromDataToken::deriveFrom(escToken, value);
-
-    auto escDerivedToken =
-        ESCDerivedFromDataTokenAndContentionFactorToken::deriveFrom(escDatakey, 0);
-
-    auto escTwiceTag = ESCTwiceDerivedTagToken::deriveFrom(escDerivedToken);
-    auto escTwiceValue = ESCTwiceDerivedValueToken::deriveFrom(escDerivedToken);
-
-    BSONObj doc = ESCCollection::generateNullDocument(escTwiceTag, escTwiceValue, 7, 7);
-    coll.insert(doc);
-
-    auto i = ESCCollection::emuBinary(coll, escTwiceTag, escTwiceValue);
-
-    ASSERT_FALSE(i.has_value());
 }
 
 enum class Operation { kFind, kInsert };
@@ -1734,7 +1590,6 @@ TEST_F(ServiceContextTest, FLE_EDC_ServerSide_Equality_Payloads_V2) {
 
     auto edcTwiceDerived = EDCTwiceDerivedToken::deriveFrom(edcDataCounterkey);
 
-    HmacContext hmacCtx;
     auto tag = EDCServerCollection::generateTag(&hmacCtx, edcTwiceDerived, 123456);
 
     auto serverPayload = FLE2IndexedEqualityEncryptedValueV2::fromUnencrypted(
@@ -2010,7 +1865,6 @@ TEST_F(ServiceContextTest, FLE_EDC_ServerSide_Range_Payloads_V2) {
 
     auto edcTwiceDerived = EDCTwiceDerivedToken::deriveFrom(edcDataCounterkey);
 
-    HmacContext hmacCtx;
     auto tag = EDCServerCollection::generateTag(&hmacCtx, edcTwiceDerived, 123456);
 
     std::vector<PrfBlock> tags;
@@ -5402,7 +5256,8 @@ public:
 
 TEST_F(AnchorPaddingFixture, generatePaddingDocument) {
     constexpr std::uint64_t kId = 42;
-    auto doc = ESCCollectionAnchorPadding::generatePaddingDocument(_keyToken, _valueToken, kId);
+    auto doc =
+        ESCCollectionAnchorPadding::generatePaddingDocument(&hmacCtx, _keyToken, _valueToken, kId);
     ASSERT_EQ(doc.nFields(), 2UL);
 
     // _id := F_k(bot || id)
