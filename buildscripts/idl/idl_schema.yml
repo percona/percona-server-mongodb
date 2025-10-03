@@ -819,13 +819,18 @@ properties:
               Specifies another option that this option requires in order to be specified.
             oneOf:
               - type: string
+              - "$ref": "#/$defs/expression"
               - type: array
                 items:
-                  type: string
+                  oneOf:
+                    - type: string
+                    - "$ref": "#/$defs/expression"
                 minItems: 1
                 uniqueItems: true
           hidden:
-            type: boolean
+            oneOf:
+              - type: boolean
+              - "$ref": "#/$defs/expression"
             description: >
               If true, this option is hidden so that it does not appear in command line help.
           redact:
