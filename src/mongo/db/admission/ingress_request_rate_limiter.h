@@ -51,9 +51,7 @@ public:
      * exceeded the configured rate limit and consumed the burst size, the operation will be
      * rejected with an error in the SystemOverloaded category.
      */
-    // TODO: SERVER-104932 Remove exemption of command not subject to admission control, all
-    //       requests must use the rate limiter
-    Status admitRequest(OperationContext* opCtx, bool commandInvocationSubjectToAdmissionControl);
+    Status admitRequest(Client* client);
 
     /**
      * Adjusts the refresh rate of the rate limiter to 'refreshRatePerSec'.

@@ -734,7 +734,6 @@ mongo_cc_library(
         "//src/mongo/db/catalog:collection_options",
         "//src/mongo/db/concurrency:lock_manager",
         "//src/mongo/db/query/collation:collator_factory_interface",
-        "//src/mongo/db/repl:intent_registry",
         "//src/mongo/s:common_s",
     ],
 )
@@ -3834,6 +3833,7 @@ mongo_cc_library(
         "//src/mongo/db/storage:storage_options",
         "//src/mongo/db/storage/devnull:storage_devnull",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
+        "//src/mongo/idl:server_parameter_test_util",
         "//src/mongo/util:clock_source_mock",
         "//src/mongo/util:periodic_runner_factory",
         "//src/mongo/util:tick_source_mock",

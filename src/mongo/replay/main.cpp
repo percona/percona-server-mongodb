@@ -27,6 +27,9 @@
  *    it in the license file.
  */
 
+#include <iostream>
+
 int main(int argc, char** argv) {
+    std::cout << "Hello from MongoR ... I am under construction!" << std::endl;
     return 0;
 }
