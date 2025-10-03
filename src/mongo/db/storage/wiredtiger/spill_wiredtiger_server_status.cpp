@@ -27,21 +27,23 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/storage/wiredtiger/spill_wiredtiger_server_status.h"
 
-#include "mongo/db/exec/agg/exec_pipeline.h"
-#include "mongo/db/pipeline/document_source.h"
+#include "mongo/bson/bsonobj.h"
+#include "mongo/db/operation_context.h"
 
-#include <memory>
+namespace mongo {
 
-namespace mongo::exec::agg {
+bool SpillWiredTigerServerStatusSection::includeByDefault() const {
+    return true;
+}
 
-/**
- * Builds and returns a query execution pipeline corresponding to the given ordered list of document
- * sources.
- * TODO SERVER-105562: Return the resulting pipeline by value.
- */
-std::unique_ptr<exec::agg::Pipeline> buildPipeline(
-    const std::list<boost::intrusive_ptr<DocumentSource>>& documentSources);
+BSONObj SpillWiredTigerServerStatusSection::generateSection(
+    OperationContext* opCtx, const BSONElement& configElement) const {
 
-}  // namespace mongo::exec::agg
+    // TODO SERVER-104355: Fill in this section.
+
+    return BSONObj{};
+}
+
+}  // namespace mongo

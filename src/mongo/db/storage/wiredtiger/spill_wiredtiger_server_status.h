@@ -29,19 +29,26 @@
 
 #pragma once
 
-#include "mongo/db/exec/agg/exec_pipeline.h"
-#include "mongo/db/pipeline/document_source.h"
+#include "mongo/bson/bsonelement.h"
+#include "mongo/bson/bsonobj.h"
+#include "mongo/db/commands/server_status.h"
+#include "mongo/db/operation_context.h"
 
-#include <memory>
+namespace mongo {
 
-namespace mongo::exec::agg {
+class SpillWiredTigerKVEngine;
 
 /**
- * Builds and returns a query execution pipeline corresponding to the given ordered list of document
- * sources.
- * TODO SERVER-105562: Return the resulting pipeline by value.
+ * Adds "spillWiredTiger" to the results of db.serverStatus().
  */
-std::unique_ptr<exec::agg::Pipeline> buildPipeline(
-    const std::list<boost::intrusive_ptr<DocumentSource>>& documentSources);
+class SpillWiredTigerServerStatusSection : public ServerStatusSection {
+public:
+    static constexpr StringData kServerStatusSectionName = "spillWiredTiger"_sd;
 
-}  // namespace mongo::exec::agg
+    using ServerStatusSection::ServerStatusSection;
+    bool includeByDefault() const override;
+    BSONObj generateSection(OperationContext* opCtx,
+                            const BSONElement& configElement) const override;
+};
+
+}  // namespace mongo
