@@ -71,7 +71,7 @@ void TelemetryPath::append(OperationContext*,
 }
 
 Status TelemetryPath::setFromString(StringData str, const boost::optional<TenantId>&) {
-    telemetryPath = str.toString();
+    telemetryPath = std::string{str};
     return Status::OK();
 }
 

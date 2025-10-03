@@ -189,7 +189,7 @@ std::string genPutKeyReqBody(const std::string& key,
 // The OpenAPI references can cause a parsing failure because they
 // will be treated as DBRefs.
 std::string removeRef(StringData json) {
-    return std::regex_replace(json.toString(), std::regex{"\"\\$ref\""}, "\"_ref\"");
+    return std::regex_replace(std::string{json}, std::regex{"\"\\$ref\""}, "\"_ref\"");
 }
 
 }  // namespace

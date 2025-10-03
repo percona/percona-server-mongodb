@@ -79,7 +79,7 @@ public:
             }
 
             audit::logAddShard(Client::getCurrent(),
-                               request().getName() ? request().getName()->toString() : "",
+                               request().getName() ? std::string{*request().getName()} : "",
                                target.toString());
 
             ConfigsvrAddShard configsvrRequest{target};

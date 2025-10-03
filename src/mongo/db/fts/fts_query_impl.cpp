@@ -221,10 +221,8 @@ void FTSQueryImpl::_addTermsForNgram(FTSTokenizer* tokenizer, const string& sent
     // If we are case-insensitive, we can also used this for positive, and negative terms
     // Some terms may be expanded into multiple words in some non-English languages
     while (tokenizer->moveNext()) {
-        string word = tokenizer->get().toString();
-
         if (!negated) {
-            _termsForBounds.insert(word);
+            _termsForBounds.insert(std::string{tokenizer->get()});
         }
     }
 
@@ -242,8 +240,7 @@ void FTSQueryImpl::_addTermsForNgram(FTSTokenizer* tokenizer, const string& sent
 
     tokenizer->reset(sentence.c_str(), newOptions);
     while (tokenizer->moveNext()) {
-        string word = tokenizer->get().toString();
-        activePhrases.push_back(word);
+        activePhrases.push_back(std::string{tokenizer->get()});
     }
 }
 

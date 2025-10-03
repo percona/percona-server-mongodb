@@ -158,7 +158,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(StringDat
 
 void ServerMechanism::_parseStsResponse(StringData body) {
     // Parse the XML string into a Boost Property Tree
-    std::istringstream ss(body.toString());
+    std::istringstream ss(std::string{body});
     boost::property_tree::ptree pt;
     boost::property_tree::read_xml(ss, pt);
 

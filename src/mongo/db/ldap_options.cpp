@@ -61,7 +61,7 @@ std::string LDAPGlobalParams::getServersStr() const {
 void LDAPGlobalParams::setServersStr(StringData ldap_servers) {
     auto guard = *ldapServers;
     boost::split(
-        *guard, ldap_servers.toString(), [](char c) { return c == ','; }, boost::token_compress_on);
+        *guard, ldap_servers, [](char c) { return c == ','; }, boost::token_compress_on);
 }
 
 std::string LDAPGlobalParams::logString() const {

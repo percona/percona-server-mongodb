@@ -1763,7 +1763,7 @@ Status InitialSyncerFCB::_killBackupCursor(WithLock lk) {
     executor::RemoteCommandRequest killCursorsRequest(
         _syncSource,
         info->nss.dbName(),
-        BSON("killCursors" << info->nss.coll().toString() << "cursors"
+        BSON("killCursors" << info->nss.coll() << "cursors"
                            << BSON_ARRAY(info->cursorId)),
         nullptr);
 
@@ -1976,7 +1976,7 @@ void InitialSyncerFCB::_keepAliveCallback(
     executor::RemoteCommandRequest getMoreRequest(
         _syncSource,
         info->nss.dbName(),
-        BSON("getMore" << info->cursorId << "collection" << info->nss.coll().toString()),
+        BSON("getMore" << info->cursorId << "collection" << info->nss.coll()),
         nullptr);
     getMoreRequest.fireAndForget = true;
 

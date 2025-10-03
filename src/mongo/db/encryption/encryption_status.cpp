@@ -137,7 +137,7 @@ public:
 };
 
 auto& gEncryptionSSS =
-    *ServerStatusSectionBuilder<EncryptionSSS>(kEncryptionSSSName.toString()).forShard();
+    *ServerStatusSectionBuilder<EncryptionSSS>(std::string{kEncryptionSSSName}).forShard();
 
 }  // namespace
 }  // namespace mongo::encryption

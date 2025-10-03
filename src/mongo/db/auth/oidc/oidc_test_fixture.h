@@ -257,7 +257,7 @@ public:
                                                          StringData caFilePath) const override {
         (void)caFilePath;
         _issuers.emplace_back(issuer);
-        return std::make_unique<JWKSFetcherMock>(*this, issuer.toString());
+        return std::make_unique<JWKSFetcherMock>(*this, std::string{issuer});
     }
     std::unique_ptr<crypto::JWKSFetcher> makeJWKSFetcher(StringData issuer) const {
         return makeJWKSFetcher(issuer, {});

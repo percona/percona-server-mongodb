@@ -76,7 +76,7 @@ private:
 class VaultClientTest : public unittest::Test {
 protected:
     VaultClient createClientWithToken(std::string token) {
-        return VaultClient(kTestHost.toString(), kTestPort, token, "", "", false, true, 1000);
+        return VaultClient(std::string{kTestHost}, kTestPort, token, "", "", false, true, 1000);
     }
 
     VaultClient createClient() {
@@ -108,7 +108,7 @@ TEST_F(VaultClientTest, OpenAPISpec_EmptyResponse) {
 
     setMockHttpClient(std::move(mock));
 
-    VaultClient client(kTestHost.toString(), kTestPort, "", "", "", false, true, 1000);
+    VaultClient client(std::string{kTestHost}, kTestPort, "", "", "", false, true, 1000);
 
     const auto status = client.getOpenAPISpec();
     ASSERT_OK(status);

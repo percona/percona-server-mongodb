@@ -94,7 +94,7 @@ public:
         }
 
         auto kv =
-            std::make_unique<WiredTigerKVEngine>(getCanonicalName().toString(),
+            std::make_unique<WiredTigerKVEngine>(std::string{getCanonicalName()},
                                                  params.dbpath,
                                                  getGlobalServiceContext()->getFastClockSource(),
                                                  std::move(wtConfig),
@@ -122,7 +122,7 @@ public:
             wtConfig.inMemory = params.inMemory;
             wtConfig.logEnabled = false;
             spillWiredTigerKVEngine =
-                std::make_unique<SpillWiredTigerKVEngine>(getCanonicalName().toString(),
+                std::make_unique<SpillWiredTigerKVEngine>(std::string{getCanonicalName()},
                                                 params.getSpillDbPath(),
                                                 getGlobalServiceContext()->getFastClockSource(),
                                                 std::move(wtConfig));
