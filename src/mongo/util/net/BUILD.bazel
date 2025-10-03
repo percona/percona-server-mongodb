@@ -28,6 +28,7 @@ mongo_cc_library(
         "ssl_options.cpp",
     ],
     hdrs = [
+        "fipsmode_config.h",
         "ssl_options.h",
     ],
     deps = [
