@@ -53,6 +53,7 @@
 #include "mongo/db/s/config/sharding_catalog_manager.h"
 #include "mongo/db/s/resharding/document_source_resharding_add_resume_id.h"
 #include "mongo/db/s/resharding/document_source_resharding_iterate_transaction.h"
+#include "mongo/db/s/resharding/resharding_noop_o2_field_gen.h"
 #include "mongo/db/s/resharding/resharding_server_parameters_gen.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
@@ -262,7 +263,7 @@ std::unique_ptr<Pipeline, PipelineDeleter> createOplogFetchingPipelineForReshard
     const Value EXISTS = V{Doc{{"$exists", true}}};
     const Value DNE = V{Doc{{"$exists", false}}};
 
-    Pipeline::SourceContainer stages;
+    DocumentSourceContainer stages;
     // The node receiving the query verifies continuity of oplog entries (i.e: that the recipient
     // hasn't fallen off the oplog). This stage provides the input timestamp that the donor uses for
     // verification.
@@ -338,6 +339,25 @@ std::unique_ptr<Pipeline, PipelineDeleter> createOplogFetchingPipelineForReshard
         expCtx));
 
     return Pipeline::create(std::move(stages), expCtx);
+}
+
+bool isProgressMarkOplogAfterOplogApplicationStarted(const repl::OplogEntry& oplog) {
+    if (oplog.getOpType() != repl::OpTypeEnum::kNoop) {
+        return false;
+    }
+
+    auto o2Field = oplog.getObject2();
+    if (!o2Field) {
+        return false;
+    }
+
+    if (o2Field->getField(ReshardProgressMarkO2Field::kTypeFieldName).valueStringDataSafe() !=
+        kReshardProgressMarkOpLogType) {
+        return false;
+    }
+    return o2Field
+        ->getField(ReshardProgressMarkO2Field::kCreatedAfterOplogApplicationStartedFieldName)
+        .booleanSafe();
 }
 
 bool isFinalOplog(const repl::OplogEntry& oplog) {
@@ -712,6 +732,18 @@ boost::optional<int> getIndexCount(OperationContext* opCtx, const NamespaceStrin
         indexCount += 1;
     }
     return indexCount;
+}
+
+double calculateExponentialMovingAverage(double prevAvg, double currVal, double smoothingFactor) {
+    uassert(ErrorCodes::InvalidOptions,
+            str::stream() << "The smoothing factor must be greater than 0 but it is equal to "
+                          << smoothingFactor,
+            smoothingFactor > 0);
+    uassert(ErrorCodes::InvalidOptions,
+            str::stream() << "The smoothing factor must be less than 1 but it is equal to "
+                          << smoothingFactor,
+            smoothingFactor < 1);
+    return (1 - smoothingFactor) * prevAvg + smoothingFactor * currVal;
 }
 
 }  // namespace resharding

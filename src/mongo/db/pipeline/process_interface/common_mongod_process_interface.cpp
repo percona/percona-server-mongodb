@@ -796,7 +796,7 @@ boost::optional<Document> CommonMongodProcessInterface::doLookupSingleDocument(
         return boost::none;
     }
 
-    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources());
+    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources(), pipeline->getContext());
     auto lookedUpDocument = execPipeline->getNext();
 
     // Ensure that there are no two documents for the same 'documentKey'.
@@ -1106,7 +1106,7 @@ void CommonMongodProcessInterface::writeRecordsToSpillTable(
             Lock::GlobalLock lk(expCtx->getOperationContext(), MODE_IS);
             WriteUnitOfWork wuow(expCtx->getOperationContext());
             auto writeResult = spillTable.insertRecords(expCtx->getOperationContext(), records);
-            tassert(5643002,
+            uassert(ErrorCodes::OutOfDiskSpace,
                     str::stream() << "Failed to write to disk because " << writeResult.reason(),
                     writeResult.isOK());
             wuow.commit();

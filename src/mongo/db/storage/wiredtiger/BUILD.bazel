@@ -77,7 +77,6 @@ mongo_cc_library(
     hdrs = [
         "encryption_keydb.h",
         "encryption_keydb_c_api.h",
-        "spill_recovery_unit.h",
         "spill_wiredtiger_kv_engine.h",
         "wiredtiger_backup_cursor_hooks.h",
         "wiredtiger_begin_transaction_block.h",

@@ -551,7 +551,7 @@ void DocumentSourceLookUp::determineSbeCompatibility() {
     }
 }
 
-StageConstraints DocumentSourceLookUp::constraints(Pipeline::SplitState pipeState) const {
+StageConstraints DocumentSourceLookUp::constraints(PipelineSplitState pipeState) const {
     HostTypeRequirement hostRequirement;
     bool nominateMergingShard = false;
     if (_fromNs.isConfigDotCacheDotChunks()) {
@@ -559,7 +559,7 @@ StageConstraints DocumentSourceLookUp::constraints(Pipeline::SplitState pipeStat
         // shard, rather than just a merging shard, since each shard should have an identical copy
         // of the namespace.
         hostRequirement = HostTypeRequirement::kAnyShard;
-    } else if (pipeState == Pipeline::SplitState::kSplitForShards) {
+    } else if (pipeState == PipelineSplitState::kSplitForShards) {
         // This stage will only be on the shards pipeline if $lookup on sharded foreign collections
         // is allowed.
         hostRequirement = HostTypeRequirement::kAnyShard;
@@ -569,7 +569,7 @@ StageConstraints DocumentSourceLookUp::constraints(Pipeline::SplitState pipeStat
     } else {
         // If the pipeline is unsplit, then this $lookup can run anywhere.
         hostRequirement = HostTypeRequirement::kNone;
-        nominateMergingShard = pipeState == Pipeline::SplitState::kSplitForMerge;
+        nominateMergingShard = pipeState == PipelineSplitState::kSplitForMerge;
     }
 
     // By default, $lookup is allowed in a transaction and does not use disk.
@@ -646,7 +646,7 @@ DocumentSource::GetNextResult DocumentSourceLookUp::doGetNext() {
     std::unique_ptr<exec::agg::Pipeline> execPipeline;
     try {
         pipeline = buildPipeline(_fromExpCtx, inputDoc);
-        execPipeline = exec::agg::buildPipeline(pipeline->getSources());
+        execPipeline = exec::agg::buildPipeline(pipeline->getSources(), pipeline->getContext());
         LOGV2_DEBUG(
             9497000, 5, "Built pipeline", "pipeline"_attr = pipeline->serializeForLogging());
     } catch (const ExceptionFor<ErrorCategory::StaleShardVersionError>& ex) {
@@ -927,8 +927,8 @@ DocumentSource::GetModPathsReturn DocumentSourceLookUp::getModifiedPaths() const
     return {GetModPathsReturn::Type::kFiniteSet, std::move(modifiedPaths), {}};
 }
 
-Pipeline::SourceContainer::iterator DocumentSourceLookUp::doOptimizeAt(
-    Pipeline::SourceContainer::iterator itr, Pipeline::SourceContainer* container) {
+DocumentSourceContainer::iterator DocumentSourceLookUp::doOptimizeAt(
+    DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
     invariant(*itr == this);
 
     if (std::next(itr) == container->end()) {
@@ -1159,7 +1159,7 @@ DocumentSource::GetNextResult DocumentSourceLookUp::unwindResult() {
         _input = nextInput.releaseDocument();
 
         _pipeline = buildPipeline(_fromExpCtx, *_input);
-        _execPipeline = exec::agg::buildPipeline(_pipeline->getSources());
+        _execPipeline = exec::agg::buildPipeline(_pipeline->getSources(), _pipeline->getContext());
 
         // The $lookup stage takes responsibility for disposing of its Pipeline, since it will
         // potentially be used by multiple OperationContexts, and the $lookup stage is part of an
@@ -1445,7 +1445,7 @@ void DocumentSourceLookUp::detachFromOperationContext() {
         // We have a pipeline we're going to be executing across multiple calls to getNext(), so we
         // use Pipeline::detachFromOperationContext() to take care of updating
         // '_fromExpCtx->getOperationContext()'.
-        _pipeline->detachFromOperationContext();
+        _execPipeline->detachFromOperationContext();
         invariant(_fromExpCtx->getOperationContext() == nullptr);
     } else if (_fromExpCtx) {
         _fromExpCtx->setOperationContext(nullptr);
@@ -1457,7 +1457,7 @@ void DocumentSourceLookUp::reattachToOperationContext(OperationContext* opCtx) {
         // We have a pipeline we're going to be executing across multiple calls to getNext(), so we
         // use Pipeline::reattachToOperationContext() to take care of updating
         // '_fromExpCtx->getOperationContext()'.
-        _pipeline->reattachToOperationContext(opCtx);
+        _execPipeline->reattachToOperationContext(opCtx);
         invariant(_fromExpCtx->getOperationContext() == opCtx);
     } else if (_fromExpCtx) {
         _fromExpCtx->setOperationContext(opCtx);
@@ -1471,12 +1471,7 @@ bool DocumentSourceLookUp::validateOperationContext(const OperationContext* opCt
     }
 
     if (_execPipeline) {
-        // TODO SERVER-105371: Use _execPipeline->validateOperationContext() once
-        // validateOperationContext() is moved to agg::Pipeline.
-        const auto& sources = _execPipeline->getStages();
-        return std::all_of(sources.cbegin(), sources.cend(), [opCtx](const auto& s) {
-            return s->validateOperationContext(opCtx);
-        });
+        return _execPipeline->validateOperationContext(opCtx);
     }
 
     return true;

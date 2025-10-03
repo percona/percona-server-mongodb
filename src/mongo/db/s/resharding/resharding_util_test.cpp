@@ -43,6 +43,7 @@
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/s/config/config_server_test_fixture.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service_util.h"
+#include "mongo/db/s/resharding/resharding_noop_o2_field_gen.h"
 #include "mongo/db/s/resharding/resharding_server_parameters_gen.h"
 #include "mongo/db/s/resharding/resharding_txn_cloner.h"
 #include "mongo/db/session/logical_session_id.h"
@@ -499,6 +500,171 @@ TEST_F(ReshardingUtilTest, EmptyDemoModeReshardCollectionRequest) {
               gReshardingMinimumOperationDurationMillis.load());
 }
 
+TEST_F(ReshardingUtilTest, IsProgressMarkOplogCreatedAfterOplogApplicationStarted) {
+    repl::MutableOplogEntry oplog;
+    oplog.setNss(nss());
+    oplog.setOpType(repl::OpTypeEnum::kNoop);
+    oplog.setUuid(UUID::gen());
+    oplog.set_id({});
+    oplog.setObject({});
+    oplog.setObject2(
+        BSON(ReshardProgressMarkO2Field::kTypeFieldName
+             << resharding::kReshardProgressMarkOpLogType
+             << ReshardProgressMarkO2Field::kCreatedAfterOplogApplicationStartedFieldName << true));
+    oplog.setOpTime(OplogSlot());
+    oplog.setWallClockTime(getServiceContext()->getFastClockSource()->now());
+    ASSERT(isProgressMarkOplogAfterOplogApplicationStarted({oplog.toBSON()}));
+}
+
+TEST_F(ReshardingUtilTest, IsNotProgressMarkOplogCreatedAfterOplogApplicationStarted_NotNoop) {
+    repl::MutableOplogEntry oplog;
+    oplog.setNss(nss());
+    oplog.setOpType(repl::OpTypeEnum::kInsert);
+    oplog.setUuid(UUID::gen());
+    oplog.set_id({});
+    oplog.setObject({});
+    oplog.setObject2(
+        BSON(ReshardProgressMarkO2Field::kTypeFieldName
+             << resharding::kReshardProgressMarkOpLogType
+             << ReshardProgressMarkO2Field::kCreatedAfterOplogApplicationStartedFieldName << true));
+    oplog.setOpTime(OplogSlot());
+    oplog.setWallClockTime(getServiceContext()->getFastClockSource()->now());
+    ASSERT_FALSE(isProgressMarkOplogAfterOplogApplicationStarted({oplog.toBSON()}));
+}
+
+TEST_F(ReshardingUtilTest, IsNotProgressMarkOplogCreatedAfterOplogApplicationStarted_NoObject2) {
+    repl::MutableOplogEntry oplog;
+    oplog.setNss(nss());
+    oplog.setOpType(repl::OpTypeEnum::kNoop);
+    oplog.setUuid(UUID::gen());
+    oplog.set_id({});
+    oplog.setObject({});
+    oplog.setOpTime(OplogSlot());
+    oplog.setWallClockTime(getServiceContext()->getFastClockSource()->now());
+    ASSERT_FALSE(isProgressMarkOplogAfterOplogApplicationStarted({oplog.toBSON()}));
+}
+
+TEST_F(ReshardingUtilTest,
+       IsNotProgressMarkOplogCreatedAfterOplogApplicationStarted_NotProgressMarkType) {
+    repl::MutableOplogEntry oplog;
+    oplog.setNss(nss());
+    oplog.setOpType(repl::OpTypeEnum::kNoop);
+    oplog.setUuid(UUID::gen());
+    oplog.set_id({});
+    oplog.setObject({});
+    oplog.setObject2(
+        BSON(ReshardProgressMarkO2Field::kTypeFieldName
+             << resharding::kReshardFinalOpLogType
+             << ReshardProgressMarkO2Field::kCreatedAfterOplogApplicationStartedFieldName << true));
+    oplog.setOpTime(OplogSlot());
+    oplog.setWallClockTime(getServiceContext()->getFastClockSource()->now());
+    ASSERT_FALSE(isProgressMarkOplogAfterOplogApplicationStarted({oplog.toBSON()}));
+}
+
+TEST_F(ReshardingUtilTest, IsNotProgressMarkOplogCreatedAfterOplogApplicationStarted_InvalidType) {
+    repl::MutableOplogEntry oplog;
+    oplog.setNss(nss());
+    oplog.setOpType(repl::OpTypeEnum::kNoop);
+    oplog.setUuid(UUID::gen());
+    oplog.set_id({});
+    oplog.setObject({});
+    oplog.setObject2(BSON(
+        ReshardProgressMarkO2Field::kTypeFieldName
+        << 2 << ReshardProgressMarkO2Field::kCreatedAfterOplogApplicationStartedFieldName << true));
+    oplog.setOpTime(OplogSlot());
+    oplog.setWallClockTime(getServiceContext()->getFastClockSource()->now());
+    ASSERT_FALSE(isProgressMarkOplogAfterOplogApplicationStarted({oplog.toBSON()}));
+}
+
+TEST_F(ReshardingUtilTest,
+       IsNotProgressMarkOplogCreatedAfterOplogApplicationStarted_CreatedAfterNull) {
+    repl::MutableOplogEntry oplog;
+    oplog.setNss(nss());
+    oplog.setOpType(repl::OpTypeEnum::kNoop);
+    oplog.setUuid(UUID::gen());
+    oplog.set_id({});
+    oplog.setObject({});
+    oplog.setObject2(BSON(ReshardProgressMarkO2Field::kTypeFieldName
+                          << resharding::kReshardProgressMarkOpLogType));
+    oplog.setOpTime(OplogSlot());
+    oplog.setWallClockTime(getServiceContext()->getFastClockSource()->now());
+    ASSERT_FALSE(isProgressMarkOplogAfterOplogApplicationStarted({oplog.toBSON()}));
+}
+
+TEST_F(ReshardingUtilTest,
+       IsNotProgressMarkOplogCreatedAfterOplogApplicationStarted_CreatedAfterFalse) {
+    repl::MutableOplogEntry oplog;
+    oplog.setNss(nss());
+    oplog.setOpType(repl::OpTypeEnum::kNoop);
+    oplog.setUuid(UUID::gen());
+    oplog.set_id({});
+    oplog.setObject({});
+    oplog.setObject2(BSON(
+        ReshardProgressMarkO2Field::kTypeFieldName
+        << resharding::kReshardProgressMarkOpLogType
+        << ReshardProgressMarkO2Field::kCreatedAfterOplogApplicationStartedFieldName << false));
+    oplog.setOpTime(OplogSlot());
+    oplog.setWallClockTime(getServiceContext()->getFastClockSource()->now());
+    ASSERT_FALSE(isProgressMarkOplogAfterOplogApplicationStarted({oplog.toBSON()}));
+}
+
+TEST_F(ReshardingUtilTest,
+       IsNotProgressMarkOplogCreatedAfterOplogApplicationStarted_CreatedAfterNotBoolean) {
+    repl::MutableOplogEntry oplog;
+    oplog.setNss(nss());
+    oplog.setOpType(repl::OpTypeEnum::kNoop);
+    oplog.setUuid(UUID::gen());
+    oplog.set_id({});
+    oplog.setObject({});
+    oplog.setObject2(
+        BSON(ReshardProgressMarkO2Field::kTypeFieldName
+             << resharding::kReshardProgressMarkOpLogType
+             << ReshardProgressMarkO2Field::kCreatedAfterOplogApplicationStartedFieldName << 2));
+    oplog.setOpTime(OplogSlot());
+    oplog.setWallClockTime(getServiceContext()->getFastClockSource()->now());
+    ASSERT_FALSE(isProgressMarkOplogAfterOplogApplicationStarted({oplog.toBSON()}));
+}
+
+TEST_F(ReshardingUtilTest, CalculateExponentialMovingAverageSmoothingFactorLessThanZero) {
+    ASSERT_THROWS_CODE(
+        calculateExponentialMovingAverage(0, 1, -0.1), DBException, ErrorCodes::InvalidOptions);
+}
+
+TEST_F(ReshardingUtilTest, CalculateExponentialMovingAverageSmoothingFactorEqualToZero) {
+    ASSERT_THROWS_CODE(
+        calculateExponentialMovingAverage(0, 1, 0), DBException, ErrorCodes::InvalidOptions);
+}
+
+TEST_F(ReshardingUtilTest, CalculateExponentialMovingAverageSmoothingFactorEqualToOne) {
+    ASSERT_THROWS_CODE(
+        calculateExponentialMovingAverage(0, 1, 1), DBException, ErrorCodes::InvalidOptions);
+}
+
+TEST_F(ReshardingUtilTest, CalculateExponentialMovingAverageSmoothingFactorEqualGreaterThanOne) {
+    ASSERT_THROWS_CODE(
+        calculateExponentialMovingAverage(0, 1, 1.1), DBException, ErrorCodes::InvalidOptions);
+}
+
+TEST_F(ReshardingUtilTest, CalculateExponentialMovingAverageBasic) {
+    auto smoothFactor = 0.75;
+
+    auto val0 = 1;
+    auto avg0 = calculateExponentialMovingAverage(0, val0, smoothFactor);
+    ASSERT_EQ(avg0, 0.75);
+
+    auto val1 = 10.5;
+    auto avg1 = calculateExponentialMovingAverage(avg0, val1, smoothFactor);
+    ASSERT_EQ(avg1, (1 - smoothFactor) * avg0 + smoothFactor * val1);
+
+    auto val2 = -0.2;
+    auto avg2 = calculateExponentialMovingAverage(avg1, val2, smoothFactor);
+    ASSERT_EQ(avg2, (1 - smoothFactor) * avg1 + smoothFactor * val2);
+
+    auto val3 = 0;
+    auto avg3 = calculateExponentialMovingAverage(avg2, val3, smoothFactor);
+    ASSERT_EQ(avg3, (1 - smoothFactor) * avg2 + smoothFactor * val3);
+}
+
 class ReshardingTxnCloningPipelineTest : public AggregationContextFixture {
 
 protected:
@@ -571,7 +737,7 @@ TEST_F(ReshardingTxnCloningPipelineTest, TxnPipelineSorted) {
         makeTransactions(10, 10, [](size_t) { return Timestamp::min(); });
 
     auto pipeline = constructPipeline(mockResults, Timestamp::max(), boost::none);
-    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources());
+    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources(), pipeline->getContext());
 
     ASSERT(pipelineMatchesDeque(execPipeline, expectedTransactions));
 }
@@ -585,7 +751,7 @@ TEST_F(ReshardingTxnCloningPipelineTest, TxnPipelineAfterID) {
     expectedTransactions.erase(expectedTransactions.begin(), middleTransaction + 1);
 
     auto pipeline = constructPipeline(mockResults, Timestamp::max(), middleTransactionSessionId);
-    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources());
+    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources(), pipeline->getContext());
 
     ASSERT(pipelineMatchesDeque(execPipeline, expectedTransactions));
 }

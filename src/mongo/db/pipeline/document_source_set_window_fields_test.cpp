@@ -332,9 +332,9 @@ TEST_F(DocumentSourceSetWindowFieldsTest, OptimizationRemovesRedundantSortStage)
     auto sortStage = DocumentSourceSort::createFromBson(sortSpec.firstElement(), getExpCtx());
     exec::agg::buildStage(swfStage)->setSource(exec::agg::buildStage(sortStage.get()).get());
     auto prevSortStage = DocumentSourceSort::createFromBson(sortSpec.firstElement(), getExpCtx());
-    Pipeline::SourceContainer pipeline = {prevSortStage, swfStage, sortStage};
+    DocumentSourceContainer pipeline = {prevSortStage, swfStage, sortStage};
 
-    Pipeline::SourceContainer::iterator itr = pipeline.begin();
+    DocumentSourceContainer::iterator itr = pipeline.begin();
 
     // We only care about optimizing the setWindowFields stage.
     itr = std::next(itr);
@@ -395,7 +395,8 @@ TEST_F(DocumentSourceSetWindowFieldsSpillingTest,
         auto source = DocumentSourceMock::createForTest(docs, getExpCtx());
         pipelineStages.push_front(source);
         auto pipeline = Pipeline::create(pipelineStages, getExpCtx());
-        auto execPipeline = exec::agg::buildPipeline(pipeline->getSources());
+        auto execPipeline =
+            exec::agg::buildPipeline(pipeline->getSources(), pipeline->getContext());
 
         auto exhaustPipeline = [&]() {
             while (execPipeline->getNext().has_value()) {
@@ -449,7 +450,7 @@ TEST_F(DocumentSourceSetWindowFieldsSpillingTest, CanForceSpill) {
     auto source = DocumentSourceMock::createForTest(docs, getExpCtx());
     pipelineStages.push_front(source);
     auto pipeline = Pipeline::create(pipelineStages, getExpCtx());
-    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources());
+    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources(), pipeline->getContext());
 
     int nextDocIndex = 0;
     auto assertNextDocument = [&](const boost::optional<Document>& doc) {

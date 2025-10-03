@@ -254,24 +254,24 @@ intrusive_ptr<DocumentSource> DocumentSourceFacet::optimize() {
 
 void DocumentSourceFacet::detachFromOperationContext() {
     for (auto&& facet : _facets) {
-        facet.pipeline->detachFromOperationContext();
+        facet.getExecPipeline().detachFromOperationContext();
     }
 }
 
 void DocumentSourceFacet::reattachToOperationContext(OperationContext* opCtx) {
     for (auto&& facet : _facets) {
-        facet.pipeline->reattachToOperationContext(opCtx);
+        facet.getExecPipeline().reattachToOperationContext(opCtx);
     }
 }
 
 bool DocumentSourceFacet::validateOperationContext(const OperationContext* opCtx) const {
     return getContext()->getOperationContext() == opCtx &&
         std::all_of(_facets.begin(), _facets.end(), [opCtx](const auto& f) {
-               return f.pipeline->validateOperationContext(opCtx);
+               return f.getExecPipeline().validateOperationContext(opCtx);
            });
 }
 
-StageConstraints DocumentSourceFacet::constraints(Pipeline::SplitState state) const {
+StageConstraints DocumentSourceFacet::constraints(PipelineSplitState state) const {
     // Currently we don't split $facet to have a merger part and a shards part (see SERVER-24154).
     // This means that if any stage in any of the $facet pipelines needs to run on router, then the
     // entire $facet stage must run there.

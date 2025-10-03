@@ -29,8 +29,11 @@
 
 #include "mongo/db/storage/spill_table.h"
 
+#include "mongo/db/concurrency/exception_util.h"
+#include "mongo/db/namespace_string.h"
 #include "mongo/db/storage/disk_space_monitor.h"
 #include "mongo/db/storage/disk_space_util.h"
+#include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/logv2/log.h"
 
@@ -79,9 +82,7 @@ SpillTable::DiskState::DiskState(DiskSpaceMonitor& monitor, int64_t thresholdByt
                   "thresholdBytes"_attr = thresholdBytes);
             _full.store(true);
         });
-    if (getAvailableDiskSpaceBytesInDbPath(storageGlobalParams.dbpath) < thresholdBytes) {
-        _full.store(true);
-    }
+    _monitor.runAction(nullptr, _actionId);
 }
 
 SpillTable::DiskState::~DiskState() {
@@ -127,12 +128,21 @@ Status SpillTable::insertRecords(OperationContext* opCtx, std::vector<Record>* r
     }
 
     for (auto&& record : *records) {
-        auto status =
-            _rs->insertRecord(opCtx, *_ru, record.id, record.data.data(), record.data.size(), {});
+        auto status = writeConflictRetry(
+            opCtx, *_ru, "SpillTable::insertRecords", NamespaceString::kEmpty, [&] {
+                StorageWriteTransaction txn{*_ru};
+                auto status = _rs->insertRecord(
+                    opCtx, *_ru, record.id, record.data.data(), record.data.size(), {});
+                if (!status.isOK()) {
+                    return status.getStatus();
+                }
+                record.id = status.getValue();
+                txn.commit();
+                return Status::OK();
+            });
         if (!status.isOK()) {
-            return status.getStatus();
+            return status;
         }
-        record.id = status.getValue();
     }
 
     return Status::OK();
@@ -149,13 +159,36 @@ Status SpillTable::updateRecord(OperationContext* opCtx,
     if (auto status = _checkDiskSpace(); !status.isOK()) {
         return status;
     }
-    return _rs->updateRecord(
-        opCtx, _ru ? *_ru : *storage_details::getRecoveryUnit(opCtx), rid, data, len);
+
+    if (!_ru) {
+        return _rs->updateRecord(opCtx, *storage_details::getRecoveryUnit(opCtx), rid, data, len);
+    }
+
+    return writeConflictRetry(
+        opCtx, *_ru, "SpillTable::updateRecord", NamespaceString::kEmpty, [&] {
+            StorageWriteTransaction txn{*_ru};
+            auto status = _rs->updateRecord(opCtx, *_ru, rid, data, len);
+            if (!status.isOK()) {
+                return status;
+            }
+            txn.commit();
+            return Status::OK();
+        });
 }
 
 void SpillTable::deleteRecord(OperationContext* opCtx, const RecordId& rid) {
     uassertStatusOK(_checkDiskSpace());
-    _rs->deleteRecord(opCtx, _ru ? *_ru : *storage_details::getRecoveryUnit(opCtx), rid);
+
+    if (!_ru) {
+        _rs->deleteRecord(opCtx, *storage_details::getRecoveryUnit(opCtx), rid);
+        return;
+    }
+
+    writeConflictRetry(opCtx, *_ru, "SpillTable::deleteRecord", NamespaceString::kEmpty, [&] {
+        StorageWriteTransaction txn{*_ru};
+        _rs->deleteRecord(opCtx, *_ru, rid);
+        txn.commit();
+    });
 }
 
 std::unique_ptr<SpillTable::Cursor> SpillTable::getCursor(OperationContext* opCtx,
@@ -169,7 +202,20 @@ Status SpillTable::truncate(OperationContext* opCtx) {
     if (auto status = _checkDiskSpace(); !status.isOK()) {
         return status;
     }
-    return _rs->truncate(opCtx, _ru ? *_ru : *storage_details::getRecoveryUnit(opCtx));
+
+    if (!_ru) {
+        return _rs->truncate(opCtx, *storage_details::getRecoveryUnit(opCtx));
+    }
+
+    return writeConflictRetry(opCtx, *_ru, "SpillTable::truncate", NamespaceString::kEmpty, [&] {
+        StorageWriteTransaction txn{*_ru};
+        auto status = _rs->truncate(opCtx, *_ru);
+        if (!status.isOK()) {
+            return status;
+        }
+        txn.commit();
+        return Status::OK();
+    });
 }
 
 Status SpillTable::rangeTruncate(OperationContext* opCtx,
@@ -180,12 +226,31 @@ Status SpillTable::rangeTruncate(OperationContext* opCtx,
     if (auto status = _checkDiskSpace(); !status.isOK()) {
         return status;
     }
-    return _rs->rangeTruncate(opCtx,
-                              _ru ? *_ru : *storage_details::getRecoveryUnit(opCtx),
-                              minRecordId,
-                              maxRecordId,
-                              hintDataSizeIncrement,
-                              hintNumRecordsIncrement);
+
+    if (!_ru) {
+        return _rs->rangeTruncate(opCtx,
+                                  *storage_details::getRecoveryUnit(opCtx),
+                                  minRecordId,
+                                  maxRecordId,
+                                  hintDataSizeIncrement,
+                                  hintNumRecordsIncrement);
+    }
+
+    return writeConflictRetry(
+        opCtx, *_ru, "SpillTable::rangeTruncate", NamespaceString::kEmpty, [&] {
+            StorageWriteTransaction txn{*_ru};
+            auto status = _rs->rangeTruncate(opCtx,
+                                             *_ru,
+                                             minRecordId,
+                                             maxRecordId,
+                                             hintDataSizeIncrement,
+                                             hintNumRecordsIncrement);
+            if (!status.isOK()) {
+                return status;
+            }
+            txn.commit();
+            return Status::OK();
+        });
 }
 
 Status SpillTable::_checkDiskSpace() const {

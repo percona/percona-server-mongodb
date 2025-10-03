@@ -81,7 +81,7 @@ namespace mongo {
 namespace resharding {
 
 constexpr auto kReshardFinalOpLogType = "reshardFinalOp"_sd;
-constexpr auto kReshardProgressMark = "reshardProgressMark"_sd;
+constexpr auto kReshardProgressMarkOpLogType = "reshardProgressMark"_sd;
 static const auto kReshardErrorMaxBytes = 2000;
 
 /**
@@ -329,7 +329,21 @@ std::unique_ptr<Pipeline, PipelineDeleter> createOplogFetchingPipelineForReshard
     const ShardId& recipientShard);
 
 /**
- * Sentinel oplog format:
+ * Returns true if this is a "reshardProgressMark" noop oplog entry on a recipient created after
+ * oplog application has started.
+ * {
+ *   op: "n",
+ *   ns: "<database>.<collection>",
+ *   ui: <existingUUID>,
+ *   o: {msg: "Latest oplog ts from donor's cursor response"},
+ *   o2: {type: "reshardProgressMark", createdAfterOplogApplicationStarted: true},
+ *   fromMigrate: true,
+ * }
+ */
+bool isProgressMarkOplogAfterOplogApplicationStarted(const repl::OplogEntry& oplog);
+
+/**
+ * Returns true if this is a "reshardFinalOp" noop oplog entry on a donor.
  * {
  *   op: "n",
  *   ns: "<database>.<collection>",
@@ -457,13 +471,20 @@ ReshardingCoordinatorDocument createReshardingCoordinatorDoc(
     const bool& setProvenance);
 
 inline Status validateReshardBlockingWritesO2FieldType(const std::string& value) {
-
     if (value != kReshardFinalOpLogType) {
         return {ErrorCodes::BadValue,
                 str::stream() << "Expected the oplog type to be '" << kReshardFinalOpLogType
                               << "'"};
     }
+    return Status::OK();
+}
 
+inline Status validateReshardProgressMarkO2FieldType(const std::string& value) {
+    if (value != kReshardProgressMarkOpLogType) {
+        return {ErrorCodes::BadValue,
+                str::stream() << "Expected the oplog type to be '" << kReshardProgressMarkOpLogType
+                              << "'"};
+    }
     return Status::OK();
 }
 
@@ -497,6 +518,14 @@ Milliseconds getMajorityReplicationLag(OperationContext* opCtx);
 // Returns the number of indexes on the given namespace or boost::none if the collection does not
 // exist.
 boost::optional<int> getIndexCount(OperationContext* opCtx, const NamespaceString& nss);
+
+
+/**
+ * Re-calculates the exponential moving average based on the previous average and the current value.
+ * Please refer to https://en.wikipedia.org/wiki/Exponential_smoothing for the formula. Throws
+ * an error if the smoothing factor is not greater than 0 and less than 1.
+ */
+double calculateExponentialMovingAverage(double prevAvg, double currVal, double smoothingFactor);
 
 }  // namespace resharding
 }  // namespace mongo

@@ -165,10 +165,18 @@ private:
     void _ensureCollection(Client* client,
                            CancelableOperationContextFactory factory,
                            NamespaceString nss);
+
     AggregateCommandRequest _makeAggregateCommandRequest(Client* client,
                                                          CancelableOperationContextFactory factory);
+
     ExecutorFuture<void> _reschedule(std::shared_ptr<executor::TaskExecutor> executor,
                                      const CancellationToken& cancelToken);
+
+    /**
+     * Returns a progress mark noop oplog entry with the given oplog id.
+     */
+    repl::MutableOplogEntry _makeProgressMarkOplog(OperationContext* opCtx,
+                                                   const ReshardingDonorOplogId& oplogId);
 
     ServiceContext* _service() const {
         return _env->service();
@@ -178,7 +186,6 @@ private:
 
     const UUID _reshardingUUID;
     const UUID _collUUID;
-    ReshardingDonorOplogId _startAt;
     const ShardId _donorShard;
     const ShardId _recipientShard;
     const NamespaceString _oplogBufferNss;
@@ -187,6 +194,7 @@ private:
     int _numOplogEntriesCopied = 0;
 
     stdx::mutex _mutex;
+    ReshardingDonorOplogId _startAt;
     Promise<void> _onInsertPromise;
     Future<void> _onInsertFuture;
     AtomicWord<bool> _isPreparingForCriticalSection;

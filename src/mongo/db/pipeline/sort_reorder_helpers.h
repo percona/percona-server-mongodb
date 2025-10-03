@@ -48,7 +48,7 @@ bool checkModifiedPathsSortReorder(const SortPattern& sortPattern,
 /**
  * Tries to swap $lookup or $graphLookup with sort.
  */
-Pipeline::SourceContainer::iterator tryReorderingWithSort(Pipeline::SourceContainer::iterator itr,
-                                                          Pipeline::SourceContainer* container);
+DocumentSourceContainer::iterator tryReorderingWithSort(DocumentSourceContainer::iterator itr,
+                                                        DocumentSourceContainer* container);
 
 }  // namespace mongo

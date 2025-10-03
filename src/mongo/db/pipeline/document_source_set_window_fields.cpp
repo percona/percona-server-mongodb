@@ -382,7 +382,7 @@ Value DocumentSourceInternalSetWindowFields::serialize(const SerializationOption
             opts.serializeLiteral(static_cast<long long>(_stats.spillingStats.getSpills()));
         out["spilledDataStorageSize"] = opts.serializeLiteral(
             static_cast<long long>(_stats.spillingStats.getSpilledDataStorageSize()));
-        out["numBytesSpilledEstimate"] =
+        out["spilledBytes"] =
             opts.serializeLiteral(static_cast<long long>(_stats.spillingStats.getSpilledBytes()));
         out["spilledRecords"] =
             opts.serializeLiteral(static_cast<long long>(_stats.spillingStats.getSpilledRecords()));
@@ -442,8 +442,8 @@ void DocumentSourceInternalSetWindowFields::initialize() {
     _init = true;
 }
 
-Pipeline::SourceContainer::iterator DocumentSourceInternalSetWindowFields::doOptimizeAt(
-    Pipeline::SourceContainer::iterator itr, Pipeline::SourceContainer* container) {
+DocumentSourceContainer::iterator DocumentSourceInternalSetWindowFields::doOptimizeAt(
+    DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
     invariant(*itr == this);
 
     if (itr == container->begin()) {
