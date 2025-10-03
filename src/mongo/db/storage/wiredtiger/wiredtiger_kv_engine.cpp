@@ -737,7 +737,7 @@ void setUpWiredTigerEncryption(const std::string& cipherMode, EncryptionKeyDB* k
     std::stringstream ss;
     ss << "local=(entry=percona_encryption_extension_init,early_load=true,config=(cipher="
        << cipherMode << "))";
-    WiredTigerExtensions::get(getGlobalServiceContext())->addExtension(ss.str());
+    WiredTigerExtensions::get(getGlobalServiceContext()).addExtension(ss.str());
 
     // setup encryption hooks
     // WiredTigerEncryptionHooks instance should be created after EncryptionKeyDB (depends on it)
