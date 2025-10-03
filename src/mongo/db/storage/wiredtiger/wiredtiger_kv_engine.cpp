@@ -2989,7 +2989,7 @@ Status WiredTigerKVEngine::_createRecordStore(const NamespaceString& nss,
                                               boost::optional<std::string> customBlockCompressor) {
     WiredTigerSession session(_connection.get());
 
-    WiredTigerRecordStoreBase::WiredTigerTableConfig wtTableConfig =
+    WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig =
         getWiredTigerTableConfigFromStartupOptions();
     wtTableConfig.keyFormat = keyFormat;
     wtTableConfig.extraCreateOptions = _rsOptions;
@@ -3014,7 +3014,7 @@ Status WiredTigerKVEngine::_createRecordStore(const NamespaceString& nss,
     wtTableConfig.extraCreateOptions = str::stream()
         << _rsOptions << "," << customConfigString.getValue();
 
-    std::string config = WiredTigerRecordStoreBase::generateCreateString(
+    std::string config = WiredTigerRecordStore::generateCreateString(
         NamespaceStringUtil::serializeForCatalog(nss), wtTableConfig, nss.isOplog());
     string uri = WiredTigerUtil::buildTableUri(ident);
     LOGV2_DEBUG(22331,
@@ -3155,18 +3155,19 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getRecordStore(OperationContext
             return !_isReplSet && !_shouldRecoverFromOplogAsStandalone;
         }();
         WiredTigerRecordStore::Params params{
-            .baseParams{.uuid = uuid,
-                        .ident = std::string{ident},
-                        .engineName = _canonicalName,
-                        .keyFormat = options.keyFormat,
-                        .overwrite = options.allowOverwrite,
-                        .isLogged = isLogged,
-                        .forceUpdateWithFullDocument = options.forceUpdateWithFullDocument},
+            .uuid = uuid,
+            .ident = std::string{ident},
+            .engineName = _canonicalName,
+            .keyFormat = options.keyFormat,
             // Record stores for clustered collections need to guarantee uniqueness by preventing
             // overwrites.
+            .overwrite = options.allowOverwrite,
+            .isLogged = isLogged,
+            .forceUpdateWithFullDocument = options.forceUpdateWithFullDocument,
             .inMemory = _wtConfig.inMemory,
             .sizeStorer = _sizeStorer.get(),
-            .tracksSizeAdjustments = true};
+            .tracksSizeAdjustments = true,
+        };
 
         ret = options.isCapped
             ? std::make_unique<WiredTigerRecordStore::Capped>(
@@ -3303,13 +3304,13 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getTemporaryRecordStore(Recover
     // We don't log writes to temporary record stores.
     const bool isLogged = false;
     WiredTigerRecordStore::Params params;
-    params.baseParams.uuid = boost::none;
-    params.baseParams.ident = std::string{ident};
-    params.baseParams.engineName = _canonicalName;
-    params.baseParams.keyFormat = keyFormat;
-    params.baseParams.overwrite = true;
-    params.baseParams.isLogged = isLogged;
-    params.baseParams.forceUpdateWithFullDocument = false;
+    params.uuid = boost::none;
+    params.ident = std::string{ident};
+    params.engineName = _canonicalName;
+    params.keyFormat = keyFormat;
+    params.overwrite = true;
+    params.isLogged = isLogged;
+    params.forceUpdateWithFullDocument = false;
     params.inMemory = _wtConfig.inMemory;
     // Temporary collections do not need to persist size information to the size storer.
     params.sizeStorer = nullptr;
@@ -3323,7 +3324,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(Recove
                                                                           KeyFormat keyFormat) {
     WiredTigerSession session(_connection.get());
 
-    WiredTigerRecordStoreBase::WiredTigerTableConfig wtTableConfig =
+    WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig =
         getWiredTigerTableConfigFromStartupOptions();
     wtTableConfig.keyFormat = keyFormat;
     // We don't log writes to temporary record stores.
@@ -3331,7 +3332,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(Recove
     wtTableConfig.extraCreateOptions = _rsOptions;
 
     std::string config =
-        WiredTigerRecordStoreBase::generateCreateString({} /* internal table */, wtTableConfig);
+        WiredTigerRecordStore::generateCreateString({} /* internal table */, wtTableConfig);
 
     std::string uri = WiredTigerUtil::buildTableUri(ident);
     LOGV2_DEBUG(22337,
@@ -4730,10 +4731,10 @@ WiredTigerKVEngineBase::WiredTigerConfig getWiredTigerConfigFromStartupOptions(
     return wtConfig;
 }
 
-WiredTigerRecordStoreBase::WiredTigerTableConfig getWiredTigerTableConfigFromStartupOptions(
+WiredTigerRecordStore::WiredTigerTableConfig getWiredTigerTableConfigFromStartupOptions(
     bool usingSpillWiredTigerKVEngine) {
     // TODO(SERVER-103279): Optimally configure SpillWiredTigerRecordStore.
-    WiredTigerRecordStoreBase::WiredTigerTableConfig wtTableConfig;
+    WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig;
     wtTableConfig.blockCompressor = wiredTigerGlobalOptions.collectionBlockCompressor;
     return wtTableConfig;
 }
