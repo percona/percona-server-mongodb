@@ -108,7 +108,7 @@ public:
     /*
      * Make this option hidden so it does not appear in command line help
      */
-    OptionDescription& hidden();
+    OptionDescription& hidden(bool isHidden = true);
 
     /*
      * Mark this option as sensitive so that attempts by a client to read this setting

@@ -113,8 +113,8 @@ OptionDescription::OptionDescription(const std::string& dottedName,
       _deprecatedDottedNames(deprecatedDottedNames),
       _deprecatedSingleNames(deprecatedSingleNames) {}
 
-OptionDescription& OptionDescription::hidden() {
-    _isVisible = false;
+OptionDescription& OptionDescription::hidden(bool isHidden) {
+    _isVisible = !isHidden;
     return *this;
 }
 
@@ -246,6 +246,11 @@ OptionDescription& OptionDescription::incompatibleWith(const std::string& otherD
 }
 
 OptionDescription& OptionDescription::requiresOption(const std::string& otherDottedName) {
+    if (otherDottedName.empty()) {
+        // Skip adding a constraint if the otherDottedName is empty.
+        // This allows callers to conditionally require options only if a valid name is provided.
+        return *this;
+    }
     return addConstraint(new RequiresOtherKeyConstraint(_dottedName, otherDottedName));
 }
 

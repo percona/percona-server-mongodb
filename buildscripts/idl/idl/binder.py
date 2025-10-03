@@ -1818,9 +1818,13 @@ def _bind_config_option(ctxt, globals_spec, option):
     node.cpp_varname = option.cpp_varname
     node.condition = _bind_condition(option.condition, condition_for="config")
 
-    node.requires = option.requires
+    node.requires = [_bind_expression(req) for req in option.requires]
+
     node.conflicts = option.conflicts
-    node.hidden = option.hidden
+
+    if option.hidden:
+        node.hidden = _bind_expression(option.hidden)
+
     node.redact = option.redact
     node.canonicalize = option.canonicalize
 
