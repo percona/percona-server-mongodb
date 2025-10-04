@@ -105,7 +105,7 @@ public:
         return id;
     }
 
-    StageConstraints constraints([[maybe_unused]] Pipeline::SplitState pipeState) const override {
+    StageConstraints constraints([[maybe_unused]] PipelineSplitState pipeState) const override {
         StageConstraints constraints{StreamType::kStreaming,
                                      PositionRequirement::kFirst,
                                      HostTypeRequirement::kNone,
