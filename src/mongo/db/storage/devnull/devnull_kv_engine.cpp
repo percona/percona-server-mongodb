@@ -71,9 +71,6 @@ public:
         return {};
     }
     void save() final {}
-    bool restore(bool tolerateCappedRepositioning = true) final {
-        return true;
-    }
     bool restore(RecoveryUnit& ru, bool tolerateCappedRepositioning = true) final {
         return true;
     }
@@ -400,6 +397,10 @@ public:
     }
 
     Status initAsEmpty() override {
+        return Status::OK();
+    }
+
+    Status truncate(OperationContext* opCtx, RecoveryUnit& ru) override {
         return Status::OK();
     }
 };

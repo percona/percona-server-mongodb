@@ -445,6 +445,7 @@ protected:
             _tempDir->path(),
             _clockSource.get(),
             std::move(wtConfig),
+            WiredTigerExtensions::get(getServiceContext()),
             false,
             getGlobalReplSettings().isReplSet(),
             repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),

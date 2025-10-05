@@ -1039,6 +1039,7 @@ WiredTigerKVEngine::WiredTigerKVEngine(
     const std::string& path,
     ClockSource* clockSource,
     WiredTigerConfig wtConfig,
+    const WiredTigerExtensions& wtExtensions,
     bool repair,
     bool isReplSet,
     bool shouldRecoverFromOplogAsStandalone,
@@ -1076,8 +1077,8 @@ WiredTigerKVEngine::WiredTigerKVEngine(
         }
     }
 
-    std::string config = generateWTOpenConfigString(
-        _wtConfig, WiredTigerExtensions::get(getGlobalServiceContext()).getOpenExtensionsConfig());
+    std::string config =
+        generateWTOpenConfigString(_wtConfig, wtExtensions.getOpenExtensionsConfig());
     LOGV2(22315, "Opening WiredTiger", "config"_attr = config);
 
     auto startTime = Date_t::now();

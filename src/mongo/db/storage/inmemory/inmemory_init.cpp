@@ -98,6 +98,7 @@ public:
                                                  params.dbpath,
                                                  getGlobalServiceContext()->getFastClockSource(),
                                                  std::move(wtConfig),
+                                                 WiredTigerExtensions::get(opCtx->getServiceContext()),
                                                  params.repair,
                                                  isReplSet,
                                                  shouldRecoverFromOplogAsStandalone,
@@ -121,11 +122,12 @@ public:
             wtConfig.cacheSizeMB = 100;
             wtConfig.inMemory = params.inMemory;
             wtConfig.logEnabled = false;
-            spillWiredTigerKVEngine =
-                std::make_unique<SpillWiredTigerKVEngine>(std::string{getCanonicalName()},
-                                                params.getSpillDbPath(),
-                                                getGlobalServiceContext()->getFastClockSource(),
-                                                std::move(wtConfig));
+            spillWiredTigerKVEngine = std::make_unique<SpillWiredTigerKVEngine>(
+                std::string{getCanonicalName()},
+                params.getSpillDbPath(),
+                getGlobalServiceContext()->getFastClockSource(),
+                std::move(wtConfig),
+                SpillWiredTigerExtensions::get(opCtx->getServiceContext()));
         }
 
         // Register the ServerStatusSection for the in-memory storage engine

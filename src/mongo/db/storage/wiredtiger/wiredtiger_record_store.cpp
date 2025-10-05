@@ -427,23 +427,7 @@ Status WiredTigerRecordStore::wtUpdateRecord(OperationContext* opCtx,
 }
 
 Status WiredTigerRecordStore::wtTruncate(OperationContext* opCtx, WiredTigerRecoveryUnit& wtRu) {
-    auto cursorParams = getWiredTigerCursorParams(wtRu, _tableId, true /* allowOverwrite */);
-    WiredTigerCursor startWrap(std::move(cursorParams), _uri, *wtRu.getSession());
-    WT_CURSOR* start = startWrap.get();
-    int ret = wiredTigerPrepareConflictRetry(
-        *opCtx, StorageExecutionContext::get(opCtx)->getPrepareConflictTracker(), wtRu, [&] {
-            return start->next(start);
-        });
-    // Empty collections don't have anything to truncate.
-    if (ret == WT_NOTFOUND) {
-        return Status::OK();
-    }
-    invariantWTOK(ret, start->session);
-
-    WiredTigerSession* session = wtRu.getSession();
-    invariantWTOK(WT_OP_CHECK(session->truncate(nullptr, start, nullptr, nullptr)), *session);
-
-    return Status::OK();
+    return WiredTigerUtil::truncate(opCtx, wtRu, _tableId, _uri);
 }
 
 Status WiredTigerRecordStore::wtRangeTruncate(OperationContext* opCtx,
@@ -539,7 +523,7 @@ public:
           _opCtx(opCtx),
           _ru(&ru),
           _tableId(rs._tableId) {
-        restore();
+        restore(ru);
     }
 
     ~RandomCursor() override = default;
@@ -579,10 +563,7 @@ public:
         _ru = nullptr;
     }
 
-    bool restore(bool tolerateCappedRepositioning = true) final {
-        return restore(*storage_details::getRecoveryUnit(_opCtx), tolerateCappedRepositioning);
-    }
-    bool restore(RecoveryUnit& ru, bool tolerateCappedRepositioning) final {
+    bool restore(RecoveryUnit& ru, bool tolerateCappedRepositioning = true) final {
         _ru = &ru;
         auto& wtRu = WiredTigerRecoveryUnit::get(*_ru);
 
@@ -1892,9 +1873,6 @@ void WiredTigerRecordStoreCursorBase::saveUnpositioned() {
     _lastReturnedId = RecordId();
 }
 
-bool WiredTigerRecordStoreCursorBase::restore(bool tolerateCappedRepositioning) {
-    return restore(*storage_details::getRecoveryUnit(_opCtx), tolerateCappedRepositioning);
-}
 bool WiredTigerRecordStoreCursorBase::restore(RecoveryUnit& ru, bool tolerateCappedRepositioning) {
     _ru = &ru;
 
@@ -2005,9 +1983,6 @@ void WiredTigerCappedCursorBase::save() {
     resetVisibility();
 }
 
-bool WiredTigerCappedCursorBase::restore(bool tolerateCappedRepositioning) {
-    return restore(*storage_details::getRecoveryUnit(_opCtx), tolerateCappedRepositioning);
-}
 bool WiredTigerCappedCursorBase::restore(RecoveryUnit& ru, bool tolerateCappedRepositioning) {
     _ru = &ru;
 

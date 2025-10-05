@@ -69,6 +69,7 @@ public:
                                    _dbpath.path(),
                                    _cs.get(),
                                    std::move(wtConfig),
+                                   WiredTigerExtensions::get(svcCtx),
                                    false,
                                    getGlobalReplSettings().isReplSet(),
                                    repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
