@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2021-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,27 +27,28 @@
  *    it in the license file.
  */
 
-#pragma once
-
-#include "mongo/db/storage/record_store.h"
-#include "mongo/db/storage/storage_engine.h"
-#include "mongo/db/storage/temporary_record_store.h"
-
-#include <memory>
-#include <utility>
 
 namespace mongo {
 
-/**
- * Manages the lifetime of a TemporaryRecordStore that is eventually dropped after destruction.
- */
-class DeferredDropRecordStore : public TemporaryRecordStore {
-public:
-    DeferredDropRecordStore(std::unique_ptr<RecordStore> rs, StorageEngine* storageEngine)
-        : TemporaryRecordStore(std::move(rs)), _storageEngine(storageEngine) {};
-    ~DeferredDropRecordStore() override;
+class SearchQueryViewSpec;
 
-protected:
-    StorageEngine* _storageEngine{nullptr};
-};
+namespace search_index_view_validation {
+
+/**
+ * Validates that the view's effective pipeline can be used with a search index. The restrictions
+ * are as follows:
+ *    - Only $addFields ($set) and $match can be used.
+ *        - $project is not currently supported by mongot. However, it's likely that this will be
+ *         the next supported stage. To prevent future backports, $project is supported on the
+ * server but not by mongot.
+ *    - $addFields and $project cannot modify _id.
+ *    - $match can only be used with $expr.
+ *    - Variables $$NOW, $$CLUSTER_TIME, and $$USER_ROLES cannot be used.
+ *    - Operators $rand and $function cannot be used.
+ *    - Overriding the CURRENT variable with $let is not allowed.
+ */
+void validate(const SearchQueryViewSpec& view);
+
+}  // namespace search_index_view_validation
+
 }  // namespace mongo
