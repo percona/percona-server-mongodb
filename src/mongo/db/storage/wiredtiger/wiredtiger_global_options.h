@@ -89,11 +89,6 @@ public:
     }
 };
 
-struct SpillWiredTigerGlobalOptions {
-    double cacheSizeGB = 0;
-};
-
 extern WiredTigerGlobalOptions wiredTigerGlobalOptions;
-extern SpillWiredTigerGlobalOptions spillWiredTigerGlobalOptions;
 
 }  // namespace mongo

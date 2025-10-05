@@ -174,8 +174,7 @@ public:
 
             WiredTigerKVEngineBase::WiredTigerConfig wtConfig =
                 getWiredTigerConfigFromStartupOptions(true /* usingSpillWiredTigerKVEngine */);
-            wtConfig.cacheSizeMB =
-                WiredTigerUtil::getSpillCacheSizeMB(spillWiredTigerGlobalOptions.cacheSizeGB);
+            wtConfig.cacheSizeMB = gSpillWiredTigerCacheSizeMB;
             wtConfig.evictionThreadsMin = gSpillWiredTigerEvictionThreadsMin;
             wtConfig.evictionThreadsMax = gSpillWiredTigerEvictionThreadsMax;
             wtConfig.inMemory = false;
