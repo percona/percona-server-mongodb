@@ -317,8 +317,8 @@ void handleDropPendingDBsGarbage(OperationContext* parentOpCtx) {
 
     // The list of shards is stable during the execution of this function, since it is called during
     // FCV upgrade.
-    const auto opTimeWithShards = uassertStatusOK(Grid::get(opCtx)->catalogClient()->getAllShards(
-        opCtx, repl::ReadConcernLevel::kSnapshotReadConcern));
+    const auto opTimeWithShards = Grid::get(opCtx)->catalogClient()->getAllShards(
+        opCtx, repl::ReadConcernLevel::kSnapshotReadConcern);
     for (const auto& shardType : opTimeWithShards.value) {
         const auto shardStatus =
             Grid::get(opCtx)->shardRegistry()->getShard(opCtx, shardType.getName());
@@ -819,6 +819,18 @@ private:
         const auto isUpgrading = originalVersion < requestedVersion;
 
         if (isDowngrading) {
+            // Drain ongoing chunk migrations to ensure that no backwards-incompatible metadata
+            // will be persisted in their recovery docs.
+            // TODO SERVER-103838 Remove this code block once 9.0 becomes LTS.
+            if (feature_flags::gPersistRecipientPlacementInfoInMigrationRecoveryDoc
+                    .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
+                                                                  originalVersion)) {
+                static constexpr char kRegistryLockReason[] = "Performing FCV Downgrade";
+                auto& activeMigrationRegistry = ActiveMigrationsRegistry::get(opCtx);
+                activeMigrationRegistry.lock(opCtx, kRegistryLockReason);
+                activeMigrationRegistry.unlock(kRegistryLockReason);
+            }
+
             // TODO SERVER-99655: update once gSnapshotFCVInDDLCoordinators is enabled
             // on the lastLTS
             if (feature_flags::gSnapshotFCVInDDLCoordinators.isEnabledOnVersion(originalVersion)) {
@@ -871,18 +883,6 @@ private:
                     ShardingDDLCoordinatorService::getService(opCtx)
                         ->waitForCoordinatorsOfGivenTypeToComplete(
                             opCtx, DDLCoordinatorTypeEnum::kRemoveShardCommit);
-                }
-
-                // Drain ongoing chunk migrations to ensure that no backwards-incompatible metadata
-                // will be persisted in their recovery docs.
-                // TODO SERVER-103838 Remove this code block once 9.0 becomes LTS.
-                if (feature_flags::gPersistRecipientPlacementInfoInMigrationRecoveryDoc
-                        .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
-                                                                      originalVersion)) {
-                    static constexpr char kRegistryLockReason[] = "Performing FCV Downgrade";
-                    auto& activeMigrationRegistry = ActiveMigrationsRegistry::get(opCtx);
-                    activeMigrationRegistry.lock(opCtx, kRegistryLockReason);
-                    activeMigrationRegistry.unlock(kRegistryLockReason);
                 }
             }
         }

@@ -117,7 +117,7 @@ types-setuptools = "57.4.12" # latest is 68.0.0.0, but that causes pip install r
 types-requests = "^2.32.0.20240712"
 tqdm = "*"
 colorama = "^0.4.6"
-evergreen-lint = "^0.1.9"
+evergreen-lint = "^0.1.10"
 ruff = "^0.6.7"
 
 [tool.poetry.group.modules_poc.dependencies]
@@ -145,6 +145,7 @@ ocspbuilder = "^0.10.2"
 ecdsa = "^0.19.0"
 asn1crypto = "^1.5.1"
 toml = ">=0.10.2,<0.11.0"
+filelock = "^3.18.0"
 
 # Werkzeug is needed for ocsp tests in ocsp_mock.py
 # version 3+ fails with "ImportError: cannot import name 'url_quote' from 'werkzeug.urls'"

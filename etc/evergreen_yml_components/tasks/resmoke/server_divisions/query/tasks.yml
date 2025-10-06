@@ -64,6 +64,7 @@ variables:
   # - etc/evergreen_yml_components/tasks/resmoke/server_divisions/clusters_and_integrations/tasks.yml
   # - etc/evergreen_yml_components/tasks/resmoke/server_divisions/durable_transactions_and_availability/tasks.yml
   # - etc/evergreen_yml_components/tasks/resmoke/server_divisions/query/tasks.yml
+  # - etc/evergreen_yml_components/tasks/resmoke/non_server_teams/tasks.yml
   # ANY MODIFICATIONS HERE SHOULD ALSO BE MADE IN THOSE FILES
   - &jstestfuzz_config_vars
     is_jstestfuzz: true
@@ -89,6 +90,7 @@ variables:
   # - etc/evergreen_yml_components/tasks/resmoke/server_divisions/clusters_and_integrations/tasks.yml
   # - etc/evergreen_yml_components/tasks/resmoke/server_divisions/durable_transactions_and_availability/tasks.yml
   # - etc/evergreen_yml_components/tasks/resmoke/server_divisions/query/tasks.yml
+  # - etc/evergreen_yml_components/tasks/resmoke/non_server_teams/tasks.yml
   # ANY MODIFICATIONS HERE SHOULD ALSO BE MADE IN THOSE FILES
   - &jstestfuzz_template
     name: jstestfuzz_template
@@ -696,6 +698,7 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_query_execution",
+        "change_streams",
         "experimental",
         "multiversion_passthrough",
         "multiversion",
@@ -707,6 +710,29 @@ tasks:
           change_streams_sharded_collections_passthrough_last_lts_new_old_old_new: last_lts
       - func: "generate resmoke tasks"
         vars:
+          resmoke_args: >-
+            --runNoFeatureFlagTests
+
+  - <<: *gen_task_template
+    name: change_streams_sharded_collections_query_shape_hash_stability_multiversion_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "change_streams",
+        "experimental",
+        "incompatible_aubsan",
+        "incompatible_tsan",
+        "multiversion_passthrough",
+        "multiversion",
+      ]
+    commands:
+      - func: "initialize multiversion tasks"
+        vars:
+          change_streams_sharded_collections_query_shape_hash_stability_last_lts_new_old: last_lts
+          change_streams_sharded_collections_query_shape_hash_stability_last_continuous_new_old: last_continuous
+      - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
           resmoke_args: >-
             --runNoFeatureFlagTests
 

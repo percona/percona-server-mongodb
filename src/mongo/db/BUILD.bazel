@@ -932,9 +932,11 @@ mongo_cc_library(
     name = "dbdirectclient",
     srcs = [
         "dbdirectclient.cpp",
+        "scoped_read_concern.cpp",
     ],
     hdrs = [
         "dbdirectclient.h",
+        "scoped_read_concern.h",
     ],
     deps = [
         ":not_primary_error_tracker",  # TODO(SERVER-93876): Remove.
@@ -3478,6 +3480,7 @@ mongo_cc_library(
         "//src/mongo/db/ttl:ttl_collection_cache",
         "//src/mongo/db/ttl:ttl_d",
         "//src/mongo/db/update:update_driver",
+        "//src/mongo/otel/metrics:otel_metrics",
         "update_index_data",
     ] + select({
         "//bazel/config:use_tracing_profiler_enabled": [

@@ -89,6 +89,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/**/*
 /buildscripts/resmokeconfig/matrix_suites/generated_suites/*viewless_timeseries.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/generated_suites/sharding_task_executor_pool_size* @10gen/server-networking-and-observability @svc-auto-approve-bot
+/buildscripts/resmokeconfig/matrix_suites/generated_suites/change_streams_* @10gen/query-execution-change-streams @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokeconfig/matrix_suites/mappings/OWNERS.yml
 /buildscripts/resmokeconfig/matrix_suites/mappings/**/*
@@ -265,12 +266,16 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /etc/evergreen_yml_components/variants/mongot/**/* @10gen/query-integration-search @svc-auto-approve-bot
 
 # The following patterns are parsed from ./evergreen/OWNERS.yml
+/evergreen/**/get_all_resmoke_suite_configs.sh @10gen/devprod-correctness @svc-auto-approve-bot
+/evergreen/**/get_resmoke_suite_config.sh @10gen/devprod-correctness @svc-auto-approve-bot
 /evergreen/**/multiversion_selection.sh @10gen/devprod-correctness @svc-auto-approve-bot
 /evergreen/**/multiversion_setup.sh @10gen/devprod-correctness @svc-auto-approve-bot
+/evergreen/**/resmoke_tests_execute_bazel.sh @10gen/devprod-correctness @svc-auto-approve-bot
 /evergreen/**/restore_git_history_and_tags.sh @10gen/devprod-correctness @svc-auto-approve-bot
 /evergreen/**/retry_git.sh @10gen/devprod-correctness @svc-auto-approve-bot
 /evergreen/**/validate_compile_commands.py @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/**/packager_crypt_py_run.sh @10gen/devprod-build @svc-auto-approve-bot
+/evergreen/**/perf-submission.sh @10gen/devprod-performance-analysis @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/OWNERS.yml
 /jstests/**/*analyze_shard_key* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -1332,6 +1337,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/*_with_id_without_shard_key* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/*zone* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/addShard* @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/jstests/sharding/**/check_metadata* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/analyze_shard_key/OWNERS.yml
 /jstests/sharding/analyze_shard_key/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -1554,7 +1560,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/**/drop*idl @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/startup_recovery* @10gen/server-storage-engine-api @svc-auto-approve-bot
 /src/mongo/db/**/field_ref* @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/**/read_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
+/src/mongo/db/**/*read_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
 /src/mongo/db/**/read_write_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
 /src/mongo/db/**/write_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
 /src/mongo/db/**/feature_compatibility* @10gen/server-fcv @svc-auto-approve-bot
@@ -2681,6 +2687,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/logv2/**/* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/logv2/**/*redaction* @10gen/server-security @svc-auto-approve-bot
 
+# The following patterns are parsed from ./src/mongo/otel/OWNERS.yml
+/src/mongo/otel/**/* @10gen/server-networking-and-observability @svc-auto-approve-bot
+
 # The following patterns are parsed from ./src/mongo/platform/OWNERS.yml
 /src/mongo/platform/**/* @10gen/server-programmability @svc-auto-approve-bot
 
@@ -2948,9 +2957,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/tools/workload_simulation/OWNERS.yml
 /src/mongo/tools/workload_simulation/**/* @10gen/server-workload-scheduling @svc-auto-approve-bot
-
-# The following patterns are parsed from ./src/mongo/tracing/OWNERS.yml
-/src/mongo/tracing/**/* @10gen/server-networking-and-observability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/transport/OWNERS.yml
 /src/mongo/transport/**/* @10gen/server-networking-and-observability @svc-auto-approve-bot

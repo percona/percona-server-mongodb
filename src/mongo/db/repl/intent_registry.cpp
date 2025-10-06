@@ -157,6 +157,39 @@ void IntentRegistry::deregisterIntent(IntentRegistry::IntentToken token) {
     }
 }
 
+bool IntentRegistry::canDeclareIntent(Intent intent, OperationContext* opCtx) {
+    invariant(intent < Intent::_NumDistinctIntents_);
+    invariant(opCtx);
+
+    // Check these outside of the mutex to avoid a deadlock against the Replication Coordinator
+    // mutex.
+    bool isReplSet =
+        repl::ReplicationCoordinator::get(opCtx->getServiceContext())->getSettings().isReplSet();
+    auto state = repl::ReplicationCoordinator::get(opCtx->getServiceContext())->getMemberState();
+
+    stdx::unique_lock<stdx::mutex> lock(_stateMutex);
+
+    // Downgrade Write intent to LocalWrite during initial sync.
+    if (intent == Intent::Write && isReplSet &&
+        (state == repl::MemberState::RS_STARTUP2 || state == repl::MemberState::RS_REMOVED)) {
+        intent = Intent::LocalWrite;
+    }
+
+    if (opCtx != _interruptionCtx) {
+        if (!_validIntent(intent)) {
+            return false;
+        }
+
+        if (isReplSet && intent == Intent::Write) {
+            // canAcceptWritesFor asserts that we have the RSTL acquired.
+            return repl::ReplicationCoordinator::get(opCtx->getServiceContext())
+                ->canAcceptWritesFor_UNSAFE(opCtx, NamespaceString(DatabaseName::kAdmin));
+        }
+    }
+
+    return true;
+}
+
 stdx::future<ReplicationStateTransitionGuard> IntentRegistry::killConflictingOperations(
     IntentRegistry::InterruptionType interrupt,
     OperationContext* opCtx,
@@ -210,7 +243,7 @@ stdx::future<ReplicationStateTransitionGuard> IntentRegistry::killConflictingOpe
 
         if (intents) {
             for (auto intent : *intents) {
-                _killOperationsByIntent(intent);
+                _killOperationsByIntent(intent, interrupt == InterruptionType::Shutdown);
             }
             Timer timer;
             auto timeout = stdx::chrono::duration_cast<stdx::chrono::milliseconds>(timeOutSec);
@@ -297,14 +330,14 @@ bool IntentRegistry::_validIntent(IntentRegistry::Intent intent) const {
     }
 }
 
-void IntentRegistry::_killOperationsByIntent(IntentRegistry::Intent intent) {
+void IntentRegistry::_killOperationsByIntent(IntentRegistry::Intent intent, bool forShutdown) {
     auto& tokenMap = _tokenMaps[(size_t)intent];
     stdx::lock_guard<stdx::mutex> lock(tokenMap.lock);
     for (auto& [token, toKill] : tokenMap.map) {
         auto serviceCtx = toKill->getServiceContext();
         auto client = toKill->getClient();
         ClientLock lock(client);
-        if (_lastInterruption == InterruptionType::Shutdown) {
+        if (forShutdown) {
             serviceCtx->killOperation(lock, toKill, ErrorCodes::InterruptedAtShutdown);
         } else {
             serviceCtx->killOperation(lock, toKill, ErrorCodes::InterruptedDueToReplStateChange);

@@ -103,6 +103,11 @@ Status isRankedPipeline(const std::vector<BSONObj>& bsonPipeline);
 Status isScoredPipeline(const std::vector<BSONObj>& bsonPipeline,
                         const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
+/**
+ * Returns true if the BSON contains a $scoreFusion or $rankFusion and false otherwise.
+ */
+bool isHybridSearchPipeline(const std::vector<BSONObj>& bsonPipeline);
+
 namespace score_details {
 /**
  * Construct the scoreDetails field name and obj (ex: name_scoreDetails: {$mergeObjects:
@@ -139,7 +144,7 @@ std::pair<std::string, BSONObj> constructScoreDetailsForGrouping(std::string pip
     }}
 */
 boost::intrusive_ptr<DocumentSource> constructCalculatedFinalScoreDetails(
-    const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& inputs,
+    const std::vector<std::string>& pipelineNames,
     const StringMap<double>& weights,
     bool isRankFusion,
     const boost::intrusive_ptr<ExpressionContext>& expCtx);
