@@ -3305,6 +3305,7 @@ const wcTimeseriesViewsCommandsTests = {
             },
         },
     },
+    auditGetOptions: {skip: "does not accept write concern"},
     authenticate: {skip: "does not accept write concern"},
     autoCompact: {skip: "does not accept write concern"},
     autoSplitVector: {skip: "does not accept write concern"},
