@@ -257,7 +257,7 @@ public:
             // GlobalUserWriteBlockState and set the userWriteBlockMode field to kUnknown.
             Lock::GlobalLock lk(
                 opCtx, MODE_IS, Date_t::now(), Lock::InterruptBehavior::kLeaveUnlocked, [] {
-                    Lock::GlobalLockSkipOptions options;
+                    Lock::GlobalLockOptions options;
                     options.skipRSTLLock = true;
                     return options;
                 }());
@@ -462,8 +462,10 @@ public:
         const auto internalClient = cmd.getInternalClient();
         const bool isInternalClient = internalClient.has_value();
 
+        bool isInitialHandshake = false;
         if (ClientMetadata::tryFinalize(client)) {
             // This is the first hello for this client.
+            isInitialHandshake = true;
             audit::logClientMetadata(client);
             if (!isInternalClient) {
                 DirectShardClientTracker::trackClient(client);
@@ -628,7 +630,7 @@ public:
             }
         }
 
-        handleHelloAuth(opCtx, dbName, cmd, &result);
+        handleHelloAuth(opCtx, dbName, cmd, isInitialHandshake, &result);
 
         if (getTestCommandsEnabled()) {
             validateResult(&result);

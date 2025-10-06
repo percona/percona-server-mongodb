@@ -301,10 +301,10 @@ public:
         // frequent schema changes.
         commandBuilder.append("transactions", BSON("includeLastCommitted" << false));
 
-        // Exclude detailed query planning statistics and apiVersions.
-        commandBuilder.append("metrics",
-                              BSON("query" << BSON("multiPlanner" << BSON("histograms" << false))
-                                           << "apiVersions" << false));
+        // Exclude apiVersions.
+        commandBuilder.append("metrics", BSON("apiVersions" << false));
+
+        commandBuilder.append("spillWiredTiger", gSpillWiredTigerServerStatusVerbosity.load());
 
         if (gDiagnosticDataCollectionEnableLatencyHistograms.load()) {
             BSONObjBuilder subObjBuilder(commandBuilder.subobjStart("opLatencies"));

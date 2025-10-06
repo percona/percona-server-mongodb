@@ -44,7 +44,8 @@ namespace mongo {
  */
 class PlanExplainerPipeline final : public PlanExplainer {
 public:
-    PlanExplainerPipeline(const Pipeline* pipeline) : _pipeline{pipeline} {}
+    PlanExplainerPipeline(const Pipeline* pipeline, const exec::agg::Pipeline* execPipeline)
+        : _pipeline{pipeline}, _execPipeline(execPipeline) {}
 
     bool isMultiPlan() const final {
         return false;
@@ -64,6 +65,7 @@ public:
 
 private:
     const Pipeline* const _pipeline;
+    const exec::agg::Pipeline* const _execPipeline;
     size_t _nReturned{0};
 };
 }  // namespace mongo

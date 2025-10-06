@@ -1730,6 +1730,17 @@ class RunPlugin(PluginInterface):
 
         parser.add_argument("--shardCount", dest="shard_count", help="The total shard count.")
 
+        parser.add_argument(
+            "--mongoVersionFile",
+            dest="mongo_version_file",
+            help="A YAML file containing the current `mongo_version`",
+        )
+        parser.add_argument(
+            "--releasesFile",
+            dest="releases_file",
+            help="An explicit releases YAML, if you do not want resmoke to fetch the latest one automatically.",
+        )
+
         configure_resmoke.add_otel_args(parser)
 
         mongodb_server_options = parser.add_argument_group(
@@ -2038,6 +2049,16 @@ class RunPlugin(PluginInterface):
                 "Exports a yaml containing the history of each mongod config option to"
                 " {nodeName}_config.yml."
                 " Defaults to 'off'. A 'detailed' export will include locations of accesses."
+            ),
+        )
+
+        internal_options.add_argument(
+            "--pauseAfterPopulate",
+            dest="pause_after_populate",
+            action="store_true",
+            help=(
+                "Sets TestData.pauseAfterPopulate so that golden tests can pause after data population"
+                " to allow for easier debugging"
             ),
         )
 

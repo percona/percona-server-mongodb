@@ -55,6 +55,10 @@ auto makeClientsWithOpCtxs(ServiceContext* svcCtx, size_t numOps) {
     return clientsWithOps;
 }
 
+auto constexpr convertBurstSizeToBurstCapacitySecs(double refreshRate, double burstSize) {
+    return burstSize / refreshRate;
+}
+
 class RateLimiterTest : public ServiceContextTest {
 private:
     unittest::MinimumLoggedSeverityGuard logSeverityGuard{logv2::LogComponent::kDefault,
@@ -75,7 +79,8 @@ TEST_F(RateLimiterTest, BasicTokenAcquisition) {
     ASSERT_EQ(rateLimiter.stats().rejectedAdmissions.get(), 0);
     // Immediate acquisition (without throttling, i.e. no sleep) still counts as a queue time of
     // zero, so the average timing metric will have that as its first value.
-    ASSERT_EQ(rateLimiter.stats().averageTimeQueuedMicros.get(), 0.0);
+    ASSERT(rateLimiter.stats().averageTimeQueuedMicros.get().has_value());
+    ASSERT_APPROX_EQUAL(*rateLimiter.stats().averageTimeQueuedMicros.get(), 0.0, 0.1);
 }
 
 // Verify that RateLimiter::setBurstSize range checks its input.
@@ -92,12 +97,14 @@ TEST_F(RateLimiterTest, RateLimitIsValidAfterQueueing) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
         constexpr double burstSize = 1.0;
         constexpr double refreshRate = 2.0;
+        constexpr double burstCapacitySecs =
+            convertBurstSizeToBurstCapacitySecs(refreshRate, burstSize);
         constexpr int maxQueueDepth = 4;
         constexpr int numThreads = 10;
         auto clientsWithOps = makeClientsWithOpCtxs(getServiceContext(), numThreads + 1);
 
         RateLimiter rateLimiter(
-            refreshRate, burstSize, maxQueueDepth, "RateLimitIsValidAfterQueueing");
+            refreshRate, burstCapacitySecs, maxQueueDepth, "RateLimitIsValidAfterQueueing");
         auto tickSource = getServiceContext()->getTickSource();
 
         auto startTicks = tickSource->getTicks();
@@ -158,7 +165,12 @@ TEST_F(RateLimiterTest, RateLimitIsValidAfterQueueing) {
 // - but there are already the maximum number of threads enqueued.
 TEST_F(RateLimiterTest, RejectOverMaxWaiters) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
-        RateLimiter rateLimiter(.01, 1.0, 1, "RejectOverMaxWaiters");
+        constexpr double burstSize = 1.0;
+        constexpr double refreshRate = 0.1;
+        constexpr double burstCapacitySecs =
+            convertBurstSizeToBurstCapacitySecs(refreshRate, burstSize);
+
+        RateLimiter rateLimiter(refreshRate, burstCapacitySecs, 1, "RejectOverMaxWaiters");
         auto clientsWithOps = makeClientsWithOpCtxs(getServiceContext(), 3);
         Notification<void> firstTokenAcquired;
         Notification<void> hasFailed;
@@ -202,9 +214,10 @@ TEST_F(RateLimiterTest, RejectOverMaxWaiters) {
                (status2.code() == RateLimiter::kRejectedErrorCode));
         ASSERT_EQ(rateLimiter.stats().rejectedAdmissions.get(), 1);
 
-        // Assert that the token balance is between 0 and -1, as only one token should have been
-        // borrowed from the bucket.
-        ASSERT_LT(rateLimiter.tokenBalance(), 0);
+        // Assert that the token balance is between ~0 and -1, as only one token should have been
+        // borrowed from the bucket. The bucket may have refilled slightly past 0 on slow machines,
+        // and so we account for that in the assertion.
+        ASSERT_LT(rateLimiter.tokenBalance(), 0.2);
         ASSERT_GT(rateLimiter.tokenBalance(), -1);
 
         // Interrupt the other token acquisition.
@@ -216,7 +229,12 @@ TEST_F(RateLimiterTest, RejectOverMaxWaiters) {
 // otherwise queue are instead rejected.
 TEST_F(RateLimiterTest, QueueingDisabled) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
-        RateLimiter rateLimiter(.01, 1.0, 0, "QueueingDisabled");
+        constexpr double burstSize = 1.0;
+        constexpr double refreshRate = .01;
+        constexpr double burstCapacitySecs =
+            convertBurstSizeToBurstCapacitySecs(refreshRate, burstSize);
+
+        RateLimiter rateLimiter(refreshRate, burstCapacitySecs, 0, "QueueingDisabled");
         auto clientsWithOps = makeClientsWithOpCtxs(getServiceContext(), 2);
         Notification<void> firstTokenAcquired;
 
@@ -252,7 +270,14 @@ TEST_F(RateLimiterTest, QueueingDisabled) {
 // the rate limiter wakes up the thread and returns the appropriate error status.
 TEST_F(RateLimiterTest, InterruptedDueToOperationKilled) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
-        RateLimiter rateLimiter(.01, 1.0, INT_MAX, "InterruptedDueToOperationKilled");
+        constexpr double burstSize = 1.0;
+        constexpr double refreshRate = .01;
+        constexpr double burstCapacitySecs =
+            convertBurstSizeToBurstCapacitySecs(refreshRate, burstSize);
+
+
+        RateLimiter rateLimiter(
+            refreshRate, burstCapacitySecs, INT_MAX, "InterruptedDueToOperationKilled");
         auto clientsWithOps = makeClientsWithOpCtxs(getServiceContext(), 2);
         Notification<void> firstTokenAcquired;
         std::vector<unittest::JoinThread> threads;
@@ -295,7 +320,13 @@ TEST_F(RateLimiterTest, InterruptedDueToOperationKilled) {
 // service shutdown.
 TEST_F(RateLimiterTest, InterruptedDueToKillAllOperations) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
-        RateLimiter rateLimiter(.01, 1.0, INT_MAX, "InterruptedDueToKillAllOperations");
+        constexpr double burstSize = 1.0;
+        constexpr double refreshRate = .01;
+        constexpr double burstCapacitySecs =
+            convertBurstSizeToBurstCapacitySecs(refreshRate, burstSize);
+
+        RateLimiter rateLimiter(
+            refreshRate, burstCapacitySecs, INT_MAX, "InterruptedDueToKillAllOperations");
         auto clientsWithOps = makeClientsWithOpCtxs(getServiceContext(), 2);
         Notification<void> firstTokenAcquired;
         Notification<void> secondTokenInterrupted;
@@ -381,11 +412,13 @@ TEST_F(RateLimiterWithMockClockTest, ConcurrentTokenAcquisitionWithQueueing) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
         const int maxTokens = 2;
         const int refreshRate = 4;
+        const double burstCapacitySecs =
+            convertBurstSizeToBurstCapacitySecs(refreshRate, maxTokens);
         const int64_t numThreads = 10;
         const Milliseconds tokenInterval = Milliseconds(1000) / refreshRate;
 
         RateLimiter rateLimiter(
-            refreshRate, maxTokens, INT_MAX, "ConcurrentTokenAcquisitionWithQueueing");
+            refreshRate, burstCapacitySecs, INT_MAX, "ConcurrentTokenAcquisitionWithQueueing");
 
         auto clientsWithOps = makeClientsWithOpCtxs(getServiceContext(), numThreads);
 
@@ -425,16 +458,17 @@ TEST_F(RateLimiterWithMockClockTest, ConcurrentTokenAcquisitionWithQueueing) {
         ASSERT_EQ(rateLimiter.stats().successfulAdmissions.get(), maxTokens);
         ASSERT_EQ(rateLimiter.stats().removedFromQueue.get(), 0);
         ASSERT_EQ(rateLimiter.stats().rejectedAdmissions.get(), 0);
-        ASSERT_EQ(rateLimiter.stats().averageTimeQueuedMicros.get(), 0.0);
+        ASSERT(rateLimiter.stats().averageTimeQueuedMicros.get().has_value());
+        ASSERT_APPROX_EQUAL(*rateLimiter.stats().averageTimeQueuedMicros.get(), 0.0, .1);
 
         // Make sure we've enqueued all the remaining waiters so that we don't race with advancing
         // the mock clock.
-        int64_t maxBackoffMillis{5000};
-        int64_t backoffTimeMillis{2};
-        while (rateLimiter.queued() != numThreads - maxTokens &&
-               backoffTimeMillis < maxBackoffMillis) {
+        int64_t numRetries = 0;
+        const int64_t maxRetries = 5;
+        int64_t backoffTimeMillis{5};
+        while (rateLimiter.queued() != numThreads - maxTokens && numRetries++ < maxRetries) {
             sleepmillis(backoffTimeMillis);
-            backoffTimeMillis *= backoffTimeMillis;
+            backoffTimeMillis *= 5;
         }
 
         // Until we start moving the mock clock forward, no other requests will be fulfilled and all
@@ -446,7 +480,8 @@ TEST_F(RateLimiterWithMockClockTest, ConcurrentTokenAcquisitionWithQueueing) {
         ASSERT_EQ(rateLimiter.stats().addedToQueue.get(), numThreads - maxTokens);
         ASSERT_EQ(rateLimiter.stats().removedFromQueue.get(), 0);
         ASSERT_EQ(rateLimiter.stats().rejectedAdmissions.get(), 0);
-        ASSERT_EQ(rateLimiter.stats().averageTimeQueuedMicros.get(), 0.0);
+        ASSERT(rateLimiter.stats().averageTimeQueuedMicros.get().has_value());
+        ASSERT_APPROX_EQUAL(*rateLimiter.stats().averageTimeQueuedMicros.get(), 0.0, .1);
 
         // Advancing time less than tokenInterval doesn't cause a token to be acquired.
         auto smallAdvance = Milliseconds{10};
@@ -504,7 +539,13 @@ TEST_F(RateLimiterWithMockClockTest, ConcurrentTokenAcquisitionWithQueueing) {
 // returns the error status corresponding to the reason for the interruption.
 TEST_F(RateLimiterWithMockClockTest, InterruptedDueToOperationDeadline) {
     unittest::threadAssertionMonitoredTest([&](auto& monitor) {
-        RateLimiter rateLimiter(.01, 1.0, INT_MAX, "InterruptedDueToOperationDeadline");
+        constexpr double burstSize = 1.0;
+        constexpr double refreshRate = .01;
+        constexpr double burstCapacitySecs =
+            convertBurstSizeToBurstCapacitySecs(refreshRate, burstSize);
+
+        RateLimiter rateLimiter(
+            refreshRate, burstCapacitySecs, INT_MAX, "InterruptedDueToOperationDeadline");
         auto clientsWithOps = makeClientsWithOpCtxs(getServiceContext(), 2);
         Notification<void> firstTokenAcquired;
         std::vector<unittest::JoinThread> threads;

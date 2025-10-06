@@ -38,6 +38,7 @@
 #include "mongo/db/exec/document_value/document_metadata_fields.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/pipeline/document_source_tee_consumer.h"
+#include "mongo/db/pipeline/explain_util.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/field_path.h"
 #include "mongo/db/pipeline/pipeline.h"
@@ -189,6 +190,12 @@ void DocumentSourceFacet::doDispose() {
 
 DocumentSource::GetNextResult DocumentSourceFacet::doGetNext() {
     if (_done) {
+        // stats update (previously done in usedDisk())
+        _stats.planSummaryStats.usedDisk =
+            std::any_of(_facets.begin(), _facets.end(), [](const auto& facet) {
+                return facet.pipeline->usedDisk();
+            });
+
         return GetNextResult::makeEOF();
     }
 
@@ -228,10 +235,15 @@ DocumentSource::GetNextResult DocumentSourceFacet::doGetNext() {
 
 Value DocumentSourceFacet::serialize(const SerializationOptions& opts) const {
     MutableDocument serialized;
+
     for (auto&& facet : _facets) {
-        serialized[opts.serializeFieldPathFromString(facet.name)] =
-            Value(opts.isSerializingForExplain() ? facet.pipeline->writeExplainOps(opts)
-                                                 : facet.pipeline->serialize(opts));
+        if (opts.isSerializingForExplain()) {
+            auto explain = mergeExplains(*facet.pipeline, facet.getExecPipeline(), opts);
+            serialized[opts.serializeFieldPathFromString(facet.name)] = Value(explain);
+        } else {
+            serialized[opts.serializeFieldPathFromString(facet.name)] =
+                Value(facet.pipeline->serialize(opts));
+        }
     }
     return Value(Document{{"$facet", serialized.freezeToValue()}});
 }
@@ -328,14 +340,11 @@ StageConstraints DocumentSourceFacet::constraints(PipelineSplitState state) cons
     return constraints;
 }
 
-bool DocumentSourceFacet::usedDisk() {
-    for (auto&& facet : _facets) {
-        if (facet.pipeline->usedDisk()) {
-            _stats.planSummaryStats.usedDisk = true;
-            break;
-        }
-    }
-    return _stats.planSummaryStats.usedDisk;
+bool DocumentSourceFacet::usedDisk() const {
+    return _done ? _stats.planSummaryStats.usedDisk
+                 : std::any_of(_facets.begin(), _facets.end(), [](const auto& facet) {
+                       return facet.pipeline->usedDisk();
+                   });
 }
 
 DepsTracker::State DocumentSourceFacet::getDependencies(DepsTracker* deps) const {

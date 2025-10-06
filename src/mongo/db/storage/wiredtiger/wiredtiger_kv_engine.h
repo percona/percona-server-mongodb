@@ -288,6 +288,23 @@ public:
         return nullptr;
     }
 
+    /**
+     * WiredTiger statistics cursors can be used if the WT connection is ready and it is not
+     * shutting down or starting up. In that case, a tryGetStatsCollectionPermit call returns a
+     * StatsCollectionPermit object indicating that the caller may safely open statistics cursors,
+     * but the storage engine shutdown will be prevented from invalidating the underlying WT
+     * connection until the caller is done. When the WT connection is not ready, a
+     * tryGetStatsCollectionPermit call returns boost::none. ~StatsCollectionPermit releases the
+     * permit.
+     */
+    boost::optional<StatsCollectionPermit> tryGetStatsCollectionPermit() {
+        StatsCollectionPermit permit(&_eventHandler);
+        if (permit.conn()) {
+            return permit;
+        }
+        return boost::none;
+    }
+
 protected:
     /**
      * Returns true if the given table uri exists in this WiredTiger instance.
@@ -686,23 +703,6 @@ public:
     void sizeStorerPeriodicFlush() override;
 
     /**
-     * WiredTiger statistics cursors can be used if the WT connection is ready and it is not
-     * shutting down or starting up. In that case, a tryGetStatsCollectionPermit call returns a
-     * StatsCollectionPermit object indicating that the caller may safely open statistics cursors,
-     * but the storage engine shutdown will be prevented from invalidating the underlying WT
-     * connection until the caller is done. When the WT connection is not ready, a
-     * tryGetStatsCollectionPermit call returns boost::none. ~StatsCollectionPermit releases the
-     * permit.
-     */
-    boost::optional<StatsCollectionPermit> tryGetStatsCollectionPermit() {
-        StatsCollectionPermit permit(&_eventHandler);
-        if (permit.conn()) {
-            return permit;
-        }
-        return boost::none;
-    }
-
-    /**
      * Returns the number of active statistics readers that are blocking shutdown.
      */
     int32_t getActiveStatsReaders() {
@@ -946,7 +946,6 @@ std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerC
  * Returns a WiredTigerKVEngineBase::WiredTigerConfig populated with config values provided at
  * startup.
  */
-WiredTigerKVEngineBase::WiredTigerConfig getWiredTigerConfigFromStartupOptions(
-    bool usingSpillWiredTigerKVEngine = false);
+WiredTigerKVEngineBase::WiredTigerConfig getWiredTigerConfigFromStartupOptions();
 
 }  // namespace mongo

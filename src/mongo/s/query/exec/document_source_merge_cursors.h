@@ -110,7 +110,7 @@ public:
         return _stats.planSummaryStats;
     }
 
-    bool usedDisk() final {
+    bool usedDisk() const final {
         return _stats.planSummaryStats.usedDisk;
     }
 
@@ -136,7 +136,7 @@ public:
                                      LookupRequirement::kNotAllowed,
                                      UnionRequirement::kNotAllowed);
 
-        constraints.requiresInputDocSource = false;
+        constraints.setConstraintsForNoInputSources();
         return constraints;
     }
 

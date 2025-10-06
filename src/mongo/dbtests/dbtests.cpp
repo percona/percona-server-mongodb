@@ -157,15 +157,15 @@ Status createIndexFromSpec(OperationContext* opCtx, StringData ns, const BSONObj
         status = indexer
                      .init(opCtx,
                            collection,
-                           spec,
-                           [opCtx](const std::vector<BSONObj>& specs) -> Status {
+                           {spec},
+                           [opCtx] {
                                if (shard_role_details::getRecoveryUnit(opCtx)
                                        ->getCommitTimestamp()
                                        .isNull()) {
-                                   return shard_role_details::getRecoveryUnit(opCtx)->setTimestamp(
-                                       Timestamp(1, 1));
+                                   uassertStatusOK(
+                                       shard_role_details::getRecoveryUnit(opCtx)->setTimestamp(
+                                           Timestamp(1, 1)));
                                }
-                               return Status::OK();
                            })
                      .getStatus();
         if (status == ErrorCodes::IndexAlreadyExists) {

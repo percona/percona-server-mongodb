@@ -204,14 +204,13 @@ Status createIndexFromSpec(OperationContext* opCtx,
             .init(
                 opCtx,
                 collection,
-                spec,
-                [opCtx, clock](const std::vector<BSONObj>& specs) -> Status {
+                {spec},
+                [opCtx, clock] {
                     if (opCtx->writesAreReplicated() &&
                         shard_role_details::getRecoveryUnit(opCtx)->getCommitTimestamp().isNull()) {
-                        return shard_role_details::getRecoveryUnit(opCtx)->setTimestamp(
-                            clock->tickClusterTime(1).asTimestamp());
+                        uassertStatusOK(shard_role_details::getRecoveryUnit(opCtx)->setTimestamp(
+                            clock->tickClusterTime(1).asTimestamp()));
                     }
-                    return Status::OK();
                 })
             .getStatus();
     if (status == ErrorCodes::IndexAlreadyExists) {

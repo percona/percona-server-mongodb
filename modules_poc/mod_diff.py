@@ -5,8 +5,7 @@ import subprocess
 import sys
 from typing import Iterable, NoReturn
 
-import browse
-from browse import Decl
+from .browse import Decl, is_submodule_usage, load_decls
 
 
 def perr_exit(message: str) -> NoReturn:
@@ -50,7 +49,11 @@ def print_decl_recursive(decl: Decl, indent_level=0, parent: Decl = None):
     line_parts.append(f"{decl.fancy_kind.plain} {display_name}")
 
     total_usages = sum(len(loc_set) for loc_set in decl.transitive_usages.values())
-    ext_usages = sum(len(locs) for mod, locs in decl.transitive_usages.items() if mod != decl.mod)
+    ext_usages = sum(
+        len(locs)
+        for mod, locs in decl.transitive_usages.items()
+        if not is_submodule_usage(decl, mod)
+    )
     line_parts.append(f"; // {total_usages} usages, {ext_usages} external")
 
     print("".join(line_parts))
@@ -92,10 +95,13 @@ def get_changed_files_git() -> list[str]:
         perr_exit("Error: 'git' command not found. Ensure Git is installed and in your PATH.")
 
 
-def main():
-    changed_files = get_changed_files_git()
+def main() -> None:
+    if len(sys.argv) > 1:
+        files_to_show = sys.argv[1:]
+    else:
+        files_to_show = get_changed_files_git()
 
-    if not changed_files:
+    if not files_to_show:
         perr_exit(
             "No changed files found compared to origin/master, or an error occurred.",
         )
@@ -108,13 +114,14 @@ def main():
 
     missing_files = []
     files = {}
-    for filepath, file in browse.files.items():
+    for file in load_decls():
         # Normalize to put generated files in the same place as sources
+        filepath = file.name
         filepath = filepath[filepath.index("src/mongo/") :]
         assert filepath not in files, f"Duplicate file entry: {filepath}"
         files[filepath] = file
 
-    for filepath in changed_files:
+    for filepath in files_to_show:
         human_filepath = filepath
         if filepath.endswith(".idl"):
             # Convert .idl files to generated .h files

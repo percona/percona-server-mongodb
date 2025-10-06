@@ -69,7 +69,8 @@ feature_flags:
             collection (i.e. skip cloning the documents and fetch/apply the oplog entries
             for it). Currently, only the primary shard can be such a recipient shard."
         cpp_varname: gFeatureFlagReshardingSkipCloningAndApplyingIfApplicable
-        default: false
+        default: true
+        version: 8.2
         fcv_gated: true
     featureFlagReshardingStoreOplogFetcherProgress:
         description:
@@ -77,7 +78,8 @@ feature_flags:
             in a progress document and use this count instead of the fast count to recover
             metrics upon recovery."
         cpp_varname: gFeatureFlagReshardingStoreOplogFetcherProgress
-        default: false
+        default: true
+        version: 8.2
         fcv_gated: true
     featureFlagReshardingNumSamplesPerChunk:
         description: "Feature flag for adding numSamplesPerChunk as a field in reshardCollection."
@@ -105,4 +107,3 @@ feature_flags:
         cpp_varname: gFeatureFlagReshardingRemainingTimeEstimateBasedOnMovingAverage
         default: false
         fcv_gated: true
-        fcv_context_unaware: true

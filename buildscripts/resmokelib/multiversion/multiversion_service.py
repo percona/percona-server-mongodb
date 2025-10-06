@@ -11,9 +11,6 @@ import yaml
 from packaging.version import Version
 from pydantic import BaseModel, Field
 
-# These values must match the include paths for artifacts.tgz in evergreen.yml.
-MONGO_VERSION_YAML = ".resmoke_mongo_version.yml"
-RELEASES_YAML = ".resmoke_mongo_release_values.yml"
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+")
 LOGGER = structlog.getLogger(__name__)
 
@@ -127,7 +124,7 @@ class MongoVersion(BaseModel):
         :param yaml_file: Path to yaml file.
         :return: MongoVersion read from file.
         """
-        mongo_version_yml_file = open(yaml_file, "r")
+        mongo_version_yml_file = open(yaml_file, "r", encoding="utf8")
         return cls(**yaml.safe_load(mongo_version_yml_file))
 
     def get_version(self) -> Version:
@@ -167,7 +164,7 @@ class MongoReleases(BaseModel):
         :return: MongoReleases read from file.
         """
 
-        with open(yaml_file, "r") as mongo_releases_file:
+        with open(yaml_file, "r", encoding="utf8") as mongo_releases_file:
             yaml_contents = mongo_releases_file.read()
         safe_load_result = yaml.safe_load(yaml_contents)
         try:

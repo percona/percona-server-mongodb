@@ -107,7 +107,7 @@ public:
         _buildUUID = indexBuildUUID;
     }
 
-    using OnInitFn = std::function<Status(std::vector<BSONObj>& specs)>;
+    using OnInitFn = std::function<void()>;
     enum class InitMode { SteadyState, InitialSync, Recovery };
 
     /**
@@ -134,17 +134,11 @@ public:
         InitMode initMode = InitMode::SteadyState,
         const boost::optional<ResumeIndexInfo>& resumeInfo = boost::none,
         boost::optional<size_t> maxMemoryUsageBytes = boost::none);
-    StatusWith<std::vector<BSONObj>> init(
-        OperationContext* opCtx,
-        CollectionWriter& collection,
-        const BSONObj& spec,
-        OnInitFn onInit,
-        boost::optional<size_t> maxMemoryUsageBytes = boost::none);
     /**
      * Not all index initializations need an OnInitFn, in particular index builds that do not need
      * to timestamp catalog writes. This is a no-op.
      */
-    static OnInitFn kNoopOnInitFn;
+    static const inline OnInitFn kNoopOnInitFn = nullptr;
 
     /**
      * Returns an OnInit function for initialization when this index build should be timestamped.

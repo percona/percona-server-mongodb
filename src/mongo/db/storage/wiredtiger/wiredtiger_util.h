@@ -43,6 +43,7 @@ class BSONObjBuilder;
 class OperationContext;
 class WiredTigerConfigParser;
 
+class WiredTigerKVEngineBase;
 class WiredTigerKVEngine;
 class WiredTigerConnection;
 class WiredTigerSession;
@@ -109,7 +110,10 @@ public:
                                       std::string* type,
                                       std::string* source);
 
-    static bool collectConnectionStatistics(WiredTigerKVEngine* engine, BSONObjBuilder& bob);
+    static bool collectConnectionStatistics(
+        WiredTigerKVEngineBase* engine,
+        BSONObjBuilder& bob,
+        const std::vector<std::string>& fieldsToInclude = std::vector<std::string>());
 
     /**
      * Adds the History Store Statistics to the provided BSON Object builder.
@@ -119,10 +123,20 @@ public:
     static bool historyStoreStatistics(WiredTigerKVEngine* engine, BSONObjBuilder& bob);
 
     /**
+     * Dictates how filters passed to exportTableToBSON will behave.
+     */
+    enum class FilterBehavior {
+        /* Fields that are in the categories listed will be skipped */
+        kExcludeCategories,
+        /* Only fields with statistic descriptions listed in the filter will be exported */
+        kIncludeStats,
+    };
+
+    /**
      * Reads the WT database statistics table using the URI and exports all keys to BSON as string
      * elements. Additionally, adds the 'uri' field to output document.
      *
-     * A filter can be specified to skip desired fields.
+     * The filterBehavior dictates how the filter will be used.
      */
     static Status exportTableToBSON(WiredTigerSession& session,
                                     const std::string& uri,
@@ -132,7 +146,8 @@ public:
                                     const std::string& uri,
                                     const std::string& config,
                                     BSONObjBuilder& bob,
-                                    const std::vector<std::string>& filter);
+                                    const std::vector<std::string>& filter,
+                                    FilterBehavior filterBehavior);
 
     /**
      * Creates an import configuration string suitable for the 'config' parameter in
@@ -354,12 +369,9 @@ public:
     static Status canRunAutoCompact(bool isEphemeral);
 
     /**
-     * Truncates the table identified by tableId and uri, removing all entries from it.
+     * Truncates the table identified by uri, removing all entries from it.
      */
-    static Status truncate(OperationContext* opCtx,
-                           WiredTigerRecoveryUnit& ru,
-                           uint64_t tableId,
-                           const std::string& uri);
+    static void truncate(WiredTigerRecoveryUnit& ru, StringData uri);
 
     static uint64_t genTableId();
 

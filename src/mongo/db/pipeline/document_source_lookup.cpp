@@ -1093,12 +1093,8 @@ DocumentSourceContainer::iterator DocumentSourceLookUp::doOptimizeAt(
     return itr;
 }  // doOptimizeAt
 
-bool DocumentSourceLookUp::usedDisk() {
-    if (_pipeline)
-        _stats.planSummaryStats.usedDisk =
-            _stats.planSummaryStats.usedDisk || _pipeline->usedDisk();
-
-    return _stats.planSummaryStats.usedDisk;
+bool DocumentSourceLookUp::usedDisk() const {
+    return _pipeline && _pipeline->usedDisk();
 }
 
 void DocumentSourceLookUp::doDispose() {
@@ -1414,6 +1410,7 @@ boost::optional<DocumentSource::DistributedPlanLogic> DocumentSourceLookUp::dist
     // Note that this decision is inherently racy and subject to become stale. This is okay because
     // either choice will work correctly; we are simply applying a heuristic optimization.
     if (foreignShardedLookupAllowed() && pExpCtx->getSubPipelineDepth() == 0 &&
+        !_fromNs.isCollectionlessAggregateNS() &&
         pExpCtx->getMongoProcessInterface()->isSharded(_fromExpCtx->getOperationContext(),
                                                        _fromNs)) {
         tassert(

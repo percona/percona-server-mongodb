@@ -240,33 +240,11 @@ void MultiIndexBlock::ignoreUniqueConstraint() {
     _ignoreUnique = true;
 }
 
-MultiIndexBlock::OnInitFn MultiIndexBlock::kNoopOnInitFn =
-    [](std::vector<BSONObj>& specs) -> Status {
-    return Status::OK();
-};
-
 MultiIndexBlock::OnInitFn MultiIndexBlock::makeTimestampedIndexOnInitFn(OperationContext* opCtx,
                                                                         const CollectionPtr& coll) {
-    return [opCtx, ns = coll->ns()](std::vector<BSONObj>& specs) -> Status {
+    return [opCtx, ns = coll->ns()] {
         opCtx->getServiceContext()->getOpObserver()->onStartIndexBuildSinglePhase(opCtx, ns);
-        return Status::OK();
     };
-}
-
-StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
-    OperationContext* opCtx,
-    CollectionWriter& collection,
-    const BSONObj& spec,
-    OnInitFn onInit,
-    const boost::optional<size_t> maxMemoryUsageBytes) {
-    const auto indexes = std::vector<BSONObj>(1, spec);
-    return init(opCtx,
-                collection,
-                indexes,
-                onInit,
-                InitMode::SteadyState,
-                boost::none,
-                maxMemoryUsageBytes);
 }
 
 StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
@@ -290,6 +268,8 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
     if (resumeInfo) {
         _phase = resumeInfo->getPhase();
     }
+
+    bool isEmpty = collection->isEmpty(opCtx);
 
     bool forRecovery = initMode == InitMode::Recovery;
     // Guarantees that exceptions cannot be returned from index builder initialization except for
@@ -318,17 +298,6 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
         std::size_t eachIndexBuildMaxMemoryUsageBytes =
             getEachIndexBuildMaxMemoryUsageBytes(maxMemoryUsageBytes, indexSpecs.size());
 
-        // Initializing individual index build blocks below performs un-timestamped writes to the
-        // durable catalog. It's possible for the onInit function to set multiple timestamps
-        // depending on the index build codepath taken. Once to persist the index build entry in the
-        // 'config.system.indexBuilds' collection and another time to log the operation using
-        // onStartIndexBuild(). It's imperative that the durable catalog writes are timestamped at
-        // the same time as onStartIndexBuild() is to avoid rollback issues.
-        Status status = onInit(indexInfoObjs);
-        if (!status.isOK()) {
-            return status;
-        }
-
         // First do a pass over all indexes we have been requested to build to see if there are any
         // conflicts with existing indexes. We do this without adding anything to the index catalog
         // so we can distinguish between conflicts against already existing indexes and the specs
@@ -345,6 +314,16 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
                     return status;
                 }
             }
+        }
+
+        // Initializing individual index build blocks below performs un-timestamped writes to the
+        // durable catalog. It's possible for the onInit function to set multiple timestamps
+        // depending on the index build codepath taken. Once to persist the index build entry in the
+        // 'config.system.indexBuilds' collection and another time to log the operation using
+        // onStartIndexBuild(). It's imperative that the durable catalog writes are timestamped at
+        // the same time as onStartIndexBuild() is to avoid rollback issues.
+        if (onInit) {
+            onInit();
         }
 
         // Then proceed to start the index builds. If we encounter conflicts for the index specs at
@@ -404,28 +383,35 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
                         stateInfoIt != resumeInfoIndexes.end());
 
                 stateInfo = *stateInfoIt;
-                status = index.block->initForResume(opCtx,
-                                                    collection.getWritableCollection(opCtx),
-                                                    *stateInfo,
-                                                    resumeInfo->getPhase());
+                auto status = index.block->initForResume(opCtx,
+                                                         collection.getWritableCollection(opCtx),
+                                                         *stateInfo,
+                                                         resumeInfo->getPhase());
+                if (!status.isOK())
+                    return status;
             } else {
-                status =
+                auto status =
                     index.block->init(opCtx, collection.getWritableCollection(opCtx), forRecovery);
+                if (!status.isOK())
+                    return status;
             }
-            if (!status.isOK())
-                return status;
 
             auto indexCatalogEntry =
                 index.block->getWritableEntry(opCtx, collection.getWritableCollection(opCtx));
             index.real = indexCatalogEntry->accessMethod();
-            status = index.real->initializeAsEmpty();
-            if (!status.isOK())
+
+            if (auto status = index.real->initializeAsEmpty(); !status.isOK())
                 return status;
 
-            index.bulk = index.real->initiateBulk(indexCatalogEntry,
-                                                  eachIndexBuildMaxMemoryUsageBytes,
-                                                  stateInfo,
-                                                  collection->ns().dbName());
+            // In steady state mode we're building an index for a collection that already exists, so
+            // if the collection is empty we don't need a bulk loader. In other modes we're building
+            // a collection and its indexes at the same time, so we always need a bulk loader.
+            if (!isEmpty || initMode != InitMode::SteadyState) {
+                index.bulk = index.real->initiateBulk(indexCatalogEntry,
+                                                      eachIndexBuildMaxMemoryUsageBytes,
+                                                      stateInfo,
+                                                      collection->ns().dbName());
+            }
 
             const IndexDescriptor* descriptor = indexCatalogEntry->descriptor();
 
@@ -898,6 +884,9 @@ Status MultiIndexBlock::dumpInsertsFromBulk(
                     "Index build: inserting from external sorter into index",
                     "index"_attr = entry->descriptor()->indexName(),
                     "buildUUID"_attr = _buildUUID);
+        if (!_indexes[i].bulk) {
+            continue;
+        }
 
         // SERVER-41918 This call to bulk->commit() results in file I/O that may result in an
         // exception.
@@ -1114,7 +1103,7 @@ Status MultiIndexBlock::commit(OperationContext* opCtx,
         // metadata keys into the index just before committing. We therefore only need to pass the
         // MultikeyPaths into IndexCatalogEntry::setMultikey here.
         const auto& bulkBuilder = _indexes[i].bulk;
-        if (bulkBuilder->isMultikey()) {
+        if (bulkBuilder && bulkBuilder->isMultikey()) {
             // TODO(SERVER-103400): Investigate usage validity of
             // CollectionPtr::CollectionPtr_UNSAFE
             indexCatalogEntry->setMultikey(opCtx,
@@ -1179,8 +1168,8 @@ void MultiIndexBlock::abortWithoutCleanup(OperationContext* opCtx,
     if (!shard_role_details::getLocker(opCtx)->isWriteLocked()) {
         lk.emplace(opCtx,
                    MODE_IX,
-                   Lock::GlobalLockSkipOptions{
-                       .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
+                   Lock::GlobalLockOptions{.explicitIntent =
+                                               rss::consensus::IntentRegistry::Intent::LocalWrite});
     }
 
     if (isResumable) {

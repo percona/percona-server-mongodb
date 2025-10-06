@@ -403,7 +403,7 @@ class TestSetParameters(_ResmokeSelftest):
     def generate_suite(self, suite_output_path, template_file):
         """Read the template file, substitute the `outputLocation` and rewrite to the file `suite_output_path`."""
 
-        with open(os.path.normpath(template_file), "r") as template_suite_fd:
+        with open(os.path.normpath(template_file), "r", encoding="utf8") as template_suite_fd:
             suite = yaml.safe_load(template_suite_fd)
 
         try:
@@ -568,7 +568,7 @@ class TestDiscovery(_ResmokeSelftest):
         )
 
         with open(
-            "buildscripts/resmokeconfig/fully_disabled_feature_flags.yml"
+            "buildscripts/resmokeconfig/fully_disabled_feature_flags.yml", encoding="utf8"
         ) as fully_disabled_ffs:
             self.assertIn(
                 "featureFlagFryer",
@@ -808,7 +808,7 @@ class TestEvergreenYML(unittest.TestCase):
             generate_func = task.find_func_command("generate resmoke tasks")
             if (
                 generate_func is None
-                or get_dict_value(generate_func, ["vars", "is_jstestfuzz"]) != "true"
+                or get_dict_value(generate_func, ["vars", "is_jstestfuzz"]) is not True
             ):
                 continue
 
@@ -832,7 +832,7 @@ class TestMultiversionConfig(unittest.TestCase):
             ],
             check=True,
         )
-        with open(file_name, "r") as file:
+        with open(file_name, "r", encoding="utf8") as file:
             file_contents = file.read()
 
         try:
@@ -965,7 +965,72 @@ class TestMochaRunner(unittest.TestCase):
             self.assertIn(output, result.stdout)
 
         # verify ordering
-        # TODO
+        pattern = r".*".join(arr) + r".*"
+        pattern = re.compile(pattern, re.DOTALL)
+        self.assertRegex(result.stdout, pattern)
+
+    def test_mocha_runner_async(self):
+        resmoke_args = [
+            "--suites=buildscripts/tests/resmoke_end2end/suites/resmoke_selftest_mocha_runner.yml",
+            "buildscripts/tests/resmoke_end2end/testfiles/mocha/async.js",
+        ]
+
+        result = execute_resmoke(resmoke_args)
+
+        self.assertEqual(result.returncode, 0)
+
+        arr = [
+            "before1",
+            "before2",
+            "--beforeEach1",
+            "--beforeEach2",
+            "----test1",
+            "--afterEach1",
+            "--afterEach2",
+            "--beforeEach1",
+            "--beforeEach2",
+            "----test2",
+            "--afterEach1",
+            "--afterEach2",
+            "----describe before1",
+            "----describe before2",
+            "--beforeEach1",
+            "--beforeEach2",
+            "------describe beforeEach1",
+            "------describe beforeEach2",
+            "--------test3",
+            "------describe afterEach1",
+            "------describe afterEach2",
+            "--afterEach1",
+            "--afterEach2",
+            "--beforeEach1",
+            "--beforeEach2",
+            "------describe beforeEach1",
+            "------describe beforeEach2",
+            "--------test4",
+            "------describe afterEach1",
+            "------describe afterEach2",
+            "--afterEach1",
+            "--afterEach2",
+            "----describe after1",
+            "----describe after2",
+            "--beforeEach1",
+            "--beforeEach2",
+            "----test5",
+            "--afterEach1",
+            "--afterEach2",
+            "--beforeEach1",
+            "--beforeEach2",
+            "----test6",
+            "--afterEach1",
+            "--afterEach2",
+            "after1",
+            "after2",
+        ]
+        for output in arr:
+            self.assertIn(output, result.stdout)
+
+        # verify ordering
         pattern = r".*".join(arr) + r".*"
         pattern = re.compile(pattern, re.DOTALL)
         self.assertRegex(result.stdout, pattern)

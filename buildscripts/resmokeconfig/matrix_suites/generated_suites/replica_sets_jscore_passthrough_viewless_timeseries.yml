@@ -81,8 +81,10 @@ selector:
     - jstests/core/timeseries/ddl/timeseries_nondefault_collation.js
     - jstests/core/timeseries/ddl/timeseries_sparse_index.js
     - jstests/core/timeseries/ddl/timeseries_special_indexes_metadata.js
+    - jstests/core/timeseries/geo/partialFilterExpression_with_internalBucketGeoWithin.js
     - jstests/core/timeseries/geo/timeseries_geonear.js
     - jstests/core/timeseries/geo/timeseries_geonear_edge_case_measurements.js
+    - jstests/core/timeseries/geo/timeseries_geonear_measurements.js
     - jstests/core/timeseries/geo/timeseries_geonear_mindistance_and_maxdistance.js
     - jstests/core/timeseries/geo/timeseries_geonear_random_measurements.js
     - jstests/core/timeseries/geo/timeseries_internal_bucket_geo_within.js
@@ -98,8 +100,10 @@ selector:
     - jstests/core/timeseries/query/bucket_unpacking_with_sort_with_geo.js
     - jstests/core/timeseries/query/timeseries_block_explain.js
     - jstests/core/timeseries/query/timeseries_bucket_level_filter.js
+    - jstests/core/timeseries/query/timeseries_buckets_query_explain.js
     - jstests/core/timeseries/query/timeseries_cursor_batches.js
     - jstests/core/timeseries/query/timeseries_explicit_unpack_bucket.js
+    - jstests/core/timeseries/query/timeseries_find.js
     - jstests/core/timeseries/query/timeseries_groupby_reorder.js
     - jstests/core/timeseries/query/timeseries_groupby_reorder_expr.js
     - jstests/core/timeseries/query/timeseries_hint.js
@@ -136,6 +140,7 @@ selector:
     - jstests/core/timeseries/write/timeseries_metadata.js
     - jstests/core/timeseries/write/timeseries_min_max.js
     - jstests/core/timeseries/write/timeseries_out_of_order.js
+    - jstests/core/timeseries/write/timeseries_reopened_bucket_insert.js
     - jstests/core/timeseries/write/timeseries_simple.js
     - jstests/core/timeseries/write/timeseries_sparse.js
 test_kind: js_test

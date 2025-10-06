@@ -3178,7 +3178,7 @@ Status ReplicationCoordinatorImpl::processReplSetGetStatus(
                             Date_t::now() + Milliseconds(5),
                             Lock::InterruptBehavior::kLeaveUnlocked,
                             [] {
-                                Lock::GlobalLockSkipOptions options;
+                                Lock::GlobalLockOptions options;
                                 options.skipRSTLLock = true;
                                 return options;
                             }());
@@ -3833,7 +3833,7 @@ Status ReplicationCoordinatorImpl::_doReplSetReconfig(OperationContext* opCtx,
     LOGV2(51814, "Persisting new config to disk");
     {
         try {
-            auto globalLkOptions = Lock::GlobalLockSkipOptions{};
+            auto globalLkOptions = Lock::GlobalLockOptions{};
             if (skipSafetyChecks || force) {
                 globalLkOptions.explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite;
             }

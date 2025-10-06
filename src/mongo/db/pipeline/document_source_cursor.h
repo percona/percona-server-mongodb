@@ -136,7 +136,7 @@ public:
                                      LookupRequirement::kAllowed,
                                      UnionRequirement::kAllowed);
 
-        constraints.requiresInputDocSource = false;
+        constraints.setConstraintsForNoInputSources();
         return constraints;
     }
 
@@ -166,7 +166,7 @@ public:
         return _stats.planSummaryStats;
     }
 
-    bool usedDisk() final {
+    bool usedDisk() const final {
         return _stats.planSummaryStats.usedDisk;
     }
 

@@ -1221,7 +1221,8 @@ mongo_cc_library(
         "//src/mongo/db/exec:mock_stage.cpp",
         "//src/mongo/db/exec:multi_iterator.cpp",
         "//src/mongo/db/exec:multi_plan.cpp",
-        "//src/mongo/db/exec:multi_plan_bucket.cpp",
+        "//src/mongo/db/exec:multi_plan_admission_context.cpp",
+        "//src/mongo/db/exec:multi_plan_rate_limiter.cpp",
         "//src/mongo/db/exec:near.cpp",
         "//src/mongo/db/exec:or.cpp",
         "//src/mongo/db/exec:orphan_chunk_skipper.cpp",
@@ -1313,7 +1314,8 @@ mongo_cc_library(
         "//src/mongo/db/exec:mock_stage.h",
         "//src/mongo/db/exec:multi_iterator.h",
         "//src/mongo/db/exec:multi_plan.h",
-        "//src/mongo/db/exec:multi_plan_bucket.h",
+        "//src/mongo/db/exec:multi_plan_admission_context.h",
+        "//src/mongo/db/exec:multi_plan_rate_limiter.h",
         "//src/mongo/db/exec:near.h",
         "//src/mongo/db/exec:or.h",
         "//src/mongo/db/exec:orphan_chunk_skipper.h",
@@ -2317,6 +2319,11 @@ mongo_cc_library(
     ],
 )
 
+idl_generator(
+    name = "operation_context_options_gen",
+    src = "operation_context_options.idl",
+)
+
 mongo_cc_library(
     name = "service_context",
     srcs = [
@@ -2327,6 +2334,7 @@ mongo_cc_library(
         "default_baton.cpp",
         "operation_context.cpp",
         "operation_context_group.cpp",
+        "operation_context_options_gen",
         "operation_cpu_timer.cpp",
         "operation_id.cpp",
         "operation_key_manager.cpp",
@@ -4246,6 +4254,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/repl:replmocks",
         "//src/mongo/db/stats:counters",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
+        "//src/mongo/idl:server_parameter_test_util",
         "//src/mongo/transport:transport_layer_mock",
         "//src/mongo/util/concurrency:thread_pool",
         "//src/third_party/asio-master:asio",
@@ -4476,6 +4485,38 @@ mongo_cc_benchmark(
         "//src/mongo/db/s:sharding_runtime_d",
         "//src/mongo/db/storage:storage_control",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
+        "//src/mongo/unittest:benchmark_util",
+        "//src/mongo/util:periodic_runner_factory",
+    ],
+)
+
+mongo_cc_benchmark(
+    name = "find_one_bm",
+    srcs = [
+        "find_one_bm.cpp",
+        "service_entry_point_bm_fixture.h",
+    ],
+    tags = ["sep_bm"],
+    deps = [
+        ":mongod_options_init",
+        ":read_write_concern_defaults_mock",
+        ":server_base",
+        ":service_context_d",
+        ":shard_role_api",
+        ":vector_clock_mongod",
+        "//src/mongo/db/auth:authserver",
+        "//src/mongo/db/catalog:catalog_impl",
+        "//src/mongo/db/catalog:database_holder",
+        "//src/mongo/db/commands:standalone",
+        "//src/mongo/db/index_builds:index_builds_coordinator_mongod",
+        "//src/mongo/db/op_observer",
+        "//src/mongo/db/repl:repl_coordinator_impl",
+        "//src/mongo/db/repl:serveronly_repl",
+        "//src/mongo/db/repl:storage_interface_impl",
+        "//src/mongo/db/s:sharding_runtime_d",
+        "//src/mongo/db/storage:storage_control",
+        "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
+        "//src/mongo/executor:network_interface_mock",
         "//src/mongo/unittest:benchmark_util",
         "//src/mongo/util:periodic_runner_factory",
     ],

@@ -537,8 +537,8 @@ RecoveryUnit::ReadSource getReadSourceForDrainBeforeCommitQuorum(
 AutoGetCollection::Options makeAutoGetCollectionOptions(
     bool skipRSTL,
     boost::optional<rss::consensus::IntentRegistry::Intent> explicitIntent = boost::none) {
-    return AutoGetCollection::Options{}.globalLockSkipOptions(
-        Lock::GlobalLockSkipOptions{.skipRSTLLock = skipRSTL, .explicitIntent = explicitIntent});
+    return AutoGetCollection::Options{}.globalLockOptions(
+        Lock::GlobalLockOptions{.skipRSTLLock = skipRSTL, .explicitIntent = explicitIntent});
 }
 
 }  // namespace
@@ -2083,8 +2083,7 @@ void IndexBuildsCoordinator::createIndex(OperationContext* opCtx,
     invariant(collection,
               str::stream() << "IndexBuildsCoordinator::createIndexes: " << collectionUUID);
     auto nss = collection->ns();
-    invariant(shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(nss, MODE_X),
-              str::stream() << "IndexBuildsCoordinator::createIndexes: " << collectionUUID);
+    CollectionCatalog::get(opCtx)->invariantHasExclusiveAccessToCollection(opCtx, nss);
 
     auto buildUUID = UUID::gen();
 
@@ -2095,7 +2094,7 @@ void IndexBuildsCoordinator::createIndex(OperationContext* opCtx,
         auto onInitFn = MultiIndexBlock::makeTimestampedIndexOnInitFn(opCtx, collection.get());
         IndexBuildsManager::SetupOptions options;
         options.indexConstraints = indexConstraints;
-        // As the caller has a MODE_X lock on the collection, we can safely assume they want to
+        // As the caller has exclusive access to the collection, we can safely assume they want to
         // build the index in the foreground instead of yielding during element insertion.
         options.method = IndexBuildMethod::kForeground;
         uassertStatusOK(_indexBuildsManager.setUpIndexBuild(
@@ -2243,7 +2242,7 @@ StatusWith<AutoGetCollection> IndexBuildsCoordinator::_autoGetCollectionExclusiv
     while (true) {
         try {
             auto autoGetCollOptions =
-                AutoGetCollection::Options{}.globalLockSkipOptions(Lock::GlobalLockSkipOptions{
+                AutoGetCollection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
                     .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
             autoGetCollOptions.deadline(Date_t::now() + kStateTransitionBlockedMaxMs);
             return AutoGetCollection(
@@ -2386,12 +2385,12 @@ IndexBuildsCoordinator::PostSetupAction IndexBuildsCoordinator::_setUpIndexBuild
         // If we are in magic restore mode we will return true for canAcceptWritesFor on admin or
         // config databases which we do not want in this case. This will not impact normal primary
         // execution.
-        onInitFn = [&](std::vector<BSONObj>& specs) {
+        onInitFn = [&] {
             if (!(replCoord->getSettings().isReplSet() &&
                   replCoord->canAcceptWritesFor(opCtx, nss)) ||
                 storageGlobalParams.magicRestore) {
                 // Not primary.
-                return Status::OK();
+                return;
             }
 
             // Two phase index builds should have commit quorum set.
@@ -2424,8 +2423,6 @@ IndexBuildsCoordinator::PostSetupAction IndexBuildsCoordinator::_setUpIndexBuild
                 replState->buildUUID,
                 replState->indexSpecs,
                 false /* fromMigrate */);
-
-            return Status::OK();
         };
     } else {
         onInitFn = MultiIndexBlock::makeTimestampedIndexOnInitFn(opCtx, collection.get());
@@ -3019,7 +3016,7 @@ void IndexBuildsCoordinator::_scanCollectionAndInsertSortedKeysIntoIndex(
         _awaitLastOpTimeBeforeInterceptorsMajorityCommitted(opCtx, replState);
 
         auto autoGetCollOptions =
-            AutoGetCollection::Options{}.globalLockSkipOptions(Lock::GlobalLockSkipOptions{
+            AutoGetCollection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
                 .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
         const NamespaceStringOrUUID dbAndUUID(replState->dbName, replState->collectionUUID);
         AutoGetCollection autoGetColl(opCtx, dbAndUUID, MODE_IX, autoGetCollOptions);
@@ -3046,7 +3043,7 @@ void IndexBuildsCoordinator::_insertSortedKeysIntoIndexForResume(
     OperationContext* opCtx, std::shared_ptr<ReplIndexBuildState> replState) {
     {
         auto autoGetCollOptions =
-            AutoGetCollection::Options{}.globalLockSkipOptions(Lock::GlobalLockSkipOptions{
+            AutoGetCollection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
                 .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
         const NamespaceStringOrUUID dbAndUUID(replState->dbName, replState->collectionUUID);
         AutoGetCollection collLock(opCtx, dbAndUUID, MODE_IX, autoGetCollOptions);
@@ -3087,7 +3084,7 @@ void IndexBuildsCoordinator::_insertKeysFromSideTablesWithoutBlockingWrites(
     const NamespaceStringOrUUID dbAndUUID(replState->dbName, replState->collectionUUID);
     {
         auto autoGetCollOptions =
-            AutoGetCollection::Options{}.globalLockSkipOptions(Lock::GlobalLockSkipOptions{
+            AutoGetCollection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
                 .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
         AutoGetCollection autoGetColl(opCtx, dbAndUUID, MODE_IX, autoGetCollOptions);
 
@@ -3132,7 +3129,7 @@ IndexBuildsCoordinator::CommitResult IndexBuildsCoordinator::_insertKeysFromSide
     auto replCoord = repl::ReplicationCoordinator::get(opCtx);
 
     auto autoGetCollOptions =
-        AutoGetCollection::Options{}.globalLockSkipOptions(Lock::GlobalLockSkipOptions{
+        AutoGetCollection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
             .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
     AutoGetCollection indexBuildEntryColl(
         opCtx, NamespaceString::kIndexBuildEntryNamespace, MODE_IX, autoGetCollOptions);
