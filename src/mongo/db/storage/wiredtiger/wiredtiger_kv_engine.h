@@ -248,7 +248,7 @@ public:
         return _conn;
     }
 
-    WiredTigerConnection& getConnection() const {
+    WiredTigerConnection& getConnection() {
         return *_connection;
     }
 
