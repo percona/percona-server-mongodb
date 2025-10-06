@@ -3481,10 +3481,6 @@ void WiredTigerKVEngine::keydbDropDatabase(const DatabaseName& dbName) {
     }
 }
 
-bool WiredTigerKVEngine::supportsDirectoryPerDB() const {
-    return true;
-}
-
 void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session, bool useTimestamp) {
     _currentCheckpointIteration.fetchAndAdd(1);
     int wtRet;
