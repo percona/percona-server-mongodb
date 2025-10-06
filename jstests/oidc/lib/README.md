@@ -65,8 +65,8 @@ Currently, the following endpoints are implemented:
 - openid-configuration: `{issuer_url}/.well-known/openid-configuration` - for getting configuration,
 - token_endpoint: `{issuer_url}/token` - for creating an access token and refresh token (always equal to 'refresh_token'),
 - jwks_uri: `{issuer_url}/keys` - for getting the list of **JWKs**,
-- device_authorization_endpoint: `{issuer_url}/device/authorize` - to simulate _device authorization flow_,
-- token_introspection: `{issuer_url}/introspect` - to simulate _token introspection_.
+- device*authorization_endpoint: `{issuer_url}/device/authorize` - to simulate \_device authorization flow*,
+- token*introspection: `{issuer_url}/introspect` - to simulate \_token introspection*.
 
 ### Token Configuration
 
