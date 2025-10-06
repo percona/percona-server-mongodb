@@ -13,7 +13,6 @@
  *     }
  * });
  *
- * runTests();
  *
  * Leverage the before/beforeEach/afterEach/after hooks to set up and tear down test environments.
  *
@@ -32,7 +31,7 @@
  * });
  * it("should do something", function() {
  *     this.fixtureDB.insert({ name: "test" });
- *     // Test code here
+ *     assert.eq(this.fixtureDB.find({ name: "test" }).count(), 1);
  * });
  */
 
@@ -41,16 +40,17 @@ class Context {}
 
 // Test to be run with a given Context
 class Test {
-    #titleArray;
-    #fn;
-    static #titleSep = " > ";
+    _titleArray;
+    _fn;
+    static _titleSep = " > ";
 
     constructor(title, fn) {
-        this.#titleArray = title;
-        this.#fn = fn;
+        this._titleArray = title;
+        this._fn = fn;
     }
+
     fullTitle() {
-        return this.#titleArray.join(Test.#titleSep);
+        return this._titleArray.join(Test._titleSep);
     }
 
     /**
@@ -58,14 +58,15 @@ class Test {
      * @param {Context} ctx
      */
     run(ctx) {
-        this.#fn.call(ctx);
+        this._fn.call(ctx);
     }
 
     printPass() {
         jsTest.log.info(`✔ ${this.fullTitle()}`);
     }
+
     printFailure(error) {
-        jsTest.log.error(`\x1b[31m✘ ${this.fullTitle()}\x1b[0m\n${error}`);
+        jsTest.log.error(`\x1b[31m✘ ${this.fullTitle()}\x1b[0m`, {error});
     }
 }
 
@@ -82,6 +83,7 @@ class Scope {
         this.afterEach = [];
         this.after = [];
     }
+
     static inherit(oldScope) {
         const newScope = new Scope();
         newScope.title = [...oldScope.title];
@@ -97,6 +99,7 @@ class Scope {
     addHook(hookname, fn) {
         this[hookname].push(fn);
     }
+
     runHook(hookname) {
         const ctx = this.ctx;
         this[hookname].forEach(function(fn) {
@@ -162,13 +165,6 @@ function addScope(title, fn) {
 }
 
 /**
- * Run all defined tests.
- */
-function runTests() {
-    currScope.run();
-}
-
-/**
  * Define a test case.
  * @param {string} title
  * @param {function} fn
@@ -179,6 +175,7 @@ function runTests() {
  * });
  */
 function it(title, fn) {
+    markUsage();
     addTest(title, fn);
 }
 
@@ -195,6 +192,7 @@ function it(title, fn) {
  * });
  */
 function describe(title, fn) {
+    markUsage();
     addScope(title, fn);
 }
 
@@ -268,4 +266,16 @@ function after(fn) {
     currScope.addHook("after", fn);
 }
 
-export {describe, it, before, beforeEach, afterEach, after, runTests};
+/**
+ * Run all defined tests.
+ */
+function runTests() {
+    currScope.run();
+}
+
+function markUsage() {
+    // sentinel for shell to close
+    globalThis.__mochalite_closer = runTests;
+}
+
+export {describe, it, before, beforeEach, afterEach, after};
