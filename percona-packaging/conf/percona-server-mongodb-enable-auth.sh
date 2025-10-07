@@ -173,6 +173,7 @@ if [ ! -f /tmp/mongodb_create.lock ]; then
         AUTH_ENABLED=0
         AUTH_SECTION_EXISTS=1
     fi
+
     if [[ $AUTH_ENABLED == 0 ]]; then
         echo "We have detected authentication is not enabled."
         echo "Would you like help creating your first user?"
@@ -183,6 +184,14 @@ if [ ! -f /tmp/mongodb_create.lock ]; then
             setup_auth="y"
         fi
         if [ "$setup_auth" == "Y" -o "$setup_auth" == "y" ]; then
+            replsetname_res=$(get_value_from_yaml replication replSetName)
+            keyfile_res=$(get_value_from_yaml security keyFile)
+            if [[ $replsetname_res != 0 ]]; then
+              if [[ $keyfile_res == 0 ]]; then
+                echo "ERROR! You need to create a keyfile before enabling authentication in a replica set!"
+                exit 1
+              fi
+            fi
             touch /tmp/mongodb_create.lock
             started=$(pgrep mongod | wc -l)
             if [ $started == 0 ]; then
