@@ -705,6 +705,9 @@ void setUpWiredTigerEncryption(const std::string& cipherMode, EncryptionKeyDB* k
        << cipherMode << "))";
     WiredTigerExtensions::get(getGlobalServiceContext()).addExtension(ss.str());
 
+    // add Percona encryption extension to SpillWiredTigerExtensions
+    SpillWiredTigerExtensions::get(getGlobalServiceContext()).addExtension(ss.str());
+
     // setup encryption hooks
     // WiredTigerEncryptionHooks instance should be created after EncryptionKeyDB (depends on it)
     std::unique_ptr<WiredTigerEncryptionHooks> hooks;
