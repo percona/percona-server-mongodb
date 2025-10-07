@@ -298,12 +298,39 @@ server_parameters:
         condition: {expr: false}
         redact: false
 
-    spillWiredTigerCacheSizeMB:
-        description: The amount of memory in MB to allocate for the spill WiredTiger instance cache.
+    spillWiredTigerCacheSizePercentage:
+        description: >-
+            The amount of memory, as a percentage of system memory, to allocate for the spill
+            WiredTiger instance cache, bounded by spillWiredTigerCacheSizeMinMB and
+            spillWiredTigerCacheSizeMaxMB.
+        set_at: startup
+        cpp_vartype: double
+        cpp_varname: gSpillWiredTigerCacheSizePercentage
+        default: 2.5
+        validator:
+            gte: 0
+            lte: 10
+        redact: false
+
+    spillWiredTigerCacheSizeMinMB:
+        description: >-
+            The lower bound for spillWiredTigerCacheSizePercentage in MB.
         set_at: startup
         cpp_vartype: int32_t
-        cpp_varname: gSpillWiredTigerCacheSizeMB
+        cpp_varname: gSpillWiredTigerCacheSizeMinMB
         default: 100
+        validator:
+            gte: 50
+            lte: 10000000 # 10TB
+        redact: false
+
+    spillWiredTigerCacheSizeMaxMB:
+        description: >-
+            The upper bound for spillWiredTigerCacheSizePercentage in MB.
+        set_at: startup
+        cpp_vartype: int32_t
+        cpp_varname: gSpillWiredTigerCacheSizeMaxMB
+        default: 1000
         validator:
             gte: 50
             lte: 10000000 # 10TB
@@ -335,12 +362,36 @@ server_parameters:
             lte: 20
         redact: false
 
+    spillWiredTigerEvictionDirtyTargetPercentage:
+        description: >-
+            Percentage threshold at which eviction threads start dirty cache eviction on the spill engine.
+        set_at: startup
+        cpp_vartype: int32_t
+        cpp_varname: gSpillWiredTigerEvictionDirtyTargetPercentage
+        default: 5
+        validator:
+            gte: 1
+            lte: 100
+        redact: false
+
     spillWiredTigerEvictionDirtyTriggerPercentage:
         description: >-
             Percentage threshold at which application threads start dirty cache eviction on the spill engine.
         set_at: startup
         cpp_vartype: int32_t
         cpp_varname: gSpillWiredTigerEvictionDirtyTriggerPercentage
+        default: 80
+        validator:
+            gte: 1
+            lte: 100
+        redact: false
+
+    spillWiredTigerEvictionUpdatesTriggerPercentage:
+        description: >-
+            Percentage threshold for updates in cache at which eviction starts operating aggressively on the spill engine.
+        set_at: startup
+        cpp_vartype: int32_t
+        cpp_varname: gSpillWiredTigerEvictionUpdatesTriggerPercentage
         default: 80
         validator:
             gte: 1
@@ -370,6 +421,14 @@ server_parameters:
         validator:
             gte: -7
             lte: 22
+        redact: false
+
+    spillWiredTigerEngineConfig:
+        description: >-
+            The config string of WiredTiger storage engine options used for the spill engine.
+        set_at: startup
+        cpp_vartype: std::string
+        cpp_varname: gSpillWiredTigerEngineConfig
         redact: false
 
     enableTemporarilyUnavailableExceptions:

@@ -11,6 +11,7 @@
  * ]
  */
 
+import {getTimeseriesCollForDDLOps} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 import {
     getNumShards,
     getRandomShardName,
@@ -229,7 +230,6 @@ jsTest.log('$shardedDataDistribution supports timeseries collections');
     const testDb = setupTestDatabase(db, `${jsTestName()}_timeseries`);
     const testColl = testDb.getCollection('testColl');
     const nss = testColl.getFullName();
-    const bucketsNss = `${testDb.getName()}.system.buckets.${testColl.getName()}`;
     assert.commandWorked(
         db.adminCommand({shardCollection: nss, timeseries: {timeField: 'ts'}, key: {ts: 1}}));
     assert.commandWorked(testColl.insertOne({
@@ -241,7 +241,7 @@ jsTest.log('$shardedDataDistribution supports timeseries collections');
               adminDb
                   .aggregate([
                       {$shardedDataDistribution: {}},
-                      {$match: {ns: bucketsNss}},
+                      {$match: {ns: getTimeseriesCollForDDLOps(testDb, testColl).getFullName()}},
                       {
                           $match: {
                               $and: [

@@ -44,6 +44,8 @@
 #include "mongo/util/processinfo.h"
 #include "mongo/util/testing_proctor.h"
 
+#include <algorithm>
+
 #include <boost/filesystem/directory.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/filesystem/path.hpp>
@@ -490,6 +492,16 @@ size_t WiredTigerUtil::getMainCacheSizeMB(double requestedCacheSizeGB,
         cacheSizeMB = kMaxSizeCacheMB;
     }
     return static_cast<size_t>(std::floor(cacheSizeMB));
+}
+
+int32_t WiredTigerUtil::getSpillCacheSizeMB(int32_t systemMemoryMB,
+                                            double pct,
+                                            int32_t minMB,
+                                            int32_t maxMB) {
+    uassert(10698700,
+            "Min spill engine cache size cannot be greater than max spill engine cache size",
+            minMB <= maxMB);
+    return std::clamp(static_cast<int32_t>(systemMemoryMB * pct * 0.01), minMB, maxMB);
 }
 
 logv2::LogSeverity getWTLogSeverityLevel(const BSONObj& obj) {
@@ -975,28 +987,35 @@ static int mdb_handle_error_for_statistics(WT_EVENT_HANDLER* handler,
     return mdb_handle_error(handler, session, errorCode, message);
 }
 
-bool WiredTigerUtil::collectConnectionStatistics(WiredTigerKVEngineBase* engine,
+std::unique_ptr<WiredTigerSession> WiredTigerUtil::getStatisticsSession(
+    WiredTigerKVEngineBase& engine,
+    StatsCollectionPermit& permit,
+    WiredTigerEventHandler& eventHandler) {
+    // Silence some errors when trying to get statistics during startup
+    auto handler = eventHandler.getWtEventHandler();
+    handler->handle_error = mdb_handle_error_for_statistics;
+
+    // Obtain a session that can be used during shut down, potentially before the storage engine
+    // itself shuts down.
+    return std::make_unique<WiredTigerSession>(&engine.getConnection(), handler, permit);
+}
+
+bool WiredTigerUtil::collectConnectionStatistics(WiredTigerKVEngineBase& engine,
                                                  BSONObjBuilder& bob,
                                                  const std::vector<std::string>& fieldsToInclude) {
-    boost::optional<StatsCollectionPermit> permit = engine->tryGetStatsCollectionPermit();
+    boost::optional<StatsCollectionPermit> permit = engine.tryGetStatsCollectionPermit();
     if (!permit) {
         return false;
     }
 
-    // Silence some errors when trying to get statistics during startup
     WiredTigerEventHandler eventHandler;
-    auto handler = eventHandler.getWtEventHandler();
-    handler->handle_error = mdb_handle_error_for_statistics;
-
-    // Obtain a session that can be used during shut down,
-    // potentially before the storage engine itself shuts down.
-    WiredTigerSession session(&engine->getConnection(), handler, *permit);
+    auto session = getStatisticsSession(engine, *permit, eventHandler);
 
     // Filter out irrelevant statistic fields.
     std::vector<std::string> categoriesToIgnore = {"LSM"};
 
     Status status = WiredTigerUtil::exportTableToBSON(
-        session,
+        *session,
         "statistics:",
         "statistics=(fast)",
         bob,
@@ -1011,30 +1030,24 @@ bool WiredTigerUtil::collectConnectionStatistics(WiredTigerKVEngineBase* engine,
     return true;
 }
 
-bool WiredTigerUtil::historyStoreStatistics(WiredTigerKVEngine* engine, BSONObjBuilder& bob) {
+bool WiredTigerUtil::historyStoreStatistics(WiredTigerKVEngine& engine, BSONObjBuilder& bob) {
     // History Storage does not exists on the in Memory storage.
-    if (engine->isEphemeral()) {
+    if (engine.isEphemeral()) {
         return false;
     }
 
-    boost::optional<StatsCollectionPermit> permit = engine->tryGetStatsCollectionPermit();
+    boost::optional<StatsCollectionPermit> permit = engine.tryGetStatsCollectionPermit();
     if (!permit) {
         return false;
     }
 
-    // Silence some errors when trying to get statistics during startup
     WiredTigerEventHandler eventHandler;
-    auto handler = eventHandler.getWtEventHandler();
-    handler->handle_error = mdb_handle_error_for_statistics;
-
-    // Obtain a session that can be used during shut down, potentially before the storage engine
-    // itself shuts down.
-    WiredTigerSession session(&engine->getConnection(), handler, *permit);
+    auto session = getStatisticsSession(engine, *permit, eventHandler);
 
     const auto historyStorageStatUri = "statistics:file:WiredTigerHS.wt";
 
-    Status status =
-        WiredTigerUtil::exportTableToBSON(session, historyStorageStatUri, "statistics=(fast)", bob);
+    Status status = WiredTigerUtil::exportTableToBSON(
+        *session, historyStorageStatUri, "statistics=(fast)", bob);
     if (!status.isOK()) {
         bob.append("error", "unable to retrieve statistics");
         bob.append("code", static_cast<int>(status.code()));

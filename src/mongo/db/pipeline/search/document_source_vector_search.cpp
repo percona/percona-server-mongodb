@@ -235,10 +235,15 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceVectorSearch::createFromB
 
     // Validate the source of the view if it exists on the spec, otherwise check expCtx for the
     // view.
-    if (search_helpers::getViewFromBSONObj(spec)) {
+    boost::optional<SearchQueryViewSpec> view = search_helpers::getViewFromBSONObj(spec);
+    if (view) {
         search_helpers::validateViewNotSetByUser(expCtx, spec);
-    } else if (auto view = search_helpers::getViewFromExpCtx(expCtx)) {
+    } else if ((view = search_helpers::getViewFromExpCtx(expCtx))) {
         spec = spec.addField(BSON(kViewFieldName << view->toBSON()).firstElement());
+    }
+
+    if (view) {
+        search_helpers::validateMongotIndexedViewsFF(expCtx, view->getEffectivePipeline());
     }
 
     auto serviceContext = expCtx->getOperationContext()->getServiceContext();
@@ -256,15 +261,12 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceVectorSearch::desugar() {
     std::list<intrusive_ptr<DocumentSource>> desugaredPipeline = {
         make_intrusive<DocumentSourceVectorSearch>(pExpCtx, executor, _originalSpec.getOwned())};
 
-    auto shardFilterer = DocumentSourceInternalShardFilter::buildIfNecessary(pExpCtx);
-    auto idLookupStage = make_intrusive<DocumentSourceInternalSearchIdLookUp>(
+    search_helpers::promoteStoredSourceOrAddIdLookup(
         pExpCtx,
+        desugaredPipeline,
+        isStoredSource(),
         _limit.value_or(0),
-        buildExecShardFilterPolicy(shardFilterer),
         search_helpers::getViewFromBSONObj(_originalSpec));
-    desugaredPipeline.insert(std::next(desugaredPipeline.begin()), idLookupStage);
-    if (shardFilterer)
-        desugaredPipeline.push_back(std::move(shardFilterer));
 
     return desugaredPipeline;
 }

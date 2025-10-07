@@ -284,6 +284,10 @@ const internalCommandsMap = {
         testname: "_configsvrSetUserWriteBlockMode",
         command: {_configsvrSetUserWriteBlockMode: 1, global: true},
     },
+    _configsvrStartShardDraining: {
+        testname: "_configsvrStartShardDraining",
+        command: {_configsvrStartShardDraining: shard0name, startShardDraining: shard0name},
+    },
     _configsvrTransitionFromDedicatedConfigServer: {
         testname: "_configsvrTransitionFromDedicatedConfigServer",
         command: {_configsvrTransitionFromDedicatedConfigServer: 1},
@@ -299,6 +303,10 @@ const internalCommandsMap = {
     _dropConnectionsToMongot: {
         testname: "_dropConnectionsToMongot",
         command: {_dropConnectionsToMongot: 1, hostAndPort: []},
+    },
+    _dropMirrorMaestroConnections: {
+        testname: "_dropMirrorMaestroConnections",
+        command: {_dropMirrorMaestroConnections: 1, hostAndPort: []},
     },
     _flushDatabaseCacheUpdates: {
         skip: true,  // This command isn't valid when the shards are authoritative for DB metadata.
@@ -366,6 +374,10 @@ const internalCommandsMap = {
     _migrateClone: {
         testname: "_migrateClone",
         command: {_migrateClone: "test"},
+    },
+    _mirrorMaestroConnPoolStats: {
+        testname: "_mirrorMaestroConnPoolStats",
+        command: {_mirrorMaestroConnPoolStats: 1},
     },
     _mongotConnPoolStats: {
         testname: "_mongotConnPoolStats",

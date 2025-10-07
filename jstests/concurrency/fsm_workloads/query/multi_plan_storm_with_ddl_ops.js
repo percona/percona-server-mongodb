@@ -9,6 +9,9 @@
  *  incompatible_with_concurrency_simultaneous,
  *  assumes_stable_shard_list,
  *  does_not_support_stepdowns,
+ *  # The test executes long-running queries which can cause timeout errors when acquiring locks
+ *  # for DDL operations in case of multi-document transactions.
+ *  does_not_support_transactions,
  * ]
  */
 import {extendWorkload} from "jstests/concurrency/fsm_libs/extend_workload.js";
@@ -28,6 +31,10 @@ export const $config = extendWorkload($baseConfig, function($config, $super) {
                     ErrorCodes.LockTimeout,
                     ErrorCodes.ExceededTimeLimit,
                     ErrorCodes.StaleConfig,
+                    // DDL operations complicate creating snapshots which leads to this type of
+                    // error, but the rate limiter itself does not modify data and therefore doesn't
+                    // cause this error.
+                    ErrorCodes.MigrationConflict
                 ];
                 assert.contains(e.code, allowedCodes);
             }

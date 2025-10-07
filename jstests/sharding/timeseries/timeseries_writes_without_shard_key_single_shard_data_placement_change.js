@@ -9,6 +9,8 @@
  *    uses_transactions,
  * ]
  */
+
+import {getTimeseriesCollForDDLOps} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
@@ -36,14 +38,16 @@ assert.commandWorked(dbConn.createCollection(
 assert.commandWorked(dbConn.adminCommand({'enableSharding': dbName}));
 assert.commandWorked(dbConn.adminCommand({shardCollection: nss, key: {timestamp: 1}}));
 
-const splitNs = `${dbName}.system.buckets.${collName}`;
 const splitKey = "control.min.timestamp";
 
-assert.commandWorked(dbConn.adminCommand({split: splitNs, middle: {[splitKey]: splitPoint}}));
+assert.commandWorked(dbConn.adminCommand({
+    split: getTimeseriesCollForDDLOps(dbConn, coll).getFullName(),
+    middle: {[splitKey]: splitPoint}
+}));
 
 // Move chunks so each shard has one chunk.
 assert.commandWorked(dbConn.adminCommand({
-    moveChunk: splitNs,
+    moveChunk: getTimeseriesCollForDDLOps(dbConn, coll).getFullName(),
     find: {[splitKey]: splitPoint},
     to: st.shard1.shardName,
 }));
@@ -64,10 +68,6 @@ function getDB(session, testCase) {
 }
 
 function runTest(testCase) {
-    // Do not test the bulkWrite case in multiversion
-    // TODO (SERVER-103224) remove this check after the solution is backported.
-    if (!is82OrAbove() && testCase.cmdObj.bulkWrite)
-        return;
     const session = st.s.startSession();
     session.startTransaction({readConcern: {level: "snapshot"}});
     session.getDatabase(dbName).getCollection(collName2).insert({x: 1});
@@ -75,8 +75,11 @@ function runTest(testCase) {
         configureFailPoint(st.rs1.getPrimary(), "suspendRangeDeletion");
 
     // Move all chunks for testDb.testColl to shard0.
-    assert.commandWorked(st.s.adminCommand(
-        {moveChunk: splitNs, find: {[splitKey]: splitPoint}, to: st.shard0.shardName}));
+    assert.commandWorked(st.s.adminCommand({
+        moveChunk: getTimeseriesCollForDDLOps(dbConn, coll).getFullName(),
+        find: {[splitKey]: splitPoint},
+        to: st.shard0.shardName
+    }));
     hangDonorAtStartOfRangeDel.wait();
 
     // This command MUST fail, the data moved to another shard, we can't try on shard0 nor
@@ -87,8 +90,11 @@ function runTest(testCase) {
     hangDonorAtStartOfRangeDel.off();
 
     // Reset the chunk distribution for the next test.
-    assert.commandWorked(st.s.adminCommand(
-        {moveChunk: splitNs, find: {[splitKey]: splitPoint}, to: st.shard1.shardName}));
+    assert.commandWorked(st.s.adminCommand({
+        moveChunk: getTimeseriesCollForDDLOps(dbConn, coll).getFullName(),
+        find: {[splitKey]: splitPoint},
+        to: st.shard1.shardName
+    }));
 }
 
 let testCases = [

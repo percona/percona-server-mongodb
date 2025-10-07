@@ -408,6 +408,7 @@ public:
 
     Status prepareForIndexBuild(OperationContext* opCtx,
                                 const IndexDescriptor* spec,
+                                StringData indexIdent,
                                 boost::optional<UUID> buildUUID) override {
         MONGO_UNREACHABLE;
     }
@@ -590,7 +591,7 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    void onDeregisterFromCatalog(OperationContext* opCtx) override {
+    void onDeregisterFromCatalog(ServiceContext* svcCtx) override {
         MONGO_UNREACHABLE;
     }
 

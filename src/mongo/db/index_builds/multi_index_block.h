@@ -208,8 +208,8 @@ public:
      * before calling commit(), stop writes on the collection by holding a S or X while calling this
      * method.
      *
-     * When 'readSource' is not kUnset, perform the drain by reading at the timestamp described by
-     * the ReadSource.
+     * When 'readSource' is not kNoTimestamp, perform the drain by reading at the timestamp
+     * described by the ReadSource.
      *
      * Must not be in a WriteUnitOfWork.
      */
@@ -256,8 +256,8 @@ public:
      *
      * Requires holding an exclusive lock on the collection.
      */
-    using OnCommitFn = std::function<void()>;
-    using OnCreateEachFn = std::function<void(const BSONObj& spec)>;
+    using OnCommitFn = function_ref<void()>;
+    using OnCreateEachFn = function_ref<void(const BSONObj& spec, StringData ident)>;
     Status commit(OperationContext* opCtx,
                   Collection* collection,
                   OnCreateEachFn onCreateEach,

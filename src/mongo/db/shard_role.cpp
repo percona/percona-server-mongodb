@@ -1827,11 +1827,16 @@ void restoreTransactionResourcesToOperationContext(
             try {
                 return restoreFn();
             } catch (const ExceptionFor<ErrorCodes::StaleConfig>& ex) {
-                if (ex->getCriticalSectionSignal()) {
+                if (ex->getCriticalSectionSignal() && !opCtx->isRetryableWrite()) {
                     // If we encountered a critical section, then yield, wait for the critical
                     // section to finish and then we'll resume the write from the point we had left.
                     // We do this to prevent large multi-writes from repeatedly failing due to
                     // StaleConfig and exhausting the mongos retry attempts. Yield the locks.
+                    //
+                    // We don't do this in case we are executing a retryable write, since doing that
+                    // means holding the session checked in while we wait, which can lead to
+                    // deadlocks. Also retryable writes will safely be retried by a higher layer in
+                    // case of StaleConfig.
                     Locker::LockSnapshot lockSnapshot;
                     shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
                     shard_role_details::getLocker(opCtx)->saveLockStateAndUnlock(&lockSnapshot);
@@ -2134,24 +2139,6 @@ NamespaceString shard_role_nocheck::resolveNssWithoutAcquisition(OperationContex
 boost::optional<NamespaceString> shard_role_nocheck::lookupNssWithoutAcquisition(
     OperationContext* opCtx, const UUID& uuid) {
     return CollectionCatalog::get(opCtx)->lookupNSSByUUID(opCtx, uuid);
-}
-
-std::variant<CollectionOptions, std::shared_ptr<const ViewDefinition>, std::monostate>
-shard_role_nocheck::getCollectionOptionsOrViewDefinitionWithoutAcquisition(
-    OperationContext* opCtx, const NamespaceString& nss) {
-    // Checks the databaseVersion, and sets up lock-free read state if needed.
-    AutoGetDbForReadMaybeLockFree autoGetDb(opCtx, nss.dbName());
-
-    const auto collectionCatalog = CollectionCatalog::get(opCtx);
-    const auto coll = collectionCatalog->lookupCollectionByNamespace(opCtx, nss);
-    if (coll) {
-        return coll->getCollectionOptions();
-    } else if (const auto& viewDefinition = collectionCatalog->lookupView(opCtx, nss)) {
-        return viewDefinition;
-    } else {
-        // Nss does not exist.
-        return std::monostate{};
-    }
 }
 
 }  // namespace mongo

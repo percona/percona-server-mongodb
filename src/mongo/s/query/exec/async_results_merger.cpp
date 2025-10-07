@@ -741,45 +741,76 @@ Status AsyncResultsMerger::scheduleGetMores() {
 
 
 Status AsyncResultsMerger::releaseMemory() {
-    AsyncRequestsSender::ShardHostMap shardHostMap;
-    std::vector<AsyncRequestsSender::Request> requests;
-    requests.reserve(_remotes.size());
-    for (const auto& remote : _remotes) {
-        if (!remote->status.isOK()) {
-            return remote->status;
+    boost::optional<AsyncRequestsSender> sender;
+
+    {
+        AsyncRequestsSender::ShardHostMap shardHostMap;
+        std::vector<AsyncRequestsSender::Request> requests;
+
+        stdx::lock_guard<stdx::mutex> lk(_mutex);
+
+        requests.reserve(_remotes.size());
+        for (const auto& remote : _remotes) {
+            if (!remote->status.isOK()) {
+                return remote->status;
+            }
+            if (remote->exhausted()) {
+                continue;
+            }
+            const std::vector<mongo::CursorId> params{remote->cursorId};
+            ReleaseMemoryCommandRequest releaseMemoryCmd(params);
+            releaseMemoryCmd.setDbName(remote->cursorNss.dbName());
+            BSONObjBuilder commandObj;
+            releaseMemoryCmd.serialize(&commandObj);
+
+            shardHostMap.emplace(remote->shardId, remote->shardHostAndPort);
+            requests.emplace_back(remote->shardId, commandObj.obj());
         }
-        if (remote->exhausted()) {
+
+        sender.emplace(_opCtx,
+                       _executor,
+                       _params.getNss().dbName(),
+                       requests,
+                       ReadPreferenceSetting::get(_opCtx),
+                       Shard::RetryPolicy::kNoRetry,
+                       nullptr /*resourceYielder*/,
+                       shardHostMap);
+    }
+
+    Status resStatus = Status::OK();
+    BSONObjBuilder finalMessageBuilder;
+
+    while (!sender->done()) {
+        auto status = getStatusFromReleaseMemoryCommandResponse(sender->next());
+        if (status.isOK()) {
             continue;
         }
-        const std::vector<mongo::CursorId> params{remote->cursorId};
-        ReleaseMemoryCommandRequest releaseMemoryCmd(params);
-        releaseMemoryCmd.setDbName(remote->cursorNss.dbName());
-        BSONObjBuilder commandObj;
-        releaseMemoryCmd.serialize(&commandObj);
 
-        shardHostMap.emplace(remote->shardId, remote->shardHostAndPort);
-        requests.emplace_back(remote->shardId, commandObj.obj());
-    }
-
-    AsyncRequestsSender sender{_opCtx,
-                               _executor,
-                               _params.getNss().dbName(),
-                               requests,
-                               ReadPreferenceSetting::get(_opCtx),
-                               Shard::RetryPolicy::kNoRetry,
-                               nullptr /*resourceYielder*/,
-                               shardHostMap};
-
-
-    while (!sender.done()) {
-        auto response = sender.next();
-        if (auto status = getStatusFromReleaseMemoryCommandResponse(response); !status.isOK()) {
-            sender.stopRetrying();
+        // Wait for responses from the other shards if the error is any of the errors in
+        // 'safeErrorCodes' since for those errors we can guarantee that the data has not been
+        // corrupted and it is safe to continue the execution. We must wait for the other shards
+        // to be sure that none returned a fatal error.
+        static const std::unordered_set<ErrorCodes::Error> safeErrorCodes{
+            ErrorCodes::QueryExceededMemoryLimitNoDiskUseAllowed,
+            ErrorCodes::CursorInUse,
+            ErrorCodes::CursorNotFound};
+        if (safeErrorCodes.find(status.code()) == safeErrorCodes.end()) {
+            // The shard returned a fatal error. Return immediately since the cursor will be killed
+            // anyway.
+            sender->stopRetrying();
             return status;
         }
+
+        finalMessageBuilder.append(status.codeString(), status.reason());
+
+        resStatus = status;
     }
 
-    return Status::OK();
+    if (!resStatus.isOK()) {
+        return Status{ErrorCodes::ReleaseMemoryShardError, finalMessageBuilder.obj().toString()};
+    }
+
+    return resStatus;
 }
 
 Status AsyncResultsMerger::_scheduleGetMores(WithLock lk) {

@@ -303,6 +303,7 @@ car_common_catalog_ddl:
     - src/mongo/db/drop_indexes.idl
     - src/mongo/db/list_collections.idl
     - src/mongo/db/list_indexes.idl
+    - src/mongo/db/commands/collmod_cmd.cpp
     - src/mongo/db/commands/create.idl
     - src/mongo/db/commands/create_command*
     - src/mongo/db/commands/drop*
@@ -567,7 +568,6 @@ routing_and_topology:
     - src/mongo/s/*ns_targeter*
     - src/mongo/s/router_role[._]*
     - src/mongo/s/*routing*
-    - src/mongo/s/stale_shard_version_helpers*
 
     # catalog cache
     - src/mongo/db/s/*catalog_cache*
@@ -622,9 +622,11 @@ routing_and_topology:
     - src/mongo/s/request_types/add_shard*
 
     - src/mongo/db/s/remove_shard*
+    - src/mongo/db/s/config/configsvr_start_shard_draining_command.cpp
     - src/mongo/db/s/config/configsvr_remove_shard*
     - src/mongo/db/s/config/remove_shard_command_helpers*
     - src/mongo/s/commands/*remove_shard*
+    - src/mongo/s/commands/cluster_start_shard_draining_cmd.cpp
     - src/mongo/s/request_types/remove_shard*
 
     - src/mongo/db/s/complete_promotion_to_sharded_cluster_coordinator*
@@ -860,6 +862,7 @@ data_movement:
     - src/mongo/db/s/migration_util*
     - src/mongo/db/s/migration_chunk*
     - src/mongo/db/s/active_migrations*
+    - src/mongo/db/s/random_migration_testing_utils*
     - src/mongo/db/s/range_delet*
     - src/mongo/db/s/chunk*
     - src/mongo/db/s/start_chunk*

@@ -99,7 +99,10 @@ auto runWithoutSession(OperationContext* opCtx, Callable callable) {
     auto retVal = callable();
 
     // The below code can throw, so it cannot run in a scope guard.
-    opCtx->checkForInterrupt();
+    {
+        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        opCtx->checkForInterrupt();
+    }
     checkOutSessionAndVerifyTxnState(opCtx);
 
     return retVal;
@@ -115,7 +118,10 @@ void runWithoutSession(OperationContext* opCtx, Callable callable) {
     callable();
 
     // The below code can throw, so it cannot run in a scope guard.
-    opCtx->checkForInterrupt();
+    {
+        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        opCtx->checkForInterrupt();
+    }
     checkOutSessionAndVerifyTxnState(opCtx);
 }
 }  // namespace
@@ -149,7 +155,10 @@ void MigrationBatchInserter::run(Status status) const try {
             stdx::lock_guard<Client> lk(*_outerOpCtx->getClient());
             _outerOpCtx->checkForInterrupt();
         }
-        opCtx->checkForInterrupt();
+        {
+            stdx::lock_guard<Client> lk(*opCtx->getClient());
+            opCtx->checkForInterrupt();
+        }
     };
 
     auto it = arr.begin();
@@ -206,7 +215,7 @@ void MigrationBatchInserter::run(Status status) const try {
         _migrationProgress->incNumCloned(batchNumCloned);
         _migrationProgress->incNumBytes(batchClonedBytes);
 
-        if (_writeConcern.needToWaitForOtherNodes() && _threadCount == 1) {
+        if (_writeConcern.needToWaitForOtherNodes()) {
             if (auto ticket =
                     _secondaryThrottleTicket->tryAcquire(&ExecutionAdmissionContext::get(opCtx))) {
                 runWithoutSession(_outerOpCtx, [&] {

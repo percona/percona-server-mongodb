@@ -38,6 +38,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/logv2/log.h"
+#include "mongo/util/processinfo.h"
 
 #include <memory>
 
@@ -151,8 +152,14 @@ std::unique_ptr<RecordStore> SpillWiredTigerKVEngine::makeTemporaryRecordStore(
 }
 
 int64_t SpillWiredTigerKVEngine::storageSize(RecoveryUnit& ru) {
-    WiredTigerSession session(_connection.get());
-    auto idents = getAllIdents(ru);
+    auto permit = tryGetStatsCollectionPermit();
+    if (!permit) {
+        return 0;
+    }
+
+    WiredTigerEventHandler eventHandler;
+    auto session = WiredTigerUtil::getStatisticsSession(*this, *permit, eventHandler);
+    auto idents = _wtGetAllIdents(*session);
 
     return std::accumulate(idents.begin(),
                            idents.end(),
@@ -160,7 +167,7 @@ int64_t SpillWiredTigerKVEngine::storageSize(RecoveryUnit& ru) {
                            [&session](int64_t storageSize, const std::string& ident) {
                                return storageSize +
                                    WiredTigerUtil::getIdentSize(
-                                          session, WiredTigerUtil::buildTableUri(ident));
+                                          *session, WiredTigerUtil::buildTableUri(ident));
                            });
 }
 
@@ -176,7 +183,7 @@ int64_t SpillWiredTigerKVEngine::getIdentSize(RecoveryUnit& ru, StringData ident
 
 std::vector<std::string> SpillWiredTigerKVEngine::getAllIdents(RecoveryUnit& ru) const {
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
-    return _wtGetAllIdents(wtRu);
+    return _wtGetAllIdents(*wtRu.getSession());
 }
 
 Status SpillWiredTigerKVEngine::dropIdent(RecoveryUnit& ru,
@@ -225,21 +232,26 @@ void SpillWiredTigerKVEngine::cleanShutdown(bool memLeakAllowed) {
 WiredTigerKVEngineBase::WiredTigerConfig getSpillWiredTigerConfigFromStartupOptions() {
     WiredTigerKVEngineBase::WiredTigerConfig wtConfig;
 
-    wtConfig.cacheSizeMB = gSpillWiredTigerCacheSizeMB;
+    wtConfig.cacheSizeMB = WiredTigerUtil::getSpillCacheSizeMB(ProcessInfo{}.getMemSizeMB(),
+                                                               gSpillWiredTigerCacheSizePercentage,
+                                                               gSpillWiredTigerCacheSizeMinMB,
+                                                               gSpillWiredTigerCacheSizeMaxMB);
     wtConfig.sessionMax = wiredTigerGlobalOptions.sessionMax;
     wtConfig.evictionThreadsMin = gSpillWiredTigerEvictionThreadsMin;
     wtConfig.evictionThreadsMax = gSpillWiredTigerEvictionThreadsMax;
-    wtConfig.evictionDirtyTargetMB = wiredTigerGlobalOptions.evictionDirtyTargetGB * 1024;
+    wtConfig.evictionDirtyTargetMB =
+        gSpillWiredTigerEvictionDirtyTargetPercentage * wtConfig.cacheSizeMB / 100;
     wtConfig.evictionDirtyTriggerMB =
         gSpillWiredTigerEvictionDirtyTriggerPercentage * wtConfig.cacheSizeMB / 100;
     wtConfig.evictionUpdatesTriggerMB =
-        gSpillWiredTigerEvictionDirtyTriggerPercentage * wtConfig.cacheSizeMB / 100;
+        gSpillWiredTigerEvictionUpdatesTriggerPercentage * wtConfig.cacheSizeMB / 100;
     wtConfig.statisticsLogWaitSecs = wiredTigerGlobalOptions.statisticsLogDelaySecs;
     wtConfig.inMemory = false;
     wtConfig.logEnabled = false;
     wtConfig.prefetchEnabled = false;
     wtConfig.restoreEnabled = false;
     wtConfig.zstdCompressorLevel = gSpillWiredTigerZstdCompressionLevel;
+    wtConfig.extraOpenOptions = gSpillWiredTigerEngineConfig;
 
     return wtConfig;
 }

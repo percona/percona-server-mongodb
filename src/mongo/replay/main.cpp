@@ -62,6 +62,21 @@ stdx::mutex m;
 constexpr size_t MAX_PRODUCERS = 1;
 constexpr size_t MAX_CONSUMERS = 4;
 
+template <typename Future>
+void handleResponse(Future&& fut) {
+    try {
+        // During the task execution some errors could occur. In this case we catch the error and
+        // terminate.
+        fut.get();
+    } catch (const DBException& ex) {
+        tassert(ErrorCodes::ReplayClientInternalError, ex.what(), false);
+    } catch (const std::exception& ex) {
+        tassert(ErrorCodes::ReplayClientInternalError, ex.what(), false);
+    } catch (...) {
+        tassert(ErrorCodes::ReplayClientInternalError, "Unknown error type encountered", false);
+    }
+}
+
 void simpleTask(ReplayCommandExecutor& replayCommandExecutor,
                 const std::vector<BSONObj>& bsonCommands) {
 
@@ -77,26 +92,22 @@ void simpleTask(ReplayCommandExecutor& replayCommandExecutor,
     }
 }
 
-int main(int argc, char** argv) {
+void threadExecutionFunction(const ReplayOptions& replayOptions) {
     try {
-        auto options = OptionsHandler::handle(argc, argv);
-        uassert(ErrorCodes::ReplayClientConfigurationError,
-                "Failed parsing command line options.",
-                options);
-
         ReplayCommandExecutor replayCommandExecutor;
         uassert(ErrorCodes::ReplayClientConfigurationError,
                 "Failed initializing replay command execution.",
                 replayCommandExecutor.init());
 
-        RecordingReader reader{options.inputFile};
+        RecordingReader reader{replayOptions.recordingPath};
         const auto commands = reader.parse();
 
         if (!commands.empty()) {
-
-            replayCommandExecutor.connect(options.mongoURI);
-            // 4 sessions are equal to 4 different consumers in this first implementation.
+            replayCommandExecutor.connect(replayOptions.mongoURI);
+            // TODO: SERVER-106046 will pin session to worker. For now  MAX_CONSUMERS sessions are
+            //       equal to N different consumers/workers serving a session.
             SessionPool sessionPool(MAX_CONSUMERS);
+            replayCommandExecutor.connect(replayOptions.mongoURI);
             std::vector<stdx::future<void>> futures;
 
             for (size_t i = 0; i < MAX_PRODUCERS; ++i) {
@@ -105,12 +116,27 @@ int main(int argc, char** argv) {
             }
 
             for (auto& f : futures) {
-                f.get();
+                handleResponse(std::move(f));
             }
         }
 
     } catch (const std::exception& e) {
         tassert(ErrorCodes::ReplayClientInternalError, e.what(), false);
+    }
+}
+
+int main(int argc, char** argv) {
+
+    OptionsHandler commandLineOptions;
+    const auto& options = commandLineOptions.handle(argc, argv);
+
+    std::vector<stdx::thread> instances;
+    for (size_t i = 0; i < options.size(); ++i) {
+        instances.push_back(stdx::thread(threadExecutionFunction, std::ref(options[i])));
+    }
+
+    for (auto& instance : instances) {
+        instance.join();
     }
 
     return 0;

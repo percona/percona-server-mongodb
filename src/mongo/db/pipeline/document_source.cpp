@@ -33,6 +33,7 @@
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/matcher/expression_algo.h"
 #include "mongo/db/pipeline/change_stream_constants.h"
+#include "mongo/db/pipeline/dependencies.h"
 #include "mongo/db/pipeline/document_source_group.h"
 #include "mongo/db/pipeline/document_source_match.h"
 #include "mongo/db/pipeline/document_source_redact.h"
@@ -62,6 +63,10 @@ StringMap<DocumentSource::ParserRegistration> DocumentSource::parserMap;
 
 DocumentSource::DocumentSource(StringData stageName, const intrusive_ptr<ExpressionContext>& pCtx)
     : _expCtx(pCtx) {}
+
+void DocumentSource::unregisterParser_forTest(const std::string& name) {
+    parserMap.erase(name);
+}
 
 void DocumentSource::registerParser(std::string name, Parser parser, FeatureFlag* featureFlag) {
     auto it = parserMap.find(name);
@@ -155,7 +160,7 @@ namespace {
 bool groupMatchSwapVerified(const DocumentSourceMatch& nextMatch,
                             const DocumentSourceGroup& thisGroup) {
     // Construct a set of id fields.
-    stdx::unordered_set<std::string> idFields;
+    OrderedPathSet idFields;
     for (const auto& key : thisGroup.getIdFieldNames()) {
         idFields.insert(std::string("_id.").append(key));
     }

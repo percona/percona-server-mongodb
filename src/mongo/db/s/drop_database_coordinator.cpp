@@ -433,6 +433,13 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
 
                 for (const auto& coll : allTrackedCollectionsForDb) {
                     const auto& nss = coll.getNss();
+
+                    // Ensure that no chunk migration may target the next collection to be dropped
+                    // before persisting its identity on the recovery doc (This condition won't be
+                    // reinforced in case of a stepdown)
+                    sharding_ddl_util::stopMigrations(
+                        opCtx, nss, coll.getUuid(), getNewSession(opCtx));
+
                     auto newStateDoc = _doc;
                     newStateDoc.setCollInfo(coll);
                     newStateDoc.setCollChangeStreamsNotifier([&]() {
@@ -441,7 +448,8 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
                                 VersionContext::getDecoration(opCtx),
                                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
                             auto dataBearingShardId =
-                                sharding_ddl_util::pickDataBearingShard(opCtx, coll.getUuid());
+                                sharding_ddl_util::pickShardOwningCollectionChunks(opCtx,
+                                                                                   coll.getUuid());
                             if (dataBearingShardId) {
                                 changeStreamsNotifier = *dataBearingShardId;
                             } else {
@@ -464,9 +472,6 @@ ExecutorFuture<void> DropDatabaseCoordinator::_runImpl(
                                 "Dropping tracked collection",
                                 logAttrs(nss),
                                 "collChangeStreamsNotifierId"_attr = changeStreamsNotifier);
-
-                    sharding_ddl_util::stopMigrations(
-                        opCtx, nss, coll.getUuid(), getNewSession(opCtx));
 
                     _dropTrackedCollection(opCtx, coll, changeStreamsNotifier, executor, token);
                 }

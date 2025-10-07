@@ -319,8 +319,6 @@ last-continuous:
       ticket: SERVER-94151
     - test_file: jstests/core/write/update/upsert_duplicate_key_retry_collation.js
       ticket: SERVER-84089
-    - test_file: jstests/replsets/max_seven_voting_members_allowed.js
-      ticket: SERVER-69418
     - test_file: jstests/core/ddl/create_indexes.js
       ticket: SERVER-90952
     - test_file: jstests/sharding/nested_shard_role_within_router_role_recovery_in_txn.js
@@ -458,6 +456,12 @@ last-continuous:
       ticket: SERVER-103993
     - test_file: jstests/core_sharding/resharding/reshard_collection_atlas_log_ingestion.js
       ticket: SERVER-103172
+    - test_file: jstests/sharding/config_shards_on_repl_set_changes.js
+      ticket: SERVER-106614
+    - test_file: jstests/sharding/balancer_should_return_random_migrations_failpoint.js
+      ticket: SERVER-105874
+    - test_file: jstests/sharding/resharding_critical_section_abort_txns.js
+      ticket: SERVER-106707
   suites: null
 last-lts:
   all:
@@ -791,8 +795,6 @@ last-lts:
       ticket: SERVER-94151
     - test_file: jstests/core/write/update/upsert_duplicate_key_retry_collation.js
       ticket: SERVER-84089
-    - test_file: jstests/replsets/max_seven_voting_members_allowed.js
-      ticket: SERVER-69418
     - test_file: jstests/core/ddl/create_indexes.js
       ticket: SERVER-90952
     - test_file: jstests/sharding/nested_shard_role_within_router_role_recovery_in_txn.js
@@ -971,4 +973,10 @@ last-lts:
       ticket: SERVER-103993
     - test_file: jstests/core_sharding/resharding/reshard_collection_atlas_log_ingestion.js
       ticket: SERVER-103172
+    - test_file: jstests/sharding/config_shards_on_repl_set_changes.js
+      ticket: SERVER-106614
+    - test_file: jstests/sharding/balancer_should_return_random_migrations_failpoint.js
+      ticket: SERVER-105874
+    - test_file: jstests/sharding/resharding_critical_section_abort_txns.js
+      ticket: SERVER-106707
   suites: null

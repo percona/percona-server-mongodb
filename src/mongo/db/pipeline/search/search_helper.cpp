@@ -31,6 +31,7 @@
 
 #include "mongo/db/exec/shard_filterer_impl.h"
 #include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/pipeline/document_source_internal_shard_filter.h"
 #include "mongo/db/pipeline/document_source_replace_root.h"
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
@@ -268,7 +269,7 @@ void checkAndSetViewOnExpCtx(boost::intrusive_ptr<ExpressionContext> expCtx,
     // storedSource is disabled, idLookup will retrieve full/unmodified documents during
     // (from the _id values returned by mongot), apply the view's data transforms, and pass
     // said transformed documents through the rest of the user pipeline.
-    if (expCtx->isFeatureFlagMongotIndexedViewsEnabled() && lpp.hasSearchStage()) {
+    if (lpp.hasSearchStage() && !resolvedView.getPipeline().empty()) {
         expCtx->setView(boost::make_optional(std::make_pair(viewName, resolvedView.getPipeline())));
     }
 }
@@ -648,6 +649,59 @@ void validateViewNotSetByUser(boost::intrusive_ptr<ExpressionContext> expCtx, co
     if (spec.hasField(kViewFieldName)) {
         assertAllowedInternalIfRequired(
             expCtx->getOperationContext(), kViewFieldName, AllowedWithClientType::kInternal);
+    }
+}
+
+void validateMongotIndexedViewsFF(boost::intrusive_ptr<ExpressionContext> expCtx,
+                                  const std::vector<BSONObj>& effectivePipeline) {
+    // Queries on views with empty effective pipelines (i.e. identity views) are treated as queries
+    // on the underlying collection, therefore allowed on all FCV versions that support search.
+    uassert(ErrorCodes::OptionNotSupportedOnView,
+            "search stages are unsupported on views",
+            effectivePipeline.empty() || expCtx->isFeatureFlagMongotIndexedViewsEnabled());
+}
+
+void promoteStoredSourceOrAddIdLookup(
+    boost::intrusive_ptr<ExpressionContext> expCtx,
+    std::list<boost::intrusive_ptr<DocumentSource>>& desugaredPipeline,
+    bool isStoredSource,
+    long long limit,
+    boost::optional<SearchQueryViewSpec> view) {
+    // If 'returnStoredSource' is true, we don't want to do idLookup. Instead, promote the fields in
+    // 'storedSource' to root.
+    if (isStoredSource) {
+        // {$replaceRoot: {newRoot: {$ifNull: ["$storedSource", "$$ROOT"]}}
+        // 'storedSource' is not always present in the document from mongot. If it's present, use it
+        // as the root. Otherwise keep the original document.
+        BSONObj replaceRootSpec =
+            BSON("$replaceRoot" << BSON(
+                     "newRoot" << BSON(
+                         "$ifNull" << BSON_ARRAY("$" + kProtocolStoredFieldsName << "$$ROOT"))));
+        desugaredPipeline.push_back(
+            DocumentSourceReplaceRoot::createFromBson(replaceRootSpec.firstElement(), expCtx));
+        // Note: intentionally not including a shard filtering operator here. The isolation
+        // semantics are already weaker here so this was deemed OK. Potentially part of that
+        // conversation: the documents are not guaranteed to have the shard key, and we don't have
+        // an idLookup to go get it.
+    } else {
+        auto shardFilterer = DocumentSourceInternalShardFilter::buildIfNecessary(expCtx);
+        // idLookup must always be immediately after the first stage in the desugared pipeline
+        auto idLookupStage = make_intrusive<DocumentSourceInternalSearchIdLookUp>(
+            expCtx, limit, buildExecShardFilterPolicy(shardFilterer), view);
+        desugaredPipeline.insert(std::next(desugaredPipeline.begin()), idLookupStage);
+        if (shardFilterer) {
+            desugaredPipeline.push_back(std::move(shardFilterer));
+        }
+
+        // Check if the first stage in the pipeline is a mongotRemoteStage (only exists for
+        // $search).
+        auto mongotRemoteStage = dynamic_cast<DocumentSourceInternalSearchMongotRemote*>(
+            desugaredPipeline.front().get());
+        if (mongotRemoteStage) {
+            // Connect the shared search state of these two stages of the pipeline for batch size
+            // tuning.
+            mongotRemoteStage->setSearchIdLookupMetrics(idLookupStage->getSearchIdLookupMetrics());
+        }
     }
 }
 

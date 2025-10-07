@@ -38,6 +38,7 @@
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_mongot_remote.h"
 #include "mongo/db/pipeline/search/lite_parsed_search.h"
+#include "mongo/db/pipeline/search/search_helper.h"
 #include "mongo/db/pipeline/skip_and_limit.h"
 #include "mongo/db/query/search/manage_search_index_request_gen.h"
 #include "mongo/db/query/search/mongot_cursor.h"
@@ -122,6 +123,10 @@ intrusive_ptr<DocumentSource> DocumentSourceSearch::createFromBson(
         spec.setView(search_helpers::getViewFromExpCtx(expCtx));
     }
 
+    if (auto view = spec.getView()) {
+        search_helpers::validateMongotIndexedViewsFF(expCtx, view->getEffectivePipeline());
+    }
+
     return make_intrusive<DocumentSourceSearch>(expCtx, std::move(spec));
 }
 
@@ -148,40 +153,8 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceSearch::desugar() {
         std::move(spec), pExpCtx, executor);
     desugaredPipeline.push_back(mongoTRemoteStage);
 
-    // If 'returnStoredSource' is true, we don't want to do idLookup. Instead, promote the fields in
-    // 'storedSource' to root.
-    if (storedSource) {
-        // {$replaceRoot: {newRoot: {$ifNull: ["$storedSource", "$$ROOT"]}}
-        // 'storedSource' is not always present in the document from mongot. If it's present, use it
-        // as the root. Otherwise keep the original document.
-        BSONObj replaceRootSpec =
-            BSON("$replaceRoot" << BSON(
-                     "newRoot" << BSON(
-                         "$ifNull" << BSON_ARRAY("$" + kProtocolStoredFieldsName << "$$ROOT"))));
-        desugaredPipeline.push_back(
-            DocumentSourceReplaceRoot::createFromBson(replaceRootSpec.firstElement(), pExpCtx));
-        // Note: intentionally not including a shard filtering operator here. The isolation
-        // semantics are already weaker here so this was deemed OK. Potentially part of that
-        // conversation: the documents are not guaranteed to have the shard key, and we don't have
-        // an idLookup to go get it.
-        return desugaredPipeline;
-    } else {
-        auto shardFilterer = DocumentSourceInternalShardFilter::buildIfNecessary(pExpCtx);
-        // idLookup must always be immediately after the $mongotRemote stage, which is always first
-        // in the pipeline.
-        auto idLookupStage = make_intrusive<DocumentSourceInternalSearchIdLookUp>(
-            pExpCtx,
-            _spec.getLimit().value_or(0),
-            buildExecShardFilterPolicy(shardFilterer),
-            _spec.getView());
-        desugaredPipeline.insert(std::next(desugaredPipeline.begin()), idLookupStage);
-        // In this case, connect the shared search state of these two stages of the pipeline
-        // for batch size tuning.
-        mongoTRemoteStage->setSearchIdLookupMetrics(idLookupStage->getSearchIdLookupMetrics());
-        if (shardFilterer) {
-            desugaredPipeline.push_back(std::move(shardFilterer));
-        }
-    }
+    search_helpers::promoteStoredSourceOrAddIdLookup(
+        pExpCtx, desugaredPipeline, storedSource, _spec.getLimit().value_or(0), _spec.getView());
 
     return desugaredPipeline;
 }

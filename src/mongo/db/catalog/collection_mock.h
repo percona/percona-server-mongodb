@@ -377,7 +377,7 @@ public:
         MONGO_UNREACHABLE;
     }
 
-    void onDeregisterFromCatalog(OperationContext* opCtx) override {}
+    void onDeregisterFromCatalog(ServiceContext* svcCtx) override {}
 
     UUID uuid() const override {
         return _uuid;
@@ -427,6 +427,7 @@ public:
 
     Status prepareForIndexBuild(OperationContext* opCtx,
                                 const IndexDescriptor* spec,
+                                StringData indexIdent,
                                 boost::optional<UUID> buildUUID) override {
         MONGO_UNREACHABLE;
     }

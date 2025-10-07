@@ -622,7 +622,7 @@ void Pipeline::addInitialSource(intrusive_ptr<DocumentSource> source) {
 
 void Pipeline::addFinalSource(intrusive_ptr<DocumentSource> source) {
     if (!_sources.empty()) {
-        auto& finalStage = dynamic_cast<exec::agg::Stage&>(*_sources.back());
+        auto& finalStage = dynamic_cast<exec::agg::Stage&>(*source.get());
         finalStage.setSource(dynamic_cast<exec::agg::Stage*>(_sources.back().get()));
     }
     _sources.push_back(source);
@@ -985,8 +985,7 @@ std::unique_ptr<Pipeline, PipelineDeleter> Pipeline::makePipelineFromViewDefinit
         return Pipeline::makePipeline(currentPipeline, subPipelineExpCtx, opts);
     }
 
-    if (search_helper_bson_obj::isMongotPipeline(currentPipeline) &&
-        subPipelineExpCtx->isFeatureFlagMongotIndexedViewsEnabled()) {
+    if (search_helper_bson_obj::isMongotPipeline(currentPipeline)) {
         return Pipeline::viewPipelineHelperForSearch(
             subPipelineExpCtx, resolvedNs, currentPipeline, opts, originalNs);
     }

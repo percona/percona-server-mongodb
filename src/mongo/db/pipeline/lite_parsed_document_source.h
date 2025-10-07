@@ -262,6 +262,14 @@ public:
     }
 
     /**
+     * Returns false if aggregation stages manually opt out of mandatory authorization checks, true
+     otherwise. Will enable mandatory authorization checks by default.
+     */
+    virtual bool requiresAuthzChecks() const {
+        return true;
+    }
+
+    /**
      * Returns Status::OK() if the involved namespace 'nss' is allowed to be sharded. The behavior
      * is to allow by default. Stages should opt-out if foreign collections are not allowed to be
      * sharded by returning a Status with a message explaining why.
@@ -331,6 +339,14 @@ protected:
     }
 
 private:
+    /**
+     * Give access to 'parserMap' so we can remove a registered parser. unregisterParser_forTest is
+     * only meant to be used in the context of unit tests. This is because the parserMap is not
+     * thread safe, so modifying it at runtime is unsafe.
+     */
+    friend class DocumentSourceExtensionTest;
+    static void unregisterParser_forTest(const std::string& name);
+
     std::string _parseTimeName;
 };
 

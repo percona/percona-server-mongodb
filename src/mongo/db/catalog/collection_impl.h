@@ -350,7 +350,7 @@ public:
 
     void indexBuildSuccess(OperationContext* opCtx, IndexCatalogEntry* index) final;
 
-    void onDeregisterFromCatalog(OperationContext* opCtx) final;
+    void onDeregisterFromCatalog(ServiceContext* svcCtx) final;
 
     StatusWith<int> checkMetaDataForIndex(const std::string& indexName,
                                           const BSONObj& spec) const final;
@@ -376,6 +376,7 @@ public:
 
     Status prepareForIndexBuild(OperationContext* opCtx,
                                 const IndexDescriptor* spec,
+                                StringData indexIdent,
                                 boost::optional<UUID> buildUUID) final;
 
     boost::optional<UUID> getIndexBuildUUID(StringData indexName) const final;

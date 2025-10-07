@@ -44,7 +44,7 @@ protected:
     QuerySettingsValidationTestFixture() {
         ShardingState::create(getServiceContext());
         expCtx = make_intrusive<ExpressionContextForTest>();
-        query_settings::initializeForTest(getServiceContext());
+        query_settings::QuerySettingsService::initializeForTest(getServiceContext());
     }
 
     QuerySettingsService& service() {
@@ -302,6 +302,24 @@ TEST_F(QuerySettingsValidationTestFixture, QuerySettingsIndexHintsWithInvalidNat
     }});
     service().simplifyQuerySettings(querySettings);
     ASSERT_THROWS_CODE(service().validateQuerySettings(querySettings), DBException, 9646001);
+}
+
+TEST_F(QuerySettingsValidationTestFixture,
+       QueryShapeConfigurationsValidationFailsOnBSONObjectTooLarge) {
+    QueryShapeConfigurationsWithTimestamp config;
+    QuerySettings querySettings;
+    std::string largeString(10 * 1024 * 1024, 'a');
+    const BSONObj query = BSON("find" << "testColl" << "$db" << "testDB" << "filter"
+                                      << BSON("$gt" << BSON(largeString << 1)));
+    querySettings.setIndexHints({{
+        IndexHintSpec(makeNamespace("testDB", "testColl"), {IndexHint(BSON(largeString << 1))}),
+    }});
+    QueryShapeConfiguration queryShapeConfiguration(query_shape::QueryShapeHash(), querySettings);
+    queryShapeConfiguration.setRepresentativeQuery(query);
+    config.queryShapeConfigurations = {queryShapeConfiguration};
+    ASSERT_THROWS_CODE(service().validateQueryShapeConfigurations(config),
+                       DBException,
+                       ErrorCodes::BSONObjectTooLarge);
 }
 
 }  // namespace

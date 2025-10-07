@@ -382,6 +382,7 @@ public:
 
     Status prepareForIndexBuild(OperationContext* opCtx,
                                 const IndexDescriptor* spec,
+                                StringData indexIdent,
                                 boost::optional<UUID> buildUUID) final {
         unimplementedTasserted();
         return Status(ErrorCodes::UnknownError, "unknown");
@@ -577,7 +578,7 @@ public:
         unimplementedTasserted();
     }
 
-    void onDeregisterFromCatalog(OperationContext* opCtx) final {}
+    void onDeregisterFromCatalog(ServiceContext* svcCtx) final {}
 
 private:
     void unimplementedTasserted() const {

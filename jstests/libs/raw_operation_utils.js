@@ -79,6 +79,16 @@ export function getTimeseriesCollForRawOps(db, coll) {
 }
 
 /**
+ * Helper function to create an index directly on the raw timeseries buckets.
+ */
+export function createRawTimeseriesIndex(coll, spec, options, commitQuorum, cmdArgs) {
+    return getTimeseriesCollForRawOps(coll.getDB(), coll).createIndex(spec, options, commitQuorum, {
+        ...getRawOperationSpec(coll.getDB()),
+        ...cmdArgs
+    });
+}
+
+/**
  * Override the rawData function on the DBQuery object so that it becomes a no-op on versions where
  * rawData parameter is not supported (< 9.0)
  *
@@ -97,9 +107,11 @@ if (typeof DBQuery !== 'undefined' && typeof DBQuery.prototype.rawData === 'func
             assert(
                 value === undefined || value === true,
                 "Detected illegal usage of rawData function. rawData(false) can't be used on a cluster with binary versions that do not support 'rawData' parameter.");
-            assert(
-                this._collection.getName().startsWith('system.buckets.'),
-                `Detected illegal usage of rawData function. The query target '${this._collection.getName()}' that is not a system.buckets collection and the cluster contains binaries that do not support 'rawData' parameter.`);
+            if (!this._collection.getName().startsWith('system.buckets.')) {  // Fast path
+                const collMetadata = this._collection.getMetadata();
+                assert(!collMetadata || collMetadata.type === 'collection',
+                    `Detected illegal usage of rawData function. The query target '${this._collection.getName()}' that is not a regular collection and the cluster contains binaries that do not support 'rawData' parameter.`);
+            }
             return this;
         }
     };

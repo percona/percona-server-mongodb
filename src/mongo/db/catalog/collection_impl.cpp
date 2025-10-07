@@ -252,15 +252,6 @@ StatusWith<std::shared_ptr<Ident>> findSharedIdentForIndex(OperationContext* opC
         return latestEntry->getSharedIdent();
     }
 
-    // Next check the CollectionCatalog for a compatible drop pending index.
-    auto dropPendingEntry = CollectionCatalog::get(opCtx)->findDropPendingIndex(ident);
-
-    // The index entries are incompatible with the read timestamp, but we need to use the same
-    // shared ident to prevent the reaper from dropping idents prematurely.
-    if (dropPendingEntry) {
-        return dropPendingEntry->getSharedIdent();
-    }
-
     // The index ident is expired, but it could still be drop pending. Mark it as in use if
     // possible.
     auto newIdent = storageEngine->markIdentInUse(std::string{ident});
@@ -365,9 +356,9 @@ CollectionImpl::CollectionImpl(OperationContext* opCtx,
 
 CollectionImpl::~CollectionImpl() = default;
 
-void CollectionImpl::onDeregisterFromCatalog(OperationContext* opCtx) {
+void CollectionImpl::onDeregisterFromCatalog(ServiceContext* svcCtx) {
     if (ns().isOplog()) {
-        repl::clearLocalOplogPtr(opCtx->getServiceContext());
+        repl::clearLocalOplogPtr(svcCtx);
     }
 }
 
@@ -1643,11 +1634,8 @@ void CollectionImpl::removeIndex(OperationContext* opCtx, StringData indexName) 
 
 Status CollectionImpl::prepareForIndexBuild(OperationContext* opCtx,
                                             const IndexDescriptor* spec,
+                                            StringData ident,
                                             boost::optional<UUID> buildUUID) {
-    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    auto ident = storageEngine->generateNewIndexIdent(ns().dbName());
-    invariant(!ident.empty());
-
     durable_catalog::CatalogEntryMetaData::IndexMetaData imd;
     imd.spec = spec->infoObj();
     imd.ready = false;

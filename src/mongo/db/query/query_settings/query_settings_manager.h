@@ -44,7 +44,6 @@
 #include "mongo/db/service_context.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/platform/rwmutex.h"
-#include "mongo/stdx/trusted_hasher.h"
 
 #include <cstddef>
 #include <string>
@@ -153,14 +152,37 @@ public:
     void removeAllQueryShapeConfigurations(const boost::optional<TenantId>& tenantId);
 
     /**
+     * Marks the query shape configurations associated with the given 'backfilledHashes' as having a
+     * representative query. Fails with 'ConflictingOperationInProgress' if the provided
+     * 'clusterParameterTime' argument diverged from the current manager one.
+     */
+    void markBackfilledRepresentativeQueries(
+        const std::vector<query_shape::QueryShapeHash>& backfilledHashes,
+        const LogicalTime& clusterParameterTime,
+        const boost::optional<TenantId>& tenantId);
+
+    /**
      * Returns the cluster parameter time of the current QuerySettingsClusterParameter value for the
      * given tenant.
      */
     LogicalTime getClusterParameterTime(const boost::optional<TenantId>& tenantId) const;
 
 private:
-    std::vector<QueryShapeConfiguration> getAllQueryShapeConfigurations_inlock(
+    VersionedQueryShapeConfigurations getVersionedQueryShapeConfigurations(
         const boost::optional<TenantId>& tenantId) const;
+
+    /**
+     * Installs the new versioned query shape configurations.
+     *
+     * Additionally checks for 'clusterParameterTime' divergences if
+     * 'enforceClusterParameterTimeMatch' is true. Throws 'ConflictingOperationInProgress' if the
+     * new 'clusterParameterTime' contained in 'newQueryShapeConfigurations' is not equal to the
+     * current one.
+     */
+    template <bool enforceClusterParameterTimeMatch>
+    void setVersionedQueryShapeConfigurations(
+        VersionedQueryShapeConfigurations&& newQueryShapeConfigurations,
+        const boost::optional<TenantId>& tenantId);
 
     LogicalTime getClusterParameterTime_inlock(const boost::optional<TenantId>& tenantId) const;
 
@@ -168,4 +190,4 @@ private:
     absl::flat_hash_map<boost::optional<TenantId>, VersionedQueryShapeConfigurations>
         _tenantIdToVersionedQueryShapeConfigurationsMap;
 };
-};  // namespace mongo::query_settings
+}  // namespace mongo::query_settings

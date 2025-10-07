@@ -14,79 +14,95 @@
  * ]
  */
 import {assertDropAndRecreateCollection} from "jstests/libs/collection_drop_recreate.js";
-import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
+import {afterEach, beforeEach, describe, it} from "jstests/libs/mochalite.js";
 import {QuerySettingsUtils} from "jstests/libs/query/query_settings_utils.js";
-
-if (FeatureFlagUtil.isPresentAndEnabled(db, "PQSBackfill")) {
-    jsTest.log.info(
-        "The test is skipped as it requires a huge number of settings for hitting 16MB limit");
-    quit();
-}
 
 const dbName = db.getName();
 const collName = jsTestName();
-
-// Define some valid query settings we are going to apply to all queries.
-const irrelevantQuerySettings = {
-    indexHints: {ns: {db: dbName, coll: collName}, allowedIndexes: ["a123_1", {$natural: 1}]}
+const ns = {
+    db: dbName,
+    coll: collName
 };
 
-// Generate a number of larger disjunctive queries.
-const $orArgumentCount = 30000;
-const fieldNamePrefixes = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-const largeQueries = fieldNamePrefixes.map(
-    prefix => ({
-        find: collName,
-        filter: {$or: Array.from({length: $orArgumentCount}).map((p, i) => ({[prefix + i]: 1}))}
-    }));
+describe("QuerySettings", function() {
+    const qsutils = new QuerySettingsUtils(db, collName);
+    const queryA = qsutils.makeFindQueryInstance({filter: {a: "a"}});
+    const queryB = qsutils.makeFindQueryInstance({filter: {b: "b"}});
+    const querySettingsWithSmallIndexName = {indexHints: {ns, allowedIndexes: ["a"]}};
+    const querySettingsWithLargeIndexName = {
+        indexHints: {ns, allowedIndexes: ["a".repeat(10 * 1024 * 1024)]}
+    };
 
-// Define the number of query settings fitting into 16MB (obtained experimentally).
-const splitIndex = 20;
+    beforeEach(function() {
+        assertDropAndRecreateCollection(db, collName);
+        qsutils.removeAllQuerySettings();
+    });
 
-const coll = assertDropAndRecreateCollection(db, collName);
-const qsutils = new QuerySettingsUtils(db, collName);
+    afterEach(function() {
+        // Perform query settings cleanup.
+        qsutils.removeAllQuerySettings();
+    });
 
-coll.insertOne({a123: 456});
-coll.createIndexes([{a123: 1}]);
+    // SPM-3684 will store representative queries in the 'queryShapeRepresentativeQueries'
+    // collection, which makes 16MB limit of query settings harder to reach. Due to that, we will
+    // specify query settings with large index names in order to reach the limit.
+    it("should not contain a representative query if failed to set query settings", function() {
+        // Specifying query settings with the same large index name should succed as total size of
+        // 'querySettings' cluster parameter is less than 16MB.
+        assert.commandWorked(
+            db.adminCommand({setQuerySettings: queryA, settings: querySettingsWithLargeIndexName}));
 
-// Reset query settings.
-qsutils.removeAllQuerySettings();
+        // Due to orphaned representative queries, we can not run assertRepresentativeQueries() with
+        // an empty array, so we capture the existing representative queries and ensure no new ones
+        // are added.
+        const existingRepresentativeQueries = qsutils.getRepresentativeQueries();
 
-// Executing one large query without query settings should succeed.
-assert.commandWorked(db.runCommand(largeQueries[0]));
+        // Specifying query settings with the same large index name should fail as total size of
+        // 'querySettings' cluster parameter exceeds 16MB.
+        assert.commandFailedWithCode(
+            db.adminCommand({setQuerySettings: queryB, settings: querySettingsWithLargeIndexName}),
+            ErrorCodes.BSONObjectTooLarge);
+        qsutils.assertRepresentativeQueries(existingRepresentativeQueries);
 
-// Setting query settings for the first 'splitIndex' queries should succeed.
-largeQueries.slice(0, splitIndex)
-    .forEach(query => assert.commandWorked(db.adminCommand(
-                 {setQuerySettings: {...query, $db: dbName}, settings: irrelevantQuerySettings})));
+        // Ensure that only a single query settings is present.
+        qsutils.assertQueryShapeConfiguration(
+            [qsutils.makeQueryShapeConfiguration(querySettingsWithLargeIndexName, queryA)]);
 
-// Re-running one large query with the persistent query settings should also succeed.
-assert.commandWorked(db.runCommand(largeQueries[0]));
+        // Specifying query settings with total size less than 16MB should still work.
+        assert.commandWorked(db.adminCommand({setQuerySettings: queryB, settings: {reject: true}}));
 
-// Retrieving large query settings without debug query shapes should succeed.
-const qsWithoutDebugShape = qsutils.getQuerySettings({showQueryShapeHash: true});
+        // Ensure that both query shape configurations are present.
+        qsutils.assertQueryShapeConfiguration([
+            qsutils.makeQueryShapeConfiguration(querySettingsWithLargeIndexName, queryA),
+            qsutils.makeQueryShapeConfiguration({reject: true}, queryB)
+        ]);
+    });
 
-jsTest.log("Query settings size without debug query shapes (bytes): " +
-           qsWithoutDebugShape.reduce((res, qs) => res + Object.bsonsize(qs), 0));
+    it("should contain a representative query if we successfully inserted a query settings, but then failed to update it due to 16MB limit",
+       function() {
+           // Set query settings with a 10MB index name, which should succeed and representative
+           // query should be present.
+           assert.commandWorked(db.adminCommand(
+               {setQuerySettings: queryA, settings: querySettingsWithSmallIndexName}));
+           assert.commandWorked(db.adminCommand(
+               {setQuerySettings: queryB, settings: querySettingsWithLargeIndexName}));
+           qsutils.assertQueryShapeConfiguration([
+               qsutils.makeQueryShapeConfiguration(querySettingsWithSmallIndexName, queryA),
+               qsutils.makeQueryShapeConfiguration(querySettingsWithLargeIndexName, queryB),
+           ]);
 
-// Retrieving large query settings with debug query shapes should succeed. The total size is above
-// 16MB, but each batch is under 16MB.
-const qsWithDebugShape =
-    qsutils.getQuerySettings({showQueryShapeHash: true, showDebugQueryShape: true});
-
-jsTest.log("Query settings size with debug query shapes (bytes): " +
-           qsWithDebugShape.reduce((res, qs) => res + Object.bsonsize(qs), 0));
-
-// Setting query settings for the remaining queries should fail with the BSONObjectTooLarge error.
-const failureIndex =
-    largeQueries.slice(splitIndex).findIndex(query => db.adminCommand({
-                                                            setQuerySettings:
-                                                                {...query, $db: dbName},
-                                                            settings: irrelevantQuerySettings
-                                                        }).code === ErrorCodes.BSONObjectTooLarge);
-assert.gt(failureIndex,
-          -1,
-          "expected 'setQuerySettings' command to fail with 'BSONObjectTooLarge' error");
-
-// Clean-up at the end of the test.
-qsutils.removeAllQuerySettings();
+           // Due to orphaned representative queries, we can not run assertRepresentativeQueries()
+           // with an empty array, so we capture the existing representative queries and ensure no
+           // new ones are added.
+           const existingRepresentativeQueries = qsutils.getRepresentativeQueries();
+           assert.commandFailedWithCode(
+               db.adminCommand(
+                   {setQuerySettings: queryA, settings: querySettingsWithLargeIndexName}),
+               ErrorCodes.BSONObjectTooLarge);
+           qsutils.assertQueryShapeConfiguration([
+               qsutils.makeQueryShapeConfiguration(querySettingsWithSmallIndexName, queryA),
+               qsutils.makeQueryShapeConfiguration(querySettingsWithLargeIndexName, queryB),
+           ]);
+           qsutils.assertRepresentativeQueries(existingRepresentativeQueries);
+       });
+});

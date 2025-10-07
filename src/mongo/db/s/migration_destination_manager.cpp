@@ -540,8 +540,6 @@ Status MigrationDestinationManager::start(OperationContext* opCtx,
     _lsid = cloneRequest.getLsid();
     _txnNumber = cloneRequest.getTxnNumber();
 
-    _parallelFetchersSupported = cloneRequest.parallelFetchingSupported();
-
     _nss = nss;
     _fromShard = cloneRequest.getFromShardId();
     _fromShardConnString =
@@ -937,16 +935,6 @@ MigrationDestinationManager::IndexesAndIdIndex MigrationDestinationManager::getC
     return {donorIndexSpecs, donorIdIndexSpec};
 }
 
-
-MigrationDestinationManager::CollectionOptionsAndUUID
-MigrationDestinationManager::getCollectionOptions(OperationContext* opCtx,
-                                                  const NamespaceStringOrUUID& nssOrUUID,
-                                                  boost::optional<Timestamp> afterClusterTime) {
-    const auto dbInfo =
-        uassertStatusOK(Grid::get(opCtx)->catalogCache()->getDatabase(opCtx, nssOrUUID.dbName()));
-    return getCollectionOptions(
-        opCtx, nssOrUUID, dbInfo->getPrimary(), dbInfo->getVersion(), afterClusterTime);
-}
 
 MigrationDestinationManager::CollectionOptionsAndUUID
 MigrationDestinationManager::getCollectionOptions(OperationContext* opCtx,
@@ -1536,7 +1524,6 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                     *_migrationId,
                     *_collectionUuid,
                     _migrationCloningProgress,
-                    _parallelFetchersSupported,
                     chunkMigrationFetcherMaxBufferedSizeBytesPerThread.load()};
                 fetcher.fetchAndScheduleInsertion();
             }

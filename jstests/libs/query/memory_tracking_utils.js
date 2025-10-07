@@ -5,6 +5,7 @@
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {iterateMatchingLogLines} from "jstests/libs/log.js";
 import {getAggPlanStages} from "jstests/libs/query/analyze_plan.js";
+import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
 /******************************************************************************************************
  * Constants for the regexes used to extract memory tracking metrics from the slow query log.
@@ -18,9 +19,14 @@ const cursorIdRegex = /cursorid"?:([0-9]+)/;
  * Utility functions to extract and detect memory metrics from diagnostic channels.
  ******************************************************************************************************/
 
-function getMetricFromLog(logLine, regex) {
+function getMetricFromLog(logLine, regex, doAssert = true) {
     const match = logLine.match(regex);
-    assert(match, `Pattern ${regex} did not match log line: ${logLine}`);
+    if (doAssert) {
+        assert(match, `Pattern ${regex} did not match log line: ${logLine}`);
+    } else if (!match) {
+        return -1;
+    }
+
     return parseInt(match[1]);
 }
 
@@ -37,8 +43,7 @@ function assertNoMatchInLog(logLine, regex) {
 function runPipelineAndGetDiagnostics({db, collName, commandObj, source}) {
     const pipelineComment = commandObj.comment;
 
-    // Use toArray() to exhaust the cursor. We use a batchSize of 1 to ensure that a getMore is
-    // issued and disallow spilling to disk to prevent clearing of inUseMemBytes.
+    // Use toArray() to exhaust the cursor.
     const options = {
         comment: pipelineComment,
         cursor: commandObj.cursor,
@@ -92,6 +97,8 @@ function verifySlowQueryLogMetrics({
     // Because of asynchronous log flushing, the first log line extracted may not correspond to the
     // original request.
     const originalRequestLogLine = logLines.find(line => line.includes('"command":{"aggregate"'));
+    assert(originalRequestLogLine,
+           "Failed to find original aggregate request in log lines: " + tojson(logLines));
     const cursorId = getMetricFromLog(originalRequestLogLine, cursorIdRegex);
     logLines = logLines.filter(line => {
         return getMetricFromLog(line, cursorIdRegex).valueOf() === cursorId.valueOf();
@@ -113,10 +120,15 @@ function verifySlowQueryLogMetrics({
 
     // Check that inUseMemBytes is non-zero when the cursor is still in-use.
     let peakInUseMem = 0;
+    let foundInUseMem = false;
     for (const line of logLines) {
         if (!verifyOptions.skipInUseMemBytesCheck && !line.includes('"cursorExhausted"')) {
-            const inUseMemBytes = getMetricFromLog(line, inUseMemBytesRegex);
-            peakInUseMem = Math.max(inUseMemBytes, peakInUseMem);
+            const inUseMemBytes =
+                getMetricFromLog(line, inUseMemBytesRegex, false /* don't assert */);
+            if (inUseMemBytes > 0) {
+                peakInUseMem = Math.max(inUseMemBytes, peakInUseMem);
+                foundInUseMem = true;
+            }
         }
 
         const maxUsedMemBytes = getMetricFromLog(line, maxUsedMemBytesRegex);
@@ -125,6 +137,10 @@ function verifySlowQueryLogMetrics({
                    `maxUsedMemBytes (${maxUsedMemBytes}) should be >= peak inUseMemBytes (${
                        peakInUseMem}) seen so far\n` +
                        tojson(logLines));
+    }
+
+    if (!verifyOptions.skipInUseMemBytesCheck) {
+        assert(foundInUseMem, "Expected to find inUseMemBytes in slow query logs at least once");
     }
 
     // The cursor is exhausted and the pipeline's resources have been freed, so the last
@@ -172,7 +188,7 @@ function verifyProfilerMetrics({
     profilerEntries = profilerEntries.filter(entry => entry.cursorid &&
                                                  entry.cursorid.valueOf() === cursorId.valueOf());
 
-    // Assert that we have one aggregate and two getMores.
+    // Assert that we have one aggregate and 'expectedNumGetMores' getMores.
     assert.gte(profilerEntries.length,
                verifyOptions.expectedNumGetMores + 1,
                "Expected at least " + (verifyOptions.expectedNumGetMores + 1) +
@@ -182,20 +198,24 @@ function verifyProfilerMetrics({
     assert.eq(1,
               aggregateEntries.length,
               "Expected exactly one aggregate entry: " + tojson(profilerEntries));
-    assert.gte(verifyOptions.expectedNumGetMores,
-               getMoreEntries.length,
+    assert.gte(getMoreEntries.length,
+               verifyOptions.expectedNumGetMores,
                "Expected at least " + verifyOptions.expectedNumGetMores +
                    " getMore entries: " + tojson(profilerEntries));
 
     // Check that inUseMemBytes is non-zero when the cursor is still in use.
     let peakInUseMem = 0;
+    let foundInUseMem = false;
     for (const entry of profilerEntries) {
         if (!verifyOptions.skipInUseMemBytesCheck && !entry.cursorExhausted) {
-            assert.gt(
-                entry.inUseMemBytes,
-                0,
-                "Expected inUseMemBytes to be nonzero in getMore: " + tojson(profilerEntries));
-            peakInUseMem = Math.max(peakInUseMem, entry.inUseMemBytes);
+            if (Object.hasOwn(entry, 'inUseMemBytes')) {
+                foundInUseMem = true;
+                assert.gt(
+                    entry.inUseMemBytes,
+                    0,
+                    "Expected inUseMemBytes to be nonzero in getMore: " + tojson(profilerEntries));
+                peakInUseMem = Math.max(peakInUseMem, entry.inUseMemBytes);
+            }
         }
 
         assert(entry.hasOwnProperty("maxUsedMemBytes"),
@@ -205,6 +225,10 @@ function verifyProfilerMetrics({
                    `maxUsedMemBytes (${entry.maxUsedMemBytes}) should be >= inUseMemBytes peak (${
                        peakInUseMem}) at this point: ` +
                        tojson(entry));
+    }
+
+    if (!verifyOptions.skipInUseMemBytesCheck) {
+        assert(foundInUseMem, "Expected to find inUseMemBytes at least once in profiler entries");
     }
 
     // No memory is currently in use because the cursor is exhausted.
@@ -221,16 +245,29 @@ function verifyProfilerMetrics({
 }
 
 function verifyExplainMetrics({db, collName, pipeline, stageName, featureFlagEnabled, numStages}) {
-    const stageKey = '$' + stageName;
     const explainRes = db[collName].explain("executionStats").aggregate(pipeline);
 
-    function assertNoMemoryMetricsInStages(explainRes, stageKey) {
+    // If a query uses sbe, the explain version will be 2.
+    const isSbeExplain = explainRes.explainVersion === "2";
+    const stageKey = isSbeExplain ? stageName : '$' + stageName;
+
+    function getStagesFromExplain(explainRes, stageKey) {
         let stages = getAggPlanStages(explainRes, stageKey);
+        // Even if SBE is enabled, there are some stages that are not supported in SBE and will
+        // still run on classic. We should also check for the classic pipeline stage name.
+        if (isSbeExplain && stages.length == 0) {
+            stages = getAggPlanStages(explainRes, '$' + stageName);
+        }
         assert.eq(stages.length,
                   numStages,
                   " Found " + stages.length + " but expected to find " + numStages + " " +
                       stageKey + " stages " +
                       "in explain: " + tojson(explainRes));
+        return stages;
+    }
+
+    function assertNoMemoryMetricsInStages(explainRes, stageKey) {
+        let stages = getStagesFromExplain(explainRes, stageKey);
         for (let stage of stages) {
             assert(!stage.hasOwnProperty("maxUsedMemBytes"),
                    `Unexpected maxUsedMemBytes in ${stageKey} stage: ` + tojson(explainRes));
@@ -238,12 +275,7 @@ function verifyExplainMetrics({db, collName, pipeline, stageName, featureFlagEna
     }
 
     function assertHasMemoryMetricsInStages(explainRes, stageKey) {
-        let stages = getAggPlanStages(explainRes, stageKey);
-        assert.eq(stages.length,
-                  numStages,
-                  " Found " + stages.length + " but expected to find " + numStages + " " +
-                      stageKey + " stages " +
-                      "in explain: " + tojson(explainRes));
+        let stages = getStagesFromExplain(explainRes, stageKey);
         for (let stage of stages) {
             assert(stage.hasOwnProperty("maxUsedMemBytes"),
                    `Expected maxUsedMemBytes in ${stageKey} stage: ` + tojson(explainRes));
@@ -289,7 +321,11 @@ function verifyExplainMetrics({db, collName, pipeline, stageName, featureFlagEna
     const explainQueryPlannerRes = db[collName].explain("queryPlanner").aggregate(pipeline);
     assert(!explainQueryPlannerRes.hasOwnProperty("maxUsedMemBytes"),
            "Unexpected maxUsedMemBytes in explain: " + tojson(explainQueryPlannerRes));
-    assertNoMemoryMetricsInStages(explainQueryPlannerRes, stageKey);
+    // SBE stage metrics aren't outputted in queryPlanner explain, so checking
+    // the stageKey may result in no stages.
+    if (!isSbeExplain) {
+        assertNoMemoryMetricsInStages(explainQueryPlannerRes, stageKey);
+    }
 }
 
 /**
@@ -354,8 +390,8 @@ export function runMemoryStatsTest({
 
 /**
  * For a given pipeline in a sharded cluster, verify that memory tracking statistics are correctly
- * reported to the slow query log and explain("executionStats").  We don't check profiler
- * metrics as the profiler doesn't exist for mongos so we don't test it here.
+ * reported to the slow query log and explain("executionStats"). We don't check profiler metrics as
+ * the profiler doesn't exist for mongos so we don't test it here.
  */
 export function runShardedMemoryStatsTest({
     db,

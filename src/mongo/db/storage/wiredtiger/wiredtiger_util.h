@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_error_util.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_event_handler.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_recovery_unit.h"
 #include "mongo/db/validate/validate_results.h"
 
@@ -110,8 +111,13 @@ public:
                                       std::string* type,
                                       std::string* source);
 
+    static std::unique_ptr<WiredTigerSession> getStatisticsSession(
+        WiredTigerKVEngineBase& engine,
+        StatsCollectionPermit& permit,
+        WiredTigerEventHandler& eventHandler);
+
     static bool collectConnectionStatistics(
-        WiredTigerKVEngineBase* engine,
+        WiredTigerKVEngineBase& engine,
         BSONObjBuilder& bob,
         const std::vector<std::string>& fieldsToInclude = std::vector<std::string>());
 
@@ -120,7 +126,7 @@ public:
      *
      * Returns true if statistics can be safely collected and false otherwise.
      */
-    static bool historyStoreStatistics(WiredTigerKVEngine* engine, BSONObjBuilder& bob);
+    static bool historyStoreStatistics(WiredTigerKVEngine& engine, BSONObjBuilder& bob);
 
     /**
      * Dictates how filters passed to exportTableToBSON will behave.
@@ -276,6 +282,14 @@ public:
      * calculation. If both are zero, half of available memory will be returned.
      */
     static size_t getMainCacheSizeMB(double requestedCacheSizeGB, double requestedCacheSizePct = 0);
+
+    /**
+     * Returns the amount of memory in MB to use for the spill WiredTiger instance cache.
+     */
+    static int32_t getSpillCacheSizeMB(int32_t systemMemoryMB,
+                                       double pct,
+                                       int32_t minMB,
+                                       int32_t maxMB);
 
     class ErrorAccumulator : public WT_EVENT_HANDLER {
     public:

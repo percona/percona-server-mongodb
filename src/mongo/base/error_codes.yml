@@ -892,6 +892,11 @@ error_codes:
   - {code: 901, name: ReplayClientNotConnected}
   - {code: 902, name: ReplayClientFailedToProcessBSON}
   - {code: 903, name: ReplayClientInternalError}
+  - {code: 904, name: ReplayClientSessionSimulationError}
+
+  - {code: 452, name: ReleaseMemoryShardError}
+
+  - {code: 453, name: InterruptedDueToReshardingCriticalSection}
 
   # Error codes 4000-8999 are reserved.
 

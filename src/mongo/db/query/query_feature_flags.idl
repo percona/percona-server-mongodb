@@ -227,9 +227,8 @@ feature_flags:
     featureFlagMultiPlanLimiter:
         description: "Feature flag to enable MultiPlan rate limiter."
         cpp_varname: gfeatureFlagMultiPlanLimiter
-        default: false
         fcv_gated: false
-        incremental_rollout_phase: in_development
+        incremental_rollout_phase: rollout
 
     featureFlagSbeUpgradeBinaryTrees:
         description: "Feature flag to enable N-ary ABT nodes"
@@ -247,4 +246,23 @@ feature_flags:
         description: "Enables PQS representative query backfilling"
         cpp_varname: gFeatureFlagPQSBackfill
         default: false
+        fcv_gated: true
+
+    featureFlagPushdownFilterToIXScanWhenUsingIndexForSort:
+        description: "Enables the query planner to push predicates down to the IXScan stage whenever possible in those queries where an index is leveraged to provide sorting"
+        cpp_varname: gFeatureFlagPushdownFilterToIXScanWhenUsingIndexForSort
+        fcv_gated: false
+        incremental_rollout_phase: rollout
+
+    featureFlagExtensionsAPI:
+        description: "Feature flag to enable loading extensions via the Extensions API."
+        cpp_varname: gFeatureFlagExtensionsAPI
+        default: false
+        fcv_gated: false
+
+    featureFlagMqlJsEngineGap:
+        description: "Feature flag to enable MQL features that cover common use cases for server side Javascript"
+        cpp_varname: gFeatureFlagMqlJsEngineGap
+        default: true
+        version: 8.2
         fcv_gated: true
