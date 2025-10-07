@@ -7,8 +7,6 @@
  *   requires_fcv_60,
  *   does_not_support_transactions,
  *   requires_timeseries,
- *   # TODO SERVER-104916 review the following tag
- *   does_not_support_viewless_timeseries_yet,
  * ]
  */
 
@@ -162,7 +160,7 @@ export const $config = (function() {
 
     return {
         threadCount,
-        iterations: 50,
+        iterations: 100,
         setup: setup,
         teardown: tearDown,
         states: states,

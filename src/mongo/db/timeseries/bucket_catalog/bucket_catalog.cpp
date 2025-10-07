@@ -82,11 +82,12 @@ void prepareWriteBatchForCommit(TrackingContexts& trackingContexts,
             it->first,
             it->second);
         bucket.uncommittedFieldNames.erase(fieldName);
-        if (bucket.measurementMap.containsField(it->first)) {
+        if (bucket.fieldNames.contains(fieldName)) {
             batch.newFieldNamesToBeInserted.erase(it++);
             continue;
         }
 
+        bucket.fieldNames.emplace(fieldName);
         ++it;
     }
 
@@ -532,7 +533,7 @@ RolloverReason determineBucketRolloverForMeasurement(BucketCatalog& catalog,
                                                      const Date_t& measurementTimestamp,
                                                      const TimeseriesOptions& options,
                                                      const StringDataComparator* comparator,
-                                                     uint64_t storageCacheSizeBytes,
+                                                     const uint64_t storageCacheSizeBytes,
                                                      Bucket& bucket,
                                                      ExecutionStatsController& stats) {
     Bucket::NewFieldNames newFieldNamesToBeInserted;
@@ -1188,17 +1189,31 @@ TimeseriesWriteBatches stageInsertBatch(
         std::shared_ptr<WriteBatch> writeBatch = activeBatch(
             bucketCatalog.trackingContexts, eligibleBucket, opId, batch.stripeNumber, batch.stats);
         writeBatch->openedDueToMetadata = bucketOpenedDueToMetadata;
-        needsAnotherBucket = !internal::stageInsertBatchIntoEligibleBucket(bucketCatalog,
-                                                                           opId,
-                                                                           comparator,
-                                                                           batch,
-                                                                           stripe,
-                                                                           stripeLock,
-                                                                           storageCacheSizeBytes,
-                                                                           eligibleBucket,
-                                                                           currentPosition,
-                                                                           writeBatch);
-        writeBatches.emplace_back(writeBatch);
+        internal::StageInsertBatchResult result =
+            internal::stageInsertBatchIntoEligibleBucket(bucketCatalog,
+                                                         opId,
+                                                         comparator,
+                                                         batch,
+                                                         stripe,
+                                                         stripeLock,
+                                                         storageCacheSizeBytes,
+                                                         eligibleBucket,
+                                                         currentPosition,
+                                                         writeBatch);
+
+        /**
+         * Though rare, it is possible that the bucket provided by getEligibleBucket
+         * is not considered to be eligible when re-checking for rollover inside
+         * stageInsertBatchIntoEligibleBucket. For example, there is a global
+         * statistic, numActiveBuckets, that is not protected by the stripe lock
+         * and can be independently updated between the two checks. To avoid a
+         * crash, the write path will ignore an ineligible bucket and try again.
+         */
+        if (result != internal::StageInsertBatchResult::NoMeasurementsStaged) {
+            writeBatches.emplace_back(writeBatch);
+        }
+
+        needsAnotherBucket = (result != internal::StageInsertBatchResult::Success);
     }
 
     invariant(currentPosition == batch.measurementsTimesAndIndices.size());

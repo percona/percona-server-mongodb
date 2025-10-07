@@ -44,7 +44,6 @@
 #include "mongo/db/timeseries/bucket_compression.h"
 #include "mongo/db/timeseries/timeseries_constants.h"
 #include "mongo/db/timeseries/timeseries_test_fixture.h"
-#include "mongo/db/timeseries/write_ops/timeseries_write_ops_utils_internal.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/unittest/death_test.h"
@@ -332,10 +331,6 @@ void BucketCatalogTest::_commit(const NamespaceString& ns,
     ASSERT_EQ(batch->measurements.size(), expectedBatchSize) << batch->toBSON();
     ASSERT_EQ(batch->numPreviouslyCommittedMeasurements, numPreviouslyCommittedMeasurements)
         << batch->toBSON();
-    std::vector<mongo::write_ops::InsertCommandRequest> insertOps;
-    std::vector<mongo::write_ops::UpdateCommandRequest> updateOps;
-    write_ops_utils::makeWriteRequestFromBatch(
-        _opCtx, batch, ns.makeTimeseriesBucketsNamespace(), &insertOps, &updateOps);
     finish(*_bucketCatalog, batch);
 }
 
@@ -406,16 +401,17 @@ std::shared_ptr<bucket_catalog::WriteBatch> BucketCatalogTest::_insertOneWithout
     size_t currentPosition = 0;
     std::shared_ptr<bucket_catalog::WriteBatch> writeBatch =
         activeBatch(catalog.trackingContexts, bucket, opId, batchedInsertCtx.stripeNumber, stats);
-    ASSERT(bucket_catalog::internal::stageInsertBatchIntoEligibleBucket(catalog,
-                                                                        opId,
-                                                                        collator,
-                                                                        batchedInsertCtx,
-                                                                        stripe,
-                                                                        WithLock::withoutLock(),
-                                                                        _storageCacheSizeBytes,
-                                                                        bucket,
-                                                                        currentPosition,
-                                                                        writeBatch));
+    ASSERT_EQ(bucket_catalog::internal::StageInsertBatchResult::Success,
+              bucket_catalog::internal::stageInsertBatchIntoEligibleBucket(catalog,
+                                                                           opId,
+                                                                           collator,
+                                                                           batchedInsertCtx,
+                                                                           stripe,
+                                                                           WithLock::withoutLock(),
+                                                                           _storageCacheSizeBytes,
+                                                                           bucket,
+                                                                           currentPosition,
+                                                                           writeBatch));
 
     return writeBatch;
 }
@@ -1096,9 +1092,11 @@ void BucketCatalogTest::_testStageInsertBatchIntoEligibleBucket(
                            *bucketToInsertInto,
                            RolloverReason::kSchemaChange);
         if (i == (numMeasurementsInWriteBatch.size() - 1)) {
-            ASSERT(successfulInsertion);
+            ASSERT_EQ(successfulInsertion,
+                      bucket_catalog::internal::StageInsertBatchResult::Success);
         } else {
-            ASSERT(!successfulInsertion);
+            ASSERT_NE(successfulInsertion,
+                      bucket_catalog::internal::StageInsertBatchResult::Success);
         }
     }
 }
@@ -1444,8 +1442,6 @@ TEST_F(BucketCatalogTest, InsertBetweenPrepareAndFinish) {
         _opCtx, *_bucketCatalog, _ns1, _uuid1, BSON(_timeField << Date_t::now()));
     ASSERT_NE(batch1, batch2) << batch1->toBSON() << batch2->toBSON();
 
-    (void)write_ops_utils::makeTimeseriesInsertOpFromBatch(batch1,
-                                                           _ns1.makeTimeseriesBucketsNamespace());
     finish(*_bucketCatalog, batch1);
     ASSERT(isWriteBatchFinished(*batch1));
 
@@ -1756,8 +1752,6 @@ TEST_F(BucketCatalogTest, DuplicateNewFieldNamesAcrossConcurrentBatches) {
     ASSERT_OK(prepareCommit(*_bucketCatalog, batch2, _getCollator(_ns2)));
     ASSERT_EQ(batch2->newFieldNamesToBeInserted.size(), 1) << batch2->toBSON();
     ASSERT_EQ(batch2->newFieldNamesToBeInserted.begin()->first, _timeField) << batch2->toBSON();
-    (void)write_ops_utils::makeTimeseriesInsertOpFromBatch(batch2,
-                                                           _ns1.makeTimeseriesBucketsNamespace());
     finish(*_bucketCatalog, batch2);
 
     // Batch 1 was the first batch to insert the time field, but by commit time it was already
@@ -5110,7 +5104,8 @@ TEST_F(
                                                          batchOfMeasurementsWithSchemaChangeAtEnd,
                                                          curBatchedInsertContextsIndex,
                                                          numMeasurementsInWriteBatchAtEnd,
-                                                         /*numBatchedInsertContexts=*/1);
+                                                         /*numBatchedInsertContexts=*/1,
+                                                         buckets);
 }
 
 TEST_F(
@@ -5304,7 +5299,7 @@ TEST_F(
     std::vector<BSONObj> batchOfMeasurementsWithCachePressure =
         _generateMeasurementsWithRolloverReason(
             {.reason = RolloverReason::kCachePressure, .metaValueType = boost::none});
-    std::vector<size_t> numMeasurementsInWriteBatch{3, 1};
+    std::vector<size_t> numMeasurementsInWriteBatch{2, 2};
     std::vector<size_t> curBatchedInsertContextsIndex{0, 0};
 
     std::vector<std::pair<std::vector<BSONObj>, RolloverReason>> measurementsAndRolloverReason;
@@ -5325,7 +5320,8 @@ TEST_F(
         batchOfMeasurementsWithCachePressure,
         curBatchedInsertContextsIndex,
         numMeasurementsInWriteBatch,
-        /*numBatchedInsertContexts=*/1);
+        /*numBatchedInsertContexts=*/1,
+        buckets);
 
     buckets = _generateBucketsWithMeasurements(_ns1, _uuid1, measurementsAndRolloverReason);
     // Inserting a batch of measurements without meta field values into a collection with a meta
@@ -5336,7 +5332,8 @@ TEST_F(
         batchOfMeasurementsWithCachePressure,
         curBatchedInsertContextsIndex,
         numMeasurementsInWriteBatch,
-        /*numBatchedInsertContexts=*/1);
+        /*numBatchedInsertContexts=*/1,
+        buckets);
 
     // Reset _storageCacheSizeBytes back to a representative value.
     _storageCacheSizeBytes = kDefaultStorageCacheSizeBytes;

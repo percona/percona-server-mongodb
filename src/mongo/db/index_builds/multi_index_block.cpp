@@ -49,6 +49,7 @@
 #include "mongo/db/multi_key_path_tracker.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/op_observer/op_observer.h"
+#include "mongo/db/op_observer/op_observer_util.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/query/collection_query_info.h"
 #include "mongo/db/query/get_executor.h"
@@ -78,6 +79,7 @@
 #include "mongo/util/duration.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/log_and_backoff.h"
+#include "mongo/util/processinfo.h"
 #include "mongo/util/progress_meter.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
@@ -118,10 +120,10 @@ size_t getEachIndexBuildMaxMemoryUsageBytes(boost::optional<size_t> maxMemoryUsa
         return 0;
     }
 
-    auto maxBytes = maxMemoryUsageBytes.has_value()
+    size_t maxTotalIndexBuildMemoryBytes = maxMemoryUsageBytes.has_value()
         ? maxMemoryUsageBytes.get()
-        : static_cast<std::size_t>(maxIndexBuildMemoryUsageMegabytes.load()) * 1024 * 1024;
-    return maxBytes / numIndexSpecs;
+        : MultiIndexBlock::getTotalIndexBuildMaxMemoryUsageBytes();
+    return (maxTotalIndexBuildMemoryBytes / numIndexSpecs);
 }
 
 auto makeOnSuppressedErrorFn(const std::function<void()>& saveCursorBeforeWrite,
@@ -185,6 +187,36 @@ MultiIndexBlock::~MultiIndexBlock() {
 
 MultiIndexBlock::OnCleanUpFn MultiIndexBlock::kNoopOnCleanUpFn = []() {
 };
+
+size_t MultiIndexBlock::getTotalIndexBuildMaxMemoryUsageBytes() {
+    double memUsageLimit = maxIndexBuildMemoryUsageMegabytes.load();
+
+    size_t computedLimitBytes = 0;
+    if (memUsageLimit < 1) {
+        ProcessInfo pi;
+        double memSizeMB = pi.getMemSizeMB();
+        size_t computedLimitBytes = static_cast<size_t>(memUsageLimit * memSizeMB * 1024 * 1024);
+        if (computedLimitBytes < kMinIndexBuildMemSizeLimitBytes) {
+            LOGV2_WARNING(
+                10448902,
+                "maxIndexBuildMemoryUsageMegabytes computed value beneath minimum, setting to 50 "
+                "MB");
+            computedLimitBytes = kMinIndexBuildMemSizeLimitBytes;
+        }
+        LOGV2(10448901,
+              "maxIndexBuildMemoryUsageMegabytes parsed as percentage-based value",
+              "percentLimit"_attr = memUsageLimit,
+              "memorySizeMB"_attr = memSizeMB,
+              "limitBytes"_attr = computedLimitBytes);
+    } else {
+        computedLimitBytes = static_cast<size_t>(memUsageLimit * 1024 * 1024);
+        LOGV2(10448900,
+              "maxIndexBuildMemoryUsageMegabytes parsed as byte-based value",
+              "limitBytes"_attr = computedLimitBytes);
+    }
+
+    return computedLimitBytes;
+}
 
 void MultiIndexBlock::abortIndexBuild(OperationContext* opCtx,
                                       CollectionWriter& collection,
@@ -251,6 +283,7 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
     OperationContext* opCtx,
     CollectionWriter& collection,
     const std::vector<BSONObj>& indexSpecs,
+    const std::vector<std::string>& indexIdents,
     OnInitFn onInit,
     const InitMode initMode,
     const boost::optional<ResumeIndexInfo>& resumeInfo,
@@ -322,7 +355,9 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
             onInit();
         }
 
-        auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+        // When resuming an index build we don't need idents as the indexes already exist in the
+        // catalog
+        invariant(forRecovery || resumeInfo || indexIdents.size() == indexSpecs.size());
 
         // Then proceed to start the index builds. If we encounter conflicts for the index specs at
         // this point we know it is a conflict between the indexes we are requested to build.
@@ -388,9 +423,10 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
                 if (!status.isOK())
                     return status;
             } else {
-                auto ident = storageEngine->generateNewIndexIdent(collection->ns().dbName());
-                auto status = index.block->init(
-                    opCtx, collection.getWritableCollection(opCtx), ident, forRecovery);
+                auto status = index.block->init(opCtx,
+                                                collection.getWritableCollection(opCtx),
+                                                forRecovery ? "" : indexIdents[i],
+                                                forRecovery);
                 if (!status.isOK())
                     return status;
             }

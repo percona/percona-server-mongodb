@@ -193,10 +193,17 @@ DocumentSource::GetNextResult DocumentSourceFacet::doGetNext() {
         // stats update (previously done in usedDisk())
         _stats.planSummaryStats.usedDisk =
             std::any_of(_facets.begin(), _facets.end(), [](const auto& facet) {
-                return facet.pipeline->usedDisk();
+                return facet.execPipeline && facet.execPipeline->usedDisk();
             });
 
         return GetNextResult::makeEOF();
+    }
+
+    // Create execution pipeline for each facet (this code is executed only once).
+    for (auto&& facet : _facets) {
+        tassert(10616300, "facet execution pipeline is already initialized", !facet.execPipeline);
+        facet.execPipeline =
+            exec::agg::buildPipeline(facet.pipeline->getSources(), facet.pipeline->getContext());
     }
 
     const size_t maxBytes = _maxOutputDocSizeBytes;
@@ -213,7 +220,7 @@ DocumentSource::GetNextResult DocumentSourceFacet::doGetNext() {
     while (!allPipelinesEOF) {
         allPipelinesEOF = true;  // Set this to false if any pipeline isn't EOF.
         for (size_t facetId = 0; facetId < _facets.size(); ++facetId) {
-            auto& execPipeline = _facets[facetId].getExecPipeline();
+            auto& execPipeline = *_facets[facetId].execPipeline;
             auto next = execPipeline.getNextResult();
             for (; next.isAdvanced(); next = execPipeline.getNextResult()) {
                 ensureUnderMemoryLimit(next.getDocument().getApproximateSize());
@@ -241,7 +248,7 @@ Value DocumentSourceFacet::serialize(const SerializationOptions& opts) const {
             bool canAddExecPipelineExplain =
                 opts.verbosity >= ExplainOptions::Verbosity::kExecStats && facet.execPipeline;
             auto explain = canAddExecPipelineExplain
-                ? mergeExplains(*facet.pipeline, facet.getExecPipeline(), opts)
+                ? mergeExplains(*facet.pipeline, *facet.execPipeline, opts)
                 : facet.pipeline->writeExplainOps(opts);
             serialized[opts.serializeFieldPathFromString(facet.name)] = Value(explain);
         } else {
@@ -270,20 +277,59 @@ intrusive_ptr<DocumentSource> DocumentSourceFacet::optimize() {
 
 void DocumentSourceFacet::detachFromOperationContext() {
     for (auto&& facet : _facets) {
-        facet.getExecPipeline().detachFromOperationContext();
+        if (facet.execPipeline) {
+            facet.execPipeline->detachFromOperationContext();
+        }
+        if (facet.pipeline) {
+            facet.pipeline->detachFromOperationContext();
+        }
+    }
+}
+
+void DocumentSourceFacet::detachSourceFromOperationContext() {
+    for (auto&& facet : _facets) {
+        if (facet.execPipeline) {
+            facet.execPipeline->detachFromOperationContext();
+        }
+        if (facet.pipeline) {
+            facet.pipeline->detachFromOperationContext();
+        }
     }
 }
 
 void DocumentSourceFacet::reattachToOperationContext(OperationContext* opCtx) {
     for (auto&& facet : _facets) {
-        facet.getExecPipeline().reattachToOperationContext(opCtx);
+        if (facet.execPipeline) {
+            facet.execPipeline->reattachToOperationContext(opCtx);
+        }
+        if (facet.pipeline) {
+            facet.pipeline->reattachToOperationContext(opCtx);
+        }
+    }
+}
+
+void DocumentSourceFacet::reattachSourceToOperationContext(OperationContext* opCtx) {
+    for (auto&& facet : _facets) {
+        if (facet.execPipeline) {
+            facet.execPipeline->reattachToOperationContext(opCtx);
+        }
+        if (facet.pipeline) {
+            facet.pipeline->reattachToOperationContext(opCtx);
+        }
     }
 }
 
 bool DocumentSourceFacet::validateOperationContext(const OperationContext* opCtx) const {
     return getContext()->getOperationContext() == opCtx &&
         std::all_of(_facets.begin(), _facets.end(), [opCtx](const auto& f) {
-               return f.getExecPipeline().validateOperationContext(opCtx);
+               return (!f.execPipeline || f.execPipeline->validateOperationContext(opCtx));
+           });
+}
+
+bool DocumentSourceFacet::validateSourceOperationContext(const OperationContext* opCtx) const {
+    return getExpCtx()->getOperationContext() == opCtx &&
+        std::all_of(_facets.begin(), _facets.end(), [opCtx](const auto& f) {
+               return f.pipeline->validateOperationContext(opCtx);
            });
 }
 
@@ -347,7 +393,7 @@ StageConstraints DocumentSourceFacet::constraints(PipelineSplitState state) cons
 bool DocumentSourceFacet::usedDisk() const {
     return _done ? _stats.planSummaryStats.usedDisk
                  : std::any_of(_facets.begin(), _facets.end(), [](const auto& facet) {
-                       return facet.pipeline->usedDisk();
+                       return facet.execPipeline && facet.execPipeline->usedDisk();
                    });
 }
 

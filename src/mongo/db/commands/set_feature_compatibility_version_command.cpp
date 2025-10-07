@@ -83,6 +83,7 @@
 #include "mongo/db/s/config/sharding_catalog_manager.h"
 #include "mongo/db/s/drop_collection_coordinator.h"
 #include "mongo/db/s/migration_blocking_operation/multi_update_coordinator.h"
+#include "mongo/db/s/migration_util.h"
 #include "mongo/db/s/range_deletion_util.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service.h"
@@ -152,6 +153,7 @@ MONGO_FAIL_POINT_DEFINE(hangAtSetFCVStart);
 MONGO_FAIL_POINT_DEFINE(failAfterSendingShardsToDowngradingOrUpgrading);
 MONGO_FAIL_POINT_DEFINE(automaticallyCollmodToRecordIdsReplicatedFalse);
 MONGO_FAIL_POINT_DEFINE(setFCVPauseAfterReadingConfigDropPedingDBs);
+MONGO_FAIL_POINT_DEFINE(failDowngradeValidationDueToIncompatibleFeature);
 
 /**
  * Ensures that only one instance of setFeatureCompatibilityVersion can run at a given time.
@@ -456,6 +458,14 @@ public:
 
         auto request = SetFeatureCompatibilityVersion::parse(
             IDLParserContext("setFeatureCompatibilityVersion"), cmdObj);
+
+        auto isDryRun = request.getDryRun().value_or(false);
+
+        uassert(ErrorCodes::InvalidOptions,
+                "dry-run mode is not enabled",
+                !request.getDryRun() ||
+                    repl::feature_flags::gFeatureFlagSetFcvDryRunMode.isEnabled());
+
         auto isFromConfigServer = request.getFromConfigServer().value_or(false);
 
         // Only allow one instance of setFeatureCompatibilityVersion to run at a time.
@@ -556,6 +566,19 @@ public:
             "'phase' field must be present on shards",
             !feature_flags::gUseTopologyChangeCoordinators.isEnabledOnVersion(requestedVersion) ||
                 request.getPhase() || (!role || !role->hasExclusively(ClusterRole::ShardServer)));
+
+        if (isDryRun) {
+            LOGV2(10684100,
+                  "Executing dry-run for FCV downgrade validation",
+                  "requestedVersion"_attr = requestedVersion);
+
+            _userCollectionsUassertsForDowngrade(opCtx, requestedVersion, actualVersion);
+
+            LOGV2(10684101,
+                  "Dry-run for FCV downgrade completed successfully",
+                  "requestedVersion"_attr = requestedVersion);
+            return true;
+        }
 
         if (!request.getPhase() || request.getPhase() == SetFCVPhaseEnum::kStart) {
             {
@@ -820,16 +843,11 @@ private:
         const auto isUpgrading = originalVersion < requestedVersion;
 
         if (isDowngrading) {
-            // Drain ongoing chunk migrations to ensure that no backwards-incompatible metadata
-            // will be persisted in their recovery docs.
             // TODO SERVER-103838 Remove this code block once 9.0 becomes LTS.
             if (feature_flags::gPersistRecipientPlacementInfoInMigrationRecoveryDoc
                     .isDisabledOnTargetFCVButEnabledOnOriginalFCV(requestedVersion,
                                                                   originalVersion)) {
-                static constexpr char kRegistryLockReason[] = "Performing FCV Downgrade";
-                auto& activeMigrationRegistry = ActiveMigrationsRegistry::get(opCtx);
-                activeMigrationRegistry.lock(opCtx, kRegistryLockReason);
-                activeMigrationRegistry.unlock(kRegistryLockReason);
+                migrationutil::drainMigrationsOnFcvDowngrade(opCtx);
             }
 
             // TODO SERVER-99655: update once gSnapshotFCVInDDLCoordinators is enabled
@@ -1164,20 +1182,26 @@ private:
 
     // This helper function is for any uasserts for users to clean up user collections. Uasserts for
     // users to change settings or wait for settings to change should also happen here. These
-    // uasserts happen before the internal server downgrade cleanup. The code in this helper
-    // function is required to be idempotent in case the node crashes or downgrade fails in a way
-    // that the user has to run setFCV again. The code added/modified in this helper function should
-    // not leave the server in an inconsistent state if the actions in this function failed part way
-    // through.
-    // This helper function can only fail with some transient error that can be retried (like
-    // InterruptedDueToReplStateChange) or ErrorCode::CannotDowngrade. The uasserts added to this
-    // helper function can only have the CannotDowngrade error code indicating that the user must
-    // manually clean up some user data in order to retry the FCV downgrade.
-    void _userCollectionsUassertsForDowngrade(OperationContext* opCtx, const FCV requestedVersion) {
+    // uasserts happen before the internal server downgrade cleanup. This function must not modify
+    // any user data or system state. It only checks preconditions for downgrades and fails if they
+    // are unmet. The code in this helper function is required to be idempotent in case the node
+    // crashes or downgrade fails in a way that the user has to run setFCV again. The code
+    // added/modified in this helper function should not leave the server in an inconsistent state
+    // if the actions in this function failed part way through. This helper function can only fail
+    // with some transient error that can be retried (like InterruptedDueToReplStateChange) or
+    // ErrorCode::CannotDowngrade. The uasserts added to this helper function can only have the
+    // CannotDowngrade error code indicating that the user must manually clean up some user data in
+    // order to retry the FCV downgrade.
+    void _userCollectionsUassertsForDowngrade(OperationContext* opCtx,
+                                              const FCV requestedVersion,
+                                              const FCV originalVersion) {
+
         auto role = ShardingState::get(opCtx)->pollClusterRole();
-        const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-        invariant(fcvSnapshot.isUpgradingOrDowngrading());
-        const auto originalVersion = getTransitionFCVInfo(fcvSnapshot.getVersion()).from;
+
+        if (MONGO_unlikely(failDowngradeValidationDueToIncompatibleFeature.shouldFail())) {
+            uasserted(ErrorCodes::CannotDowngrade,
+                      "Simulated dry-run validation failure via fail point.");
+        }
 
         if (gFeatureFlagRecordIdsReplicated.isDisabledOnTargetFCVButEnabledOnOriginalFCV(
                 requestedVersion, originalVersion) &&
@@ -1467,7 +1491,12 @@ private:
         // InterruptedDueToReplStateChange) or ErrorCode::CannotDowngrade. The uasserts added to
         // this helper function can only have the CannotDowngrade error code indicating that the
         // user must manually clean up some user data in order to retry the FCV downgrade.
-        _userCollectionsUassertsForDowngrade(opCtx, requestedVersion);
+
+        const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
+        invariant(fcvSnapshot.isUpgradingOrDowngrading());
+        const auto originalVersion = getTransitionFCVInfo(fcvSnapshot.getVersion()).from;
+
+        _userCollectionsUassertsForDowngrade(opCtx, requestedVersion, originalVersion);
     }
 
     // _runDowngrade performs all the metadata-changing actions of an FCV downgrade. Any new feature

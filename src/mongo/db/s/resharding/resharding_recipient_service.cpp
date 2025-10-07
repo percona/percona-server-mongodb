@@ -36,7 +36,9 @@
 #include "mongo/db/cancelable_operation_context.h"
 #include "mongo/db/catalog/collection_options.h"
 #include "mongo/db/catalog/index_catalog.h"
+#include "mongo/db/catalog/list_indexes.h"
 #include "mongo/db/client.h"
+#include "mongo/db/commands/notify_sharding_event_gen.h"
 #include "mongo/db/concurrency/exception_util.h"
 #include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/dbhelpers.h"
@@ -882,10 +884,9 @@ void ReshardingRecipientService::RecipientStateMachine::
         // TODO SERVER-66671: The 'createCollRequest' should include the full contents of the
         // ShardsvrCreateCollectionRequest rather than just the 'shardKey' field.
         const auto createCollRequest = BSON("shardKey" << _metadata.getReshardingKey().toBSON());
-        notifyChangeStreamsOnShardCollection(opCtx.get(),
-                                             _metadata.getTempReshardingNss(),
-                                             _metadata.getReshardingUUID(),
-                                             createCollRequest);
+        CollectionSharded notification(
+            _metadata.getTempReshardingNss(), _metadata.getReshardingUUID(), createCollRequest);
+        notifyChangeStreamsOnShardCollection(opCtx.get(), notification);
 
         if (resharding::gFeatureFlagReshardingVerification.isEnabled(
                 VersionContext::getDecoration(opCtx.get()),
@@ -1220,6 +1221,13 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                            IndexBuildsCoordinator::IndexBuildOptions indexBuildOptions{
                                CommitQuorumOptions(CommitQuorumOptions::kVotingMembers)};
 
+                           // TODO(SERVER-107070): investigate if this is a valid place to generate
+                           // new idents or if we need to do something more complicated for catalog
+                           // consistency.
+                           auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+                           auto indexIdents = storageEngine->generateNewIndexIdents(
+                               _metadata.getTempReshardingNss().dbName(), indexSpecs.size());
+
                            auto* indexBuildsCoordinator = IndexBuildsCoordinator::get(opCtx.get());
                            auto indexBuildFuture = indexBuildsCoordinator->startIndexBuild(
                                opCtx.get(),
@@ -1228,6 +1236,7 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                                // as the collection UUID.
                                _metadata.getReshardingUUID(),
                                indexSpecs,
+                               indexIdents,
                                buildUUID,
                                IndexBuildProtocol::kTwoPhase,
                                indexBuildOptions);
@@ -1260,9 +1269,10 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                             "loading indexes to validate indexes on temporary resharding collection"_sd,
                             /*expandSimpleCollation*/ false);
 
-                        DBDirectClient client(opCtx.get());
-                        auto tempCollIdxSpecs =
-                            client.getIndexSpecs(_metadata.getTempReshardingNss(), false, 0);
+                        const auto& tempCollIdxSpecs =
+                            listIndexesEmptyListIfMissing(opCtx.get(),
+                                                          _metadata.getTempReshardingNss(),
+                                                          ListIndexesInclude::Nothing);
                         resharding::verifyIndexSpecsMatch(sourceIdxSpecs.cbegin(),
                                                           sourceIdxSpecs.cend(),
                                                           tempCollIdxSpecs.cbegin(),

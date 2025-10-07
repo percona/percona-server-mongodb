@@ -63,6 +63,7 @@
 #include "mongo/db/query/explain_options.h"
 #include "mongo/db/query/plan_summary_stats_visitor.h"
 #include "mongo/db/query/query_knobs_gen.h"
+#include "mongo/db/query/timeseries/timeseries_translation.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
@@ -333,6 +334,18 @@ void Pipeline::validateCommon(bool alreadyOptimized) const {
     }
 }
 
+void Pipeline::performPreOptimizationRewrites(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                                              const CollectionRoutingInfo& cri) {
+    // The only supported translation is for viewless timeseries collections.
+    timeseries::translateStagesIfRequired(expCtx, *this, cri);
+};
+
+void Pipeline::performPreOptimizationRewrites(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                                              const CollectionOrViewAcquisition& collOrView) {
+    // The only supported translation is for viewless timeseries collections.
+    timeseries::translateStagesIfRequired(expCtx, *this, collOrView);
+}
+
 void Pipeline::optimizePipeline() {
     // If the disablePipelineOptimization failpoint is enabled, the pipeline won't be optimized.
     if (MONGO_unlikely(disablePipelineOptimization.shouldFail())) {
@@ -396,6 +409,9 @@ bool Pipeline::aggHasWriteStage(const BSONObj& cmd) {
 }
 
 void Pipeline::dispose(OperationContext* opCtx) {
+    if (_disposed) {
+        return;
+    }
     try {
         pCtx->setOperationContext(opCtx);
 
@@ -411,13 +427,6 @@ void Pipeline::dispose(OperationContext* opCtx) {
     } catch (...) {
         std::terminate();
     }
-}
-
-bool Pipeline::usedDisk() const {
-    return std::any_of(_sources.begin(), _sources.end(), [](const auto& source) {
-        auto& stage = dynamic_cast<exec::agg::Stage&>(*source);
-        return stage.usedDisk();
-    });
 }
 
 BSONObj Pipeline::getInitialQuery() const {
@@ -626,6 +635,21 @@ void Pipeline::addFinalSource(intrusive_ptr<DocumentSource> source) {
         finalStage.setSource(dynamic_cast<exec::agg::Stage*>(_sources.back().get()));
     }
     _sources.push_back(source);
+}
+
+void Pipeline::addSourceAtPosition(boost::intrusive_ptr<DocumentSource> source, size_t index) {
+    tassert(10601105,
+            "The index must be positive and less than or equal to the size of the source list",
+            index <= _sources.size() && index >= 0);
+
+    const bool originallyEmpty = _sources.empty();
+    auto sourceIter = _sources.begin();
+    std::advance(sourceIter, index);
+    _sources.insert(sourceIter, source);
+
+    if (!originallyEmpty) {
+        stitch();
+    }
 }
 
 void Pipeline::addVariableRefs(std::set<Variables::Id>* refs) const {
@@ -1003,4 +1027,37 @@ std::unique_ptr<Pipeline, PipelineDeleter> Pipeline::makePipelineFromViewDefinit
 
     return Pipeline::makePipeline(resolvedPipeline, subPipelineExpCtx, opts);
 }
+
+void Pipeline::detachFromOperationContext() {
+    pCtx->setOperationContext(nullptr);
+    for (auto&& source : _sources) {
+        source->detachSourceFromOperationContext();
+    }
+    checkValidOperationContext();
+}
+
+void Pipeline::reattachToOperationContext(OperationContext* opCtx) {
+    pCtx->setOperationContext(opCtx);
+    for (auto&& source : _sources) {
+        source->reattachSourceToOperationContext(opCtx);
+    }
+    checkValidOperationContext();
+}
+
+bool Pipeline::validateOperationContext(const OperationContext* opCtx) const {
+    return std::all_of(_sources.begin(), _sources.end(), [this, opCtx](const auto& source) {
+        // All sources in a pipeline must share its expression context. Subpipelines may have a
+        // different expression context, but must point to the same operation context. Let the
+        // sources validate this themselves since they don't all have the same subpipelines, etc.
+        return source->getExpCtx() == getContext() && source->validateSourceOperationContext(opCtx);
+    });
+}
+
+void Pipeline::checkValidOperationContext() const {
+    tassert(10713712,
+            str::stream()
+                << "All DocumentSources and subpipelines must have the same operation context",
+            validateOperationContext(getContext()->getOperationContext()));
+}
+
 }  // namespace mongo

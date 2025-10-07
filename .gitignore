@@ -299,6 +299,7 @@ buildozer
 .bazelrc.workstation
 .bazelrc.common_bes
 .bazelrc.compiledb
+.bazelrc.sync
 .compiledb
 .bazelrc.xcode
 .bazelrc.bazelisk

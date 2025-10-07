@@ -42,7 +42,7 @@ inline bool isReplayable(const std::string& commandType) {
     return !commandType.empty() && !forbiddenKeywords.contains(commandType);
 }
 
-std::vector<BSONObj> RecordingReader::parse() const {
+std::vector<BSONObj> RecordingReader::processRecording() const {
 
     // recording format.
     // {
@@ -75,10 +75,9 @@ std::vector<BSONObj> RecordingReader::parse() const {
     BSONObjIterator it(array);
     while (it.more()) {
         BSONElement elem = it.next();
-
         std::string opType;
         BSONElement opTypeElem = elem["opType"];
-        if (opTypeElem.type() == mongo::BSONType::string) {
+        if (opTypeElem.type() == BSONType::string) {
             opType = opTypeElem.String();
         }
 
@@ -87,10 +86,9 @@ std::vector<BSONObj> RecordingReader::parse() const {
         if (!isReplayable(opType))
             continue;
 
-        BSONElement rawopElem = elem["rawop"];
-        if (rawopElem.type() == mongo::BSONType::object) {
+        if (elem.type() == BSONType::object) {
             // leave the interpretation of the binary data to replay command
-            res.push_back(rawopElem.Obj().copy());
+            res.push_back(elem.Obj().copy());
         }
     }
     return res;

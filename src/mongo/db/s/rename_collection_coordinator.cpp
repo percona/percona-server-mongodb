@@ -402,11 +402,12 @@ void renameTrackedCollectionStatement(const txn_api::TransactionClient& txnClien
                                       const NamespaceString& newNss,
                                       const boost::optional<UUID>& newTargetCollectionUuid,
                                       const Timestamp& timeInsertion,
+                                      const OID& renamedCollectionEpoch,
                                       int stmtId) {
     auto newCollectionType = oldCollection;
     newCollectionType.setNss(newNss);
     newCollectionType.setTimestamp(timeInsertion);
-    newCollectionType.setEpoch(OID::gen());
+    newCollectionType.setEpoch(renamedCollectionEpoch);
     if (newTargetCollectionUuid.has_value()) {
         newCollectionType.setUuid(newTargetCollectionUuid.get());
     }
@@ -521,7 +522,7 @@ void renameCollectionMetadataInTransaction(OperationContext* opCtx,
                                            const boost::optional<UUID>& droppedTargetUUID,
                                            const boost::optional<UUID>& newTargetCollectionUuid,
                                            const Timestamp& commitTime,
-                                           bool logTargetPlacementChange,
+                                           const OID& renamedCollectionEpoch,
                                            const std::shared_ptr<executor::TaskExecutor>& executor,
                                            const OperationSessionInfo& osi) {
     const auto isFromCollTracked = optFromCollType.has_value();
@@ -532,23 +533,29 @@ void renameCollectionMetadataInTransaction(OperationContext* opCtx,
             auto fromUUID = optFromCollType->getUuid();
             // Delete TO collection (if it is also tracked).
             deleteTrackedCollectionStatement(txnClient, toNss, droppedTargetUUID, stmtId++);
-            // If requested, log the placement change of TO.
-            if (logTargetPlacementChange) {
-                auto shardIds = getCurrentCollPlacement(txnClient, fromUUID);
-                if (!shardIds.empty()) {
-                    upsertPlacementHistoryDocStatement(txnClient,
-                                                       toNss,
-                                                       newTargetCollectionUuid,
-                                                       commitTime,
-                                                       std::move(shardIds),
-                                                       stmtId++);
-                }
+            // Log the placement change for TO through an upsert statement
+            // (Note: a first copy may have been already committed during the
+            // kSetupChangeStreamsPreconditions phase, but then deleted as a consequence of a
+            // concurrent resetPlacementHistory command).
+            auto shardIds = getCurrentCollPlacement(txnClient, fromUUID);
+            if (!shardIds.empty()) {
+                upsertPlacementHistoryDocStatement(txnClient,
+                                                   toNss,
+                                                   newTargetCollectionUuid,
+                                                   commitTime,
+                                                   std::move(shardIds),
+                                                   stmtId++);
             }
             // Delete FROM collection.
             deleteTrackedCollectionStatement(txnClient, fromNss, fromUUID, stmtId++);
             // Persist the entry for the renamed collection
-            renameTrackedCollectionStatement(
-                txnClient, *optFromCollType, toNss, newTargetCollectionUuid, commitTime, stmtId++);
+            renameTrackedCollectionStatement(txnClient,
+                                             *optFromCollType,
+                                             toNss,
+                                             newTargetCollectionUuid,
+                                             commitTime,
+                                             renamedCollectionEpoch,
+                                             stmtId++);
             // Log the placement change of FROM.
             upsertPlacementHistoryDocStatement(
                 txnClient, fromNss, fromUUID, commitTime, {} /*shards*/, stmtId++);
@@ -559,10 +566,13 @@ void renameCollectionMetadataInTransaction(OperationContext* opCtx,
             // updated accordingly.
             updateUnsplittableCollChunkStmt(txnClient, *optFromCollType, newTargetCollectionUuid);
         } else {
-            // Just remove the metadata concerning the target collection (if any).
+            // If TO is tracked, remove its routing table and log the placement change.
+            // (Note: the placement change may have been already committed during the
+            // kSetupChangeStreamsPreconditions phase, but then deleted as a consequence of a
+            // concurrent resetPlacementHistory command).
             const auto targetMetadataDeleted =
                 deleteTrackedCollectionStatement(txnClient, toNss, droppedTargetUUID, stmtId++);
-            if (targetMetadataDeleted && logTargetPlacementChange) {
+            if (targetMetadataDeleted) {
                 upsertPlacementHistoryDocStatement(txnClient,
                                                    toNss,
                                                    newTargetCollectionUuid,
@@ -951,6 +961,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                 // - The cluster time at which the commit of this operation will be recorded in the
                 //   content of notification events and config.collections/placementHistory
                 //   documents;
+                // - The new epoch for FROM, once renamed to TO.
                 // - The identity of the shard that will notify change stream readers of FROM once
                 //   the operation gets committed.
                 if (!_doc.getCommitTimeInGlobalCatalog()) {
@@ -959,6 +970,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     auto now = VectorClock::get(opCtx)->getTime();
                     auto commitTime = now.clusterTime().asTimestamp();
                     newDoc.setCommitTimeInGlobalCatalog(commitTime);
+                    newDoc.setRenamedCollectionEpoch(OID::gen());
                     auto changeStreamsNotifierForSource =
                         getChangeStreamNotifierShardIdFor(_doc.getSourceUUID().value());
                     LOGV2(10488802,
@@ -1109,18 +1121,25 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                     supportsPreciseChangeStreamTargeter(opCtx);
                 const auto commitTime = [&] {
                     if (preciseChangeStreamTargeterEnabled) {
+                        tassert(10723700,
+                                "The commit time must be already present in the recovery document",
+                                _doc.getCommitTimeInGlobalCatalog().has_value());
                         return _doc.getCommitTimeInGlobalCatalog().value();
                     }
 
                     auto now = VectorClock::get(opCtx)->getTime();
                     return now.clusterTime().asTimestamp();
                 }();
+
+                const auto renamedCollectionEpoch = [&] {
+                    if (preciseChangeStreamTargeterEnabled) {
+                        return _doc.getRenamedCollectionEpoch().value();
+                    }
+
+                    return OID::gen();
+                }();
+
                 const auto session = getNewSession(opCtx);
-                // When precise change stream targeting is not enabled, the execution of the
-                // kSetupChangeStreamsPreconditions phase is skipped, so that no placement change
-                // for the target is performed. To amend this, perform the step as part of the
-                // transaction.
-                const auto logTargetPlacementChange = !preciseChangeStreamTargeterEnabled;
                 renameCollectionMetadataInTransaction(opCtx,
                                                       _doc.getOptTrackedCollInfo(),
                                                       fromNss,
@@ -1128,7 +1147,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                                                       _doc.getTargetUUID(),
                                                       _doc.getNewTargetCollectionUuid(),
                                                       commitTime,
-                                                      logTargetPlacementChange,
+                                                      renamedCollectionEpoch,
                                                       **executor,
                                                       session);
 

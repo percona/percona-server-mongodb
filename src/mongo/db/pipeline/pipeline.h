@@ -70,6 +70,10 @@
 
 namespace mongo {
 class BSONObj;
+
+// TODO SERVER-107320 remove 'CollectionOrViewAcquisition' and 'CollectionRoutingInfo'.
+class CollectionOrViewAcquisition;
+class CollectionRoutingInfo;
 class OperationContext;
 class Pipeline;
 class PipelineDeleter;
@@ -253,11 +257,6 @@ public:
     }
 
     /**
-     * Checks to see if disk is ever used within the pipeline.
-     */
-    bool usedDisk() const;
-
-    /**
      * Communicates to the pipeline which part of a split pipeline it is when the pipeline has been
      * split in two.
      */
@@ -329,6 +328,14 @@ public:
     bool requiredToRunOnRouter() const;
 
     /**
+     * Modifies the pipeline in-place to perform any rewrites that must happen before optimization.
+     */
+    void performPreOptimizationRewrites(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                                        const CollectionRoutingInfo& cri);
+    void performPreOptimizationRewrites(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                                        const CollectionOrViewAcquisition& collOrView);
+
+    /**
      * Modifies the pipeline, optimizing it by combining and swapping stages.
      */
     void optimizePipeline();
@@ -374,6 +381,8 @@ public:
     void addInitialSource(boost::intrusive_ptr<DocumentSource> source);
 
     void addFinalSource(boost::intrusive_ptr<DocumentSource> source);
+
+    void addSourceAtPosition(boost::intrusive_ptr<DocumentSource> source, size_t index);
 
     /**
      * Write the pipeline's operators to a std::vector<Value>, providing the level of detail
@@ -530,6 +539,30 @@ public:
     auto getTypeString() {
         return CursorType_serializer(pipelineType);
     }
+
+    /**
+     * Sets the OperationContext of 'expCtx' to nullptr and calls 'detachFromOperationContext()' on
+     * all underlying DocumentSources.
+     */
+    void detachFromOperationContext();
+
+    /**
+     * Sets the OperationContext of 'expCtx' to 'opCtx', and reattaches all underlying
+     * DocumentSources to 'opCtx'.
+     */
+    void reattachToOperationContext(OperationContext* opCtx);
+
+    /**
+     * Recursively validate the operation contexts associated with this pipeline. Return true if
+     * all document sources and subpipelines point to the given operation context.
+     */
+    bool validateOperationContext(const OperationContext* opCtx) const;
+
+    /**
+     * Asserts whether operation contexts associated with this pipeline are consistent across
+     * sources.
+     */
+    void checkValidOperationContext() const;
 
 private:
     friend class PipelineDeleter;

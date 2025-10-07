@@ -132,8 +132,11 @@ public:
     void addSubPipelineInitialSource(boost::intrusive_ptr<DocumentSource> source);
 
     void detachFromOperationContext() final;
+    void detachSourceFromOperationContext() final;
     void reattachToOperationContext(OperationContext* opCtx) final;
+    void reattachSourceToOperationContext(OperationContext* opCtx) final;
     bool validateOperationContext(const OperationContext* opCtx) const final;
+    bool validateSourceOperationContext(const OperationContext* opCtx) const final;
 
 protected:
     DocumentSourceSetVariableFromSubPipeline(const boost::intrusive_ptr<ExpressionContext>& expCtx,
@@ -142,8 +145,6 @@ protected:
         : DocumentSource(kStageName, expCtx),
           exec::agg::Stage(kStageName, expCtx),
           _subPipeline(std::move(subpipeline)),
-          _subExecPipeline(
-              exec::agg::buildPipeline(_subPipeline->getSources(), _subPipeline->getContext())),
           _variableID(varID) {}
 
     void doDispose() final;

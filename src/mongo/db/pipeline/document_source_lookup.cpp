@@ -680,8 +680,7 @@ DocumentSource::GetNextResult DocumentSourceLookUp::doGetNext() {
     }
     execPipeline->accumulatePlanSummaryStats(_stats.planSummaryStats);
 
-    // Check if pipeline uses disk.
-    _stats.planSummaryStats.usedDisk = _stats.planSummaryStats.usedDisk || pipeline->usedDisk();
+    _stats.planSummaryStats.usedDisk = _stats.planSummaryStats.usedDisk || execPipeline->usedDisk();
 
     MutableDocument output(std::move(inputDoc));
     output.setNestedField(_as, Value(std::move(results)));
@@ -1093,7 +1092,7 @@ DocumentSourceContainer::iterator DocumentSourceLookUp::doOptimizeAt(
 }  // doOptimizeAt
 
 bool DocumentSourceLookUp::usedDisk() const {
-    return _pipeline && _pipeline->usedDisk();
+    return _execPipeline && _execPipeline->usedDisk();
 }
 
 void DocumentSourceLookUp::doDispose() {
@@ -1441,8 +1440,32 @@ void DocumentSourceLookUp::detachFromOperationContext() {
         // We have a pipeline we're going to be executing across multiple calls to getNext(), so we
         // use Pipeline::detachFromOperationContext() to take care of updating
         // '_fromExpCtx->getOperationContext()'.
+        tassert(10713704,
+                "expecting '_execPipeline' to be initialized when '_pipeline' is initialized",
+                _execPipeline);
         _execPipeline->detachFromOperationContext();
-        invariant(_fromExpCtx->getOperationContext() == nullptr);
+        _pipeline->detachFromOperationContext();
+        tassert(10713705,
+                "expecting _fromExpCtx->getOperationContext() == nullptr",
+                _fromExpCtx->getOperationContext() == nullptr);
+    } else if (_fromExpCtx) {
+        _fromExpCtx->setOperationContext(nullptr);
+    }
+}
+
+void DocumentSourceLookUp::detachSourceFromOperationContext() {
+    if (_pipeline) {
+        // We have a pipeline we're going to be executing across multiple calls to getNext(), so we
+        // use Pipeline::detachFromOperationContext() to take care of updating
+        // '_fromExpCtx->getOperationContext()'.
+        tassert(10713706,
+                "expecting '_execPipeline' to be initialized when '_pipeline' is initialized",
+                _execPipeline);
+        _execPipeline->detachFromOperationContext();
+        _pipeline->detachFromOperationContext();
+        tassert(10713707,
+                "expecting _fromExpCtx->getOperationContext() == nullptr",
+                _fromExpCtx->getOperationContext() == nullptr);
     } else if (_fromExpCtx) {
         _fromExpCtx->setOperationContext(nullptr);
     }
@@ -1453,8 +1476,32 @@ void DocumentSourceLookUp::reattachToOperationContext(OperationContext* opCtx) {
         // We have a pipeline we're going to be executing across multiple calls to getNext(), so we
         // use Pipeline::reattachToOperationContext() to take care of updating
         // '_fromExpCtx->getOperationContext()'.
+        tassert(10713708,
+                "expecting '_execPipeline' to be initialized when '_pipeline' is initialized",
+                _execPipeline);
         _execPipeline->reattachToOperationContext(opCtx);
-        invariant(_fromExpCtx->getOperationContext() == opCtx);
+        _pipeline->reattachToOperationContext(opCtx);
+        tassert(10713709,
+                "expecting _fromExpCtx->getOperationContext() == opCtx",
+                _fromExpCtx->getOperationContext() == opCtx);
+    } else if (_fromExpCtx) {
+        _fromExpCtx->setOperationContext(opCtx);
+    }
+}
+
+void DocumentSourceLookUp::reattachSourceToOperationContext(OperationContext* opCtx) {
+    if (_pipeline) {
+        // We have a pipeline we're going to be executing across multiple calls to getNext(), so we
+        // use Pipeline::reattachToOperationContext() to take care of updating
+        // '_fromExpCtx->getOperationContext()'.
+        tassert(10713710,
+                "expecting '_execPipeline' to be initialized when '_pipeline' is initialized",
+                _execPipeline);
+        _execPipeline->reattachToOperationContext(opCtx);
+        _pipeline->reattachToOperationContext(opCtx);
+        tassert(10713711,
+                "expecting _fromExpCtx->getOperationContext() == opCtx",
+                _fromExpCtx->getOperationContext() == opCtx);
     } else if (_fromExpCtx) {
         _fromExpCtx->setOperationContext(opCtx);
     }
@@ -1462,6 +1509,19 @@ void DocumentSourceLookUp::reattachToOperationContext(OperationContext* opCtx) {
 
 bool DocumentSourceLookUp::validateOperationContext(const OperationContext* opCtx) const {
     if (getContext()->getOperationContext() != opCtx ||
+        (_fromExpCtx && _fromExpCtx->getOperationContext() != opCtx)) {
+        return false;
+    }
+
+    if (_execPipeline) {
+        return _execPipeline->validateOperationContext(opCtx);
+    }
+
+    return true;
+}
+
+bool DocumentSourceLookUp::validateSourceOperationContext(const OperationContext* opCtx) const {
+    if (getExpCtx()->getOperationContext() != opCtx ||
         (_fromExpCtx && _fromExpCtx->getOperationContext() != opCtx)) {
         return false;
     }

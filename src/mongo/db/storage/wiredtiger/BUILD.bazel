@@ -143,7 +143,6 @@ mongo_cc_library(
         "//src/mongo/db:service_context",
         "//src/mongo/db/encryption:key_management",
         "//src/mongo/db/storage:backup_cursor_hooks",
-        "//src/mongo/db/storage:capped_snapshots",
         "//src/mongo/db/storage:exceptions",
         "//src/mongo/db/storage:execution_context",
         "//src/mongo/db/storage:index_entry_comparison",

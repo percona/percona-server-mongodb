@@ -26,6 +26,7 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+#pragma once
 
 #include "mongo/bson/bsonobj.h"
 
@@ -36,7 +37,7 @@ namespace mongo {
 class RecordingReader {
 public:
     RecordingReader(std::string filename) : filename(std::move(filename)) {}
-    std::vector<BSONObj> parse() const;
+    std::vector<BSONObj> processRecording() const;
 
 private:
     std::string filename;

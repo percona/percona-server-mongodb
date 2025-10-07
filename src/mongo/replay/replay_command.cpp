@@ -33,19 +33,83 @@
 #include "mongo/bson/bsontypes.h"
 #include "mongo/replay/replay_command_executor.h"
 #include "mongo/rpc/factory.h"
+#include "mongo/rpc/op_msg.h"
+#include "mongo/stdx/chrono.h"
+#include "mongo/util/assert_util.h"
+#include "mongo/util/duration.h"
 
 #include <exception>
 
 namespace mongo {
 
-inline OpMsgRequest parse(BSONObj bsonCommand) {
+OpMsgRequest ReplayCommand::fetchMsgRequest() const {
+    try {
+        return parseBody(_bsonCommand);
+    } catch (const DBException& e) {
+        auto lastError = e.toStatus();
+        tasserted(ErrorCodes::ReplayClientFailedToProcessBSON, lastError.reason());
+    } catch (const std::exception& e) {
+        tasserted(ErrorCodes::ReplayClientFailedToProcessBSON, e.what());
+    }
+}
 
-    // The bsonobj stored inside ReplayCommand must have this format. We can only parse traffic
-    // recording bson like packets.
-    // rawop: { header: { messagelength: 339, requestid: 2, responseto: 0, opcode: 2004 },
-    //          body: BinData(0, ...) }
+Date_t ReplayCommand::fetchRequestTimestamp() const {
+    try {
+        return parseSeenTimestamp(_bsonCommand);
+    } catch (const DBException& e) {
+        auto lastError = e.toStatus();
+        tasserted(ErrorCodes::ReplayClientFailedToProcessBSON, lastError.reason());
+    } catch (const std::exception& e) {
+        tasserted(ErrorCodes::ReplayClientFailedToProcessBSON, e.what());
+    }
+}
 
-    BSONElement bodyElem = bsonCommand["body"];
+int64_t ReplayCommand::fetchRequestSessionId() const {
+    try {
+        return parseSessionId(_bsonCommand);
+    } catch (const DBException& e) {
+        auto lastError = e.toStatus();
+        tasserted(ErrorCodes::ReplayClientFailedToProcessBSON, lastError.reason());
+    } catch (const std::exception& e) {
+        tasserted(ErrorCodes::ReplayClientFailedToProcessBSON, e.what());
+    }
+}
+
+std::string ReplayCommand::toString() const {
+    OpMsgRequest messageRequest = fetchMsgRequest();
+    return messageRequest.body.toString();
+}
+
+OpMsgRequest ReplayCommand::parseBody(BSONObj command) const {
+    // "rawop": {
+    //    "header": { messagelength: 339, requestid: 2, responseto: 0, opcode: 2004 },
+    //    "body": BinData(0, ...),
+    //  },
+    //   "seen": {
+    //     "sec": 63883941272,
+    //     "nsec": 8
+    //   },
+    //   "session": {
+    //     "remote": "127.0.0.1:54482",
+    //     "local": "127.0.0.1:27017"
+    //   },
+    //   "order": 8,
+    //   "seenconnectionnum": 3,
+    //   "playedconnectionnum": 0,
+    //   "generation": 0,
+    //   "opType": "find" }
+
+    tassert(ErrorCodes::InternalError,
+            "Ill-formed document. rawop is not a valid field",
+            command.hasField("rawop"));
+
+    BSONElement rawop = command["rawop"];
+
+    tassert(ErrorCodes::InternalError,
+            "Ill-formed document. body is not a valid field",
+            rawop.Obj().hasField("body"));
+
+    BSONElement bodyElem = rawop["body"];
     int len = 0;
     const char* data = static_cast<const char*>(bodyElem.binDataClean(len));
     Message message;
@@ -55,28 +119,71 @@ inline OpMsgRequest parse(BSONObj bsonCommand) {
     return rpc::opMsgRequestFromAnyProtocol(message);
 }
 
-bool ReplayCommand::toRequest(OpMsgRequest& request) const {
-    try {
-        request = parse(_bsonCommand);
-    } catch (const DBException& e) {
-        auto lastError = e.toStatus();
-        tassert(ErrorCodes::ReplayClientInternalError, lastError.reason(), false);
-        return false;
-    } catch (const std::exception& e) {
-        tassert(ErrorCodes::ReplayClientInternalError, e.what(), false);
-        return false;
-    }
-    return true;
+Date_t ReplayCommand::parseSeenTimestamp(BSONObj command) const {
+
+    tassert(ErrorCodes::ReplayClientFailedToProcessBSON,
+            "Ill-formed document. rawop is not a valid field",
+            command.hasField("rawop"));
+
+    tassert(ErrorCodes::ReplayClientFailedToProcessBSON,
+            "Ill-formed document. Seen is not a valid field",
+            command.hasField("seen"));
+
+    BSONElement seenElem = command["seen"];
+
+    tassert(ErrorCodes::ReplayClientFailedToProcessBSON,
+            "Ill-formed recording document. `seen` does not have nested fields",
+            seenElem.type() == BSONType::object);
+
+    auto sec = seenElem["sec"].numberLong();
+    auto nano = seenElem["nsec"].numberLong();
+    // TODO SERVER-106702 will handle timestamps accordingly.
+    static constexpr long long unixToInternal = 62135596800LL;
+    uint64_t unixSeconds = sec - unixToInternal;
+    unixSeconds += nano;
+    return Date_t::fromMillisSinceEpoch(unixSeconds);
 }
 
-std::string ReplayCommand::toString() const {
-    try {
-        const auto request = parse(_bsonCommand);
-        return request.body.toString();
-    } catch (const DBException& e) {
-        tassert(ErrorCodes::ReplayClientInternalError, e.what(), false);
-    }
-    return {};
+int64_t ReplayCommand::parseSessionId(BSONObj command) const {
+
+    tassert(ErrorCodes::ReplayClientFailedToProcessBSON,
+            "Ill-formed document. rawop is not a valid field",
+            command.hasField("rawop"));
+
+    tassert(ErrorCodes::ReplayClientFailedToProcessBSON,
+            "Ill-formed document. Session id is not present",
+            command.hasField("seenconnectionnum"));
+
+    BSONElement sessionElem = command["seenconnectionnum"];
+
+    tassert(ErrorCodes::ReplayClientFailedToProcessBSON,
+            "Ill-formed recording document. SessionId is not a scalar type",
+            sessionElem.type() == BSONType::numberLong);
+
+    return sessionElem.Long();
+}
+
+std::string ReplayCommand::parseOpType(BSONObj command) const {
+    tassert(ErrorCodes::InternalError,
+            "failed to parse bson commands, opType must be present",
+            command.hasField("opType"));
+    BSONElement opTypeElem = command["opType"];
+    tassert(ErrorCodes::InternalError,
+            "failed to parse bson commands, opType must be a string",
+            opTypeElem.type() == BSONType::string);
+    auto opType = opTypeElem.String();
+    tassert(ErrorCodes::InternalError,
+            "failed to parse bson commands, opType must not be empty",
+            !opType.empty());
+    return opType;
+}
+
+bool ReplayCommand::isStartRecording() const {
+    return parseOpType(_bsonCommand) == "startTrafficRecording";
+}
+
+bool ReplayCommand::isStopRecording() const {
+    return parseOpType(_bsonCommand) == "stopTrafficRecording";
 }
 
 }  // namespace mongo

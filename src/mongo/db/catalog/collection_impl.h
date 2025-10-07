@@ -44,7 +44,6 @@
 #include "mongo/db/catalog/durable_catalog_entry_metadata.h"
 #include "mongo/db/catalog/index_catalog.h"
 #include "mongo/db/catalog/index_catalog_entry.h"
-#include "mongo/db/collection_crud/capped_visibility.h"
 #include "mongo/db/index/index_descriptor.h"
 #include "mongo/db/index/multikey_paths.h"
 #include "mongo/db/matcher/expression_parser.h"
@@ -164,8 +163,10 @@ public:
     bool requiresIdIndex() const final;
 
     Snapshotted<BSONObj> docFor(OperationContext* opCtx, const RecordId& loc) const final {
-        return Snapshotted<BSONObj>(shard_role_details::getRecoveryUnit(opCtx)->getSnapshotId(),
-                                    _shared->_recordStore->dataFor(opCtx, loc).releaseToBson());
+        return Snapshotted<BSONObj>(
+            shard_role_details::getRecoveryUnit(opCtx)->getSnapshotId(),
+            _shared->_recordStore->dataFor(opCtx, *shard_role_details::getRecoveryUnit(opCtx), loc)
+                .releaseToBson());
     }
 
     /**
@@ -283,14 +284,6 @@ public:
     bool isCapped() const final;
     long long getCappedMaxDocs() const final;
     long long getCappedMaxSize() const final;
-
-    bool usesCappedSnapshots() const final;
-    std::vector<RecordId> reserveCappedRecordIds(OperationContext* opCtx, size_t nIds) const final;
-    void registerCappedInserts(OperationContext* opCtx,
-                               const RecordId& minRecord,
-                               const RecordId& maxRecord) const final;
-    CappedVisibilityObserver* getCappedVisibilityObserver() const final;
-    CappedVisibilitySnapshot takeCappedVisibilitySnapshot() const final;
 
     long long numRecords(OperationContext* opCtx) const final;
 
@@ -476,14 +469,6 @@ private:
         std::unique_ptr<CollatorInterface> _collator;
 
         const bool _needCappedLock;
-
-        // Tracks in-progress capped inserts to inform visibility for forward scans so that no
-        // uncommitted records are skipped.
-        CappedVisibilityObserver _cappedObserver;
-
-        // This mutex synchronizes allocating and registering RecordIds for uncommited writes on
-        // capped collections that accept concurrent writes (i.e. usesCappedSnapshots()).
-        mutable stdx::mutex _registerCappedIdsMutex;
 
         // Time-series collections are allowed to contain measurements with arbitrary dates;
         // however, many of our query optimizations only work properly with dates that can be stored

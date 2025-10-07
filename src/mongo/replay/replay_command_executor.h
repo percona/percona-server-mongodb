@@ -26,7 +26,6 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
 #pragma once
 
 #include "mongo/client/dbclient_base.h"
@@ -47,8 +46,6 @@ class ReplayCommand;
  */
 class ReplayCommandExecutor {
 public:
-    /** Initialize the replay executor. This method must always be called. */
-    bool init();
     /*
      * Connect the executor to the server instance passed in the constructor. The connection status
      * is checked and if successful a new client instance is created.
@@ -59,7 +56,9 @@ public:
      * established without creating a new instance of this class.
      */
     void reset();
-    /** Simply checks if the executor is connected to same instance. */
+    /**
+     * Simply checks if the executor is connected to same instance.
+     */
     bool isConnected() const;
     /*
      * Given a well formed binary protocol bson command encapsulated inside a replay command. This
@@ -68,9 +67,6 @@ public:
     BSONObj runCommand(const ReplayCommand&) const;
 
 private:
-    void setup() const;
-    void setupTransportLayer(ServiceContext&) const;
-    void setupWireProtocol(ServiceContext&) const;
     std::unique_ptr<DBClientBase> _dbConnection = nullptr;
 };
 }  // namespace mongo

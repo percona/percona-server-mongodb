@@ -265,6 +265,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /etc/code_lockdown.yml @10gen/devprod-correctness @svc-auto-approve-bot
 /etc/evergreen_yml_components/tasks/compile_tasks*.yml @10gen/devprod-build @svc-auto-approve-bot
 /etc/performance_thresholds.yml @10gen/performance @svc-auto-approve-bot
+/etc/evergreen_yml_components/tasks/release_tasks.yml @10gen/devprod-release-infrastructure @svc-auto-approve-bot
+/etc/evergreen_yml_components/variants/release/release.yml @10gen/devprod-release-infrastructure @svc-auto-approve-bot
 
 # The following patterns are parsed from ./etc/evergreen_yml_components/tasks/resmoke/server_divisions/query/OWNERS.yml
 /etc/evergreen_yml_components/tasks/resmoke/server_divisions/query/**/* @10gen/query @svc-auto-approve-bot
@@ -903,6 +905,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericChangeStreams/**/* @10gen/query-execution-change-streams @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/OWNERS.yml
+/jstests/multiVersion/genericSetFCVUsage/**/OWNERS.yml @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/rsm* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/bit_update_mixed_fcv.js @10gen/query-execution-write-exec @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/fcv_upgrade_removes_legacy_timeseries_bucketing_parameters_flag.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
@@ -930,6 +933,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/set_feature_compatibility_version_confirm.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/test_replica_set_startup_in_downgrading_state.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/test_sharding_startup_in_downgrading_state.js @10gen/server-fcv @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/set_fcv_dry_run_mode_downgrade.js @10gen/server-fcv @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/collection_write_path/OWNERS.yml
 /jstests/multiVersion/genericSetFCVUsage/collection_write_path/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -1382,6 +1386,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/libs/**/update_shard_key_helpers.js @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/libs/**/zone_changes_util.js @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/libs/**/mongos_api_params_util.js @10gen/query-optimization @svc-auto-approve-bot
+/jstests/sharding/libs/**/create_sharded_collection_util.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/load_balancer_support/OWNERS.yml
 /jstests/sharding/load_balancer_support/**/* @10gen/server-networking-and-observability @svc-auto-approve-bot
@@ -1539,6 +1544,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/**/index_names.* @10gen/query-execution-write-exec @svc-auto-approve-bot
 /src/mongo/db/**/keys_collection* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /src/mongo/db/**/max_time.* @10gen/server-networking-and-observability @svc-auto-approve-bot
+/src/mongo/db/**/metadata_consistency* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/**/mongod.cpp @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/db/**/mongod_initializers.* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/db/**/mongod_main.* @10gen/server-programmability @svc-auto-approve-bot
@@ -2084,6 +2090,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/accumulator_percentile* @10gen/query-integration-extensions @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/accumulator_test.cpp @10gen/query-execution-classic @10gen/query-integration-extensions @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/accumulator_internal_construct_stats.cpp @10gen/query-optimization @svc-auto-approve-bot
+/src/mongo/db/pipeline/**/aggregation_hint_translation.h @10gen/query-integration-timeseries @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/aggregation_request* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/aggregation_context_fixture.h @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/aggregation_mongod_context_fixture.h @10gen/query-optimization @svc-auto-approve-bot
@@ -2581,6 +2588,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/s/migration_blocking_operation/OWNERS.yml
 /src/mongo/db/s/migration_blocking_operation/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/s/primary_only_service_helpers/OWNERS.yml
+/src/mongo/db/s/primary_only_service_helpers/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/s/query_cmd/OWNERS.yml
 /src/mongo/db/s/query_cmd/**/* @10gen/query-optimization @svc-auto-approve-bot
@@ -3083,6 +3093,10 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/util/tracking/OWNERS.yml
 /src/mongo/util/tracking/**/* @10gen/server-tracking-allocators @svc-auto-approve-bot
 
+# The following patterns are parsed from ./src/mongo/util/version/OWNERS.yml
+/src/mongo/util/version/**/releases.tpl.h @10gen/server-programmability @svc-auto-approve-bot
+/src/mongo/util/version/**/releases.yml @10gen/server-release @svc-auto-approve-bot
+
 # The following patterns are parsed from ./src/mongo/watchdog/OWNERS.yml
 /src/mongo/watchdog/**/* @10gen/server-networking-and-observability @svc-auto-approve-bot
 
@@ -3135,6 +3149,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/third_party/libmongocrypt/OWNERS.yml
 /src/third_party/libmongocrypt/**/* @10gen/server-security @svc-auto-approve-bot
+
+# The following patterns are parsed from ./tools/flag_sync/OWNERS.yml
+/tools/flag_sync/**/* @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./tools/lint/OWNERS.yml
 /tools/lint/**/* @10gen/devprod-build @svc-auto-approve-bot
