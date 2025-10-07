@@ -3559,6 +3559,7 @@ const wcTimeseriesViewsCommandsTests = {
             },
         },
     },
+    createBackup: {skip: "does not accept write concern"},
     createIndexes: {
         noop: {
             // Index already exists
