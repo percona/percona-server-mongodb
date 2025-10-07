@@ -117,7 +117,7 @@ public:
             }
 
             WiredTigerKVEngineBase::WiredTigerConfig wtConfig =
-                getWiredTigerConfigFromStartupOptions(true /* usingSpillWiredTigerKVEngine */);
+                getWiredTigerConfigFromStartupOptions();
             // TODO(SERVER-103753): Compute cache size properly.
             wtConfig.cacheSizeMB = 100;
             wtConfig.inMemory = params.inMemory;

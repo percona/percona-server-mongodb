@@ -61,7 +61,7 @@ public:
      * Inform the encryption storage system to prepare its data such that its files can be copied
      * along with MongoDB data files for a backup.
      */
-    virtual StatusWith<std::deque<BackupBlock>> beginNonBlockingBackup(
+    virtual StatusWith<std::deque<KVBackupBlock>> beginNonBlockingBackup(
         OperationContext* opCtx,
         boost::optional<Timestamp> checkpointTimestamp,
         const StorageEngine::BackupOptions& options) override;

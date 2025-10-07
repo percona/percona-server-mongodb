@@ -99,11 +99,11 @@ Status EncryptionHooks::unprotectTmpData(const uint8_t* in,
                   "Encryption hooks must be enabled to use postprocessTmpData.");
 }
 
-StatusWith<std::deque<BackupBlock>> EncryptionHooks::beginNonBlockingBackup(
+StatusWith<std::deque<KVBackupBlock>> EncryptionHooks::beginNonBlockingBackup(
     OperationContext* opCtx,
     boost::optional<Timestamp> checkpointTimestamp,
     const StorageEngine::BackupOptions&) {
-    return std::deque<BackupBlock>();
+    return std::deque<KVBackupBlock>();
 }
 
 Status EncryptionHooks::endNonBlockingBackup(OperationContext* opCtx) {

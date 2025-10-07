@@ -109,7 +109,7 @@ public:
     // _srng use protected by _lock_key
     void generate_secure_key(unsigned char* key);
 
-    StatusWith<std::deque<BackupBlock>> beginNonBlockingBackup(
+    StatusWith<std::deque<KVBackupBlock>> beginNonBlockingBackup(
         OperationContext* opCtx,
         boost::optional<Timestamp> checkpointTimestamp,
         const StorageEngine::BackupOptions& options);
@@ -141,7 +141,7 @@ private:
     // during rotation copies data from provided instance
     void import_data_from(const EncryptionKeyDB* proto);
 
-    StatusWith<std::deque<BackupBlock>> _disableIncrementalBackup();
+    StatusWith<std::deque<KVBackupBlock>> _disableIncrementalBackup();
 
     void close_handles();
     int store_gcm_iv_reserved();

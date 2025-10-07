@@ -47,11 +47,12 @@
 #include <string>
 #include <vector>
 
+#include <boost/filesystem.hpp>
 #include <boost/serialization/strong_typedef.hpp>
 
 namespace mongo {
 
-class BackupBlock;
+class KVBackupBlock;
 class JournalListener;
 class MDBCatalog;
 class KVEngine;
@@ -342,11 +343,7 @@ public:
 
         virtual ~StreamingCursor() = default;
 
-        virtual void setCatalogEntries(
-            stdx::unordered_map<std::string, std::pair<NamespaceString, UUID>>
-                identsToNsAndUUID) = 0;
-
-        virtual StatusWith<std::deque<BackupBlock>> getNextBatch(std::size_t batchSize) = 0;
+        virtual StatusWith<std::deque<KVBackupBlock>> getNextBatch(std::size_t batchSize) = 0;
 
     protected:
         BackupOptions options;

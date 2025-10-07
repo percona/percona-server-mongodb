@@ -111,7 +111,7 @@ bool WiredTigerEncryptionHooks::restartRequired() {
     return false;
 }
 
-StatusWith<std::deque<BackupBlock>> WiredTigerEncryptionHooks::beginNonBlockingBackup(
+StatusWith<std::deque<KVBackupBlock>> WiredTigerEncryptionHooks::beginNonBlockingBackup(
     OperationContext* opCtx,
     boost::optional<Timestamp> checkpointTimestamp,
     const StorageEngine::BackupOptions& options) {

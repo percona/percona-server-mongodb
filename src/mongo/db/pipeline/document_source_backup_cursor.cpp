@@ -98,13 +98,13 @@ DocumentSource::GetNextResult DocumentSourceBackupCursor::doGetNext() {
         return GetNextResult::makeEOF();
     }
 
-    if (_docIt == _backupBlocks.cend()) {
+    if (_docIt == _kvBackupBlocks.cend()) {
         constexpr std::size_t batchSize = 100;
-        _backupBlocks =
+        _kvBackupBlocks =
             uassertStatusOK(_backupCursorState.streamingCursor->getNextBatch(batchSize));
-        _docIt = _backupBlocks.cbegin();
+        _docIt = _kvBackupBlocks.cbegin();
         // Empty batch means streaming cursor is exhausted
-        if (_backupBlocks.empty()) {
+        if (_kvBackupBlocks.empty()) {
             return GetNextResult::makeEOF();
         }
     }
@@ -208,8 +208,8 @@ DocumentSourceBackupCursor::DocumentSourceBackupCursor(
       _backupOptions(options),
       _backupCursorState(pExpCtx->getMongoProcessInterface()->openBackupCursor(
           pExpCtx->getOperationContext(), _backupOptions)),
-      _backupBlocks(std::move(_backupCursorState.otherBackupBlocks)),
-      _docIt(_backupBlocks.cbegin()) {}
+      _kvBackupBlocks(std::move(_backupCursorState.otherKVBackupBlocks)),
+      _docIt(_kvBackupBlocks.cbegin()) {}
 
 DocumentSourceBackupCursor::~DocumentSourceBackupCursor() {
     try {

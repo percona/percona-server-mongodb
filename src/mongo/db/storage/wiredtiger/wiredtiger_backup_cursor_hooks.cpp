@@ -177,7 +177,7 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
                 oplogStart <= oplogEnd);
     }
 
-    std::deque<BackupBlock> eseBackupBlocks;
+    std::deque<KVBackupBlock> eseBackupBlocks;
     auto* encHooks = EncryptionHooks::get(opCtx->getServiceContext());
     if (encHooks->enabled()) {
         eseBackupBlocks =
