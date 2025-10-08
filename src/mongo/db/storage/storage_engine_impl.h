@@ -186,6 +186,8 @@ public:
 
     void clearDropPendingState(OperationContext* opCtx) final;
 
+    void clearDropPendingStateForIdent(OperationContext* opCtx, StringData ident) final;
+
     SnapshotManager* getSnapshotManager() const final;
 
     void setJournalListener(JournalListener* jl) final;
