@@ -92,8 +92,9 @@ struct ServerGlobalParams {
 
     AtomicWord<bool> quiet{false};  // --quiet
 
-    ClusterRole clusterRole = ClusterRole::None;  // --configsvr/--shardsvr
-    MaintenanceMode maintenanceMode;              // --maintenanceMode
+    ClusterRole clusterRole = ClusterRole::None;       // --configsvr/--shardsvr
+    MaintenanceMode maintenanceMode;                   // --maintenanceMode
+    bool replicaSetConfigShardMaintenanceMode{false};  // --replicaSetConfigShardMaintenanceMode
 
     boost::optional<int> routerPort;      // --routerPort
     boost::optional<int> proxyPort;       // --proxyPort
@@ -333,6 +334,9 @@ struct ServerGlobalParams {
     AtomicWord<bool> validateFeaturesAsPrimary{true};
 
     std::vector<std::string> disabledSecureAllocatorDomains;
+
+    // List of absolute paths to extension shared object files. These will be loaded during startup.
+    std::vector<std::string> extensions;
 };
 
 extern ServerGlobalParams serverGlobalParams;

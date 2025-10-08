@@ -680,6 +680,22 @@ void ShardingInitializationMongoD::onConsistentDataAvailable(OperationContext* o
         return;
     }
 
+    if (serverGlobalParams.replicaSetConfigShardMaintenanceMode) {
+        // (Generic FCV reference): FCV snapshot
+        const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
+        if (fcvSnapshot.isUpgradingOrDowngrading()) {
+            LOGV2_FATAL(
+                10718600,
+                "Using --replicaSetConfigshardMaintenanceMode is prohibited during an FCV change");
+        }
+        if (!feature_flags::gFeatureFlagEnableReplicasetTransitionToCSRS.isEnabled(
+                VersionContext::getDecoration(opCtx), fcvSnapshot)) {
+            LOGV2_FATAL(10718400,
+                        "replicaSetConfigShardMaintenanceMode is prohibited if "
+                        "featureFlagEnableReplicasetTransitionToCSRS is disabled");
+        }
+    }
+
     if (serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)) {
         initializeGlobalShardingStateForConfigServer(opCtx);
     }

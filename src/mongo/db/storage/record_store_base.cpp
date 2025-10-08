@@ -77,11 +77,6 @@ RecordData RecordStoreBase::dataFor(OperationContext* opCtx,
 }
 
 bool RecordStoreBase::findRecord(OperationContext* opCtx,
-                                 const RecordId& loc,
-                                 RecordData* out) const {
-    return findRecord(opCtx, *shard_role_details::getRecoveryUnit(opCtx), loc, out);
-}
-bool RecordStoreBase::findRecord(OperationContext* opCtx,
                                  RecoveryUnit& ru,
                                  const RecordId& loc,
                                  RecordData* out) const {
@@ -95,9 +90,6 @@ bool RecordStoreBase::findRecord(OperationContext* opCtx,
     return true;
 }
 
-void RecordStoreBase::deleteRecord(OperationContext* opCtx, const RecordId& id) {
-    deleteRecord(opCtx, *shard_role_details::getRecoveryUnit(opCtx), id);
-}
 void RecordStoreBase::deleteRecord(OperationContext* opCtx, RecoveryUnit& ru, const RecordId& id) {
     validateWriteAllowed(opCtx);
     _deleteRecord(opCtx, ru, id);

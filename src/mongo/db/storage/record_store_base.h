@@ -64,13 +64,11 @@ public:
 
     RecordData dataFor(OperationContext* opCtx, RecoveryUnit&, const RecordId& loc) const final;
 
-    bool findRecord(OperationContext* opCtx, const RecordId& loc, RecordData* out) const final;
     bool findRecord(OperationContext* opCtx,
                     RecoveryUnit&,
                     const RecordId& loc,
                     RecordData* out) const final;
 
-    void deleteRecord(OperationContext*, const RecordId&) final;
     void deleteRecord(OperationContext*, RecoveryUnit&, const RecordId&) final;
 
     Status insertRecords(OperationContext*,

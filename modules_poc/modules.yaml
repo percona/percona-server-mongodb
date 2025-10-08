@@ -517,6 +517,7 @@ ddl:
     - src/mongo/s/request_types/migration_blocking_operation*
     - src/mongo/s/migration_blocking_operation*
     - src/mongo/db/metadata_consistency_types.idl
+    - src/mongo/db/commands/configure_background_task_command*
     - src/mongo/db/commands/shuffle_list_command_results*
     - src/mongo/db/s/shardsvr_validate_shard_key_candidate.cpp
     - src/mongo/db/s/config/configsvr_run_restore*
@@ -628,6 +629,8 @@ routing_and_topology:
     - src/mongo/s/commands/*remove_shard*
     - src/mongo/s/commands/cluster_start_shard_draining_cmd.cpp
     - src/mongo/s/request_types/remove_shard*
+    - src/mongo/db/s/config/configsvr_shard_draining_status_command.cpp
+    - src/mongo/s/commands/cluster_shard_draining_status_cmd.cpp
 
     - src/mongo/db/s/complete_promotion_to_sharded_cluster_coordinator*
     - src/mongo/db/s/topology_change_helpers*
@@ -1104,6 +1107,13 @@ key_string: # authoritative: @10gen/server-key-string
     jira: Storage Execution
   files:
     - src/mongo/db/storage/key_string
+
+disagg_storage:
+  meta:
+    slack: disaggregated-storage-mongod
+    jira: RSSD
+  files:
+    - src/mongo/db/disagg_storage
 
 storage_engine_api:
   meta:

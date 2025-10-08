@@ -24,6 +24,7 @@ variables:
       - enterprise-rhel-8-arm64
       - enterprise-rhel-83-s390x
       - enterprise-rhel-9-ppc64le
+      - enterprise-rhel-9-s390x
       - enterprise-rhel-90-64-bit
       - enterprise-rhel-90-arm64
       - enterprise-rhel-93-64-bit
@@ -486,7 +487,7 @@ tasks:
             MSI_MD5_KEY: ${version_id}/${build_id}/push/${push_path}/mongodb-${push_name}-${push_arch}-${suffix}-signed.msi.md5
             AWS_ACCESS_KEY_ID: ${upload_lock_access_key_id}
             AWS_SECRET_ACCESS_KEY: ${upload_lock_secret_access_key}
-            UPLOAD_LOCK_IMAGE: ${upload_lock_image}
+            UPLOAD_LOCK_IMAGE: ${upload_lock_image_ecr}
             UPLOAD_BUCKET: ${upload_lock_bucket}
             AWS_REGION: ${upload_lock_region}
             EVERGREEN_TASK_ID: ${task_id}

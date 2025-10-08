@@ -388,7 +388,7 @@ void WiredTigerIndex::printIndexEntryMetadata(OperationContext* opCtx,
 
     // Open a version cursor. This is a debug cursor that enables iteration through the history of
     // values for a given index entry.
-    WT_CURSOR* cursor = session.getNewCursor(_uri, "debug=(dump_version=true)");
+    WT_CURSOR* cursor = session.getNewCursor(_uri, "debug=(dump_version=(enabled=true))");
 
     setKey(cursor, keyString.getKeyAndRecordIdView());
 
@@ -917,13 +917,6 @@ public:
     }
     void setSaveStorageCursorOnDetachFromOperationContext(bool detach) override {
         WiredTigerIndexCursorGeneric::setSaveStorageCursorOnDetachFromOperationContext(detach);
-    }
-
-    /**
-     *  Returns the checkpoint ID for checkpoint cursors, otherwise 0.
-     */
-    uint64_t getCheckpointId() const override {
-        return _cursor->getCheckpointId();
     }
 
 protected:

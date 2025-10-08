@@ -62,7 +62,6 @@
 #include "mongo/db/query/collation/collation_spec.h"
 #include "mongo/db/query/collation/collator_factory_interface.h"
 #include "mongo/db/query/collation/collator_interface.h"
-#include "mongo/db/query/index_bounds.h"
 #include "mongo/db/query/internal_plans.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_yield_policy.h"
@@ -388,7 +387,7 @@ void runClusterAggregate(OperationContext* opCtx,
                       .build();
 
     auto pipeline = Pipeline::makePipeline(aggRequest, expCtx);
-    auto execPipeline = exec::agg::buildPipeline(pipeline->getSources(), pipeline->getContext());
+    auto execPipeline = exec::agg::buildPipeline(pipeline->freeze());
 
     while (auto doc = execPipeline->getNext()) {
         callbackFn(doc->toBson());

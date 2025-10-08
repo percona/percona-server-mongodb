@@ -238,11 +238,6 @@ public:
     virtual void saveUnpositioned() {
         save();
     }
-
-    virtual uint64_t getCheckpointId() const {
-        uasserted(ErrorCodes::CommandNotSupported,
-                  "The current storage engine does not support checkpoint ids");
-    }
 };
 
 /**
@@ -445,19 +440,12 @@ public:
      *
      * In general prefer RecordCursor::seekExact since it can avoid copying data in more
      * storageEngines.
-     *
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
      */
-    virtual bool findRecord(OperationContext*, const RecordId&, RecordData*) const = 0;
     virtual bool findRecord(OperationContext*,
                             RecoveryUnit&,
                             const RecordId&,
                             RecordData*) const = 0;
 
-    /**
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
-     */
-    virtual void deleteRecord(OperationContext* opCtx, const RecordId& dl) = 0;
     virtual void deleteRecord(OperationContext* opCtx, RecoveryUnit&, const RecordId& dl) = 0;
 
     /**

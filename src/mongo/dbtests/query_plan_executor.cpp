@@ -63,7 +63,6 @@
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/find_command.h"
-#include "mongo/db/query/index_bounds.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_executor_factory.h"
@@ -205,9 +204,9 @@ protected:
 
 private:
     const IndexDescriptor* getIndex(Database* db, const BSONObj& obj) {
-        // TODO(SERVER-103409): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
-        CollectionPtr collection = CollectionPtr::CollectionPtr_UNSAFE(
-            CollectionCatalog::get(&_opCtx)->lookupCollectionByNamespace(&_opCtx, nss));
+        CollectionPtr collection =
+            CollectionPtr(CollectionCatalog::get(&_opCtx)->establishConsistentCollection(
+                &_opCtx, nss, boost::none));
         std::vector<const IndexDescriptor*> indexes;
         collection->getIndexCatalog()->findIndexesByKeyPattern(
             &_opCtx, obj, IndexCatalog::InclusionPolicy::kReady, &indexes);

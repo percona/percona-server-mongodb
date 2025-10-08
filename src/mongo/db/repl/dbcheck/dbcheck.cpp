@@ -45,7 +45,7 @@
 #include "mongo/db/index/index_access_method.h"
 #include "mongo/db/index/index_descriptor.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/db/query/index_bounds.h"
+#include "mongo/db/query/compiler/physical_model/index_bounds/index_bounds.h"
 #include "mongo/db/query/internal_plans.h"
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/query/record_id_bound.h"
@@ -806,7 +806,8 @@ Status DbCheckHasher::hashForCollectionCheck(OperationContext* opCtx,
 
         auto rehydratedObjId = key_string::rehydrateKey(BSON("_id" << 1), currentObjId);
 
-        if (!collPtr->getRecordStore()->findRecord(opCtx, currentRecordId, &record)) {
+        if (!collPtr->getRecordStore()->findRecord(
+                opCtx, *shard_role_details::getRecoveryUnit(opCtx), currentRecordId, &record)) {
             const auto msg = "Error fetching record from record id";
             const auto status = Status(ErrorCodes::KeyNotFound, msg);
             const auto logEntry = dbCheckErrorHealthLogEntry(

@@ -58,7 +58,6 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/query/count_command_gen.h"
-#include "mongo/db/query/index_bounds.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/record_id.h"
 #include "mongo/db/repl/oplog.h"
@@ -95,11 +94,10 @@ const NamespaceString kTestNss = NamespaceString::createNamespaceString_forTest(
 
 class CountStageTest {
 public:
-    // TODO(SERVER-103409): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
     CountStageTest()
         : _autodb(&_opCtx, nss().dbName(), MODE_X),
           _expCtx(ExpressionContextBuilder{}.opCtx(&_opCtx).ns(kTestNss).build()),
-          _coll(CollectionPtr::CollectionPtr_UNSAFE(nullptr)) {}
+          _coll(CollectionPtr(ConsistentCollection())) {}
 
     virtual ~CountStageTest() {}
 
@@ -118,8 +116,8 @@ public:
                                                       << "x_1"
                                                       << "v" << 1))
             .status_with_transitional_ignore();
-        // TODO(SERVER-103409): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
-        _coll = CollectionPtr::CollectionPtr_UNSAFE(coll);
+        _coll = CollectionPtr(CollectionCatalog::get(&_opCtx)->establishConsistentCollection(
+            &_opCtx, nss(), boost::none));
 
         for (int i = 0; i < kDocuments; i++) {
             insert(BSON(GENOID << "x" << i));

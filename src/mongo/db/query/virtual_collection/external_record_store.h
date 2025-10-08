@@ -112,18 +112,11 @@ public:
         return {};
     }
 
-    bool findRecord(OperationContext*, const RecordId&, RecordData*) const final {
-        unimplementedTasserted();
-        return false;
-    }
     bool findRecord(OperationContext*, RecoveryUnit&, const RecordId&, RecordData*) const final {
         unimplementedTasserted();
         return false;
     }
 
-    void deleteRecord(OperationContext* opCtx, const RecordId& dl) final {
-        unimplementedTasserted();
-    }
     void deleteRecord(OperationContext* opCtx, RecoveryUnit&, const RecordId& dl) final {
         unimplementedTasserted();
     }

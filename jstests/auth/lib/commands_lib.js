@@ -105,6 +105,7 @@ import {
 export const firstDbName = "roles_commands_1";
 export const secondDbName = "roles_commands_2";
 export const adminDbName = "admin";
+export const configDbName = "config";
 export const authErrCode = 13;
 export const commandNotSupportedCode = 115;
 let shard0name = "shard0000";
@@ -2801,6 +2802,49 @@ export const authCommandsLib = {
                     },
                     {resource: {db: secondDbName, collection: "x"}, actions: ["find"]}
                 ]
+              }
+          ]
+        },
+        {
+          testname: "configureBackgroundTask",
+          command: {configureBackgroundTask: 1, task: "ttlMonitor", mode: "enabled"},
+          skipUnlessReplicaSet: true,
+          testcases: [
+              {
+                runOnDb: adminDbName,
+                roles: {clusterManager: 1, clusterAdmin: 1, root: 1, __system: 1}
+              },
+              {
+                runOnDb: adminDbName,
+                privileges: [{resource: {cluster: true}, actions: ["configureBackgroundTask"]}]
+              },
+              {
+                runOnDb: adminDbName,
+                privileges: [
+                    {resource: {db: "", collection: ""}, actions: ["configureBackgroundTask"]}
+                ],
+                expectAuthzFailure: true
+              },
+              {
+                runOnDb: adminDbName,
+                privileges: [{
+                    resource: {db: adminDbName, collection: ""},
+                    actions: ["configureBackgroundTask"]
+                }],
+                expectAuthzFailure: true
+              },
+              {
+                runOnDb: adminDbName,
+                privileges: [{
+                    resource: {db: adminDbName, collection: "coll"},
+                    actions: ["configureBackgroundTask"]
+                }],
+                expectAuthzFailure: true
+              },
+              {
+                runOnDb: adminDbName,
+                privileges: [{resource: {cluster: true}, actions: ["convertToCapped"]}],
+                expectAuthzFailure: true
               }
           ]
         },
@@ -8402,6 +8446,106 @@ export const authCommandsLib = {
             expectAuthzFailure: false, // We expect the request to be authorized.
           },
       ]
+      },
+      {
+          testname: "queryShapeRepresentativeQueries_find",
+          command: {
+              find: "queryShapeRepresentativeQueries",
+          },
+          skipTest: (conn) => {
+              return isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill;
+          },
+          testcases: [
+              {
+                  runOnDb: configDbName,
+                  roles: {...roles_clusterManager, clusterMonitor: 1, searchCoordinator: 1,  backup: 1},
+                  privileges: [
+                      {resource: {db: "config", collection: "queryShapeRepresentativeQueries"}, actions: ["find"]},
+                  ],
+                  expectAuthzFailure: false,
+              },
+          ]
+      },
+      {
+          testname: "queryShapeRepresentativeQueries_insert",
+          command: {
+              insert: "queryShapeRepresentativeQueries",
+              documents: [{a: 1}],
+          },
+          skipTest: (conn) => {
+              return isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill;
+          },
+          testcases: [
+              {
+                  runOnDb: configDbName,
+                  roles: {...roles_clusterManager, restore: 1},
+                  privileges: [
+                      {resource: {db: "config", collection: "queryShapeRepresentativeQueries"}, actions: ["insert"]},
+                  ],
+                  expectAuthzFailure: false,
+              },
+          ],
+          teardown: function(db) {
+              assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}));
+          },
+      },
+      {
+          testname: "queryShapeRepresentativeQueries_update",
+          command: {
+              update: "queryShapeRepresentativeQueries",
+              updates: [{
+                  q: {a: 1},
+                  u: {a: 2},
+              }],
+          },
+          skipTest: (conn) => {
+              return isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill;
+          },
+          testcases: [
+              {
+                  runOnDb: configDbName,
+                  roles: {...roles_clusterManager},
+                  privileges: [
+                      {resource: {db: "config", collection: "queryShapeRepresentativeQueries"}, actions: ["update"]},
+                  ],
+                  expectAuthzFailure: false,
+              },
+          ],
+          setup: function(db) {
+              assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.insert({a: 1}));
+          },
+          teardown: function(db) {
+              assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}));
+          },
+      },
+      {
+          testname: "queryShapeRepresentativeQueries_remove",
+          command: {
+              delete: "queryShapeRepresentativeQueries",
+              deletes: [{
+                q: {a: 1},
+                limit: 0
+              }]
+          },
+          skipTest: (conn) => {
+              return isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill;
+          },
+          testcases: [
+              {
+                  runOnDb: configDbName,
+                  roles: {...roles_clusterManager},
+                  privileges: [
+                      {resource: {db: "config", collection: "queryShapeRepresentativeQueries"}, actions: ["remove"]},
+                  ],
+                  expectAuthzFailure: false,
+              },
+          ],
+          setup: function(db) {
+              assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.insert({a: 1}));
+          },
+          teardown: function(db) {
+              assert.commandWorked(db.getSiblingDB(configDbName).queryShapeRepresentativeQueries.remove({}));
+          },
       },
       {
         testname: "aggregate_$rankFusion",

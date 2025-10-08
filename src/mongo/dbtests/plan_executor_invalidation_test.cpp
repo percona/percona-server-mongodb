@@ -51,7 +51,6 @@
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/find_command.h"
-#include "mongo/db/query/index_bounds.h"
 #include "mongo/db/query/internal_plans.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_executor_factory.h"
@@ -215,7 +214,7 @@ public:
 
 private:
     void _refreshCollection() {
-        // TODO(SERVER-103409): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
+        // TODO(SERVER-103403): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
         _coll = CollectionPtr::CollectionPtr_UNSAFE(
             CollectionCatalog::get(&_opCtx)->lookupCollectionByNamespace(&_opCtx, nss));
     }
