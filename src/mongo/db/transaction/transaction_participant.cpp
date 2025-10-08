@@ -537,8 +537,12 @@ void updateSessionEntry(OperationContext* opCtx,
     // {parentLsid: 1, _id.txnNumber: 1, _id: 1}, and none of the fields are mutable.
     // Use the storage engine API directly to bypass the OpObservers which only apply to replicated
     // collections.
-    uassertStatusOK(collectionPtr->getRecordStore()->updateRecord(
-        opCtx, recordId, doc.objdata(), doc.objsize()));
+    uassertStatusOK(
+        collectionPtr->getRecordStore()->updateRecord(opCtx,
+                                                      *shard_role_details::getRecoveryUnit(opCtx),
+                                                      recordId,
+                                                      doc.objdata(),
+                                                      doc.objsize()));
 
     wuow.commit();
 }
@@ -2305,6 +2309,11 @@ void TransactionParticipant::Participant::_commitSplitPreparedTxnOnPrimary(
         UninterruptibleLockGuard noInterrupt(splitOpCtx.get());  // NOLINT
         newTxnParticipant.unstashTransactionResources(splitOpCtx.get(), "commitTransaction");
 
+        BSONObjBuilder builder;
+        reportUnstashedState(userOpCtx, &builder);
+        LOGV2(10631000,
+              "Setting the commit timestamp for a split prepared transaction on primary",
+              "unstashed state"_attr = builder.obj());
         shard_role_details::getRecoveryUnit(splitOpCtx.get())->setCommitTimestamp(commitTimestamp);
         shard_role_details::getRecoveryUnit(splitOpCtx.get())
             ->setDurableTimestamp(durableTimestamp);

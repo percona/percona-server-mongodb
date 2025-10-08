@@ -242,7 +242,7 @@ TEST(RecordStoreTest, Update1) {
         auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
         {
             StorageWriteTransaction txn(ru);
-            Status status = rs->updateRecord(opCtx.get(), loc, s2.c_str(), s2.size() + 1);
+            Status status = rs->updateRecord(opCtx.get(), ru, loc, s2.c_str(), s2.size() + 1);
             ASSERT_OK(status);
 
             txn.commit();
@@ -424,7 +424,7 @@ TEST(RecordStoreTest, CursorRestoreForward) {
     ServiceContext::UniqueOperationContext opCtx(harnessHelper->newOperationContext());
 
 
-    auto& ru = *storage_details::getRecoveryUnit(opCtx.get());
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
     {
         StorageWriteTransaction txn(ru);
         std::string s = "test";
@@ -728,7 +728,7 @@ TEST(RecordStoreTest, ClusteredRecordStore) {
         StorageWriteTransaction txn(ru);
         for (int i = 0; i < numRecords; i += 10) {
             ASSERT_OK(
-                rs->updateRecord(opCtx.get(), records.at(i).id, doc.objdata(), doc.objsize()));
+                rs->updateRecord(opCtx.get(), ru, records.at(i).id, doc.objdata(), doc.objsize()));
         }
         txn.commit();
 

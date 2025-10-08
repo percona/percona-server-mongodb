@@ -27,7 +27,7 @@
  *    it in the license file.
  */
 
-#include "mongo/db/ftdc/varint.h"
+#include "mongo/util/varint.h"
 
 #include "mongo/util/assert_util.h"
 
@@ -36,15 +36,15 @@
 
 namespace mongo {
 
-Status DataType::Handler<FTDCVarInt>::load(
-    FTDCVarInt* t, const char* ptr, size_t length, size_t* advanced, std::ptrdiff_t debug_offset) {
+Status DataType::Handler<VarInt>::load(
+    VarInt* t, const char* ptr, size_t length, size_t* advanced, std::ptrdiff_t debug_offset) {
     std::uint64_t value;
 
     const char* newptr =
         Varint::Parse64WithLimit(ptr, ptr + length, reinterpret_cast<uint64*>(&value));
 
     if (!newptr) {
-        return DataType::makeTrivialLoadStatus(FTDCVarInt::kMaxSizeBytes64, length, debug_offset);
+        return DataType::makeTrivialLoadStatus(VarInt::kMaxSizeBytes64, length, debug_offset);
     }
 
     if (t) {
@@ -58,21 +58,21 @@ Status DataType::Handler<FTDCVarInt>::load(
     return Status::OK();
 }
 
-Status DataType::Handler<FTDCVarInt>::store(
-    const FTDCVarInt& t, char* ptr, size_t length, size_t* advanced, std::ptrdiff_t debug_offset) {
+Status DataType::Handler<VarInt>::store(
+    const VarInt& t, char* ptr, size_t length, size_t* advanced, std::ptrdiff_t debug_offset) {
     // nullptr means it wants to know how much space we want
     if (!ptr) {
-        *advanced = FTDCVarInt::kMaxSizeBytes64;
+        *advanced = VarInt::kMaxSizeBytes64;
         return Status::OK();
     }
 
-    if (FTDCVarInt::kMaxSizeBytes64 > length) {
-        return DataType::makeTrivialStoreStatus(FTDCVarInt::kMaxSizeBytes64, length, debug_offset);
+    if (VarInt::kMaxSizeBytes64 > length) {
+        return DataType::makeTrivialStoreStatus(VarInt::kMaxSizeBytes64, length, debug_offset);
     }
 
     // Use a dassert since static_assert does not work because the expression does not have a
     // constant value
-    dassert(Varint::kMax64 == FTDCVarInt::kMaxSizeBytes64);
+    dassert(Varint::kMax64 == VarInt::kMaxSizeBytes64);
 
     const char* newptr = Varint::Encode64(ptr, t);
 

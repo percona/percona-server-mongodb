@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,59 +27,37 @@
  *    it in the license file.
  */
 
-#include "mongo/db/ftdc/varint.h"
 
-#include "mongo/base/data_builder.h"
-#include "mongo/base/data_view.h"
-#include "mongo/base/init.h"  // IWYU pragma: keep
-#include "mongo/base/string_data.h"
-#include "mongo/unittest/unittest.h"
+#include "mongo/db/extension/sdk/extension_helper.h"
+#include "mongo/db/extension/sdk/extension_status.h"
 
-namespace mongo {
+void initialize_extension() {}
+static const MongoExtension extensionA = {
+    .version = {MONGODB_EXTENSION_API_MAJOR_VERSION + 1,
+                MONGODB_EXTENSION_API_MINOR_VERSION,
+                MONGODB_EXTENSION_API_PATCH_VERSION},
+    .initialize = initialize_extension,
+};
 
-// Test integer packing and unpacking
-void TestInt(std::uint64_t i) {
-    char buf[11];
+static const MongoExtension extensionB = {
+    .version = MONGODB_EXTENSION_API_VERSION,
+    .initialize = initialize_extension,
+};
 
-    DataView dvWrite(&buf[0]);
+extern "C" {
+MongoExtensionStatus* get_mongodb_extension(const MongoExtensionAPIVersionVector* hostVersions,
+                                            const MongoExtension** extension) {
 
-    dvWrite.write(i);
-
-    ConstDataView cdvRead(&buf[0]);
-
-    std::uint64_t d = cdvRead.read<std::uint64_t>();
-
-    ASSERT_EQUALS(i, d);
-}
-
-// Test various integer combinations compress and uncompress correctly
-TEST(FTDCVarIntTest, TestIntCompression) {
-    // Check numbers with leading 1
-    for (int i = 0; i < 63; i++) {
-        TestInt(i);
-        TestInt(i - 1);
-    }
-
-    // Check numbers composed of repeating hex numbers
-    for (int i = 0; i < 15; i++) {
-        std::uint64_t v = 0;
-        for (int j = 0; j < 15; j++) {
-            v = v << 4 | i;
-            TestInt(v);
+    // We expect to successfully set extension to extensionB. extensionA is not compatible with the
+    // most recent host version, but extensionB is.
+    return mongo::extension::sdk::enterCXX([&]() {
+        if (mongo::extension::sdk::isVersionCompatible(hostVersions, &extensionA.version)) {
+            *extension = &extensionA;
+        } else if (mongo::extension::sdk::isVersionCompatible(hostVersions, &extensionB.version)) {
+            *extension = &extensionB;
+        } else {
+            *extension = nullptr;
         }
-    }
+    });
 }
-
-// Test data builder can write a lot of zeros
-TEST(FTDCVarIntTest, TestDataBuilder) {
-    DataBuilder db(1);
-
-    // DataBuilder grows by 2x, and we reserve 10 bytes
-    // lcm(2**x, 10) == 16
-    for (int i = 0; i < 16; i++) {
-        auto s1 = db.writeAndAdvance(FTDCVarInt(0));
-        ASSERT_OK(s1);
-    };
 }
-
-}  // namespace mongo

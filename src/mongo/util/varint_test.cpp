@@ -27,67 +27,59 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/util/varint.h"
 
-#include "mongo/base/data_type.h"
-#include "mongo/base/status.h"
-
-#include <cstddef>
-#include <cstdint>
+#include "mongo/base/data_builder.h"
+#include "mongo/base/data_view.h"
+#include "mongo/base/init.h"  // IWYU pragma: keep
+#include "mongo/base/string_data.h"
+#include "mongo/unittest/unittest.h"
 
 namespace mongo {
-/**
- * Methods to compress and decompress 64-bit integers into variable integers
- *
- * Uses a technique described here:
- * S. Buttcher, C. L. A. Clarke, and G. V. Cormack.
- *  Information Retrieval: Implementing and Evaluating Search Engines. MIT Press, Cambridge, MA,
- *  2010
- */
-struct FTDCVarInt {
-    /**
-     * Maximum number of bytes an integer can compress to
-     */
-    static const std::size_t kMaxSizeBytes64 = 10;
 
-    FTDCVarInt() = default;
-    FTDCVarInt(std::uint64_t t) : _value(t) {}
+// Test integer packing and unpacking
+void TestInt(std::uint64_t i) {
+    char buf[11];
 
-    operator std::uint64_t() const {
-        return _value;
+    DataView dvWrite(&buf[0]);
+
+    dvWrite.write(i);
+
+    ConstDataView cdvRead(&buf[0]);
+
+    std::uint64_t d = cdvRead.read<std::uint64_t>();
+
+    ASSERT_EQUALS(i, d);
+}
+
+// Test various integer combinations compress and uncompress correctly
+TEST(VarIntTest, TestIntCompression) {
+    // Check numbers with leading 1
+    for (int i = 0; i < 63; i++) {
+        TestInt(i);
+        TestInt(i - 1);
     }
 
-private:
-    std::uint64_t _value{0};
-};
-
-template <>
-struct DataType::Handler<FTDCVarInt> {
-    /**
-     * Compress a 64-bit integer and return the new buffer position.
-     *
-     * end should be the byte after the end of the buffer.
-     *
-     * Return nullptr for bad encoded data.
-     */
-    static Status load(FTDCVarInt* t,
-                       const char* ptr,
-                       size_t length,
-                       size_t* advanced,
-                       std::ptrdiff_t debug_offset);
-
-    /**
-     * Compress a 64-bit integer and return the new buffer position
-     */
-    static Status store(const FTDCVarInt& t,
-                        char* ptr,
-                        size_t length,
-                        size_t* advanced,
-                        std::ptrdiff_t debug_offset);
-
-    static FTDCVarInt defaultConstruct() {
-        return 0;
+    // Check numbers composed of repeating hex numbers
+    for (int i = 0; i < 15; i++) {
+        std::uint64_t v = 0;
+        for (int j = 0; j < 15; j++) {
+            v = v << 4 | i;
+            TestInt(v);
+        }
     }
-};
+}
+
+// Test data builder can write a lot of zeros
+TEST(VarIntTest, TestDataBuilder) {
+    DataBuilder db(1);
+
+    // DataBuilder grows by 2x, and we reserve 10 bytes
+    // lcm(2**x, 10) == 16
+    for (int i = 0; i < 16; i++) {
+        auto s1 = db.writeAndAdvance(VarInt(0));
+        ASSERT_OK(s1);
+    };
+}
 
 }  // namespace mongo
