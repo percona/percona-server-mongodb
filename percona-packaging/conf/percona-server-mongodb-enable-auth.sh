@@ -187,7 +187,7 @@ if [ ! -f /tmp/mongodb_create.lock ]; then
             replsetname_res=$(get_value_from_yaml replication replSetName)
             keyfile_res=$(get_value_from_yaml security keyFile)
             if [[ $replsetname_res != 0 ]]; then
-              if [[ $keyfile_res == 0 ]]; then
+              if [[ -z $keyfile_res || $keyfile_res == 0 ]]; then
                 echo "ERROR! You need to create a keyfile before enabling authentication in a replica set!"
                 exit 1
               fi
