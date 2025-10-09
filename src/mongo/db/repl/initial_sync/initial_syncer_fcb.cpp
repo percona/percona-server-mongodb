@@ -96,6 +96,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 #include "mongo/db/transaction/transaction_participant.h"
+#include "mongo/db/transaction_resources.h"
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/idl/idl_parser.h"
@@ -1721,6 +1722,8 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
 Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
                                                 const std::string& newLocation,
                                                 bool runRecovery) {
+    invariant(shard_role_details::getLocker(opCtx)->isW());
+
     boost::system::error_code ec;
     boost::filesystem::create_directories(newLocation, ec);
     if (ec) {
@@ -1764,6 +1767,23 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
 
     LOGV2_DEBUG(128415, 1, "Switched storage location", "newLocation"_attr = newLocation);
     return Status::OK();
+}
+
+void InitialSyncerFCB::_restoreStorageLocation(stdx::unique_lock<stdx::mutex>& lock,
+                                               OperationContext* opCtx) {
+    if (!_needToSwitchBackToOriginalDBPath) {
+        return;
+    }
+    invariant(shard_role_details::getLocker(opCtx)->isW());
+    lock.unlock();
+    auto status = _switchStorageLocation(opCtx, _cfgDBPath, true /* runRecovery */);
+    lock.lock();
+    if (!status.isOK()) {
+        // We failed to switch back to original db path. This is a serious error because we cannot
+        // proceed with retry or shutdown. We should crash to avoid running in a bad state.
+        LOGV2_FATAL(128467, "Failed to switch back to original db path", "error"_attr = status);
+    }
+    _needToSwitchBackToOriginalDBPath = false;
 }
 
 Status InitialSyncerFCB::_killBackupCursor(WithLock lk) {

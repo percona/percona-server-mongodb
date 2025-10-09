@@ -531,9 +531,22 @@ private:
 
     StatusWith<std::vector<std::string>> _getBackupFiles();
 
+    /**
+     * Switches the storage location to 'newLocation'.
+     * - Callers must ensure that _mutex is NOT held.
+     * - Caller must hold a GlobalLock (MODE_X) while calling this method.
+     */
     Status _switchStorageLocation(OperationContext* opCtx,
                                   const std::string& newLocation,
                                   bool runRecovery = false);
+
+    /**
+     * Restores the original storage location. Must be called with _mutex held.
+     * - Temporarily unlocks and relocks the provided lock.
+     * - Caller must hold a GlobalLock (MODE_X) while calling this method.
+     * - Logs fatal on failure.
+     */
+    void _restoreStorageLocation(stdx::unique_lock<stdx::mutex>& lock, OperationContext* opCtx);
 
     Status _killBackupCursor(WithLock lk);
 
