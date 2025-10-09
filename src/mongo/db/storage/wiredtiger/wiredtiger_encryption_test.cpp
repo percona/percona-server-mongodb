@@ -135,54 +135,56 @@ void test_encryption_hooks(WiredTigerEncryptionHooks* hooks) {
         size_t dataleft = datalen;
         auto outbuf = protectorText.get();
         auto outbuflen = protectedSizeMax;
-        size_t resultLen;
         while (dataleft > 0) {
             auto chunklen{dataleft/2 + 1};
-            ASSERT_OK(dataprotector->protect(datatoprotect, chunklen, outbuf, outbuflen, &resultLen));
+            DataRange out{outbuf, outbuflen};
+            ASSERT_OK(dataprotector->protect(ConstDataRange{datatoprotect, chunklen}, &out));
             dataleft -= chunklen;
             datatoprotect += chunklen;
-            outbuflen -= resultLen;
-            outbuf += resultLen;
+            outbuflen -= out.length();
+            outbuf += out.length();
         }
-        ASSERT_OK(dataprotector->finalize(outbuf, outbuflen, &resultLen));
-        outbuflen -= resultLen;
-        outbuf += resultLen;
+        DataRange out{outbuf, outbuflen};
+        ASSERT_OK(dataprotector->finalize(&out));
+        outbuflen -= out.length();
+        outbuf += out.length();
         // tag should be at the buffer's start (this is how it is placed in rollback files)
         // the space for tag is reserved by the first call to protect()
-        ASSERT_OK(dataprotector->finalizeTag(protectorText.get(), protectedSizeMax, &resultLen));
-        ASSERT_EQ(resultLen, dataprotector->getNumberOfBytesReservedForTag());
+        DataRange outTag{protectorText.get(), protectedSizeMax};
+        ASSERT_OK(dataprotector->finalizeTag(&outTag));
+        ASSERT_EQ(outTag.length(), dataprotector->getNumberOfBytesReservedForTag());
         protectorTextLen = outbuf - protectorText.get();
     }
 
     std::unique_ptr<uint8_t[]> cipherText;
     cipherText.reset(new uint8_t[protectedSizeMax]);
-    size_t cipherLen;
+
+    DataRange protectOut{cipherText.get(), protectedSizeMax};
     // pass boost::none to use ephemeral key
-    ASSERT_OK(hooks->protectTmpData(
-        data, datalen, cipherText.get(), protectedSizeMax, &cipherLen, boost::none));
+    ASSERT_OK(hooks->protectTmpData(ConstDataRange{data, datalen}, &protectOut, boost::none));
+    size_t cipherLen = protectOut.length();
     ASSERT_TRUE(cipherLen <= protectedSizeMax);
     ASSERT_EQ(protectorTextLen, cipherLen);
 
     std::unique_ptr<uint8_t[]> plainText;
     plainText.reset(new uint8_t[cipherLen]);
-    size_t plainLen;
+
+    DataRange unprotectOut{plainText.get(), cipherLen};
     // pass boost::none to use ephemeral key
-    ASSERT_OK(hooks->unprotectTmpData(
-        cipherText.get(), cipherLen, plainText.get(), cipherLen, &plainLen, boost::none));
+    ASSERT_OK(hooks->unprotectTmpData(ConstDataRange{cipherText.get(), cipherLen}, &unprotectOut, boost::none));
+    size_t plainLen = unprotectOut.length();
     ASSERT_EQ(plainLen, datalen);
     ASSERT_EQ(0, memcmp(plainText.get(), data, datalen));
 
+    DataRange protectorOut{plainText.get(), protectorTextLen};
     // dataprotector uses masterkey to encrypt data so provide empty string to select correct key
     // for decryption
     ASSERT_OK(hooks->unprotectTmpData(
-        protectorText.get(),
-        protectorTextLen,
-        plainText.get(),
-        protectorTextLen,
-        &plainLen,
+        ConstDataRange{protectorText.get(), protectorTextLen},
+        &protectorOut,
         DatabaseNameUtil::deserialize(
             boost::none, StringData(""), SerializationContext::stateDefault())));
-    ASSERT_EQ(plainLen, datalen);
+    ASSERT_EQ(protectorOut.length(), datalen);
     ASSERT_EQ(0, memcmp(plainText.get(), data, datalen));
 }
 

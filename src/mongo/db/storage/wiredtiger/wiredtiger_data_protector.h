@@ -65,33 +65,27 @@ public:
      * As processing may produce more or fewer bytes than were provided, the actual number
      * of bytes written will placed in `bytesWritten`.
      */
-    virtual Status protect(const std::uint8_t* in,
-                           std::size_t inLen,
-                           std::uint8_t* out,
-                           std::size_t outLen,
-                           std::size_t* bytesWritten) override;
+    Status protect(ConstDataRange in, DataRange* out) override;
 
     /**
      * Declares that this DataProtector will be provided no more data to protect.
      * Fills `out` with any leftover state that needs serialization.
      */
-    virtual Status finalize(std::uint8_t* out, std::size_t outLen, std::size_t* bytesWritten) override;
+    Status finalize(DataRange* out) override;
 
     /**
      * Returns the number of bytes reserved for metadata at the end of the last output
      * buffer.
      * Not all implementations will choose to reserve this space. They will return 0.
      */
-    virtual std::size_t getNumberOfBytesReservedForTag() const override;
+    std::size_t getNumberOfBytesReservedForTag() const override;
 
     /**
      * Fills buffer `out` of size `outLen`, with implementation defined metadata that had to be
      * calculated after finalization.
      * `bytesWritten` is filled with the number of bytes written into `out`.
      */
-    virtual Status finalizeTag(std::uint8_t* out,
-                               std::size_t outLen,
-                               std::size_t* bytesWritten) override;
+    Status finalizeTag(DataRange* out) override;
 
 private:
     static constexpr int _chksum_len{sizeof(uint32_t)};
@@ -109,33 +103,27 @@ public:
      * As processing may produce more or fewer bytes than were provided, the actual number
      * of bytes written will placed in `bytesWritten`.
      */
-    virtual Status protect(const std::uint8_t* in,
-                           std::size_t inLen,
-                           std::uint8_t* out,
-                           std::size_t outLen,
-                           std::size_t* bytesWritten) override;
+    Status protect(ConstDataRange in, DataRange* out) override;
 
     /**
      * Declares that this DataProtector will be provided no more data to protect.
      * Fills `out` with any leftover state that needs serialization.
      */
-    virtual Status finalize(std::uint8_t* out, std::size_t outLen, std::size_t* bytesWritten) override;
+    Status finalize(DataRange* out) override;
 
     /**
      * Returns the number of bytes reserved for metadata at the end of the last output
      * buffer.
      * Not all implementations will choose to reserve this space. They will return 0.
      */
-    virtual std::size_t getNumberOfBytesReservedForTag() const override;
+    std::size_t getNumberOfBytesReservedForTag() const override;
 
     /**
      * Fills buffer `out` of size `outLen`, with implementation defined metadata that had to be
      * calculated after finalization.
      * `bytesWritten` is filled with the number of bytes written into `out`.
      */
-    virtual Status finalizeTag(std::uint8_t* out,
-                               std::size_t outLen,
-                               std::size_t* bytesWritten) override;
+    Status finalizeTag(DataRange* out) override;
 
 private:
     static constexpr int _gcm_tag_len{16};

@@ -95,6 +95,11 @@ namespace {
         return Status(ErrorCodes::InternalError,
                       "libcrypto error");
     }
+
+    template <typename T, typename DataRangeType>
+    T* buffer_at(DataRangeType* range, size_t offset = 0) {
+        return reinterpret_cast<T*>(range->data()) + offset;
+    }
 }
 
 
@@ -157,26 +162,23 @@ WiredTigerEncryptionHooksCBC::WiredTigerEncryptionHooksCBC(EncryptionKeyDB* encr
 
 WiredTigerEncryptionHooksCBC::~WiredTigerEncryptionHooksCBC() {}
 
-Status WiredTigerEncryptionHooksCBC::protectTmpData(const uint8_t* in,
-                                                    size_t inLen,
-                                                    uint8_t* out,
-                                                    size_t outLen,
-                                                    size_t* resultLen,
+Status WiredTigerEncryptionHooksCBC::protectTmpData(ConstDataRange in,
+                                                    DataRange* out,
                                                     boost::optional<DatabaseName> dbName) {
-
-    if (outLen < _chksum_len + _iv_len + inLen + EVP_CIPHER_block_size(_cipher))
+    invariant(out != nullptr);
+    if (out->length() < _chksum_len + _iv_len + in.length() + EVP_CIPHER_block_size(_cipher))
         return Status(ErrorCodes::InternalError,
                       "encryption output buffer not big enough");
 
-    *resultLen = 0;
+    size_t resultLen = 0;
     EVPCipherCtx ctx;
 
-    *(uint32_t*)(out + *resultLen) = wiredtiger_checksum_crc32c(in, inLen);
-    *resultLen += _chksum_len;
+    out->write<uint32_t>(wiredtiger_checksum_crc32c(in.data(), in.length()));
+    resultLen += _chksum_len;
 
-    uint8_t *iv = out + *resultLen;
+    uint8_t *iv = buffer_at<uint8_t>(out, resultLen);
     store_pseudo_bytes(iv, _iv_len);
-    *resultLen += _iv_len;
+    resultLen += _iv_len;
 
     unsigned char db_key[_key_len];
     if (1 !=
@@ -185,54 +187,66 @@ Status WiredTigerEncryptionHooksCBC::protectTmpData(const uint8_t* in,
         return handleCryptoErrors();
 
     int encrypted_len = 0;
-    if (1 != EVP_EncryptUpdate(ctx, out + *resultLen, &encrypted_len, in, inLen))
+    if (1 !=
+        EVP_EncryptUpdate(ctx,
+                          buffer_at<unsigned char>(out, resultLen),
+                          &encrypted_len,
+                          buffer_at<const unsigned char>(&in),
+                          in.length()))
         return handleCryptoErrors();
-    *resultLen += encrypted_len;
+    resultLen += encrypted_len;
 
-    if (1 != EVP_EncryptFinal_ex(ctx, out + *resultLen, &encrypted_len))
+    if (1 != EVP_EncryptFinal_ex(ctx, buffer_at<unsigned char>(out, resultLen), &encrypted_len))
         return handleCryptoErrors();
-    *resultLen += encrypted_len;
+    invariant(encrypted_len >= 0);
+    resultLen += encrypted_len;
+
+    *out = DataRange(out->data(), resultLen);
 
     return Status::OK();
 }
 
-Status WiredTigerEncryptionHooksCBC::unprotectTmpData(const uint8_t* in,
-                                                      size_t inLen,
-                                                      uint8_t* out,
-                                                      size_t outLen,
-                                                      size_t* resultLen,
+Status WiredTigerEncryptionHooksCBC::unprotectTmpData(ConstDataRange in,
+                                                      DataRange* out,
                                                       boost::optional<DatabaseName> dbName) {
-
-    *resultLen = 0;
+    invariant(out != nullptr);
+    size_t resultLen = 0;
     EVPCipherCtx ctx;
 
-    uint32_t crc32c = *(uint32_t*)in;
-    in += _chksum_len;
-    inLen -= _chksum_len;
+    uint32_t crc32c = in.read<uint32_t>();
+    ConstDataRangeCursor inCursor(in);
+    inCursor.advance(_chksum_len);
 
     unsigned char db_key[_key_len];
     if (1 !=
-        EVP_DecryptInit_ex(
-            ctx, _cipher, nullptr, dbKey(dbName, static_cast<unsigned char*>(db_key)), in))
+        EVP_DecryptInit_ex(ctx,
+                           _cipher,
+                           nullptr,
+                           dbKey(dbName, static_cast<unsigned char*>(db_key)),
+                           buffer_at<const unsigned char>(&inCursor)))
         return handleCryptoErrors();
-    in += _iv_len;
-    inLen -= _iv_len;
+    inCursor.advance(_iv_len);
 
     int decrypted_len = 0;
-    if (1 != EVP_DecryptUpdate(ctx, out, &decrypted_len, in, inLen))
+    if (1 !=
+        EVP_DecryptUpdate(ctx,
+                          buffer_at<unsigned char>(out),
+                          &decrypted_len,
+                          buffer_at<const unsigned char>(&inCursor),
+                          inCursor.length()))
         return handleCryptoErrors();
-    *resultLen += decrypted_len;
-    in += inLen;
-    inLen = 0;
+    resultLen += decrypted_len;
 
-    if (1 != EVP_DecryptFinal_ex(ctx, out + *resultLen, &decrypted_len))
+    if (1 != EVP_DecryptFinal_ex(ctx, buffer_at<unsigned char>(out, resultLen), &decrypted_len))
         return handleCryptoErrors();
-    *resultLen += decrypted_len;
+    resultLen += decrypted_len;
 
-    if (wiredtiger_checksum_crc32c(out, *resultLen) != crc32c)
+    if (wiredtiger_checksum_crc32c(out->data(), resultLen) != crc32c)
         return Status(ErrorCodes::InternalError,
                       "Decrypted data integrity check has failed. "
                       "Probably the data or the encryption key is corrupted.");
+
+    *out = DataRange(out->data(), resultLen);
 
     return Status::OK();
 }
@@ -258,28 +272,26 @@ WiredTigerEncryptionHooksGCM::WiredTigerEncryptionHooksGCM(EncryptionKeyDB* encr
 
 WiredTigerEncryptionHooksGCM::~WiredTigerEncryptionHooksGCM() {}
 
-Status WiredTigerEncryptionHooksGCM::protectTmpData(const uint8_t* in,
-                                                    size_t inLen,
-                                                    uint8_t* out,
-                                                    size_t outLen,
-                                                    size_t* resultLen,
+Status WiredTigerEncryptionHooksGCM::protectTmpData(ConstDataRange in,
+                                                    DataRange* out,
                                                     boost::optional<DatabaseName> dbName) {
 
-    if (outLen < _iv_len + inLen + _gcm_tag_len)
+    invariant(out != nullptr);
+    if (out->length() < _iv_len + in.length() + _gcm_tag_len)
         return Status(ErrorCodes::InternalError,
                       "encryption output buffer not big enough");
 
-    *resultLen = 0;
+    size_t resultLen = 0;
     EVPCipherCtx ctx;
 
     // reserve space for GCM tag
-    *resultLen += _gcm_tag_len;
+    resultLen += _gcm_tag_len;
 
-    uint8_t *iv = out + *resultLen;
+    uint8_t *iv = buffer_at<uint8_t>(out, resultLen);
     if (0 != get_iv_gcm(iv, _iv_len))
         return Status(ErrorCodes::InternalError,
                       "failed generating IV for GCM");
-    *resultLen += _iv_len;
+    resultLen += _iv_len;
 
     unsigned char db_key[_key_len];
     if (1 !=
@@ -290,61 +302,75 @@ Status WiredTigerEncryptionHooksGCM::protectTmpData(const uint8_t* in,
     // we don't provide any AAD data yet
 
     int encrypted_len = 0;
-    if (1 != EVP_EncryptUpdate(ctx, out + *resultLen, &encrypted_len, in, inLen))
+    if (1 !=
+        EVP_EncryptUpdate(ctx,
+                          buffer_at<unsigned char>(out, resultLen),
+                          &encrypted_len,
+                          buffer_at<const unsigned char>(&in),
+                          in.length()))
         return handleCryptoErrors();
-    *resultLen += encrypted_len;
+    resultLen += encrypted_len;
 
-    if (1 != EVP_EncryptFinal_ex(ctx, out + *resultLen, &encrypted_len))
+    if (1 !=
+        EVP_EncryptFinal_ex(
+            ctx, buffer_at<unsigned char>(out, resultLen), &encrypted_len))
         return handleCryptoErrors();
-    *resultLen += encrypted_len;
+    invariant(encrypted_len >= 0);
+    resultLen += encrypted_len;
 
     // get the tag and place it at the beginning of the output buffer
     // (to be compatible with the file layout used for rollback files)
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, _gcm_tag_len, out))
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, _gcm_tag_len, out->data()))
         return handleCryptoErrors();
+
+    *out = DataRange(out->data(), resultLen);
 
     return Status::OK();
 }
 
-Status WiredTigerEncryptionHooksGCM::unprotectTmpData(const uint8_t* in,
-                                                      size_t inLen,
-                                                      uint8_t* out,
-                                                      size_t outLen,
-                                                      size_t* resultLen,
+Status WiredTigerEncryptionHooksGCM::unprotectTmpData(ConstDataRange in,
+                                                      DataRange* out,
                                                       boost::optional<DatabaseName> dbName) {
-
-    *resultLen = 0;
+    invariant(out != nullptr);
+    size_t resultLen = 0;
     EVPCipherCtx ctx;
 
     // skip GCM tag
-    uint8_t* gcm_tag = const_cast<uint8_t*>(in);
-    in += _gcm_tag_len;
-    inLen -= _gcm_tag_len;
+    uint8_t* gcm_tag = const_cast<uint8_t*>(buffer_at<const uint8_t>(&in));
+    ConstDataRangeCursor inCursor(in);
+    inCursor.advance(_gcm_tag_len);
 
     unsigned char db_key[_key_len];
     if (1 !=
-        EVP_DecryptInit_ex(
-            ctx, _cipher, nullptr, dbKey(dbName, static_cast<unsigned char*>(db_key)), in))
+        EVP_DecryptInit_ex(ctx,
+                           _cipher,
+                           nullptr,
+                           dbKey(dbName, static_cast<unsigned char*>(db_key)),
+                           buffer_at<const unsigned char>(&inCursor)))
         return handleCryptoErrors();
-    in += _iv_len;
-    inLen -= _iv_len;
+    inCursor.advance(_iv_len);
 
     // we have no AAD yet
 
     int decrypted_len = 0;
-    if (1 != EVP_DecryptUpdate(ctx, out, &decrypted_len, in, inLen))
+    if (1 !=
+        EVP_DecryptUpdate(ctx,
+                          buffer_at<unsigned char>(out),
+                          &decrypted_len,
+                          buffer_at<const unsigned char>(&inCursor),
+                          inCursor.length()))
         return handleCryptoErrors();
-    *resultLen += decrypted_len;
-    in += inLen;
-    inLen = 0;
+    resultLen += decrypted_len;
 
     // Set expected tag value. Works in OpenSSL 1.0.1d and later
     if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, _gcm_tag_len, gcm_tag))
         return handleCryptoErrors();
 
-    if (1 != EVP_DecryptFinal_ex(ctx, out + *resultLen, &decrypted_len))
+    if (1 != EVP_DecryptFinal_ex(ctx, buffer_at<unsigned char>(out, resultLen), &decrypted_len))
         return handleCryptoErrors();
-    *resultLen += decrypted_len;
+    resultLen += decrypted_len;
+
+    *out = DataRange(out->data(), resultLen);
 
     return Status::OK();
 }
