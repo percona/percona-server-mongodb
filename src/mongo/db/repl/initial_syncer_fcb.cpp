@@ -391,6 +391,18 @@ void InitialSyncerFCB::_cancelRemainingWork_inlock() {
     _cancelHandle_inlock(_keepAliveHandle);
     _cancelHandle_inlock(_currentHandle);
 
+    // Close backup cursor if it is still open.
+    if (_backupCursorInfo) {
+        Status status = _killBackupCursor_inlock();
+        if (!status.isOK()) {
+            LOGV2_FATAL(128468,
+                        "Failed to kill backup cursor on the sync source",
+                        "syncSource"_attr = _syncSource,
+                        "cursorId"_attr = _backupCursorInfo->cursorId,
+                        "error"_attr = status);
+        }
+    }
+
     if (_sharedData) {
         // We actually hold the required lock, but the lock object itself is not passed through.
         _clearRetriableError(WithLock::withoutLock());
