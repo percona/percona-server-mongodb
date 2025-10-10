@@ -113,8 +113,8 @@ add_value_to_yaml() {
         if [[ $AUTH_SECTION_EXISTS == 1 ]]; then
             sed -i "s/authorization: disabled/authorization: enabled/" $CONF
         else
-            secutity_line=$(grep "security:" $CONF)
-            if [[ $secutity_line =~ '#security:' ]]; then
+            security_line=$(grep "security:" $CONF)
+            if [[ $security_line =~ '#security:' ]]; then
                 auth_line=$(grep "authorization:" $CONF)
                 regex='#  authorization:'
                 if [[ $auth_line =~ $regex ]]; then
@@ -123,7 +123,7 @@ add_value_to_yaml() {
                 else
                     sed -i "s/#security:/security:\n  authorization: enabled/" $CONF
                 fi
-            elif [[ $secutity_line != '' ]]; then
+            elif [[ $security_line != '' ]]; then
                 auth_line=$(grep "authorization:" $CONF)
                 regex='#  authorization:'
                 if [[ $auth_line =~ $regex ]]; then
@@ -173,6 +173,7 @@ if [ ! -f /tmp/mongodb_create.lock ]; then
         AUTH_ENABLED=0
         AUTH_SECTION_EXISTS=1
     fi
+
     if [[ $AUTH_ENABLED == 0 ]]; then
         echo "We have detected authentication is not enabled."
         echo "Would you like help creating your first user?"
@@ -183,6 +184,20 @@ if [ ! -f /tmp/mongodb_create.lock ]; then
             setup_auth="y"
         fi
         if [ "$setup_auth" == "Y" -o "$setup_auth" == "y" ]; then
+            replsetname_res=$(get_value_from_yaml replication replSetName)
+            keyfile_res=$(get_value_from_yaml security keyFile)
+            if [[ $replsetname_res != 0 ]]; then
+            # replication.replsetName is specified in the config
+              if [[ $keyfile_res == 0 ]]; then
+                # security.keyFile does not exist in the config
+                echo "ERROR! You need to configure a shared keyfile on all members before enabling authentication in a replica set!"
+                exit 1
+              elif [[ ! -f "$keyfile_res" ]]; then
+                # security.keyFile exists but the file is absent
+                echo "ERROR! The configured keyfile $keyfile_res doesn't exist. Cannot enable authentication in a replica set."
+                exit 1
+              fi                
+            fi
             touch /tmp/mongodb_create.lock
             started=$(pgrep mongod | wc -l)
             if [ $started == 0 ]; then
