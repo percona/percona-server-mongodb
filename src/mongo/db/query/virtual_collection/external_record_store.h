@@ -156,14 +156,6 @@ public:
     }
 
     StatusWith<RecordData> updateWithDamages(OperationContext* opCtx,
-                                             const RecordId& loc,
-                                             const RecordData& oldRec,
-                                             const char* damageSource,
-                                             const DamageVector& damages) final {
-        unimplementedTasserted();
-        return {ErrorCodes::Error::UnknownError, "Unknown error"};
-    }
-    StatusWith<RecordData> updateWithDamages(OperationContext* opCtx,
                                              RecoveryUnit&,
                                              const RecordId& loc,
                                              const RecordData& oldRec,
@@ -203,14 +195,6 @@ public:
     }
 
     Status rangeTruncate(OperationContext*,
-                         const RecordId& minRecordId = RecordId(),
-                         const RecordId& maxRecordId = RecordId(),
-                         int64_t hintDataSizeIncrement = 0,
-                         int64_t hintNumRecordsIncrement = 0) final {
-        unimplementedTasserted();
-        return {ErrorCodes::Error::UnknownError, "Unknown error"};
-    }
-    Status rangeTruncate(OperationContext*,
                          RecoveryUnit&,
                          const RecordId& minRecordId = RecordId(),
                          const RecordId& maxRecordId = RecordId(),
@@ -243,10 +227,6 @@ public:
 
     void appendAllCustomStats(RecoveryUnit&, BSONObjBuilder*, double scale) const final {}
 
-    RecordId getLargestKey(OperationContext*) const final {
-        unimplementedTasserted();
-        return {};
-    }
     RecordId getLargestKey(OperationContext*, RecoveryUnit&) const final {
         unimplementedTasserted();
         return {};

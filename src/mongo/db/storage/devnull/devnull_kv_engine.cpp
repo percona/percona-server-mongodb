@@ -173,7 +173,6 @@ public:
         return nullptr;
     }
 
-    using RecordStoreBase::getLargestKey;
     RecordId getLargestKey(OperationContext* opCtx, RecoveryUnit& ru) const final {
         return RecordId();
     }
@@ -286,7 +285,6 @@ public:
         return _maxSize;
     }
 
-    using RecordStoreBase::Oplog::getRawCursor;
     std::unique_ptr<SeekableRecordCursor> getRawCursor(OperationContext* opCtx,
                                                        RecoveryUnit& ru,
                                                        bool forward) const override {

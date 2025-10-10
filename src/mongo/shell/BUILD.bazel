@@ -289,12 +289,16 @@ MONGOJS_CPP_JSFILES = [
     "mongo.js",
     "prelude.js",
     "query.js",
+    "query_global.js",
     "session.js",
     "session_global.js",
     "types.js",
     "utils.js",
+    "utils_global.js",
     "utils_auth.js",
+    "utils_auth_global.js",
     "utils_sh.js",
+    "utils_sh_global.js",
     ":error_codes_js",
 ]
 

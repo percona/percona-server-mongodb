@@ -27,7 +27,6 @@
  *    it in the license file.
  */
 
-#include "mongo/db/extension/sdk/extension.h"
 #include "mongo/db/extension/sdk/extension_status.h"
 
 extern "C" {

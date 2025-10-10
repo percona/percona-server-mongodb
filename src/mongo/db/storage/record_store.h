@@ -498,14 +498,7 @@ public:
      *
      * @return the updated version of the record. If unowned data is returned, then it is valid
      * until the next modification of this Record or the lock on the collection has been released.
-     *
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
      */
-    virtual StatusWith<RecordData> updateWithDamages(OperationContext*,
-                                                     const RecordId&,
-                                                     const RecordData&,
-                                                     const char* damageSource,
-                                                     const DamageVector&) = 0;
     virtual StatusWith<RecordData> updateWithDamages(OperationContext*,
                                                      RecoveryUnit&,
                                                      const RecordId&,
@@ -569,14 +562,7 @@ public:
      * order to update numRecords and dataSize correctly. Implementations are free to ignore the
      * hints if they have a way of obtaining the correct values without the help of external
      * callers.
-     *
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
      */
-    virtual Status rangeTruncate(OperationContext*,
-                                 const RecordId& minRecordId = RecordId(),
-                                 const RecordId& maxRecordId = RecordId(),
-                                 int64_t hintDataSizeIncrement = 0,
-                                 int64_t hintNumRecordsIncrement = 0) = 0;
     virtual Status rangeTruncate(OperationContext*,
                                  RecoveryUnit&,
                                  const RecordId& minRecordId = RecordId(),
@@ -632,10 +618,7 @@ public:
      *
      * May throw WriteConflictException in certain cache-stuck scenarios even if the operation isn't
      * part of a WriteUnitOfWork.
-     *
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
      */
-    virtual RecordId getLargestKey(OperationContext*) const = 0;
     virtual RecordId getLargestKey(OperationContext*, RecoveryUnit&) const = 0;
 
     /**
@@ -725,11 +708,7 @@ public:
     /**
      * Returns a new cursor on the oplog, ignoring any visibility semantics specific to forward
      * cursors.
-     *
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
      */
-    virtual std::unique_ptr<SeekableRecordCursor> getRawCursor(OperationContext* opCtx,
-                                                               bool forward = true) const = 0;
     virtual std::unique_ptr<SeekableRecordCursor> getRawCursor(OperationContext* opCtx,
                                                                RecoveryUnit&,
                                                                bool forward = true) const = 0;

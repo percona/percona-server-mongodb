@@ -90,11 +90,6 @@ public:
         OperationContext*, RecoveryUnit&, const RecordId&, const char* data, int len) final;
 
     StatusWith<RecordData> updateWithDamages(OperationContext*,
-                                             const RecordId&,
-                                             const RecordData&,
-                                             const char* damageSource,
-                                             const DamageVector&) final;
-    StatusWith<RecordData> updateWithDamages(OperationContext*,
                                              RecoveryUnit&,
                                              const RecordId&,
                                              const RecordData&,
@@ -115,11 +110,6 @@ public:
     Status truncate(OperationContext*, RecoveryUnit&) final;
 
     Status rangeTruncate(OperationContext*,
-                         const RecordId& minRecordId = RecordId(),
-                         const RecordId& maxRecordId = RecordId(),
-                         int64_t hintDataSizeIncrement = 0,
-                         int64_t hintNumRecordsIncrement = 0) final;
-    Status rangeTruncate(OperationContext*,
                          RecoveryUnit&,
                          const RecordId& minRecordId = RecordId(),
                          const RecordId& maxRecordId = RecordId(),
@@ -129,7 +119,6 @@ public:
     StatusWith<int64_t> compact(OperationContext*, const CompactOptions&) final;
     StatusWith<int64_t> compact(OperationContext*, RecoveryUnit&, const CompactOptions&) final;
 
-    RecordId getLargestKey(OperationContext*) const final;
     RecordId getLargestKey(OperationContext*, RecoveryUnit&) const override = 0;
 
     void reserveRecordIds(OperationContext*, std::vector<RecordId>*, size_t numRecords) final;
@@ -200,8 +189,6 @@ private:
 
 class RecordStoreBase::Oplog : public RecordStore::Oplog {
 public:
-    std::unique_ptr<SeekableRecordCursor> getRawCursor(OperationContext* opCtx,
-                                                       bool forward = true) const final;
     std::unique_ptr<SeekableRecordCursor> getRawCursor(OperationContext* opCtx,
                                                        RecoveryUnit& ru,
                                                        bool forward = true) const override = 0;

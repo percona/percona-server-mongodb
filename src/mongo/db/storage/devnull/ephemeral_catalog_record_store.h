@@ -148,7 +148,6 @@ public:
         _data->dataSize = dataSize;
     }
 
-    using RecordStoreBase::getLargestKey;
     RecordId getLargestKey(OperationContext* opCtx, RecoveryUnit& ru) const final {
         stdx::lock_guard<stdx::recursive_mutex> lock(_data->recordsMutex);
         return RecordId(_data->nextId - 1);
@@ -158,7 +157,7 @@ public:
     void reserveRecordIds(OperationContext* opCtx,
                           RecoveryUnit& ru,
                           std::vector<RecordId>* out,
-                          size_t nRecords) final {};
+                          size_t nRecords) final;
 
     RecordStore::Capped* capped() override {
         return nullptr;

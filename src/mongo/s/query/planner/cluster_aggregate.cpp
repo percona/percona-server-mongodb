@@ -407,6 +407,7 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
     bool shouldDoFLERewrite,
     bool requiresCollationForParsingUnshardedAggregate,
     boost::optional<ResolvedView> resolvedView,
+    boost::optional<AggregateCommandRequest> originalRequest,
     boost::optional<ExplainOptions::Verbosity> verbosity) {
     // Populate the collation. If this is a change stream, take the user-defined collation if one
     // exists, or an empty BSONObj otherwise. Change streams never inherit the collection's default
@@ -436,7 +437,16 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
                               hasChangeStream,
                               verbosity);
 
-    if (resolvedView) {
+    // If the routing table exists, then the collection is tracked in the router role and we can
+    // validate if it is timeseries. If the collection is untracked, this validation will happen in
+    // the shard role.
+    if (request.getIsRankFusion() && cri && cri->hasRoutingTable()) {
+        uassert(10557300,
+                "$rankFusion is unsupported on timeseries collections",
+                !(cri->getChunkManager().isTimeseriesCollection()));
+    }
+
+    if (resolvedView && originalRequest) {
         const auto& viewName = nsStruct.requestedNss;
         // If applicable, ensure that the resolved namespace is added to the resolvedNamespaces map
         // on the expCtx before calling Pipeline::parse(). This is necessary for search on views as
@@ -445,7 +455,7 @@ std::unique_ptr<Pipeline, PipelineDeleter> parsePipelineAndRegisterQueryStats(
         // necessary to add the resolved namespace to the expCtx prior to any call to
         // Pipeline::parse().
         search_helpers::checkAndSetViewOnExpCtx(
-            expCtx, request.getPipeline(), *resolvedView, viewName);
+            expCtx, originalRequest->getPipeline(), *resolvedView, viewName);
 
         if (request.getIsRankFusion()) {
             uassert(ErrorCodes::OptionNotSupportedOnView,
@@ -546,14 +556,16 @@ void resetRawDataFromRequest(OperationContext* const opCtx, AggregateCommandRequ
     isRawDataOperation(opCtx) = request.getRawData().value_or(false);
 }
 
-Status _parseQueryStatsAndReturnEmptyResult(OperationContext* opCtx,
-                                            const Status& status,
-                                            const ClusterAggregate::Namespaces& namespaces,
-                                            AggregateCommandRequest& request,
-                                            const LiteParsedPipeline& liteParsedPipeline,
-                                            boost::optional<ResolvedView> resolvedView,
-                                            boost::optional<ExplainOptions::Verbosity> verbosity,
-                                            BSONObjBuilder* result) {
+Status _parseQueryStatsAndReturnEmptyResult(
+    OperationContext* opCtx,
+    const Status& status,
+    const ClusterAggregate::Namespaces& namespaces,
+    AggregateCommandRequest& request,
+    const LiteParsedPipeline& liteParsedPipeline,
+    boost::optional<ResolvedView> resolvedView,
+    boost::optional<AggregateCommandRequest> originalRequest,
+    boost::optional<ExplainOptions::Verbosity> verbosity,
+    BSONObjBuilder* result) {
 
     const auto hasChangeStream = liteParsedPipeline.hasChangeStream();
     const auto shouldDoFLERewrite = request.getEncryptionInformation().has_value();
@@ -571,6 +583,7 @@ Status _parseQueryStatsAndReturnEmptyResult(OperationContext* opCtx,
                                                shouldDoFLERewrite,
                                                requiresCollationForParsingUnshardedAggregate,
                                                resolvedView,
+                                               originalRequest,
                                                verbosity);
 
         pipeline->validateCommon(false);
@@ -594,6 +607,7 @@ Status runAggregateImpl(OperationContext* opCtx,
                         const LiteParsedPipeline& liteParsedPipeline,
                         const PrivilegeVector& privileges,
                         boost::optional<ResolvedView> resolvedView,
+                        boost::optional<AggregateCommandRequest> originalRequest,
                         boost::optional<ExplainOptions::Verbosity> verbosity,
                         BSONObjBuilder* res) {
     const auto pipelineDataSource = sharded_agg_helpers::getPipelineDataSource(liteParsedPipeline);
@@ -614,6 +628,7 @@ Status runAggregateImpl(OperationContext* opCtx,
                 req,
                 liteParsedPipeline,
                 resolvedView,
+                originalRequest,
                 verbosity,
                 res);
         }
@@ -691,6 +706,7 @@ Status runAggregateImpl(OperationContext* opCtx,
                                                shouldDoFLERewrite,
                                                requiresCollationForParsingUnshardedAggregate,
                                                resolvedView,
+                                               originalRequest,
                                                verbosity);
         const boost::intrusive_ptr<ExpressionContext>& pipelineCtx = pipeline->getContext();
 
@@ -971,6 +987,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                                 liteParsedPipeline,
                                 privileges,
                                 boost::none /* resolvedView */,
+                                boost::none /* originalRequest */,
                                 verbosity,
                                 result);
     }
@@ -987,6 +1004,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                                          liteParsedPipeline,
                                          privileges,
                                          boost::none /* resolvedView */,
+                                         boost::none /* originalRequest */,
                                          verbosity,
                                          result));
         return Status::OK();
@@ -1019,6 +1037,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                                                     request,
                                                     liteParsedPipeline,
                                                     boost::none /*ResolvedView*/,
+                                                    boost::none /*OriginalRequest*/,
                                                     verbosity,
                                                     result);
     }
@@ -1034,6 +1053,7 @@ Status ClusterAggregate::runAggregateWithRoutingCtx(
     const LiteParsedPipeline& liteParsedPipeline,
     const PrivilegeVector& privileges,
     boost::optional<ResolvedView> resolvedView,
+    boost::optional<AggregateCommandRequest> originalRequest,
     boost::optional<ExplainOptions::Verbosity> verbosity,
     BSONObjBuilder* result) {
 
@@ -1044,6 +1064,7 @@ Status ClusterAggregate::runAggregateWithRoutingCtx(
                             liteParsedPipeline,
                             privileges,
                             resolvedView,
+                            originalRequest,
                             verbosity,
                             result);
 }
@@ -1084,7 +1105,7 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
 
     uassert(ErrorCodes::OptionNotSupportedOnView,
             "$rankFusion is unsupported on timeseries collections",
-            !(nsStruct.executionNss.isTimeseriesBucketsCollection() && request.getIsRankFusion()));
+            !(resolvedView.timeseries() && request.getIsRankFusion()));
 
     sharding::router::CollectionRouter router(opCtx->getServiceContext(), nsStruct.executionNss);
     try {
@@ -1124,6 +1145,7 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
                                                LiteParsedPipeline(resolvedAggRequest, true),
                                                privileges,
                                                boost::make_optional(resolvedView),
+                                               boost::make_optional(request),
                                                verbosity,
                                                result));
             });

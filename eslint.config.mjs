@@ -194,7 +194,7 @@ export default [
                 tojsonObject: true,
                 tojsononeline: true,
 
-                // src/mongo/shell/utils.d.ts
+                // src/mongo/shell/utils_global.js
                 Geo: true,
                 Random: true,
                 __autocomplete__: true,
@@ -228,7 +228,6 @@ export default [
                 jsTest: true,
                 jsTestOptions: true,
                 jsTestLog: true,
-                jsonTestLog: true,
                 jsTestName: true,
                 printStackTrace: true,
                 replSetMemberStatePrompt: true,
@@ -241,10 +240,10 @@ export default [
                 setVerboseShell: true,
                 timestampCmp: true,
 
-                // src/mongo/shell/utils_auth.d.ts
+                // src/mongo/shell/utils_auth_global.js
                 authutil: true,
 
-                // src/mongo/shell/utils_sh.d.ts
+                // src/mongo/shell/utils_sh_global.js
                 printShardingStatus: true,
 
                 // src/mongo/scripting/mozjs/bindata.d.ts

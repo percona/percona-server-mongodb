@@ -207,7 +207,6 @@ public:
 
     void updateStatsAfterRepair(long long numRecords, long long dataSize) override;
 
-    using RecordStoreBase::getLargestKey;
     RecordId getLargestKey(OperationContext* opCtx, RecoveryUnit& ru) const override;
 
     using RecordStoreBase::reserveRecordIds;
@@ -447,7 +446,6 @@ public:
 
     int64_t getMaxSize() const override;
 
-    using RecordStoreBase::Oplog::getRawCursor;
     std::unique_ptr<SeekableRecordCursor> getRawCursor(OperationContext* opCtx,
                                                        RecoveryUnit& ru,
                                                        bool forward) const override;

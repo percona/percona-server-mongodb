@@ -683,6 +683,8 @@ struct IndexScanStats : public SpecificStats {
 
     // Number of times the index cursor is re-positioned during the execution of the scan.
     size_t seeks;
+
+    uint64_t maxUsedMemBytes = 0u;
 };
 
 struct LimitStats : public SpecificStats {
@@ -770,6 +772,8 @@ struct OrStats : public SpecificStats {
 
     size_t dupsTested = 0u;
     size_t dupsDropped = 0u;
+
+    uint64_t maxUsedMemBytes = 0;
 };
 
 struct ProjectionStats : public SpecificStats {

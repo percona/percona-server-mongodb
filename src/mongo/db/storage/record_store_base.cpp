@@ -131,14 +131,6 @@ Status RecordStoreBase::updateRecord(
 }
 
 StatusWith<RecordData> RecordStoreBase::updateWithDamages(OperationContext* opCtx,
-                                                          const RecordId& id,
-                                                          const RecordData& data,
-                                                          const char* damageSource,
-                                                          const DamageVector& damages) {
-    return updateWithDamages(
-        opCtx, *shard_role_details::getRecoveryUnit(opCtx), id, data, damageSource, damages);
-}
-StatusWith<RecordData> RecordStoreBase::updateWithDamages(OperationContext* opCtx,
                                                           RecoveryUnit& ru,
                                                           const RecordId& id,
                                                           const RecordData& data,
@@ -166,18 +158,6 @@ Status RecordStoreBase::truncate(OperationContext* opCtx, RecoveryUnit& ru) {
 }
 
 Status RecordStoreBase::rangeTruncate(OperationContext* opCtx,
-                                      const RecordId& minRecordId,
-                                      const RecordId& maxRecordId,
-                                      int64_t hintDataSizeIncrement,
-                                      int64_t hintNumRecordsIncrement) {
-    return rangeTruncate(opCtx,
-                         *shard_role_details::getRecoveryUnit(opCtx),
-                         minRecordId,
-                         maxRecordId,
-                         hintDataSizeIncrement,
-                         hintNumRecordsIncrement);
-}
-Status RecordStoreBase::rangeTruncate(OperationContext* opCtx,
                                       RecoveryUnit& ru,
                                       const RecordId& minRecordId,
                                       const RecordId& maxRecordId,
@@ -200,10 +180,6 @@ StatusWith<int64_t> RecordStoreBase::compact(OperationContext* opCtx,
                                              const CompactOptions& options) {
     validateWriteAllowed(opCtx);
     return _compact(opCtx, ru, options);
-}
-
-RecordId RecordStoreBase::getLargestKey(OperationContext* opCtx) const {
-    return getLargestKey(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
 }
 
 void RecordStoreBase::reserveRecordIds(OperationContext* opCtx,
@@ -238,10 +214,4 @@ RecordStoreBase::Capped::TruncateAfterResult RecordStoreBase::Capped::truncateAf
     validateWriteAllowed(opCtx);
     return _truncateAfter(opCtx, ru, id, inclusive);
 }
-
-std::unique_ptr<SeekableRecordCursor> RecordStoreBase::Oplog::getRawCursor(OperationContext* opCtx,
-                                                                           bool forward) const {
-    return getRawCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx), forward);
-}
-
 }  // namespace mongo

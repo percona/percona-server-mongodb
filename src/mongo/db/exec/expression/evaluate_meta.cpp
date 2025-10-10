@@ -76,6 +76,9 @@ Value evaluate(const ExpressionMeta& expr, const Document& root, Variables* vari
         case DocumentMetadataFields::MetaType::kSearchScoreDetails:
             return metadata.hasSearchScoreDetails() ? Value(metadata.getSearchScoreDetails())
                                                     : Value();
+        case DocumentMetadataFields::MetaType::kSearchRootDocumentId:
+            return metadata.hasSearchRootDocumentId() ? Value(metadata.getSearchRootDocumentId())
+                                                      : Value();
         case DocumentMetadataFields::MetaType::kSearchSequenceToken:
             return metadata.hasSearchSequenceToken() ? Value(metadata.getSearchSequenceToken())
                                                      : Value();
@@ -123,6 +126,10 @@ Value evaluate(const ExpressionLet& expr, const Document& root, Variables* varia
     }
 
     return expr.getSubExpression()->evaluate(root, variables);
+}
+
+Value evaluate(const ExpressionTestFeatureFlags& expr, const Document& root, Variables* variables) {
+    return Value(1);
 }
 
 }  // namespace exec::expression

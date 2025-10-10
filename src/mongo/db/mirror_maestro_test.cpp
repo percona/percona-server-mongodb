@@ -194,14 +194,20 @@ protected:
         }
 
         auto serviceContext = getServiceContext();
-        auto fetchedHosts = getCachedHostsForGeneralMirroring_forTest(serviceContext);
+        auto cache = getCachedHelloResponse_forTest(serviceContext);
         ClockSource::StopWatch stopwatch;
         auto timeout = Milliseconds(1000);
 
-        while (stopwatch.elapsed() < timeout && fetchedHosts.size() != expNumMembers) {
-            // The MirrorMaestro's view of the server topology may not be updated immediately.
+        while (stopwatch.elapsed() < timeout) {
+            if (cache && cache->getHosts().size() == expNumMembers) {
+                break;
+            }
+            // The TopologyVersionObserver may have an uninitialized HelloResponse, defaulted to a
+            // null pointer. Additionally, the MirrorMaestro's view of the server topology may not
+            // be updated immediately. If either of these situations happen, we wait to get a new
+            // cached HelloResponse in a timed-loop.
             sleepmillis(10);
-            fetchedHosts = getCachedHostsForGeneralMirroring_forTest(serviceContext);
+            cache = getCachedHelloResponse_forTest(serviceContext);
         }
 
         return config;
@@ -618,7 +624,7 @@ TEST_F(TargetedMirrorMaestroTest, AssertExpectedHostsTargeted) {
     ASSERT_EQ(req.target, hosts.at(0));
 }
 
-TEST_F(MirrorMaestroTest, UninitializedConfigDefersHostCompute) {
+TEST_F(TargetedMirrorMaestroTest, UninitializedConfigDefersHostCompute) {
     auto service = getServiceContext();
 
     // Set the sampling rate for targeted mirroring to always mirror

@@ -1342,7 +1342,8 @@ void ReplicationCoordinatorImpl::clearSyncSourceDenylist() {
 
 Status ReplicationCoordinatorImpl::setFollowerModeRollback(OperationContext* opCtx) {
     invariant(opCtx);
-    invariant(shard_role_details::getLocker(opCtx)->isRSTLExclusive());
+    invariant(shard_role_details::getLocker(opCtx)->isRSTLExclusive() ||
+              gFeatureFlagIntentRegistration.isEnabled());
     return _setFollowerMode(opCtx, MemberState::RS_ROLLBACK);
 }
 
@@ -1455,19 +1456,18 @@ void ReplicationCoordinatorImpl::signalApplierDrainComplete(OperationContext* op
         hangBeforeRSTLOnDrainComplete.pauseWhileSet(opCtx);
     }
 
-    boost::optional<AutoGetRstlForStepUpStepDown> arsu;
     boost::optional<rss::consensus::ReplicationStateTransitionGuard> rstg;
+    boost::optional<AutoGetRstlForStepUpStepDown> arsu;
 
     // Kill all user writes and user reads that encounter a prepare conflict. Also kills select
     // internal operations. Although secondaries cannot accept writes, a step up can kill writes
     // that were blocked behind the RSTL lock held by a step down attempt. These writes will be
     // killed with a retryable error code during step up.
-    arsu.emplace(this, opCtx, ReplicationCoordinator::OpsKillingStateTransitionEnum::kStepUp);
     if (gFeatureFlagIntentRegistration.isEnabled()) {
         rstg.emplace(_killConflictingOperations(
             rss::consensus::IntentRegistry::InterruptionType::StepUp, opCtx));
     }
-
+    arsu.emplace(this, opCtx, ReplicationCoordinator::OpsKillingStateTransitionEnum::kStepUp);
     lk.lock();
 
     // Exit drain mode only if we're actually in draining mode, the apply buffer is empty in the
@@ -2910,7 +2910,8 @@ bool ReplicationCoordinatorImpl::isWritablePrimaryForReportingPurposes() {
 bool ReplicationCoordinatorImpl::canAcceptWritesForDatabase(OperationContext* opCtx,
                                                             const DatabaseName& dbName) {
     // The answer isn't meaningful unless we hold the ReplicationStateTransitionLock.
-    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked());
+    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked() ||
+              gFeatureFlagIntentRegistration.isEnabled());
     return canAcceptWritesForDatabase_UNSAFE(opCtx, dbName);
 }
 
@@ -2964,7 +2965,9 @@ bool ReplicationCoordinatorImpl::canAcceptWritesFor(OperationContext* opCtx,
 
     // Assert that we are holding the RSTL, meaning the value returned from
     // `_canAcceptReplicatedWrites_UNSAFE` is guaranteed to be accurate.
-    invariant(shard_role_details::getLocker(opCtx)->isRSTLLocked(), toStringForLogging(nsOrUUID));
+    invariant(shard_role_details::getLocker(opCtx)->isRSTLLocked() ||
+                  gFeatureFlagIntentRegistration.isEnabled(),
+              toStringForLogging(nsOrUUID));
     // Otherwise, check whether we can currently accept replicated writes.
     return _canAcceptReplicatedWrites_UNSAFE(opCtx);
 }
@@ -3025,7 +3028,8 @@ bool ReplicationCoordinatorImpl::_isCollectionReplicated(OperationContext* opCtx
 Status ReplicationCoordinatorImpl::checkCanServeReadsFor(OperationContext* opCtx,
                                                          const NamespaceString& ns,
                                                          bool secondaryOk) {
-    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked());
+    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked() ||
+              gFeatureFlagIntentRegistration.isEnabled());
     return checkCanServeReadsFor_UNSAFE(opCtx, ns, secondaryOk);
 }
 
@@ -3915,33 +3919,38 @@ void ReplicationCoordinatorImpl::_finishReplSetReconfig(OperationContext* opCtx,
         // Wait for the election to complete and the node's Role to be set to follower.
         _replExecutor->waitForEvent(electionFinishedEvent);
     }
-    boost::optional<AutoGetRstlForStepUpStepDown> arsd;
     boost::optional<rss::consensus::ReplicationStateTransitionGuard> rstg;
+    boost::optional<AutoGetRstlForStepUpStepDown> arsd;
     stdx::unique_lock<stdx::mutex> lk(_mutex);
     if (isForceReconfig && _shouldStepDownOnReconfig(lk, newConfig, myIndex)) {
         _topCoord->prepareForUnconditionalStepDown();
         lk.unlock();
         // Primary node won't be electable or removed after the configuration change.
         // So, finish the reconfig under RSTL, so that the step down occurs safely.
+        const Date_t startTimeKillConflictingOperations = _replExecutor->now();
+        if (gFeatureFlagIntentRegistration.isEnabled()) {
+            rstg.emplace(_killConflictingOperations(
+                rss::consensus::IntentRegistry::InterruptionType::StepDown, opCtx));
+        }
+
+        const Date_t endTimeKillConflictingOperations = _replExecutor->now();
+        LOGV2(9626613,
+              "killConflictingOperations in stepDown completed",
+              "totalTime"_attr =
+                  (endTimeKillConflictingOperations - startTimeKillConflictingOperations));
+
         const Date_t startTimeAcquireRSTL = _replExecutor->now();
         arsd.emplace(this, opCtx, ReplicationCoordinator::OpsKillingStateTransitionEnum::kStepDown);
         const Date_t endTimeAcquireRSTL = _replExecutor->now();
         LOGV2(9626612,
               "Acquired RSTL for stepDown",
               "totalTimeToAcquire"_attr = (endTimeAcquireRSTL - startTimeAcquireRSTL));
-        const Date_t startTimeKillConflictingOperations = _replExecutor->now();
-        if (gFeatureFlagIntentRegistration.isEnabled()) {
-            rstg.emplace(_killConflictingOperations(
-                rss::consensus::IntentRegistry::InterruptionType::StepDown, opCtx));
-        }
-        const Date_t endTimeKillConflictingOperations = _replExecutor->now();
-        LOGV2(9626613,
-              "killConflictingOperations in stepDown completed",
-              "totalTime"_attr =
-                  (endTimeKillConflictingOperations - startTimeKillConflictingOperations));
+        arsd.emplace(this, opCtx, ReplicationCoordinator::OpsKillingStateTransitionEnum::kStepDown);
+
         lk.lock();
         if (_topCoord->isSteppingDownUnconditionally()) {
-            invariant(shard_role_details::getLocker(opCtx)->isRSTLExclusive());
+            invariant(shard_role_details::getLocker(opCtx)->isRSTLExclusive() ||
+                      gFeatureFlagIntentRegistration.isEnabled());
             LOGV2(21355, "Stepping down from primary, because we received a new config");
             // We need to release the mutex before yielding locks for prepared transactions, which
             // might check out sessions, to avoid deadlocks with checked-out sessions accessing
@@ -3970,13 +3979,13 @@ void ReplicationCoordinatorImpl::_finishReplSetReconfig(OperationContext* opCtx,
             // ReplicationCoordinatorImpl::_rsConfigState state to "kConfigReconfiguring" which
             // prevents new elections from happening. So, its safe to release the RSTL lock.
             lk.unlock();
-            rstg.reset();
             const Date_t startTimeReleaseRSTL = _replExecutor->now();
             arsd.reset();
             const Date_t endTimeReleaseRSTL = _replExecutor->now();
             LOGV2(9626615,
                   "Released RSTL during stepDown",
                   "timeToRelease"_attr = (endTimeReleaseRSTL - startTimeReleaseRSTL));
+            rstg.reset();
             lk.lock();
         }
     }
@@ -4878,6 +4887,7 @@ ReadPreference ReplicationCoordinatorImpl::_getSyncSourceReadPreference(WithLock
     // Always allow chaining while in catchup and drain mode.
     auto memberState = _getMemberState(lk);
     ReadPreference readPreference = ReadPreference::Nearest;
+    const auto& config = _rsConfig.unsafePeek();
 
     bool parsedSyncSourceFromInitialSync = false;
     // Handle special case of initial sync source read preference.
@@ -4893,7 +4903,7 @@ ReadPreference ReplicationCoordinatorImpl::_getSyncSourceReadPreference(WithLock
             } catch (const DBException& e) {
                 fassertFailedWithStatus(3873100, e.toStatus());
             }
-        } else if (_rsConfig.unsafePeek().getMemberAt(_selfIndex).getNumVotes() > 0) {
+        } else if (config.getMemberAt(_selfIndex).getNumVotes() > 0) {
             // Voting nodes prefer to sync from the primary.  A voting node that is initial syncing
             // may have acknowledged writes which are part of the set's write majority; if it then
             // resyncs from a node which does not have those writes, and (before it replicates them
@@ -4903,12 +4913,28 @@ ReadPreference ReplicationCoordinatorImpl::_getSyncSourceReadPreference(WithLock
             readPreference = ReadPreference::PrimaryPreferred;
         }
     }
-    if (!parsedSyncSourceFromInitialSync && !memberState.primary() &&
-        !_rsConfig.unsafePeek().isChainingAllowed() &&
-        !enableOverrideClusterChainingSetting.load()) {
-        // If we are not the primary and chaining is disabled in the config (without overrides), we
-        // should only be syncing from the primary.
-        readPreference = ReadPreference::PrimaryOnly;
+
+    // Prevent chaining if chaining is not allowed.
+    if (parsedSyncSourceFromInitialSync || config.isChainingAllowed() ||
+        enableOverrideClusterChainingSetting.load()) {
+        // No update to read preference necessary.
+
+    } else if (!memberState.primary()) {
+        // SERVER-105416: If we are the only electable node, then we need to be able to sync from
+        // secondaries.
+        // Otherwise, if we are not the primary and chaining is disabled in the config (without
+        // overrides), we should only sync from the primary.
+        const bool isElectable =
+            !memberState.removed() && config.getMemberAt(_selfIndex).isElectable();
+        const bool isOnlyElectableNode = isElectable &&
+            std::count_if(config.membersBegin(), config.membersEnd(), [](const auto& m) -> bool {
+                return m.isElectable();
+            }) == 1;
+        if (isOnlyElectableNode) {
+            // Allow syncing from secondaries regardless of whether chaining is allowed.
+        } else {
+            readPreference = ReadPreference::PrimaryOnly;
+        }
     }
     return readPreference;
 }
@@ -5790,7 +5816,8 @@ void ReplicationCoordinatorImpl::ReadWriteAbility::setCanAcceptNonLocalWrites(
     WithLock lk, OperationContext* opCtx, bool canAcceptWrites) {
     // We must be holding the RSTL in mode X to change _canAcceptNonLocalWrites.
     invariant(opCtx);
-    invariant(shard_role_details::getLocker(opCtx)->isRSTLExclusive());
+    invariant(shard_role_details::getLocker(opCtx)->isRSTLExclusive() ||
+              gFeatureFlagIntentRegistration.isEnabled());
     if (canAcceptWrites == canAcceptNonLocalWrites(lk)) {
         return;
     }
@@ -5809,7 +5836,8 @@ bool ReplicationCoordinatorImpl::ReadWriteAbility::canAcceptNonLocalWrites(
     OperationContext* opCtx) const {
     // We must be holding the RSTL.
     invariant(opCtx);
-    invariant(shard_role_details::getLocker(opCtx)->isRSTLLocked());
+    invariant(shard_role_details::getLocker(opCtx)->isRSTLLocked() ||
+              gFeatureFlagIntentRegistration.isEnabled());
     return _canAcceptNonLocalWrites.loadRelaxed();
 }
 
@@ -5821,7 +5849,8 @@ bool ReplicationCoordinatorImpl::ReadWriteAbility::canServeNonLocalReads(
     OperationContext* opCtx) const {
     // We must be holding the RSTL.
     invariant(opCtx);
-    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked());
+    invariant(opCtx->isLockFreeReadsOp() || shard_role_details::getLocker(opCtx)->isRSTLLocked() ||
+              gFeatureFlagIntentRegistration.isEnabled());
     return _canServeNonLocalReads.loadRelaxed();
 }
 
@@ -5829,7 +5858,8 @@ void ReplicationCoordinatorImpl::ReadWriteAbility::setCanServeNonLocalReads(Oper
                                                                             unsigned int newVal) {
     // We must be holding the RSTL in mode X to change _canServeNonLocalReads.
     invariant(opCtx);
-    invariant(shard_role_details::getLocker(opCtx)->isRSTLExclusive());
+    invariant(shard_role_details::getLocker(opCtx)->isRSTLExclusive() ||
+              gFeatureFlagIntentRegistration.isEnabled());
     _canServeNonLocalReads.store(newVal);
 }
 
