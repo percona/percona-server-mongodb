@@ -86,7 +86,7 @@ public:
         _svcCtx->clearStorageEngine();
     }
 
-    virtual KVEngine* restartEngine() {
+    KVEngine* restartEngine() override {
         // Don't reset the engine since it doesn't persist anything
         // and all the data will be lost.
         return getEngine();

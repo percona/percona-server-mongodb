@@ -50,7 +50,7 @@ const std::string kInMemoryEngineName = "inMemory";
 
 class InMemoryFactoryTest : public ServiceContextTest {
 private:
-    virtual void setUp() {
+    void setUp() override {
         ServiceContext* globalEnv = getGlobalServiceContext();
         ASSERT_TRUE(globalEnv);
         ASSERT_TRUE(isRegisteredStorageEngine(globalEnv, kInMemoryEngineName));
@@ -59,7 +59,7 @@ private:
         _oldOptions = wiredTigerGlobalOptions;
     }
 
-    virtual void tearDown() {
+    void tearDown() override {
         wiredTigerGlobalOptions = _oldOptions;
         factory = nullptr;
     }
