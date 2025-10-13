@@ -54,7 +54,7 @@ constexpr int EncryptionKeyDB::_gcm_iv_bytes;
 
 static void dump_key(unsigned char *key, const int _key_len, const char * msg) {
     const char* m = "0123456789ABCDEF";
-    char buf[_key_len * 3 + 1];
+    char buf[_key_len * 3 + 1]; // NOLINT(clang-diagnostic-vla-cxx-extension)
     char* p=buf;
     for (int i=0; i<_key_len; ++i) {
         *p++ = m[*key >> 4];

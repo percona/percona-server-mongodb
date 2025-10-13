@@ -139,7 +139,7 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::step1(
 
     // Save principal name to compare it with that received in an access token at the step 2
     if (principalName) {
-        _principalName = *principalName;
+        ServerMechanismBase::_principalName = *principalName;
     }
 
     // Reply with the 'issuer' and 'clientId' fields of the chosen IdP.

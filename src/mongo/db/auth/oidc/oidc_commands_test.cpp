@@ -209,12 +209,14 @@ TEST_F(OidcListKeysTest, Run) {
     ASSERT_EQ(keySets.type(), BSONType::object);
 
     // Check if the key set for issuer1 exists
-    const auto& keySet1 = keySets.Obj().getField(issuer1);
-    ASSERT_TRUE(keySet1.ok());
-    ASSERT_EQ(keySet1.type(), BSONType::object);
+    const auto keySetsObj = keySets.Obj();
+    const auto keySetS1 = keySetsObj.getField(issuer1);
+    ASSERT_TRUE(keySetS1.ok());
+    ASSERT_EQ(keySetS1.type(), BSONType::object);
 
     // Check if the keys array exists for issuer1
-    const auto& keys1 = keySet1.Obj().getField("keys");
+    const auto keySetS1Obj = keySetS1.Obj();
+    const auto keys1 = keySetS1Obj.getField("keys");
     ASSERT_TRUE(keys1.ok());
     ASSERT_EQ(keys1.type(), BSONType::array);
 
@@ -229,12 +231,13 @@ TEST_F(OidcListKeysTest, Run) {
     ASSERT_BSONOBJ_EQ(key1.Obj(), jwk1);
 
     // Check if the key set for issuer2 exists
-    const auto& keySet2 = keySets.Obj().getField(issuer2);
+    const auto keySet2 = keySetsObj.getField(issuer2);
     ASSERT_TRUE(keySet2.ok());
     ASSERT_EQ(keySet2.type(), BSONType::object);
 
     // Check if the keys array exists for issuer2
-    const auto& keys2 = keySet2.Obj().getField("keys");
+    const auto keySet2Obj = keySet2.Obj();
+    const auto keys2 = keySet2Obj.getField("keys");
     ASSERT_TRUE(keys2.ok());
     ASSERT_EQ(keys2.type(), BSONType::array);
 

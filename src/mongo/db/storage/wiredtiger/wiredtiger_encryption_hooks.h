@@ -92,7 +92,7 @@ class WiredTigerEncryptionHooksCBC: public WiredTigerEncryptionHooks
 {
 public:
     explicit WiredTigerEncryptionHooksCBC(EncryptionKeyDB* encryptionKeyDB);
-    virtual ~WiredTigerEncryptionHooksCBC() override;
+    ~WiredTigerEncryptionHooksCBC() override;
 
     /**
      * Transform temp data to non-readable form before writing it to disk.

@@ -238,7 +238,7 @@ public:
             auto cv_status = _condvar.wait_for(lock, stdx::chrono::seconds(
                         ldapGlobalParams.ldapUserCacheInvalidationInterval.load()));
 
-            if (cv_status == std::cv_status::timeout) {
+            if (cv_status == stdx::cv_status::timeout) {
                 _authzManager->invalidateUsersFromDB(DatabaseName::kExternal);
             }
         }
