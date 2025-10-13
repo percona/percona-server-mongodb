@@ -147,7 +147,7 @@ public:
     }
 
 protected:
-    virtual void appendMatched(const BSONObj& obj, const bool affects_durable_state) = 0;
+    virtual void appendMatched(const BSONObj& obj, bool affects_durable_state) = 0;
 
 private:
     const Matcher _matcher;
