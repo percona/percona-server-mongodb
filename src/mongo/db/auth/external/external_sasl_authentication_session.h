@@ -85,8 +85,8 @@ private:
     virtual StringData getPrincipalName() const override final;
 
     Status initializeConnection();
-    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(const StringData& payload);
-    StatusWith<std::tuple<bool, std::string>> processNextClientPayload(const StringData& payload);
+    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(StringData payload);
+    StatusWith<std::tuple<bool, std::string>> processNextClientPayload(StringData payload);
     StatusWith<std::tuple<bool, std::string>> getStepResult() const;
 };
 

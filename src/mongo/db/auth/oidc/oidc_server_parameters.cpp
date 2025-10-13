@@ -89,7 +89,7 @@ template <typename ValueType>
 requires std::equality_comparable<ValueType> && std::copyable<ValueType>
 class ConfigCommonValueVerifier {
 public:
-    ConfigCommonValueVerifier(const StringData& fieldName) : _fiedlName(fieldName) {}
+    ConfigCommonValueVerifier(const StringData fieldName) : _fiedlName(fieldName) {}
 
     /// @brief Adds a value to the internal storage for further verification.
     ///
