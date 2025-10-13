@@ -33,14 +33,14 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include <boost/optional.hpp>
 #include <memory>
-#include <ranges>
-#include <unordered_map>
+#include <algorithm>
 
 #include "mongo/crypto/jwk_manager.h"
 #include "mongo/crypto/jwks_fetcher_factory.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/util/periodic_runner.h"
+#include "mongo/stdx/unordered_map.h"
 
 namespace mongo {
 
@@ -100,7 +100,7 @@ private:
     std::ranges::subrange<decltype(_idps.begin())> _hfidps;
 
     // JWK managers per issuer.
-    std::unordered_map<std::string, std::shared_ptr<crypto::JWKManager>> _jwkManagers;
+    stdx::unordered_map<std::string, std::shared_ptr<crypto::JWKManager>> _jwkManagers;
 
     // Anchors for periodic background jobs per identity provider.
     std::vector<PeriodicJobAnchor> _jobs;

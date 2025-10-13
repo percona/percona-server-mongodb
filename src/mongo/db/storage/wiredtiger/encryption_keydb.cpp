@@ -54,8 +54,8 @@ constexpr int EncryptionKeyDB::_gcm_iv_bytes;
 
 static void dump_key(unsigned char *key, const int _key_len, const char * msg) {
     const char* m = "0123456789ABCDEF";
-    char buf[_key_len * 3 + 1];
-    char* p=buf;
+    std::unique_ptr<char []> buf{ new char[_key_len * 3 + 1] };
+    char* p=buf.get();
     for (int i=0; i<_key_len; ++i) {
         *p++ = m[*key >> 4];
         *p++ = m[*key & 0xf];
@@ -63,7 +63,7 @@ static void dump_key(unsigned char *key, const int _key_len, const char * msg) {
         ++key;
     }
     *p = 0;
-    LOGV2(29033, "{msg}: {buf}", "msg"_attr = msg, "buf"_attr = static_cast<const char*>(buf));
+    LOGV2(29033, "{msg}: {buf}", "msg"_attr = msg, "buf"_attr = static_cast<const char*>(buf.get()));
 }
 
 static void dump_table(WT_SESSION* _sess, const int _key_len, const char* msg) {

@@ -31,7 +31,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <mongo/config.h>
+#include "mongo/config.h"
 
 namespace mongo {
 

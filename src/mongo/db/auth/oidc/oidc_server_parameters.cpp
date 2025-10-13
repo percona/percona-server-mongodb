@@ -32,7 +32,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 
 #include <map>
-#include <ranges>
+#include <algorithm>
 #include <tuple>
 #include <vector>
 

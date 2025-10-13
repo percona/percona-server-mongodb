@@ -31,13 +31,13 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <chrono>
 #include <memory>
 #include <string>
 
 #include <boost/optional.hpp>
 
 #include "mongo/db/encryption/key_state.h"
+#include "mongo/stdx/chrono.h"
 
 namespace mongo::encryption {
 class Key;
@@ -57,7 +57,7 @@ public:
                const std::string& serverCaFile,
                const std::string& clientCertificateFile,
                const std::string& clientCertificatePassword,
-               std::chrono::milliseconds timeout);
+               stdx::chrono::milliseconds timeout);
 
     /// @brief Registers a symmetric encryption key on the KMIP server.
     ///

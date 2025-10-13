@@ -29,7 +29,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <string.h>    // for `::strerror`
+#include <cstring>    // for `::strerror`
 #include <sys/stat.h>  // for `::chmod`
 
 #include <cstdint>
