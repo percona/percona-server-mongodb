@@ -575,7 +575,7 @@ public:
      * Engines may assume that this will only be called in the case of clean shutdown, even if
      * cleanShutdown() hasn't been called.
      */
-    virtual ~KVEngine() {}
+    ~KVEngine() override {}
 
     /**
      * Returns whether the kv-engine is currently trying to live-restore its database.

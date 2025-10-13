@@ -287,8 +287,7 @@ std::uint64_t VaultClient::Impl::requestEngineMaxVersions(const StringData url) 
     return bsonObjectGetNestedValue<std::uint64_t>(fromjson(replyBody), "data.max_versions");
 }
 
-std::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(
-    const StringData url) const {
+std::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(const StringData url) const {
     HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
 
     ConstDataRangeCursor cur = reply.body.getCursor();

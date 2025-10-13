@@ -54,21 +54,21 @@ namespace mongo {
     class AuditCommand : public ErrmsgCommandDeprecated {
     public:
         AuditCommand(const char *name, const char *oldName=NULL) : ErrmsgCommandDeprecated(name, oldName) {}
-        virtual ~AuditCommand() {}
+        ~AuditCommand() override {}
         // TODO: Investigate if any other Command class virtual
         // methods need to be overridden.
         virtual bool isWriteCommandForConfigServer() const { return false; }
-        virtual AllowedOnSecondary secondaryAllowed(ServiceContext* context) const override {
+        AllowedOnSecondary secondaryAllowed(ServiceContext* context) const override {
             return AllowedOnSecondary::kAlways;
         }
-        virtual bool supportsWriteConcern(const BSONObj& cmd) const { return false; }
+        bool supportsWriteConcern(const BSONObj& cmd) const override { return false; }
     };
 
     class LogApplicationMessageCommand : public AuditCommand {
     public:
         LogApplicationMessageCommand() : AuditCommand("logApplicationMessage") { }
-        virtual ~LogApplicationMessageCommand() { }
-        virtual std::string help() const override {
+        ~LogApplicationMessageCommand() override { }
+        std::string help() const override {
             return "Log a custom application message string to the audit log. Must be a string."
                    "Example: { logApplicationMessage: \"it's a trap!\" }";
         }
@@ -123,8 +123,8 @@ namespace mongo {
     class AuditGetOptionsCommand : public AuditCommand {
     public:
         AuditGetOptionsCommand() : AuditCommand("auditGetOptions") { }
-        virtual ~AuditGetOptionsCommand() { }
-        virtual std::string help() const override {
+        ~AuditGetOptionsCommand() override { }
+        std::string help() const override {
             return "Get the options the audit system is currently using"
                    "Example: { auditGetOptions: 1 }";
         }

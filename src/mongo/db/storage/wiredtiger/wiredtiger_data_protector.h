@@ -43,7 +43,7 @@ class WiredTigerDataProtector: public DataProtector
 {
 public:
     WiredTigerDataProtector();
-    virtual ~WiredTigerDataProtector();
+    ~WiredTigerDataProtector() override;
 
 protected:
     static constexpr int _key_len{32};
@@ -58,7 +58,7 @@ class WiredTigerDataProtectorCBC: public WiredTigerDataProtector
 {
 public:
     WiredTigerDataProtectorCBC();
-    virtual ~WiredTigerDataProtectorCBC();
+    ~WiredTigerDataProtectorCBC() override;
 
     /**
      * Copy `inLen` bytes from `in`, process them, and write the processed bytes into `out`.
@@ -96,7 +96,7 @@ class WiredTigerDataProtectorGCM: public WiredTigerDataProtector
 {
 public:
     WiredTigerDataProtectorGCM();
-    virtual ~WiredTigerDataProtectorGCM();
+    ~WiredTigerDataProtectorGCM() override;
 
     /**
      * Copy `inLen` bytes from `in`, process them, and write the processed bytes into `out`.

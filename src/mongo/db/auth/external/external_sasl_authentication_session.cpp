@@ -232,7 +232,7 @@ public:
 
     static constexpr bool isInternal = false;
 
-    virtual ServerMechanismBase* createImpl(std::string authenticationDatabase) override {
+    ServerMechanismBase* createImpl(std::string authenticationDatabase) override {
         if (!ldapGlobalParams.ldapServers->empty()) {
             return new OpenLDAPServerMechanism(std::move(authenticationDatabase));
         }
