@@ -42,15 +42,15 @@ public:
     class ConnectionPoller;
 
     LDAPManagerImpl();
-    virtual ~LDAPManagerImpl() override;
+    ~LDAPManagerImpl() override;
 
-    virtual Status initialize() override;
+    Status initialize() override;
 
-    virtual void start_threads() override;
+    void start_threads() override;
 
-    virtual Status queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) override;
+    Status queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) override;
 
-    virtual Status mapUserToDN(const std::string& user, std::string& out) override;
+    Status mapUserToDN(const std::string& user, std::string& out) override;
 
 private:
     std::unique_ptr<ConnectionPoller> _connPoller;

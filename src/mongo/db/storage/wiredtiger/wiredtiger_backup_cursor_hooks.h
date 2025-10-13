@@ -42,24 +42,24 @@ public:
 
     WiredTigerBackupCursorHooks() {}
 
-    virtual ~WiredTigerBackupCursorHooks() override = default;
+    ~WiredTigerBackupCursorHooks() override = default;
 
-    virtual bool enabled() const override;
+    bool enabled() const override;
 
-    virtual void fsyncLock(OperationContext* opCtx) override;
+    void fsyncLock(OperationContext* opCtx) override;
 
-    virtual void fsyncUnlock(OperationContext* opCtx) override;
+    void fsyncUnlock(OperationContext* opCtx) override;
 
-    virtual BackupCursorState openBackupCursor(
+    BackupCursorState openBackupCursor(
         OperationContext* opCtx, const StorageEngine::BackupOptions& options) override;
 
-    virtual void closeBackupCursor(OperationContext* opCtx, const UUID& backupId) override;
+    void closeBackupCursor(OperationContext* opCtx, const UUID& backupId) override;
 
-    virtual BackupCursorExtendState extendBackupCursor(OperationContext* opCtx,
+    BackupCursorExtendState extendBackupCursor(OperationContext* opCtx,
                                                        const UUID& backupId,
                                                        const Timestamp& extendTo) override;
 
-    virtual bool isBackupCursorOpen() const override;
+    bool isBackupCursorOpen() const override;
 
 private:
     friend class WiredTigerHotBackupGuard;

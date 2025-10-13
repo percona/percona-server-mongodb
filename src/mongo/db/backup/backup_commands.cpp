@@ -52,7 +52,7 @@ namespace percona {
 class CreateBackupCommand : public ErrmsgCommandDeprecated {
 public:
     CreateBackupCommand() : ErrmsgCommandDeprecated("createBackup") {}
-    virtual std::string help() const override {
+    std::string help() const override {
         return "Creates a hot backup, into the given directory, of the files currently in the "
                "storage engine's data directory.\n"
                "{ createBackup: 1, backupDir: <destination directory> }";

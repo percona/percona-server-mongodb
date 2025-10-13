@@ -42,12 +42,12 @@ class WiredTigerEncryptionHooks: public EncryptionHooks
 {
 public:
     explicit WiredTigerEncryptionHooks(EncryptionKeyDB* encryptionKeyDB);
-    virtual ~WiredTigerEncryptionHooks() override;
+    ~WiredTigerEncryptionHooks() override;
 
     /**
      * Returns true if the encryption hooks are enabled.
      */
-    virtual bool enabled() const override;
+    bool enabled() const override;
 
     /**
      * Perform any encryption engine initialization/sanity checking that needs to happen after
@@ -55,13 +55,13 @@ public:
      *
      * Returns true if the server needs to be rebooted because of configuration changes.
      */
-    virtual bool restartRequired() override;
+    bool restartRequired() override;
 
     /**
      * Inform the encryption storage system to prepare its data such that its files can be copied
      * along with MongoDB data files for a backup.
      */
-    virtual StatusWith<std::deque<KVBackupBlock>> beginNonBlockingBackup(
+    StatusWith<std::deque<KVBackupBlock>> beginNonBlockingBackup(
         OperationContext* opCtx,
         boost::optional<Timestamp> checkpointTimestamp,
         const StorageEngine::BackupOptions& options) override;
@@ -71,12 +71,12 @@ public:
      * previous call to `beginNonBlockingBackup`. This function may be called without a pairing
      * `beginNonBlockingBackup`. In that case it must return `Status::OK()`;
      */
-    virtual Status endNonBlockingBackup(OperationContext* opCtx) override;
+    Status endNonBlockingBackup(OperationContext* opCtx) override;
 
     /**
      * Get list of log files changed since the moment of backup cursor creation
      */
-    virtual StatusWith<std::deque<std::string>> extendBackupCursor(
+    StatusWith<std::deque<std::string>> extendBackupCursor(
         OperationContext* opCtx) override;
 
 protected:
@@ -111,17 +111,17 @@ public:
     /**
      * Returns the maximum size addition when doing transforming temp data.
      */
-    virtual size_t additionalBytesForProtectedBuffer() override;
+    size_t additionalBytesForProtectedBuffer() override;
 
     /**
      * Get the data protector object
      */
-    virtual std::unique_ptr<DataProtector> getDataProtector() override;
+    std::unique_ptr<DataProtector> getDataProtector() override;
 
     /**
      * Get an implementation specific path suffix to tag files with
      */
-    virtual boost::filesystem::path getProtectedPathSuffix() override;
+    boost::filesystem::path getProtectedPathSuffix() override;
 
 private:
     static constexpr int _chksum_len{sizeof(uint32_t)};
@@ -132,7 +132,7 @@ class WiredTigerEncryptionHooksGCM: public WiredTigerEncryptionHooks
 {
 public:
     explicit WiredTigerEncryptionHooksGCM(EncryptionKeyDB* encryptionKeyDB);
-    virtual ~WiredTigerEncryptionHooksGCM() override;
+    ~WiredTigerEncryptionHooksGCM() override;
 
     /**
      * Transform temp data to non-readable form before writing it to disk.
@@ -151,17 +151,17 @@ public:
     /**
      * Returns the maximum size addition when doing transforming temp data.
      */
-    virtual size_t additionalBytesForProtectedBuffer() override;
+    size_t additionalBytesForProtectedBuffer() override;
 
     /**
      * Get the data protector object
      */
-    virtual std::unique_ptr<DataProtector> getDataProtector() override;
+    std::unique_ptr<DataProtector> getDataProtector() override;
 
     /**
      * Get an implementation specific path suffix to tag files with
      */
-    virtual boost::filesystem::path getProtectedPathSuffix() override;
+    boost::filesystem::path getProtectedPathSuffix() override;
 
 private:
     static constexpr int _gcm_tag_len{16};
