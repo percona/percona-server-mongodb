@@ -322,7 +322,7 @@ void KmipExchangeGetSymmetricKey::encodeRequest() {
     encodeRequestMessage(reqMsg);
 }
 
-std::optional<Key> KmipExchangeGetSymmetricKey::decodeKey() {
+boost::optional<Key> KmipExchangeGetSymmetricKey::decodeKey() {
     invariant(_state == State::kResponseReceived);
 
     auto respBatchItem = decodeResponseBatchItem();
@@ -391,7 +391,7 @@ void KmipExchangeGetKeyState::encodeRequest() {
     encodeRequestMessage(reqMsg);
 }
 
-std::optional<KeyState> KmipExchangeGetKeyState::decodeKeyState() {
+boost::optional<KeyState> KmipExchangeGetKeyState::decodeKeyState() {
     invariant(_state == State::kResponseReceived);
 
     auto respBatchItem = decodeResponseBatchItem();
@@ -400,7 +400,7 @@ std::optional<KeyState> KmipExchangeGetKeyState::decodeKeyState() {
     }
     if (respBatchItem->result_status == KMIP_STATUS_OPERATION_FAILED &&
         respBatchItem->result_reason == KMIP_REASON_ITEM_NOT_FOUND) {
-        return std::nullopt;
+        return boost::none;
     }
     if (respBatchItem->result_status != KMIP_STATUS_SUCCESS) {
         throw kmippp::operation_error(respBatchItem->result_status, kmip_get_last_result());

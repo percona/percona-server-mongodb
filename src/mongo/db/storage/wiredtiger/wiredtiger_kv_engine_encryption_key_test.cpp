@@ -85,7 +85,7 @@ EncryptionGlobalParams encryptionParamsKeyFile(const KeyFilePath& keyFilePath) {
 }
 
 EncryptionGlobalParams encryptionParamsVault(
-    const std::string& secretPath = "", std::optional<std::uint64_t> secretVersion = std::nullopt) {
+    const std::string& secretPath = "", boost::optional<std::uint64_t> secretVersion = boost::none) {
     EncryptionGlobalParams params;
     params.enableEncryption = true;
     params.vaultServerName = "vault.com";
@@ -133,9 +133,9 @@ public:
         return {engine->second.at(id.version() - 1), id.version()};
     }
 
-    std::optional<Key> readKey(const VaultSecretId& id) const noexcept {
+    boost::optional<Key> readKey(const VaultSecretId& id) const noexcept {
         auto [encryptedKey, version] = readRawKey(id);
-        return encryptedKey.empty() ? std::nullopt : std::optional<Key>(Key(encryptedKey));
+        return encryptedKey.empty() ? boost::none : boost::optional<Key>(Key(encryptedKey));
     }
 
     VaultSecretId saveKey(const std::string& path, const Key& key) {
@@ -184,7 +184,7 @@ public:
     FakeVaultSecretOperationFactory(FakeVaultServer& server,
                                     bool rotateMasterKey,
                                     const std::string& providedSecretPath,
-                                    const std::optional<std::uint64_t>& providedSecretVersion)
+                                    const boost::optional<std::uint64_t>& providedSecretVersion)
         : VaultSecretOperationFactory(rotateMasterKey, providedSecretPath, providedSecretVersion),
           _server(server) {}
 
@@ -202,19 +202,19 @@ private:
 
 class FakeKmipServer {
 public:
-    std::optional<std::pair<Key, KeyState>> readKey(const KmipKeyId& id) const {
+    boost::optional<std::pair<Key, KeyState>> readKey(const KmipKeyId& id) const {
         std::size_t i = std::stoull(id.toString());
         if (i == 0 || _keys.size() <= --i) {
-            return std::nullopt;
+            return boost::none;
         }
         return std::make_pair(_keys[i], _keyStates[i]);
     }
 
-    std::optional<KeyState> getKeyState(const KmipKeyId& id) {
+    boost::optional<KeyState> getKeyState(const KmipKeyId& id) {
         _getKeyStateLog.push_back(id);
         std::size_t i = std::stoull(id.toString());
         if (i == 0 || _keys.size() <= --i) {
-            return std::nullopt;
+            return boost::none;
         }
         return _keyStates[i];
     }
@@ -254,7 +254,7 @@ public:
         : ReadKmipKey(id, verifyState), _server(server) {}
 
     std::variant<KeyEntry, NotFound, BadKeyState> operator()() const override {
-        std::optional<std::pair<Key, KeyState>> keyKeyStatePair = _server.readKey(_id);
+        boost::optional<std::pair<Key, KeyState>> keyKeyStatePair = _server.readKey(_id);
         if (!keyKeyStatePair) {
             return NotFound();
         }
@@ -287,7 +287,7 @@ public:
     FakeGetKmipKeyState(FakeKmipServer& server, const KmipKeyId& id, Seconds period)
         : GetKmipKeyState(id, period), _server(server) {}
 
-    std::optional<KeyState> operator()() const override {
+    boost::optional<KeyState> operator()() const override {
         return _server.getKeyState(_id);
     }
 

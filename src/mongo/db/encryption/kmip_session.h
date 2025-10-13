@@ -33,8 +33,9 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
+
+#include <boost/optional.hpp>
 
 #include "mongo/db/encryption/key_state.h"
 #include "mongo/db/encryption/kmip_exchange.h"
@@ -166,12 +167,12 @@ public:
         return nullptr;
     }
 
-    const std::optional<Key>& key() const {
+    const boost::optional<Key>& key() const {
         invariant(_state == State::kFinished);
         return _key;
     }
 
-    const std::optional<KeyState>& keyState() const {
+    const boost::optional<KeyState>& keyState() const {
         invariant(_state == State::kFinished);
         return _keyState;
     }
@@ -182,8 +183,8 @@ private:
     State _state;
     std::shared_ptr<KmipExchangeGetKeyState> _getKeyState;
     std::shared_ptr<KmipExchangeGetSymmetricKey> _getKey;
-    std::optional<KeyState> _keyState;
-    std::optional<Key> _key;
+    boost::optional<KeyState> _keyState;
+    boost::optional<Key> _key;
 };
 
 class KmipSessionGetKeyState : public KmipSession {
@@ -213,7 +214,7 @@ public:
         return nullptr;
     }
 
-    const std::optional<KeyState>& keyState() const {
+    const boost::optional<KeyState>& keyState() const {
         invariant(_state == State::kFinished);
         return _keyState;
     }
@@ -222,7 +223,7 @@ private:
     std::string _keyId;
     State _state;
     std::shared_ptr<KmipExchangeGetKeyState> _getKeyState;
-    std::optional<KeyState> _keyState;
+    boost::optional<KeyState> _keyState;
 };
 }  // namespace detail
 }  // namespace mongo::encryption
