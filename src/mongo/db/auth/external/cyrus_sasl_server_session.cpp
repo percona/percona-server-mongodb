@@ -231,7 +231,7 @@ Status CyrusSASLServerSession::initializeConnection() {
 }
 
 StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processInitialClientPayload(
-    const StringData& payload) {
+    const StringData payload) {
     _results.initialize_results();
     _results.result = sasl_server_start(_saslConnection,
                                         _mechanismName.c_str(),
@@ -243,7 +243,7 @@ StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processInitial
 }
 
 StatusWith<std::tuple<bool, std::string>> CyrusSASLServerSession::processNextClientPayload(
-    const StringData& payload) {
+    const StringData payload) {
     _results.initialize_results();
     _results.result = sasl_server_step(_saslConnection,
                                        payload.data(),

@@ -94,7 +94,7 @@ Status SaslExternalLDAPServerMechanism::initializeConnection() {
     return Status::OK();
 }
 
-StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::processInitialClientPayload(const StringData& payload) {
+StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::processInitialClientPayload(const StringData payload) {
     _results.initialize_results();
     _results.result = sasl_server_start(_saslConnection,
                                        mechanismName().data(),
@@ -105,7 +105,7 @@ StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::proce
     return getStepResult();
 }
 
-StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::processNextClientPayload(const StringData& payload) {
+StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::processNextClientPayload(const StringData payload) {
     _results.initialize_results();
     _results.result = sasl_server_step(_saslConnection,
                                       payload.data(),
