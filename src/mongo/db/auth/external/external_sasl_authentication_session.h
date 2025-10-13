@@ -49,7 +49,7 @@ public:
     explicit SaslExternalLDAPServerMechanism(std::string authenticationDatabase)
         : MakeServerMechanism<PLAINPolicy>(std::move(authenticationDatabase)) {}
 
-    virtual ~SaslExternalLDAPServerMechanism();
+    ~SaslExternalLDAPServerMechanism() override;
 
     boost::optional<unsigned int> currentStep() const override {
         return _step;
@@ -82,7 +82,7 @@ private:
 
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
                                                        StringData input) final;
-    virtual StringData getPrincipalName() const override final;
+    StringData getPrincipalName() const final;
 
     Status initializeConnection();
     StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(StringData payload);
@@ -95,7 +95,7 @@ public:
     explicit OpenLDAPServerMechanism(std::string authenticationDatabase)
         : MakeServerMechanism<PLAINPolicy>(std::move(authenticationDatabase)) {}
 
-    virtual ~OpenLDAPServerMechanism();
+    ~OpenLDAPServerMechanism() override;
 
     boost::optional<unsigned int> currentStep() const override {
         return _step;
@@ -113,7 +113,7 @@ private:
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
                                                        StringData input) final;
 
-    virtual StringData getPrincipalName() const override final;
+    StringData getPrincipalName() const final;
 };
 
 }  // namespace mongo
