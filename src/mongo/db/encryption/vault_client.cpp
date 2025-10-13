@@ -74,7 +74,7 @@ private:
 
 class BadHttpReponse : public std::runtime_error {
 public:
-    BadHttpReponse(const char* operation, std::uint16_t code, const StringData& body)
+    BadHttpReponse(const char* operation, std::uint16_t code, StringData body)
         : std::runtime_error(str::stream()
                              << "Bad HTTP response from the Vault server while " << operation
                              << "; statusCode: " << code << "; body: `" << body << "`") {}
@@ -85,7 +85,7 @@ public:
     explicit InvalidVaultResponse(const std::string& reason)
         : std::runtime_error(str::stream() << "Invalid Vault response: " << reason) {}
 
-    InvalidVaultResponse(const StringData& fieldName, const StringData& reason)
+    InvalidVaultResponse(StringData fieldName, StringData reason)
         : std::runtime_error(str::stream() << "Invalid Vault response: `" << fieldName << "` "
                                            << reason << ".") {}
 };
@@ -126,7 +126,7 @@ struct SecretMetadata {
 };
 
 template <typename T>
-T bsonObjectGetNestedValue(const BSONObj& object, const StringData& path) {
+T bsonObjectGetNestedValue(const BSONObj& object, StringData path) {
     invariant(!path.empty());
 
     static constexpr const char* kNotObject = "is missing or not an object";
@@ -160,16 +160,14 @@ T bsonObjectGetNestedValue(const BSONObj& object, const StringData& path) {
 }
 
 template <>
-std::uint64_t bsonObjectGetNestedValue<std::uint64_t>(const BSONObj& object,
-                                                      const StringData& path) {
+std::uint64_t bsonObjectGetNestedValue<std::uint64_t>(const BSONObj& object, StringData path) {
     long long value = bsonObjectGetNestedValue<long long>(object, path);
     return value < 0 ? throw InvalidVaultResponse(path, "is negative")
                      : static_cast<std::uint64_t>(value);
 }
 
 template <>
-PositiveUint64 bsonObjectGetNestedValue<PositiveUint64>(const BSONObj& object,
-                                                        const StringData& path) {
+PositiveUint64 bsonObjectGetNestedValue<PositiveUint64>(const BSONObj& object, StringData path) {
     long long value = bsonObjectGetNestedValue<long long>(object, path);
     return value <= 0 ? throw InvalidVaultResponse(path, "is not positive") : PositiveUint64(value);
 }
@@ -218,8 +216,8 @@ public:
     StatusWith<BSONObj> getOpenAPISpec() const;
 
 private:
-    std::uint64_t requestEngineMaxVersions(const StringData& url) const;
-    std::optional<SecretMetadata> requestSecretMetadata(const StringData& url) const;
+    std::uint64_t requestEngineMaxVersions(StringData url) const;
+    std::optional<SecretMetadata> requestSecretMetadata(StringData url) const;
     SecretMetadata getSecretMetadata(const std::string& secretPath) const;
 
     static constexpr std::uint16_t kHttpStatusCodeOk = 200;
@@ -268,7 +266,7 @@ VaultClient::Impl::Impl(const std::string& host,
 }
 
 
-std::uint64_t VaultClient::Impl::requestEngineMaxVersions(const StringData& url) const {
+std::uint64_t VaultClient::Impl::requestEngineMaxVersions(StringData url) const {
     HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
 
     ConstDataRangeCursor cur = reply.body.getCursor();
@@ -287,8 +285,7 @@ std::uint64_t VaultClient::Impl::requestEngineMaxVersions(const StringData& url)
     return bsonObjectGetNestedValue<std::uint64_t>(fromjson(replyBody), "data.max_versions");
 }
 
-std::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(
-    const StringData& url) const {
+std::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(StringData url) const {
     HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
 
     ConstDataRangeCursor cur = reply.body.getCursor();

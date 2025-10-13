@@ -42,12 +42,12 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 class MatchPattern {
 public:
-    MatchPattern(const std::string_view& source) try : _source{source}, _pattern{_source} {
+    MatchPattern(const std::string_view source) try : _source{source}, _pattern{_source} {
     } catch (const std::regex_error& e) {
         uasserted(77701, fmt::format("Invalid `matchPattern` value `{}`: {}", source, e.what()));
     }
 
-    static MatchPattern fromString(const StringData& source) {
+    static MatchPattern fromString(const StringData source) {
         return MatchPattern{std::string_view{source}};
     }
 

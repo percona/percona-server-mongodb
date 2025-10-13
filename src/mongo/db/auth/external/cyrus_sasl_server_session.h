@@ -47,7 +47,7 @@ public:
     CyrusSASLServerSession(CyrusSASLServerSession&&) = delete;
     CyrusSASLServerSession& operator=(const CyrusSASLServerSession&) = delete;
     CyrusSASLServerSession& operator=(CyrusSASLServerSession&&) = delete;
-    explicit CyrusSASLServerSession(const StringData mechanismName);
+    explicit CyrusSASLServerSession(StringData mechanismName);
     ~CyrusSASLServerSession();
 
     StatusWith<std::tuple<bool, std::string>> step(StringData inputData);
@@ -76,9 +76,8 @@ private:
     } _results;
 
     Status initializeConnection();
-    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(
-        const StringData& payload);
-    StatusWith<std::tuple<bool, std::string>> processNextClientPayload(const StringData& payload);
+    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(StringData payload);
+    StatusWith<std::tuple<bool, std::string>> processNextClientPayload(StringData payload);
     StatusWith<std::tuple<bool, std::string>> getStepResult() const;
 };
 
