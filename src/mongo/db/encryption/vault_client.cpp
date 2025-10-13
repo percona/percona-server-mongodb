@@ -40,6 +40,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include <regex>
 
 #include <boost/tokenizer.hpp>
+#include <boost/optional.hpp>
 
 #include "mongo/base/data_range.h"
 #include "mongo/base/static_assert.h"
@@ -173,7 +174,7 @@ PositiveUint64 bsonObjectGetNestedValue<PositiveUint64>(const BSONObj& object, S
 }
 
 std::string genPutKeyReqBody(const std::string& key,
-                             std::optional<std::uint64_t> cas = std::nullopt) {
+                             boost::optional<std::uint64_t> cas = boost::none) {
     str::stream data;
     data << R"json({)json";
     if (cas) {
@@ -217,7 +218,7 @@ public:
 
 private:
     std::uint64_t requestEngineMaxVersions(StringData url) const;
-    std::optional<SecretMetadata> requestSecretMetadata(StringData url) const;
+    boost::optional<SecretMetadata> requestSecretMetadata(StringData url) const;
     SecretMetadata getSecretMetadata(const std::string& secretPath) const;
 
     static constexpr std::uint16_t kHttpStatusCodeOk = 200;
@@ -285,7 +286,7 @@ std::uint64_t VaultClient::Impl::requestEngineMaxVersions(StringData url) const 
     return bsonObjectGetNestedValue<std::uint64_t>(fromjson(replyBody), "data.max_versions");
 }
 
-std::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(StringData url) const {
+boost::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(StringData url) const {
     HttpClient::HttpReply reply = _httpClient->request(HttpClient::HttpMethod::kGET, url);
 
     ConstDataRangeCursor cur = reply.body.getCursor();
@@ -299,7 +300,7 @@ std::optional<SecretMetadata> VaultClient::Impl::requestSecretMetadata(StringDat
                 "response.body"_attr = replyBody);
     if (reply.code == kHttpStatusCodeNotFound) {
         // metadata doesn't exist if key hasn't been created yet
-        return std::nullopt;
+        return boost::none;
     }
     if (reply.code != kHttpStatusCodeOk) {
         throw BadHttpReponse("getting secret metadata", reply.code, replyBody);
