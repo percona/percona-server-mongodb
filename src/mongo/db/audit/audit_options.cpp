@@ -96,8 +96,7 @@ namespace mongo {
         }
         try {
             fromjson(auditOptions.filter);
-        }
-        catch (const std::exception &ex) {
+        } catch (const std::exception&) {
             return Status(ErrorCodes::BadValue,
                           "Could not parse audit filter into valid json: "
                           + auditOptions.filter);

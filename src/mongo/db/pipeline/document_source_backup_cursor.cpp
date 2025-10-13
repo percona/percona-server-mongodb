@@ -212,7 +212,7 @@ DocumentSourceBackupCursor::~DocumentSourceBackupCursor() {
     try {
         pExpCtx->mongoProcessInterface->closeBackupCursor(pExpCtx->opCtx,
                                                           _backupCursorState.backupId);
-    } catch (DBException& exc) {
+    } catch (DBException&) {
         LOGV2_FATAL(
             29091, "Error closing a backup cursor.", "backupId"_attr = _backupCursorState.backupId);
     }
