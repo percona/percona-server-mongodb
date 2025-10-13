@@ -1210,7 +1210,7 @@ public:
                                      [&](const std::vector<std::string>& listParameterNames) {
                                          BSONArrayBuilder abuilder(params.subarrayStart(
                                              "requestedClusterServerParameters"));
-                                         for (auto p : listParameterNames) {
+                                         for (const auto& p : listParameterNames) {
                                              abuilder.append(p);
                                          }
                                          abuilder.doneFast();
