@@ -51,7 +51,7 @@ public:
     /**
      * Returns true if the customization hooks are enabled.
      */
-    virtual bool enabled() const {
+    bool enabled() const override {
         return true;
     }
 
@@ -59,7 +59,7 @@ public:
      *  Gets an additional configuration string for the provided table name on a
      *  `WT_SESSION::create` call.
      */
-    virtual std::string getTableCreateConfig(StringData tableName) {
+    std::string getTableCreateConfig(StringData tableName) override {
         NamespaceString ns = NamespaceStringUtil::deserialize(
             boost::none, tableName, SerializationContext::stateDefault());
         std::string keyIdStr =

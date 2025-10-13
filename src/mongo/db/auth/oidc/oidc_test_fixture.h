@@ -31,7 +31,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include <type_traits>
-#include <unordered_set>
 
 #include "mongo/crypto/jwks_fetcher_factory.h"
 #include "mongo/db/auth/oidc/match_pattern.h"
@@ -40,6 +39,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/unittest/assert.h"
 #include "mongo/util/base64.h"
 #include "mongo/util/periodic_runner.h"
+#include "mongo/stdx/unordered_set.h"
 
 namespace mongo {
 
@@ -197,7 +197,7 @@ public:
     }
 
     bool allJobsHaveUniqueName() const {
-        std::unordered_set<std::string> seen;
+        stdx::unordered_set<std::string> seen;
         for (const auto& job : jobs) {
             if (!seen.insert(job->name()).second) {
                 return false;
