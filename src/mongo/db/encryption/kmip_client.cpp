@@ -41,6 +41,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
 
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/encryption/kmip_exchange.h"
@@ -80,9 +81,9 @@ public:
     Impl& operator=(Impl&&) = default;
 
     std::string registerSymmetricKey(const Key& key, bool activate);
-    std::pair<std::optional<Key>, std::optional<KeyState>> getSymmetricKey(const std::string& keyId,
+    std::pair<boost::optional<Key>, boost::optional<KeyState>> getSymmetricKey(const std::string& keyId,
                                                                            bool verifyState);
-    std::optional<KeyState> getKeyState(const std::string& keyId);
+    boost::optional<KeyState> getKeyState(const std::string& keyId);
 
 private:
     static net::mutable_buffer buffer(detail::KmipExchange::Span s) noexcept;
@@ -241,14 +242,14 @@ std::string KmipClient::Impl::registerSymmetricKey(const Key& key, bool activate
     return session->keyId();
 }
 
-std::pair<std::optional<Key>, std::optional<KeyState>> KmipClient::Impl::getSymmetricKey(
+std::pair<boost::optional<Key>, boost::optional<KeyState>> KmipClient::Impl::getSymmetricKey(
     const std::string& keyId, bool verifyState) {
     auto session = std::make_shared<detail::KmipSessionGetSymmetricKey>(keyId, verifyState);
     conductSession(session);
     return {session->key(), session->keyState()};
 }
 
-std::optional<KeyState> KmipClient::Impl::getKeyState(const std::string& keyId) {
+boost::optional<KeyState> KmipClient::Impl::getKeyState(const std::string& keyId) {
     auto session = std::make_shared<detail::KmipSessionGetKeyState>(keyId);
     conductSession(session);
     return session->keyState();
@@ -419,12 +420,12 @@ std::string KmipClient::registerSymmetricKey(const Key& key, bool activate) {
     return _impl->registerSymmetricKey(key, activate);
 }
 
-std::pair<std::optional<Key>, std::optional<KeyState>> KmipClient::getSymmetricKey(
+std::pair<boost::optional<Key>, boost::optional<KeyState>> KmipClient::getSymmetricKey(
     const std::string& keyId, bool verifyState) {
     return _impl->getSymmetricKey(keyId, verifyState);
 }
 
-std::optional<KeyState> KmipClient::getKeyState(const std::string& keyId) {
+boost::optional<KeyState> KmipClient::getKeyState(const std::string& keyId) {
     return _impl->getKeyState(keyId);
 }
 }  // namespace mongo::encryption

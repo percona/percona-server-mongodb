@@ -34,8 +34,9 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
+
+#include <boost/optional.hpp>
 
 #include <kmip.h>
 
@@ -159,7 +160,7 @@ public:
     KmipExchangeGetSymmetricKey(const std::string& keyId) : _keyId(keyId) {}
 
     void encodeRequest() override;
-    std::optional<Key> decodeKey();
+    boost::optional<Key> decodeKey();
 
 private:
     const std::string& _keyId;
@@ -170,7 +171,7 @@ public:
     KmipExchangeGetKeyState(const std::string& keyId) : _keyId(keyId) {}
 
     void encodeRequest() override;
-    std::optional<KeyState> decodeKeyState();
+    boost::optional<KeyState> decodeKeyState();
 
 private:
     const std::string& _keyId;

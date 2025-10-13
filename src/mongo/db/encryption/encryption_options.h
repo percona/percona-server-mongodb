@@ -32,8 +32,9 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <string>
+
+#include <boost/optional.hpp>
 
 namespace mongo {
 
@@ -46,7 +47,7 @@ struct EncryptionGlobalParams {
     std::string vaultTokenFile;
     std::string vaultToken;
     std::string vaultSecret;
-    std::optional<std::uint64_t> vaultSecretVersion;
+    boost::optional<std::uint64_t> vaultSecretVersion;
     bool vaultRotateMasterKey{false};
     std::string vaultServerCAFile;
     bool vaultCheckMaxVersions{true};

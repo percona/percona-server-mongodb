@@ -33,8 +33,9 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include <chrono>
 #include <memory>
-#include <optional>
 #include <string>
+
+#include <boost/optional.hpp>
 
 #include "mongo/db/encryption/key_state.h"
 
@@ -81,8 +82,8 @@ public:
     ///     returns a `KeyIsNotActive` object via the unique pointer.
     ///
     /// @throws `std::runtime_error` if any other error occurs
-    std::pair<std::optional<Key>, std::optional<KeyState>> getSymmetricKey(const std::string& keyId,
-                                                                           bool verifyState = true);
+    std::pair<boost::optional<Key>, boost::optional<KeyState>> getSymmetricKey(
+        const std::string& keyId, bool verifyState = true);
 
     /// @brief Reads the state of an encryption key.
     ///
@@ -92,7 +93,7 @@ public:
     ///     the specifed identifier does not exist
     ///
     /// @throws `std::runtime_error` if any other error occurs
-    std::optional<KeyState> getKeyState(const std::string& keyId);
+    boost::optional<KeyState> getKeyState(const std::string& keyId);
 
 private:
     class Impl;
