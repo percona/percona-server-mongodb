@@ -226,11 +226,11 @@ class LDAPManagerImpl::ConnectionPoller : public BackgroundJob {
 public:
     explicit ConnectionPoller() = default;
 
-    virtual std::string name() const override {
+    std::string name() const override {
         return "LDAPConnectionPoller";
     }
 
-    virtual void run() override {
+    void run() override {
         ThreadClient tc(name(), getGlobalServiceContext()->getService());
         LOGV2_DEBUG(29061, 1, "starting thread", "name"_attr = name());
 

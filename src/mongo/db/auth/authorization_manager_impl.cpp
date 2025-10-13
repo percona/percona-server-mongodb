@@ -224,11 +224,11 @@ public:
     LDAPUserCacheInvalidator(AuthorizationManagerImpl* authzManager)
         : _authzManager(authzManager) {}
 
-    virtual std::string name() const override {
+    std::string name() const override {
         return "LDAPUserCacheInvalidator";
     }
 
-    virtual void run() override {
+    void run() override {
         ThreadClient tc(name(), getGlobalServiceContext()->getService());
         LOGV2_DEBUG(29057, 1, "starting thread", "name"_attr = name());
         stdx::unique_lock<stdx::mutex> lock(_mutex);

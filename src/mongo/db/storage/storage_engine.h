@@ -186,7 +186,7 @@ public:
     /**
      * The destructor should only be called if we are tearing down but not exiting the process.
      */
-    virtual ~StorageEngine() {}
+    ~StorageEngine() override {}
 
     /**
      * During the startup process, the storage engine is one of the first components to be started

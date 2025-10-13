@@ -43,7 +43,7 @@ public:
         : MakeServerMechanism<GSSAPIPolicy>(std::move(authenticationDatabase)),
           _sess(mechanismName()) {}
 
-    virtual ~GSSAPIServerMechanism();
+    ~GSSAPIServerMechanism() override;
 
     boost::optional<unsigned int> currentStep() const override {
         return (unsigned int)1;
@@ -56,9 +56,9 @@ public:
 private:
     CyrusSASLServerSession _sess;
 
-    virtual StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                               StringData input) override final;
-    virtual StringData getPrincipalName() const override final;
+    StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
+                                                               StringData input) final;
+    StringData getPrincipalName() const final;
 };
 
 class GSSAPIServerFactory : public MakeServerFactory<GSSAPIServerMechanism> {

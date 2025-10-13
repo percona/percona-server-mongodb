@@ -81,17 +81,17 @@ public:
         _engine->notifyStorageStartupRecoveryComplete();
     }
 
-    virtual ~InMemoryKVHarnessHelper() {
+    ~InMemoryKVHarnessHelper() override {
         _engine.reset(NULL);
     }
 
-    virtual KVEngine* restartEngine() {
+    KVEngine* restartEngine() override {
         // Don't reset the engine since it doesn't persist anything
         // and all the data will be lost.
         return _engine.get();
     }
 
-    virtual KVEngine* getEngine() {
+    KVEngine* getEngine() override {
         return _engine.get();
     }
 
