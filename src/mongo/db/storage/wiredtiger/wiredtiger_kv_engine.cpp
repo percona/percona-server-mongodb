@@ -671,7 +671,7 @@ void keyDbRotateMasterKey(std::unique_ptr<const EncryptionKeyDB> keyDb,
     }
     try {
         fs::create_directory(rotationKeyDbDir);
-    } catch (std::exception& e) {
+    } catch (std::exception&) {
         throw encryption::ErrorBuilder("Can't create rotation key database directory")
             .append("rotationKeyDatabaseDirectory", rotationKeyDbDir.string())
             .error();
