@@ -32,7 +32,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 
 #include <map>
-#include <ranges>
+#include <ranges> // NOLINT(mongo-cxx20-banned-includes-check)
 #include <tuple>
 #include <vector>
 

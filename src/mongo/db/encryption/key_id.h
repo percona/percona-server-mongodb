@@ -40,7 +40,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 class BSONObj;
 class BSONObjBuilder;
-class EncryptionGlobalParams;
+struct EncryptionGlobalParams;
 
 namespace encryption {
 class KeyIdConstVisitor;

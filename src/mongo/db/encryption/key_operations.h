@@ -46,7 +46,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/duration.h"
 
 namespace mongo {
-class EncryptionGlobalParams;
+struct EncryptionGlobalParams;
 
 namespace encryption {
 class NotFound {};
