@@ -129,7 +129,7 @@ public:
 private:
     typedef boost::multiprecision::uint128_t _gcm_iv_type;
 
-    EncryptionKeyDB(const std::string& path, const encryption::Key& masterKey, const bool rotation);
+    EncryptionKeyDB(const std::string& path, const encryption::Key& masterKey, bool rotation);
 
     // tries to read master key from specified file
     // then opens WT connection
