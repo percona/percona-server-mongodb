@@ -148,7 +148,7 @@ private:
 };
 
 void KeyStateMonitor::operator()([[maybe_unused]] Client* client) const try {
-    std::optional<KeyState> state = (*_getState)();
+    boost::optional<KeyState> state = (*_getState)();
     if (state && *state == KeyState::kActive) {
         return;
     }

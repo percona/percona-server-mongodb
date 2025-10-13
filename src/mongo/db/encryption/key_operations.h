@@ -33,10 +33,11 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
+
+#include <boost/optional.hpp>
 
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/encryption/key_entry.h"
@@ -147,7 +148,7 @@ public:
     ///     specified identifier does not exit on the key management facility.
     ///
     /// @throws `std::runtime_error` on failure
-    virtual std::optional<KeyState> operator()() const = 0;
+    virtual boost::optional<KeyState> operator()() const = 0;
 
     /// @brief Returns time interval in seconds with which `mongod` does key
     /// state polling.
@@ -252,7 +253,7 @@ public:
     GetKmipKeyState(const KmipKeyId& id, Seconds period) : _id(id), _period(period) {}
     GetKmipKeyState(KmipKeyId&& id, Seconds period) : _id(std::move(id)), _period(period) {}
 
-    std::optional<KeyState> operator()() const override;
+    boost::optional<KeyState> operator()() const override;
 
     Seconds period() const override {
         return _period;
@@ -373,7 +374,7 @@ class VaultSecretOperationFactory : public KeyOperationFactory,
 public:
     VaultSecretOperationFactory(bool rotateMasterKey,
                                 const std::string& providedSecretPath,
-                                const std::optional<std::uint64_t>& providedSecretVersion);
+                                const boost::optional<std::uint64_t>& providedSecretVersion);
     std::unique_ptr<ReadKey> createProvidedRead() const override;
     std::unique_ptr<ReadKey> createRead(const KeyId* configured) const override;
     std::unique_ptr<SaveKey> createSave(const KeyId* configured) const override;
@@ -398,7 +399,7 @@ private:
     }
 
     bool _rotateMasterKey;
-    std::optional<VaultSecretId> _provided;
+    boost::optional<VaultSecretId> _provided;
     std::string _providedSecretPath;
     mutable const VaultSecretId* _configured;
 };
@@ -445,7 +446,7 @@ private:
     bool _rotateMasterKey;
     bool _activateKeys;
     Seconds _keyStatePollingPeriod;
-    std::optional<KmipKeyId> _provided;
+    boost::optional<KmipKeyId> _provided;
     mutable const KmipKeyId* _configured;
 };
 }  // namespace encryption
