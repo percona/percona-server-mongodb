@@ -89,7 +89,7 @@ template <typename ValueType>
 requires std::equality_comparable<ValueType> && std::copyable<ValueType>
 class ConfigCommonValueVerifier {
 public:
-    ConfigCommonValueVerifier(const StringData fieldName) : _fiedlName(fieldName) {}
+    ConfigCommonValueVerifier(const StringData fieldName) : _fieldName(fieldName) {}
 
     /// @brief Adds a value to the internal storage for further verification.
     ///
@@ -111,8 +111,8 @@ public:
         for (const auto& [issuer, info] : _infos) {
             uassert(ErrorCodes::BadValue,
                     errorMsgHeader(info.indexes)
-                        << "`" << _fiedlName << "` values are different for the same `issuer` (`"
-                        << issuer << "`). `" << _fiedlName << "` should be the same for each "
+                        << "`" << _fieldName << "` values are different for the same `issuer` (`"
+                        << issuer << "`). `" << _fieldName << "` should be the same for each "
                         << "configuration that shares an `issuer`.",
                     info.isValueCommon);
         }
@@ -125,7 +125,7 @@ private:
         bool isValueCommon{true};
     };
 
-    StringData _fiedlName;
+    StringData _fieldName;
     std::map<StringData, ValueInfo> _infos;
 };
 
