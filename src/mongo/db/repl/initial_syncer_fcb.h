@@ -195,33 +195,6 @@ private:
     };
 
     /**
-     * Guard storage changing functions from being deadlocked by shutdown.
-     */
-    class ChangeStorageGuard {
-    public:
-        ChangeStorageGuard(InitialSyncerFCB* initialSyncer) : _initialSyncer(initialSyncer) {
-            stdx::lock_guard<Latch> lk(_initialSyncer->_mutex);
-            _initialSyncer->_inStorageChange = true;
-        }
-
-        ~ChangeStorageGuard() {
-            {
-                stdx::lock_guard<Latch> lk(_initialSyncer->_mutex);
-                _initialSyncer->_inStorageChange = false;
-            }
-            _initialSyncer->_inStorageChangeCondition.notify_all();
-        }
-
-        ChangeStorageGuard(const ChangeStorageGuard&) = delete;
-        ChangeStorageGuard& operator=(const ChangeStorageGuard&) = delete;
-        ChangeStorageGuard(ChangeStorageGuard&&) = delete;
-        ChangeStorageGuard& operator=(ChangeStorageGuard&&) = delete;
-
-    private:
-        InitialSyncerFCB* _initialSyncer;
-    };
-
-    /**
      * Returns true if we are still processing initial sync tasks (_state is either Running or
      * Shutdown).
      */
