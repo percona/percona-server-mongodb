@@ -1745,20 +1745,18 @@ Status InitialSyncerFCB::_switchStorageLocation(
 
 void InitialSyncerFCB::_restoreStorageLocation(stdx::unique_lock<Latch>& lock,
                                                OperationContext* opCtx) {
-    if (!_needToSwitchBackToOriginalDBPath) {
-        return;
-    }
     invariant(shard_role_details::getLocker(opCtx)->isW());
     lock.unlock();
     auto status = _switchStorageLocation(
         opCtx, _cfgDBPath, startup_recovery::StartupRecoveryMode::kReplicaSetMember);
     lock.lock();
     if (!status.isOK()) {
-        // We failed to switch back to original db path. This is a serious error because we cannot
-        // proceed with retry or shutdown. We should crash to avoid running in a bad state.
+        // We failed to switch back to original db path. This is a serious error because we
+        // cannot proceed with retry or shutdown. We should crash to avoid running in a bad
+        // state.
         LOGV2_FATAL(128467, "Failed to switch back to original db path", "error"_attr = status);
     }
-    _needToSwitchBackToOriginalDBPath = false;
+
 }
 
 Status InitialSyncerFCB::_killBackupCursor_inlock() {
@@ -2271,10 +2269,6 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
 
     auto opCtx = makeOpCtx();
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
-    ScopeGuard storageGuard([this, &lock, opCtx = opCtx.get()] {
-        // Restore storage location back to original dbpath in case of any failure
-        _restoreStorageLocation(lock, opCtx);
-    });
     // retrieve the current on-disk replica set configuration
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
     invariant(rs);
@@ -2290,7 +2284,11 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
-    _needToSwitchBackToOriginalDBPath = true;
+
+    ScopeGuard storageGuard([this, &lock, opCtx = opCtx.get()] {
+        // Restore storage location back to original dbpath in case of any failure
+        _restoreStorageLocation(lock, opCtx);
+    });
 
     // do some cleanup
     auto* consistencyMarkers = _replicationProcess->getConsistencyMarkers();
@@ -2439,7 +2437,6 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
             onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
             return;
         }
-        _needToSwitchBackToOriginalDBPath = true;
 
         // Delete the list of files obtained from the local backup cursor
         status = _deleteLocalFiles();
