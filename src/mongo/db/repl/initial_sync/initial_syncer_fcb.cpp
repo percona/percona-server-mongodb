@@ -1764,6 +1764,8 @@ void InitialSyncerFCB::_restoreStorageLocation(stdx::unique_lock<stdx::mutex>& l
         LOGV2_FATAL(128467, "Failed to switch back to original db path", "error"_attr = status);
     }
 
+    _inStorageChange = false;
+    _inStorageChangeCondition.notify_all();
 }
 
 Status InitialSyncerFCB::_killBackupCursor(WithLock lk) {
@@ -2259,7 +2261,6 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
-    ChangeStorageGuard changeStorageGuard(this);
     stdx::unique_lock<stdx::mutex> lock(_mutex);
 
     auto status = _checkForShutdownAndConvertStatus(
@@ -2288,6 +2289,14 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
     invariant(rs);
     BSONObj savedRSConfig = rs->getConfig().toBSON();
+
+    // We are going to temporarily release the mutex for storage location switch. That means that
+    // 'shutdown' may run in parallel with storage switch. Also first 'shutdown' invocation may
+    // finish earlier than storage switch is done. To avoid deadlock between second 'shutdown'
+    // invocation and storage switch we set _inStorageChange flag here. If first 'shutdown'
+    // invocation happens here it will wait until _inStorageChangeCondition is signaled by
+    // _restoreStorageLocation.
+    _inStorageChange = true;
 
     // Switch storage to be pointing to the set of downloaded files
     lock.unlock();
@@ -2423,7 +2432,6 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
     std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept try {
-    ChangeStorageGuard changeStorageGuard(this);
     stdx::unique_lock<stdx::mutex> lock(_mutex);
 
     {
