@@ -88,10 +88,8 @@ public:
 
         WiredTigerKVEngine::WiredTigerConfig wtConfig = getWiredTigerConfigFromStartupOptions();
         wtConfig.cacheSizeMB = cacheMB;
-        wtConfig.inMemory = params.inMemory;
-        if (params.inMemory) {
-            wtConfig.logEnabled = false;
-        }
+        wtConfig.inMemory = true;
+        wtConfig.logEnabled = false;
 
         auto kv =
             std::make_unique<WiredTigerKVEngine>(std::string{getCanonicalName()},
@@ -117,11 +115,7 @@ public:
             }
 
             WiredTigerKVEngineBase::WiredTigerConfig wtConfig =
-                getWiredTigerConfigFromStartupOptions();
-            // TODO(SERVER-103753): Compute cache size properly.
-            wtConfig.cacheSizeMB = 100;
-            wtConfig.inMemory = params.inMemory;
-            wtConfig.logEnabled = false;
+                getSpillWiredTigerConfigFromStartupOptions();
             spillWiredTigerKVEngine = std::make_unique<SpillWiredTigerKVEngine>(
                 std::string{getCanonicalName()},
                 params.getSpillDbPath(),
@@ -184,8 +178,18 @@ public:
 
 private:
     static void syncInMemoryAndWiredTigerOptions() {
+
+        const auto oldWiredTigerGlobalOptions = wiredTigerGlobalOptions;
+
         // Re-create WiredTiger options to fill it with default values
         wiredTigerGlobalOptions = WiredTigerGlobalOptions();
+
+        // Preserve options which are not specific to the WiredTiger storage engine and should apply for the
+        // 'InMemory' storage engine as well.
+        wiredTigerGlobalOptions.sessionMax = oldWiredTigerGlobalOptions.sessionMax;
+        wiredTigerGlobalOptions.evictionDirtyTargetGB = oldWiredTigerGlobalOptions.evictionDirtyTargetGB;
+        wiredTigerGlobalOptions.evictionDirtyTriggerGB = oldWiredTigerGlobalOptions.evictionDirtyTriggerGB;
+        wiredTigerGlobalOptions.evictionUpdatesTriggerGB = oldWiredTigerGlobalOptions.evictionUpdatesTriggerGB;
 
         wiredTigerGlobalOptions.cacheSizeGB =
             inMemoryGlobalOptions.cacheSizeGB;

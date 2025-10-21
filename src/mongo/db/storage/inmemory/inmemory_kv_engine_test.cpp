@@ -59,6 +59,7 @@ public:
         WiredTigerKVEngine::WiredTigerConfig wtConfig;
         wtConfig.cacheSizeMB = 100;
         wtConfig.inMemory = true;
+        wtConfig.logEnabled = false;
         wtConfig.extraOpenOptions =
             "in_memory=true,"
             "log=(enabled=false),"
