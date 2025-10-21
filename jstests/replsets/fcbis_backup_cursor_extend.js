@@ -79,10 +79,19 @@ for (let i = 0; i < 5; i++) {
 jsTest.log("--XXXX-- Inserted data, releasing failpoint");
 
 // Release the Failpoint
+clearRawMongoProgramOutput();
 failPointAfterCloningFiles.off();
 
 // Wait for the message in the log
-checkLog.containsJson(newNode, 128455);
+try {
+    checkLog.containsJson(newNode, 128455, undefined, 5000);
+} catch (e) {
+    // Falling back to rawMongoProgramOutput
+    let output = rawMongoProgramOutput();
+    if (!output.includes("The lag is too big, extending backup cursor")) {
+        throw e;
+    }
+}
 jsTest.log("--XXXX-- Found backup cursor extend message in the log");
 
 // Wait for the new node to finish initial sync
