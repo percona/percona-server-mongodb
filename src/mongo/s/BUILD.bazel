@@ -1259,6 +1259,7 @@ mongo_cc_benchmark(
         ":startup_initialization",
         "//src/mongo/db:read_write_concern_defaults_mock",
         "//src/mongo/db:service_context_non_d",
+        "//src/mongo/db/audit:audit_impl_shim",
         "//src/mongo/db/auth:authserver",
         "//src/mongo/rpc:message",
         "//src/mongo/unittest:benchmark_util",

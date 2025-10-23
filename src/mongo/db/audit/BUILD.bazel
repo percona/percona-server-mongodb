@@ -51,6 +51,17 @@ mongo_cc_library(
     ],
 )
 
+mongo_cc_library(
+    name = "audit_impl_shim",
+    srcs = [],
+    deps = select({
+        "//bazel/config:audit_enabled": [
+            ":audit_impl",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
 # Please note that the `commands` library (@see below) depends on
 # the `audit` library and the `audit_commands` depends on `commands`.
 mongo_cc_library(
