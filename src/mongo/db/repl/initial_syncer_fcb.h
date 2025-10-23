@@ -198,33 +198,6 @@ private:
     };
 
     /**
-     * Guard storage changing functions from being deadlocked by shutdown.
-     */
-    class ChangeStorageGuard {
-    public:
-        ChangeStorageGuard(InitialSyncerFCB* initialSyncer) : _initialSyncer(initialSyncer) {
-            stdx::lock_guard<Latch> lk(_initialSyncer->_mutex);
-            _initialSyncer->_inStorageChange = true;
-        }
-
-        ~ChangeStorageGuard() {
-            {
-                stdx::lock_guard<Latch> lk(_initialSyncer->_mutex);
-                _initialSyncer->_inStorageChange = false;
-            }
-            _initialSyncer->_inStorageChangeCondition.notify_all();
-        }
-
-        ChangeStorageGuard(const ChangeStorageGuard&) = delete;
-        ChangeStorageGuard& operator=(const ChangeStorageGuard&) = delete;
-        ChangeStorageGuard(ChangeStorageGuard&&) = delete;
-        ChangeStorageGuard& operator=(ChangeStorageGuard&&) = delete;
-
-    private:
-        InitialSyncerFCB* _initialSyncer;
-    };
-
-    /**
      * Returns true if we are still processing initial sync tasks (_state is either Running or
      * Shutdown).
      */
@@ -526,10 +499,23 @@ private:
 
     StatusWith<std::vector<std::string>> _getBackupFiles();
 
+    /**
+     * Switches the storage location to 'newLocation'.
+     * - Callers must ensure that _mutex is NOT held.
+     * - Caller must hold a GlobalLock (MODE_X) while calling this method.
+     */
     Status _switchStorageLocation(
         OperationContext* opCtx,
         const std::string& newLocation,
         boost::optional<startup_recovery::StartupRecoveryMode> = boost::none);
+
+    /**
+     * Restores the original storage location. Must be called with _mutex held.
+     * - Temporarily unlocks and relocks the provided lock.
+     * - Caller must hold a GlobalLock (MODE_X) while calling this method.
+     * - Logs fatal on failure.
+     */
+    void _restoreStorageLocation(stdx::unique_lock<Latch>& lock, OperationContext* opCtx);
 
     Status _killBackupCursor_inlock();
 
@@ -572,9 +558,6 @@ private:
     OpTime _oplogEnd;                                                  // TODO:
     const std::string _cfgDBPath;                                      // TODO:
     std::unique_ptr<BackupCursorInfo> _backupCursorInfo;               // TODO:
-
-    // Flag that we need to switch back to the original dbpath
-    bool _needToSwitchBackToOriginalDBPath = false;  // (M)
 
     // This is invoked with the final status of the initial sync. If startup() fails, this callback
     // is never invoked. The caller gets the last applied optime when the initial sync completes
