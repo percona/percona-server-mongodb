@@ -177,7 +177,9 @@ get_sources(){
     mv percona-server-mongodb ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
 
     cd ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
-
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
     sed -i 's:build-id:build-id=sha1:' SConstruct
 
         git clone https://github.com/aws/aws-sdk-cpp.git
@@ -308,7 +310,6 @@ set_compiler(){
 fix_rules(){
     sed -i 's|CC = gcc-5|CC = /opt/mongodbtoolchain/v4/bin/gcc|' debian/rules
     sed -i 's|CXX = g++-5|CXX = /opt/mongodbtoolchain/v4/bin/g++|' debian/rules
-    sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules
     if [ x"${FIPSMODE}" == x1 ]; then
         sed -i 's:FIPSMODE=0:FIPSMODE=1:' debian/rules
     fi
@@ -333,9 +334,9 @@ aws_sdk_build(){
                 CMAKE_C_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=maybe-uninitialized -Wno-error=uninitialized "
             fi
             if [ -z "${CC}" -a -z "${CXX}" ]; then
-                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF || exit $?
+                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr || exit $?
             else
-                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF || exit $?
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr || exit $?
             fi
             make -j${NCPU} || exit $?
             make install
@@ -370,7 +371,7 @@ install_deps() {
       if [ x"$RHEL" = x7 ]; then
         yum -y install epel-release
         yum -y install rpmbuild rpm-build libpcap-devel gcc make cmake gcc-c++ openssl-devel
-        yum -y install cyrus-sasl-devel cyrus-sasl-plain snappy-devel zlib-devel bzip2-devel scons rpmlint
+        yum -y install cyrus-sasl-devel cyrus-sasl-plain snappy-devel zlib-devel bzip2-devel rpmlint
         yum -y install rpm-build git libopcodes libcurl-devel rpmlint e2fsprogs-devel expat-devel lz4-devel which
         yum -y install openldap-devel krb5-devel xz-devel
         yum -y install libzstd
@@ -396,7 +397,6 @@ install_deps() {
         yum -y install gcc-toolset-9 gcc-c++
         yum -y install gcc-toolset-11-dwz gcc-toolset-11-elfutils
         yum -y install python38 python38-devel python38-pip
-        ln -sf /usr/bin/scons-3 /usr/bin/scons
 
         PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
         /usr/bin/pip install --user typing pyyaml regex Cheetah3
@@ -407,7 +407,6 @@ install_deps() {
         yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
         yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
         yum -y install python3 python3-pip python3-devel
-        yum -y install python3-scons
 
         yum -y install redhat-rpm-config which e2fsprogs-devel expat-devel lz4-devel
         yum -y install openldap-devel krb5-devel xz-devel
@@ -415,12 +414,6 @@ install_deps() {
         /usr/bin/pip install --upgrade pip setuptools --ignore-installed
         /usr/bin/pip install --user typing pyyaml==5.3.1 regex Cheetah3
 
-      fi
-      if [ x"$RHEL" = x2023 ]; then
-          /usr/bin/pip install scons --root-user-action=ignore
-          ln -sf /usr/local/bin/scons /usr/bin/scons
-          ls -lah /usr/bin/scons
-          which scons
       fi
       wget https://curl.se/download/curl-7.77.0.tar.gz -O curl-7.77.0.tar.gz
       tar -xvzf curl-7.77.0.tar.gz
@@ -457,7 +450,7 @@ install_deps() {
       if [ x"${DEBIAN}" = "xfocal" ]; then
         INSTALL_LIST="dh-systemd"
       fi
-      INSTALL_LIST="${INSTALL_LIST} git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
+      INSTALL_LIST="${INSTALL_LIST} git valgrind liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
       INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf libexpat1-dev sudo libfile-copy-recursive-perl"
       until apt-get -y install dirmngr; do
         sleep 1
@@ -554,6 +547,18 @@ build_srpm(){
     ls | grep -v tar.gz | xargs rm -rf
     TARFILE=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     SRC_DIR=${TARFILE%.tar.gz}
+    tar vxzf ${WORKDIR}/${TARFILE}
+    source percona-server-mongodb-80.properties
+    cd ${PRODUCT_FULL}
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelignore
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazeliskrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelversion
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc.psmdb
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.npmrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.prettierignore 
+    cd ..
+    tar --owner=0 --group=0 -czf ${PRODUCT_FULL}.tar.gz ${PRODUCT_FULL}
     #
     mkdir -vp rpmbuild/{SOURCES,SPECS,BUILD,SRPMS,RPMS}
     tar vxzf ${WORKDIR}/${TARFILE} --wildcards '*/percona-packaging' --strip=1
@@ -665,6 +670,11 @@ build_rpm(){
     rpm2cpio ${SRC_RPM} | cpio -id
     TARF=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     tar vxzf ${TARF} --wildcards '*/etc' --strip=1
+    tar vxzf ${TARF} --wildcards '*/buildscripts' --strip=1
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
+    rm -rf install_bazel.py
     if [ x"$RHEL" = x7 ]; then
       if [ -f /opt/rh/devtoolset-9/enable ]; then
         source /opt/rh/devtoolset-9/enable
@@ -717,7 +727,6 @@ build_rpm(){
     echo "RHEL=${RHEL}" >> percona-server-mongodb-80.properties
     echo "ARCH=${ARCH}" >> percona-server-mongodb-80.properties
     #
-    file /usr/bin/scons
     #
     [[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
     export GOROOT="/usr/local/go/"
@@ -889,6 +898,7 @@ build_deb(){
     #
     echo "DEBIAN=${DEBIAN}" >> percona-server-mongodb-80.properties
     echo "ARCH=${ARCH}" >> percona-server-mongodb-80.properties
+    source percona-server-mongodb-80.properties
 
     #
     DSC=$(basename $(find . -name '*.dsc' | sort | tail -n1))
@@ -919,6 +929,16 @@ build_deb(){
     poetry install --no-root --sync
 
     #
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelignore
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazeliskrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelversion
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc.psmdb
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.npmrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.prettierignore
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
     cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
