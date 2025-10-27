@@ -16,6 +16,7 @@ export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v
 $(info GLIBC_TUNABLES is $(GLIBC_TUNABLES))
 CC = gcc-5
 CXX = g++-5
+PSMDB_VERSION := $(shell dpkg-parsechangelog -S Version)
 #
 %:
 	dh $@
@@ -26,30 +27,15 @@ override_dh_builddeb:
 override_dh_auto_clean:
 	dh_auto_clean
 	rm -fr $(PSMSRC)/bin
+	cd $(PSMSRC); \
+	bazel clean --expunge || true
+	rm -rf $(PSMSRC)/bin build resmoke.ini
 	#rm -fr $(INSTALLDIR)
-ifeq ($(FIPSMODE),1)
-		buildscripts/scons.py CC=$(CC) CXX=$(CXX) -C $(PSMSRC) -c --disable-warnings-as-errors --audit --release --ssl --opt -j$(NJOBS) --use-sasl-client CPPPATH=$(INSTALLDIR)/include \
-		--enable-fipsmode \
-		LIBPATH=$(INSTALLDIR)/lib LINKFLAGS=$(OPT_LINKFLAGS) --wiredtiger --inmemory --hotbackup $(PSM_TARGETS) || exit $?
-else
-		buildscripts/scons.py CC=$(CC) CXX=$(CXX) -C $(PSMSRC) -c --disable-warnings-as-errors --audit --release --ssl --opt -j$(NJOBS) --use-sasl-client CPPPATH=$(INSTALLDIR)/include \
-		LIBPATH=$(INSTALLDIR)/lib LINKFLAGS=$(OPT_LINKFLAGS) --wiredtiger --inmemory --hotbackup $(PSM_TARGETS) || exit $?
-endif
 	rm -fr build resmoke.ini
 	find $(PSMSRC) -name '*.pyc' -delete
 
-# Finally PSMDB
 percona-server-mongodb:
-ifeq ($(FIPSMODE),1)
-		buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on -j$(NJOBS) \
-		--enable-fipsmode \
-		--use-sasl-client --wiredtiger --inmemory --hotbackup \
-		CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib LINKFLAGS=${OPT_LINKFLAGS} ${PSM_TARGETS} || exit $?
-else
-		buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on -j$(NJOBS) \
-		--use-sasl-client --wiredtiger --inmemory --hotbackup \
-		CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib LINKFLAGS=${OPT_LINKFLAGS} ${PSM_TARGETS} || exit $?
-endif
+	bazel build --config=psmdb_opt_release --define=MONGO_VERSION=${PSMDB_VERSION} --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) install-dist-test
 
 compile-mongo-tools:
 	mkdir $(PSMSRC)/bin || true;
@@ -68,15 +54,17 @@ compile-mongo-tools:
 	cp -av $(PSMSRC)/../src/github.com/mongodb/mongo-tools/bin/* $(PSMSRC)/bin; \
         cd $(PSMSRC);
 
+# Finally PSMDB
+
 build: percona-server-mongodb compile-mongo-tools
 
 override_dh_auto_install:
 	dh_auto_install
-	cp -av build/install/bin/mongos debian/percona-server-mongodb-mongos/usr/bin/mongos
-	cp -av build/install/bin/mongo debian/percona-server-mongodb-shell/usr/bin/mongo
-	cp -av build/install/bin/mongod debian/percona-server-mongodb-server/usr/bin/mongod
-	cp -av build/install/bin/perconadecrypt debian/percona-server-mongodb-server/usr/bin
-	cp -av build/install/bin/mongobridge debian/percona-server-mongodb-server/usr/bin/mongobridge
+	cp -aLv bazel-bin/install/bin/mongos debian/percona-server-mongodb-mongos/usr/bin/mongos
+	cp -aLv bazel-bin/install/bin/mongo debian/percona-server-mongodb-shell/usr/bin/mongo
+	cp -aLv bazel-bin/install/bin/mongod debian/percona-server-mongodb-server/usr/bin/mongod
+	cp -aLv bazel-bin/install/bin/perconadecrypt debian/percona-server-mongodb-server/usr/bin
+	cp -aLv bazel-bin/install/bin/mongobridge debian/percona-server-mongodb-server/usr/bin/mongobridge
 	cp -av debian/percona-server-mongodb-helper.sh debian/percona-server-mongodb-server/usr/bin
 	cp -av debian/percona-server-mongodb-enable-auth.sh debian/percona-server-mongodb-server/usr/bin
 	cp -av debian/mongod.conf debian/percona-server-mongodb-server/etc/mongod.conf

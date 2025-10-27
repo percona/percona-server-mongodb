@@ -128,6 +128,7 @@ This package contains various tools from MongoDB project, recompiled for Percona
 %prep
 
 %setup -q -n %{src_dir}
+bazel clean --expunge || true
 
 %build
 
@@ -181,12 +182,7 @@ poetry install --no-root --sync
 poetry env use /opt/mongodbtoolchain/v4/bin/python3
 poetry install --no-root --sync
 %endif
-buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on  \
-%{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" \
-%if 0%{?enable_fipsmode}
---enable-fipsmode \
-%endif$
---wiredtiger --inmemory --hotbackup LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_TARGETS} || exit $?
+bazel build --config=psmdb_opt_release --define=MONGO_VERSION=%{version}-%{release} --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) install-dist-test
 rm -fr resmoke.ini
 popd
 
@@ -248,11 +244,11 @@ install -m 644 %{SOURCE3} %{buildroot}/%{_sysconfdir}/sysconfig/mongod
 install -m 755 %{SOURCE4} %{buildroot}/%{_bindir}/
 install -m 755 %{SOURCE7} %{buildroot}/%{_bindir}/
 #
-install -m 755 build/install/bin/mongo %{buildroot}/%{_bindir}/mongo
-install -m 755 build/install/bin/mongod %{buildroot}/%{_bindir}/mongod
-install -m 755 build/install/bin/mongos %{buildroot}/%{_bindir}/mongos
-install -m 755 build/install/bin/perconadecrypt %{buildroot}/%{_bindir}/
-install -m 755 build/install/bin/mongobridge %{buildroot}/%{_bindir}/mongobridge
+install -m 755 bazel-bin/install/bin/mongo %{buildroot}/%{_bindir}/mongo
+install -m 755 bazel-bin/install/bin/mongod %{buildroot}/%{_bindir}/mongod
+install -m 755 bazel-bin/install/bin/mongos %{buildroot}/%{_bindir}/mongos
+install -m 755 bazel-bin/install/bin/perconadecrypt %{buildroot}/%{_bindir}/
+install -m 755 bazel-bin/install/bin/mongobridge %{buildroot}/%{_bindir}/mongobridge
 
 install -m 755 $RPM_BUILD_DIR/%{src_dir}/bin/* %{buildroot}/%{_bindir}/
 
