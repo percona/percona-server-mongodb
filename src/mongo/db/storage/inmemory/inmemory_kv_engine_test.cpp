@@ -55,7 +55,10 @@ public:
             setGlobalServiceContext(ServiceContext::make());
         auto client = svcCtx->getService()->makeClient("opCtx");
         auto opCtx = client->makeOperationContext();
-
+        // Simulate being in replica set mode for timestamping tests
+        auto isReplSet = true;
+        auto shouldRecoverFromOplogAsStandalone = false;
+        auto replSetMemberInStandaloneMode = false;
         WiredTigerKVEngine::WiredTigerConfig wtConfig;
         wtConfig.cacheSizeMB = 100;
         wtConfig.inMemory = true;
@@ -65,16 +68,15 @@ public:
             "log=(enabled=false),"
             "file_manager=(close_idle_time=0),"
             "checkpoint=(wait=0,log_size=0)";
-        _engine.reset(
-            new WiredTigerKVEngine(kInMemoryEngineName,
-                                   _dbpath.path(),
-                                   _cs.get(),
-                                   std::move(wtConfig),
-                                   WiredTigerExtensions::get(svcCtx),
-                                   false,
-                                   getGlobalReplSettings().isReplSet(),
-                                   repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
-                                   getReplSetMemberInStandaloneMode(getGlobalServiceContext())));
+        _engine.reset(new WiredTigerKVEngine(kInMemoryEngineName,
+                                             _dbpath.path(),
+                                             _cs.get(),
+                                             std::move(wtConfig),
+                                             WiredTigerExtensions::get(svcCtx),
+                                             false,
+                                             isReplSet,
+                                             shouldRecoverFromOplogAsStandalone,
+                                             replSetMemberInStandaloneMode));
         repl::ReplicationCoordinator::set(
             svcCtx,
             std::unique_ptr<repl::ReplicationCoordinator>(
