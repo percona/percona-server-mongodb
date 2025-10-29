@@ -32,6 +32,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/kv/kv_engine_test_harness.h"
 
 #include "mongo/base/init.h"
+#include "mongo/db/global_settings.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/service_context.h"
@@ -59,10 +60,13 @@ public:
             "file_manager=(close_idle_time=0),"
             "checkpoint=(wait=0,log_size=0)",
             100, 0, false, true, false, readOnly));
+
+        // Simulate being in replica set mode for timestamping tests
+        repl::ReplSettings replSettings;
+        replSettings.setReplSetString("i am a replica set");
+        setGlobalReplSettings(replSettings);
         repl::ReplicationCoordinator::set(
-            svcCtx,
-            std::unique_ptr<repl::ReplicationCoordinator>(
-                new repl::ReplicationCoordinatorMock(svcCtx, repl::ReplSettings())));
+            svcCtx, std::make_unique<repl::ReplicationCoordinatorMock>(svcCtx, replSettings));
         _engine->notifyStartupComplete();
     }
 
