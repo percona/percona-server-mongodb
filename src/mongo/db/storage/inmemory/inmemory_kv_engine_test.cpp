@@ -37,6 +37,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+#include "mongo/db/storage/storage_engine_impl.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/util/clock_source_mock.h"
 
@@ -49,22 +50,22 @@ namespace {
 
 class InMemoryKVHarnessHelper : public KVHarnessHelper {
 public:
-    InMemoryKVHarnessHelper(ServiceContext* svcCtx) : _dbpath("inmem-kv-harness") {
+    InMemoryKVHarnessHelper(ServiceContext* svcCtx) : _dbpath("inmem-kv-harness"), _svcCtx(svcCtx) {
         if (!hasGlobalServiceContext())
             setGlobalServiceContext(ServiceContext::make());
         auto client = svcCtx->getService()->makeClient("opCtx");
         auto opCtx = client->makeOperationContext();
-        _engine.reset(new WiredTigerKVEngine(kInMemoryEngineName,
-                                             _dbpath.path(),
-                                             _cs.get(),
-                                             "in_memory=true,"
-                                             "log=(enabled=false),"
-                                             "file_manager=(close_idle_time=0),"
-                                             "checkpoint=(wait=0,log_size=0)",
-                                             100,
-                                             0,
-                                             true,
-                                             false));
+        auto kv = std::make_unique<WiredTigerKVEngine>(kInMemoryEngineName,
+                                                       _dbpath.path(),
+                                                       _cs.get(),
+                                                       "in_memory=true,"
+                                                       "log=(enabled=false),"
+                                                       "file_manager=(close_idle_time=0),"
+                                                       "checkpoint=(wait=0,log_size=0)",
+                                                       100,
+                                                       0,
+                                                       true,
+                                                       false);
 
         // Simulate being in replica set mode for timestamping tests
         repl::ReplSettings replSettings;
@@ -72,27 +73,39 @@ public:
         setGlobalReplSettings(replSettings);
         repl::ReplicationCoordinator::set(
             svcCtx, std::make_unique<repl::ReplicationCoordinatorMock>(svcCtx, replSettings));
-        _engine->notifyStorageStartupRecoveryComplete();
+
+        StorageEngineOptions options;
+        _svcCtx->setStorageEngine(
+            std::make_unique<StorageEngineImpl>(opCtx.get(), std::move(kv), options));
+
+        getWiredTigerKVEngine()->notifyStorageStartupRecoveryComplete();
     }
 
-    virtual ~InMemoryKVHarnessHelper() {
-        _engine.reset(NULL);
+    ~InMemoryKVHarnessHelper() override {
+        getWiredTigerKVEngine()->cleanShutdown(true);
+        _svcCtx->clearStorageEngine();
     }
 
     virtual KVEngine* restartEngine() {
         // Don't reset the engine since it doesn't persist anything
         // and all the data will be lost.
-        return _engine.get();
+        return getEngine();
     }
 
-    virtual KVEngine* getEngine() {
-        return _engine.get();
+    KVEngine* getEngine() override {
+        return _svcCtx->getStorageEngine()->getEngine();
     }
 
 private:
+    WiredTigerKVEngine* getWiredTigerKVEngine() {
+        auto engine = dynamic_cast<WiredTigerKVEngine*>(_svcCtx->getStorageEngine()->getEngine());
+        invariant(engine);
+        return engine;
+    }
+
     const std::unique_ptr<ClockSource> _cs = std::make_unique<ClockSourceMock>();
     unittest::TempDir _dbpath;
-    std::unique_ptr<WiredTigerKVEngine> _engine;
+    ServiceContext* _svcCtx;
 };
 
 std::unique_ptr<KVHarnessHelper> makeHelper(ServiceContext* svcCtx) {
