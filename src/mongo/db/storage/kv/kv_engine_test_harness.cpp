@@ -922,7 +922,13 @@ TEST_F(KVEngineTestHarness, RollingBackToLastStable) {
         ASSERT(!engine->getLastStableRecoveryTimestamp());
         ASSERT_EQUALS(engine->getAllDurableTimestamp(), Timestamp(1, 1));
         engine->setStableTimestamp(Timestamp(1, 1), false);
-        ASSERT(!engine->getLastStableRecoveryTimestamp());
+
+        if (engine->isEphemeral()) {
+            // Ephemeral storage engines set the last stable timestamp immediately.
+            ASSERT_EQ(engine->getLastStableRecoveryTimestamp(), Timestamp(1, 1));
+        } else {
+            ASSERT(!engine->getLastStableRecoveryTimestamp());
+        }
 
         // Force a checkpoint to be taken. This should advance the last stable timestamp.
         auto opCtx = _makeOperationContext(engine);
@@ -989,7 +995,13 @@ DEATH_TEST_REGEX_F(KVEngineTestHarness, CommitBehindStable, "Fatal assertion.*39
         // Set the stable timestamp to (2, 2).
         ASSERT(!engine->getLastStableRecoveryTimestamp());
         engine->setStableTimestamp(Timestamp(2, 2), false);
-        ASSERT(!engine->getLastStableRecoveryTimestamp());
+
+        if (engine->isEphemeral()) {
+            // Ephemeral storage engines set the last stable timestamp immediately.
+            ASSERT_EQ(engine->getLastStableRecoveryTimestamp(), Timestamp(2, 2));
+        } else {
+            ASSERT(!engine->getLastStableRecoveryTimestamp());
+        }
 
         // Force a checkpoint to be taken. This should advance the last stable timestamp.
         auto opCtx = _makeOperationContext(engine);
