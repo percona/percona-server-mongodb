@@ -37,6 +37,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/repl_set_member_in_standalone_mode.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+#include "mongo/db/storage/storage_engine_impl.h"
 #include "mongo/db/global_settings.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/util/clock_source_mock.h"
@@ -50,7 +51,7 @@ namespace {
 
 class InMemoryKVHarnessHelper : public KVHarnessHelper {
 public:
-    InMemoryKVHarnessHelper(ServiceContext* svcCtx) : _dbpath("inmem-kv-harness") {
+    InMemoryKVHarnessHelper(ServiceContext* svcCtx) : _dbpath("inmem-kv-harness"), _svcCtx(svcCtx) {
         if (!hasGlobalServiceContext())
             setGlobalServiceContext(ServiceContext::make());
         auto client = svcCtx->getService()->makeClient("opCtx");
@@ -68,40 +69,52 @@ public:
             "log=(enabled=false),"
             "file_manager=(close_idle_time=0),"
             "checkpoint=(wait=0,log_size=0)";
-        _engine.reset(new WiredTigerKVEngine(kInMemoryEngineName,
-                                             _dbpath.path(),
-                                             _cs.get(),
-                                             std::move(wtConfig),
-                                             WiredTigerExtensions::get(svcCtx),
-                                             false,
-                                             isReplSet,
-                                             shouldRecoverFromOplogAsStandalone,
-                                             replSetMemberInStandaloneMode));
+        auto kv = std::make_unique<WiredTigerKVEngine>(kInMemoryEngineName,
+                                                       _dbpath.path(),
+                                                       _cs.get(),
+                                                       std::move(wtConfig),
+                                                       WiredTigerExtensions::get(svcCtx),
+                                                       false,
+                                                       isReplSet,
+                                                       shouldRecoverFromOplogAsStandalone,
+                                                       replSetMemberInStandaloneMode);
+
         repl::ReplicationCoordinator::set(
             svcCtx,
             std::unique_ptr<repl::ReplicationCoordinator>(
                 new repl::ReplicationCoordinatorMock(svcCtx, repl::ReplSettings())));
-        _engine->notifyStorageStartupRecoveryComplete();
+
+        StorageEngineOptions options;
+        _svcCtx->setStorageEngine(std::make_unique<StorageEngineImpl>(
+            opCtx.get(), std::move(kv), std::unique_ptr<KVEngine>(), options));
+
+        getWiredTigerKVEngine()->notifyStorageStartupRecoveryComplete();
     }
 
     ~InMemoryKVHarnessHelper() override {
-        _engine.reset(NULL);
+        getWiredTigerKVEngine()->cleanShutdown(true);
     }
 
     KVEngine* restartEngine() override {
         // Don't reset the engine since it doesn't persist anything
         // and all the data will be lost.
-        return _engine.get();
+        return getEngine();
     }
 
     KVEngine* getEngine() override {
-        return _engine.get();
+        return _svcCtx->getStorageEngine()->getEngine();
     }
 
 private:
+    virtual WiredTigerKVEngine* getWiredTigerKVEngine() {
+        auto engine = dynamic_cast<WiredTigerKVEngine*>(_svcCtx->getStorageEngine()->getEngine());
+        invariant(engine);
+        return engine;
+    }
+
     const std::unique_ptr<ClockSource> _cs = std::make_unique<ClockSourceMock>();
     unittest::TempDir _dbpath;
-    std::unique_ptr<WiredTigerKVEngine> _engine;
+    ServiceContext* _svcCtx;
 };
 
 std::unique_ptr<KVHarnessHelper> makeHelper(ServiceContext* svcCtx) {
