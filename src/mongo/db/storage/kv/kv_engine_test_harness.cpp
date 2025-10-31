@@ -389,7 +389,14 @@ TEST_F(KVEngineTestHarness, TemporaryRecordStoreSimple) {
         engine->checkpoint();
 
         WriteUnitOfWork wuow(opCtx.get());
-        ASSERT_OK(engine->dropIdent(shard_role_details::getRecoveryUnit(opCtx.get()), ident));
+
+        // Drop the temporary record store in a loop in case it returns ErrorCodes::ObjectIsBusy
+        Status status = Status::OK();
+        do {
+            status = engine->dropIdent(shard_role_details::getRecoveryUnit(opCtx.get()), ident);
+            ASSERT(status.isOK() || status == ErrorCodes::ObjectIsBusy);
+        } while (status == ErrorCodes::ObjectIsBusy);
+
         wuow.commit();
     }
 }
