@@ -178,19 +178,8 @@ public:
 
 private:
     static void syncInMemoryAndWiredTigerOptions() {
-
-        const auto oldWiredTigerGlobalOptions = wiredTigerGlobalOptions;
-
-        // Re-create WiredTiger options to fill it with default values
-        wiredTigerGlobalOptions = WiredTigerGlobalOptions();
-
-        // Preserve options which are not specific to the WiredTiger storage engine and should apply for the
-        // 'InMemory' storage engine as well.
-        wiredTigerGlobalOptions.sessionMax = oldWiredTigerGlobalOptions.sessionMax;
-        wiredTigerGlobalOptions.evictionDirtyTargetGB = oldWiredTigerGlobalOptions.evictionDirtyTargetGB;
-        wiredTigerGlobalOptions.evictionDirtyTriggerGB = oldWiredTigerGlobalOptions.evictionDirtyTriggerGB;
-        wiredTigerGlobalOptions.evictionUpdatesTriggerGB = oldWiredTigerGlobalOptions.evictionUpdatesTriggerGB;
-
+        // All wiredTigerGlobalOptions options are preserved except those that are specific to
+        // inMemory storage engine.
         wiredTigerGlobalOptions.cacheSizeGB =
             inMemoryGlobalOptions.cacheSizeGB;
         wiredTigerGlobalOptions.statisticsLogDelaySecs =
