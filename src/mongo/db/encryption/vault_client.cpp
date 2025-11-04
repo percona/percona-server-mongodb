@@ -472,6 +472,8 @@ StatusWith<BSONObj> VaultClient::Impl::getOpenAPISpec() const try {
                           << "Getting the OpenAPI spec failed, statusCode: " << reply.code);
     }
 
+
+
     ConstDataRangeCursor cur = reply.body.getCursor();
     StringData replyBody(cur.data(), cur.length());
 
