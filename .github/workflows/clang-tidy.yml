@@ -1,5 +1,10 @@
 name: clang-tidy
+
 on: [pull_request]
+
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   analyze:
@@ -7,36 +12,56 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache Bazel and Tools
-        uses: actions/cache@v4
+      # Compute and reuse a single cache key
+      - name: Compute cache key
+        id: key
+        run: |
+          echo "key=${{ runner.os }}-tools-$(printf '%s' \
+            "$(git ls-files .bazelrc .bazelrc.compiledb WORKSPACE MODULE.bazel '**/BUILD.bazel' '**/BUILD' Cargo.toml Cargo.lock poetry.lock | xargs -r sha256sum | sha256sum | cut -d' ' -f1)")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Bazel/Tools cache
+        uses: actions/cache/restore@v4
         with:
           path: |
-            ~/venv
             ~/.cache/bazel
-            ~/.bazel-cache
-            .bazel-cache
             ~/.local/bin
             ~/.cargo/bin
-          key: ${{ runner.os }}-tools-${{ hashFiles('.bazelrc', '.bazelrc.compiledb', 'WORKSPACE', 'MODULE.bazel', '**/BUILD.bazel', '**/BUILD', 'Cargo.toml', 'Cargo.lock', 'poetry.lock') }}
+            ~/.cache/pip
+            ~/.cache/pypoetry
+          key: ${{ steps.key.outputs.key }}
           restore-keys: |
             ${{ runner.os }}-tools-
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
+          cache-dependency-path: poetry.lock
 
-      - name: Install Python dependencies and Bazel
+      - name: Install Python deps (Poetry into current env)
         run: |
-          mkdir -p ~/venv
-          python3 -m venv ~/venv
-          source ~/venv/bin/activate
-          pip3 install --upgrade pip
-          python -m pip install -U "virtualenv>=20.35,<21"
-          pip3 install poetry=='2.0.0'
+          python -m pip install -U pip "virtualenv>=20.35,<21" poetry==2.0.0
+          # Install project deps into THIS interpreter (no separate Poetry venv)
+          poetry config virtualenvs.create false
           poetry install --no-root --without export
-          echo "Installing bazel"
+
+      - name: Install Bazel (tool script)
+        run: |
           python3 buildscripts/install_bazel.py
+
+      - name: Install Rust (for clang-tidy-sarif)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          override: true
+
+      - name: Install clang-tidy-sarif (cached in ~/.cargo/bin)
+        run: |
+          if ! command -v clang-tidy-sarif >/dev/null 2>&1; then
+            cargo install clang-tidy-sarif
+          fi
 
       - name: Get changed files
         id: changed
@@ -44,61 +69,57 @@ jobs:
         with:
           files: |
             **/*.cpp
-            **/*.cc
-            **/*.cxx
-            **/*.C
-            **/*.c++
-            **/*.cp
-
-      - name: Show changed files
-        run: |
-          echo "Changed files: ${{ steps.changed.outputs.all_changed_files }}"
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-          override: true
-
-      - name: Install clang-tidy-sarif
-        run: |
-          if ! command -v clang-tidy-sarif &> /dev/null; then
-            cargo install clang-tidy-sarif
-          else
-            echo "clang-tidy-sarif already installed"
-          fi
+            **/*.hpp
+            **/*.h
+          json: true
 
       - name: Create .bazelrc.compiledb
         run: |
-          echo 'common --config=local' > .bazelrc.compiledb
-          echo 'common --build_enterprise=false' >> .bazelrc.compiledb
+          {
+            echo 'common --config=local'
+            echo 'common --build_enterprise=false'
+          } > .bazelrc.compiledb
 
       - name: Generate compile_commands.json
         run: |
           bazel --bazelrc=.bazelrc.compiledb build //:compiledb
 
-      - name: Run clang-tidy with SARIF output
+      # Ensure the clang-tidy plugin is built (adjust target if needed)
+      - name: Build mongo_tidy_checks plugin
         run: |
+          bazel --bazelrc=.bazelrc.compiledb build //src/mongo/tools/mongo_tidy_checks:mongo_tidy_checks
+
+      - name: Run clang-tidy with SARIF (skip if no C++ changes)
+        if: ${{ steps.changed.outputs.any_changed == 'true' }}
+        env:
+          FILES_JSON: ${{ steps.changed.outputs.all_changed_files }}
+        run: |
+          mapfile -t FILES < <(printf '%s' "$FILES_JSON" | jq -r '.[]')
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No C/C++ files changed."
+            exit 0
+          fi
+
           external/mongo_toolchain_v5/v5/bin/clang-tidy \
-          --load="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks.so" \
-          ${{ steps.changed.outputs.all_changed_files }} | clang-tidy-sarif --output=clang-tidy-results.sarif
+            --load="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks.so" \
+            "${FILES[@]}" \
+          | clang-tidy-sarif --output=clang-tidy-results.sarif
 
       - name: Upload SARIF results
+        if: always() && github.event.pull_request.head.repo.fork == false
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: clang-tidy-results.sarif
           category: clang-tidy
 
-      - name: Save Bazel cache
+      - name: Save Bazel/Tools cache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: |
             ~/.cache/bazel
-            ~/.bazel-cache
-            .bazel-cache
             ~/.local/bin
             ~/.cargo/bin
-          key: ${{ runner.os }}-tools-${{ hashFiles('.bazelrc', '.bazelrc.compiledb', 'WORKSPACE', 'MODULE.bazel', '**/BUILD.bazel', '**/BUILD', 'Cargo.toml', 'Cargo.lock') }}
+            ~/.cache/pip
+            ~/.cache/pypoetry
+          key: ${{ steps.key.outputs.key }}
