@@ -25,12 +25,26 @@ jobs:
       - name: Install Python deps
         run: |
           python -m pip install -U pip "virtualenv>=20.35,<21" poetry==2.0.0
-          poetry config virtualenvs.create false
+
+      - name: Configure Poetry venv
+        run: |
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true 
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        id: venv
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}--${{ hashFiles('poetry.lock') }}
+
+      - name: Install Python deps
+        run: |
           poetry install --no-root --without export
 
       - name: Install Bazel
         run: |
-          python3 buildscripts/install_bazel.py
+          poetry run python buildscripts/install_bazel.py
 
       - uses: actions/cache@v4
         id: bazel_cache
