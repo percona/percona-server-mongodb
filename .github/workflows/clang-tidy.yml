@@ -90,7 +90,7 @@ jobs:
           fi
 
           external/mongo_toolchain_v5/v5/bin/clang-tidy \
-            --load="~/.cache/mongo_tidy_check/libmongo_tidy_checks.so" \
+            --load="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks.so" \
             "${FILES[@]}" \
           | clang-tidy-sarif --output=clang-tidy-results.sarif
 
