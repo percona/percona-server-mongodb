@@ -1,8 +1,40 @@
-load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_library")
+load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_binary", "mongo_cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
 idl_generator(
-    name = "perrconadecrypt_options_gen",
+    name = "perconadecrypt_options_gen",
     src = "perconadecrypt_options.idl",
+)
+
+mongo_cc_library (
+    name = "perconadecrypt_options",
+    srcs = [
+        "//src/mongo/tools:perconadecrypt_options.cpp",
+        "//src/mongo/tools:perconadecrypt_options_gen",
+        "//src/mongo/tools:perconadecrypt_options_init.cpp",
+    ],
+    hdrs = [
+        "//src/mongo/tools:perconadecrypt_options.h",
+    ],
+    deps = [
+        "//src/mongo/db/encryption:encryption_options",
+        "//src/mongo/util:version_impl",
+        "//src/mongo/util/options_parser:options_parser_init",
+    ],
+)
+
+mongo_cc_binary(
+    name = "perconadecrypt",
+    srcs = [
+        "//src/mongo/tools:perconadecrypt.cpp",
+    ],
+    tags = [
+        "dist_test",
+    ],
+    deps = [
+        "//src/mongo/db/encryption:encryption_options",
+        "//src/mongo/db/encryption:key_management",
+        "//src/mongo/tools:perconadecrypt_options",
+    ],
 )

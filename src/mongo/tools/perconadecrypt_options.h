@@ -34,6 +34,7 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #include <vector>
 
 #include "mongo/base/status.h"
+#include "mongo/util/str.h"
 
 namespace mongo {
 
@@ -71,7 +72,7 @@ inline Status validateEncryptionCipherModeSetting(const std::string& value) {
     constexpr auto kCBC = "AES256-CBC"_sd;
     constexpr auto kGCM = "AES256-GCM"_sd;
 
-    if (!kCBC.equalCaseInsensitive(value) && !kGCM.equalCaseInsensitive(value)) {
+    if (!str::equalCaseInsensitive(kCBC, value) && !str::equalCaseInsensitive(kGCM, value)) {
         return {ErrorCodes::BadValue,
                 "--encryptionCipherMode expects either 'AES256-CBC' or 'AES256-GCM'"};
     }
