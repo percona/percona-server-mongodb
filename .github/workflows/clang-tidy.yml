@@ -6,31 +6,14 @@ permissions:
   contents: read
   security-events: write
 
+env:
+  CLANG_TIDY_SARIF_VERSION: "0.8.0"
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # Compute and reuse a single cache key
-      - name: Compute cache key
-        id: key
-        run: |
-          echo "key=${{ runner.os }}-tools-$(printf '%s' \
-            "$(git ls-files .bazelrc .bazelrc.compiledb WORKSPACE MODULE.bazel '**/BUILD.bazel' '**/BUILD' Cargo.toml Cargo.lock poetry.lock | xargs -r sha256sum | sha256sum | cut -d' ' -f1)")" >> "$GITHUB_OUTPUT"
-
-      - name: Restore Bazel/Tools cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cache/bazel
-            ~/.local/bin
-            ~/.cargo/bin
-            ~/.cache/pip
-            ~/.cache/pypoetry
-          key: ${{ steps.key.outputs.key }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -39,29 +22,40 @@ jobs:
           cache: 'pip'
           cache-dependency-path: poetry.lock
 
-      - name: Install Python deps (Poetry into current env)
+      - name: Install Python deps
         run: |
           python -m pip install -U pip "virtualenv>=20.35,<21" poetry==2.0.0
-          # Install project deps into THIS interpreter (no separate Poetry venv)
           poetry config virtualenvs.create false
           poetry install --no-root --without export
 
-      - name: Install Bazel (tool script)
+      - name: Install Bazel
         run: |
           python3 buildscripts/install_bazel.py
 
+      - uses: actions/cache@v4
+        id: bazel_cache
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazelisk
+          key: ${{ runner.os }}-bazel-cache
+
+      - name: "Cache clang-tidy-sarif"
+        uses: actions/cache@v4
+        id: clang_tidy_sarif_cache
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-clang-tidy-sarif-${{ env.CLANG_TIDY_SARIF_VERSION }}
+
       - name: Install Rust (for clang-tidy-sarif)
+        if: steps.clang_tidy_sarif_cache.outputs.cache-hit != 'true'
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          components: rustfmt, clippy
-          override: true
 
       - name: Install clang-tidy-sarif (cached in ~/.cargo/bin)
-        run: |
-          if ! command -v clang-tidy-sarif >/dev/null 2>&1; then
-            cargo install clang-tidy-sarif
-          fi
+        if: steps.clang_tidy_sarif_cache.outputs.cache-hit != 'true'
+        run: cargo install clang-tidy-sarif
 
       - name: Get changed files
         id: changed
@@ -80,14 +74,9 @@ jobs:
             echo 'common --build_enterprise=false'
           } > .bazelrc.compiledb
 
-      - name: Generate compile_commands.json
+      - name: Generate compile_commands.json and build mongo_tidy_checks plugin
         run: |
-          bazel --bazelrc=.bazelrc.compiledb build //:compiledb
-
-      # Ensure the clang-tidy plugin is built (adjust target if needed)
-      - name: Build mongo_tidy_checks plugin
-        run: |
-          bazel --bazelrc=.bazelrc.compiledb build //src/mongo/tools/mongo_tidy_checks:mongo_tidy_checks
+          bazel --bazelrc=.bazelrc.compiledb build //:compiledb //src/mongo/tools/mongo_tidy_checks:mongo_tidy_checks
 
       - name: Run clang-tidy with SARIF (skip if no C++ changes)
         if: ${{ steps.changed.outputs.any_changed == 'true' }}
@@ -101,7 +90,7 @@ jobs:
           fi
 
           external/mongo_toolchain_v5/v5/bin/clang-tidy \
-            --load="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks.so" \
+            --load="~/.cache/mongo_tidy_check/libmongo_tidy_checks.so" \
             "${FILES[@]}" \
           | clang-tidy-sarif --output=clang-tidy-results.sarif
 
@@ -111,15 +100,3 @@ jobs:
         with:
           sarif_file: clang-tidy-results.sarif
           category: clang-tidy
-
-      - name: Save Bazel/Tools cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.cache/bazel
-            ~/.local/bin
-            ~/.cargo/bin
-            ~/.cache/pip
-            ~/.cache/pypoetry
-          key: ${{ steps.key.outputs.key }}
