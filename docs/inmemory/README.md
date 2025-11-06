@@ -36,6 +36,16 @@ $ mongod                            \
 --inMemoryStatisticsLogDelaySecs=0
 ```
 
+## Advanced Configuration
+
+The inMemory engine preserves WiredTiger configuration options, allowing fine-grained control over engine behavior. You can specify custom configurations for:
+
+- Engine settings via `--inMemoryEngineConfigString`
+- Collection settings via `--inMemoryCollectionConfigString`
+- Index settings via `--inMemoryIndexConfigString`
+
+For detailed information about how WiredTiger options are preserved and applied in the inMemory engine, see [PSMDB-1832-DESCRIPTION.md](PSMDB-1832-DESCRIPTION.md).
+
 ## Testing
 
 The way of testing InMemory engine is no different from other storage engines.
