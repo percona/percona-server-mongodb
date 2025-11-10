@@ -56,6 +56,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/read_preference.h"
 #include "mongo/client/remote_command_retry_scheduler.h"
 #include "mongo/db/catalog/catalog_control.h"
+#include "mongo/db/catalog/collection_catalog.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands/server_status_metric.h"
 #include "mongo/db/concurrency/d_concurrency.h"
@@ -1728,7 +1729,9 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
                                       storageGlobalParams.dbpath = newLocation;
                                       repl::clearLocalOplogPtr(opCtx->getServiceContext());
                                   });
-    opCtx->getServiceContext()->getStorageEngine()->notifyStorageStartupRecoveryComplete();
+    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+    catalog::initializeCollectionCatalog(opCtx, storageEngine);
+    storageEngine->notifyStorageStartupRecoveryComplete();
     if (StorageEngine::LastShutdownState::kClean != lastShutdownState) {
         return {ErrorCodes::InternalError,
                 str::stream() << "Failed to switch storage location to " << newLocation};
