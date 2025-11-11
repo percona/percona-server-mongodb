@@ -583,6 +583,14 @@ write_ops::DeleteCommandReply processDelete(OperationContext* opCtx,
         appendPossibleWriteConcernErrorToReply(commitResult.wcError,
                                                &reply->getWriteCommandReplyBase());
         if (!commitResult.cmdStatus.isOK()) {
+            if (ErrorCodes::isA<ErrorCategory::WriteConcernError>(commitResult.cmdStatus)) {
+                // On single-write-shard commits, the transaction API will abort the transaction and
+                // return a CommitResult with one of the WriteConcernErrors if any of the read-only
+                // shards fail to commit with the user requested write concern. This happens before
+                // any commits to the write shards are performed, so none of the changes are
+                // actually made durable.
+                reply->getWriteCommandReplyBase().setN(0);
+            }
             appendSingleStatusToWriteErrors(commitResult.cmdStatus,
                                             &reply->getWriteCommandReplyBase());
         }
@@ -662,7 +670,7 @@ write_ops::UpdateCommandReply processUpdate(OperationContext* opCtx,
             if (reply->getWriteErrors().has_value() && !reply->getWriteErrors().value().empty()) {
                 return SemiFuture<void>::makeReady(
                     Status(ErrorCodes::FLETransactionAbort,
-                           "Queryable Encryption write errors on delete"));
+                           "Queryable Encryption write errors on update"));
             }
 
             return SemiFuture<void>::makeReady();
@@ -681,6 +689,15 @@ write_ops::UpdateCommandReply processUpdate(OperationContext* opCtx,
         appendPossibleWriteConcernErrorToReply(commitResult.wcError,
                                                &reply->getWriteCommandReplyBase());
         if (!commitResult.cmdStatus.isOK()) {
+            if (ErrorCodes::isA<ErrorCategory::WriteConcernError>(commitResult.cmdStatus)) {
+                // On single-write-shard commits, the transaction API will abort the transaction and
+                // return a CommitResult with one of the WriteConcernErrors if any of the read-only
+                // shards fail to commit with the user requested write concern. This happens before
+                // any commits to the write shards are performed, so none of the changes are
+                // actually made durable.
+                reply->setNModified(0);
+                reply->getWriteCommandReplyBase().setN(0);
+            }
             appendSingleStatusToWriteErrors(commitResult.cmdStatus,
                                             &reply->getWriteCommandReplyBase());
         }
@@ -878,7 +895,8 @@ StatusWith<std::pair<ReplyType, OpMsgRequest>> processFindAndModifyRequest(
     OperationContext* opCtx,
     const write_ops::FindAndModifyCommandRequest& findAndModifyRequest,
     GetTxnCallback getTxns,
-    ProcessFindAndModifyCallback<ReplyType> processCallback) {
+    ProcessFindAndModifyCallback<ReplyType> processCallback,
+    ErrorWithWriteConcernErrorCallback wceCallback) {
 
     {
         stdx::lock_guard<Client> lk(*opCtx->getClient());
@@ -934,8 +952,15 @@ StatusWith<std::pair<ReplyType, OpMsgRequest>> processFindAndModifyRequest(
         return swResult.getStatus();
     } else if (!swResult.getValue().getEffectiveStatus().isOK()) {
         auto& commitResult = swResult.getValue();
-        addWriteConcernErrorInfoToReply(commitResult.wcError, reply.get());
-        if (!commitResult.cmdStatus.isOK()) {
+
+        if (commitResult.cmdStatus.isOK()) {
+            // commit encountered a write concern error, but succeeded with the write
+            addWriteConcernErrorInfoToReply(commitResult.wcError, reply.get());
+        } else {
+            // commit encountered an error, and maybe a write concern error as well
+            if (commitResult.wcError.isValid(nullptr) && wceCallback) {
+                wceCallback(commitResult.wcError);
+            }
             return commitResult.cmdStatus;
         }
     }
@@ -948,14 +973,16 @@ processFindAndModifyRequest<write_ops::FindAndModifyCommandReply>(
     OperationContext* opCtx,
     const write_ops::FindAndModifyCommandRequest& findAndModifyRequest,
     GetTxnCallback getTxns,
-    ProcessFindAndModifyCallback<write_ops::FindAndModifyCommandReply> processCallback);
+    ProcessFindAndModifyCallback<write_ops::FindAndModifyCommandReply> processCallback,
+    ErrorWithWriteConcernErrorCallback wceCallback);
 
 template StatusWith<std::pair<write_ops::FindAndModifyCommandRequest, OpMsgRequest>>
 processFindAndModifyRequest<write_ops::FindAndModifyCommandRequest>(
     OperationContext* opCtx,
     const write_ops::FindAndModifyCommandRequest& findAndModifyRequest,
     GetTxnCallback getTxns,
-    ProcessFindAndModifyCallback<write_ops::FindAndModifyCommandRequest> processCallback);
+    ProcessFindAndModifyCallback<write_ops::FindAndModifyCommandRequest> processCallback,
+    ErrorWithWriteConcernErrorCallback wceCallback);
 
 StatusWith<write_ops::InsertCommandReply> processInsert(
     FLEQueryInterface* queryImpl,
@@ -1508,8 +1535,16 @@ FLEBatchResult processFLEFindAndModify(OperationContext* opCtx,
         return FLEBatchResult::kNotProcessed;
     }
 
+    // This callback ensures that any write concern errors are set in the reply in the event
+    // that processFindAndModifyRequest returned a non-OK status, which is then thrown.
+    auto onErrorWithWCE = [&result](const WriteConcernErrorDetail& wce) {
+        if (!result.hasField("writeConcernError")) {
+            result.append("writeConcernError", wce.toBSON());
+        }
+    };
+
     auto swReply = processFindAndModifyRequest<write_ops::FindAndModifyCommandReply>(
-        opCtx, request, &getTransactionWithRetriesForMongoS);
+        opCtx, request, &getTransactionWithRetriesForMongoS, processFindAndModify, onErrorWithWCE);
 
     auto reply = uassertStatusOK(swReply).first;
 

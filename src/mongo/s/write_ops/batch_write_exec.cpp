@@ -151,8 +151,13 @@ std::vector<AsyncRequestsSender::Request> constructARSRequestsToSend(
 
         // If we already have a batch for this shard, wait until the next time
         const auto& targetShardId = nextBatch->getShardId();
-        if (pendingBatches.count(targetShardId))
+        if (pendingBatches.count(targetShardId)) {
+            LOGV2_DEBUG(9986808,
+                        4,
+                        "Waiting to send batch to shard as it already has one pending",
+                        "target shard"_attr = targetShardId);
             continue;
+        }
 
         stats->noteTargetedShard(targetShardId);
 
@@ -269,6 +274,7 @@ bool processErrorResponseFromLocal(OperationContext* opCtx,
                                    BatchWriteOp& batchOp,
                                    TargetedWriteBatch* batch,
                                    Status responseStatus,
+                                   const WriteConcernErrorDetail* wce,
                                    const ShardId& shardInfo,
                                    boost::optional<HostAndPort> shardHostAndPort) {
     if ((ErrorCodes::isShutdownError(responseStatus) ||
@@ -286,7 +292,7 @@ bool processErrorResponseFromLocal(OperationContext* opCtx,
                                            : "from failing to target a host in the shard ")
                       << shardInfo);
 
-    batchOp.noteBatchError(*batch, write_ops::WriteError(0, status));
+    batchOp.noteBatchError(*batch, write_ops::WriteError(0, status), wce);
 
     LOGV2_DEBUG(22908,
                 4,
@@ -346,6 +352,7 @@ void executeChildBatches(OperationContext* opCtx,
             kPrimaryOnlyReadPreference,
             isRetryableWrite ? Shard::RetryPolicy::kIdempotent : Shard::RetryPolicy::kNoRetry);
         numSent += pendingBatches.size();
+        LOGV2_DEBUG(9986806, 5, "Sent child batches", "numSent"_attr = numSent);
 
         // Receive all of the responses.
         while (!ars.done()) {
@@ -399,6 +406,7 @@ void executeChildBatches(OperationContext* opCtx,
                                                                 batchOp,
                                                                 batch,
                                                                 responseStatus,
+                                                                nullptr,
                                                                 shardInfo,
                                                                 response.shardHostAndPort))) {
                     break;
@@ -449,21 +457,39 @@ void executeTwoPhaseWrite(OperationContext* opCtx,
         return requestBuilder.obj();
     }();
 
+    boost::optional<WriteConcernErrorDetail> wce;
     auto swRes = write_without_shard_key::runTwoPhaseWriteProtocol(
-        opCtx, clientRequest.getNS(), std::move(cmdObj));
+        opCtx, clientRequest.getNS(), std::move(cmdObj), wce);
 
     Status responseStatus = swRes.getStatus();
     BatchedCommandResponse batchedCommandResponse;
+
+    // Adds a 'writeConcernError' from the remote shard to the response. Does nothing if the remote
+    // shard did not return a 'writeConcernError'.
+    auto appendWCEToResponse = [&]() {
+        if (wce.has_value()) {
+            auto wceCopy = std::make_unique<WriteConcernErrorDetail>(*wce);
+            batchedCommandResponse.setWriteConcernError(wceCopy.release());
+        }
+    };
+
     if (swRes.isOK()) {
         // Explicitly set the status of a no-op if there is no response.
         if (swRes.getValue().getResponse().isEmpty()) {
             batchedCommandResponse.setStatus(Status::OK());
+            appendWCEToResponse();
         } else {
+            // If parsing succeeds, the 'writeConcernError' will be part of 'batchedCommandResponse'
+            // here.
             std::string errMsg;
             if (!batchedCommandResponse.parseBSON(swRes.getValue().getResponse(), &errMsg)) {
                 responseStatus = {ErrorCodes::FailedToParse, errMsg};
             }
         }
+    } else {
+        // Remote shard returned an error, and the 'batchedCommandResponse' is still empty.
+        // We need to make sure to append any 'writeConcernError' from the shard to the response.
+        appendWCEToResponse();
     }
 
     // Since we only send the write to a single shard, record the response of the write against the
@@ -488,6 +514,8 @@ void executeTwoPhaseWrite(OperationContext* opCtx,
             if (!hasRecordedWriteResponseForFirstBatch) {
                 // Resolve the first child batch with the response of the write or a no-op response
                 // if there was no matching document.
+                // if the remote returned a 'writeConcernError', it will be part of the
+                // 'batchedCommandResponse' and handled here.
                 if ((abortBatch = processResponseFromRemote(opCtx,
                                                             targeter,
                                                             nextBatch.get()->getShardId(),
@@ -503,6 +531,11 @@ void executeTwoPhaseWrite(OperationContext* opCtx,
                 // status.
                 BatchedCommandResponse noopBatchCommandResponse;
                 noopBatchCommandResponse.setStatus(Status::OK());
+                if (auto wce = batchedCommandResponse.getWriteConcernError(); wce != nullptr) {
+                    // Inject 'writeConcernError' from original response, so it won't be lost.
+                    auto wceCopy = std::make_unique<WriteConcernErrorDetail>(*wce);
+                    noopBatchCommandResponse.setWriteConcernError(wceCopy.release());
+                }
                 processResponseFromRemote(opCtx,
                                           targeter,
                                           nextBatch->getShardId(),
@@ -512,13 +545,16 @@ void executeTwoPhaseWrite(OperationContext* opCtx,
                                           stats);
             }
         } else {
-            // The ARS failed to retrieve the response due to some sort of local failure.
-            if ((abortBatch = processErrorResponseFromLocal(opCtx,
-                                                            batchOp,
-                                                            nextBatch.get(),
-                                                            responseStatus,
-                                                            nextBatch->getShardId(),
-                                                            boost::none))) {
+            // The ARS failed to retrieve the response due to some sort of local failure, or a shard
+            // returned a non-ok response.
+            if ((abortBatch =
+                     processErrorResponseFromLocal(opCtx,
+                                                   batchOp,
+                                                   nextBatch.get(),
+                                                   responseStatus,
+                                                   batchedCommandResponse.getWriteConcernError(),
+                                                   nextBatch->getShardId(),
+                                                   boost::none))) {
                 break;
             }
         }
@@ -573,6 +609,13 @@ void BatchWriteExec::executeBatch(OperationContext* opCtx,
         //    deliver in this case, since for all the client knows we may have gotten the batch
         //    exactly when the metadata changed.
         //
+        LOGV2_DEBUG(9986800,
+                    4,
+                    "Starting attempt at executing write batch",
+                    logAttrs(nss),
+                    "rounds"_attr = rounds,
+                    "numCompletedOps"_attr = numCompletedOps,
+                    "numRoundsWithoutProgress"_attr = numRoundsWithoutProgress);
 
         TargetedBatchMap childBatches;
 
@@ -581,6 +624,12 @@ void BatchWriteExec::executeBatch(OperationContext* opCtx,
         bool recordTargetErrors = refreshedTargeter;
         auto targetStatus = batchOp.targetBatch(targeter, recordTargetErrors, &childBatches);
         if (!targetStatus.isOK()) {
+            LOGV2_DEBUG(9986801,
+                        4,
+                        "Encountered a targeter error",
+                        "error"_attr = targetStatus.getStatus(),
+                        "will refresh"_attr = !refreshedTargeter);
+
             // Don't do anything until a targeter refresh
             targeter.noteCouldNotTarget();
             refreshedTargeter = true;
@@ -652,6 +701,7 @@ void BatchWriteExec::executeBatch(OperationContext* opCtx,
 
         ++rounds;
         ++stats->numRounds;
+        LOGV2_DEBUG(9986810, 4, "Completed round", "rounds completed"_attr = rounds);
 
         // If we're done, get out
         if (batchOp.isFinished())
@@ -703,6 +753,10 @@ void BatchWriteExec::executeBatch(OperationContext* opCtx,
 
         int currCompletedOps = batchOp.numWriteOpsIn(WriteOpState_Completed);
         if (currCompletedOps == numCompletedOps && !targeterChanged) {
+            LOGV2_DEBUG(9986809,
+                        5,
+                        "No progress made this round",
+                        "num rounds without progress"_attr = numRoundsWithoutProgress);
             ++numRoundsWithoutProgress;
         } else {
             numRoundsWithoutProgress = 0;

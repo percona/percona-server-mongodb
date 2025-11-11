@@ -2394,6 +2394,19 @@ functions:
       args:
         - "./src/evergreen/sasl_windows_cyrussasl_teardown.sh"
 
+  "log into devprod container registry":
+  - command: ec2.assume_role
+    params:
+      role_arn: ${ecr_role_evergreen_arn}
+  - *f_expansions_write
+  - command: subprocess.exec
+    params:
+      binary: bash
+      include_expansions_in_env:
+        [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN]
+      args:
+        - "./src/evergreen/container_registry_login.sh"
+
 
 #######################################
 #               Tasks                 #
@@ -6286,6 +6299,14 @@ tasks:
       use_large_distro: "true"
 
 - <<: *gen_task_template
+  name: sharding_task_executor_pool_size_8_gen
+  tags: ["sharding", "common"]
+  commands:
+  - func: "generate resmoke tasks"
+    vars:
+      use_large_distro: "true"
+
+- <<: *gen_task_template
   name: sharding_config_shard_gen
   tags: ["sharding", "common"]
   commands:
@@ -7252,20 +7273,14 @@ tasks:
       aws_secret_remote: ${repo_aws_secret}
   - func: "set up notary client credentials"
   - *f_expansions_write
-  - command: shell.exec
-    params:
-      shell: bash
-      silent: true
-      script: |
-        set -oe
-        echo "${release_tools_container_registry_password}" | podman login --password-stdin --username ${release_tools_container_registry_username} ${release_tools_container_registry}
+  - func: "log into devprod container registry"
   - command: subprocess.exec
     params:
       binary: bash
       env:
         AWS_ACCESS_KEY_ID: ${upload_lock_access_key_id}
         AWS_SECRET_ACCESS_KEY: ${upload_lock_secret_access_key}
-        UPLOAD_LOCK_IMAGE: ${upload_lock_image}
+        UPLOAD_LOCK_IMAGE: ${upload_lock_image_ecr}
         UPLOAD_BUCKET: ${upload_lock_bucket}
         AWS_REGION: ${upload_lock_region}
         EVERGREEN_TASK_ID: ${task_id}
@@ -7319,15 +7334,7 @@ tasks:
       aws_key_remote: ${repo_aws_key}
       aws_secret_remote: ${repo_aws_secret}
   - func: "f_expansions_write"
-
-  # login to container registry
-  - command: shell.exec
-    params:
-      shell: bash
-      silent: true
-      script: |
-        set -oe
-        echo "${release_tools_container_registry_password}" | podman login --password-stdin --username ${release_tools_container_registry_username} ${release_tools_container_registry}
+  - func: "log into devprod container registry"
 
   # signing windows artifacts
   - command: subprocess.exec
@@ -7655,7 +7662,7 @@ tasks:
         MSI_MD5_KEY: ${version_id}/${build_id}/push/${push_path}/mongodb-${push_name}-${push_arch}-${suffix}-signed.msi.md5
         AWS_ACCESS_KEY_ID: ${upload_lock_access_key_id}
         AWS_SECRET_ACCESS_KEY: ${upload_lock_secret_access_key}
-        UPLOAD_LOCK_IMAGE: ${upload_lock_image}
+        UPLOAD_LOCK_IMAGE: ${upload_lock_image_ecr}
         UPLOAD_BUCKET: ${upload_lock_bucket}
         AWS_REGION: ${upload_lock_region}
         EVERGREEN_TASK_ID: ${task_id}
@@ -7722,14 +7729,7 @@ tasks:
       aws_key_remote: ${repo_aws_key}
       aws_secret_remote: ${repo_aws_secret}
   - func: "f_expansions_write"
-  # login to container registry
-  - command: shell.exec
-    params:
-      shell: bash
-      silent: true
-      script: |
-        set -oe
-        echo "${release_tools_container_registry_password}" | podman login --password-stdin --username ${release_tools_container_registry_username} ${release_tools_container_registry}
+  - func: "log into devprod container registry"
   - command: subprocess.exec
     params:
       binary: bash
@@ -8069,19 +8069,6 @@ tasks:
   - func: "run tests"
     vars:
       suite: query_golden_cqf
-
-- name: tooling_metrics_test
-  tags: []
-  depends_on: []
-  commands:
-  - *f_expansions_write
-  - func: "do non-compile setup"
-  - func: "set up remote credentials"
-  - *f_expansions_write
-  - func: "configure evergreen api credentials"
-  - func: "run tests"
-    vars:
-      resmoke_jobs_max: 1
 
 #######################################
 #             Task Groups             #

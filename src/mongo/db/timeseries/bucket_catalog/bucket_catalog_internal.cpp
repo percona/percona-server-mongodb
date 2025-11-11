@@ -651,6 +651,7 @@ StatusWith<InsertResult> insert(OperationContext* opCtx,
                                 const BSONObj& doc,
                                 CombineWithInsertsFromOtherClients combine,
                                 AllowBucketCreation mode,
+                                AllowQueryBasedReopening allowQueryBasedReopening,
                                 ReopeningContext* reopeningContext) {
     invariant(!ns.isTimeseriesBucketsCollection());
 
@@ -662,7 +663,7 @@ StatusWith<InsertResult> insert(OperationContext* opCtx,
     auto time = res.getValue().second;
 
     ExecutionStatsController stats = getOrInitializeExecutionStats(catalog, ns);
-    if (reopeningContext) {
+    if (reopeningContext && allowQueryBasedReopening == AllowQueryBasedReopening::kAllow) {
         updateBucketFetchAndQueryStats(*reopeningContext, stats);
     }
 
@@ -752,7 +753,7 @@ StatusWith<InsertResult> insert(OperationContext* opCtx,
     if (!bucket) {
         invariant(mode == AllowBucketCreation::kNo);
         return getReopeningContext(
-            opCtx, catalog, stripe, stripeLock, info, catalogEra, AllowQueryBasedReopening::kAllow);
+            opCtx, catalog, stripe, stripeLock, info, catalogEra, allowQueryBasedReopening);
     }
 
     auto insertionResult = insertIntoBucket(
@@ -797,7 +798,8 @@ StatusWith<InsertResult> insert(OperationContext* opCtx,
                                stripeLock,
                                info,
                                catalogEra,
-                               (*reason == RolloverReason::kTimeBackward)
+                               ((allowQueryBasedReopening == AllowQueryBasedReopening::kAllow) &&
+                                (*reason == RolloverReason::kTimeBackward))
                                    ? AllowQueryBasedReopening::kAllow
                                    : AllowQueryBasedReopening::kDisallow);
 }
@@ -1383,7 +1385,8 @@ std::pair<RolloverAction, RolloverReason> determineRolloverAction(
                 bucket.keptOpenDueToLargeMeasurements = true;
                 info.stats.incNumBucketsKeptOpenDueToLargeMeasurements();
             }
-            return {RolloverAction::kNone, RolloverReason::kNone};
+
+            // Fall through to remaining checks
         } else {
             if (effectiveMaxSize == gTimeseriesBucketMaxSize) {
                 info.stats.incNumBucketsClosedDueToSize();

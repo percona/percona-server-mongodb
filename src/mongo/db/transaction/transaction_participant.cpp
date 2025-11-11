@@ -1499,6 +1499,23 @@ void TransactionParticipant::Participant::unstashTransactionResources(OperationC
                 o().txnState.isInRetryableWriteMode());
     }
 
+    if (cmdName == "abortTransaction" &&
+        (o().txnState.isAbortedWithoutPrepare() || o().txnState.isInProgress() ||
+         o().txnState.isCommitted())) {
+        // Explicitly set lastOp so that the abort for an internal transaction waits for write
+        // concern in the service entry point. This is used by internal transactions (via the
+        // cleanup abort) to ensure that the speculative snapshot the transaction was operating on
+        // has been replicated to secondaries.
+        //
+        // Note that setLastOpToSystemLastOpTime() requires us to not be in a write unit of work,
+        // and so it must be set before we set the write unit of work later in this function.
+        //
+        // We also want to wait to make sure a commit transaction entry has been replicated to
+        // secondaries before officially telling the client that the transaction has already been
+        // committed when we try to abort.
+        repl::ReplClientInfo::forClient(opCtx->getClient()).setLastOpToSystemLastOpTime(opCtx);
+    }
+
     // If this is not a multi-document transaction, there is nothing to unstash.
     if (o().txnState.isInRetryableWriteMode()) {
         invariant(!o().txnResourceStash);
@@ -2126,7 +2143,9 @@ void TransactionParticipant::Participant::shutdown(OperationContext* opCtx) {
 APIParameters TransactionParticipant::Participant::getAPIParameters(OperationContext* opCtx) const {
     // If we have are in a retryable write, use the API parameters that the client passed in with
     // the write, instead of the first write's API parameters.
-    if (o().txnResourceStash && !o().txnState.isInRetryableWriteMode()) {
+    // TODO (SERVER-106429): Revisit the decision for prepared transactions.
+    if (o().txnResourceStash && !o().txnState.isInRetryableWriteMode() &&
+        !o().txnState.isPrepared()) {
         return o().txnResourceStash->getAPIParameters();
     }
     return APIParameters::get(opCtx);
