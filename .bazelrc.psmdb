@@ -31,6 +31,7 @@ common --//bazel/config:local_build=True
 common --//bazel/config:use_sasl_client=True
 common --//bazel/config:inmemory=True
 common --//bazel/config:audit=True
+common --//bazel/config:full_featured=True
 
 # how to build
 common --jobs=auto

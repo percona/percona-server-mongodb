@@ -115,9 +115,10 @@ public:
     virtual std::vector<StringData> modules() const = 0;
 
     /**
-     * Returns a list of the enabled features.
+     * Returns a list of the features Percona implemented on top of the
+     * MongoDB Community Edition.
      */
-    virtual std::vector<StringData> psmdbProFeatures() const = 0;
+    virtual std::vector<StringData> perconaFeatures() const = 0;
 
     /**
      * Returns a string describing the configured memory allocator.

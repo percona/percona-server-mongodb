@@ -74,9 +74,9 @@ public:
         return modulesList;
     }
 
-    std::vector<StringData> psmdbProFeatures() const final {
+    std::vector<StringData> perconaFeatures() const final {
         return {
-@buildinfo_psmdb_pro_features@
+@buildinfo_percona_features@
         };
     }
 

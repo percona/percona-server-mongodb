@@ -7,7 +7,8 @@ function checkBuildInfo(clusterClass) {
 
     const buildInfo = assert.commandWorked(test.admin.runCommand({buildInfo: 1}));
     assert(buildInfo, "Failed to get build info");
-    assert(buildInfo.proFeatures.includes("OIDC"), "OIDC feature should be included in build info");
+    assert(buildInfo.perconaFeatures.includes("OIDC"),
+           "OIDC feature should be included in build info");
 
     test.teardown();
 }
