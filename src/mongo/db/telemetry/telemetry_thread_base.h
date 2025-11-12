@@ -89,7 +89,7 @@ protected:
     static constexpr StringData kDbInstanceId = "db_instance_id"_sd;
     static constexpr StringData kDbInternalId = "db_internal_id"_sd;
     static constexpr StringData kPillarVersion = "pillar_version"_sd;
-    static constexpr StringData kProFeatures = "pro_features"_sd;
+    static constexpr StringData kPerconaFeatures = "percona_features"_sd;
     static constexpr StringData kStorageEngine = "storage_engine"_sd;
     static constexpr StringData kReplicaSetId = "db_replication_id"_sd;
     static constexpr StringData kReplMemberState = "replication_state"_sd;
