@@ -30,6 +30,7 @@ common --legacy_important_outputs
 common --//bazel/config:use_sasl_client=True
 common --//bazel/config:inmemory=True
 common --//bazel/config:audit=True
+common --//bazel/config:full_featured=True
 
 # how to build
 common --build_enterprise=False

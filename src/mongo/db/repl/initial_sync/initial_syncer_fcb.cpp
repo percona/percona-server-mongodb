@@ -38,6 +38,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/bson/bsontypes.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/client/dbclient_cursor.h"
 #include "mongo/client/fetcher.h"
@@ -209,6 +210,23 @@ OpTime parseOpTimeFromBSON(const BSONObj& obj) {
     auto status = OpTime::parseFromOplogEntry(obj);
     uassertStatusOKWithContext(status, "Failed to parse OpTime from BSON");
     return status.getValue();
+}
+
+bool buildSupportsFcbis(const BSONObj& buildInfo) {
+    if (!buildInfo.hasField("psmdbVersion")) {
+        return false;
+    }
+    for (auto featureListName : {"proFeatures"_sd, "perconaFeatures"_sd}) {
+        if (auto featureList = buildInfo.getField(featureListName);
+            !featureList.eoo() && featureList.type() == BSONType::array) {
+            for (const auto& feature : featureList.Obj()) {
+                if (feature.type() == BSONType::string && feature.String() == "FCBIS") {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 }  // namespace
 
@@ -1366,20 +1384,7 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource(WithLock lk) {
                                             << args.response.status.toString());
                         return;
                     }
-                    // check build info
-                    bool fcbisSupported = false;
-                    if (args.response.data.hasField("psmdbVersion")) {
-                        if (auto proFeatures = args.response.data.getField("proFeatures");
-                            !proFeatures.eoo()) {
-                            for (auto&& feature : proFeatures.Obj()) {
-                                if (feature.String() == "FCBIS") {
-                                    fcbisSupported = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (!fcbisSupported) {
+                    if (!buildSupportsFcbis(args.response.data)) {
                         LOGV2_WARNING(
                             128460,
                             "Invalid sync source",

@@ -139,7 +139,7 @@ BuildInfo getBuildInfo() {
     reply.setTargetMinOS(info.targetMinOS());
 #endif
     reply.setModules(info.modules());
-    reply.setProFeatures(info.psmdbProFeatures());
+    reply.setPerconaFeatures(info.perconaFeatures());
     reply.setAllocator(info.allocator());
     reply.setJavascriptEngine(info.jsEngine());
     reply.setSysinfo("deprecated"_sd);
