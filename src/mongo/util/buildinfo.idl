@@ -84,8 +84,8 @@ structs:
                 description: "The set of modules included in this build; e.g. ['enterprise']"
                 type: array<string>
                 optional: true
-            proFeatures:
-                description: "The set of pro features included in this build; e.g. ['FIPSMode', 'FCBIS']"
+            perconaFeatures:
+                description: "The set of the features Percona implemented on top of the MongoDB Community Edition"
                 type: array<string>
                 optional: true
             allocator:

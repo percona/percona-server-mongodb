@@ -78,7 +78,7 @@ public:
         return {};
     }
 
-    std::vector<StringData> psmdbProFeatures() const final {
+    std::vector<StringData> perconaFeatures() const final {
         return {"unknown"};
     }
 };

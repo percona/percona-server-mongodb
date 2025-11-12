@@ -89,7 +89,7 @@ public:
         return {"unknown"};
     }
 
-    std::vector<StringData> psmdbProFeatures() const final {
+    std::vector<StringData> perconaFeatures() const final {
         return {"unknown"};
     }
 
@@ -156,7 +156,7 @@ void VersionInfoInterface::logBuildInfo(std::ostream* os) const {
     bob.append("openSSLVersion", openSSLVersion());
 #endif
     bob.append("modules", modules());
-    bob.append("proFeatures", psmdbProFeatures());
+    bob.append("perconaFeatures", perconaFeatures());
     bob.append("allocator", allocator());
     {
         auto envObj = BSONObjBuilder(bob.subobjStart("environment"));

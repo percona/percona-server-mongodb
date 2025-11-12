@@ -73,8 +73,8 @@ public:
         return modulesList;
     }
 
-    std::vector<StringData> psmdbProFeatures() const final {
-        return psmdbProFeatureList;
+    std::vector<StringData> perconaFeatures() const final {
+        return perconaFeatureList;
     }
 
     StringData allocator() const final {
@@ -114,7 +114,7 @@ private:
     StringData kJsEngine = "@buildinfo_js_engine@"_sd;
     std::vector<StringData> modulesList{@buildinfo_modules@};
     std::vector<VersionInfoInterface::BuildInfoField> buildEnvironment{@buildinfo_environment_data@};
-    std::vector<StringData> psmdbProFeatureList{@buildinfo_psmdb_pro_features@};
+    std::vector<StringData> perconaFeatureList{@buildinfo_percona_features@};
     // clang-format on
 };
 
