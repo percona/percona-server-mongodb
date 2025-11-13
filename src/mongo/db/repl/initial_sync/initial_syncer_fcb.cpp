@@ -29,19 +29,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <algorithm>
-#include <array>
-#include <cstdint>
-#include <functional>
-#include <memory>
-#include <type_traits>
-#include <utility>
-
 #include "initial_syncer_fcb.h"
-
-#include <boost/filesystem.hpp>
-#include <boost/optional.hpp>
-#include <fmt/format.h>
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
@@ -91,6 +79,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/server_recovery.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/startup_recovery.h"
+#include "mongo/db/storage/control/storage_control.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_options.h"
@@ -116,6 +105,18 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/time_support.h"
 #include "mongo/util/timer.h"
 #include "mongo/util/version/releases.h"
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <type_traits>
+#include <utility>
+
+#include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kReplicationInitialSync
 
@@ -1713,6 +1714,13 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
                 str::stream() << "Failed to create directory " << newLocation
                               << " Error: " << ec.message()};
     }
+
+    // Shut down JournalFlusher
+    // startStorageControls is called by reinitializeStorageEngine below
+    StorageControl::stopStorageControls(
+        opCtx->getServiceContext(),
+        {ErrorCodes::InterruptedDueToStorageChange, "Interrupted due to storage change"},
+        /*forRestart=*/false);
 
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
