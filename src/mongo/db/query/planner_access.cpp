@@ -751,10 +751,9 @@ std::unique_ptr<QuerySolutionNode> QueryPlannerAccess::makeLeafNode(
         // We must not keep the expression node around.
         *tightnessOut = IndexBoundsBuilder::EXACT;
         auto textExpr = static_cast<const TextMatchExpressionBase*>(expr);
-        auto ret = std::make_unique<TextMatchNode>(
-            index,
-            textExpr->getFTSQuery().clone(),
-            query.metadataDeps()[DocumentMetadataFields::kTextScore]);
+        bool wantTextScore = DepsTracker::needsTextScoreMetadata(query.metadataDeps());
+        auto ret =
+            std::make_unique<TextMatchNode>(index, textExpr->getFTSQuery().clone(), wantTextScore);
         // Count the number of prefix fields before the "text" field.
         for (auto&& keyPatternElt : ret->index.keyPattern) {
             // We know that the only key pattern with a type of String is the _fts field
@@ -1927,10 +1926,6 @@ std::unique_ptr<QuerySolutionNode> QueryPlannerAccess::buildIndexedOr(
         // We won't enumerate an OR without indices for each child, so this isn't an issue, even
         // if we have an AND with an OR child -- we won't get here unless the OR is fully
         // indexed.
-        return nullptr;
-    }
-
-    if (!wcp::expandWildcardFieldBounds(scanNodes)) {
         return nullptr;
     }
 

@@ -1468,6 +1468,11 @@ bool isQuerySbeCompatible(const CollectionPtr& collection, const CanonicalQuery&
         return false;
     }
 
+    // Find and aggregate queries with the $_startAt parameter are not supported in SBE.
+    if (!cq.getFindCommandRequest().getStartAt().isEmpty()) {
+        return false;
+    }
+
     const auto& sortPattern = cq.getSortPattern();
     return !sortPattern || isSortSbeCompatible(*sortPattern);
 }
@@ -1480,7 +1485,6 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     std::size_t plannerOptions,
     Pipeline* pipeline,
     bool needsMerge,
-    QueryMetadataBitSet unavailableMetadata,
     boost::optional<TraversalPreference> traversalPreference,
     ExecShardFilterPolicy execShardFilterPolicy) {
     invariant(canonicalQuery);
@@ -1600,7 +1604,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     if (useSbeEngine) {
         // Commit to using SBE by removing the pushed-down aggregation stages from the original
         // pipeline and by mutating the canonical query with search specific metadata.
-        finalizePipelineStages(pipeline, unavailableMetadata, canonicalQuery.get());
+        finalizePipelineStages(pipeline, canonicalQuery.get());
         canonicalQuery->setSbeCompatible(true);
 
     } else {

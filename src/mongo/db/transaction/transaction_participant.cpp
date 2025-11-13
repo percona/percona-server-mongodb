@@ -352,7 +352,8 @@ ActiveTransactionHistory fetchActiveTransactionHistory(OperationContext* opCtx,
 
     // Restore the current timestamp read source after fetching transaction history, which may
     // change our ReadSource.
-    ReadSourceScope readSourceScope(opCtx, RecoveryUnit::ReadSource::kNoTimestamp);
+    ReadSourceScope readSourceScope(
+        opCtx, RecoveryUnit::ReadSource::kNoTimestamp, boost::none, true /* waitForOplog */);
     auto originalReadConcern =
         std::exchange(repl::ReadConcernArgs::get(opCtx), repl::ReadConcernArgs());
     ON_BLOCK_EXIT([&] { repl::ReadConcernArgs::get(opCtx) = std::move(originalReadConcern); });
@@ -929,6 +930,8 @@ void TransactionParticipant::Participant::_continueMultiDocumentTransaction(
     uassert(ErrorCodes::NoSuchTransaction,
             str::stream()
                 << "Given transaction number " << txnNumberAndRetryCounter.getTxnNumber()
+                << " on session " << _sessionId() << " using txnRetryCounter "
+                << txnNumberAndRetryCounter.getTxnRetryCounter()
                 << " does not match any in-progress transactions. The active transaction number is "
                 << o().activeTxnNumberAndRetryCounter.getTxnNumber(),
             txnNumberAndRetryCounter.getTxnNumber() ==
@@ -2296,6 +2299,11 @@ void TransactionParticipant::Participant::_commitSplitPreparedTxnOnPrimary(
         UninterruptibleLockGuard noInterrupt(splitOpCtx.get());  // NOLINT
         newTxnParticipant.unstashTransactionResources(splitOpCtx.get(), "commitTransaction");
 
+        BSONObjBuilder builder;
+        reportUnstashedState(userOpCtx, &builder);
+        LOGV2(10631000,
+              "Setting the commit timestamp for a split prepared transaction on primary",
+              "unstashed state"_attr = builder.obj());
         shard_role_details::getRecoveryUnit(splitOpCtx.get())->setCommitTimestamp(commitTimestamp);
         shard_role_details::getRecoveryUnit(splitOpCtx.get())
             ->setDurableTimestamp(durableTimestamp);
@@ -2353,7 +2361,9 @@ void TransactionParticipant::Participant::shutdown(OperationContext* opCtx) {
 APIParameters TransactionParticipant::Participant::getAPIParameters(OperationContext* opCtx) const {
     // If we have are in a retryable write, use the API parameters that the client passed in with
     // the write, instead of the first write's API parameters.
-    if (o().txnResourceStash && !o().txnState.isInRetryableWriteMode()) {
+    // TODO (SERVER-106429): Revisit the decision for prepared transactions.
+    if (o().txnResourceStash && !o().txnState.isInRetryableWriteMode() &&
+        !o().txnState.isPrepared()) {
         return o().txnResourceStash->getAPIParameters();
     }
     return APIParameters::get(opCtx);
@@ -3621,6 +3631,13 @@ boost::optional<repl::OplogEntry> TransactionParticipant::Participant::checkStat
     // Use a SideTransactionBlock since it is illegal to scan the oplog while in a write unit of
     // work.
     TransactionParticipant::SideTransactionBlock sideTxn(opCtx);
+
+    // Before opening the storage snapshot (and before scanning the oplog), wait for all
+    // earlier oplog writes to be visible. This is necessary because the transaction history
+    // iterator will not be able to abandon the storage snapshot and wait.
+    auto storageInterface = repl::StorageInterface::get(opCtx);
+    storageInterface->waitForAllEarlierOplogWritesToBeVisible(opCtx);
+
     TransactionHistoryIterator txnIter(*stmtOpTime);
     while (txnIter.hasNext()) {
         const auto entry = txnIter.next(opCtx);

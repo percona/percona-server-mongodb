@@ -78,8 +78,12 @@ public:
                 opCtx, insertedData.data(), insertedData.length(), ts);
             ASSERT_OK(recordIdStatus);
             auto recordId = recordIdStatus.getValue();
-            testMarkers.updateCurrentMarkerAfterInsertOnCommit(
-                opCtx, insertedData.length(), recordId, now, 1);
+            testMarkers.updateCurrentMarkerAfterInsertOnCommit(opCtx,
+                                                               insertedData.length(),
+                                                               recordId,
+                                                               now,
+                                                               1,
+                                                               /*oplogSamplingAsyncEnabled*/ false);
             records.push_back(RecordIdAndWall{std::move(recordId), std::move(now)});
         }
         wuow.commit();
@@ -110,7 +114,7 @@ public:
         ASSERT_EQ(recordIdStatus.getValue(), recordId);
         auto now = Date_t::fromMillisSinceEpoch(timestampToUse.asInt64());
         testMarkers.updateCurrentMarkerAfterInsertOnCommit(
-            opCtx, insertedData.length(), recordId, now, 1);
+            opCtx, insertedData.length(), recordId, now, 1, /*oplogSamplingAsyncEnabled*/ false);
         wuow.commit();
         return recordId;
     }
@@ -264,14 +268,14 @@ void createNewMarkerTest(CollectionMarkersTest* fixture, std::string collectionN
     {
         auto opCtx = fixture->getClient()->makeOperationContext();
 
-        ASSERT_EQ(0U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(0U, testMarkers->numMarkers());
 
         // Inserting a record smaller than 'minBytesPerMarker' shouldn't create a new collection
         // marker.
         auto insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 99, Timestamp(1, 1), RecordId(1, 1));
         ASSERT_EQ(insertedRecordId, RecordId(1, 1));
-        ASSERT_EQ(0U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(0U, testMarkers->numMarkers());
         ASSERT_EQ(1, testMarkers->currentRecords_forTest());
         ASSERT_EQ(99, testMarkers->currentBytes_forTest());
 
@@ -280,7 +284,7 @@ void createNewMarkerTest(CollectionMarkersTest* fixture, std::string collectionN
         insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 51, Timestamp(1, 2), RecordId(1, 2));
         ASSERT_EQ(insertedRecordId, RecordId(1, 2));
-        ASSERT_EQ(1U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(1U, testMarkers->numMarkers());
         ASSERT_EQ(0, testMarkers->currentRecords_forTest());
         ASSERT_EQ(0, testMarkers->currentBytes_forTest());
 
@@ -290,7 +294,7 @@ void createNewMarkerTest(CollectionMarkersTest* fixture, std::string collectionN
         insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 50, Timestamp(1, 3), RecordId(1, 3));
         ASSERT_EQ(insertedRecordId, RecordId(1, 3));
-        ASSERT_EQ(1U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(1U, testMarkers->numMarkers());
         ASSERT_EQ(1, testMarkers->currentRecords_forTest());
         ASSERT_EQ(50, testMarkers->currentBytes_forTest());
 
@@ -299,7 +303,7 @@ void createNewMarkerTest(CollectionMarkersTest* fixture, std::string collectionN
         insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 50, Timestamp(1, 4), RecordId(1, 4));
         ASSERT_EQ(insertedRecordId, RecordId(1, 4));
-        ASSERT_EQ(2U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(2U, testMarkers->numMarkers());
         ASSERT_EQ(0, testMarkers->currentRecords_forTest());
         ASSERT_EQ(0, testMarkers->currentBytes_forTest());
 
@@ -308,7 +312,7 @@ void createNewMarkerTest(CollectionMarkersTest* fixture, std::string collectionN
         insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 101, Timestamp(1, 5), RecordId(1, 5));
         ASSERT_EQ(insertedRecordId, RecordId(1, 5));
-        ASSERT_EQ(3U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(3U, testMarkers->numMarkers());
         ASSERT_EQ(0, testMarkers->currentRecords_forTest());
         ASSERT_EQ(0, testMarkers->currentBytes_forTest());
     }
@@ -334,11 +338,11 @@ void ascendingOrderTest(CollectionMarkersTest* fixture, std::string collectionNa
     {
         auto opCtx = fixture->getClient()->makeOperationContext();
 
-        ASSERT_EQ(0U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(0U, testMarkers->numMarkers());
         auto insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 50, Timestamp(2, 2), RecordId(2, 2));
         ASSERT_EQ(insertedRecordId, RecordId(2, 2));
-        ASSERT_EQ(0U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(0U, testMarkers->numMarkers());
         ASSERT_EQ(1, testMarkers->currentRecords_forTest());
         ASSERT_EQ(50, testMarkers->currentBytes_forTest());
 
@@ -347,7 +351,7 @@ void ascendingOrderTest(CollectionMarkersTest* fixture, std::string collectionNa
         insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 50, Timestamp(2, 1), RecordId(2, 1));
         ASSERT_EQ(insertedRecordId, RecordId(2, 1));
-        ASSERT_EQ(1U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(1U, testMarkers->numMarkers());
         ASSERT_EQ(0, testMarkers->currentRecords_forTest());
         ASSERT_EQ(0, testMarkers->currentBytes_forTest());
 
@@ -357,7 +361,7 @@ void ascendingOrderTest(CollectionMarkersTest* fixture, std::string collectionNa
         insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 100, Timestamp(1, 1), RecordId(1, 1));
         ASSERT_EQ(insertedRecordId, RecordId(1, 1));
-        ASSERT_EQ(1U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(1U, testMarkers->numMarkers());
         ASSERT_EQ(1, testMarkers->currentRecords_forTest());
         ASSERT_EQ(100, testMarkers->currentBytes_forTest());
 
@@ -366,7 +370,7 @@ void ascendingOrderTest(CollectionMarkersTest* fixture, std::string collectionNa
         insertedRecordId = fixture->insertWithSpecificTimestampAndRecordId(
             opCtx.get(), collNs, *testMarkers, 50, Timestamp(2, 3), RecordId(2, 3));
         ASSERT_EQ(insertedRecordId, RecordId(2, 3));
-        ASSERT_EQ(2U, testMarkers->numMarkers_forTest());
+        ASSERT_EQ(2U, testMarkers->numMarkers());
         ASSERT_EQ(0, testMarkers->currentRecords_forTest());
         ASSERT_EQ(0, testMarkers->currentBytes_forTest());
     }
@@ -576,4 +580,53 @@ TEST_F(CollectionMarkersTest, SamplingAutoYieldingWorks) {
                   kNumElementsToSample / internalQueryExecYieldIterations.load());
     }
 }
+
+// Test that cursors will yield periodically, and (since the yield drops the snapshot) that the
+// cursor doesn't "see" new records.
+TEST_F(CollectionMarkersTest, CursorYieldsAndIgnoresNewRecords) {
+    static constexpr auto kNumElements = 100;
+    static constexpr auto kElementSize = 100;
+
+    TickSourceMock mockTickSource;
+    auto collNs = NamespaceString::createNamespaceString_forTest("test", "coll");
+    {
+        auto opCtx = getClient()->makeOperationContext();
+        ASSERT_OK(createCollection(opCtx.get(), collNs));
+        insertElements(opCtx.get(), collNs, kElementSize, kNumElements, Timestamp(1, 0));
+    }
+
+    auto opCtx = getClient()->makeOperationContext();
+    AutoGetCollection coll(opCtx.get(), collNs, MODE_IS);
+    YieldableOplogIterator iterator(
+        opCtx.get(), coll->getRecordStore(), &mockTickSource, Milliseconds(10));
+
+    AtomicWord<bool> hasYielded(false);
+    stdx::thread yieldNotifier([this, &collNs, &hasYielded] {
+        ThreadClient client(getServiceContext()->getService());
+        auto innerOpCtx = cc().makeOperationContext();
+        // We won't be able to acquire the write lock until the read yields.
+        insertElements(
+            innerOpCtx.get(), collNs, /*dataLength=*/100, /*numElements=*/10, Timestamp(1, 0));
+        hasYielded.store(true);
+    });
+
+    ASSERT_FALSE(hasYielded.load());
+
+    size_t seenRecords = 0;
+    while (!hasYielded.load()) {
+        mockTickSource.advance(Milliseconds(11));
+        if (iterator.getNext()) {
+            ++seenRecords;
+        }
+    }
+    yieldNotifier.join();
+
+    while (iterator.getNext()) {
+        ++seenRecords;
+    }
+
+    ASSERT_EQ(seenRecords, kNumElements);
+    ASSERT_LT(static_cast<long long>(seenRecords), coll->getRecordStore()->numRecords(opCtx.get()));
+}
+
 }  // namespace mongo

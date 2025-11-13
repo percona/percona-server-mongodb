@@ -93,7 +93,7 @@ variables:
   #   variant: linux-debug-aubsan-compile-required
 
 # If you add anything to san_options, make sure the appropriate changes are
-# also made to SConstruct.
+# also made to build.
 # THIS HAS COPIES IN:
 # - etc/evergreen_yml_components/variants/sanitizer/test_dev_master_branch_only.yml
 # - etc/evergreen_yml_components/variants/sanitizer/test_dev.yml
@@ -120,6 +120,7 @@ variables:
   multiversion_platform: rhel80
   multiversion_platform_50_or_later: rhel8
   multiversion_edition: enterprise
+  core_analyzer_gdb_index_cache: off
 
 buildvariants:
 - <<: *linux-x86-dynamic-compile-params
@@ -157,7 +158,10 @@ buildvariants:
     omit_generated_tasks: true
   tasks:
   - name: .development_critical !.requires_compile_variant !.incompatible_development_variant !.requires_all_feature_flags
-  - name: .release_critical !.requires_compile_variant !.incompatible_development_variant !.requires_all_feature_flags
+  - name: .release_critical !.requires_compile_variant !.incompatible_development_variant !.requires_all_feature_flags !.requires_large_host
+  - name: .release_critical !.requires_compile_variant !.incompatible_development_variant !.requires_all_feature_flags .requires_large_host
+    distros:
+    - rhel8.8-large
   - name: .default !.requires_compile_variant !.incompatible_development_variant !.requires_all_feature_flags
 
 - &enterprise-rhel-8-64-bit-dynamic-dbcheck
@@ -278,7 +282,10 @@ buildvariants:
   - name: .encrypt
   - name: .jscore .common !jsCore !.sbe_only
   - name: .jstestfuzz !.feature_flag_guarded !.flow_control
-  - name: .misc_js
+  - name: .misc_js !.requires_large_host
+  - name: .misc_js .requires_large_host
+    distros:
+    - rhel8.8-large
   - name: .multi_shard
   - name: .query_fuzzer
   - name: query_golden_classic
@@ -421,3 +428,16 @@ buildvariants:
   - name: .serverless
   - name: unittest_shell_hang_analyzer_gen
   - name: .watchdog
+
+- name: upload-sbom-if-changed
+  display_name: "Upload SBOM if changed"
+  allowed_requesters: ["commit"]
+  activate: true
+  paths:
+    - "sbom.json"
+  tags: ["auxiliary", "assigned_to_jira_team_platsec_server"]
+  run_on:
+    - rhel8.8-small
+  stepback: false
+  tasks:
+    - name: upload_sbom_via_silkbomb_if_changed

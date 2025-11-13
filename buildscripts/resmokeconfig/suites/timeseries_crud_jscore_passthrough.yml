@@ -253,6 +253,7 @@ selector:
   # TODO(SERVER-85322): Try to include this test(s).
   - jstests/core/resume_query.js
   - jstests/core/resume_query_from_non_existent_record.js
+  - jstests/core/query/start_at_blocked_in_sbe.js
   # TODO(SERVER-82059): Try to include this test(s).
   - jstests/core/ts1.js
   # Cursor manipulation incompatible with count 'applySkipLimit' option.
@@ -281,6 +282,7 @@ selector:
   - jstests/core/rename_system_buckets_collections.js
   # Inserts documents that are too large for a timeseries collection.
   - jstests/core/query/bson_size_limit.js
+  - jstests/core/**/*_pbt.js
 
   exclude_with_any_tags:
   - requires_sharding

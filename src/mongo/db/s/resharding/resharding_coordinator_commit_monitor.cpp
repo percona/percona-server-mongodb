@@ -98,17 +98,6 @@ auto makeRequests(const BSONObj& cmdObj, const std::vector<ShardId>& recipientSh
     return requests;
 }
 
-static constexpr auto kRemainingOperationTimeFieldName = "remainingMillis"_sd;
-
-boost::optional<Milliseconds> extractOperationRemainingTime(const BSONObj& obj) {
-    if (const auto field = obj.getField(kRemainingOperationTimeFieldName); field.ok()) {
-        const auto remainingTimeMillis =
-            uassertStatusOK(field.parseIntegerElementToNonNegativeLong());
-        return Milliseconds(remainingTimeMillis);
-    }
-    return boost::none;
-}
-
 }  // namespace
 
 CoordinatorCommitMonitor::CoordinatorCommitMonitor(
@@ -124,7 +113,6 @@ CoordinatorCommitMonitor::CoordinatorCommitMonitor(
       _recipientShards(std::move(recipientShards)),
       _executor(std::move(executor)),
       _cancelToken(std::move(cancelToken)),
-      _threshold(Milliseconds(gRemainingReshardingOperationTimeThresholdMillis.load())),
       _delayBeforeInitialQueryMillis(Milliseconds(delayBeforeInitialQueryMillis)),
       _maxDelayBetweenQueries(maxDelayBetweenQueries) {}
 
@@ -193,7 +181,9 @@ CoordinatorCommitMonitor::queryRemainingOperationTimeForRecipients() const {
         auto status = getStatusFromCommandResult(shardResponse.data);
         uassertStatusOKWithContext(status, errorContext);
 
-        const auto remainingTime = extractOperationRemainingTime(shardResponse.data);
+        auto parsedShardResponse = ShardsvrReshardingOperationTimeResponse::parse(
+            IDLParserContext("CoordinatorCommitMonitor"), shardResponse.data);
+        auto remainingTime = parsedShardResponse.getRemainingMillis();
 
         // If any recipient omits the "remainingMillis" field of the response then
         // we cannot conclude that it is safe to begin the critical section.
@@ -204,6 +194,17 @@ CoordinatorCommitMonitor::queryRemainingOperationTimeForRecipients() const {
             maxRemainingTime = Milliseconds::max();
             continue;
         }
+
+        if (resharding::gReshardingRemainingTimeEstimateAccountsForRecipientReplicationLag.load()) {
+            // The remaining time estimate should account for the replication lag since
+            // transitioning to the "strict-consistency" state (or any state) requires waiting for
+            // the write to the recipient state doc to be majority committed. If the replication lag
+            // info is not available which is expected in a mixed version cluster, assume that it is
+            // zero.
+            remainingTime = *remainingTime +
+                parsedShardResponse.getMajorityReplicationLagMillis().value_or(Milliseconds(0));
+        }
+
         if (remainingTime.value() < minRemainingTime) {
             minRemainingTime = remainingTime.value();
         }
@@ -254,6 +255,8 @@ ExecutorFuture<void> CoordinatorCommitMonitor::_makeFuture(Milliseconds delayBet
             return RemainingOperationTimes{Milliseconds(-1), Milliseconds::max()};
         })
         .then([this, anchor = shared_from_this()](RemainingOperationTimes remainingTimes) mutable {
+            auto threshold = Milliseconds(gRemainingReshardingOperationTimeThresholdMillis.load());
+
             // If remainingTimes.max (or remainingTimes.min) is Milliseconds::max, then use -1 so
             // that the scale of the y-axis is still useful when looking at FTDC metrics.
             auto clampIfMax = [](Milliseconds t) {
@@ -263,14 +266,14 @@ ExecutorFuture<void> CoordinatorCommitMonitor::_makeFuture(Milliseconds delayBet
             _metrics->setCoordinatorLowEstimateRemainingTimeMillis(clampIfMax(remainingTimes.min));
 
             // Check if all recipient shards are within the commit threshold.
-            if (remainingTimes.max <= _threshold)
+            if (remainingTimes.max <= threshold)
                 return ExecutorFuture<void>(_executor);
 
             // The following ensures that the monitor would never sleep for more than a predefined
             // maximum delay between querying recipient shards. Thus, it can handle very large,
             // and potentially inaccurate estimates of the remaining operation time.
             auto delayBetweenQueries =
-                std::min(remainingTimes.max - _threshold, _maxDelayBetweenQueries);
+                std::min(remainingTimes.max - threshold, _maxDelayBetweenQueries);
 
             return _makeFuture(delayBetweenQueries);
         });

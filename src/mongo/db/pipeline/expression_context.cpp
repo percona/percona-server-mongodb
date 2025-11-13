@@ -384,6 +384,8 @@ boost::intrusive_ptr<ExpressionContext> ExpressionContext::copyWith(
 
     expCtx->_querySettings = _querySettings;
 
+    expCtx->_isRankFusion = _isRankFusion;
+
     // Note that we intentionally skip copying the value of '_interruptCounter' because 'expCtx' is
     // intended to be used for executing a separate aggregation pipeline.
 
@@ -460,12 +462,16 @@ void ExpressionContext::throwIfFeatureFlagIsNotEnabledOnFCV(
     // should check the lowest FCV. We are guaranteed that maxFeatureCompatibilityVersion will
     // always be greater than or equal to the last LTS. So we will check the last LTS.
     const auto fcv = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-    mongo::multiversion::FeatureCompatibilityVersion versionToCheck = fcv.getVersion();
-    if (!fcv.isVersionInitialized()) {
-        // (Generic FCV reference): This FCV reference should exist across LTS binary versions.
-        versionToCheck = multiversion::GenericFCV::kLastLTS;
-    } else if (maxFeatureCompatibilityVersion) {
-        versionToCheck = *maxFeatureCompatibilityVersion;
+    // (Generic FCV reference): This FCV reference should exist across LTS binary
+    // versions.
+    mongo::multiversion::FeatureCompatibilityVersion versionToCheck =
+        multiversion::GenericFCV::kLastLTS;
+
+    // Ensure 'fcv' is initialized before calling 'getVersion()' to prevent an invariant
+    // error.
+    if (fcv.isVersionInitialized()) {
+        versionToCheck =
+            maxFeatureCompatibilityVersion ? *maxFeatureCompatibilityVersion : fcv.getVersion();
     }
 
     uassert(ErrorCodes::QueryFeatureNotAllowed,
@@ -481,6 +487,17 @@ void ExpressionContext::throwIfFeatureFlagIsNotEnabledOnFCV(
 
 bool ExpressionContext::isFeatureFlagBinDataConvertEnabled() {
     return _featureFlagBinDataConvertValue.get();
+}
+
+bool ExpressionContext::shouldParserAllowBinDataConvert() const {
+    return shouldParserIgnoreFeatureFlagCheck() || _featureFlagBinDataConvertValue.get();
+}
+
+void ExpressionContext::ignoreFeatureInParserOrRejectAndThrow(
+    StringData name, const boost::optional<FeatureFlag>& flag) {
+    if (!shouldParserIgnoreFeatureFlagCheck()) {
+        throwIfFeatureFlagIsNotEnabledOnFCV(name, flag);
+    }
 }
 
 }  // namespace mongo

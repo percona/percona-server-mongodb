@@ -385,6 +385,14 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
                 operationType = DocumentSourceChangeStream::kCreateIndexesOpType;
                 nss = NamespaceStringUtil::deserialize(nss.dbName(), nssField.getStringData());
                 operationDescription = Value(Document{{"indexes", oField.getField("indexes")}});
+            } else if (auto nssField = oField.getField("startIndexBuild"); !nssField.missing()) {
+                operationType = DocumentSourceChangeStream::kStartIndexBuildOpType;
+                nss = NamespaceStringUtil::deserialize(nss.dbName(), nssField.getStringData());
+                operationDescription = Value(Document{{"indexes", oField.getField("indexes")}});
+            } else if (auto nssField = oField.getField("abortIndexBuild"); !nssField.missing()) {
+                operationType = DocumentSourceChangeStream::kAbortIndexBuildOpType;
+                nss = NamespaceStringUtil::deserialize(nss.dbName(), nssField.getStringData());
+                operationDescription = Value(Document{{"indexes", oField.getField("indexes")}});
             } else if (auto nssField = oField.getField("dropIndexes"); !nssField.missing()) {
                 const auto o2Field = input[repl::OplogEntry::kObject2FieldName].getDocument();
                 operationType = DocumentSourceChangeStream::kDropIndexesOpType;

@@ -127,14 +127,17 @@ public:
 
     void popOldestMarker();
 
-    void createNewMarkerIfNeeded(const RecordId& lastRecord, Date_t wallTime);
+    void createNewMarkerIfNeeded(const RecordId& lastRecord,
+                                 Date_t wallTime,
+                                 bool oplogSamplingAsyncEnabled);
 
     // Updates the current marker with the inserted value if the operation commits the WUOW.
     virtual void updateCurrentMarkerAfterInsertOnCommit(OperationContext* opCtx,
                                                         int64_t bytesInserted,
                                                         const RecordId& highestInsertedRecordId,
                                                         Date_t wallTime,
-                                                        int64_t countInserted);
+                                                        int64_t countInserted,
+                                                        bool oplogSamplingAsyncEnabled);
 
     /**
      * Waits for expired markers. See _hasExcessMarkers().
@@ -150,7 +153,7 @@ public:
     }
 
     // The method used for creating the initial set of markers.
-    enum class MarkersCreationMethod { EmptyCollection, Scanning, Sampling };
+    enum class MarkersCreationMethod { EmptyCollection, Scanning, Sampling, InProgress };
 
     static StringData toString(MarkersCreationMethod creationMethod);
 
@@ -199,6 +202,8 @@ public:
      */
     class CollectionIterator {
     public:
+        virtual ~CollectionIterator() = default;
+
         // Returns the next element in the collection. Behaviour is the same as performing a normal
         // collection scan.
         virtual boost::optional<std::pair<RecordId, BSONObj>> getNext() = 0;
@@ -242,7 +247,8 @@ public:
         CollectionIterator& collIterator,
         const NamespaceString& ns,
         int64_t minBytesPerMarker,
-        std::function<RecordIdAndWallTime(const Record&)> getRecordIdAndWallTime);
+        std::function<RecordIdAndWallTime(const Record&)> getRecordIdAndWallTime,
+        TickSource* tickSource = globalSystemTickSource());
 
     // Creates the initial set of markers by sampling the collection. The set of markers
     // returned will have approximate metrics. The metrics of each marker will be equal and contain
@@ -257,17 +263,20 @@ public:
 
     void setMinBytesPerMarker(int64_t size);
 
+    // Sets the _initialSamplingFinished variable to true. Allows other threads to know that initial
+    // sampling of oplog truncate markers during startup has finished.
+    void initialSamplingFinished();
+
     static constexpr uint64_t kRandomSamplesPerMarker = 10;
+
+    size_t numMarkers() const {
+        stdx::lock_guard<std::mutex> lk(_markersMutex);
+        return _markers.size();
+    }
 
     //
     // The following methods are public only for use in tests.
     //
-
-    size_t numMarkers_forTest() const {
-        stdx::lock_guard<Latch> lk(_markersMutex);
-        return _markers.size();
-    }
-
     int64_t currentBytes_forTest() const {
         return _currentBytes.load();
     }
@@ -300,9 +309,13 @@ private:
     AtomicWord<int64_t> _currentRecords;  // Number of records in the marker being filled.
     AtomicWord<int64_t> _currentBytes;    // Number of bytes in the marker being filled.
 
-    // Protects against concurrent access to the deque of collection markers.
-    mutable Mutex _markersMutex = MONGO_MAKE_LATCH("CollectionTruncateMarkers::_markersMutex");
+    // Protects against concurrent access to the deque of collection markers and the
+    // _initialSamplingFinished variable.
+    mutable std::mutex _markersMutex;
     std::deque<Marker> _markers;  // front = oldest, back = newest.
+
+    // Whether or not the initial set of markers has finished being sampled.
+    bool _initialSamplingFinished = false;
 
 protected:
     struct PartialMarkerMetrics {
@@ -336,7 +349,7 @@ protected:
      * markers will be created.
      */
     bool isEmpty() const {
-        stdx::lock_guard<Latch> lk(_markersMutex);
+        stdx::lock_guard<std::mutex> lk(_markersMutex);
         return _markers.size() == 0 && _currentBytes.load() == 0 && _currentRecords.load() == 0;
     }
 
@@ -378,7 +391,8 @@ public:
                                                 int64_t bytesInserted,
                                                 const RecordId& highestInsertedRecordId,
                                                 Date_t wallTime,
-                                                int64_t countInserted) final;
+                                                int64_t countInserted,
+                                                bool oplogSamplingAsyncEnabled) final;
 
     std::pair<const RecordId&, const Date_t&> getPartialMarker_forTest() const {
         return {_lastHighestRecordId, _lastHighestWallTime};
@@ -414,12 +428,13 @@ protected:
     void updateCurrentMarker(int64_t bytesAdded,
                              const RecordId& highestRecordId,
                              Date_t highestWallTime,
-                             int64_t numRecordsAdded);
+                             int64_t numRecordsAdded,
+                             bool oplogSamplingAsyncEnabled);
 };
 
 /**
- * A Collection iterator meant to work with raw RecordStores. This iterator will not yield between
- * calls to getNext()/getNextRandom().
+ * A Collection iterator meant to work with raw RecordStores. Whether this iterator yields between
+ * calls to getNext()/getNextRandom(), or not, is decided by the child class.
  *
  * It is only safe to use when the user is not accepting any user operation. Some examples of when
  * this class can be used are during oplog initialisation, repair, recovery, etc.
@@ -430,7 +445,9 @@ public:
         reset(opCtx);
     }
 
-    boost::optional<std::pair<RecordId, BSONObj>> getNext() final {
+    ~UnyieldableCollectionIterator() override = default;
+
+    boost::optional<std::pair<RecordId, BSONObj>> getNext() override {
         auto record = _directionalCursor->next();
         if (!record) {
             return boost::none;
@@ -438,7 +455,7 @@ public:
         return std::make_pair(std::move(record->id), record->data.releaseToBson());
     }
 
-    boost::optional<std::pair<RecordId, BSONObj>> getNextRandom() final {
+    boost::optional<std::pair<RecordId, BSONObj>> getNextRandom() override {
         auto record = _randomCursor->next();
         if (!record) {
             return boost::none;
@@ -455,10 +472,31 @@ public:
         _randomCursor = _rs->getRandomCursor(opCtx);
     }
 
-private:
+protected:
     RecordStore* _rs;
     std::unique_ptr<RecordCursor> _directionalCursor;
     std::unique_ptr<RecordCursor> _randomCursor;
+};
+
+class YieldableOplogIterator : public UnyieldableCollectionIterator {
+public:
+    YieldableOplogIterator(OperationContext* opCtx,
+                           RecordStore* rs,
+                           TickSource* ticks,
+                           Milliseconds yieldInterval);
+
+    boost::optional<std::pair<RecordId, BSONObj>> getNext() final;
+
+    boost::optional<std::pair<RecordId, BSONObj>> getNextRandom() final;
+
+private:
+    // Release resources held by the iterator, allowing other concurrent operations to proceed.
+    void _maybeYield();
+
+    OperationContext* _opCtx;
+    Timer _yieldTimer;
+    Milliseconds _yieldInterval;
+    RecordId _lastRecordId;
 };
 
 /**

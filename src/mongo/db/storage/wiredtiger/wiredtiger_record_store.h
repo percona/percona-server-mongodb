@@ -279,6 +279,8 @@ public:
      */
     void setDataSize(long long dataSize);
 
+    void sampleAndUpdate(OperationContext* opCtx) override;
+
     bool isOpHidden_forTest(const RecordId& id) const;
 
     class OplogTruncateMarkers;
@@ -383,6 +385,7 @@ private:
     WiredTigerKVEngine* _kvEngine;  // not owned.
 
     // Non-null if this record store is underlying the active oplog.
+    mutable RWMutex _oplogTruncateMarkersMutex;
     std::shared_ptr<OplogTruncateMarkers> _oplogTruncateMarkers;
 
     AtomicWord<int64_t>

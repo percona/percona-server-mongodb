@@ -134,7 +134,6 @@ variables:
     vars:
       files: >-
         src/resmoke_error_code
-        src/build/scons/config.log
         src/*.gcda.gcov
         src/gcov-intermediate-files.tgz
         src/*.core src/*.mdmp src/*.core.gz src/*.mdmp.gz
@@ -167,8 +166,6 @@ variables:
   - func: "set up credentials"
   - func: "f_expansions_write"
   - func: "use WiredTiger develop" # noop if ${use_wt_develop} is not "true"
-  - func: "f_expansions_write"
-  - func: "set up win mount script"
   - func: "f_expansions_write"
   teardown_group:
   - func: "f_expansions_write"
@@ -1984,6 +1981,12 @@ tasks:
     vars:
       suite: sharded_causally_consistent_jscore_txns_passthrough
       resmoke_args: --excludeWithAnyTags=uses_snapshot_read_concern
+
+- <<: *gen_task_template
+  name: sharding_jscore_passthrough_with_injected_catalog_metadata_gen
+  tags: ["assigned_to_jira_team_server_catalog_and_routing", "default", "sharding", "jscore", "common"]
+  commands:
+  - func: "generate resmoke tasks"
 
 - <<: *gen_task_template
   name: unsplittable_collections_created_on_any_shard_jscore_passthrough_gen

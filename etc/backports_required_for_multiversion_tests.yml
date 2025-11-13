@@ -21,6 +21,8 @@
 #
 last-continuous:
   all:
+  - test_file: jstests/core/json_schema/json_schema.js
+    ticket: SERVER-98676
   - test_file: jstests/core/query/explain/explain_plan_cache.js
     ticket: SERVER-97662
   - test_file: jstests/change_streams/change_streams_dynamic_match_expressions.js
@@ -855,9 +857,27 @@ last-continuous:
     ticket: SERVER-108341
   - test_file: jstests/core/txns/multi_statement_transaction_abort.js
     ticket: SERVER-84081
+  - test_file: jstests/change_streams/ddl_create_drop_index_events.js
+    ticket: SERVER-93153
+  - test_file: jstests/change_streams/resume_expanded_events.js
+    ticket: SERVER-93153
+  - test_file: jstests/change_streams/show_resharding_system_events.js
+    ticket: SERVER-93153
+  - test_file: jstests/sharding/resharding_cloning_metrics_after_failover.js
+    ticket: SERVER-92978
+  - test_file: jstests/change_streams/ddl_abort_index_build_event.js
+    ticket: SERVER-93154
+  - test_file: jstests/core/query/update/update_set_unset.js
+    ticket: SERVER-103960
+  - test_file: jstests/sharding/resharding_commit_monitor_repl_lag.js
+    ticket: SERVER-103932
+  - test_file: jstests/sharding/txn_lookup_hits_migration_conflict_all_colls_local.js
+    ticket: SERVER-107535
   suites: null
 last-lts:
   all:
+  - test_file: jstests/core/json_schema/json_schema.js
+    ticket: SERVER-98676
   - test_file: jstests/core/query/explain/explain_plan_cache.js
     ticket: SERVER-97662
   - test_file: jstests/change_streams/change_streams_dynamic_match_expressions.js
@@ -1772,4 +1792,20 @@ last-lts:
     ticket: SERVER-108341
   - test_file: jstests/core/txns/multi_statement_transaction_abort.js
     ticket: SERVER-84081
+  - test_file: jstests/change_streams/ddl_create_drop_index_events.js
+    ticket: SERVER-93153
+  - test_file: jstests/change_streams/resume_expanded_events.js
+    ticket: SERVER-93153
+  - test_file: jstests/change_streams/show_resharding_system_events.js
+    ticket: SERVER-93153
+  - test_file: jstests/sharding/resharding_cloning_metrics_after_failover.js
+    ticket: SERVER-92978
+  - test_file: jstests/change_streams/ddl_abort_index_build_event.js
+    ticket: SERVER-93154
+  - test_file: jstests/core/query/update/update_set_unset.js
+    ticket: SERVER-103960
+  - test_file: jstests/sharding/resharding_commit_monitor_repl_lag.js
+    ticket: SERVER-103932
+  - test_file: jstests/sharding/txn_lookup_hits_migration_conflict_all_colls_local.js
+    ticket: SERVER-107535
   suites: null

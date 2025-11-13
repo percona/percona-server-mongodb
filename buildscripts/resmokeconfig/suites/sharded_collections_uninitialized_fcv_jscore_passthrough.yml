@@ -95,6 +95,8 @@ selector:
 
   # Will fail all commands including those needed to forward command to initial sync node.
   - jstests/core/failcommand_failpoint.js
+  # This test runs many aggregations, and this passthrough slows down queries so that we timeout.
+  - jstests/core/timeseries/timeseries_group_aggregations.js
   # Starts MongoCryptD instead of mongod nodes
   - src/mongo/db/modules/*/jstests/fle2/fle2_bulk_write.js
 
@@ -115,6 +117,8 @@ selector:
   - assumes_no_implicit_index_creation
   - assumes_unsharded_collection
   - cannot_create_unique_index_when_using_hashed_shard_key
+  # These tests run many aggregations, and the override slows them down enough to hit the evergreen timeout.
+  - query_intensive_pbt
 
 executor:
   config:

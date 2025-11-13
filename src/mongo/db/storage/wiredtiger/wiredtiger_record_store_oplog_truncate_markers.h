@@ -91,14 +91,22 @@ public:
     // efficiently truncate records with WiredTiger by skipping over tombstones, etc.
     RecordId firstRecord;
 
-    static std::shared_ptr<WiredTigerRecordStore::OplogTruncateMarkers> createOplogTruncateMarkers(
-        OperationContext* opCtx, WiredTigerRecordStore* rs, const NamespaceString& ns);
-    //
-    // The following methods are public only for use in tests.
-    //
+    static std::shared_ptr<OplogTruncateMarkers> createEmptyOplogTruncateMarkers(
+        WiredTigerRecordStore* rs);
 
-    bool processedBySampling() const {
-        return _processBySampling;
+    static std::shared_ptr<OplogTruncateMarkers> sampleAndUpdate(OperationContext* opCtx,
+                                                                 WiredTigerRecordStore* rs,
+                                                                 const NamespaceString& ns);
+
+    static std::shared_ptr<OplogTruncateMarkers> createOplogTruncateMarkers(
+        OperationContext* opCtx, WiredTigerRecordStore* rs, const NamespaceString& ns);
+
+    CollectionTruncateMarkers::MarkersCreationMethod getMarkersCreationMethod() const {
+        return _creationMethod;
+    }
+
+    Microseconds getCreationProcessingTime() const {
+        return _totalTimeProcessing;
     }
 
 private:
@@ -119,7 +127,8 @@ private:
 
     Microseconds _totalTimeProcessing;  // Amount of time spent scanning and/or sampling the
                                         // oplog during start up, if any.
-    bool _processBySampling;            // Whether the oplog was sampled or scanned.
+
+    CollectionTruncateMarkers::MarkersCreationMethod _creationMethod;
 };
 
 }  // namespace mongo

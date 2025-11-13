@@ -164,6 +164,11 @@ CollectionScan::CollectionScan(ExpressionContext* expCtx,
                 "Expected forward collection scan with 'resumeScanPoint'",
                 params.direction == CollectionScanParams::FORWARD);
     }
+
+    // Set up 'OplogWaitConfig' if we are scanning the oplog.
+    if (collPtr && collPtr->ns().isOplog()) {
+        _oplogWaitConfig = OplogWaitConfig();
+    }
 }
 
 namespace {
@@ -269,23 +274,21 @@ PlanStage::StageState CollectionScan::doWork(WorkingSetID* out) {
         [&] {
             if (needToMakeCursor) {
                 const bool forward = _params.direction == CollectionScanParams::FORWARD;
-
                 if (forward && _params.shouldWaitForOplogVisibility) {
-                    // Forward, non-tailable scans from the oplog need to wait until all oplog
-                    // entries before the read begins to be visible. This isn't needed for reverse
-                    // scans because we only hide oplog entries from forward scans, and it isn't
-                    // necessary for tailing cursors because they ignore EOF and will eventually see
-                    // all writes. Forward, non-tailable scans are the only case where a meaningful
-                    // EOF will be seen that might not include writes that finished before the read
-                    // started. This also must be done before we create the cursor as that is when
-                    // we establish the endpoint for the cursor. Also call abandonSnapshot to make
-                    // sure that we are using a fresh storage engine snapshot while waiting.
-                    // Otherwise, we will end up reading from the snapshot where the oplog entries
-                    // are not yet visible even after the wait.
-                    invariant(!_params.tailable && collPtr->ns().isOplog());
+                    tassert(9478714, "Must have oplog wait config configured", _oplogWaitConfig);
+                    if (_oplogWaitConfig->shouldWaitForOplogVisibility()) {
+                        tassert(9478701,
+                                "We should only request yield for a tailable oplog scan",
+                                !_params.tailable && collPtr->ns().isOplog());
 
-                    shard_role_details::getRecoveryUnit(opCtx())->abandonSnapshot();
-                    collPtr->getRecordStore()->waitForAllEarlierOplogWritesToBeVisible(opCtx());
+                        // Perform wait during yield. Note that we mark this as having waited before
+                        // actually waiting so that we can distinguish waiting for oplog visiblity
+                        // from a WriteConflictException when handling this yield.
+                        _oplogWaitConfig->setWaitedForOplogVisibility();
+                        LOGV2_DEBUG(
+                            9478711, 2, "Oplog scan triggering yield to wait for visibility");
+                        return NEED_YIELD;
+                    }
                 }
 
                 try {
@@ -320,7 +323,9 @@ PlanStage::StageState CollectionScan::doWork(WorkingSetID* out) {
                     // error if the recordId is null.
                     //
                     // Note that we want to return the record *after* this one since we have already
-                    // returned this one prior to the resume.
+                    // returned this one prior to the resume *unless* we are resuming from a deleted
+                    // record id in which case the cursor is already positioned on the next record
+                    // id.
                     auto& resumeScanPoint = *_params.resumeScanPoint;
                     auto& recordIdToSeek = resumeScanPoint.recordId;
                     if (recordIdToSeek.isNull()) {
@@ -329,12 +334,18 @@ PlanStage::StageState CollectionScan::doWork(WorkingSetID* out) {
                             "Failed to resume collection scan: cannot resume from null recordId");
                     }
 
-                    if (resumeScanPoint.tolerateKeyNotFound) {
-                        auto record = _cursor->seek(recordIdToSeek,
-                                                    SeekableRecordCursor::BoundInclusion::kInclude);
-                    } else {
-                        auto record = _cursor->seekExact(recordIdToSeek);
-                        if (!record) {
+                    // Attempt to seek to the exact recordId. If it doesn't exist and we're using
+                    // '$_startAt' (tolerateKeyNotFound = true), we'll use seek() instead to find
+                    // the next highest recordId and return. In this case the cursor is already
+                    // positioned on the recordId we want to return so we don't need to advance it
+                    // again below. If tolerateKeyNotFound = false, we throw.
+                    auto testRecord = _cursor->seekExact(recordIdToSeek);
+                    if (!testRecord) {
+                        if (resumeScanPoint.tolerateKeyNotFound) {
+                            record = _cursor->seek(recordIdToSeek,
+                                                   SeekableRecordCursor::BoundInclusion::kInclude);
+                            return PlanStage::ADVANCED;
+                        } else {
                             uasserted(
                                 ErrorCodes::KeyNotFound,
                                 str::stream()

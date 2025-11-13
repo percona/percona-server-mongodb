@@ -254,14 +254,21 @@ void ReplicationCoordinatorMock::_setMyLastAppliedOpTimeAndWallTime(
     _myLastAppliedOpTime = opTimeAndWallTime.opTime;
     _myLastAppliedWallTime = opTimeAndWallTime.wallTime;
 
-    if (_updateCommittedSnapshot) {
-        _setCurrentCommittedSnapshotOpTime(lk, opTimeAndWallTime.opTime);
+    if (!_updateCommittedSnapshot) {
+        return;
+    }
 
-        if (auto storageEngine = _service->getStorageEngine()) {
-            if (auto snapshotManager = storageEngine->getSnapshotManager()) {
-                snapshotManager->setCommittedSnapshot(opTimeAndWallTime.opTime.getTimestamp());
-            }
+    if (auto storageEngine = _service->getStorageEngine()) {
+        // Use the "all durable" timestamp for the committed snapshot rather than the one provided.
+        // This ensures that we never set the committed snapshot to a timestamp that contains oplog
+        // holes.
+        auto allDurable = storageEngine->getAllDurableTimestamp();
+        _setCurrentCommittedSnapshotOpTime(lk, {allDurable, opTimeAndWallTime.opTime.getTerm()});
+        if (auto snapshotManager = storageEngine->getSnapshotManager()) {
+            snapshotManager->setCommittedSnapshot(allDurable);
         }
+    } else {
+        _setCurrentCommittedSnapshotOpTime(lk, opTimeAndWallTime.opTime);
     }
 }
 
@@ -549,7 +556,11 @@ void ReplicationCoordinatorMock::processReplSetGetConfig(BSONObjBuilder* result,
 void ReplicationCoordinatorMock::processReplSetMetadata(const rpc::ReplSetMetadata& replMetadata) {}
 
 void ReplicationCoordinatorMock::advanceCommitPoint(
-    const OpTimeAndWallTime& committedOptimeAndWallTime, bool fromSyncSource) {}
+    const OpTimeAndWallTime& committedOptimeAndWallTime, bool fromSyncSource) {
+    stdx::lock_guard<Mutex> lk(_mutex);
+    _lastCommittedOpTime = committedOptimeAndWallTime.opTime;
+    _lastCommittedWallTime = committedOptimeAndWallTime.wallTime;
+}
 
 void ReplicationCoordinatorMock::cancelAndRescheduleElectionTimeout() {}
 
@@ -697,11 +708,13 @@ ChangeSyncSourceAction ReplicationCoordinatorMock::shouldChangeSyncSourceOnError
 }
 
 OpTime ReplicationCoordinatorMock::getLastCommittedOpTime() const {
-    return OpTime();
+    stdx::lock_guard<Mutex> lk(_mutex);
+    return _lastCommittedOpTime;
 }
 
 OpTimeAndWallTime ReplicationCoordinatorMock::getLastCommittedOpTimeAndWallTime() const {
-    return {OpTime(), Date_t()};
+    stdx::lock_guard<Mutex> lk(_mutex);
+    return {_lastCommittedOpTime, _lastCommittedWallTime};
 }
 
 Status ReplicationCoordinatorMock::processReplSetRequestVotes(

@@ -169,6 +169,27 @@ using namespace std::string_literals;
 
 using IndexVersion = IndexDescriptor::IndexVersion;
 
+namespace internal {
+Status insertDocumentsForOplog(OperationContext* opCtx,
+                               const CollectionPtr& oplogCollection,
+                               std::vector<Record>* records,
+                               const std::vector<Timestamp>& timestamps) {
+    invariant(shard_role_details::getLocker(opCtx)->isWriteLocked());
+
+    Status status = oplogCollection->getRecordStore()->insertRecords(opCtx, records, timestamps);
+    if (!status.isOK())
+        return status;
+
+    collection_internal::cappedDeleteUntilBelowConfiguredMaximum(
+        opCtx, oplogCollection, records->begin()->id);
+
+    // We do not need to notify capped waiters, as we have not yet updated oplog visibility, so
+    // these inserts will not be visible.  When visibility updates, it will notify capped
+    // waiters.
+    return Status::OK();
+}
+}  // namespace internal
+
 namespace repl {
 namespace {
 
@@ -228,24 +249,6 @@ StringData getInvalidatingReason(const OplogApplication::Mode mode, const bool i
     return ""_sd;
 }
 
-Status insertDocumentsForOplog(OperationContext* opCtx,
-                               const CollectionPtr& oplogCollection,
-                               std::vector<Record>* records,
-                               const std::vector<Timestamp>& timestamps) {
-    invariant(shard_role_details::getLocker(opCtx)->isWriteLocked());
-
-    Status status = oplogCollection->getRecordStore()->insertRecords(opCtx, records, timestamps);
-    if (!status.isOK())
-        return status;
-
-    collection_internal::cappedDeleteUntilBelowConfiguredMaximum(
-        opCtx, oplogCollection, records->begin()->id);
-
-    // We do not need to notify capped waiters, as we have not yet updated oplog visibility, so
-    // these inserts will not be visible.  When visibility updates, it will notify capped
-    // waiters.
-    return Status::OK();
-}
 
 void assertInitialSyncCanContinueDuringShardMerge(OperationContext* opCtx,
                                                   const NamespaceString& nss,
@@ -470,7 +473,7 @@ void logOplogRecords(OperationContext* opCtx,
             opCtx, nss.dbName(), timestamps.back());
     }
 
-    Status result = insertDocumentsForOplog(opCtx, oplogCollection, records, timestamps);
+    Status result = internal::insertDocumentsForOplog(opCtx, oplogCollection, records, timestamps);
     if (!result.isOK()) {
         LOGV2_FATAL(17322, "Write to oplog failed", "error"_attr = result.toString());
     }

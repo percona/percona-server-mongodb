@@ -62,7 +62,10 @@ buildvariants:
     distros:
     - ubuntu2204-large
   - name: .development_critical !.incompatible_community
-  - name: .release_critical !.incompatible_community
+  - name: .release_critical !.incompatible_community !.requires_large_host
+  - name: .release_critical !.incompatible_community .requires_large_host
+    distros:
+    - ubuntu2204-large
 
 - <<: *ubuntu2204-template
   name: ubuntu2204-powercycle
@@ -108,7 +111,10 @@ buildvariants:
     distros:
     - ubuntu2204-large
   - name: .development_critical !.incompatible_community
-  - name: .release_critical !.incompatible_community
+  - name: .release_critical !.incompatible_community !.requires_large_host
+  - name: .release_critical !.incompatible_community .requires_large_host
+    distros:
+    - ubuntu2004-large
 
 - &ubuntu2404-template
   name: &ubuntu2404 ubuntu2404
@@ -200,7 +206,10 @@ buildvariants:
     distros:
     - ubuntu2204-large
   - name: .development_critical
-  - name: .release_critical
+  - name: .release_critical !.requires_large_host
+  - name: .release_critical .requires_large_host
+    distros:
+    - ubuntu2004-large
 
 # This variant is owned by the security team and is special
 # because these tests require headless support to run
@@ -250,11 +259,11 @@ buildvariants:
   - name: test_packages
     distros:
     - ubuntu2204-large
-  - name: test_packages_release
+  - name: .development_critical
+  - name: .release_critical !.requires_large_host
+  - name: .release_critical .requires_large_host
     distros:
     - ubuntu2204-large
-  - name: .development_critical
-  - name: .release_critical
 
 - name: enterprise-ubuntu2204-jepsen
   display_name: Jepsen Tests on Enterprise Ubuntu 22.04
@@ -312,7 +321,10 @@ buildvariants:
     distros:
     - ubuntu1804-arm64-build
   - name: .development_critical
-  - name: .release_critical
+  - name: .release_critical !.requires_large_host
+  - name: .release_critical .requires_large_host
+    distros:
+    - ubuntu2004-arm64-large
 
 - name: ubuntu2004-arm64
   display_name: Ubuntu 20.04 arm64
@@ -350,7 +362,10 @@ buildvariants:
     distros:
     - ubuntu1804-arm64-build
   - name: .development_critical !.incompatible_community
-  - name: .release_critical !.incompatible_community
+  - name: .release_critical !.incompatible_community !.requires_large_host
+  - name: .release_critical !.incompatible_community .requires_large_host
+    distros:
+    - ubuntu2004-arm64-large
 
 - name: enterprise-ubuntu2204-arm64
   display_name: Enterprise Ubuntu 22.04 arm64
@@ -384,11 +399,11 @@ buildvariants:
   - name: test_packages
     distros:
     - ubuntu2204-arm64-large
-  - name: test_packages_release
+  - name: .development_critical
+  - name: .release_critical !.requires_large_host
+  - name: .release_critical .requires_large_host
     distros:
     - ubuntu2204-arm64-large
-  - name: .development_critical
-  - name: .release_critical
 
 - name: ubuntu2204-arm64
   display_name: Ubuntu 22.04 arm64
@@ -426,7 +441,10 @@ buildvariants:
     distros:
     - ubuntu2204-arm64-large
   - name: .development_critical !.incompatible_community
-  - name: .release_critical !.incompatible_community
+  - name: .release_critical !.incompatible_community !.requires_large_host
+  - name: .release_critical !.incompatible_community .requires_large_host
+    distros:
+    - ubuntu2204-arm64-large
 
 - name: enterprise-ubuntu2404
   display_name: Enterprise Ubuntu 24.04
@@ -460,9 +478,6 @@ buildvariants:
       distros:
         - ubuntu2404-large
     - name: test_packages
-      distros:
-        - ubuntu2404-large
-    - name: test_packages_release
       distros:
         - ubuntu2404-large
     - name: .development_critical !.requires_large_host !.incompatible_oscrypto
@@ -550,9 +565,6 @@ buildvariants:
     - name: test_packages
       distros:
         - ubuntu2404-arm64-large
-    - name: test_packages_release
-      distros:
-        - ubuntu2404-arm64-large
     - name: .development_critical !.requires_large_host !.incompatible_oscrypto
     - name: .development_critical .requires_large_host !.incompatible_oscrypto
       distros:
@@ -561,3 +573,31 @@ buildvariants:
     - name: .release_critical .requires_large_host !.incompatible_oscrypto
       distros:
         - ubuntu2404-arm64-large
+
+- name: &workstation_bazel_cache_hydration_arm64 workstation_bazel_cache_hydration_arm64
+  display_name: "~ Workstation Bazel Cache Hydration arm64"
+  tags: ["bazel_cache_hydration"]
+  cron: "0 * * * *" # Every hour
+  run_on:
+    - ubuntu2204-arm64-large
+  stepback: false
+  expansions:
+    compile_variant: *workstation_bazel_cache_hydration_arm64
+    evergreen_remote_exec: on
+  tasks:
+    - name: hydrate_bazel_profile_TG
+    - name: .clang_tidy
+
+- name: &workstation_bazel_cache_hydration_x86_64 workstation_bazel_cache_hydration_x86_64
+  display_name: "~ Workstation Bazel Cache Hydration x86_64"
+  tags: ["bazel_cache_hydration"]
+  cron: "30 * * * *" # Every hour, 30 min offset
+  run_on:
+    - ubuntu2204-large
+  stepback: false
+  expansions:
+    compile_variant: *workstation_bazel_cache_hydration_x86_64
+    evergreen_remote_exec: on
+  tasks:
+    - name: hydrate_bazel_profile_TG
+    - name: .clang_tidy

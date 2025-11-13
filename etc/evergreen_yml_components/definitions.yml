@@ -204,16 +204,6 @@ functions:
         timeout_secs: ${override_task_timeout}
     - *f_expansions_write
 
-  "convert scons to bazel":
-    command: subprocess.exec
-    params:
-      display_name: "convert scons to bazel"
-      binary: bash
-      args:
-      - "src/evergreen/run_python_script.sh"
-      - "buildscripts/convert_scons_to_bazel/convert.py"
-      - "--noclean"
-
   "bazel test sh": &bazel_test_sh
     command: subprocess.exec
     display_name: "bazel test sh"
@@ -484,15 +474,6 @@ functions:
       silent: true
       args:
       - "./src/evergreen/functions/credentials_setup.sh"
-
-  "set up win mount script": &set_up_win_mount_script
-    command: subprocess.exec
-    display_name: "win mount script setup"
-    params:
-      binary: bash
-      silent: true
-      args:
-      - "./src/evergreen/functions/win_mount_script_setup.sh"
 
   "set up notary client credentials":
   - *f_expansions_write
@@ -798,12 +779,63 @@ functions:
     params:
       binary: bash
       args:
-      - "./src/evergreen/multiversion_setup.sh"
+        - "./src/evergreen/multiversion_setup.sh"
+      env:
+        multiversion_install_dir: ${multiversion_install_dir|/data/install}
+        multiversion_link_dir: ${multiversion_link_dir|/data/multiversion}
+
+  "do_multiversion_selection": &do_multiversion_selection
+    command: subprocess.exec
+    display_name: "multiversion selection"
+    params:
+      binary: bash
+      args:
+        - "./src/evergreen/multiversion_selection.sh"
+
+  "get multiversion selection results": &get_multiversion_selection_results
+    command: s3.get
+    params:
+      aws_key: ${aws_key}
+      aws_secret: ${aws_secret}
+      local_file: src/multiversion-downloads.json
+      remote_file: ${project}/${version_id}/${build_variant}/select_multiversion_binaries/multiversion-downloads.json
+      bucket: mciuploads
+
+  "attach local db-contrib-tool invocation":
+    &attach_local_db_contrib_tool_invocation
+    command: s3.put
+    params:
+      optional: true
+      aws_key: ${aws_key}
+      aws_secret: ${aws_secret}
+      local_file: src/local-db-contrib-tool-invocation.txt
+      remote_file: ${project}/${version_id}/${build_variant}/${task_name}/local-db-contrib-tool-invocation.txt
+      bucket: mciuploads
+      permissions: public-read
+      content_type: text/plain
+      display_name: "db-contrib-tool invocation for local use"
+
+  "get local db-contrib-tool invocation": &get_local_db_contrib_tool_invocation
+    command: s3.get
+    params:
+      aws_key: ${aws_key}
+      aws_secret: ${aws_secret}
+      local_file: src/local-db-contrib-tool-invocation.txt
+      remote_file: ${project}/${version_id}/${build_variant}/select_multiversion_binaries/local-db-contrib-tool-invocation.txt
+      bucket: mciuploads
+
+  "do multiversion selection":
+    - *f_expansions_write
+    - *set_up_venv
+    - *do_multiversion_selection
+    - *attach_local_db_contrib_tool_invocation
 
   "do multiversion setup":
-  - *f_expansions_write
-  - *set_up_venv
-  - *do_multiversion_setup
+    - *f_expansions_write
+    - *set_up_venv
+    - *get_multiversion_selection_results
+    - *get_local_db_contrib_tool_invocation
+    - *do_multiversion_setup
 
   # Used by generator
   "get compiled binaries":
@@ -1191,16 +1223,6 @@ functions:
   # because we don't intend for any human to look at this failure.
   - *check_run_tests_infrastructure_failure
   - *check_resmoke_failure
-
-  "scons lint":
-  - *f_expansions_write
-  - command: subprocess.exec
-    display_name: "scons lint sh"
-    type: test
-    params:
-      binary: bash
-      args:
-      - "src/evergreen/scons_lint.sh"
 
   "verify build output present":
   # Args:
@@ -2125,6 +2147,32 @@ functions:
       display_name: Core Analyzer Results
       optional: true
 
+  "save unsymbolized stacktraces and local invocation":
+    - command: s3.put
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: src/unsymbolized_stacktraces.txt
+        remote_file: ${project}/${build_variant}/${revision}/unsymbolized_stacktraces/${task_name}-${build_id}.txt
+        bucket: mciuploads
+        permissions: private
+        visibility: signed
+        content_type: text/plain
+        display_name: Unsymbolized Stack Traces - Execution ${execution}
+        optional: true
+    - command: s3.put
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: src/unsymbolized_stacktrace_instructions.txt
+        remote_file: ${project}/${build_variant}/${revision}/unsymbolized_stacktrace_instructions/${task_name}-${build_id}.txt
+        bucket: mciuploads
+        permissions: private
+        visibility: signed
+        content_type: text/plain
+        display_name: Instructions to Symbolize Stack Traces
+        optional: true
+
   ### Process & archive failed unittest artifacts ###
   "gather failed unittests": &gather_failed_unittests
     command: subprocess.exec
@@ -2306,98 +2354,6 @@ functions:
     params:
       file_location: ${report_file|src/report.json}
 
-  "combine build metrics":
-    - command: subprocess.exec
-      params:
-        binary: bash
-        add_expansions_to_env: true
-        args:
-        - "src/evergreen/run_python_script.sh"
-        - "site_scons/site_tools/build_metrics/combine_metrics_unittest.py"
-    - command: subprocess.exec
-      params:
-        binary: bash
-        add_expansions_to_env: true
-        args:
-        - "src/evergreen/run_python_script.sh"
-        - "site_scons/site_tools/build_metrics/combine_metrics.py"
-        - "--prefix-name=build_metrics"
-        - "--prefix-name=populate_cache"
-        - "--prefix-name=pull_cache"
-
-  "print top N metrics":
-    - command: subprocess.exec
-      params:
-        binary: bash
-        add_expansions_to_env: true
-        args:
-        - "src/evergreen/run_python_script.sh"
-        - "site_scons/site_tools/build_metrics/top_n_metrics.py"
-        - "--input=build_metrics.json"
-        - "--output=top_15_metrics.txt"
-        - "--num=15"
-
-    - command: s3.put
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        local_file: src/top_15_metrics.txt
-        remote_file: ${project}/${build_variant}/${revision}/${build_id}-${task_name}-${execution}-top_15_metrics.txt
-        bucket: mciuploads
-        permissions: public-read
-        content_type: text/plain
-        display_name: Top 15 Metrics
-
-  "attach build metrics":
-    - command: archive.targz_pack
-      params:
-        target: build-metrics.tgz
-        source_dir: src
-        include:
-        - "./build_metrics.json"
-        - "./populate_cache.json"
-        - "./pull_cache.json"
-
-    - command: s3.put
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        local_file: build-metrics.tgz
-        remote_file: ${project}/${build_variant}/${revision}/${build_id}-${task_name}-${execution}-build-metrics.tgz
-        bucket: mciuploads
-        permissions: public-read
-        content_type: application/gzip
-        display_name: Metrics JSON
-
-    - command: subprocess.exec
-      params:
-        binary: bash
-        add_expansions_to_env: true
-        args:
-        - "src/evergreen/run_python_script.sh"
-        - "evergreen/build_metric_cedar_report.py"
-        - "--build-metrics=build_metrics.json"
-        - "--cache-push-metrics=populate_cache.json"
-        - "--cache-pull-metrics=pull_cache.json"
-
-    - command: archive.targz_pack
-      params:
-        target: build_metrics_cedar_report.tgz
-        source_dir: src
-        include:
-        - "./build_metrics_cedar_report.json"
-
-    - command: s3.put
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        local_file: build_metrics_cedar_report.tgz
-        remote_file: ${project}/${build_variant}/${revision}/${build_id}-${task_name}-${execution}-build_metrics_cedar_report.tgz
-        bucket: mciuploads
-        permissions: public-read
-        content_type: application/gzip
-        display_name: Cedar Report JSON
-
   "attach artifacts":
     command: attach.artifacts
     params:
@@ -2497,9 +2453,10 @@ functions:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
       local_file: src/multiversion-downloads.json
-      remote_file: ${project}/${build_variant}/${revision}/multiversion-downloads-${task_id}-${execution}.json
+      remote_file: ${project}/${version_id}/${build_variant}/${task_name}/multiversion-downloads.json
       bucket: mciuploads
-      permissions: public-read
+      permissions: private
+      visibility: signed
       content_type: application/json
       display_name: Multiversion download links
 
@@ -2603,8 +2560,6 @@ functions:
     - *f_expansions_write
     - *use_wiredtiger_develop
     - *f_expansions_write
-    - *set_up_win_mount_script
-    - *f_expansions_write
     - *set_task_expansion_macros
     - *f_expansions_write
     - *get_engflow_key
@@ -2640,3 +2595,16 @@ functions:
         permissions: public-read
         content_type: application/x-gzip
         display_name: supplementary-data.tgz
+
+  "log into devprod container registry":
+    - command: ec2.assume_role
+      params:
+        role_arn: ${ecr_role_evergreen_arn}
+    - *f_expansions_write
+    - command: subprocess.exec
+      params:
+        binary: bash
+        include_expansions_in_env:
+          [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN]
+        args:
+          - "./src/evergreen/container_registry_login.sh"

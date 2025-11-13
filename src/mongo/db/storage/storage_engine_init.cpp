@@ -51,6 +51,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/storage/control/storage_control.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
+#include "mongo/db/storage/oplog_cap_maintainer_thread.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/recovery_unit_noop.h"
 #include "mongo/db/storage/storage_engine_change_context.h"
@@ -302,6 +303,7 @@ void shutdownGlobalStorageEngineCleanly(ServiceContext* service,
     // are shutting the storage engine down. Additionally, we need to terminate any background
     // threads as they may be holding onto an OperationContext, as opposed to pausing them.
     StorageControl::stopStorageControls(service, errorToReport, /*forRestart=*/false);
+    stopOplogCapMaintainerThread(service, errorToReport);
     storageEngine->cleanShutdown(service, memLeakAllowed);
     auto& lockFile = StorageEngineLockFile::get(service);
     if (lockFile) {
@@ -321,6 +323,8 @@ void shutdownGlobalStorageEngineCleanly(ServiceContext* service, bool memLeakAll
 
 StorageEngine::LastShutdownState reinitializeStorageEngine(
     OperationContext* opCtx,
+    bool isReplSet,
+    bool shouldSkipOplogSampling,
     StorageEngineInitFlags initFlags,
     std::function<void()> changeConfigurationCallback) {
     auto service = opCtx->getServiceContext();
@@ -338,6 +342,7 @@ StorageEngine::LastShutdownState reinitializeStorageEngine(
     auto lastShutdownState =
         initializeStorageEngine(opCtx, initFlags | StorageEngineInitFlags::kForRestart);
     StorageControl::startStorageControls(service);
+    startOplogCapMaintainerThread(service, isReplSet, shouldSkipOplogSampling);
     return lastShutdownState;
 }
 

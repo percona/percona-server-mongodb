@@ -1156,8 +1156,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
     /* Reset the statistics tracked per checkpoint. */
-    cache->evict_max_page_size = 0;
-    cache->evict_max_ms = 0;
+    __wt_atomic_store64(&cache->evict_max_unvisited_gen_gap_per_checkpoint, 0);
+    __wt_atomic_store64(&cache->evict_max_visited_gen_gap_per_checkpoint, 0);
+    __wt_atomic_store64(&cache->evict_max_clean_page_size_per_checkpoint, 0);
+    __wt_atomic_store64(&cache->evict_max_dirty_page_size_per_checkpoint, 0);
+    __wt_atomic_store64(&cache->evict_max_updates_page_size_per_checkpoint, 0);
+    __wt_atomic_store64(&cache->evict_max_ms_per_checkpoint, 0);
     cache->reentry_hs_eviction_ms = 0;
     __wt_atomic_store32(&conn->heuristic_controls.obsolete_tw_btree_count, 0);
     conn->rec_maximum_hs_wrapup_milliseconds = 0;
@@ -2272,6 +2276,15 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
             ckpt->run_write_gen = btree->run_write_gen;
             WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
         }
+
+    /*
+     * During RTS, recovery, or shutdown reset the maximum timestamp used for reconciliation to a
+     * value that is the same as the maximum between the start and stop durable timestamps. In those
+     * specific scenarios, we should always reflect the state of the stable content.
+     */
+    if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) ||
+      F_ISSET(S2C(session), WT_CONN_CLOSING_CHECKPOINT | WT_CONN_RECOVERING))
+        btree->rec_max_timestamp = WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
 }
 
 /*

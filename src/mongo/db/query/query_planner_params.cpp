@@ -51,6 +51,8 @@
 
 namespace mongo {
 
+MONGO_FAIL_POINT_DEFINE(pauseAfterFillingOutIndexEntries);
+
 namespace {
 /**
  * Converts the catalog metadata for an index into an IndexEntry, which is a format that is meant to
@@ -139,7 +141,8 @@ IndexEntry indexEntryFromIndexCatalogEntry(OperationContext* opCtx,
             ice.getFilterExpression(),
             desc->infoObj(),
             ice.getCollator(),
-            wildcardProjection};
+            wildcardProjection,
+            ice.shared_from_this()};
 }
 
 /**
@@ -213,6 +216,7 @@ void fillOutIndexEntries(OperationContext* opCtx,
         entries.emplace_back(
             indexEntryFromIndexCatalogEntry(opCtx, collection, *ice, canonicalQuery));
     }
+    pauseAfterFillingOutIndexEntries.pauseWhileSet();
 }
 
 void fillOutPlannerCollectionInfo(OperationContext* opCtx,
@@ -760,8 +764,9 @@ bool shouldWaitForOplogVisibility(OperationContext* opCtx,
     // visibility timestamp to be updated, it would wait for a replication batch that would never
     // complete because it couldn't reacquire its own lock, the global lock held by the waiting
     // reader.
-    return repl::ReplicationCoordinator::get(opCtx)->canAcceptWritesForDatabase(
-        opCtx, DatabaseName::kAdmin);
+    auto* replCoord = repl::ReplicationCoordinator::get(opCtx);
+    return replCoord->canAcceptWritesForDatabase(opCtx, DatabaseName::kAdmin) &&
+        replCoord->getSettings().isReplSet();
 }
 
 }  // namespace mongo

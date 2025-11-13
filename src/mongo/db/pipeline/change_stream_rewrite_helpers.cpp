@@ -150,6 +150,8 @@ std::unique_ptr<MatchExpression> matchRewriteOperationType(
           {"$or"_sd,
            std::vector<Value>{Value({{"o.createIndexes"_sd, kExistsTrue}}),
                               Value({{"o.commitIndexBuild"_sd, kExistsTrue}})}}}},
+        {"startIndexBuild", {{"op", "c"_sd}, {"o.startIndexBuild"_sd, kExistsTrue}}},
+        {"abortIndexBuild", {{"op", "c"_sd}, {"o.abortIndexBuild"_sd, kExistsTrue}}},
         {"dropIndexes", {{"op", "c"_sd}, {"o.dropIndexes"_sd, kExistsTrue}}},
         {"modify", {{"op", "c"_sd}, {"o.collMod"_sd, kExistsTrue}}},
         {"rename", {{"op", "c"_sd}, {"o.renameCollection"_sd, kExistsTrue}}},
@@ -257,6 +259,10 @@ boost::intrusive_ptr<Expression> exprRewriteOperationType(
         fromjson("{case: {$ne: ['$o.createIndexes', '$$REMOVE']}, then: 'createIndexes'}"));
     opCases.push_back(
         fromjson("{case: {$ne: ['$o.commitIndexBuild', '$$REMOVE']}, then: 'createIndexes'}"));
+    opCases.push_back(
+        fromjson("{case: {$ne: ['$o.startIndexBuild', '$$REMOVE']}, then: 'startIndexBuild'}"));
+    opCases.push_back(
+        fromjson("{case: {$ne: ['$o.abortIndexBuild', '$$REMOVE']}, then: 'abortIndexBuild'}"));
     opCases.push_back(
         fromjson("{case: {$ne: ['$o.dropIndexes', '$$REMOVE']}, then: 'dropIndexes'}"));
     opCases.push_back(fromjson("{case: {$ne: ['$o.collMod', '$$REMOVE']}, then: 'modify'}"));
@@ -1014,6 +1020,20 @@ std::unique_ptr<MatchExpression> matchRewriteNs(
     tassert(6339401, "Unexpected rewrite failure", commitIndexBuildNsRewrite);
     cmdCases->add(std::move(commitIndexBuildNsRewrite));
 
+    // The 'startIndexBuild' event is rewritten to the cmdNs in 'ns' and the collection name in
+    // 'o.startIndexBuild'.
+    auto startIndexBuildNsRewrite = matchRewriteGenericNamespace(
+        expCtx, predicate, "ns"_sd, true /* nsFieldIsCmdNs */, "o.startIndexBuild"_sd);
+    tassert(9315300, "Unexpected rewrite failure", startIndexBuildNsRewrite);
+    cmdCases->add(std::move(startIndexBuildNsRewrite));
+
+    // The 'abortIndexBuild' event is rewritten to the cmdNs in 'ns' and the collection name in
+    // 'o.abortIndexBuild'.
+    auto abortIndexBuildNsRewrite = matchRewriteGenericNamespace(
+        expCtx, predicate, "ns"_sd, true /* nsFieldIsCmdNs */, "o.abortIndexBuild"_sd);
+    tassert(9315400, "Unexpected rewrite failure", abortIndexBuildNsRewrite);
+    cmdCases->add(std::move(abortIndexBuildNsRewrite));
+
     // The 'dropIndexes' event is rewritten to the cmdNs in 'ns' and the collection name in
     // 'o.dropIndexes'.
     auto dropIndexesNsRewrite = matchRewriteGenericNamespace(
@@ -1125,6 +1145,10 @@ boost::intrusive_ptr<Expression> exprRewriteNs(
         fromjson("{case: {$ne: ['$o.createIndexes', '$$REMOVE']}, then: '$o.createIndexes'}"));
     collCases.push_back(fromjson(
         "{case: {$ne: ['$o.commitIndexBuild', '$$REMOVE']}, then: '$o.commitIndexBuild'}"));
+    collCases.push_back(
+        fromjson("{case: {$ne: ['$o.startIndexBuild', '$$REMOVE']}, then: '$o.startIndexBuild'}"));
+    collCases.push_back(
+        fromjson("{case: {$ne: ['$o.abortIndexBuild', '$$REMOVE']}, then: '$o.abortIndexBuild'}"));
     collCases.push_back(
         fromjson("{case: {$ne: ['$o.dropIndexes', '$$REMOVE']}, then: '$o.dropIndexes'}"));
     collCases.push_back(fromjson("{case: {$ne: ['$o.collMod', '$$REMOVE']}, then: '$o.collMod'}"));

@@ -503,16 +503,20 @@ export function getPlanStage(root, stage) {
  * This helper function can be used for any optimizer.
  */
 export function getRejectedPlans(root) {
-    if (root.queryPlanner.winningPlan.hasOwnProperty("shards")) {
-        const rejectedPlans = [];
-        for (let shard of root.queryPlanner.winningPlan.shards) {
-            for (let rejectedPlan of shard.rejectedPlans) {
-                rejectedPlans.push(Object.assign({shardName: shard.shardName}, rejectedPlan));
+    if (root.hasOwnProperty('queryPlanner')) {
+        if (root.queryPlanner.winningPlan.hasOwnProperty("shards")) {
+            const rejectedPlans = [];
+            for (let shard of root.queryPlanner.winningPlan.shards) {
+                for (let rejectedPlan of shard.rejectedPlans) {
+                    rejectedPlans.push(Object.assign({shardName: shard.shardName}, rejectedPlan));
+                }
             }
+            return rejectedPlans;
         }
-        return rejectedPlans;
+        return root.queryPlanner.rejectedPlans;
+    } else {
+        return root.stages[0]['$cursor'].queryPlanner.rejectedPlans;
     }
-    return root.queryPlanner.rejectedPlans;
 }
 
 /**
@@ -1407,4 +1411,21 @@ export function getExplainOptimizerPhases(explain) {
            "Explain output does not have optimizer phases: " + tojson(explain));
 
     return queryPlanner.optimizerPhases;
+}
+
+/**
+ * Returns index of stage in a aggregation pipeline stage plan running on a single node
+ * (will not work for sharded clusters).
+ * 'root' is root of explain JSON.
+ * Returns -1 if stage does not exist.
+ */
+export function getIndexOfStageOnSingleNode(root, stageName) {
+    if (root.hasOwnProperty("stages")) {
+        for (let i = 0; i < root.stages.length; i++) {
+            if (root.stages[i].hasOwnProperty(stageName)) {
+                return i;
+            }
+        }
+    }
+    return -1;
 }

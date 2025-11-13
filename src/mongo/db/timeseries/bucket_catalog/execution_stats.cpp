@@ -27,22 +27,60 @@
  *    it in the license file.
  */
 
+#include <limits>
+
 #include "mongo/db/timeseries/bucket_catalog/execution_stats.h"
 
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
+#include "mongo/platform/compiler.h"
 
 namespace mongo::timeseries::bucket_catalog {
+namespace {
+constexpr long long kNumActiveBucketsSentinel = std::numeric_limits<long long>::min();
+
+/**
+ * Adds 'increment' to 'atomicValue' with conditions.
+ * No-op if 'atomicValue' is already set to the sentinel value.
+ * 'increment' can be negative but the result of the addition has to be non-negative.
+ */
+long long addFloored(AtomicWord<long long>& atomicValue, long long increment) {
+    if (MONGO_unlikely(!increment)) {
+        return static_cast<long long>(0);
+    }
+
+    long long current = atomicValue.load();
+    long long result = 0;
+    long long actualIncrement = increment;
+
+    do {
+        if (current == kNumActiveBucketsSentinel) {
+            // No-op if a sentinel value was already set.
+            return static_cast<long long>(0);
+        }
+        // Result cannot be negative.
+        result = std::max(static_cast<long long>(0), current + increment);
+        actualIncrement = result - current;
+    } while (!atomicValue.compareAndSwap(&current, result));
+
+    return actualIncrement;
+}
+}  // namespace
 
 void ExecutionStatsController::incNumActiveBuckets(long long increment) {
-    _collectionStats->numActiveBuckets.fetchAndAddRelaxed(increment);
-    _globalStats->numActiveBuckets.fetchAndAddRelaxed(increment);
+    // Increments the global stats if the collection stats are modified.
+    if (auto actualIncrement = addFloored(_collectionStats->numActiveBuckets, increment)) {
+        tassert(10645100, "numActiveBuckets overflowed", increment == actualIncrement);
+        _globalStats->numActiveBuckets.fetchAndAddRelaxed(increment);
+    }
 }
 
 void ExecutionStatsController::decNumActiveBuckets(long long decrement) {
-    _collectionStats->numActiveBuckets.fetchAndSubtractRelaxed(decrement);
-    _globalStats->numActiveBuckets.fetchAndSubtractRelaxed(decrement);
+    // Decrements the global and collection stats with the same value.
+    if (auto actualIncrement = addFloored(_collectionStats->numActiveBuckets, -decrement)) {
+        addFloored(_globalStats->numActiveBuckets, actualIncrement);
+    }
 }
 
 void ExecutionStatsController::incNumBucketInserts(long long increment) {
@@ -205,6 +243,16 @@ void ExecutionStatsController::incNumFailedDecompressBuckets(long long increment
     _globalStats->numFailedDecompressBuckets.fetchAndAddRelaxed(increment);
 }
 
+void ExecutionStatsController::incNumBucketDocumentsTooLargeInsert(long long increment) {
+    _collectionStats->numBucketDocumentsTooLargeInsert.fetchAndAddRelaxed(increment);
+    _globalStats->numBucketDocumentsTooLargeInsert.fetchAndAddRelaxed(increment);
+}
+
+void ExecutionStatsController::incNumBucketDocumentsTooLargeUpdate(long long increment) {
+    _collectionStats->numBucketDocumentsTooLargeUpdate.fetchAndAddRelaxed(increment);
+    _globalStats->numBucketDocumentsTooLargeUpdate.fetchAndAddRelaxed(increment);
+}
+
 void appendExecutionStatsToBuilder(const ExecutionStats& stats, BSONObjBuilder& builder) {
     builder.appendNumber("numActiveBuckets", stats.numActiveBuckets.load());
     builder.appendNumber("numBucketInserts", stats.numBucketInserts.load());
@@ -251,6 +299,10 @@ void appendExecutionStatsToBuilder(const ExecutionStats& stats, BSONObjBuilder& 
     builder.appendNumber("numBucketQueriesFailed", stats.numBucketQueriesFailed.load());
     builder.appendNumber("numBucketReopeningsFailed", stats.numBucketReopeningsFailed.load());
     builder.appendNumber("numDuplicateBucketsReopened", stats.numDuplicateBucketsReopened.load());
+    builder.appendNumber("numBucketDocumentsTooLargeInsert",
+                         stats.numBucketDocumentsTooLargeInsert.load());
+    builder.appendNumber("numBucketDocumentsTooLargeUpdate",
+                         stats.numBucketDocumentsTooLargeUpdate.load());
 
     if (feature_flags::gTimeseriesAlwaysUseCompressedBuckets.isEnabled(
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
@@ -300,6 +352,8 @@ void addCollectionExecutionCounters(ExecutionStatsController& stats,
     stats.incNumBucketQueriesFailed(collStats.numBucketQueriesFailed.load());
     stats.incNumBucketReopeningsFailed(collStats.numBucketReopeningsFailed.load());
     stats.incNumDuplicateBucketsReopened(collStats.numDuplicateBucketsReopened.load());
+    stats.incNumBucketDocumentsTooLargeInsert(collStats.numBucketDocumentsTooLargeInsert.load());
+    stats.incNumBucketDocumentsTooLargeUpdate(collStats.numBucketDocumentsTooLargeUpdate.load());
 
     // TODO(SERVER-70605): Remove these.
     stats.incNumBytesUncompressed(collStats.numBytesUncompressed.load());
@@ -314,8 +368,11 @@ void addCollectionExecutionGauges(ExecutionStats& stats, const ExecutionStats& c
     stats.numActiveBuckets.fetchAndAdd(collStats.numActiveBuckets.load());
 }
 
-void removeCollectionExecutionGauges(ExecutionStats& stats, const ExecutionStats& collStats) {
-    stats.numActiveBuckets.fetchAndSubtract(collStats.numActiveBuckets.load());
+void removeCollectionExecutionGauges(ExecutionStats& stats, ExecutionStats& collStats) {
+    // Set the collection stats to a sentinel value to prevent modifications by concurrent threads
+    // which are still holding the shared pointer.
+    auto collNumActiveBuckets = collStats.numActiveBuckets.swap(kNumActiveBucketsSentinel);
+    stats.numActiveBuckets.fetchAndSubtract(collNumActiveBuckets);
 }
 
 }  // namespace mongo::timeseries::bucket_catalog

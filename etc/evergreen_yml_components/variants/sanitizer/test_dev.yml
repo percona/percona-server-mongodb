@@ -72,7 +72,7 @@ variables:
   #   variant: linux-debug-aubsan-compile-required
 
 # If you add anything to san_options, make sure the appropriate changes are
-# also made to SConstruct.
+# also made to build.
 # THIS HAS COPIES IN:
 # - etc/evergreen_yml_components/variants/sanitizer/test_dev_master_branch_only.yml
 # - etc/evergreen_yml_components/variants/sanitizer/test_dev.yml
@@ -84,7 +84,7 @@ variables:
     ASAN_OPTIONS="detect_leaks=1:check_initialization_order=true:strict_init_order=true:abort_on_error=1:disable_coredump=0:handle_abort=1:strict_string_checks=true:detect_invalid_pointer_pairs=1:external_symbolizer_path=/opt/mongodbtoolchain/v4/bin/llvm-symbolizer"
 
 # If you add anything to san_options, make sure the appropriate changes are
-# also made to SConstruct.
+# also made to build.
 # THIS HAS COPIES IN:
 # - etc/evergreen_yml_components/variants/sanitizer/test_dev_master_branch_only.yml
 # - etc/evergreen_yml_components/variants/sanitizer/test_dev.yml
@@ -108,6 +108,7 @@ variables:
   multiversion_platform: rhel80
   multiversion_platform_50_or_later: rhel8
   multiversion_edition: enterprise
+  core_analyzer_gdb_index_cache: off
 
 
 buildvariants:
@@ -348,6 +349,7 @@ buildvariants:
     resmoke_jobs_factor: 0.3  # Avoid starting too many mongod's under UBSAN build.
     large_distro_name: rhel8.8-large
     compile_variant: rhel8-debug-ubsan
+    core_analyzer_gdb_index_cache: off
   tasks:
   - name: compile_test_benchmark_serial_TG
     distros:
@@ -414,7 +416,7 @@ buildvariants:
     lang_environment: LANG=C
     toolchain_version: stable
     # If you add anything to san_options, make sure the appropriate changes are
-    # also made to SConstruct.
+    # also made to build.
     san_options: *aubsan_options
     bazel_compile_flags: >-
       --config=dbg_aubsan
@@ -428,6 +430,7 @@ buildvariants:
     resmoke_jobs_factor: 0.3  # Avoid starting too many mongod's under {A,UB}SAN build.
     hang_analyzer_dump_core: false
     compile_variant: *rhel8-debug-aubsan-lite_fuzzer
+    core_analyzer_gdb_index_cache: off
   display_tasks:
   - name: libfuzzertests!
     execution_tasks:
@@ -452,7 +455,7 @@ buildvariants:
     toolchain_version: stable
     compile_variant: *enterprise-rhel8-debug-tsan
     # If you add anything to san_options, make sure the appropriate
-    # changes are also made to SConstruct.
+    # changes are also made to build.
     #
     # TODO SERVER-49121: die_after_fork=0 is a temporary setting to
     # allow tests to continue while we figure out why we're running

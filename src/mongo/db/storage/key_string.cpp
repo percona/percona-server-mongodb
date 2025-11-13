@@ -930,12 +930,12 @@ void BuilderBase<BufferT>::_appendDoubleWithoutTypeBits(const double num,
             _appendPreshiftedIntegerPortion((integerPart << 1) | 1, isNegative, invert);
 
             // Append the bytes of the mantissa that include fractional bits.
-            const size_t fractionalBits = 53 - (64 - countLeadingZeros64(integerPart));
+            const size_t fractionalBits = 53 - (64 - countLeadingZerosNonZero64(integerPart));
             const size_t fractionalBytes = (fractionalBits + 7) / 8;
             dassert(fractionalBytes > 0);
             uint64_t mantissa;
             memcpy(&mantissa, &num, sizeof(mantissa));
-            mantissa &= ~(uint64_t(-1) << fractionalBits);  // set non-fractional bits to 0;
+            mantissa &= (1ULL << fractionalBits) - 1;  // set non-fractional bits to 0;
 
             mantissa = endian::nativeToBig(mantissa);
 
@@ -943,7 +943,7 @@ void BuilderBase<BufferT>::_appendDoubleWithoutTypeBits(const double num,
                 reinterpret_cast<const char*>((&mantissa) + 1) - fractionalBytes;
             _appendBytes(firstUsedByte, fractionalBytes, isNegative ? !invert : invert);
         } else {
-            const size_t fractionalBytes = countLeadingZeros64(integerPart << 1) / 8;
+            const size_t fractionalBytes = countLeadingZerosNonZero64(integerPart << 1) / 8;
             const auto ctype = isNegative ? CType::kNumericNegative8ByteInt + fractionalBytes
                                           : CType::kNumericPositive8ByteInt - fractionalBytes;
             _append(static_cast<uint8_t>(ctype), invert);
@@ -1433,7 +1433,7 @@ void BuilderBase<BufferT>::_appendPreshiftedIntegerPortion(uint64_t value,
     dassert(value != 0ULL);
     dassert(value != 1ULL);
 
-    const size_t bytesNeeded = (64 - countLeadingZeros64(value) + 7) / 8;
+    const size_t bytesNeeded = (64 - countLeadingZerosNonZero64(value) + 7) / 8;
 
     // Append the low bytes of value in big endian order.
     value = endian::nativeToBig(value);
@@ -2688,21 +2688,20 @@ uint8_t TypeBits::ExplainReader::readDecimalExponent() {
 size_t getKeySize(const char* buffer, size_t len, Ordering ord, Version version) {
     invariant(len > 0);
     BufReader reader(buffer, len);
-    unsigned remainingBytes;
-    for (int i = 0; (remainingBytes = reader.remaining()); i++) {
+    for (int i = 0;; i++) {
+        // We reached the end of the buffer without reading a valid complete key
+        if (reader.remaining() == 0)
+            return 0;
+
         const bool invert = (ord.get(i) == -1);
         uint8_t ctype = readType<uint8_t>(&reader, invert);
-        // We have already read the Key.
+        // We have reached the end of the Key. The Key size is the number of bytes we used.
         if (ctype == kEnd)
-            break;
+            return len - reader.remaining();
 
         // Read the Key that comes after the first byte in KeyString.
         filterKeyFromKeyString(ctype, &reader, invert, version);
     }
-
-    invariant(len > remainingBytes);
-    // Key size = buffer len - number of bytes comprising the RecordId
-    return (len - (remainingBytes - 1));
 }
 
 // This discriminator byte only exists in KeyStrings for queries, not in KeyStrings stored in an

@@ -59,6 +59,19 @@ typedef enum __wt_cache_op {
 #define WT_HS_FILE_MIN (100 * WT_MEGABYTE)
 
 /*
+ * WT_CACHE_EVICTION_CONTROLS --
+ *  Cache eviction controls configuration.
+ * WT_CACHE_PREFER_SCRUB_EVICTION: Change the eviction strategy to scrub eviction when the
+ *      cache usage is under half way between the target limit to the trigger limit.
+ */
+struct __wt_cache_eviction_controls {
+    wt_shared uint8_t cache_tolerance_for_app_eviction; /* cache tolerance for app eviction.*/
+/* cache eviction controls bit positions */
+#define WT_CACHE_PREFER_SCRUB_EVICTION 0x1u
+    wt_shared uint16_t flags_atomic;
+};
+
+/*
  * WiredTiger cache structure.
  */
 struct __wt_cache {
@@ -81,6 +94,8 @@ struct __wt_cache {
     wt_shared uint64_t bytes_updates;    /* Bytes of updates to pages */
     wt_shared uint64_t bytes_written;
 
+    WT_CACHE_EVICTION_CONTROLS cache_eviction_controls; /* various cache eviction controls */
+
     /*
      * History store cache usage. TODO: The values for these variables are cached and potentially
      * outdated.
@@ -96,11 +111,26 @@ struct __wt_cache {
     wt_shared volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;               /* Tracked eviction progress */
 
-    uint64_t app_waits;  /* User threads waited for cache */
-    uint64_t app_evicts; /* Pages evicted by user threads */
+    uint64_t app_waits;                                          /* User threads waited for cache */
+    uint64_t app_evicts;                                         /* Pages evicted by user threads */
+    uint64_t evict_max_page_size;                                /* Largest page seen at eviction */
+    wt_shared uint64_t evict_max_clean_page_size_per_checkpoint; /* Largest clean page seen at
+                                                                    eviction per checkpoint */
+    wt_shared uint64_t evict_max_dirty_page_size_per_checkpoint; /* Largest dirty page seen at
+                                                                    eviction per checkpoint */
+    wt_shared uint64_t evict_max_updates_page_size_per_checkpoint; /* Largest updates page seen at
+                                                                    eviction per checkpoint */
 
-    uint64_t evict_max_page_size;    /* Largest page seen at eviction */
-    uint64_t evict_max_ms;           /* Longest milliseconds spent at a single eviction */
+    wt_shared uint64_t evict_max_unvisited_gen_gap; /* Maximum gap between page and connection evict
+                                             pass generation of unvisited pages */
+    wt_shared uint64_t evict_max_unvisited_gen_gap_per_checkpoint; /* Maximum gap between page and
+                                             connection evict pass generation of unvisited pages */
+    wt_shared uint64_t evict_max_visited_gen_gap; /* Maximum gap between page and connection evict
+                                             pass generation of visited pages */
+    wt_shared uint64_t evict_max_visited_gen_gap_per_checkpoint; /* Maximum gap between page and
+                                             connection evict pass generation of visited pages */
+    uint64_t evict_max_ms; /* Longest milliseconds spent at a single eviction */
+    wt_shared uint64_t evict_max_ms_per_checkpoint;
     uint64_t reentry_hs_eviction_ms; /* Total milliseconds spent inside a nested eviction */
     struct timespec stuck_time;      /* Stuck time */
 

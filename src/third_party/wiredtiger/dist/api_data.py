@@ -562,6 +562,10 @@ connection_runtime_config = [
         Config('wait', '300', r'''
             seconds to wait between each checkpoint cleanup''',
             min='1', max='100000'),
+        Config('file_wait_ms', '0', r'''
+            the number of milliseconds to wait between each file by the checkpoint cleanup,
+            0 will not wait''',
+            min=0),
         ]),
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
@@ -656,6 +660,18 @@ connection_runtime_config = [
                 Use legacy page visit strategy for eviction. Using this option is highly discouraged
                 as it will re-introduce the bug described in WT-9121.''',
                 type='boolean'),
+            Config('prefer_scrub_eviction', 'false',
+                r'''Change the eviction strategy to scrub eviction when the cache usage is under
+                half way between the target limit to the trigger limit.''',
+                type='boolean'),
+            Config('cache_tolerance_for_app_eviction', '0', r'''
+                This setting establishes a tolerance level for the configured
+                \c eviction_dirty_trigger and \c eviction_update_trigger.
+                The value is a percentage between 0 and 100, with 0 treating
+                \c eviction_dirty_trigger and \c eviction_update_trigger as hard limit.
+                The configured percentage will be taken in increments of 10 only,
+                by applying the floor to the given percentage value. ''',
+                min='0', max='100'),
             ]),
     Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty content in cache
@@ -865,12 +881,13 @@ connection_runtime_config = [
         choices=[
         'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
-        'compact_slow', 'evict_reposition', 'failpoint_eviction_split',
-        'failpoint_history_store_delete_key_from_ts', 'history_store_checkpoint_delay',
-        'history_store_search', 'history_store_sweep_race', 'prefetch_1', 'prefetch_2', 
-        'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay', 'prepare_resolution_1',
-        'prepare_resolution_2', 'sleep_before_read_overflow_onpage','split_1', 'split_2',
-        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8','tiered_flush_finish']),
+        'compact_slow', 'conn_close_stress_log_printf', 'evict_reposition',
+        'failpoint_eviction_split', 'failpoint_history_store_delete_key_from_ts',
+        'history_store_checkpoint_delay', 'history_store_search', 'history_store_sweep_race',
+        'prefetch_1', 'prefetch_2',  'prefetch_3', 'prefix_compare', 'prepare_checkpoint_delay',
+        'prepare_resolution_1', 'prepare_resolution_2', 'sleep_before_read_overflow_onpage',
+        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8',
+        'tiered_flush_finish']),
     Config('verbose', '[]', r'''
         enable messages for various subsystems and operations. Options are given as a list,
         where each message type can optionally define an associated verbosity level, such as

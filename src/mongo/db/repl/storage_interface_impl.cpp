@@ -1478,6 +1478,7 @@ Timestamp StorageInterfaceImpl::recoverToStableTimestamp(OperationContext* opCtx
     // thread for durability.
     Status reason = Status(ErrorCodes::InterruptedDueToReplStateChange, "Rollback in progress.");
     StorageControl::stopStorageControls(serviceContext, reason, /*forRestart=*/true);
+    stopOplogCapMaintainerThread(serviceContext, reason);
 
     auto swStableTimestamp = serviceContext->getStorageEngine()->recoverToStableTimestamp(opCtx);
     if (!swStableTimestamp.isOK()) {
@@ -1488,6 +1489,10 @@ Timestamp StorageInterfaceImpl::recoverToStableTimestamp(OperationContext* opCtx
     fassert(31049, swStableTimestamp);
 
     StorageControl::startStorageControls(serviceContext);
+    startOplogCapMaintainerThread(
+        serviceContext,
+        repl::ReplicationCoordinator::get(serviceContext)->getSettings().isReplSet(),
+        repl::ReplSettings::shouldSkipOplogSampling());
 
     return swStableTimestamp.getValue();
 }
@@ -1498,19 +1503,6 @@ bool StorageInterfaceImpl::supportsRecoverToStableTimestamp(ServiceContext* serv
 
 bool StorageInterfaceImpl::supportsRecoveryTimestamp(ServiceContext* serviceCtx) const {
     return serviceCtx->getStorageEngine()->supportsRecoveryTimestamp();
-}
-
-void StorageInterfaceImpl::initializeStorageControlsForReplication(
-    ServiceContext* serviceCtx) const {
-    // The storage engine may support the use of OplogTruncateMarkers to more finely control
-    // oplog history deletion, in which case we need to start the thread to
-    // periodically execute deletion via oplog truncate markers. OplogTruncateMarkers are a
-    // replacement for capped collection deletion of the oplog collection history.
-    if (serviceCtx->getStorageEngine()->supportsOplogTruncateMarkers() &&
-        !ReplSettings::shouldSkipOplogSampling()) {
-        auto maintainerThread = OplogCapMaintainerThread::get(serviceCtx);
-        maintainerThread->go();
-    }
 }
 
 boost::optional<Timestamp> StorageInterfaceImpl::getRecoveryTimestamp(

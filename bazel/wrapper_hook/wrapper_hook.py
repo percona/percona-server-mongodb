@@ -37,6 +37,9 @@ def main():
     if check_bazel_command_type(sys.argv[1:]) not in ["clean", "shutdown", "version", None]:
         args = sys.argv
 
+        if any(arg.startswith("--include_mongot") for arg in args):
+            os.makedirs("mongot-localdev", exist_ok=True)
+
         write_workstation_bazelrc(args)
 
         args = test_runner_interface(

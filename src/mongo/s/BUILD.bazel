@@ -1,4 +1,4 @@
-load("//bazel:mongo_src_rules.bzl", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test", "mongo_idl_library")
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test", "mongo_idl_library", "windows_rc")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -501,6 +501,7 @@ mongo_cc_unit_test(
         "//src/mongo/s:mongos_topology_coordinator_test.cpp",
         "//src/mongo/s:query_analysis_sample_tracker_test.cpp",
         "//src/mongo/s:query_analysis_sampler_test.cpp",
+        "//src/mongo/s:router_role_test.cpp",
         "//src/mongo/s:routing_table_cache_gossip_metadata_hook_test.cpp",
         "//src/mongo/s:routing_table_history_test.cpp",
         "//src/mongo/s:sessions_collection_sharded_test.cpp",
@@ -619,6 +620,7 @@ mongo_cc_library(
         "//src/mongo/util:ntservice",
         "//src/mongo/util/options_parser",
         "//src/mongo/util/options_parser:options_parser_init",
+        "//src/mongo/util:pin_code_segments",
         "//src/mongo/util:testing_options",
         "//src/mongo/util:version_impl",
         "//src/mongo/s/commands:cluster_commands",
@@ -765,6 +767,13 @@ mongo_cc_library(
     }),
 )
 
+windows_rc(
+    name = "mongos_res",
+    src = "mongos.rc",
+    icon = "//src/mongo/db:mongo.ico",
+    manifest_in = "mongos.manifest.in",
+)
+
 mongo_cc_binary(
     name = "mongos",
     srcs = [
@@ -781,7 +790,6 @@ mongo_cc_binary(
         "devcore",
         "dist_test",
     ],
-    #+ env.WindowsResourceFile("mongos.rc"),
     deps = [
         # NOTE: Do not add new deps here unless required by the linker to
         # satisfy symbol dependencies from the files listed above in `sources`. If you need to add a
@@ -789,6 +797,7 @@ mongo_cc_binary(
         # dep of mongos_initializers.
         "mongos_main",
         "//src/mongo/db:server_base",
+        "mongos_res",
     ],
 )
 

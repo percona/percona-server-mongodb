@@ -119,8 +119,9 @@ types-setuptools = "57.4.12" # latest is 68.0.0.0, but that causes pip install r
 types-requests = "2.31.0.1"
 tqdm = "*"
 colorama = "^0.4.6"
-evergreen-lint = "^0.1.6"
+evergreen-lint = "^0.1.10"
 types-retry = "^0.9.9.4"
+license-expression = "^30.4.4"
 
 [tool.poetry.group.platform.dependencies]
 pypiwin32 = { version = ">=223", markers = "sys_platform == 'win32'" }
@@ -139,7 +140,7 @@ ninja = [
 [tool.poetry.group.testing.dependencies]
 curatorbin = "1.2.3"
 PyKMIP = "0.10.0"
-evergreen-py = "^3.6.13"
+evergreen-py = "^3.11.3"
 jinja2 = "^3.1.4"
 mock = "^5.1.0"
 shrub-py = "^3.1.4"

@@ -56,24 +56,12 @@
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/semantic_analysis.h"
 #include "mongo/db/query/allowed_contexts.h"
+#include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/ctype.h"
 
 namespace mongo {
 
-namespace {
-
-bool containsTextOperator(const MatchExpression& expr) {
-    if (expr.matchType() == MatchExpression::MatchType::TEXT)
-        return true;
-    for (auto child : expr) {
-        if (containsTextOperator(*child))
-            return true;
-    }
-    return false;
-}
-
-}  // namespace
 using boost::intrusive_ptr;
 using std::pair;
 using std::string;
@@ -84,6 +72,16 @@ REGISTER_DOCUMENT_SOURCE(match,
                          LiteParsedDocumentSourceDefault::parse,
                          DocumentSourceMatch::createFromBson,
                          AllowedWithApiStrict::kAlways);
+
+bool DocumentSourceMatch::containsTextOperator(const MatchExpression& expr) {
+    if (expr.matchType() == MatchExpression::MatchType::TEXT)
+        return true;
+    for (auto child : expr) {
+        if (containsTextOperator(*child))
+            return true;
+    }
+    return false;
+}
 
 DocumentSourceMatch::DocumentSourceMatch(std::unique_ptr<MatchExpression> expr,
                                          const boost::intrusive_ptr<ExpressionContext>& expCtx)
@@ -114,8 +112,7 @@ void DocumentSourceMatch::rebuild(BSONObj predicate, std::unique_ptr<MatchExpres
     _backingBsonForPredicate = std::move(predicate);
     _isTextQuery = containsTextOperator(*expr);
     DepsTracker dependencies =
-        DepsTracker(_isTextQuery ? DepsTracker::kAllMetadata & ~DepsTracker::kOnlyTextScore
-                                 : DepsTracker::kAllMetadata);
+        DepsTracker(_isTextQuery ? DepsTracker::kOnlyTextScore : DepsTracker::kNoMetadata);
     getDependencies(expr.get(), &dependencies);
     _matchProcessor.emplace(MatchProcessor(std::move(expr), std::move(dependencies)));
 }
@@ -560,7 +557,24 @@ DocumentSourceMatch::splitMatchByModifiedFields(
     const boost::intrusive_ptr<DocumentSourceMatch>& match,
     const DocumentSource::GetModPathsReturn& modifiedPathsRet) {
     // Attempt to move some or all of this $match before this stage.
-    OrderedPathSet modifiedPaths;
+    OrderedPathSet modifiedPaths = modifiedPathsRet.paths;
+    auto renames = modifiedPathsRet.renames;
+
+    // A "complex rename" is a rename-like operation which involves a dotted path, such as
+    // "a":"$b.c". If "b" is an array, then this is not a rename but a reshaping operation.
+    // Therefore, the typical behavior of getModifiedPaths() is to report "a" as a modified path and
+    // "a" -> "b.c" as a complex rename.
+    //
+    // When match swapping is permitted for complex renames we must reclassify "a":"$b.c" as a
+    // regular rename. This is done by removing "a" from the set of modified paths and adding "a" ->
+    // "b.c" to the renames map.
+    if (internalQueryPermitMatchSwappingForComplexRenames.load()) {
+        for (auto&& complexRename : modifiedPathsRet.complexRenames) {
+            renames[complexRename.first] = complexRename.second;
+            modifiedPaths.erase(complexRename.first);
+        }
+    }
+
     switch (modifiedPathsRet.type) {
         case DocumentSource::GetModPathsReturn::Type::kNotSupported:
             // We don't know what paths this stage might modify, so refrain from swapping.
@@ -569,21 +583,20 @@ DocumentSourceMatch::splitMatchByModifiedFields(
             // This stage modifies all paths, so cannot be swapped with a $match at all.
             return {nullptr, match};
         case DocumentSource::GetModPathsReturn::Type::kFiniteSet:
-            modifiedPaths = modifiedPathsRet.paths;
             break;
         case DocumentSource::GetModPathsReturn::Type::kAllExcept: {
             DepsTracker depsTracker;
             match->getDependencies(&depsTracker);
 
-            auto preservedPaths = modifiedPathsRet.paths;
-            for (auto&& rename : modifiedPathsRet.renames) {
+            auto preservedPaths = modifiedPaths;
+            for (auto&& rename : renames) {
                 preservedPaths.insert(rename.first);
             }
             modifiedPaths =
                 semantic_analysis::extractModifiedDependencies(depsTracker.fields, preservedPaths);
         }
     }
-    return std::move(*match).splitSourceBy(modifiedPaths, modifiedPathsRet.renames);
+    return std::move(*match).splitSourceBy(modifiedPaths, renames);
 }
 
 intrusive_ptr<DocumentSourceMatch> DocumentSourceMatch::create(
@@ -624,7 +637,14 @@ DepsTracker::State DocumentSourceMatch::getDependencies(const MatchExpression* e
         // A $text aggregation field should return EXHAUSTIVE_FIELDS, since we don't necessarily
         // know what field it will be searching without examining indices.
         deps->needWholeDocument = true;
-        deps->setNeedsMetadata(DocumentMetadataFields::kTextScore, true);
+
+        // This may look confusing, but we must call two setters on the DepsTracker for different
+        // purposes. We mark "textScore" as available metadata that can be consumed by any
+        // downstream stage for $meta field validation. We also also mark that this stage does
+        // require "textScore" so that the executor knows to produce the metadata.
+        // TODO SERVER-100902 Split $meta validation out of dependency tracking.
+        deps->setMetadataAvailable(DocumentMetadataFields::kTextScore);
+        deps->setNeedsMetadata(DocumentMetadataFields::kTextScore);
         return DepsTracker::State::EXHAUSTIVE_FIELDS;
     }
 

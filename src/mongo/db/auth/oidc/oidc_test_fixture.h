@@ -233,6 +233,10 @@ struct JWKSFetcherFactoryMock : public JWKSFetcherFactory {
             return _factoryMock.fetch(_issuer);
         }
 
+        void setQuiesce(Date_t quiesce) override {
+            (void)quiesce;
+        }
+
     private:
         const JWKSFetcherFactoryMock& _factoryMock;
         std::string _issuer;

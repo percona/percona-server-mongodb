@@ -127,6 +127,8 @@ public:
                         BSONObjBuilder* extraInfo = nullptr,
                         int infoLevel = 0) const override;
 
+    void sampleAndUpdate(OperationContext* opCTx) override {}
+
     long long dataSize(OperationContext* opCtx) const override {
         return _data->dataSize;
     }

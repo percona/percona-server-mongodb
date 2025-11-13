@@ -547,10 +547,28 @@ public:
     /**
      * Throws if the provided feature flag is not enabled in the current FCV or
      * 'maxFeatureCompatibilityVersion' if set. Will do nothing if the feature flag is enabled
-     * or boost::none.
+     * or boost::none.  This function assumes the caller has verified that the feature flag should
+     * be checked.
      */
     void throwIfFeatureFlagIsNotEnabledOnFCV(StringData name,
                                              const boost::optional<FeatureFlag>& flag);
+
+    /**
+     * Returns true if parsers should not check if feature flags are enabled in the current FCV or
+     * 'maxFeatureCompatibilityVersion' if set.
+     *
+     */
+    bool shouldParserIgnoreFeatureFlagCheck() const {
+        return (isParsingCollectionValidator || isParsingViewDefinition) && opCtx &&
+            !opCtx->isEnforcingConstraints();
+    }
+
+    /**
+     * Throws only if the parser should check the feature flag and the feature flag provided is not
+     * enabled in the current FCV or 'maxFeatureCompatibilityVersion' if set.
+     */
+    void ignoreFeatureInParserOrRejectAndThrow(StringData name,
+                                               const boost::optional<FeatureFlag>& flag);
 
     // The explain verbosity requested by the user, or boost::none if no explain was requested.
     boost::optional<ExplainOptions::Verbosity> explain;
@@ -778,6 +796,15 @@ public:
      * '_featureFlagBinDataConvertValue' for more information about this pattern.
      */
     bool isFeatureFlagBinDataConvertEnabled();
+    bool shouldParserAllowBinDataConvert() const;
+
+    void setIsRankFusion() {
+        _isRankFusion = true;
+    }
+
+    bool isRankFusion() const {
+        return _isRankFusion;
+    }
 
 protected:
     static const int kInterruptCheckPeriod = 128;
@@ -864,6 +891,13 @@ private:
     // for streams since this isn't allowed in MQL beyond some exemptions for internal
     // collection in the local database.
     bool _allowGenericForeignDbLookup = false;
+
+
+    // Indicates that the pipeline is a desugared representation of a user's $rankFusion
+    // pipeline. This is necessary for guarding that $rankFusion is not yet allowed to be run
+    // over views.
+    // TODO SERVER-101661 Remove this internal flag once $rankFusion works on views.
+    bool _isRankFusion = false;
 
     // We use this set to indicate whether or not a system variable was referenced in the query that
     // is being executed (if the variable was referenced, it is an element of this set).

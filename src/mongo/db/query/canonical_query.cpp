@@ -224,7 +224,7 @@ void CanonicalQuery::initCq(boost::intrusive_ptr<ExpressionContext> expCtx,
         _sortPattern = std::move(parsedFind->sort);
 
         // Be sure to track and add any metadata dependencies from the sort (e.g. text score).
-        _metadataDeps |= _sortPattern->metadataDeps(parsedFind->unavailableMetadata);
+        _metadataDeps |= _sortPattern->metadataDeps(parsedFind->availableMetadata);
 
         // If the results of this query might have to be merged on a remote node, then that node
         // might need the sort key metadata. Request that the plan generates this metadata.
@@ -254,7 +254,9 @@ void CanonicalQuery::initCq(boost::intrusive_ptr<ExpressionContext> expCtx,
         }
     }
     // The tree must always be valid after normalization.
-    dassert(parsed_find_command::isValid(_primaryMatchExpression.get(), *_findCommand).isOK());
+    dassert(parsed_find_command::validateAndGetAvailableMetadata(_primaryMatchExpression.get(),
+                                                                 *_findCommand)
+                .getStatus());
     if (auto status = isValidNormalized(_primaryMatchExpression.get()); !status.isOK()) {
         uasserted(status.code(), status.reason());
     }
@@ -266,13 +268,27 @@ void CanonicalQuery::initCq(boost::intrusive_ptr<ExpressionContext> expCtx,
 }
 
 void CanonicalQuery::setCollator(std::unique_ptr<CollatorInterface> collator) {
-    auto collatorRaw = collator.get();
-    // We must give the ExpressionContext the same collator.
-    _expCtx->setCollator(std::move(collator));
+    // Some MatchExpression implementations may refer to their previously set collator when
+    // 'setCollator()' or '_doSetCollator()' is called on them. They compare the new collator with
+    // the previously set collator for equality or equivalence, which means that they may
+    // dereference the previous collator pointer. The previous collator pointer is the one owned by
+    // the 'ExpressionContext', so we must keep this pointer valid and all MatchExpression
+    // implementations have finished their `setCollator()` work.
 
-    // The collator associated with the match expression tree is now invalid, since we have reset
-    // the collator owned by the ExpressionContext.
-    _primaryMatchExpression->setCollator(collatorRaw);
+    // Store the previous collator in a local variable that outlives the calls to 'setCollator' on
+    // the MatchExpression implementations.
+    [[maybe_unused]] auto oldCollator = _expCtx->getCollatorShared();
+
+    // Perform replacement of collator pointers while old collator pointer is still valid.
+    {
+        auto collatorRaw = collator.get();
+        // We must give the ExpressionContext the same collator.
+        _expCtx->setCollator(std::move(collator));
+
+        // The collator associated with the match expression tree is now invalid, since we have
+        // reset the collator owned by the ExpressionContext.
+        _primaryMatchExpression->setCollator(collatorRaw);
+    }
 }
 
 void CanonicalQuery::serializeToBson(BSONObjBuilder* out) const {
@@ -304,6 +320,11 @@ bool CanonicalQuery::isSimpleIdQuery(const BSONObj& query) {
     while (it.more()) {
         BSONElement elt = it.next();
         if (elt.fieldNameStringData() == "_id") {
+            if (hasID) {
+                // we already encountered an _id field
+                return false;
+            }
+
             // Verify that the query on _id is a simple equality.
             hasID = true;
 

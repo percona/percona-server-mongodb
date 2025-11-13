@@ -15,7 +15,7 @@ stepback: true
 ## Parameters for parameterized builds (see https://github.com/evergreen-ci/evergreen/wiki/Parameterized-Builds)
 parameters:
 - key: patch_compile_flags
-  description: "Additional SCons flags to be applied during scons compile invocations in this patch"
+  description: "Additional Bazel flags to be applied during bazel compile invocations in this patch"
 
 - key: future_git_tag
   description: "Future git tag to be added. If empty, we will use the most recent git tag instead."
@@ -32,6 +32,15 @@ parameters:
 - key: build_patch_id
   description: "Patch id of evergreen patch to pull binaries from for testing."
 
+- key: bazel_filters_for_cache_hydration
+  value: "compiledb,gen_source,dist_test,mongo_library,mongo_unittest,mongo_benchmark,mongo_integration_test,mongo_binary"
+  description: "Filters to pass Bazel to be built for the purpose of hydrating remote cache"
+
+- key: skip_symbolization
+  value: true
+  description: >-
+    Automatically disables symbolizing stack traces from Resmoke tasks. If this is set to false, the steps on how to manually symbolize the unsymbolized stacktraces will not be generated.
+
 ## Cron parameters.
 - key: project_required_suggested_cron
   value: "0 */4 * * *" # Every 4 hours starting at 0000 UTC
@@ -46,7 +55,7 @@ parameters:
 ## Patch Aliases
 patch_aliases:
 - alias: required
-  variant: '^(.*-required$|linux-64-debug|enterprise-amazon-linux2-arm64-all-feature-flags|amazon-linux2-arm64-dynamic-compile|amazon-linux2-arm64-compile|amazon-linux2-arm64-crypt-compile|run-all-affected-jstests)$'
+  variant: '^(.*-required$|linux-64-debug|enterprise-amazon-linux2023-arm64-all-feature-flags|amazon-linux2023-arm64-dynamic-compile|amazon-linux2-arm64-compile|amazon-linux2-arm64-crypt-compile|run-all-affected-jstests)$'
   task: '.*'
 
 - alias: convert_bazel
@@ -59,7 +68,7 @@ commit_queue_aliases:
   task: "^(bazel_.*|run_.*|compile_.*|lint_.*|validate_commit_message|jsCore|version_gen_validation|resmoke_validation_tests)$"
   variant_tags: []
   task_tags: []
-- variant: "^(amazon-linux2-arm64-dynamic-compile|linux-x86-dynamic-compile-required)$"
+- variant: "^(amazon-linux2023-arm64-dynamic-compile|linux-x86-dynamic-compile-required)$"
   task: "clang_tidy.*"
   variant_tags: []
   task_tags: []
@@ -107,6 +116,7 @@ post:
 - func: "kill processes"
 - func: "save local client logs"
 - func: "save jepsen artifacts"
+- func: "save unsymbolized stacktraces and local invocation"
 - func: "save mongo coredumps"
 - func: "generate hang analyzer tasks"
 - func: "save failed unittests"
@@ -119,7 +129,6 @@ post:
   vars:
     files: >-
       src/resmoke_error_code
-      src/build/scons/config.log
       src/*.gcda.gcov
       src/gcov-intermediate-files.tgz
       src/*.core src/*.mdmp src/*.core.gz src/*.mdmp.gz

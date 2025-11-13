@@ -60,6 +60,7 @@
 #include "mongo/db/s/collection_metadata.h"
 #include "mongo/db/s/collection_sharding_runtime.h"
 #include "mongo/db/s/shard_key_index_util.h"
+#include "mongo/db/scoped_read_concern.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/storage/snapshot.h"
 #include "mongo/db/timeseries/timeseries_options.h"
@@ -362,8 +363,7 @@ std::vector<BSONObj> _runExhaustiveAggregation(OperationContext* opCtx,
             }
 
             const auto authzSession = AuthorizationSession::get(opCtx->getClient());
-            const auto authChecker =
-                [&authzSession](const boost::optional<UserName>& userName) -> Status {
+            AuthzCheckFn authChecker = [&authzSession](AuthzCheckFnInputType userName) -> Status {
                 return authzSession->isCoauthorizedWith(userName)
                     ? Status::OK()
                     : Status(ErrorCodes::Unauthorized, "User not authorized to access cursor");
@@ -848,6 +848,9 @@ std::vector<MetadataInconsistencyItem> checkChunksConsistency(OperationContext* 
             ShardingState::get(opCtx)->shardId() == ShardId::kConfigServerId);
 
     DBDirectClient client{opCtx};
+    // We need to read at snapshot readConcern, set it in the opCtx for DBDirectClient.
+    ScopedReadConcern scopedReadConcern(
+        opCtx, repl::ReadConcernArgs(repl::ReadConcernLevel::kSnapshotReadConcern));
     const auto chunksCursor = _getCollectionChunksCursor(&client, collection);
 
     const auto& uuid = collection.getUuid();

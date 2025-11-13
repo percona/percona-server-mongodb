@@ -1265,6 +1265,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     initPerconaTelemetry(serviceContext);
 
     serviceContext->notifyStorageStartupRecoveryComplete();
+    startOplogCapMaintainerThread(
+        serviceContext, replSettings.isReplSet(), replSettings.shouldSkipOplogSampling());
 
 #ifndef _WIN32
     initialize_server_global_state::signalForkSuccess();
@@ -1639,7 +1641,7 @@ ServiceContext::ConstructorActionRegisterer registerWireSpec{
 
         WireSpec::getWireSpec(service).initialize(std::move(spec));
     }};
-}
+}  // namespace
 
 #ifdef MONGO_CONFIG_SSL
 MONGO_INITIALIZER_GENERAL(setSSLManagerType, (), ("SSLManager"))
@@ -2135,17 +2137,6 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         LOGV2(4784930, "Shutting down the storage engine");
         // Allow memory leak for faster shutdown.
         shutdownGlobalStorageEngineCleanly(serviceContext, true /* memLeakAllowed */);
-    }
-
-    {
-        // We wait for the oplog cap maintainer thread to stop. This has to be done after the engine
-        // has been closed since the thread will only die once all references to the oplog have been
-        // deleted and we're performing a shutdown.
-        TimeElapsedBuilderScopedTimer scopedTimer(
-            serviceContext->getFastClockSource(),
-            "Wait for the oplog cap maintainer thread to stop",
-            &shutdownTimeElapsedBuilder);
-        OplogCapMaintainerThread::get(serviceContext)->waitForFinish();
     }
 
     // We drop the scope cache because leak sanitizer can't see across the
