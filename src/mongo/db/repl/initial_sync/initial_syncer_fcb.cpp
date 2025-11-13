@@ -48,6 +48,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/client.h"
 #include "mongo/db/commands/server_status_metric.h"
 #include "mongo/db/concurrency/d_concurrency.h"
+#include "mongo/db/concurrency/exception_util.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
@@ -2326,7 +2327,13 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     // _oplogEnd gets its first value from the metadata returned by $backupCursor
     // The code around $backupCursorExtend sets _oplogEnd to the appliedOpTime value returned by
     // replSetGetStatus
-    consistencyMarkers->setOplogTruncateAfterPoint(opCtx.get(), _oplogEnd.getTimestamp());
+    writeConflictRetry(opCtx.get(),
+                       "setOplogTruncateAfterPoint",
+                       NamespaceString::kDefaultOplogTruncateAfterPointNamespace,
+                       [this, consistencyMarkers, opCtx = opCtx.get()] {
+                           consistencyMarkers->setOplogTruncateAfterPoint(opCtx,
+                                                                          _oplogEnd.getTimestamp());
+                       });
     // clear and reset the initalSyncId
     consistencyMarkers->clearInitialSyncId(opCtx.get());
     consistencyMarkers->setInitialSyncIdIfNotSet(opCtx.get());
