@@ -1714,8 +1714,12 @@ Status InitialSyncerFCB::_switchStorageLocation(
 
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
-    auto lastShutdownState =
-        reinitializeStorageEngine(opCtx, StorageEngineInitFlags{}, [&newLocation, opCtx] {
+    auto lastShutdownState = reinitializeStorageEngine(
+        opCtx,
+        repl::ReplicationCoordinator::get(opCtx->getServiceContext())->getSettings().isReplSet(),
+        repl::ReplSettings::shouldSkipOplogSampling(),
+        StorageEngineInitFlags{},
+        [&newLocation, opCtx] {
             storageGlobalParams.dbpath = newLocation;
             repl::clearLocalOplogPtr(opCtx->getServiceContext());
         });
