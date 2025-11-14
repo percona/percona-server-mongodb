@@ -90,7 +90,7 @@ public:
         return {"unknown"};
     }
 
-    std::vector<StringData> psmdbProFeatures() const final {
+    std::vector<StringData> perconaFeatures() const final {
         return {"unknown"};
     }
 
@@ -172,7 +172,7 @@ void VersionInfoInterface::appendBuildInfo(BSONObjBuilder* result) const {
     o.append("targetMinOS", targetMinOS());
 #endif
     o.append("modules", modules());
-    o.append("proFeatures", psmdbProFeatures());
+    o.append("perconaFeatures", perconaFeatures());
     o.append("allocator", allocator());
     o.append("javascriptEngine", jsEngine());
     o.append("sysInfo", "deprecated");
@@ -236,7 +236,7 @@ void VersionInfoInterface::logBuildInfo(std::ostream* os) const {
     bob.append("openSSLVersion", openSSLVersion());
 #endif
     bob.append("modules", modules());
-    bob.append("proFeatures", psmdbProFeatures());
+    bob.append("perconaFeatures", perconaFeatures());
     bob.append("allocator", allocator());
     {
         auto envObj = BSONObjBuilder(bob.subobjStart("environment"));

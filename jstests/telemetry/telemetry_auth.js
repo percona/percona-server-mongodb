@@ -146,13 +146,7 @@ for (const getTelemetryFunc of [getMongodTelemetry, getMongosTelemetry]) {
     testAuthMethodFields(getTelemetryFunc,
                          "GSSAPI,MONGODB-X509,PLAIN",
                          ["kerberos_enabled", "x509_enabled", "ldap_sasl_authentication_enabled"]);
-
-    // check if OIDC feature is enabled
-    if (defaultData.pro_features.includes('OIDC')) {
-        testAuthMethodFields(getTelemetryFunc, "MONGODB-OIDC", "oidc_enabled", oidcOptions);
-    } else {
-        print("OIDC feature is not enabled, skipping oidc_enabled test");
-    }
+    testAuthMethodFields(getTelemetryFunc, "MONGODB-OIDC", "oidc_enabled", oidcOptions);
 
     // check if LDAP tests are configured
     if (isLDAPTestConfigured()) {
