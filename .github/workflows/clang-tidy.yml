@@ -1,0 +1,118 @@
+name: clang-tidy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  CLANG_TIDY_SARIF_VERSION: "0.8.0"
+
+jobs:
+  changed_files:
+    name: Check for changed C++ files
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-skip-clang-tidy') }}
+    outputs:
+      changed_files: ${{ steps.changed.outputs.all_changed_files }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            **/*.cpp
+            **/*.c
+      - name: List changed files
+        run: |
+          echo "Changed files: ${{ steps.changed.outputs.all_changed_files }}"
+
+  analyze:
+    name: Run clang-tidy analysis
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-skip-clang-tidy') && needs.changed_files.outputs.changed_files != '' }}
+    needs: changed_files
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        id: setup-python
+        with:
+          python-version: "3.10"
+          cache: "pip"
+          cache-dependency-path: poetry.lock
+
+      - name: Configure Python
+        run: |
+          python -m pip install -U pip "virtualenv>=20.35,<21" poetry==2.0.0
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+
+      - name: Poetry virtualenv cache
+        uses: actions/cache@v4
+        id: venv
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Install Python deps
+        if: steps.venv.outputs.cache-hit != 'true'
+        run: |
+          poetry install --no-root --without export
+
+      - name: Install Bazel
+        run: |
+          poetry run python buildscripts/install_bazel.py
+
+      - name: Bazel cache
+        uses: actions/cache@v4
+        id: bazel_cache
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazelisk
+          key: ${{ runner.os }}-bazel-cache
+
+      - name: clang-tidy-sarif cache
+        uses: actions/cache@v4
+        id: clang_tidy_sarif_cache
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-clang-tidy-sarif-${{ env.CLANG_TIDY_SARIF_VERSION }}
+
+      - name: Install clang-tidy-sarif
+        if: steps.clang_tidy_sarif_cache.outputs.cache-hit != 'true'
+        run: cargo install clang-tidy-sarif --version "${CLANG_TIDY_SARIF_VERSION}" --locked
+
+      - name: Generate compile_commands.json and build mongo_tidy_checks plugin
+        run: |
+          # Need to use clang as the mongo_tidy_checks plugin does not compile with gcc 11.3.0
+          {
+            echo 'build --//bazel/config:compiler_type=clang'
+          } > .bazelrc.compiledb
+          bazel \
+            --bazelrc=.bazelrc.compiledb \
+            build \
+            //:compiledb \
+            //src/mongo/tools/mongo_tidy_checks:mongo_tidy_checks
+
+      - name: Run clang-tidy
+        run: |
+          CHANGED="${{ needs.changed_files.outputs.changed_files }}"
+          echo "Changed C++ files: '$CHANGED'"
+          external/mongo_toolchain_v4/v4/bin/clang-tidy \
+            --load="bazel-bin/src/mongo/tools/mongo_tidy_checks/libmongo_tidy_checks.so" \
+            $CHANGED \
+          | clang-tidy-sarif --output=clang-tidy-results.sarif
+
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: clang-tidy-results.sarif
+          category: clang-tidy
