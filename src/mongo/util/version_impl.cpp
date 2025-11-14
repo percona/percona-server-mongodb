@@ -74,8 +74,8 @@ public:
         return version::modulesList();
     }
 
-    std::vector<StringData> psmdbProFeatures() const final {
-        return version::psmdbProFeatureList();
+    std::vector<StringData> perconaFeatures() const final {
+        return version::perconaFeatureList();
     }
 
     StringData allocator() const noexcept final {

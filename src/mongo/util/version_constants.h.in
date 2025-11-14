@@ -52,9 +52,9 @@ inline std::vector<StringData> modulesList() {
     };
 }
 
-inline std::vector<StringData> psmdbProFeatureList() {
+inline std::vector<StringData> perconaFeatureList() {
     return {
-@buildinfo_psmdb_pro_features@
+@buildinfo_percona_features@
     };
 }
 
