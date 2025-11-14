@@ -66,6 +66,12 @@ def get_option(name):
     return GetOption(name)
 
 def has_option(name):
+    # For now, we just enable all the optional Percona-specific features.
+    # Since none of the features are going to be disabled, we can later
+    # remove the respective build flags completely
+    if name == 'full-featured':
+        return True
+
     optval = GetOption(name)
     # Options with nargs=0 are true when their value is the empty tuple. Otherwise,
     # if the value is falsish (empty string, None, etc.), coerce to False.
@@ -2140,14 +2146,32 @@ def link_guard_libdeps_tag_expand(source, target, env, for_signature):
 
 env['LIBDEPS_TAG_EXPANSIONS'].append(link_guard_libdeps_tag_expand)
 
-env['PSMDB_PRO_FEATURES'] = []
 
-if has_option('audit'):
-    env.Append( CPPDEFINES=[ 'PERCONA_AUDIT_ENABLED' ] )
+# Since none of the features are going to be disabled, we can later
+# remove the build flags completely and move the feature list to a more
+# appropriate place.
+assert has_option('audit'), "audit must be enabled"
+assert has_option('enable-fipsmode'), "FIPS must be enabled"
 
-if has_option('enable-fipsmode') or has_option('full-featured'):
-    env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
-    env['PSMDB_PRO_FEATURES'].append('FIPSMode')
+env['PERCONA_FEATURES'] = [
+    'MemoryEngine',
+    'HotBackup',
+    'BackupCursorAggregationStage',
+    'BackupCursorExtendAggregationStage',
+    'AWSIAM',
+    'Kerberos',
+    'LDAP',
+    'TDE',
+    'FIPSMode',
+    'Auditing',
+    'ProfilingRateLimit',
+    'LogRedaction',
+    'ngram'
+]
+
+env.Append( CPPDEFINES=[ 'PERCONA_AUDIT_ENABLED' ] )
+
+env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
 
 env.Tool('forceincludes')
 
