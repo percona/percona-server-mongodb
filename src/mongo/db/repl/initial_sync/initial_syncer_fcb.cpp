@@ -1755,6 +1755,10 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
 
     catalog::openCatalogAfterStorageChange(opCtx);
 
+    // runStartupRecovery stahes collection catalog so we need to reset it in order to avoid getting
+    // WriteConflictException later
+    shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
+
     LOGV2_DEBUG(128415, 1, "Switched storage location", "newLocation"_attr = newLocation);
     return Status::OK();
 }
