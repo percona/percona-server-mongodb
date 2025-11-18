@@ -89,7 +89,7 @@ try {
     checkLog.containsJson(newNode, 128455, undefined, 5000);
 } catch (e) {
     // Falling back to rawMongoProgramOutput
-    let output = rawMongoProgramOutput();
+    let output = rawMongoProgramOutput(".*");
     if (!output.includes("The lag is too big, extending backup cursor")) {
         throw e;
     }
