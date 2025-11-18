@@ -84,13 +84,9 @@ mongo_cc_library(
         "//src/mongo/transport:transport_layer_egress_init.cpp",
     ],
     deps = [
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/transport:transport_layer_manager",
-    ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
-        "//conditions:default": [],
-    })
+    ]
 )
 
 mongo_cc_library(

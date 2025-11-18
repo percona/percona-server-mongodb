@@ -59,21 +59,13 @@ mongo_cc_library(
         "//src/mongo/client:dbclient_mockcursor",
         "//src/mongo/client:replica_set_monitor_test_helper",
         "//src/mongo/db:query_expressions",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/exec:projection_executor",
+        "//src/mongo/db/storage/inmemory:storage_inmemory",
         "//src/mongo/db/query:projection_ast",
         "//src/mongo/db/query:query_test_service_context",
         "//src/mongo/db/repl:replica_set_messages",
     ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:inmemory_enabled": [
-            "//src/mongo/db/storage/inmemory:storage_inmemory",
-        ],
-        "//conditions:default": [],
-    }) + select({
         "//bazel/config:enterprise_feature_inmemory_enabled": [
             "//src/mongo/db/modules/enterprise/src/inmemory:storage_inmemory",
         ],

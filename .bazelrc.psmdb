@@ -1,14 +1,4 @@
 ################################################################################
-# Percona-specific config flag aliases
-################################################################################
-common --flag_alias=inmemory=//bazel/config:inmemory
-common --flag_alias=audit=//bazel/config:audit
-common --flag_alias=full_featured=//bazel/config:full_featured
-common --flag_alias=enable_fipsmode=//bazel/config:enable_fipsmode
-common --flag_alias=enable_fcbis=//bazel/config:enable_fcbis
-common --flag_alias=enable_oidc=//bazel/config:enable_oidc
-
-################################################################################
 # Default values for Percona-specific build profiles
 ################################################################################
 common --enable_platform_specific_config=true
@@ -29,9 +19,6 @@ common --//bazel/config:local_build=True
 
 # enable additional modules
 common --//bazel/config:use_sasl_client=True
-common --//bazel/config:inmemory=True
-common --//bazel/config:audit=True
-common --//bazel/config:full_featured=True
 
 # how to build
 common --jobs=auto

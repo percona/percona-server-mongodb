@@ -221,19 +221,4 @@ std::string SSLParams::tlsModeFormat(int mode) {
             return "unknown";
     }
 }
-
-#if !defined(PERCONA_FIPSMODE_ENABLED)
-Status validateSslFIPSMode([[maybe_unused]] const bool& value) {
-    return Status(
-        ErrorCodes::BadValue,
-        "Support for the FIPS mode (--tlsFIPSMode) is available in the Percona Supported Builds of "
-        "MongoDB. You can compile Percona Server for MongoDB with FIPS mode yourself by following "
-        "the build from source guide "
-        "(https://docs.percona.com/percona-server-for-mongodb/7.0/install/source.html). "
-        "You can also subscribe to support to receive Percona Supported Builds, see "
-        "(https://www.percona.com/services/support) for more information.");
-}
-#endif
-
-
 }  // namespace mongo

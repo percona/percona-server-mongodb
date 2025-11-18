@@ -245,33 +245,6 @@ def generate_config_header(
     modules = ["enterprise"] if "build_enterprise_enabled" in extra_definitions_dict else []
     module_list = ",\n".join(['"{0}"_sd'.format(x) for x in modules])
 
-    # For now, we just enable all the Percona-specific features by choosing
-    # appropriate default values for the build configuration flags and leave
-    # the list of the features here.
-    # Since none of the features are going to be disabled, we can later
-    # remove the build flags completely and move the feature list to a more
-    # appropriate place.
-    assert "fipsmode_enabled" in extra_definitions_dict, "FIPS must be enabled"
-    assert "fcbis_enabled" in extra_definitions_dict, "FCBIS must be enabled"
-    assert "oidc_enabled" in extra_definitions_dict, "OIDC must be enabled"
-    percona_features = [
-        "MemoryEngine",
-        "HotBackup",
-        "BackupCursorAggregationStage",
-        "BackupCursorExtendAggregationStage",
-        "AWSIAM",
-        "Kerberos",
-        "LDAP",
-        "OIDC",
-        "TDE",
-        "FIPSMode",
-        "FCBIS",
-        "Auditing",
-        "ProfilingRateLimit",
-        "LogRedaction",
-        "ngram"
-    ]
-
     replacements = {
         "@mongo_version@": extra_definitions_dict["MONGO_VERSION"],
         "@mongo_version_major@": str(version_parts[0]),
@@ -283,7 +256,6 @@ def generate_config_header(
         "@buildinfo_js_engine@": extra_definitions_dict["js_engine_ver"],
         "@buildinfo_allocator@": extra_definitions_dict["MONGO_ALLOCATOR"],
         "@buildinfo_modules@": module_list,
-        "@buildinfo_percona_features@": ",\n".join([f'"{x}"_sd' for x in percona_features]),
         "@buildinfo_environment_data@": buildInfoInitializer,
     }
 

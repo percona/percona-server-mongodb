@@ -79,16 +79,12 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:query_expressions",
         "//src/mongo/db:vector_clock_trivial",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/ops:parsed_update",
         "//src/mongo/db/query/collation:collator_factory_icu",
         "//src/mongo/db/query/collation:collator_factory_interface",
-    ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 # This is a duplicate definition so we can build a regular .so file for testing

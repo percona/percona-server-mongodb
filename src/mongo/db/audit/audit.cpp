@@ -33,7 +33,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include "mongo/bson/bsonobjbuilder.h"
-#ifdef PERCONA_AUDIT_ENABLED
 
 #include <cstdio>
 #include <iostream>
@@ -1298,5 +1297,3 @@ void fsyncAuditLog() {
 }
 
 }  // namespace mongo::audit
-
-#endif  // PERCONA_AUDIT_ENABLED

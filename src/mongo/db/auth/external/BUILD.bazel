@@ -42,16 +42,12 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/db/auth:saslauth",
+        "//src/mongo/db/auth/external:sasl_oidc_server_mechanism",
         "//src/mongo/db/ldap:ldap_manager",
         "//src/mongo/db:ldap_options",
         "//src/mongo/db:service_context",
         "//src/mongo/util/net:http_client",
     ] + select({
-        "//bazel/config:oidc_selected": [
-            "//src/mongo/db/auth/external:sasl_oidc_server_mechanism",
-        ],
-        "//conditions:default": [],
-    }) + select({
         "//bazel/config:ssl_enabled": [
             "//src/mongo/client:sasl_aws_protocol_common_idl",
         ],
