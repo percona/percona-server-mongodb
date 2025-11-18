@@ -72,6 +72,14 @@ common:psmdb_dbg --compilation_mode dbg
 common:psmdb_dbg --//bazel/config:opt=debug
 common:psmdb_dbg --//bazel/config:dbg_level=3
 
+--config=psmdb_clang_tidy
+common:psmdb_clang_tidy --config=psmdb_dbg
+common:psmdb_clang_tidy --build_tag_filters=-third_party,-mongo-tidy-tests,-third_party_debug,-mongo-tidy-tests_debug
+common:psmdb_clang_tidy --//bazel/config:compiler_type=clang
+common:psmdb_clang_tidy --keep_going
+common:psmdb_clang_tidy --aspects @bazel_clang_tidy//clang_tidy:clang_tidy.bzl%clang_tidy_aspect
+common:psmdb_clang_tidy --output_groups=report
+
 # Profile for building the `install-mongo_fuzzer_test` target
 --config=psmdb_fuzzer
 common:psmdb_fuzzer --compilation_mode dbg
