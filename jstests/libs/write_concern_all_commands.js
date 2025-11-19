@@ -432,6 +432,7 @@ const wcCommandsTests = {
             },
         },
     },
+    auditGetOptions: {skip: "does not accept write concern"},
     authenticate: {skip: "does not accept write concern"},
     autoCompact: {skip: "does not accept write concern"},
     autoSplitVector: {skip: "does not accept write concern"},
@@ -787,6 +788,7 @@ const wcCommandsTests = {
             },
         },
     },
+    createBackup: {skip: "does not accept write concern"},
     createIndexes: {
         // All voting data bearing nodes are not up for this test. So 'createIndexes' command
         // can't succeed with the default index commitQuorum value "votingMembers". So, we run
@@ -3280,6 +3282,7 @@ const wcTimeseriesViewsCommandsTests = {
             },
         },
     },
+    auditGetOptions: {skip: "does not accept write concern"},
     authenticate: {skip: "does not accept write concern"},
     autoCompact: {skip: "does not accept write concern"},
     autoSplitVector: {skip: "does not accept write concern"},
@@ -3479,6 +3482,7 @@ const wcTimeseriesViewsCommandsTests = {
             },
         },
     },
+    createBackup: {skip: "does not accept write concern"},
     createIndexes: {
         noop: {
             // Index already exists
