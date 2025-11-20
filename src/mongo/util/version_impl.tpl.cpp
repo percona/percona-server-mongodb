@@ -76,7 +76,21 @@ public:
 
     std::vector<StringData> perconaFeatures() const final {
         return {
-@buildinfo_percona_features@
+            "MemoryEngine",
+            "HotBackup",
+            "BackupCursorAggregationStage",
+            "BackupCursorExtendAggregationStage",
+            "AWSIAM",
+            "Kerberos",
+            "LDAP",
+            "OIDC",
+            "TDE",
+            "FIPSMode",
+            "FCBIS",
+            "Auditing",
+            "ProfilingRateLimit",
+            "LogRedaction",
+            "ngram"
         };
     }
 

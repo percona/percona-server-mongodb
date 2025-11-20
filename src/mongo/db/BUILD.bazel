@@ -2649,6 +2649,7 @@ mongo_cc_library(
         "index_builds_coordinator_interface",
         "shard_role",
         ":resumable_index_builds_idl",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/catalog:collection_catalog",
         "//src/mongo/db/catalog:index_build_entry_idl",
         "//src/mongo/db/repl:tenant_migration_access_blocker",
@@ -2657,11 +2658,6 @@ mongo_cc_library(
         "//src/mongo/executor:task_executor_interface",
         "//src/mongo/util/concurrency:thread_pool",
     ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
-        "//conditions:default": [],
-    }) + select({
         "//bazel/config:enterprise_feature_audit_enabled": [
             "//src/mongo/db/modules/enterprise/src/audit:audit_enterprise",
         ],
@@ -2682,7 +2678,10 @@ mongo_cc_library(
         # library to inject a static or mongo initializer to mongod, please add that library as a
         # private libdep of mongod_initializers.
         "//src/mongo/client:clientdriver_minimal",
+        "//src/mongo/db/audit:audit_impl",
+        "//src/mongo/db/audit:audit_options",
         "//src/mongo/db/auth:user_cache_invalidator",
+        "//src/mongo/db/auth/oidc:oidc",
         "//src/mongo/idl:cluster_server_parameter_idl",
         "//src/mongo/idl:cluster_server_parameter_initializer",
         "//src/mongo/idl:cluster_server_parameter_op_observer",
@@ -2744,6 +2743,7 @@ mongo_cc_library(
         "//src/mongo/db/query/stats",
         "//src/mongo/db/repl:drop_pending_collection_reaper",
         "//src/mongo/db/repl:initial_syncer",
+        "//src/mongo/db/repl:initial_syncer_fcb",
         "//src/mongo/db/repl:repl_coordinator_impl",
         "//src/mongo/db/repl:replication_recovery",
         "//src/mongo/db/repl:serveronly_repl",
@@ -2789,22 +2789,6 @@ mongo_cc_library(
     }) + select({
         "//bazel/config:use_diagnostic_latches_enabled": ["//src/mongo/util:latch_analyzer"],
         "//conditions:default": [],
-    }) + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-            "//src/mongo/db/audit:audit_options",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:fcbis_selected": [
-            "//src/mongo/db/repl:initial_syncer_fcb",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:oidc_selected": [
-            "//src/mongo/db/auth/oidc:oidc",
-        ],
-        "//conditions:default": [],
     }),
 )
 
@@ -2842,8 +2826,10 @@ mongo_cc_library(
         "//src/mongo/watchdog:watchdog_mongod",
         "//src/third_party/snappy",
         "//src/mongo/db/admission:queues_server_status_section",
+        "//src/mongo/db/audit:audit_commands",
         "//src/mongo/db/auth:auth_op_observer",
         "//src/mongo/db/auth:authserver",
+        "//src/mongo/db/auth/oidc:oidc_commands",
         "//src/mongo/db/bson:dotted_path_support",
         "//src/mongo/db/catalog:catalog_impl",
         "//src/mongo/db/catalog:collection_options",
@@ -2915,6 +2901,7 @@ mongo_cc_library(
         "//src/mongo/db/storage:storage_engine_metadata",
         "//src/mongo/db/storage:storage_init_d",
         "//src/mongo/db/storage:storage_options",
+        "//src/mongo/db/storage/inmemory:storage_inmemory",
         "system_index",
         "//src/mongo/db/timeseries:bucket_compression_failure",
         "traffic_recorder",
@@ -2934,21 +2921,6 @@ mongo_cc_library(
     }) + select({
         "//bazel/config:tcmalloc_google_enabled": ["//src/mongo/util:tcmalloc_set_parameter"],
         "//bazel/config:tcmalloc_gperf_enabled": ["//src/mongo/util:tcmalloc_set_parameter"],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_commands",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:inmemory_enabled": [
-            "//src/mongo/db/storage/inmemory:storage_inmemory",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:oidc_selected": [
-            "//src/mongo/db/auth/oidc:oidc_commands",
-        ],
         "//conditions:default": [],
     }) + select({
         "//bazel/config:enterprise_feature_audit_enabled": [
