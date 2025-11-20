@@ -116,8 +116,5 @@
 // Defined if using the tcmalloc-gperf memory allocator
 @mongo_config_tcmalloc_gperf@
 
-
-// Percona specific section
-
 // Defined if basic_stringbuf::str()&& overload exists
 @mongo_config_have_basic_stringbuf_str_rvalue@
