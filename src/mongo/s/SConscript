@@ -3,8 +3,6 @@
 Import([
     "env",
     "get_option",
-    "has_option",
-    "has_feature_option",
     "version_extra",
     "version_parts",
 ])
@@ -464,9 +462,9 @@ env.Library(
         # please add that library here, as a private library dependency.
         '$BUILD_DIR/mongo/db/admission/queues_server_status_section',
         '$BUILD_DIR/mongo/db/audit',
-        '$BUILD_DIR/mongo/db/audit_commands' if has_option('audit') else [],
+        '$BUILD_DIR/mongo/db/audit_commands',
         '$BUILD_DIR/mongo/db/auth/authmongos',
-        '$BUILD_DIR/mongo/db/auth/oidc/oidc_commands' if has_feature_option('enable-oidc') else [],
+        '$BUILD_DIR/mongo/db/auth/oidc/oidc_commands',
         '$BUILD_DIR/mongo/db/commands/server_status_core',
         '$BUILD_DIR/mongo/db/commands/server_status_servers',
         '$BUILD_DIR/mongo/db/dbdirectclient',
@@ -540,7 +538,7 @@ env.Library(
         '$BUILD_DIR/mongo/client/remote_command_targeter',
         '$BUILD_DIR/mongo/db/audit',
         '$BUILD_DIR/mongo/db/auth/authmongos',
-        '$BUILD_DIR/mongo/db/auth/oidc/oidc' if has_feature_option('enable-oidc') else [],
+        '$BUILD_DIR/mongo/db/auth/oidc/oidc',
         '$BUILD_DIR/mongo/db/change_stream_options_manager',
         '$BUILD_DIR/mongo/db/change_streams_cluster_parameter',
         '$BUILD_DIR/mongo/db/commands/rwc_defaults_commands',

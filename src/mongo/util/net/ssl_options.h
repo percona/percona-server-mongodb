@@ -166,11 +166,6 @@ Status storeSSLDisabledProtocols(
     SSLDisabledProtocolsMode mode = SSLDisabledProtocolsMode::kStandardFormat);
 
 /**
- * Validate sslFIPSMode
- */
-Status validateSslFIPSMode(const bool& value);
-
-/**
  * The global SSL configuration. This should be accessed only after global initialization has
  * completed. If it must be accessed in an initializer, the initializer should have
  * "EndStartupOptionStorage" as a prerequisite.

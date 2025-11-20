@@ -87,20 +87,10 @@ def get_option(name):
 
 
 def has_option(name):
-    # For now, we just enable all the optional Percona-specific features.
-    # Since none of the features are going to be disabled, we can later
-    # remove the respective build flags completely
-    if name == 'full-featured':
-        return True
-
     optval = GetOption(name)
     # Options with nargs=0 are true when their value is the empty tuple. Otherwise,
     # if the value is falsish (empty string, None, etc.), coerce to False.
     return True if optval == () else bool(optval)
-
-# Returns true if a given option is set or if the 'full-featured' option is set.
-def has_feature_option(name):
-    return has_option(name) or has_option('full-featured')
 
 def use_system_version_of_library(name):
     return has_option('use-system-all') or has_option('use-system-' + name)
@@ -274,52 +264,6 @@ add_option(
     help='Enable wiredtiger',
     nargs='?',
     type='choice',
-)
-
-add_option(
-    'inmemory',
-    choices=['on', 'off'],
-    const='on',
-    default='off',
-    help='Enable InMemory',
-    nargs='?',
-    type='choice',
-)
-
-add_option(
-    'audit',
-    help='Enable auditing',
-    nargs=0,
-)
-
-add_option(
-    'hotbackup',
-    help='Enable Hot Backup',
-    nargs=0,
-)
-
-add_option(
-    'enable-fipsmode',
-    help='Enable tls.FIPSMode configuration option',
-    nargs=0,
-)
-
-add_option(
-    'enable-fcbis',
-    help='Enable file copy-based initial sync',
-    nargs=0,
-)
-
-add_option(
-    'enable-oidc',
-    help='Enable OpenID Connect authentication support',
-    nargs=0,
-)
-
-add_option(
-    'full-featured',
-    help='Enable all optional features',
-    nargs=0,
 )
 
 add_option(
@@ -2714,38 +2658,6 @@ def link_guard_libdeps_tag_expand(source, target, env, for_signature):
 env['LIBDEPS_TAG_EXPANSIONS'].append(link_guard_libdeps_tag_expand)
 
 
-# Since none of the features are going to be disabled, we can later
-# remove the build flags completely and move the feature list to a more
-# appropriate place.
-assert has_option('audit'), "audit must be enabled"
-assert has_feature_option('enable-fipsmode'), "FIPS must be enabled"
-assert has_feature_option('enable-fcbis'), "FCBIS must be enabled"
-assert has_feature_option('enable-oidc'), "OIDC must be enabled"
-
-env['PERCONA_FEATURES'] = [
-    'MemoryEngine',
-    'HotBackup',
-    'BackupCursorAggregationStage',
-    'BackupCursorExtendAggregationStage',
-    'AWSIAM',
-    'Kerberos',
-    'LDAP',
-    'OIDC',
-    'TDE',
-    'FIPSMode',
-    'FCBIS',
-    'Auditing',
-    'ProfilingRateLimit',
-    'LogRedaction',
-    'ngram'
-]
-
-env.Append( CPPDEFINES=[ 'PERCONA_AUDIT_ENABLED' ] )
-
-env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
-env.SetConfigHeaderDefine("PERCONA_FCBIS_ENABLED")
-env.SetConfigHeaderDefine("PERCONA_OIDC_ENABLED")
-
 env.Tool('forceincludes')
 
 # ---- other build setup -----
@@ -3269,11 +3181,8 @@ if get_option('wiredtiger') == 'on':
         wiredtiger = True
         env.SetConfigHeaderDefine("MONGO_CONFIG_WIREDTIGER_ENABLED")
 
-inmemory = False
-if get_option('inmemory') == 'on':
-    inmemory = True
-    if not wiredtiger:
-        env.FatalError("InMemory engine requires WiredTiger to build")
+if not wiredtiger:
+    env.FatalError("InMemory engine requires WiredTiger to build")
 
 if get_option('ocsp-stapling') == 'on':
     # OCSP Stapling needs to be disabled on ubuntu 18.04 machines because when TLS 1.3 is
@@ -6386,9 +6295,7 @@ Export([
     'endian',
     'get_option',
     'has_option',
-    'has_feature_option',
     'http_client',
-    'inmemory',
     'jsEngine',
     'module_sconscripts',
     'optBuild',

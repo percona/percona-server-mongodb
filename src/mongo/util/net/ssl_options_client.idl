@@ -30,7 +30,6 @@ global:
   cpp_namespace: "mongo"
   cpp_includes:
     - "mongo/config.h"
-    - "mongo/util/net/fipsmode_config.h"
     - "mongo/util/net/ssl_options.h"
   configs:
     section: "TLS Options"
@@ -107,21 +106,6 @@ configs:
     arg_vartype: Switch
     cpp_varname: "sslGlobalParams.sslFIPSMode"
     requires: tls
-    condition:
-      constexpr: 'kFIPSModeEnabled'
-
-  "tls.FIPSMode":
-    description: "Activate FIPS 140-2 mode at startup"
-    short_name: tlsFIPSMode
-    deprecated_name: "ssl.FIPSMode"
-    deprecated_short_name: sslFIPSMode
-    arg_vartype: Switch
-    cpp_varname: "sslGlobalParams.sslFIPSMode"
-    hidden: true
-    condition:
-      constexpr: '!kFIPSModeEnabled'
-    validator:
-      callback: validateSslFIPSMode
 
   "tls.certificateSelector":
     description: "TLS Certificate in system store"

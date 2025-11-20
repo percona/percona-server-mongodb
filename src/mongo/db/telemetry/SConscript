@@ -1,7 +1,6 @@
 # -*- mode: python -*-
 
 Import("env")
-Import("has_feature_option")
 
 env = env.Clone()
 
@@ -17,7 +16,7 @@ env.Library(
         '$BUILD_DIR/mongo/util/background_job',
     ],
     LIBDEPS_PRIVATE=[
-        '$BUILD_DIR/mongo/db/auth/oidc/oidc' if has_feature_option('enable-oidc') else [],
+        '$BUILD_DIR/mongo/db/auth/oidc/oidc',
         '$BUILD_DIR/mongo/db/auth/sasl_options',
         '$BUILD_DIR/mongo/db/ldap_options',
         '$BUILD_DIR/mongo/db/server_base',
