@@ -3,8 +3,6 @@
 Import([
     "env",
     "get_option",
-    "has_option",
-    "inmemory",
     "version_extra",
     "version_parts",
     "wiredtiger",
@@ -18,11 +16,9 @@ env.InjectThirdParty(libraries=[
     's2',
 ])
 
-if has_option('audit'):
-    env.SConscript(dirs='audit', exports='env')
-
 env.SConscript(
     dirs=[
+        'audit',
         'auth',
         'backup',
         'bson',
@@ -2500,7 +2496,7 @@ env.Library(
         'storage/ephemeral_for_test/storage_ephemeral_for_test',
         'storage/flow_control',
         'storage/flow_control_parameters',
-        'storage/inmemory/storage_inmemory' if inmemory else [],
+        'storage/inmemory/storage_inmemory',
         'storage/storage_control',
         'storage/storage_engine_lock_file',
         'storage/storage_engine_metadata',

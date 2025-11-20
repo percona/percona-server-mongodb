@@ -103,9 +103,3 @@
 
 // Defined if WiredTiger storage engine is enabled
 @mongo_config_wiredtiger_enabled@
-
-
-// Percona specific section
-
-// FIPSMode enabled
-@percona_fipsmode_enabled@

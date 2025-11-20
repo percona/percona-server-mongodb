@@ -27,15 +27,23 @@
  *    it in the license file.
  */
 
+////////////////////////////////////////////////////////////////////////////////
+// @see the `src/mongo/db/audit/audit.cpp` file for Percona's implementation of
+// audit logging. This file, which comprises the upstream's stub implementation,
+// is not even included into the sources being compiled but we still keep it to
+// minimize potential merge conflicts with the upstream.
+////////////////////////////////////////////////////////////////////////////////
+
 #include "mongo/db/audit.h"
 
 namespace mongo {
 namespace audit {
+
+#if false  // using Percona's implementation
+
 std::function<void(OperationContext*)> initializeManager;
 std::function<void(OpObserverRegistry*)> opObserverRegistrar;
 std::function<void(ServiceContext*)> initializeSynchronizeJob;
-
-#if !PERCONA_AUDIT_ENABLED
 
 ImpersonatedClientAttrs::ImpersonatedClientAttrs(Client* client) {}
 

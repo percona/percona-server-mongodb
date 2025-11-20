@@ -794,12 +794,10 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
         audit::initializeSynchronizeJob(serviceContext);
     }
 
-#ifdef PERCONA_AUDIT_ENABLED
     // start audit log flusher thread only if destination is file
     if (auditOptions.destination == "file") {
         startAuditLogFlusherWithFsync();
     }
-#endif
 
     PeriodicTask::startRunningPeriodicTasks();
 

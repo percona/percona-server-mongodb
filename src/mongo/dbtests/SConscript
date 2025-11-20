@@ -5,7 +5,6 @@ Import("get_option")
 Import("has_option")
 Import("usemozjs")
 Import("wiredtiger")
-Import("inmemory")
 
 env = env.Clone()
 
@@ -172,7 +171,7 @@ env.Program(
         "$BUILD_DIR/mongo/db/sessions_collection_standalone",
         "$BUILD_DIR/mongo/db/storage/durable_catalog_impl",
         "$BUILD_DIR/mongo/db/storage/ephemeral_for_test/storage_ephemeral_for_test",
-        "$BUILD_DIR/mongo/db/storage/inmemory/storage_inmemory" if inmemory else [],
+        "$BUILD_DIR/mongo/db/storage/inmemory/storage_inmemory",
         "$BUILD_DIR/mongo/db/storage/storage_engine_impl",
         "$BUILD_DIR/mongo/db/traffic_reader",
         "$BUILD_DIR/mongo/db/transaction",

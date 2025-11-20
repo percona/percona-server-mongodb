@@ -66,12 +66,6 @@ def get_option(name):
     return GetOption(name)
 
 def has_option(name):
-    # For now, we just enable all the optional Percona-specific features.
-    # Since none of the features are going to be disabled, we can later
-    # remove the respective build flags completely
-    if name == 'full-featured':
-        return True
-
     optval = GetOption(name)
     # Options with nargs=0 are true when their value is the empty tuple. Otherwise,
     # if the value is falsish (empty string, None, etc.), coerce to False.
@@ -224,35 +218,6 @@ add_option('wiredtiger',
     help='Enable wiredtiger',
     nargs='?',
     type='choice',
-)
-
-add_option('inmemory',
-    choices=['on', 'off'],
-    const='on',
-    default='off',
-    help='Enable InMemory',
-    nargs='?',
-    type='choice',
-)
-
-add_option('audit',
-    help='Enable auditing',
-    nargs=0,
-)
-
-add_option('hotbackup',
-    help='Enable Hot Backup',
-    nargs=0,
-)
-
-add_option('enable-fipsmode',
-    help='Enable tls.FIPSMode configuration option',
-    nargs=0,
-)
-
-add_option('full-featured',
-    help='Enable all optional features',
-    nargs=0,
 )
 
 add_option('ocsp-stapling',
@@ -2147,32 +2112,6 @@ def link_guard_libdeps_tag_expand(source, target, env, for_signature):
 env['LIBDEPS_TAG_EXPANSIONS'].append(link_guard_libdeps_tag_expand)
 
 
-# Since none of the features are going to be disabled, we can later
-# remove the build flags completely and move the feature list to a more
-# appropriate place.
-assert has_option('audit'), "audit must be enabled"
-assert has_option('enable-fipsmode'), "FIPS must be enabled"
-
-env['PERCONA_FEATURES'] = [
-    'MemoryEngine',
-    'HotBackup',
-    'BackupCursorAggregationStage',
-    'BackupCursorExtendAggregationStage',
-    'AWSIAM',
-    'Kerberos',
-    'LDAP',
-    'TDE',
-    'FIPSMode',
-    'Auditing',
-    'ProfilingRateLimit',
-    'LogRedaction',
-    'ngram'
-]
-
-env.Append( CPPDEFINES=[ 'PERCONA_AUDIT_ENABLED' ] )
-
-env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
-
 env.Tool('forceincludes')
 
 # ---- other build setup -----
@@ -2673,11 +2612,8 @@ if get_option('wiredtiger') == 'on':
         wiredtiger = True
         env.SetConfigHeaderDefine("MONGO_CONFIG_WIREDTIGER_ENABLED")
 
-inmemory = False
-if get_option('inmemory') == 'on':
-    inmemory = True
-    if not wiredtiger:
-        env.FatalError("InMemory engine requires WiredTiger to build")
+if not wiredtiger:
+    env.FatalError("InMemory engine requires WiredTiger to build; re-run scons with --wiredtiger")
 
 if get_option('ocsp-stapling') == 'on':
     # OCSP Stapling needs to be disabled on ubuntu 18.04 machines because when TLS 1.3 is
@@ -5496,7 +5432,6 @@ Export([
     'get_option',
     'has_option',
     'http_client',
-    'inmemory',
     'module_sconscripts',
     'optBuild',
     'selected_experimental_optimizations',
