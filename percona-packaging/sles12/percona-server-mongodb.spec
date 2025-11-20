@@ -115,9 +115,9 @@ popd
 
 # Build PSfMDB with SCons
 pushd $RPM_BUILD_DIR/%{src_dir}
-buildscripts/scons.py CC=${CC} CXX=${CXX} --audit --release --ssl --opt=on  \
+buildscripts/scons.py CC=${CC} CXX=${CXX} --release --ssl --opt=on  \
 %{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib \
---rocksdb --wiredtiger --inmemory --hotbackup ${PSM_TARGETS}
+--rocksdb --wiredtiger ${PSM_TARGETS}
 popd
 
 # Mongo Tools compilation

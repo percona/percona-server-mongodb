@@ -25,29 +25,16 @@ override_dh_auto_clean:
 	dh_auto_clean
 	rm -fr $(PSMSRC)/bin
 	#rm -fr $(INSTALLDIR)
-ifeq ($(FIPSMODE),1)
-	buildscripts/scons.py CC=$(CC) CXX=$(CXX) -C $(PSMSRC) -c --disable-warnings-as-errors --audit --release --ssl --opt -j$(NJOBS) --use-sasl-client CPPPATH=$(INSTALLDIR)/include \
-	--enable-fipsmode \
-	LIBPATH=$(INSTALLDIR)/lib LINKFLAGS="$(LINKFLAGS)" --wiredtiger --inmemory --hotbackup $(PSM_TARGETS) || exit $?
-else
-	buildscripts/scons.py CC=$(CC) CXX=$(CXX) -C $(PSMSRC) -c --disable-warnings-as-errors --audit --release --ssl --opt -j$(NJOBS) --use-sasl-client CPPPATH=$(INSTALLDIR)/include \
-	LIBPATH=$(INSTALLDIR)/lib LINKFLAGS="$(LINKFLAGS)" --wiredtiger --inmemory --hotbackup $(PSM_TARGETS) || exit $?
-endif
+	buildscripts/scons.py CC=$(CC) CXX=$(CXX) -C $(PSMSRC) -c --disable-warnings-as-errors --release --ssl --opt -j$(NJOBS) --use-sasl-client CPPPATH=$(INSTALLDIR)/include \
+	LIBPATH=$(INSTALLDIR)/lib LINKFLAGS="$(LINKFLAGS)" --wiredtiger $(PSM_TARGETS) || exit $?
 	rm -fr build resmoke.ini
 	find $(PSMSRC) -name '*.pyc' -delete
 
 # Finally PSMDB
 percona-server-mongodb:
-ifeq ($(FIPSMODE),1)
-	buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on -j$(NJOBS) \
-	--enable-fipsmode \
-	--use-sasl-client --wiredtiger --inmemory --hotbackup \
+	buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j$(NJOBS) \
+	--use-sasl-client --wiredtiger \
 	CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib LINKFLAGS="${LINKFLAGS}" ${PSM_TARGETS} || exit $?
-else
-	buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on -j$(NJOBS) \
-	--use-sasl-client --wiredtiger --inmemory --hotbackup \
-	CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib LINKFLAGS="${LINKFLAGS}" ${PSM_TARGETS} || exit $?
-endif
 
 compile-mongo-tools:
 	mkdir $(PSMSRC)/bin || true;

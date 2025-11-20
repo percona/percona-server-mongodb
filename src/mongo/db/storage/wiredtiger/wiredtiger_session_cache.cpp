@@ -377,10 +377,8 @@ void WiredTigerSessionCache::waitUntilDurable(OperationContext* opCtx,
         }
     }
 
-#ifdef PERCONA_AUDIT_ENABLED
     // Make audit log durable
     audit::fsyncAuditLog();
-#endif
 
     // Use the journal when available, or a checkpoint otherwise.
     if (_engine && _engine->isDurable()) {

@@ -119,9 +119,9 @@ popd
 
 # Build PSfMDB with SCons
 pushd $RPM_BUILD_DIR/%{src_dir}
-buildscripts/scons.py CC=${CC} CXX=${CXX} --audit --release --ssl --opt=on  \
+buildscripts/scons.py CC=${CC} CXX=${CXX} --release --ssl --opt=on  \
 %{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH=${INSTALLDIR}/lib \
---rocksdb --wiredtiger --inmemory --hotbackup ${PSM_TARGETS}
+--rocksdb --wiredtiger ${PSM_TARGETS}
 popd
 
 sed -i "s|linux LDFLAGS: -lpcap|linux LDFLAGS: /usr/lib64/libpcap.a|" $RPM_BUILD_DIR/%{src_dir}/mongo-tools/vendor/src/github.com/google/gopacket/pcap/pcap.go

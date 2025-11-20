@@ -76,7 +76,6 @@ config_header_substs = (
     ('@mongo_config_use_libunwind@', 'MONGO_CONFIG_USE_LIBUNWIND'),
     ('@mongo_config_use_raw_latches@', 'MONGO_CONFIG_USE_RAW_LATCHES'),
     ('@mongo_config_wiredtiger_enabled@', 'MONGO_CONFIG_WIREDTIGER_ENABLED'),
-    ('@percona_fipsmode_enabled@', 'PERCONA_FIPSMODE_ENABLED'),
 )
 
 def makeConfigHeaderDefine(self, key):

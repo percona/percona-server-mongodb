@@ -883,7 +883,6 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
 
     startClientCursorMonitor();
 
-#ifdef PERCONA_AUDIT_ENABLED
     // start audit log flusher thread only if destination is file
     if (auditOptions.destination == "file") {
         if (storageGlobalParams.engine == "wiredTiger")
@@ -891,7 +890,6 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
         else
             startAuditLogFlusherWithFsync();
     }
-#endif
 
     PeriodicTask::startRunningPeriodicTasks();
 
