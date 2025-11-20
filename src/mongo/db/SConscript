@@ -3,9 +3,6 @@
 Import([
     "env",
     "get_option",
-    "has_option",
-    "has_feature_option",
-    "inmemory",
     "version_extra",
     "version_parts",
     "wiredtiger",
@@ -702,66 +699,58 @@ env.Library(
     ],
 )
 
-audit_libdeps = [
-    '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
-    '$BUILD_DIR/mongo/db/query_expressions',
-    '$BUILD_DIR/mongo/db/server_base',
-    '$BUILD_DIR/mongo/util/background_job',
-]
-if has_option('audit'):
-    # The Percona's `audit` library is intended to be a drop-in replacement of
-    # the upstream `audit` (please @see the `else` branch). Hense, it has to
-    # have the same filepath and set of dependencies as the upstream `audit`
-    # has. That's why the Percona's `audit` library is built here rather than in
-    # the `src/mongo/db/audit` directory.
-    env.Library(
-        target='audit',
-        source=[
-            'audit.cpp',
-            'audit/audit_flusher.cpp',
-            'audit/audit_options.cpp',
-            'audit/audit.cpp',
-            'audit/audit_parameters.idl',
-            'audit/audit_options.idl',
-        ],
-        LIBDEPS=audit_libdeps,
-    )
-    # Please note that the `commands` library (@see below) depends on
-    # the `audit` library and the `audit_commands` depends on `commands`.
-    #
-    # Since the Percona's `audit` library is built in this file, it is natural
-    # to build `audit_commands` here as well rather than in
-    # the `src/mongo/db/audit` directory.
-    env.Library(
-        target='audit_commands',
-        source=[
-            'audit/audit_commands.cpp',
-        ],
-        LIBDEPS_PRIVATE=[
-            '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
-            'audit',
-            'commands'
-        ],
-    )
+# The Percona's `audit` library is intended to be a drop-in replacement of
+# the upstream `audit`, hense it has to have the same filepath. That's why we
+# build Percona's `audit` here rather than in the `src/mongo/db/audit` directory.
+#
+# Note. Previously, the upstream `audit` library was built in this place.
+# However, since it only privides a stub no-op implementation (@see the
+# `src/mongod/db/audit.cpp` file), we don't even bother to compile it for
+# Percona Server for MongoDB.
+env.Library(
+    target='audit',
+    source=[
+        'audit/audit_flusher.cpp',
+        'audit/audit_options.cpp',
+        'audit/audit.cpp',
+        'audit/audit_parameters.idl',
+        'audit/audit_options.idl',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
+        '$BUILD_DIR/mongo/db/query_expressions',
+        '$BUILD_DIR/mongo/db/server_base',
+        '$BUILD_DIR/mongo/util/background_job',
+    ],
+)
+# Please note that the `commands` library (@see below) depends on
+# the `audit` library and the `audit_commands` depends on `commands`.
+#
+# Since the Percona's `audit` library is built in this file, it is natural
+# to build `audit_commands` here as well rather than in
+# the `src/mongo/db/audit` directory.
+env.Library(
+    target='audit_commands',
+    source=[
+        'audit/audit_commands.cpp',
+    ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
+        'audit',
+        'commands'
+    ],
+)
 
-    env.CppUnitTest(
-        target='audit_test',
-        source=[
-            'audit/audit_options_test.cpp',
-        ],
-        LIBDEPS=[
-            'audit',
-            'server_options_base',
-        ]
-    )
-else:
-    env.Clone().InjectModule("enterprise").Library(
-        target="audit",
-        source=[
-            "audit.cpp",
-        ],
-        LIBDEPS=audit_libdeps,
-    )
+env.CppUnitTest(
+    target='audit_test',
+    source=[
+        'audit/audit_options_test.cpp',
+    ],
+    LIBDEPS=[
+        'audit',
+        'server_options_base',
+    ]
+)
 
 env.Library(
     target='client_out_of_line_executor',
@@ -2376,10 +2365,10 @@ env.Library(
         '$BUILD_DIR/mongo/util/version_impl',
         '$BUILD_DIR/mongo/watchdog/watchdog_mongod',
         '$BUILD_DIR/third_party/shim_snappy',
-        'audit_commands' if has_option('audit') else [],
+        'audit_commands',
         'auth/auth_op_observer',
         'auth/authmongod',
-        'auth/oidc/oidc_commands' if has_feature_option('enable-oidc') else [],
+        'auth/oidc/oidc_commands',
         'bson/dotted_path_support',
         'catalog/catalog_impl',
         'catalog/collection_options',
@@ -2449,7 +2438,7 @@ env.Library(
         'storage/encryption_hooks',
         'storage/flow_control',
         'storage/flow_control_parameters',
-        'storage/inmemory/storage_inmemory' if inmemory else [],
+        'storage/inmemory/storage_inmemory',
         'storage/storage_control',
         'storage/storage_engine_lock_file',
         'storage/storage_engine_metadata',
@@ -2511,7 +2500,7 @@ env.Library(
         '$BUILD_DIR/mongo/util/signal_handlers',
         '$BUILD_DIR/mongo/watchdog/watchdog_mongod',
         'auth/auth_op_observer',
-        'auth/oidc/oidc' if has_feature_option('enable-oidc') else [],
+        'auth/oidc/oidc',
         'catalog/catalog_helpers',
         'catalog/catalog_impl',
         'catalog/health_log',
@@ -2539,7 +2528,7 @@ env.Library(
         'query/stats/stats',
         'repl/drop_pending_collection_reaper',
         'repl/initial_syncer',
-        'repl/initial_syncer_fcb' if has_option('enable-fcbis') or has_option('full-featured') else [],
+        'repl/initial_syncer_fcb',
         'repl/repl_coordinator_impl',
         'repl/replication_recovery',
         'repl/serveronly_repl',

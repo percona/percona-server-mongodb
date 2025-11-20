@@ -243,19 +243,9 @@ Build Percona Server for MongoDB
 
 2. Build Percona Server for MongoDB from ``buildscripts/scons.py``
 
-   * Basic build
+   .. code:: bash
 
-     .. code:: bash
-
-        $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
-        
-
-   * Pro build
-
-     .. code:: bash
-
-        $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --full-featured CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
-        
+      $ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j$(nproc --all) --use-sasl-client --wiredtiger CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" install-mongod install-mongos
 
    This command builds core components of the database. Other available
    targets for the ``scons`` command are:

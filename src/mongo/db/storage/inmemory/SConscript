@@ -1,53 +1,49 @@
 Import("env")
-Import("inmemory")
 
 env = env.Clone()
+env.InjectThirdParty(libraries=['wiredtiger'])
+env.InjectThirdParty(libraries=['zlib'])
+env.InjectThirdParty(libraries=['valgrind'])
 
-if inmemory:
-    imEnv = env.Clone()
-    imEnv.InjectThirdParty(libraries=['wiredtiger'])
-    imEnv.InjectThirdParty(libraries=['zlib'])
-    imEnv.InjectThirdParty(libraries=['valgrind'])
+env.Library(
+    target='storage_inmemory',
+    source=[
+        'inmemory_global_options.cpp',
+        'inmemory_init.cpp',
+        'inmemory_options_init.cpp',
+        'inmemory_global_options.idl',
+        ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/storage/storage_engine_common',
+        '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger',
+        ],
+    )
 
-    imEnv.Library(
-        target='storage_inmemory',
-        source=[
-            'inmemory_global_options.cpp',
-            'inmemory_init.cpp',
-            'inmemory_options_init.cpp',
-            'inmemory_global_options.idl',
+env.CppUnitTest(
+    target='storage_inmemory_init_test',
+    source=['inmemory_init_test.cpp',
             ],
-        LIBDEPS_PRIVATE=[
-            '$BUILD_DIR/mongo/db/storage/storage_engine_common',
-            '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger',
-            ],
-        )
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/db/auth/authmocks',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/db/service_context_d',
+        '$BUILD_DIR/mongo/db/service_context_test_fixture',
+        '$BUILD_DIR/mongo/db/storage/inmemory/storage_inmemory',
+        '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger',
+        '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger_core',
+        ],
+    )
 
-    imEnv.CppUnitTest(
-        target='storage_inmemory_init_test',
-        source=['inmemory_init_test.cpp',
-                ],
-        LIBDEPS=[
-            '$BUILD_DIR/mongo/db/auth/authmocks',
-            '$BUILD_DIR/mongo/db/service_context',
-            '$BUILD_DIR/mongo/db/service_context_d',
-            '$BUILD_DIR/mongo/db/service_context_test_fixture',
-            '$BUILD_DIR/mongo/db/storage/inmemory/storage_inmemory',
-            '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger',
-            '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger_core',
+env.CppUnitTest(
+    target='storage_inmemory_kv_engine_test',
+    source=['inmemory_kv_engine_test.cpp',
             ],
-        )
-
-    imEnv.CppUnitTest(
-        target='storage_inmemory_kv_engine_test',
-        source=['inmemory_kv_engine_test.cpp',
-                ],
-        LIBDEPS=[
-            '$BUILD_DIR/mongo/db/auth/authmocks',
-            '$BUILD_DIR/mongo/db/repl/repl_coordinator_interface',
-            '$BUILD_DIR/mongo/db/repl/replmocks',
-            '$BUILD_DIR/mongo/db/storage/kv/kv_engine_test_harness',
-            '$BUILD_DIR/mongo/db/storage/storage_engine_impl',
-            '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger_core',
-            ],
-        )
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/db/auth/authmocks',
+        '$BUILD_DIR/mongo/db/repl/repl_coordinator_interface',
+        '$BUILD_DIR/mongo/db/repl/replmocks',
+        '$BUILD_DIR/mongo/db/storage/kv/kv_engine_test_harness',
+        '$BUILD_DIR/mongo/db/storage/storage_engine_impl',
+        '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger_core',
+        ],
+    )

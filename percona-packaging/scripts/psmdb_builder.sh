@@ -1021,10 +1021,10 @@ build_tarball(){
       export OPT_LINKFLAGS="${OPT_LINKFLAGS} ${CURL_LINKFLAGS}"
     fi
     if [ ${DEBUG} = 0 ]; then
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client --full-featured --wiredtiger --audit --inmemory --hotbackup CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
+        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client --wiredtiger CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
     else
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --ssl --dbg=on -j${NCPU} --use-sasl-client \
-        CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" --full-featured --wiredtiger --inmemory --hotbackup ${PSM_REAL_TARGETS[@]} || exit $?
+        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --ssl --dbg=on -j${NCPU} --use-sasl-client \
+        CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" --wiredtiger ${PSM_REAL_TARGETS[@]} || exit $?
     fi
     #
     # scons install doesn't work - it installs the binaries not linked with fractal tree

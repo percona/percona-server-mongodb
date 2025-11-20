@@ -178,10 +178,9 @@ mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
 
 # Build PSfMDB with SCons
 pushd $RPM_BUILD_DIR/%{src_dir}
-buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on  \
+buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on  \
 %{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" \
---full-featured \
---wiredtiger --inmemory --hotbackup LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_TARGETS} || exit $?
+--wiredtiger LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_TARGETS} || exit $?
 rm -fr resmoke.ini
 popd
 

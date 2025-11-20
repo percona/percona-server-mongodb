@@ -4,7 +4,6 @@ import re
 
 Import("env")
 Import("get_option")
-Import("has_option")
 Import("wiredtiger")
 
 env = env.Clone()
@@ -77,7 +76,7 @@ env.Library(
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/db/audit',
-        '$BUILD_DIR/mongo/db/audit_commands' if has_option('audit') else [],
+        '$BUILD_DIR/mongo/db/audit_commands',
         '$BUILD_DIR/mongo/db/auth/auth',
         '$BUILD_DIR/mongo/db/catalog/catalog_impl',
         '$BUILD_DIR/mongo/db/catalog/database_holder',

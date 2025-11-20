@@ -107,17 +107,5 @@
 // Defined if grpc support is enabled
 @mongo_config_grpc@
 
-
-// Percona specific section
-
-// FIPSMode enabled
-@percona_fipsmode_enabled@
-
-// FCBIS enabled
-@percona_fcbis_enabled@
-
-// OIDC enabled
-@percona_oidc_enabled@
-
 // Defined if basic_stringbuf::str()&& overload exists
 @mongo_config_have_basic_stringbuf_str_rvalue@

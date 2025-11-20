@@ -33,7 +33,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include "mongo/bson/bsonobjbuilder.h"
-#ifdef PERCONA_AUDIT_ENABLED
 
 #include <cstdio>
 #include <iostream>
@@ -85,6 +84,9 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 
 namespace audit {
+std::function<void(OperationContext*)> initializeManager;
+std::function<void(OpObserverRegistry*)> opObserverRegistrar;
+std::function<void(ServiceContext*)> initializeSynchronizeJob;
 
     using namespace fmt::literals;
 
@@ -1419,5 +1421,3 @@ namespace audit {
 
 }  // namespace audit
 }  // namespace mongo
-
-#endif  // PERCONA_AUDIT_ENABLED
