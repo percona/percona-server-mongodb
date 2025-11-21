@@ -101,6 +101,7 @@ def create_target(tag, labels):
 
 # We default write the enterprise directory so we can access both bazel package targets
 def write_bazel_file(targets, output_file):
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     with open(output_file, "w") as buildfile:
         for target in targets:
             buildfile.write(target + "\n\n")
