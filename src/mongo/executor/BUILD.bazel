@@ -511,16 +511,12 @@ mongo_cc_library(
         ":task_executor_interface",
         "//src/mongo:base",
         "//src/mongo/db:query_expressions",
+        "//src/mongo/db/audit:audit_impl",
+        "//src/mongo/db/audit:audit_options",
         "//src/mongo/rpc:metadata",
         "//src/mongo/util:clock_source_mock",
         "//src/mongo/util/net:network",
-    ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-            "//src/mongo/db/audit:audit_options",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 mongo_cc_library(

@@ -1,18 +1,9 @@
 # InMemory engine
 
-This document describes how to build, enable, configure and test InMemory engine in Percona Server for MongoDB.
+This document describes how to enable, configure and test InMemory engine in Percona Server for MongoDB.
 
 InMemory engine is a special configuration of WiredTiger that doesn’t store user data on disk.
 With this engine, data fully resides in the virtual memory of the system.
-
-## Building
-
-To enable building InMemory engine, execute SCons with the `--inmemory` argument.
-WiredTiger engine is also required for building (use the `--wiredtiger` argument).
-
-```
-scons <other options> --inmemory --wiredtiger <targets>
-```
 
 ## Activation and Configuration
 

@@ -847,7 +847,9 @@ mongo_cc_library(
         # please add that library here, as a private library dependency.
         "//src/mongo/db/admission:queues_server_status_section",
         "//src/mongo/db:audit",
+        "//src/mongo/db/audit:audit_commands",
         "//src/mongo/db/auth:authserver",
+        "//src/mongo/db/auth/oidc:oidc_commands",
         "//src/mongo/db/commands:server_status_core",
         "//src/mongo/db/commands:server_status_servers",
         "//src/mongo/db:dbdirectclient",
@@ -914,21 +916,6 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_commands",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:full_featured_enabled": [
-            "//src/mongo/db/auth/oidc:oidc_commands",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:oidc_enabled": [
-            "//src/mongo/db/auth/oidc:oidc_commands",
-        ],
-        "//conditions:default": [],
-    }) + select({
         "//bazel/config:enterprise_feature_encryptdb_enabled": [
             "//src/mongo/db/modules/enterprise/src/encryptdb:log_redact_options",
         ],
@@ -982,7 +969,10 @@ mongo_cc_library(
         # mongos_initializers.
         "//src/mongo/client:remote_command_targeter",
         "//src/mongo/db:audit",
+        "//src/mongo/db/audit:audit_impl",
+        "//src/mongo/db/audit:audit_options",
         "//src/mongo/db/auth:authserver",
+        "//src/mongo/db/auth/oidc:oidc",
         "//src/mongo/db:change_stream_options_manager",
         "//src/mongo/db:change_streams_cluster_parameter",
         "//src/mongo/db/commands:profile_common",
@@ -1022,24 +1012,8 @@ mongo_cc_library(
         "sharding_router_api",
         "startup_initialization",
     ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-            "//src/mongo/db/audit:audit_options",
-        ],
-        "//conditions:default": [],
-    }) + select({
         "//bazel/config:use_tracing_profiler_enabled": [
             "//src/mongo/util/tracing_profiler",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:full_featured_enabled": [
-            "//src/mongo/db/auth/oidc",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:oidc_enabled": [
-            "//src/mongo/db/auth/oidc",
         ],
         "//conditions:default": [],
     }) + select({
@@ -1259,7 +1233,7 @@ mongo_cc_benchmark(
         ":startup_initialization",
         "//src/mongo/db:read_write_concern_defaults_mock",
         "//src/mongo/db:service_context_non_d",
-        "//src/mongo/db/audit:audit_impl_shim",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/auth:authserver",
         "//src/mongo/rpc:message",
         "//src/mongo/unittest:benchmark_util",

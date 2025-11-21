@@ -227,16 +227,6 @@ mongo_cc_integration_test(
     ],
 )
 
-mongo_cc_library(
-    name = "rpc_test_deps_shim",
-    deps = select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
-        "//conditions:default": [],
-    }),
-)
-
 mongo_cc_unit_test(
     name = "rpc_test",
     srcs = [
@@ -264,10 +254,10 @@ mongo_cc_unit_test(
         ":metadata",
         ":rewrite_state_change_errors",
         ":rpc",
-        ":rpc_test_deps_shim",
         "//src/mongo/client:clientdriver_minimal",
         "//src/mongo/db:service_context_non_d",
         "//src/mongo/db:service_context_test_fixture",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/auth:authmocks",
         "//src/mongo/idl:server_parameter_test_util",
         "//src/mongo/transport:transport_layer_mock",

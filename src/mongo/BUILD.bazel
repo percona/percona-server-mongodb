@@ -55,35 +55,8 @@ generate_config_header(
         },
         "//conditions:default": {},
     }) | select({
-        "//bazel/config:full_featured_enabled": {
-            "PERCONA_FIPSMODE_ENABLED": "1",
-            "PERCONA_FCBIS_ENABLED": "1",
-            "PERCONA_OIDC_ENABLED": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:fipsmode_enabled": {
-            "PERCONA_FIPSMODE_ENABLED": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:fcbis_enabled": {
-            "PERCONA_FCBIS_ENABLED": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:oidc_enabled": {
-            "PERCONA_OIDC_ENABLED": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
         "//bazel/config:ssl_enabled": {
             "MONGO_CONFIG_SSL": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:audit_enabled": {
-            "PERCONA_AUDIT_ENABLED": "1",
         },
         "//conditions:default": {},
     }) | select({

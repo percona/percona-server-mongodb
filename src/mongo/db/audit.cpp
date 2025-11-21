@@ -42,18 +42,8 @@ std::function<void(OpObserverRegistry*)> opObserverRegistrar;
 std::function<void(ServiceContext*)> initializeSynchronizeJob;
 std::function<void()> shutdownSynchronizeJob;
 
-#if !PERCONA_AUDIT_ENABLED
-void rotateAuditLog() {}
-
-namespace {
 // @see the `src/mongo/audit/audit.cpp` file for registeting Percona's
 // implementation of `AuditInterface`.
-ServiceContext::ConstructorActionRegisterer registerCreateNoopAudit{
-    "initializeNoopAuditInterface", [](ServiceContext* svcCtx) {
-        AuditInterface::set(svcCtx, std::make_unique<AuditNoOp>());
-    }};
-}  // namespace
-#endif
 
 void logClientMetadata(Client* client) {
     AuditInterface::get(client->getServiceContext())->logClientMetadata(client);

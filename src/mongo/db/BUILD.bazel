@@ -3423,8 +3423,10 @@ mongo_cc_library(
         "//src/mongo/db/admission:flow_control",
         "//src/mongo/db/admission:flow_control_parameters",
         "//src/mongo/db/admission:queues_server_status_section",
+        "//src/mongo/db/audit:audit_commands",
         "//src/mongo/db/auth:auth_op_observer",
         "//src/mongo/db/auth:authserver",
+        "//src/mongo/db/auth/oidc:oidc_commands",
         "//src/mongo/db/catalog:catalog_impl",
         "//src/mongo/db/catalog:collection_options",
         "//src/mongo/db/catalog:document_validation",
@@ -3488,6 +3490,7 @@ mongo_cc_library(
         "//src/mongo/db/stats:top",
         "//src/mongo/db/storage:backup_cursor_hooks",
         "//src/mongo/db/storage/devnull:storage_devnull",
+        "//src/mongo/db/storage/inmemory:storage_inmemory",
         "//src/mongo/db/storage:encryption_hooks",
         "//src/mongo/db/storage:storage_control",
         "//src/mongo/db/storage:storage_engine_lock_file",
@@ -3530,21 +3533,6 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_commands",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:full_featured_enabled": [
-            "//src/mongo/db/auth/oidc:oidc_commands",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:oidc_enabled": [
-            "//src/mongo/db/auth/oidc:oidc_commands",
-        ],
-        "//conditions:default": [],
-    }) + select({
         "//bazel/config:enterprise_feature_encryptdb_enabled": [
             "//src/mongo/db/modules/enterprise/src/encryptdb:encryption_key_manager_aux",
         ],
@@ -3568,11 +3556,6 @@ mongo_cc_library(
     }) + select({
         "//bazel/config:enterprise_feature_inmemory_enabled": [
             "//src/mongo/db/modules/enterprise/src/inmemory:storage_inmemory",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:inmemory_enabled": [
-            "//src/mongo/db/storage/inmemory:storage_inmemory",
         ],
         "//conditions:default": [],
     }) + select({
@@ -3632,7 +3615,10 @@ mongo_cc_library(
         # library to inject a static or mongo initializer to mongod, please add that library as a
         # private libdep of mongod_initializers.
         "//src/mongo/client:clientdriver_minimal",
+        "//src/mongo/db/audit:audit_impl",
+        "//src/mongo/db/audit:audit_options",
         "//src/mongo/db/auth:user_cache_invalidator",
+        "//src/mongo/db/auth/oidc:oidc",
         "//src/mongo/db/query/search:search_task_executors",
         "//src/mongo/idl:cluster_server_parameter",
         "//src/mongo/idl:cluster_server_parameter_initializer",
@@ -3699,6 +3685,7 @@ mongo_cc_library(
         "//src/mongo/db/query/query_settings:query_settings_service",
         "//src/mongo/db/query/compiler/stats",
         "//src/mongo/db/repl/initial_sync:initial_syncer",
+        "//src/mongo/db/repl/initial_sync:initial_syncer_fcb",
         "//src/mongo/db/repl:repl_coordinator_impl",
         "//src/mongo/db/repl:replication_recovery",
         "//src/mongo/db/repl:serveronly_repl",
@@ -3732,24 +3719,6 @@ mongo_cc_library(
     ] + select({
         "//bazel/config:enterprise_feature_audit_enabled": [
             "//src/mongo/db/modules/enterprise/src/audit:audit_enterprise",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-            "//src/mongo/db/audit:audit_options",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:full_featured_enabled": [
-            "//src/mongo/db/auth/oidc",
-            "//src/mongo/db/repl/initial_sync:initial_syncer_fcb",
-        ],
-        "//bazel/config:fcbis_enabled": [
-            "//src/mongo/db/repl/initial_sync:initial_syncer_fcb",
-        ],
-        "//bazel/config:oidc_enabled": [
-            "//src/mongo/db/auth/oidc",
         ],
         "//conditions:default": [],
     }) + select({

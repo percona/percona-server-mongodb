@@ -114,7 +114,23 @@ private:
     StringData kJsEngine = "@buildinfo_js_engine@"_sd;
     std::vector<StringData> modulesList{@buildinfo_modules@};
     std::vector<VersionInfoInterface::BuildInfoField> buildEnvironment{@buildinfo_environment_data@};
-    std::vector<StringData> perconaFeatureList{@buildinfo_percona_features@};
+    std::vector<StringData> perconaFeatureList{
+        "MemoryEngine",
+        "HotBackup",
+        "BackupCursorAggregationStage",
+        "BackupCursorExtendAggregationStage",
+        "AWSIAM",
+        "Kerberos",
+        "LDAP",
+        "OIDC",
+        "TDE",
+        "FIPSMode",
+        "FCBIS",
+        "Auditing",
+        "ProfilingRateLimit",
+        "LogRedaction",
+        "ngram"
+    };
     // clang-format on
 };
 

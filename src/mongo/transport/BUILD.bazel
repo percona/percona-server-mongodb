@@ -340,16 +340,12 @@ mongo_cc_library(
     ],
     deps = [
         ":transport_layer_manager",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/unittest:integration_test_main",
     ] + select({
         "//bazel/config:build_grpc_enabled": [
             "//src/mongo/transport/grpc:grpc_transport_layer",
             "//src/mongo/util:periodic_runner_factory",
-        ],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
         ],
         "//conditions:default": [],
     }),

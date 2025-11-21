@@ -64,34 +64,27 @@ mongo_cc_library(
         "//src/mongo/client:dbclient_mockcursor",
         "//src/mongo/client:replica_set_monitor_test_helper",
         "//src/mongo/db:query_expressions",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/exec:projection_executor",
         "//src/mongo/db/pipeline:expression_context_for_test",
         "//src/mongo/db/query:projection_ast",
         "//src/mongo/db/query:query_test_service_context",
         "//src/mongo/db/repl:replica_set_messages",
-    ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 # TODO(SERVER-96941): Remove shim once it's possible to use select in binary deps
 mongo_cc_library(
     name = "deps_shim",
-    deps = select({
+    deps = [
+        "//src/mongo/db/storage/inmemory:storage_inmemory",
+    ] + select({
         "//bazel/config:enterprise_feature_ldap_and_wiredtiger_enabled": [
             "//src/mongo/db/modules/enterprise/src/inmemory:storage_inmemory",
         ],
         "//conditions:default": [],
     }) + select({
         "//bazel/config:use_wiredtiger_enabled": ["//src/mongo/db/storage/wiredtiger:storage_wiredtiger"],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:inmemory_enabled": [
-            "//src/mongo/db/storage/inmemory:storage_inmemory",
-        ],
         "//conditions:default": [],
     }),
 )
