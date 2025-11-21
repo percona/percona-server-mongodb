@@ -143,6 +143,7 @@ mongo_cc_library(
         "//src/mongo/db:server_base",
         "//src/mongo/db:server_feature_flags",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/encryption:key_management",
         "//src/mongo/db/storage:backup_cursor_hooks",
         "//src/mongo/db/storage:exceptions",
@@ -168,12 +169,7 @@ mongo_cc_library(
         "//src/third_party/snappy",
         "//src/third_party/wiredtiger",
         "//src/third_party/zlib",
-    ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 mongo_cc_library(

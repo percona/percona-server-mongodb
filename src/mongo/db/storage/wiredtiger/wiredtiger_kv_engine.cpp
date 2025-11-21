@@ -4279,10 +4279,8 @@ void WiredTigerKVEngine::waitUntilDurable(OperationContext* opCtx,
         }
     }
 
-#ifdef PERCONA_AUDIT_ENABLED
     // Make audit log durable
     audit::fsyncAuditLog();
-#endif
 
     // Flush the journal.
     invariantWTOK(_waitUntilDurableSession->log_flush("sync=on"), *_waitUntilDurableSession);

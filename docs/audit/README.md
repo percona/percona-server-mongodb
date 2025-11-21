@@ -1,17 +1,9 @@
 # Auditing
 
-This document describes how to build, enable, configure and test auditing in Percona Server for MongoDB.
+This document describes how to enable, configure and test auditing in Percona Server for MongoDB.
 
 Auditing allows administrators to track and log user activity on a server. With auditing enabled, the server
 will generate an audit log file. This file contains information about different user events including authentication, authorization failures, and more.
-
-## Building
-
-By default, when building Percona Server for MongoDB from source, audit functionality is
-neither compiled with, nor linked into, the final binary executable. To enable auditing, execute
-SCons with the `--audit` argument:
-
-    scons <other options> --audit <targets>
 
 ## Activation and Configuration
 
