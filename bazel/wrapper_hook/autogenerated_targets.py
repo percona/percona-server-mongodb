@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 bazel_tags_to_autogenerate = [
     "bsoncolumn_bm",
@@ -60,7 +61,7 @@ def get_bazel_labels_from_tags(args, bazel, tag):
     # The .cquery file is used to get info on which targets are compatible
     # with our current config. Without it dependent targets would just be skipped.
     proc = subprocess.run(
-        [bazel, "cquery", "--config=local"]
+        [bazel, "cquery"]
         + extra_args
         + [
             f"kind(extract_debuginfo_test, attr(tags, '\\b{tag}\\b', //src/...))",
@@ -71,6 +72,9 @@ def get_bazel_labels_from_tags(args, bazel, tag):
         stderr=subprocess.PIPE,
         text=True,
     )
+    if proc.returncode != 0:
+        print(f"ERROR: Failed to obtain labels from tags: {proc.stderr}", file=sys.stderr)
+        sys.exit(1)
     return proc.stdout.splitlines()
 
 
