@@ -1017,7 +1017,7 @@ build_tarball(){
     export PATH=/usr/local/go/bin:$PATH
     #
     #
-    PSM_TARGETS="mongod mongos perconadecrypt build/install/bin/mongobridge $SPECIAL_TAR"
+    PSM_TARGETS="mongod mongos perconadecrypt mongobridge $SPECIAL_TAR"
     PSM_REAL_TARGETS=() # transformed targets with 'install-' prefix
     for pp in $PSM_TARGETS
     do
@@ -1168,21 +1168,24 @@ build_tarball(){
     if [ x"${FIPSMODE}" == x1 ]; then
         ENABLE_FIPS="--enable-fipsmode "
     fi
-    if [ ${DEBUG} = 0 ]; then
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client ${ENABLE_FIPS}--wiredtiger --audit --inmemory --hotbackup CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
-    else
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --ssl --dbg=on -j${NCPU} --use-sasl-client \
-        CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${OPT_LINKFLAGS}" ${ENABLE_FIPS}--wiredtiger --inmemory --hotbackup ${PSM_REAL_TARGETS[@]} || exit $?
-    fi
-    #
-    # scons install doesn't work - it installs the binaries not linked with fractal tree
-    #scons --prefix=$PWD/$PSMDIR install
-    #
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelignore
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazeliskrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelversion
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc.psmdb
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.npmrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.prettierignore
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
+    bazel clean --expunge || true
+    bazel build --config=psmdb_opt_release --define=MONGO_VERSION=${VERSION}-${RELEASE} --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) install-dist-test
+    rm -rf .[^.]*
     mkdir -p ${PSMDIR}/bin
     for target in ${PSM_TARGETS[@]}; do
-        cp -f build/install/bin/${target#"build/install/bin/"} ${PSMDIR}/bin
+        cp -fL bazel-bin/install-dist-test/bin/${target#"bazel-bin/install-dist-test/bin/"} ${PSMDIR}/bin
         if [ ${DEBUG} = 0 ]; then
-            strip --strip-debug ${PSMDIR}/bin/${target#"build/install/bin/"}
+            strip --strip-debug ${PSMDIR}/bin/${target#"bazel-bin/install-dist-test/bin/"}
         fi
     done
     #
