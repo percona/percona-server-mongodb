@@ -26,11 +26,8 @@ var telmTestSingle = function(storage) {
     jsTest.log(jsonTelmData);
 
     assert.eq('mongod',jsonTelmData['source'],jsonTelmData['source']);
-    assert(jsonTelmData['pro_features'],"pro_features doesn't exist");
-    assert(jsonTelmData['pillar_version'],"pillar_version doesn't exist");
-    if ( jsonTelmData['pro_features'].length > 0 ) {
-        assert.includes(jsonTelmData['pillar_version'],'-pro');
-    }
+    assert(jsonTelmData['percona_features'], "percona_features doesn't exist");
+    assert(jsonTelmData['pillar_version'], "pillar_version doesn't exist");
     assert.eq(storage,jsonTelmData['storage_engine'],jsonTelmData['storage_engine']);
     assert(jsonTelmData['db_instance_id'],"db_instance_id doesn't exist");
     assert(jsonTelmData['db_internal_id'],"db_internal_id doesn't exist");

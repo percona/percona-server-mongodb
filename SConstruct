@@ -87,6 +87,12 @@ def get_option(name):
 
 
 def has_option(name):
+    # For now, we just enable all the optional Percona-specific features.
+    # Since none of the features are going to be disabled, we can later
+    # remove the respective build flags completely
+    if name == 'full-featured':
+        return True
+
     optval = GetOption(name)
     # Options with nargs=0 are true when their value is the empty tuple. Otherwise,
     # if the value is falsish (empty string, None, etc.), coerce to False.
@@ -2707,22 +2713,38 @@ def link_guard_libdeps_tag_expand(source, target, env, for_signature):
 
 env['LIBDEPS_TAG_EXPANSIONS'].append(link_guard_libdeps_tag_expand)
 
-env['PSMDB_PRO_FEATURES'] = []
 
-if has_option('audit'):
-    env.Append( CPPDEFINES=[ 'PERCONA_AUDIT_ENABLED' ] )
+# Since none of the features are going to be disabled, we can later
+# remove the build flags completely and move the feature list to a more
+# appropriate place.
+assert has_option('audit'), "audit must be enabled"
+assert has_feature_option('enable-fipsmode'), "FIPS must be enabled"
+assert has_feature_option('enable-fcbis'), "FCBIS must be enabled"
+assert has_feature_option('enable-oidc'), "OIDC must be enabled"
 
-if has_feature_option('enable-fipsmode'):
-    env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
-    env['PSMDB_PRO_FEATURES'].append('FIPSMode')
+env['PERCONA_FEATURES'] = [
+    'MemoryEngine',
+    'HotBackup',
+    'BackupCursorAggregationStage',
+    'BackupCursorExtendAggregationStage',
+    'AWSIAM',
+    'Kerberos',
+    'LDAP',
+    'OIDC',
+    'TDE',
+    'FIPSMode',
+    'FCBIS',
+    'Auditing',
+    'ProfilingRateLimit',
+    'LogRedaction',
+    'ngram'
+]
 
-if has_option('enable-fcbis') or has_option('full-featured'):
-    env.SetConfigHeaderDefine("PERCONA_FCBIS_ENABLED")
-    env['PSMDB_PRO_FEATURES'].append('FCBIS')
+env.Append( CPPDEFINES=[ 'PERCONA_AUDIT_ENABLED' ] )
 
-if has_feature_option('enable-oidc'):
-    env.SetConfigHeaderDefine("PERCONA_OIDC_ENABLED")
-    env['PSMDB_PRO_FEATURES'].append('OIDC')
+env.SetConfigHeaderDefine("PERCONA_FIPSMODE_ENABLED")
+env.SetConfigHeaderDefine("PERCONA_FCBIS_ENABLED")
+env.SetConfigHeaderDefine("PERCONA_OIDC_ENABLED")
 
 env.Tool('forceincludes')
 

@@ -201,6 +201,23 @@ OpTime parseOpTimeFromBSON(const BSONObj& obj) {
     uassertStatusOKWithContext(status, "Failed to parse OpTime from BSON");
     return status.getValue();
 }
+
+bool buildSupportsFcbis(const BSONObj& buildInfo) {
+    if (!buildInfo.hasField("psmdbVersion")) {
+        return false;
+    }
+    for (auto featureListName : {"proFeatures"_sd, "perconaFeatures"_sd}) {
+        if (auto featureList = buildInfo.getField(featureListName);
+            !featureList.eoo() && featureList.type() == mongo::Array) {
+            for (const auto& feature : featureList.Obj()) {
+                if (feature.type() == mongo::String && feature.String() == "FCBIS") {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
 }  // namespace
 
 const ServiceContext::ConstructorActionRegisterer initialSyncerRegistererFCB(
@@ -1363,20 +1380,7 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
                                             << args.response.status.toString());
                         return;
                     }
-                    // check build info
-                    bool fcbisSupported = false;
-                    if (args.response.data.hasField("psmdbVersion")) {
-                        if (auto proFeatures = args.response.data.getField("proFeatures");
-                            !proFeatures.eoo()) {
-                            for (auto&& feature : proFeatures.Obj()) {
-                                if (feature.String() == "FCBIS") {
-                                    fcbisSupported = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if (!fcbisSupported) {
+                    if (!buildSupportsFcbis(args.response.data)) {
                         LOGV2_WARNING(
                             128460,
                             "Invalid sync source",

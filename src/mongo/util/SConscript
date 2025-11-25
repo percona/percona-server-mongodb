@@ -23,7 +23,7 @@ env.InjectThirdParty('asio')
 js_engine_ver = get_option("js-engine") if get_option("server-js") == "on" else "none"
 
 module_list = ',\n'.join(['"{0}"_sd'.format(x) for x in env['MONGO_MODULES']])
-psmdb_pro_feature_list = ',\n'.join(['"{0}"_sd'.format(x) for x in env['PSMDB_PRO_FEATURES']])
+percona_feature_list = ',\n'.join(['"{0}"_sd'.format(x) for x in env['PERCONA_FEATURES']])
 
 
 # Render the MONGO_BUILDINFO_ENVIRONMENT_DATA dict into an initializer for a
@@ -58,7 +58,7 @@ generatedVersionFile = env.Substfile(
         ('@buildinfo_js_engine@', js_engine_ver),
         ('@buildinfo_allocator@', env['MONGO_ALLOCATOR']),
         ('@buildinfo_modules@', module_list),
-        ('@buildinfo_psmdb_pro_features@', psmdb_pro_feature_list),
+        ('@buildinfo_percona_features@', percona_feature_list),
         ('@buildinfo_environment_data@', buildInfoInitializer),
     ],
 )
