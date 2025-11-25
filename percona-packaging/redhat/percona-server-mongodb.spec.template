@@ -20,8 +20,6 @@
 %global _find_debuginfo_dwz_opts %{nil}
 %endif
 
-%global full_featured 1
-
 #
 Name:           percona-server-mongodb
 Version:        @@VERSION@@
@@ -179,7 +177,6 @@ mv ${INSTALLDIR_AWS}/include/* ${INSTALLDIR}/include/
 mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
 
 # Build PSfMDB with SCons
-echo ${full_featured}
 pushd $RPM_BUILD_DIR/%{src_dir}
 buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on  \
 %{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" \
