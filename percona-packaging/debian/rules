@@ -11,7 +11,6 @@ export TOOLS_TAGS=ssl sasl
 export PORTABLE=1
 export USE_SSE=1
 export PATH := /usr/local/go/bin:$(PATH)
-export FULL_FEATURED=1
 export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
 CC = gcc-5
 CXX = g++-5

@@ -311,7 +311,6 @@ fix_rules(){
     sed -i 's|CC = gcc-5|CC = /opt/mongodbtoolchain/v4/bin/gcc|' debian/rules
     sed -i 's|CXX = g++-5|CXX = /opt/mongodbtoolchain/v4/bin/g++|' debian/rules
     sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules
-    sed -i 's:FULL_FEATURED=0:FULL_FEATURED=1:' debian/rules
     return
 }
 
@@ -702,7 +701,7 @@ build_rpm(){
     else
         export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
     fi
-    rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --define "full_featured 1" --rebuild rpmbuild/SRPMS/$SRC_RPM
+    rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --rebuild rpmbuild/SRPMS/$SRC_RPM
 
     return_code=$?
     if [ $return_code != 0 ]; then
@@ -1272,7 +1271,6 @@ PSM_RELEASE="1"
 MONGO_TOOLS_TAG="master"
 PRODUCT=percona-server-mongodb
 DEBUG=0
-FULL_FEATURED=1
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 VERSION=${PSM_VER}
 RELEASE=${PSM_RELEASE}
