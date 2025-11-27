@@ -352,8 +352,12 @@ install_deps() {
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
       if [ x"$RHEL" = x9 ]; then
-        yum update --exclude=openssl* --security -y
+        # Exclude openssl package upgrade for RHEL 9 to prevent rockylinux9 compatibility issues
+        OPENSSL_EXCLUDE="--exclude=openssl --exclude=openssl-libs --exclude=openssl-fips-provider --exclude=openssl-fips-provider-so --nobest"
+        yum clean all
+        yum -y update --exclude=openssl* --security
       else
+        OPENSSL_EXCLUDE=""
         yum -y update
       fi
       yum -y install wget sudo
@@ -402,14 +406,14 @@ install_deps() {
       elif [ x"$RHEL" = x9  -o x"$RHEL" = x2023 ]; then
         dnf config-manager --enable ol9_codeready_builder
 
-        yum -y install oracle-epel-release-el9
-        yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
-        yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
-        yum -y install python3 python3-pip python3-devel
+        yum -y install $OPENSSL_EXCLUDE oracle-epel-release-el9
+        yum -y install $OPENSSL_EXCLUDE bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
+        yum -y install $OPENSSL_EXCLUDE cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
+        yum -y install $OPENSSL_EXCLUDE python3 python3-pip python3-devel
 
-        yum -y install redhat-rpm-config which e2fsprogs-devel expat-devel lz4-devel
-        yum -y install openldap-devel krb5-devel xz-devel
-        yum -y install perl
+        yum -y install $OPENSSL_EXCLUDE redhat-rpm-config which e2fsprogs-devel expat-devel lz4-devel
+        yum -y install $OPENSSL_EXCLUDE openldap-devel krb5-devel xz-devel
+        yum -y install $OPENSSL_EXCLUDE perl
         /usr/bin/pip install --upgrade pip setuptools --ignore-installed
         /usr/bin/pip install --user typing pyyaml==5.3.1 regex Cheetah3
 
