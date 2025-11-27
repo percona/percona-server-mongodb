@@ -356,10 +356,10 @@ TEST_F(OidcRefreshKeysTest, Run_MultipleJwkManagers_Failed) {
                                                 BSONObj::ComparatorInterface::kIgnoreFieldOrder};
         return lhs.woCompare(rhs, {}, rules) == 0;
     };
-    ASSERT_TRUE(failureEq(failures[0].Obj(), expectedFailure(issuer1)) &&
-                    failureEq(failures[1].Obj(), expectedFailure(issuer2)) ||
-                failureEq(failures[0].Obj(), expectedFailure(issuer2)) &&
-                    failureEq(failures[1].Obj(), expectedFailure(issuer1)));
+    ASSERT_TRUE((failureEq(failures[0].Obj(), expectedFailure(issuer1)) &&
+                 failureEq(failures[1].Obj(), expectedFailure(issuer2))) ||
+                (failureEq(failures[0].Obj(), expectedFailure(issuer2)) &&
+                 failureEq(failures[1].Obj(), expectedFailure(issuer1))));
 
     // the third JWK fetcher succeded once
     ASSERT_EQ(jwksFetcherFactoryMock.getFetchCount(issuer3), 1);
