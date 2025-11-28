@@ -142,6 +142,7 @@ get_sources(){
     echo "MONGO_TOOLS_TAG=${MONGO_TOOLS_TAG}" >> ${WORKDIR}/percona-server-mongodb-80.properties
 
     echo "REVISION=${REVISION}" >> ${WORKDIR}/percona-server-mongodb-80.properties
+    echo "REVISION_LONG=${REVISION_LONG}" >> ${WORKDIR}/percona-server-mongodb-80.properties
     rm -fr debian rpm
     cp -a percona-packaging/manpages .
     cp -a percona-packaging/docs/* .
@@ -419,7 +420,7 @@ install_deps() {
 
       fi
       wget https://curl.se/download/curl-7.77.0.tar.gz -O curl-7.77.0.tar.gz
-      tar -xvzf curl-7.77.0.tar.gz
+      tar -xzf curl-7.77.0.tar.gz
       cd curl-7.77.0
         ./configure --with-openssl
         make -j${NCPU}
@@ -549,11 +550,11 @@ build_srpm(){
     cd $WORKDIR
     get_tar "source_tarball"
     rm -fr rpmbuild
-    ls | grep -v tar.gz | xargs rm -rf
+    ls | grep -v tar.gz | grep -v percona-server-mongodb-80.properties | xargs rm -rf
     TARFILE=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     SRC_DIR=${TARFILE%.tar.gz}
-    tar vxzf ${WORKDIR}/${TARFILE}
-    source percona-server-mongodb-80.properties
+    tar xzf ${WORKDIR}/${TARFILE}
+    source ${WORKDIR}/percona-server-mongodb-80.properties
     cd ${PRODUCT_FULL}
     wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelignore
     wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazeliskrc
@@ -566,7 +567,7 @@ build_srpm(){
     tar --owner=0 --group=0 -czf ${PRODUCT_FULL}.tar.gz ${PRODUCT_FULL}
     #
     mkdir -vp rpmbuild/{SOURCES,SPECS,BUILD,SRPMS,RPMS}
-    tar vxzf ${WORKDIR}/${TARFILE} --wildcards '*/percona-packaging' --strip=1
+    tar xzf ${WORKDIR}/${TARFILE} --wildcards '*/percona-packaging' --strip=1
     SPEC_TMPL=$(find percona-packaging/redhat -name 'percona-server-mongodb.spec.template' | sort | tail -n1)
     #
     wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
@@ -583,6 +584,7 @@ build_srpm(){
     -e "s:@@VERSION@@:${VERSION}:g" \
     -e "s:@@RELEASE@@:${RELEASE}:g" \
     -e "s:@@SRC_DIR@@:$SRC_DIR:g" \
+    -e "s:@@PSMDB_GIT_HASH@@:${REVISION_LONG}:g" \
     ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     mv -fv ${TARFILE} ${WORKDIR}/rpmbuild/SOURCES
     if [ x"$RHEL" = x7 ]; then
@@ -816,7 +818,7 @@ build_deb(){
         echo "Deb package will not be created"
         return;
     fi
-    if [ "x$OS" = "xrmp" ]
+    if [ "x$OS" = "xrpm" ]
     then
         echo "It is not possible to build deb here"
         exit 1
@@ -831,9 +833,9 @@ build_deb(){
     export DEBIAN=$(lsb_release -sc)
     export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
     #
-    echo "DEBIAN=${DEBIAN}" >> percona-server-mongodb-80.properties
-    echo "ARCH=${ARCH}" >> percona-server-mongodb-80.properties
-    source percona-server-mongodb-80.properties
+    echo "DEBIAN=${DEBIAN}" >> ${WORKDIR}/percona-server-mongodb-80.properties
+    echo "ARCH=${ARCH}" >> ${WORKDIR}/percona-server-mongodb-80.properties
+    source ${WORKDIR}/percona-server-mongodb-80.properties
 
     #
     DSC=$(basename $(find . -name '*.dsc' | sort | tail -n1))
@@ -882,6 +884,10 @@ build_deb(){
     sed -i 's|go build|go build -a -x|' mongo-tools/build.sh
     sed -i 's|exit $ec||' mongo-tools/build.sh
     . ./mongo-tools/set_tools_revision.sh
+
+    export PSMDB_VERSION="${VERSION}-${RELEASE}"
+    export PSMDB_GIT_HASH="${REVISION_LONG}"
+
     dch -m -D "${DEBIAN}" --force-distribution -v "${VERSION}-${RELEASE}.${DEBIAN}" 'Update distribution'
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
@@ -920,6 +926,7 @@ build_tarball(){
     fi
     get_tar "source_tarball"
     cd $WORKDIR
+    source ${WORKDIR}/percona-server-mongodb-80.properties
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
 
     #
@@ -1087,7 +1094,7 @@ build_tarball(){
     export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
     source ~/.bashrc
     bazel clean --expunge || true
-    bazel build --config=psmdb_opt_release --define=MONGO_VERSION=${VERSION}-${RELEASE} --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) install-dist-test
+    bazel build --config=psmdb_opt_release --define=MONGO_VERSION=${VERSION}-${RELEASE} --define=GIT_COMMIT_HASH=${REVISION_LONG} install-dist-test
     rm -rf .[^.]*
     mkdir -p ${PSMDIR}/bin
     for target in ${PSM_TARGETS[@]}; do
@@ -1323,6 +1330,7 @@ INSTALL=0
 RPM_RELEASE=1
 DEB_RELEASE=1
 REVISION=0
+REVISION_LONG=0
 BRANCH="master"
 REPO="https://github.com/percona/percona-server-mongodb.git"
 PSM_VER="8.0.0"

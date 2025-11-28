@@ -187,7 +187,7 @@ poetry install --no-root --sync
 poetry env use /opt/mongodbtoolchain/v4/bin/python3
 poetry install --no-root --sync
 %endif
-bazel build --config=psmdb_opt_release --define=MONGO_VERSION=%{version}-%{release} --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) install-dist-test
+bazel build --config=psmdb_opt_release --define=MONGO_VERSION=%{version}-@@RELEASE@@ --define=GIT_COMMIT_HASH=@@PSMDB_GIT_HASH@@ install-dist-test
 rm -fr resmoke.ini
 popd
 
