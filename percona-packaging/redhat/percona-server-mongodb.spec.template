@@ -1,19 +1,25 @@
+%global __brp_strip_args --strip-debug
+%global __find_debuginfo /usr/lib/rpm/find-debuginfo.sh -g
+
+# Disable the addition of mini debuginfo and gdb index options
+%global _include_minidebuginfo %{nil}
+%global _include_gdb_index %{nil}
+
+# Optionally disable source extraction to avoid empty debugsourcefiles.list errors
+%global __find_debugsource %{nil}
+
+#
 %define         mongo_home /var/lib/mongo
 %define         psmdb_telemetry /usr/local/percona/telemetry/psmdb
 %define         psmdbs_telemetry /usr/local/percona/telemetry/psmdbs
 
-%if 0%{?amzn} == 2023 || 0%{?rhel} >= 8
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 8
 %undefine _debugsource_packages
 %endif
 
-%if 0%{?amzn} == 2023 || 0%{?rhel} >= 8
-# Disable dwz optimization and addition of gdb index options
+%if  0%{?amzn} == 2023 || 0%{?rhel} >= 8
 %global _find_debuginfo_dwz_opts %{nil}
-%undefine _include_gdb_index
 %endif
-
-# By default a build will be done in normal mode
-%{?enable_fipsmode: %global enable_fipsmode 1}
 
 #
 Name:           percona-server-mongodb
@@ -128,6 +134,7 @@ This package contains various tools from MongoDB project, recompiled for Percona
 %prep
 
 %setup -q -n %{src_dir}
+bazel clean --expunge || true
 
 %build
 
@@ -173,7 +180,6 @@ mv ${INSTALLDIR_AWS}/include/* ${INSTALLDIR}/include/
 mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
 
 # Build PSfMDB with SCons
-echo ${enable_fipsmode}
 pushd $RPM_BUILD_DIR/%{src_dir}
 %if  0%{?amzn} == 2023
 poetry install --no-root --sync
@@ -181,12 +187,7 @@ poetry install --no-root --sync
 poetry env use /opt/mongodbtoolchain/v4/bin/python3
 poetry install --no-root --sync
 %endif
-buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --release --ssl --opt=on  \
-%{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" \
-%if 0%{?enable_fipsmode}
---enable-fipsmode \
-%endif$
---wiredtiger --inmemory --hotbackup LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_TARGETS} || exit $?
+bazel build --config=psmdb_opt_release --define=MONGO_VERSION=%{version}-@@RELEASE@@ --define=GIT_COMMIT_HASH=@@PSMDB_GIT_HASH@@ install-dist-test
 rm -fr resmoke.ini
 popd
 
@@ -248,11 +249,11 @@ install -m 644 %{SOURCE3} %{buildroot}/%{_sysconfdir}/sysconfig/mongod
 install -m 755 %{SOURCE4} %{buildroot}/%{_bindir}/
 install -m 755 %{SOURCE7} %{buildroot}/%{_bindir}/
 #
-install -m 755 build/install/bin/mongo %{buildroot}/%{_bindir}/mongo
-install -m 755 build/install/bin/mongod %{buildroot}/%{_bindir}/mongod
-install -m 755 build/install/bin/mongos %{buildroot}/%{_bindir}/mongos
-install -m 755 build/install/bin/perconadecrypt %{buildroot}/%{_bindir}/
-install -m 755 build/install/bin/mongobridge %{buildroot}/%{_bindir}/mongobridge
+install -m 755 bazel-bin/install/bin/mongo %{buildroot}/%{_bindir}/mongo
+install -m 755 bazel-bin/install/bin/mongod %{buildroot}/%{_bindir}/mongod
+install -m 755 bazel-bin/install/bin/mongos %{buildroot}/%{_bindir}/mongos
+install -m 755 bazel-bin/install/bin/perconadecrypt %{buildroot}/%{_bindir}/
+install -m 755 bazel-bin/install/bin/mongobridge %{buildroot}/%{_bindir}/mongobridge
 
 install -m 755 $RPM_BUILD_DIR/%{src_dir}/bin/* %{buildroot}/%{_bindir}/
 
