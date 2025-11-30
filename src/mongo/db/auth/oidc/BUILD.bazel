@@ -27,10 +27,10 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo:base",
-        "//src/mongo/crypto:jwt",
         "//src/mongo/crypto:jwt_types",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
+        "//src/mongo/crypto:jwt",
         "//src/mongo/util/options_parser",
     ],
 )

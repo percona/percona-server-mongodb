@@ -130,7 +130,7 @@ template <typename T>
 T bsonObjectGetNestedValue(const BSONObj& object, StringData path) {
     invariant(!path.empty());
 
-    static constexpr const char* kNotObject = "is missing or not an object";
+    static constexpr const char*       kNotObject = "is missing or not an object";
     static constexpr const char* kNotInteger = "is missing or not an integer";
     static constexpr const char* kNotString = "is missing or not a string";
 
