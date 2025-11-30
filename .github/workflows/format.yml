@@ -1,0 +1,54 @@
+name: format
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Check code formatting
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-skip-format') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Run linters
+        run: |
+          echo "Running clang-format"
+          buildscripts/clang_format.py format
+          echo "Running python formatters"
+          buildscripts/pylinters.py fix
+          echo "Running python scons formatter"
+          buildscripts/pylinters.py fix-scons
+          echo "Running javascript formatters"
+          buildscripts/eslint.py fix
+
+      - name: Verify formatting
+        run: |
+          if ! git diff --quiet; then
+            echo "::error::Formatting issues detected."
+            echo ""
+            echo "Your PR is not properly formatted."
+            echo ""
+            echo "To fix the problem locally, run:"
+            echo ""
+            echo "    buildscripts/clang_format.py format"
+            echo "    buildscripts/pylinters.py fix"
+            echo "    buildscripts/pylinters.py fix-scons"
+            echo "    buildscripts/eslint.py fix"
+            echo ""
+            echo "and commit the resulting changes."
+            echo ""
+            echo "Affected files:"
+            git diff --stat
+            echo "Diff:"
+            git diff | head -n 1000
+            exit 1
+          fi
