@@ -1,0 +1,38 @@
+name: "Common setup"
+description: "Shared setup steps for the workflows"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      id: setup-python
+      with:
+        python-version: "3.11"
+        cache: "pip"
+        cache-dependency-path: poetry.lock
+
+    - name: Configure Python
+      shell: bash
+      run: |
+        python -m pip install -U pip "virtualenv>=20.35,<21" poetry==2.0.0
+        poetry config virtualenvs.create true
+        poetry config virtualenvs.in-project true
+
+    - name: Poetry virtualenv cache
+      uses: actions/cache@v4
+      id: venv
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
+
+    - name: Install Python deps
+      shell: bash
+      if: steps.venv.outputs.cache-hit != 'true'
+      run: |
+        poetry install --no-root --without export
+
+    - name: Install Bazel
+      shell: bash
+      run: |
+        poetry run python buildscripts/install_bazel.py
