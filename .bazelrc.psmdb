@@ -20,7 +20,7 @@ common --legacy_important_outputs
 common --//bazel/config:use_sasl_client=True
 
 # how to build
-common --build_enterprise=False
+build --build_enterprise=False
 common --jobs=auto
 common --fission=no
 common --verbose_failures=True
