@@ -1,0 +1,41 @@
+name: "Common setup"
+description: "Shared setup steps for the workflows"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Export env
+      shell: bash
+      run: |
+        ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
+        OS_CODE_NAME="$(lsb_release -sc)"
+        echo "ARCH=${ARCH}" >> $GITHUB_ENV
+        echo "OS_CODE_NAME=${OS_CODE_NAME}" >> $GITHUB_ENV
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      id: setup-python
+      with:
+        python-version: "3.11"
+        cache: "pip"
+        cache-dependency-path: etc/pip/dev-requirements.txt
+
+    - name: Install Python deps
+      shell: bash
+      run: |
+        python3 -m pip install -r etc/pip/dev-requirements.txt
+
+    - name: Toolchain cache
+      uses: actions/cache@v4
+      id: toolchain
+      with:
+        path: /opt/mongodbtoolchain
+        key: toolchain-${{ env.OS_CODE_NAME }}-${{ env.ARCH }}
+
+    - name: Install toolchain
+      shell: bash
+      if: steps.toolchain.outputs.cache-hit != 'true'
+      run: |
+        curl -O https://downloads.percona.com/downloads/packaging/toolchain_installer.tar.gz
+        tar -zxvf toolchain_installer.tar.gz
+        bash -x ./installer.sh -k --download-url "https://downloads.percona.com/downloads/packaging/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz"
