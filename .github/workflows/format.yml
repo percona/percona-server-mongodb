@@ -1,0 +1,38 @@
+name: format
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Check code formatting
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-skip-format') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v45
+
+      - name: List changed files
+        run: |
+          echo "Changed files: ${{ steps.changed.outputs.all_changed_files }}"
+
+      - name: Run bazel format
+        run: |
+          bazel run format
+
+      - name: Check for formatting changes
+        id: check_format
+        run: |
+          poetry run python .github/scripts/check_format.py "${{ github.event.pull_request.base.sha }}"
