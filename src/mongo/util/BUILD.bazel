@@ -996,15 +996,6 @@ generate_config_header(
     }) | select({
         "//bazel/config:build_enterprise_enabled": {"build_enterprise_enabled": "1"},
         "//conditions:default": {},
-    }) | select({
-        "//bazel/config:fipsmode_selected": {"fipsmode_enabled": "1"},
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:fcbis_selected": {"fcbis_enabled": "1"},
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:oidc_selected": {"oidc_enabled": "1"},
-        "//conditions:default": {},
     }),
     logfile = "version_constants_gen.log",
     output = "version_impl.cpp",

@@ -76,6 +76,7 @@ mongo_cc_library(
         "//src/mongo/db:service_context",
         "//src/mongo/db:shard_role",
         "//src/mongo/db:snapshot_window_options_idl",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/bson:dotted_path_support",
         "//src/mongo/db/catalog:collection_options",
         "//src/mongo/db/catalog:health_log_interface",
@@ -110,12 +111,7 @@ mongo_cc_library(
         "//src/third_party/snappy",
         "//src/third_party/wiredtiger",
         "//src/third_party/zlib",
-    ] + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
     linkopts = select({
         # When linking statically, don't use the dynamic AWS libraries even if
         # they are available. For dynamic linking, prefer the dynamic AWS

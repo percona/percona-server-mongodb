@@ -30,8 +30,8 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 
-#include "boost/filesystem/operations.hpp"
-#include "boost/filesystem/path.hpp"
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
 
 #include "mongo/db/audit/audit_options.h"
 #include "mongo/db/server_options.h"

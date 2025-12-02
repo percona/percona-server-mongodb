@@ -47,6 +47,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/vault_client.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util_core.h"
+#include "mongo/stdx/chrono.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kNetwork
 
@@ -66,12 +67,13 @@ auto retryKmipOperation(MemFn&& operation) {
                               encryptionGlobalParams.kmipServerCAFile,
                               encryptionGlobalParams.kmipClientCertificateFile,
                               encryptionGlobalParams.kmipClientCertificatePassword,
-                              std::chrono::milliseconds(encryptionGlobalParams.kmipConnectTimeoutMS));
+                              stdx::chrono::milliseconds(encryptionGlobalParams.kmipConnectTimeoutMS));
             try {
                 return std::invoke(operation, client);
             } catch (const std::runtime_error& e) {
-                LOGV2_WARNING(29117, "KMIP session failed",
-                              "serverHost"_attr = serverName + ":" + portStr,
+                LOGV2_WARNING(29117,
+                              "KMIP session failed",
+                              "serverHost"_attr = fmt::format("{}:{}", serverName, portStr),
                               "reason"_attr = e.what());
                 continue;
             }
@@ -166,7 +168,7 @@ std::unique_ptr<KeyId> SaveKmipKey::operator()(const Key& k) const try {
     throw KeyErrorBuilder(KeyOperationType::kSave, StringData(msg.str())).error();
 }
 
-std::optional<KeyState> GetKmipKeyState::operator()() const try {
+boost::optional<KeyState> GetKmipKeyState::operator()() const try {
     auto op = [&id = _id.toString()](KmipClient& client) {
         return client.getKeyState(id);
     };
@@ -203,9 +205,8 @@ std::unique_ptr<SaveKey> KeyFileOperationFactory::createSave(const KeyId* config
 VaultSecretOperationFactory::VaultSecretOperationFactory(
     bool rotateMasterKey,
     const std::string& providedSecretPath,
-    const std::optional<std::uint64_t>& providedSecretVersion)
-    : _rotateMasterKey(rotateMasterKey),
-      _configured(nullptr) {
+    const boost::optional<std::uint64_t>& providedSecretVersion)
+    : _rotateMasterKey(rotateMasterKey), _configured(nullptr) {
     if (providedSecretVersion) {
         _provided = VaultSecretId(providedSecretPath, *providedSecretVersion);
     } else {

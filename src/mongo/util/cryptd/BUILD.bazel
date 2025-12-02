@@ -37,6 +37,7 @@ mongo_cc_library(
         "//src/mongo/db:serverinit",
         "//src/mongo/db:service_context_non_d",
         "//src/mongo/db:validate_api_parameters",
+        "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/query/query_stats",
         "//src/mongo/db/repl:repl_coordinator_interface",
         "//src/mongo/db/storage:storage_engine_lock_file",
@@ -59,11 +60,6 @@ mongo_cc_library(
         "//src/mongo/watchdog",
     ] + select({
         "@platforms//os:windows": ["//src/mongo/db:windows_options_idl"],
-        "//conditions:default": [],
-    }) + select({
-        "//bazel/config:audit_enabled": [
-            "//src/mongo/db/audit:audit_impl",
-        ],
         "//conditions:default": [],
     }),
 )

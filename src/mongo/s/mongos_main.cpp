@@ -67,9 +67,7 @@
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/authz_manager_external_state.h"
 #include "mongo/db/auth/authz_manager_external_state_s.h"
-#ifdef PERCONA_OIDC_ENABLED
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
-#endif
 #include "mongo/db/auth/user_cache_invalidator_job.h"
 #include "mongo/db/change_stream_options_manager.h"
 #include "mongo/db/client.h"
@@ -958,16 +956,13 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
         audit::initializeSynchronizeJob(serviceContext);
     }
 
-#ifdef PERCONA_AUDIT_ENABLED
     // start audit log flusher thread only if destination is file
     if (auditOptions.destination == "file") {
         startAuditLogFlusherWithFsync();
     }
-#endif
 
     PeriodicTask::startRunningPeriodicTasks();
 
-#ifdef PERCONA_OIDC_ENABLED
     // Cannot use ServiceContext::ConstructorActionRegisterer to construct the
     // OidcIdentityProvidersRegistry because the PeriodicRunner is not yet initialized
     // when the initializer runs.
@@ -980,7 +975,6 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
     // To ensure proper initialization of the registry, use a global initializer
     // function to construct the registry and register it with the ServiceContext.
     initializeOidcIdentityProvidersRegistry(serviceContext);
-#endif
 
     Status status =
         process_health::FaultManager::get(serviceContext)->startPeriodicHealthChecks().getNoThrow();

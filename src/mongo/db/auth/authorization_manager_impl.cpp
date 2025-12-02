@@ -257,11 +257,11 @@ public:
     LDAPUserCacheInvalidator(AuthorizationManagerImpl* authzManager)
         : _authzManager(authzManager) {}
 
-    virtual std::string name() const override {
+    std::string name() const override {
         return "LDAPUserCacheInvalidator";
     }
 
-    virtual void run() override {
+    void run() override {
         ThreadClient tc(name(), getGlobalServiceContext()->getService());
         LOGV2_DEBUG(29057, 1, "starting thread", "name"_attr = name());
         stdx::unique_lock<Latch> lock(_mutex);
@@ -271,7 +271,7 @@ public:
             auto cv_status = _condvar.wait_for(lock, stdx::chrono::seconds(
                         ldapGlobalParams.ldapUserCacheInvalidationInterval.load()));
 
-            if (cv_status == std::cv_status::timeout) {
+            if (cv_status == stdx::cv_status::timeout) {
                 _authzManager->invalidateUsersFromDB(DatabaseName::kExternal);
             }
         }

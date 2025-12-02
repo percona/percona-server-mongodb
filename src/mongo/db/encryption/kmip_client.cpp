@@ -41,6 +41,7 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
 
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/encryption/kmip_exchange.h"
@@ -71,7 +72,7 @@ public:
          const std::string& serverCaFile,
          const std::string& clientCertificateFile,
          const std::string& clientCertificatePassword,
-         std::chrono::milliseconds timeout);
+         stdx::chrono::milliseconds timeout);
 
     Impl(const Impl&) = delete;
     Impl& operator=(const Impl&) = delete;
@@ -80,9 +81,9 @@ public:
     Impl& operator=(Impl&&) = default;
 
     std::string registerSymmetricKey(const Key& key, bool activate);
-    std::pair<std::optional<Key>, std::optional<KeyState>> getSymmetricKey(const std::string& keyId,
+    std::pair<boost::optional<Key>, boost::optional<KeyState>> getSymmetricKey(const std::string& keyId,
                                                                            bool verifyState);
-    std::optional<KeyState> getKeyState(const std::string& keyId);
+    boost::optional<KeyState> getKeyState(const std::string& keyId);
 
 private:
     static net::mutable_buffer buffer(detail::KmipExchange::Span s) noexcept;
@@ -113,7 +114,7 @@ private:
     std::string _serverCaFile;
     std::string _clientCertificateFile;
     std::string _clientCertificatePassword;
-    std::chrono::milliseconds _timeout;
+    stdx::chrono::milliseconds _timeout;
 
     net::io_context _ioCtx;
     net::steady_timer _timer;
@@ -130,7 +131,7 @@ KmipClient::Impl::Impl(const std::string& host,
                        const std::string& serverCaFile,
                        const std::string& clientCertificateFile,
                        const std::string& clientCertificatePassword,
-                       std::chrono::milliseconds timeout)
+                       stdx::chrono::milliseconds timeout)
     : _host(host),
       _port(port),
       _serverCaFile(serverCaFile),
@@ -169,9 +170,12 @@ net::ssl::context KmipClient::Impl::createSslContext() {
 
     loadSystemCaCertificates(sslCtx);
     if (!_serverCaFile.empty()) {
-        expectOk([&](sys::error_code& ec) { sslCtx.load_verify_file(_serverCaFile, ec); },
-                 "server CA certificate file",
-                 _serverCaFile);
+        expectOk(
+            [&](sys::error_code& ec) {
+                static_cast<void>(sslCtx.load_verify_file(_serverCaFile, ec));
+            },
+            "server CA certificate file",
+            _serverCaFile);
     }
 
     if (!_clientCertificatePassword.empty()) {
@@ -182,12 +186,15 @@ net::ssl::context KmipClient::Impl::createSslContext() {
     }
     expectOk(
         [&](sys::error_code& ec) {
-            sslCtx.use_private_key_file(_clientCertificateFile, net::ssl::context::pem, ec);
+            static_cast<void>(
+                sslCtx.use_private_key_file(_clientCertificateFile, net::ssl::context::pem, ec));
         },
         "client certificate file",
         _clientCertificateFile);
     expectOk(
-        [&](sys::error_code& ec) { sslCtx.use_certificate_chain_file(_clientCertificateFile, ec); },
+        [&](sys::error_code& ec) {
+            static_cast<void>(sslCtx.use_certificate_chain_file(_clientCertificateFile, ec));
+        },
         "certificate chain file",
         _clientCertificateFile);
 
@@ -215,15 +222,16 @@ void KmipClient::Impl::loadSystemCaCertificates(net::ssl::context& sslCtx) {
 
     for (const auto& f : certFiles) {
         if (bfs::is_regular_file(bfs::path(f))) {
-            expectOk([&](sys::error_code& ec) { sslCtx.load_verify_file(f, ec); },
-                     "system CA certificate file",
-                     f);
+            expectOk(
+                [&](sys::error_code& ec) { static_cast<void>(sslCtx.load_verify_file(f, ec)); },
+                "system CA certificate file",
+                f);
             break;
         }
     }
     for (const auto& d : certDirs) {
         if (bfs::is_directory(bfs::path(d))) {
-            expectOk([&](sys::error_code& ec) { sslCtx.add_verify_path(d, ec); },
+            expectOk([&](sys::error_code& ec) { static_cast<void>(sslCtx.add_verify_path(d, ec)); },
                      "system CA certificate files from the directory",
                      d);
         }
@@ -241,14 +249,14 @@ std::string KmipClient::Impl::registerSymmetricKey(const Key& key, bool activate
     return session->keyId();
 }
 
-std::pair<std::optional<Key>, std::optional<KeyState>> KmipClient::Impl::getSymmetricKey(
+std::pair<boost::optional<Key>, boost::optional<KeyState>> KmipClient::Impl::getSymmetricKey(
     const std::string& keyId, bool verifyState) {
     auto session = std::make_shared<detail::KmipSessionGetSymmetricKey>(keyId, verifyState);
     conductSession(session);
     return {session->key(), session->keyState()};
 }
 
-std::optional<KeyState> KmipClient::Impl::getKeyState(const std::string& keyId) {
+boost::optional<KeyState> KmipClient::Impl::getKeyState(const std::string& keyId) {
     auto session = std::make_shared<detail::KmipSessionGetKeyState>(keyId);
     conductSession(session);
     return session->keyState();
@@ -411,7 +419,7 @@ KmipClient::KmipClient(const std::string& host,
                        const std::string& serverCaFile,
                        const std::string& clientCertificateFile,
                        const std::string& clientCertificatePassword,
-                       std::chrono::milliseconds timeout)
+                       stdx::chrono::milliseconds timeout)
     : _impl(std::make_unique<Impl>(
           host, port, serverCaFile, clientCertificateFile, clientCertificatePassword, timeout)) {}
 
@@ -419,12 +427,12 @@ std::string KmipClient::registerSymmetricKey(const Key& key, bool activate) {
     return _impl->registerSymmetricKey(key, activate);
 }
 
-std::pair<std::optional<Key>, std::optional<KeyState>> KmipClient::getSymmetricKey(
+std::pair<boost::optional<Key>, boost::optional<KeyState>> KmipClient::getSymmetricKey(
     const std::string& keyId, bool verifyState) {
     return _impl->getSymmetricKey(keyId, verifyState);
 }
 
-std::optional<KeyState> KmipClient::getKeyState(const std::string& keyId) {
+boost::optional<KeyState> KmipClient::getKeyState(const std::string& keyId) {
     return _impl->getKeyState(keyId);
 }
 }  // namespace mongo::encryption

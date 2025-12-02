@@ -43,19 +43,19 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 namespace mongo::encryption {
 class ErrorBuilder {
 public:
-    ErrorBuilder(const StringData& what, const StringData& reason = StringData()) {
+    ErrorBuilder(StringData what, StringData reason = StringData()) {
         _builder.append("what", what);
         if (!reason.empty()) {
             _builder.append("reason", reason);
         }
     }
 
-    ErrorBuilder(const StringData& what, const Error& reason) {
+    ErrorBuilder(StringData what, const Error& reason) {
         _builder.append("what", what);
         _builder.append("reason", reason.toBSON());
     }
 
-    ErrorBuilder& append(const StringData& name, const StringData& value) {
+    ErrorBuilder& append(StringData name, StringData value) {
         _builder.append(name, value);
         return *this;
     }
@@ -63,7 +63,7 @@ public:
     template <typename T,
               typename = std::void_t<
                   decltype(std::declval<T>().serialize(&std::declval<BSONObjBuilder&>()))>>
-    ErrorBuilder& append(const StringData& name, const T& value) {
+    ErrorBuilder& append(StringData name, const T& value) {
         BSONObjBuilder sb = _builder.subobjStart(name);
         value.serialize(&sb);
         sb.done();
@@ -73,7 +73,7 @@ public:
     template <typename Iterator,
               typename = std::void_t<decltype(std::declval<BSONArrayBuilder>().append(
                   std::declval<Iterator>(), std::declval<Iterator>()))>>
-    ErrorBuilder& append(const StringData& name, Iterator begin, Iterator end) {
+    ErrorBuilder& append(StringData name, Iterator begin, Iterator end) {
         BSONArrayBuilder sb = _builder.subarrayStart(name);
         sb.append(begin, end);
         sb.done();
@@ -92,7 +92,7 @@ enum class KeyOperationType : std::uint8_t { kRead, kSave, kGetState };
 
 class KeyErrorBuilder : public ErrorBuilder {
 public:
-    KeyErrorBuilder(KeyOperationType opType, const StringData& reason)
+    KeyErrorBuilder(KeyOperationType opType, StringData reason)
         : ErrorBuilder(str::stream() << "key " << to_string(opType) << " failed", reason) {}
 
 private:

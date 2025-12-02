@@ -49,11 +49,11 @@ class AuditLogFlusher : public BackgroundJob {
 public:
     bool _with_fsync = false;
 
-    std::string name() const {
+    std::string name() const override {
         return "AuditLogFlusher";
     }
 
-    void run() {
+    void run() override {
         ThreadClient tc(name(), getGlobalServiceContext()->getService());
         if (!_with_fsync) {
             // This branch is for wiredTiger storage engine

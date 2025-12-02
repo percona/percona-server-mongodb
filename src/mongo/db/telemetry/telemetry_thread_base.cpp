@@ -49,9 +49,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/service_context.h"
 #include "mongo/db/auth/sasl_options.h"
 #include "mongo/db/ldap_options.h"
-#ifdef PERCONA_OIDC_ENABLED
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
-#endif
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
 #include "mongo/db/telemetry/telemetry_path.h"
 #include "mongo/logv2/log.h"
@@ -106,14 +104,12 @@ void stopTelemetryThread_inlock(ServiceContext* serviceContext) {
 }
 
 bool isOIDCEnabled() {
-#ifdef PERCONA_OIDC_ENABLED
     const auto config =
         ServerParameterSet::getNodeParameterSet()
             ->getIfExists<OidcIdentityProvidersServerParameter>("oidcIdentityProviders");
     if (config) {
         return !config->_data.empty();
     }
-#endif
 
     return false;
 }

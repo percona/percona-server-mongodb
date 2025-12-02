@@ -103,26 +103,6 @@ generate_config_header(
             "MONGO_CONFIG_USE_RAW_LATCHES": "1",
         },
         "//conditions:default": {},
-    }) | select({
-        "//bazel/config:fipsmode_selected": {
-            "PERCONA_FIPSMODE_ENABLED": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:fcbis_selected": {
-            "PERCONA_FCBIS_ENABLED": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:oidc_selected": {
-            "PERCONA_OIDC_ENABLED": "1",
-        },
-        "//conditions:default": {},
-    }) | select({
-        "//bazel/config:audit_enabled": {
-            "PERCONA_AUDIT_ENABLED": "1",
-        },
-        "//conditions:default": {},
     }),
     logfile = "mongo_config.log",
     output = "config.h",

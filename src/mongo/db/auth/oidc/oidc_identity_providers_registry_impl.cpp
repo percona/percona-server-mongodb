@@ -32,12 +32,12 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry_impl.h"
 
 #include <memory>
-#include <unordered_set>
 
 #include "mongo/db/service_context.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util_core.h"
 #include "mongo/util/periodic_runner.h"
+#include "mongo/stdx/unordered_set.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kControl
 
@@ -102,7 +102,7 @@ boost::optional<const OidcIdentityProviderConfig&> OidcIdentityProvidersRegistry
 
     // Iterate over the identity providers and check if the issuer matches the identity provider's
     // configuration and if the audience is in the list of given audiences.
-    std::unordered_set<std::string_view> audienceSet{audience.begin(), audience.end()};
+    stdx::unordered_set<std::string_view> audienceSet{audience.begin(), audience.end()};
     auto idp{std::ranges::find_if(_idps, [&](const auto& idp) {
         return std::string_view{idp.getIssuer()} == issuer &&
             audienceSet.contains(std::string_view{idp.getAudience()});

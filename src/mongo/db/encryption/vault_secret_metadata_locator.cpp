@@ -61,9 +61,8 @@ VaultSecretMetadataLocator::VaultSecretMetadataLocator(const std::string_view& s
         throw std::runtime_error(invalidSecretPathMsg(secretPathOrig));
     }
 
-    std::string_view engineMountPath(secretPath.data(), pos);
-    std::string_view secretRelativePath(secretPath.data() + pos + kData.size(),
-                                        secretPath.data() + secretPath.size());
+    std::string_view engineMountPath = secretPath.substr(0, pos);
+    std::string_view secretRelativePath = secretPath.substr(pos + kData.size());
     if (engineMountPath.empty() || secretRelativePath.empty()) {
         throw std::runtime_error(invalidSecretPathMsg(secretPathOrig));
     }

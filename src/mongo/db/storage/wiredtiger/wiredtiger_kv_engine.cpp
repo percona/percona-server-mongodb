@@ -687,7 +687,7 @@ void keyDbRotateMasterKey(std::unique_ptr<const EncryptionKeyDB> keyDb,
     }
     try {
         fs::create_directory(rotationKeyDbDir);
-    } catch (std::exception& e) {
+    } catch (std::exception&) {
         throw encryption::ErrorBuilder("Can't create rotation key database directory")
             .append("rotationKeyDatabaseDirectory", rotationKeyDbDir.string())
             .error();
@@ -2233,15 +2233,15 @@ public:
         Base(Aws::Utils::Logging::LogLevel::Info)
     {}
 
-    virtual ~MongoLogSystem() {}
+    ~MongoLogSystem() override {}
 
 protected:
 
-    virtual void ProcessFormattedStatement(Aws::String&& statement) override {
+    void ProcessFormattedStatement(Aws::String&& statement) override {
         LOGV2(29011, "{statement}", "statement"_attr = statement);
     }
 
-    virtual void Flush() override {}
+    void Flush() override {}
 };
 
 // Special version of filebuf to read exact number of bytes from the input file

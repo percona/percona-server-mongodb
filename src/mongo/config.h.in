@@ -116,20 +116,5 @@
 // Defined if using the tcmalloc-gperf memory allocator
 @mongo_config_tcmalloc_gperf@
 
-
-// Percona specific section
-
-// Audit log feature enabled
-@percona_audit_enabled@
-
-// FIPSMode enabled
-@percona_fipsmode_enabled@
-
-// FCBIS enabled
-@percona_fcbis_enabled@
-
-// OIDC enabled
-@percona_oidc_enabled@
-
 // Defined if basic_stringbuf::str()&& overload exists
 @mongo_config_have_basic_stringbuf_str_rvalue@

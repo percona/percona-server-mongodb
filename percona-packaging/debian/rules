@@ -16,6 +16,7 @@ export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v
 $(info GLIBC_TUNABLES is $(GLIBC_TUNABLES))
 CC = gcc-5
 CXX = g++-5
+PSMDB_VERSION := $(shell dpkg-parsechangelog -S Version)
 #
 %:
 	dh $@

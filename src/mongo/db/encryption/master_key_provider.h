@@ -38,12 +38,12 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/logv2/log_component.h"
 
 namespace mongo {
-class EncryptionGlobalParams;
+struct EncryptionGlobalParams;
 class PeriodicJobAnchor;
 class PeriodicRunner;
 namespace encryption {
 class Key;
-class KeyEntry;
+struct KeyEntry;
 class KeyId;
 class KeyOperationFactory;
 class ReadKey;

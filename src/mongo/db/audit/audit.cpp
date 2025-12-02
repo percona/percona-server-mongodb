@@ -33,7 +33,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include "mongo/bson/bsonobjbuilder.h"
-#ifdef PERCONA_AUDIT_ENABLED
 
 #include <cstdio>
 #include <iostream>
@@ -121,16 +120,16 @@ class WritableAuditLog : public logv2::AuditLog {
 public:
     WritableAuditLog(const BSONObj& filter)
         : _matcher(filter.getOwned(), new ExpressionContext(nullptr, nullptr, NamespaceString())) {}
-    virtual ~WritableAuditLog() {}
+    ~WritableAuditLog() override {}
 
     void append(const BSONObj& obj, const bool affects_durable_state) {
         if (_matcher.matches(obj)) {
             appendMatched(obj, affects_durable_state);
         }
     }
-    virtual Status rotate(bool rename,
-                          StringData renameSuffix,
-                          std::function<void(Status)> onMinorError) override {
+    Status rotate(bool rename,
+                  StringData renameSuffix,
+                  std::function<void(Status)> onMinorError) override {
         // No need to override this method if there is nothing to rotate
         // like it is for 'console' and 'syslog' destinations
         return Status::OK();
@@ -147,7 +146,7 @@ public:
     }
 
 protected:
-    virtual void appendMatched(const BSONObj& obj, const bool affects_durable_state) = 0;
+    virtual void appendMatched(const BSONObj& obj, bool affects_durable_state) = 0;
 
 private:
     const Matcher _matcher;
@@ -167,7 +166,7 @@ public:
         _file->open(file.c_str(), kFileOpenMode);
     }
 
-    virtual ~FileAuditLog() {
+    ~FileAuditLog() override {
         if (_dirty) {
             flush_inlock();
             _dirty = false;
@@ -182,7 +181,7 @@ protected:
     // and passess ownership to caller
     virtual AuditLogFormatAdapter* createAdapter(const BSONObj& obj) const = 0;
 
-    virtual void appendMatched(const BSONObj& obj, const bool affects_durable_state) override {
+    void appendMatched(const BSONObj& obj, const bool affects_durable_state) override {
         boost::scoped_ptr<AuditLogFormatAdapter> adapter(createAdapter(obj));
 
         // mongo::File does not have an "atomic append" operation.
@@ -208,7 +207,7 @@ protected:
         invariant(_membuf.write(adapter->data(), adapter->size()));
     }
 
-    virtual Status rotate(bool rename,
+    Status rotate(bool rename,
                           StringData renameSuffix,
                           std::function<void(Status)> onMinorError) override {
         stdx::lock_guard<SimpleMutex> lck(_mutex);
@@ -271,7 +270,7 @@ protected:
         return Status::OK();
     }
 
-    virtual void flush() override {
+    void flush() override {
         stdx::lock_guard<SimpleMutex> lck(_mutex);
 
         if (_dirty) {
@@ -280,7 +279,7 @@ protected:
         }
     }
 
-    virtual void fsync() override {
+    void fsync() override {
         stdx::lock_guard<SimpleMutex> lck(_mutex);
 
         if (_fsync_pending) {
@@ -412,16 +411,16 @@ class JSONAuditLog : public FileAuditLog {
     public:
         Adapter(const BSONObj& obj) : str(obj.jsonString(auditJsonFormat) + '\n') {}
 
-        virtual const char* data() const override {
+        const char* data() const override {
             return str.c_str();
         }
-        virtual unsigned size() const override {
+        unsigned size() const override {
             return str.size();
         }
     };
 
 protected:
-    virtual AuditLogFormatAdapter* createAdapter(const BSONObj& obj) const override {
+    AuditLogFormatAdapter* createAdapter(const BSONObj& obj) const override {
         return new Adapter(obj);
     }
 
@@ -438,16 +437,16 @@ class BSONAuditLog : public FileAuditLog {
     public:
         Adapter(const BSONObj& aobj) : obj(aobj) {}
 
-        virtual const char* data() const override {
+        const char* data() const override {
             return obj.objdata();
         }
-        virtual unsigned size() const override {
+        unsigned size() const override {
             return obj.objsize();
         }
     };
 
 protected:
-    virtual AuditLogFormatAdapter* createAdapter(const BSONObj& obj) const override {
+    AuditLogFormatAdapter* createAdapter(const BSONObj& obj) const override {
         return new Adapter(obj);
     }
 
@@ -461,7 +460,7 @@ public:
     ConsoleAuditLog(const BSONObj& filter) : WritableAuditLog(filter) {}
 
 private:
-    virtual void appendMatched(const BSONObj& obj, const bool affects_durable_state) override {
+    void appendMatched(const BSONObj& obj, const bool affects_durable_state) override {
         std::cout << obj.jsonString(auditJsonFormat) << std::endl;
     }
 };
@@ -472,7 +471,7 @@ public:
     SyslogAuditLog(const BSONObj& filter) : WritableAuditLog(filter) {}
 
 private:
-    virtual void appendMatched(const BSONObj& obj, const bool affects_durable_state) override {
+    void appendMatched(const BSONObj& obj, const bool affects_durable_state) override {
         syslog(LOG_MAKEPRI(LOG_USER, LOG_INFO), "%s", obj.jsonString(auditJsonFormat).c_str());
     }
 };
@@ -1211,7 +1210,7 @@ public:
                                      [&](const std::vector<std::string>& listParameterNames) {
                                          BSONArrayBuilder abuilder(params.subarrayStart(
                                              "requestedClusterServerParameters"));
-                                         for (auto p : listParameterNames) {
+                                         for (const auto& p : listParameterNames) {
                                              abuilder.append(p);
                                          }
                                          abuilder.doneFast();
@@ -1298,5 +1297,3 @@ void fsyncAuditLog() {
 }
 
 }  // namespace mongo::audit
-
-#endif  // PERCONA_AUDIT_ENABLED

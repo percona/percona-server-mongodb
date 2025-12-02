@@ -327,7 +327,7 @@ private:
      * Callback to execute backup cursor on the sync source
      */
     void _fetchBackupCursorCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
-                                    const int extensionsUsed,
+                                    int extensionsUsed,
                                     std::shared_ptr<OnCompletionGuard> onCompletionGuard,
                                     std::function<BSONObj()> createRequestObj) noexcept;
 
@@ -342,7 +342,7 @@ private:
      */
     void _transferFileCallback(const executor::TaskExecutor::CallbackArgs& callbackArgs,
                                std::size_t fileIdx,
-                               const int extensionsUsed,
+                               int extensionsUsed,
                                std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**
@@ -354,7 +354,7 @@ private:
      */
     void _compareLastAppliedCallback(
         const executor::TaskExecutor::RemoteCommandCallbackArgs& callbackArgs,
-        const int extensionsUsed,
+        int extensionsUsed,
         std::shared_ptr<OnCompletionGuard> onCompletionGuard) noexcept;
 
     /**

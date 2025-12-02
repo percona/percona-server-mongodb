@@ -46,20 +46,8 @@ std::function<void(OperationContext*, boost::optional<Timestamp>)> migrateOldToN
 std::function<void(OperationContext*)> removeOldConfig;
 std::function<void(OperationContext*)> updateAuditConfigOnDowngrade;
 
-#if !PERCONA_AUDIT_ENABLED
-ImpersonatedClientAttrs::ImpersonatedClientAttrs(Client* client) {}
-
-void rotateAuditLog() {}
-
-namespace {
 // @see the `src/mongo/audit/audit.cpp` file for registeting Percona's
 // implementation of `AuditInterface`.
-ServiceContext::ConstructorActionRegisterer registerCreateNoopAudit{
-    "initializeNoopAuditInterface", [](ServiceContext* svcCtx) {
-        AuditInterface::set(svcCtx, std::make_unique<AuditNoOp>());
-    }};
-}  // namespace
-#endif
 
 void logClientMetadata(Client* client) {
     AuditInterface::get(client->getServiceContext())->logClientMetadata(client);

@@ -37,14 +37,10 @@ mongo_cc_library(
         "//src/mongo/db:service_context",
         "//src/mongo/db:ldap_options",
         "//src/mongo/db/auth:sasl_options",
+        "//src/mongo/db/auth/oidc:oidc",
         "//src/mongo/db/telemetry:telemetry_parameter_idl",
         "//src/mongo/util:background_job",
-    ] + select({
-        "//bazel/config:oidc_selected": [
-            "//src/mongo/db/auth/oidc:oidc",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 
 )
 
