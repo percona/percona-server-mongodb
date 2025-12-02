@@ -11,8 +11,8 @@ export TOOLS_TAGS=ssl sasl
 export PORTABLE=1
 export USE_SSE=1
 export PATH := /usr/local/go/bin:$(PATH)
-export FIPSMODE=0
 export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+
 $(info GLIBC_TUNABLES is $(GLIBC_TUNABLES))
 CC = gcc-5
 CXX = g++-5
@@ -35,7 +35,7 @@ override_dh_auto_clean:
 	find $(PSMSRC) -name '*.pyc' -delete
 
 percona-server-mongodb:
-	bazel build --config=psmdb_opt_release --define=MONGO_VERSION=${PSMDB_VERSION} --define=GIT_COMMIT_HASH=$(git rev-parse HEAD) install-dist-test
+	bazel build --config=psmdb_opt_release --define=MONGO_VERSION=$(PSMDB_VERSION) --define=GIT_COMMIT_HASH=$(PSMDB_GIT_HASH) install-dist-test
 
 compile-mongo-tools:
 	mkdir $(PSMSRC)/bin || true;
