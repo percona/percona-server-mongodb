@@ -31,17 +31,17 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/base/secure_allocator.h"
+#include "mongo/db/encryption/key_state.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 
-#include <boost/optional.hpp>
-
 #include <kmip.h>
 
-#include "mongo/base/secure_allocator.h"
-#include "mongo/db/encryption/key_state.h"
+#include <boost/optional.hpp>
 
 namespace mongo::encryption {
 class Key;

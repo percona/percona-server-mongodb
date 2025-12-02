@@ -30,13 +30,12 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include "mongo/tools/perconadecrypt_options.h"
-
-#include <iostream>
-
 #include "mongo/util/exit_code.h"
 #include "mongo/util/options_parser/startup_option_init.h"
 #include "mongo/util/options_parser/startup_options.h"
 #include "mongo/util/quick_exit.h"
+
+#include <iostream>
 
 namespace mongo {
 MONGO_GENERAL_STARTUP_OPTIONS_REGISTER(PerconaDecryptOptions)(InitializerContext* context) {
@@ -58,4 +57,4 @@ MONGO_STARTUP_OPTIONS_STORE(PerconaDecryptOptions)(InitializerContext* context) 
         quickExit(ExitCode::badOptions);
     }
 }
-}
+}  // namespace mongo

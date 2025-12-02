@@ -3618,7 +3618,7 @@ mongo_cc_library(
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/audit:audit_options",
         "//src/mongo/db/auth:user_cache_invalidator",
-        "//src/mongo/db/auth/oidc:oidc",
+        "//src/mongo/db/auth/oidc",
         "//src/mongo/db/query/search:search_task_executors",
         "//src/mongo/idl:cluster_server_parameter",
         "//src/mongo/idl:cluster_server_parameter_initializer",

@@ -29,18 +29,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <boost/crc.hpp>
-#include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/path.hpp>
-#include <boost/none.hpp>
-
-#include "mongo/platform/basic.h"
-
-#include <memory>
-#include <fstream>
-
-#include <wiredtiger.h>
-
 #include "mongo/base/init.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
@@ -50,8 +38,19 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/wiredtiger/wiredtiger_data_protector.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
+#include "mongo/platform/basic.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/unittest/unittest.h"
+
+#include <fstream>
+#include <memory>
+
+#include <wiredtiger.h>
+
+#include <boost/crc.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
+#include <boost/none.hpp>
 
 namespace mongo {
 namespace {
@@ -62,7 +61,8 @@ constexpr uint8_t data[]{
     0x12, 0x23, 0x34, 0x45, 0x56, 0x67, 0x78, 0x89, 0x9a, 0xab, 0xbc, 0xcd, 0xde, 0xef, 0xf0, 0x01,
     0x69, 0x4b, 0x65, 0x39, 0x6b, 0x49, 0x74, 0x76, 0x67, 0x71, 0x7a, 0x4c, 0x6c, 0x35, 0x41, 0x62,
     0x7a, 0x30, 0x41, 0x53, 0x4c, 0x77, 0x53, 0x6b, 0x75, 0x52, 0x52, 0x70, 0x30, 0x67, 0x75, 0x6c,
-    0x48, 0x4b, 0x48, 0x41, 0x76, 0x47, 0x35, 0x35, 0x63, 0x6f, 0x77, 0x3d, 0x0a,};
+    0x48, 0x4b, 0x48, 0x41, 0x76, 0x47, 0x35, 0x35, 0x63, 0x6f, 0x77, 0x3d, 0x0a,
+};
 
 constexpr size_t datalen{sizeof(data)};
 
@@ -74,14 +74,14 @@ public:
         encryptionGlobalParams.encryptionKeyFile = _keydbpath.path() + "/encryption_key_file";
         std::ofstream keyfile{encryptionGlobalParams.encryptionKeyFile};
         if (!keyfile.is_open()) {
-            throw std::runtime_error(std::string("cannot open specified encryption key file: ")
-                                                 + encryptionGlobalParams.encryptionKeyFile);
+            throw std::runtime_error(std::string("cannot open specified encryption key file: ") +
+                                     encryptionGlobalParams.encryptionKeyFile);
         }
         keyfile << "iKe9kItvgqzLl5Abz0ASLwSkuRRp0gulHKHAvG55cow=" << std::endl;
         // set keyfile permissions
-        boost::filesystem::permissions(
-            encryptionGlobalParams.encryptionKeyFile,
-            boost::filesystem::owner_read | boost::filesystem::owner_write);
+        boost::filesystem::permissions(encryptionGlobalParams.encryptionKeyFile,
+                                       boost::filesystem::owner_read |
+                                           boost::filesystem::owner_write);
 
         _encryptionKeyDB = EncryptionKeyDB::create(_keydbpath.path(), encryption::Key());
     }
@@ -104,7 +104,7 @@ TEST(WiredTigerEncryptionTest, EncryptionCRC32C) {
     crc32c_t crc32c_a;
     crc32c_t crc32c_b;
     crc32c_a.process_bytes(data, sizeof(data));
-    auto half = sizeof(data)/2;
+    auto half = sizeof(data) / 2;
     crc32c_b.process_bytes(data, half);
     crc32c_b.process_bytes(data + half, sizeof(data) - half);
     ASSERT_EQ(crc32c_a(), crc32c_b());
@@ -136,7 +136,7 @@ void test_encryption_hooks(WiredTigerEncryptionHooks* hooks) {
         auto outbuf = protectorText.get();
         auto outbuflen = protectedSizeMax;
         while (dataleft > 0) {
-            auto chunklen{dataleft/2 + 1};
+            auto chunklen{dataleft / 2 + 1};
             DataRange out{outbuf, outbuflen};
             ASSERT_OK(dataprotector->protect(ConstDataRange{datatoprotect, chunklen}, &out));
             dataleft -= chunklen;
@@ -171,7 +171,8 @@ void test_encryption_hooks(WiredTigerEncryptionHooks* hooks) {
 
     DataRange unprotectOut{plainText.get(), cipherLen};
     // pass boost::none to use ephemeral key
-    ASSERT_OK(hooks->unprotectTmpData(ConstDataRange{cipherText.get(), cipherLen}, &unprotectOut, boost::none));
+    ASSERT_OK(hooks->unprotectTmpData(
+        ConstDataRange{cipherText.get(), cipherLen}, &unprotectOut, boost::none));
     size_t plainLen = unprotectOut.length();
     ASSERT_EQ(plainLen, datalen);
     ASSERT_EQ(0, memcmp(plainText.get(), data, datalen));

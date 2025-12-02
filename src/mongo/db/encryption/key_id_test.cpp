@@ -31,12 +31,12 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/key_id.h"
 
-#include <ostream>
-#include <string>
-
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/unittest/unittest.h"
+
+#include <ostream>
+#include <string>
 
 namespace mongo {
 namespace encryption {
@@ -54,12 +54,12 @@ namespace {
 using namespace encryption;
 
 TEST(KeyIdTest, CreateWithValidBsonIsOk) {
-    ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra" << "version"<< "1")),
+    ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra" << "version" << "1")),
               VaultSecretId("sierra", 1));
     ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra/tango/uniform" << "version" << "42")),
               VaultSecretId("sierra/tango/uniform", 42));
-    ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra/tango/uniform" << "version" << "42" <<
-                                          "bravo"<< "charlie")),
+    ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra/tango/uniform" << "version" << "42"
+                                                 << "bravo" << "charlie")),
               VaultSecretId("sierra/tango/uniform", 42));
 
     ASSERT_EQ(*KmipKeyId::create(BSON("keyId" << "42")), KmipKeyId("42"));
@@ -69,7 +69,7 @@ TEST(KeyIdTest, CreateWithValidBsonIsOk) {
 }
 
 TEST(KeyIdTest, CrateWithInvalidBsonIsNotOk) {
-    ASSERT_THROWS(VaultSecretId::create(BSON("bravo"<< "charlie")), std::runtime_error);
+    ASSERT_THROWS(VaultSecretId::create(BSON("bravo" << "charlie")), std::runtime_error);
     ASSERT_THROWS(VaultSecretId::create(BSON("version" << "1")), std::runtime_error);
     ASSERT_THROWS(VaultSecretId::create(BSON("path" << 42 << "version" << "1")),
                   std::runtime_error);

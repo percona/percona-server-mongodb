@@ -73,9 +73,8 @@ constexpr auto kCodeParameterName = "code"_sd;
 constexpr auto kRefreshTokenParameterName = kGrantTypeParameterRefreshTokenValue;
 
 std::unique_ptr<HttpClient> createHttpClient(bool withConnectionPool = false) {
-    std::unique_ptr<HttpClient> httpClient = withConnectionPool
-        ? HttpClient::create()
-        : HttpClient::createWithoutConnectionPool();
+    std::unique_ptr<HttpClient> httpClient =
+        withConnectionPool ? HttpClient::create() : HttpClient::createWithoutConnectionPool();
     // If we consider plain HTTP localhost endpoints secure, then don't prevent the HTTP client
     // from sending requests there.
     httpClient->allowInsecureHTTP(HttpClient::localhostExceptionEnabled());
@@ -124,7 +123,8 @@ std::pair<std::string, std::string> doDeviceAuthorizationGrantFlow(
     const OAuthAuthorizationServerMetadata& discoveryReply,
     const auth::OIDCMechanismServerStep1& serverReply,
     StringData principalName) {
-    boost::optional<StringData> deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
+    boost::optional<StringData> deviceAuthorizationEndpoint =
+        discoveryReply.getDeviceAuthorizationEndpoint().get();
     // If exists, the device authorization endpoint has been already validated during parsing of
     // `OAuthAuthorizationServerMetadata` class.
     // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).

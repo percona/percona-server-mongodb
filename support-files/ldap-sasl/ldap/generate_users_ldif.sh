@@ -18,10 +18,8 @@ exttestrootherrw
 Surname\\, Name
 Question? Mark! *{[(\\<\\>)]} #\\"\\+\\\\
 _EOU_
-
-while read -r line
-do
-  cat <<_EOLDIF_
+    while read -r line; do
+        cat <<_EOLDIF_
 dn: cn=$line,${LDAP_BIND_DN}
 objectclass: organizationalPerson
 cn: $line 
@@ -30,5 +28,4 @@ userPassword: ${line}${LDAP_PASS_SUFFIX}
 description: ${line} userPassword
 
 _EOLDIF_
-done
-
+    done

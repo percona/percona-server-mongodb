@@ -33,14 +33,15 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <string>
-
-#include <ldap.h>
-#include <sasl/sasl.h>
-
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
 #include "mongo/db/auth/sasl_mechanism_policies.h"
+
+#include <string>
+
+#include <ldap.h>
+
+#include <sasl/sasl.h>
 
 namespace mongo {
 
@@ -61,11 +62,11 @@ public:
 
 private:
     int _step{0};
-    sasl_conn_t * _saslConnection{nullptr};
+    sasl_conn_t* _saslConnection{nullptr};
 
     struct SaslServerResults {
         int result;
-        const char *output;
+        const char* output;
         unsigned length;
         inline void initialize_results() {
             result = SASL_OK;

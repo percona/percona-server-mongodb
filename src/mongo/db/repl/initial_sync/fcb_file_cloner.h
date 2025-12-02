@@ -32,12 +32,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <fstream>
-#include <string>
-#include <vector>
-
-#include <boost/filesystem.hpp>
-
 #include "mongo/base/checked_cast.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
@@ -57,6 +51,12 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/progress_meter.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
+
+#include <fstream>
+#include <string>
+#include <vector>
+
+#include <boost/filesystem.hpp>
 
 
 namespace mongo::repl {
@@ -208,7 +208,7 @@ private:
     std::ofstream _localFile;  // (M)
     // File offset we will request from the remote side in the next query.
     off_t _fileOffset = 0;  // (M)
-    bool _sawEof = false;  // (X)
+    bool _sawEof = false;   // (X)
 
     // Data read from source to insert.
     std::vector<BSONObj> _dataToWrite;  // (M)

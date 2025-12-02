@@ -31,17 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/vault_client.h"
 
-#include <random>
-#include <stdexcept>
-#include <string>
-#include <string_view>
-#include <type_traits>
-#include <vector>
-#include <regex>
-
-#include <boost/tokenizer.hpp>
-#include <boost/optional.hpp>
-
 #include "mongo/base/data_range.h"
 #include "mongo/base/static_assert.h"
 #include "mongo/bson/bsonelement.h"
@@ -57,6 +46,17 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/net/http_client.h"
 #include "mongo/util/str.h"
 #include "mongo/util/time_support.h"
+
+#include <random>
+#include <regex>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <vector>
+
+#include <boost/optional.hpp>
+#include <boost/tokenizer.hpp>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kNetwork
 
@@ -151,10 +151,10 @@ T bsonObjectGetNestedValue(const BSONObj& object, StringData path) {
             : throw InvalidVaultResponse(path, kNotInteger);
     } else if constexpr (std::is_same_v<std::string, T>) {
         return elem.type() == BSONType::string ? elem.String()
-                                            : throw InvalidVaultResponse(path, kNotString);
+                                               : throw InvalidVaultResponse(path, kNotString);
     } else if constexpr (std::is_same_v<BSONObj, T>) {
         return elem.type() == BSONType::object ? elem.Obj()
-                                            : throw InvalidVaultResponse(path, kNotObject);
+                                               : throw InvalidVaultResponse(path, kNotObject);
     } else {
         MONGO_STATIC_ASSERT_MSG(!std::is_same_v<T, T>, "unsupported type");
     }
@@ -261,7 +261,7 @@ VaultClient::Impl::Impl(const std::string& host,
         std::vector<std::string> headers(1, "X-Vault-Token: ");
         headers.at(0).append(!token.empty() ? token
                                             : std::string_view(*detail::readFileToSecureString(
-                                                tokenFile, "Vault token")));
+                                                  tokenFile, "Vault token")));
         _httpClient->setHeaders(headers);
     }
 }

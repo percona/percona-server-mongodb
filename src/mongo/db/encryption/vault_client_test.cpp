@@ -29,13 +29,12 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/util/net/http_client.h"
-#include "mongo/util/net/http_client_mock.h"
+#include "mongo/db/encryption/vault_client.h"
 
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/framework.h"
-
-#include "mongo/db/encryption/vault_client.h"
+#include "mongo/util/net/http_client.h"
+#include "mongo/util/net/http_client_mock.h"
 
 namespace mongo::encryption {
 namespace {

@@ -31,13 +31,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <set>
-#include <string>
-#include <tuple>
-#include <utility>
-
-#include <boost/optional/optional.hpp>
-
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
@@ -48,6 +41,13 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/user.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
+
+#include <set>
+#include <string>
+#include <tuple>
+#include <utility>
+
+#include <boost/optional/optional.hpp>
 
 
 namespace mongo {

@@ -29,19 +29,17 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
+#include "mongo/db/auth/action_type.h"
+#include "mongo/db/auth/authorization_session.h"
+#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
+#include "mongo/db/commands.h"
+#include "mongo/logv2/log.h"
+
 #include <string>
 #include <utility>
 #include <vector>
 
 #include <fmt/format.h>
-
-#include "mongo/db/auth/action_type.h"
-#include "mongo/db/auth/authorization_session.h"
-#include "mongo/db/commands.h"
-
-#include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
-#include "mongo/db/commands.h"
-#include "mongo/logv2/log.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 

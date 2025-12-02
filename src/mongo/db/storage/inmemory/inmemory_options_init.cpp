@@ -31,15 +31,13 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
+#include "mongo/db/storage/inmemory/inmemory_global_options.h"
 #include "mongo/platform/basic.h"
-
+#include "mongo/util/exit_code.h"
 #include "mongo/util/options_parser/startup_option_init.h"
+#include "mongo/util/options_parser/startup_options.h"
 
 #include <iostream>
-
-#include "mongo/db/storage/inmemory/inmemory_global_options.h"
-#include "mongo/util/exit_code.h"
-#include "mongo/util/options_parser/startup_options.h"
 
 namespace moe = mongo::optionenvironment;
 
@@ -53,4 +51,4 @@ MONGO_STARTUP_OPTIONS_STORE(InMemoryOptions)(InitializerContext* context) {
         ::_exit(static_cast<int>(ExitCode::badOptions));
     }
 }
-}
+}  // namespace mongo

@@ -89,8 +89,8 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
         return;
     }
     bool metadataNeedsWriting = false;
-    BSONObj options = metadata ? metadata->getStorageEngineOptions()
-                               : factory->createMetadataOptions(params);
+    BSONObj options =
+        metadata ? metadata->getStorageEngineOptions() : factory->createMetadataOptions(params);
     auto scopedTimer = createScopedTimer();
     if (!metadata) {
         metadataNeedsWriting = true;

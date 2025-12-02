@@ -29,9 +29,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <memory>
-#include <vector>
-
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry_impl.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/auth/oidc/oidc_test_fixture.h"
@@ -39,6 +36,9 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/framework.h"
+
+#include <memory>
+#include <vector>
 
 
 namespace mongo {

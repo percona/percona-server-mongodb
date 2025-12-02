@@ -31,16 +31,17 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <boost/optional.hpp>
-#include <memory>
-#include <ranges> // NOLINT(mongo-cxx20-banned-includes-check)
-
 #include "mongo/crypto/jwk_manager.h"
 #include "mongo/crypto/jwks_fetcher_factory.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
-#include "mongo/util/periodic_runner.h"
 #include "mongo/stdx/unordered_map.h"
+#include "mongo/util/periodic_runner.h"
+
+#include <memory>
+#include <ranges>  // NOLINT(mongo-cxx20-banned-includes-check)
+
+#include <boost/optional.hpp>
 
 namespace mongo {
 

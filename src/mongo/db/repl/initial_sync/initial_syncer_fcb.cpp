@@ -568,9 +568,7 @@ BSONObj InitialSyncerFCB::_getInitialSyncProgress(WithLock lk) const {
         }
         return bob.obj();
     } catch (const DBException& e) {
-        LOGV2(128421,
-              "Error creating initial sync progress object",
-              "error"_attr = e.toString());
+        LOGV2(128421, "Error creating initial sync progress object", "error"_attr = e.toString());
     }
     BSONObjBuilder bob;
     _appendInitialSyncProgressMinimal(lk, &bob);
@@ -849,21 +847,15 @@ Status InitialSyncerFCB::_truncateOplogAndDropReplicatedDatabases() {
     UnreplicatedWritesBlock unreplicatedWritesBlock(opCtx.get());
 
     // 1.) Truncate the oplog.
-    LOGV2_DEBUG(128432,
-                2,
-                "Truncating the existing oplog",
-                logAttrs(NamespaceString::kRsOplogNamespace));
+    LOGV2_DEBUG(
+        128432, 2, "Truncating the existing oplog", logAttrs(NamespaceString::kRsOplogNamespace));
     Timer timer;
     auto status = _storage->truncateCollection(opCtx.get(), NamespaceString::kRsOplogNamespace);
-    LOGV2(128433,
-          "Initial syncer oplog truncation finished",
-          "durationMillis"_attr = timer.millis());
+    LOGV2(
+        128433, "Initial syncer oplog truncation finished", "durationMillis"_attr = timer.millis());
     if (!status.isOK()) {
         // 1a.) Create the oplog.
-        LOGV2_DEBUG(128434,
-                    2,
-                    "Creating the oplog",
-                    logAttrs(NamespaceString::kRsOplogNamespace));
+        LOGV2_DEBUG(128434, 2, "Creating the oplog", logAttrs(NamespaceString::kRsOplogNamespace));
         status = _storage->createOplog(opCtx.get(), NamespaceString::kRsOplogNamespace);
         if (!status.isOK()) {
             return status;
@@ -1749,7 +1741,8 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
 
 
     if (runRecovery) {
-        // We need to run startup recovery to ensure that the storage engine is in a consistent state.
+        // We need to run startup recovery to ensure that the storage engine is in a consistent
+        // state.
         try {
             startup_recovery::runStartupRecovery(opCtx, lastShutdownState);
         } catch (const ExceptionFor<ErrorCodes::MustDowngrade>& error) {
@@ -1797,8 +1790,7 @@ Status InitialSyncerFCB::_killBackupCursor(WithLock lk) {
     executor::RemoteCommandRequest killCursorsRequest(
         _syncSource,
         info->nss.dbName(),
-        BSON("killCursors" << info->nss.coll() << "cursors"
-                           << BSON_ARRAY(info->cursorId)),
+        BSON("killCursors" << info->nss.coll() << "cursors" << BSON_ARRAY(info->cursorId)),
         nullptr);
 
     auto scheduleResult = _exec->scheduleRemoteCommand(
@@ -2340,10 +2332,9 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     consistencyMarkers->clearInitialSyncId(opCtx.get());
     consistencyMarkers->setInitialSyncIdIfNotSet(opCtx.get());
 
-    ReplicationCoordinatorExternalStateImpl externalState(
-        opCtx->getServiceContext(),
-        StorageInterface::get(opCtx.get()),
-        ReplicationProcess::get(opCtx.get()));
+    ReplicationCoordinatorExternalStateImpl externalState(opCtx->getServiceContext(),
+                                                          StorageInterface::get(opCtx.get()),
+                                                          ReplicationProcess::get(opCtx.get()));
     // replace the lastVote document with a default one
     status = StorageInterface::get(opCtx.get())
                  ->dropCollection(opCtx.get(), NamespaceString::kLastVoteNamespace);

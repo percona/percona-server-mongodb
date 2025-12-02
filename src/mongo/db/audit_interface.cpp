@@ -31,9 +31,9 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/audit_interface.h"
 
-#include <memory>
-
 #include "mongo/db/service_context.h"
+
+#include <memory>
 
 namespace mongo::audit {
 const auto getAuditInterface = ServiceContext::declareDecoration<std::unique_ptr<AuditInterface>>();

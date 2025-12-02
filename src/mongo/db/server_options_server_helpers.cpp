@@ -166,12 +166,13 @@ Status validateServerOptions(const moe::Environment& params) {
     if (!ret.isOK())
         return ret;
 
-    if (params.count("operationProfiling.slowOpSampleRate")
-        && params["operationProfiling.slowOpSampleRate"].as<double>() != 1.0
-        && params.count("operationProfiling.rateLimit")
-        && params["operationProfiling.rateLimit"].as<int>() != 1) {
+    if (params.count("operationProfiling.slowOpSampleRate") &&
+        params["operationProfiling.slowOpSampleRate"].as<double>() != 1.0 &&
+        params.count("operationProfiling.rateLimit") &&
+        params["operationProfiling.rateLimit"].as<int>() != 1) {
         return Status(ErrorCodes::BadValue,
-                      "Can't specify non-default values for both --rateLimit and --slowOpSampleRate options.");
+                      "Can't specify non-default values for both --rateLimit and "
+                      "--slowOpSampleRate options.");
     }
 
 #ifdef _WIN32

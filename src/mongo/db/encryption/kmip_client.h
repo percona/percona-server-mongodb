@@ -31,13 +31,13 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/db/encryption/key_state.h"
+#include "mongo/stdx/chrono.h"
+
 #include <memory>
 #include <string>
 
 #include <boost/optional.hpp>
-
-#include "mongo/db/encryption/key_state.h"
-#include "mongo/stdx/chrono.h"
 
 namespace mongo::encryption {
 class Key;

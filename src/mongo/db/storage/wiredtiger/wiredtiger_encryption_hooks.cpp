@@ -30,19 +30,19 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 
-#include <boost/filesystem/path.hpp>
-
-#include <openssl/err.h>
-
-#include <wiredtiger.h>
+#include "mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h"
 
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_data_protector.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/database_name_util.h"
+
+#include <wiredtiger.h>
+
+#include <boost/filesystem/path.hpp>
+#include <openssl/err.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
@@ -50,57 +50,56 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 
 namespace {
-    class EVPCipherCtx {
-    public:
-        EVPCipherCtx() {
+class EVPCipherCtx {
+public:
+    EVPCipherCtx() {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-            EVP_CIPHER_CTX_init(&_ctx_value);
+        EVP_CIPHER_CTX_init(&_ctx_value);
 #else
-            _ctx= EVP_CIPHER_CTX_new();
+        _ctx = EVP_CIPHER_CTX_new();
 #endif
-        }
-
-        ~EVPCipherCtx() {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-            EVP_CIPHER_CTX_cleanup(&_ctx_value);
-#else
-            EVP_CIPHER_CTX_free(_ctx);
-#endif
-        }
-
-        operator EVP_CIPHER_CTX* () {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-            return &_ctx_value;
-#else
-            return _ctx;
-#endif
-        }
-
-    private:
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-        EVP_CIPHER_CTX _ctx_value;
-#else
-        EVP_CIPHER_CTX *_ctx{nullptr};
-#endif
-    };
-
-    // callback for ERR_print_errors_cb
-    static int err_print_cb(const char *str, size_t len, void *param) {
-        LOGV2_ERROR(29029, "{str}", "str"_attr = str);
-        return 1;
     }
 
-    Status handleCryptoErrors() {
-        ERR_print_errors_cb(&err_print_cb, nullptr);
-        return Status(ErrorCodes::InternalError,
-                      "libcrypto error");
+    ~EVPCipherCtx() {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        EVP_CIPHER_CTX_cleanup(&_ctx_value);
+#else
+        EVP_CIPHER_CTX_free(_ctx);
+#endif
     }
 
-    template <typename T, typename DataRangeType>
-    T* buffer_at(DataRangeType* range, size_t offset = 0) {
-        return reinterpret_cast<T*>(range->data()) + offset;
+    operator EVP_CIPHER_CTX*() {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        return &_ctx_value;
+#else
+        return _ctx;
+#endif
     }
+
+private:
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    EVP_CIPHER_CTX _ctx_value;
+#else
+    EVP_CIPHER_CTX* _ctx{nullptr};
+#endif
+};
+
+// callback for ERR_print_errors_cb
+static int err_print_cb(const char* str, size_t len, void* param) {
+    LOGV2_ERROR(29029, "{str}", "str"_attr = str);
+    return 1;
 }
+
+Status handleCryptoErrors() {
+    ERR_print_errors_cb(&err_print_cb, nullptr);
+    return Status(ErrorCodes::InternalError, "libcrypto error");
+}
+
+template <typename T, typename DataRangeType>
+T* buffer_at(DataRangeType* range, size_t offset = 0) {
+    return reinterpret_cast<T*>(range->data()) + offset;
+}
+}  // namespace
 
 
 WiredTigerEncryptionHooks::WiredTigerEncryptionHooks(EncryptionKeyDB* encryptionKeyDB)
@@ -167,8 +166,7 @@ Status WiredTigerEncryptionHooksCBC::protectTmpData(ConstDataRange in,
                                                     boost::optional<DatabaseName> dbName) {
     invariant(out != nullptr);
     if (out->length() < _chksum_len + _iv_len + in.length() + EVP_CIPHER_block_size(_cipher))
-        return Status(ErrorCodes::InternalError,
-                      "encryption output buffer not big enough");
+        return Status(ErrorCodes::InternalError, "encryption output buffer not big enough");
 
     size_t resultLen = 0;
     EVPCipherCtx ctx;
@@ -176,7 +174,7 @@ Status WiredTigerEncryptionHooksCBC::protectTmpData(ConstDataRange in,
     out->write<uint32_t>(wiredtiger_checksum_crc32c(in.data(), in.length()));
     resultLen += _chksum_len;
 
-    uint8_t *iv = buffer_at<uint8_t>(out, resultLen);
+    uint8_t* iv = buffer_at<uint8_t>(out, resultLen);
     store_pseudo_bytes(iv, _iv_len);
     resultLen += _iv_len;
 
@@ -278,8 +276,7 @@ Status WiredTigerEncryptionHooksGCM::protectTmpData(ConstDataRange in,
 
     invariant(out != nullptr);
     if (out->length() < _iv_len + in.length() + _gcm_tag_len)
-        return Status(ErrorCodes::InternalError,
-                      "encryption output buffer not big enough");
+        return Status(ErrorCodes::InternalError, "encryption output buffer not big enough");
 
     size_t resultLen = 0;
     EVPCipherCtx ctx;
@@ -287,10 +284,9 @@ Status WiredTigerEncryptionHooksGCM::protectTmpData(ConstDataRange in,
     // reserve space for GCM tag
     resultLen += _gcm_tag_len;
 
-    uint8_t *iv = buffer_at<uint8_t>(out, resultLen);
+    uint8_t* iv = buffer_at<uint8_t>(out, resultLen);
     if (0 != get_iv_gcm(iv, _iv_len))
-        return Status(ErrorCodes::InternalError,
-                      "failed generating IV for GCM");
+        return Status(ErrorCodes::InternalError, "failed generating IV for GCM");
     resultLen += _iv_len;
 
     unsigned char db_key[_key_len];
@@ -311,16 +307,14 @@ Status WiredTigerEncryptionHooksGCM::protectTmpData(ConstDataRange in,
         return handleCryptoErrors();
     resultLen += encrypted_len;
 
-    if (1 !=
-        EVP_EncryptFinal_ex(
-            ctx, buffer_at<unsigned char>(out, resultLen), &encrypted_len))
+    if (1 != EVP_EncryptFinal_ex(ctx, buffer_at<unsigned char>(out, resultLen), &encrypted_len))
         return handleCryptoErrors();
     invariant(encrypted_len >= 0);
     resultLen += encrypted_len;
 
     // get the tag and place it at the beginning of the output buffer
     // (to be compatible with the file layout used for rollback files)
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, _gcm_tag_len, out->data()))
+    if (1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, _gcm_tag_len, out->data()))
         return handleCryptoErrors();
 
     *out = DataRange(out->data(), resultLen);

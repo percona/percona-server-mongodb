@@ -32,14 +32,14 @@ Copyright (C) 2020-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/auth/external/cyrus_sasl_server_session.h"
 
-#include <fmt/format.h>
-#include <gssapi/gssapi.h>
-
 #include "mongo/db/auth/sasl_command_constants.h"
 #include "mongo/db/auth/sasl_options.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/net/socket_utils.h"
+
+#include <fmt/format.h>
+#include <gssapi/gssapi.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 

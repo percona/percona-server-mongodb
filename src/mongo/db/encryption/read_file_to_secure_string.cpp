@@ -31,13 +31,13 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/read_file_to_secure_string.h"
 
-#include <sys/stat.h>
+#include "mongo/db/server_options.h"
 
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 
-#include "mongo/db/server_options.h"
+#include <sys/stat.h>
 
 namespace mongo::encryption::detail {
 // @todo: rewrite using C++17's filesystem library
@@ -71,4 +71,4 @@ SecureString readFileToSecureString(const std::string& path, const std::string& 
     f >> *data;
     return data;
 }
-}
+}  // namespace mongo::encryption::detail

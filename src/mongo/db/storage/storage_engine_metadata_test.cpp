@@ -30,8 +30,8 @@
 #include "mongo/db/storage/storage_engine_metadata.h"
 
 #include "mongo/base/error_codes.h"
-#include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonmisc.h"
+#include "mongo/bson/bsonobj.h"
 #include "mongo/bson/json.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/unittest/unittest.h"

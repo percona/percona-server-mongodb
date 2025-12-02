@@ -29,8 +29,6 @@
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
 
-#include <boost/none.hpp>
-
 #include "mongo/base/init.h"  // IWYU pragma: keep
 #include "mongo/base/string_data.h"
 #include "mongo/db/encryption/encryption_options.h"
@@ -42,6 +40,8 @@
 
 #include <memory>
 #include <utility>
+
+#include <boost/none.hpp>
 
 namespace mongo {
 namespace {
@@ -66,7 +66,7 @@ public:
             DatabaseNameUtil::serialize(ns.dbName(), SerializationContext::stateDefault());
         StringData keyid(keyIdStr);
         // Keep compatibility with v3.6 after SERVER-34617
-        const size_t minsize = 6; // Minimum size which allows following condition to be true
+        const size_t minsize = 6;  // Minimum size which allows following condition to be true
         if (keyid.size() >= minsize && (keyid == "system"_sd || keyid.starts_with("table:"_sd)))
             keyid = "/default"_sd;
         return str::stream() << "encryption=(name=percona,keyid=\"" << keyid << "\"),";

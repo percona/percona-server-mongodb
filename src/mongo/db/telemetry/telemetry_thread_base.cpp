@@ -31,25 +31,16 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/telemetry/telemetry_thread_base.h"
 
-#include <boost/filesystem.hpp>  // IWYU pragma: keep
-#include <cstddef>
-#include <fmt/format.h>  // IWYU pragma: keep
-#include <fstream>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <utility>
-
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
+#include "mongo/db/auth/sasl_options.h"
 #include "mongo/db/client.h"
+#include "mongo/db/ldap_options.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/auth/sasl_options.h"
-#include "mongo/db/ldap_options.h"
-#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
 #include "mongo/db/telemetry/telemetry_path.h"
 #include "mongo/db/telemetry/telemetry_thread.h"
@@ -61,6 +52,16 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/duration.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/version.h"
+
+#include <cstddef>
+#include <fstream>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
+
+#include <boost/filesystem.hpp>  // IWYU pragma: keep
+#include <fmt/format.h>          // IWYU pragma: keep
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 

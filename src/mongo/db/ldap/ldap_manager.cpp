@@ -32,11 +32,11 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/ldap/ldap_manager.h"
 
-#include <fmt/format.h>
-
 #include "mongo/db/ldap/ldap_manager_impl.h"
 #include "mongo/db/ldap_options.h"
 #include "mongo/util/assert_util.h"
+
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
@@ -49,8 +49,7 @@ std::unique_ptr<LDAPManager> LDAPManager::create() {
 
 namespace {
 
-const auto getLDAPManager =
-    ServiceContext::declareDecoration<std::unique_ptr<LDAPManager>>();
+const auto getLDAPManager = ServiceContext::declareDecoration<std::unique_ptr<LDAPManager>>();
 
 }  // namespace
 
@@ -62,15 +61,12 @@ LDAPManager* LDAPManager::get(ServiceContext& service) {
     return getLDAPManager(service).get();
 }
 
-void LDAPManager::set(ServiceContext* service,
-                      std::unique_ptr<LDAPManager> authzManager) {
+void LDAPManager::set(ServiceContext* service, std::unique_ptr<LDAPManager> authzManager) {
     getLDAPManager(service) = std::move(authzManager);
 }
 
 ServiceContext::ConstructorActionRegisterer createLDAPManager(
-    "CreateLDAPManager",
-    {"EndStartupOptionStorage"},
-    [](ServiceContext* service) {
+    "CreateLDAPManager", {"EndStartupOptionStorage"}, [](ServiceContext* service) {
         if (!ldapGlobalParams.ldapServers->empty()) {
             auto ldapManager = LDAPManager::create();
             Status res = ldapManager->initialize();
@@ -84,4 +80,3 @@ ServiceContext::ConstructorActionRegisterer createLDAPManager(
     });
 
 }  // namespace mongo
-
