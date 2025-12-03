@@ -391,7 +391,7 @@ static void copy_keydb_files(const boost::filesystem::path& from,
     bool checkTo = true;
     bool empty = true;
 
-    for(auto& p: fs::directory_iterator(from)) {
+    for (auto& p : fs::directory_iterator(from)) {
         if (fs::is_directory(p.status())) {
             copy_keydb_files(p.path(), to / p.path().filename(), emptyDirs, copiedFiles, &empty);
         } else {
@@ -2186,7 +2186,9 @@ Status WiredTigerKVEngine::_hotBackupPopulateLists(OperationContext* opCtx,
                     filesList.emplace_back(srcFile, destFile, fsize, fs::last_write_time(srcFile));
                 } else {
                     return Status(ErrorCodes::InvalidPath,
-                                  str::stream() << "Cannot find source file for backup :" << filename << ", source path: " << srcPath.string());
+                                  str::stream()
+                                      << "Cannot find source file for backup :" << filename
+                                      << ", source path: " << srcPath.string());
                 }
             }
         }
@@ -2223,20 +2225,15 @@ static void setupHotBackupProgressMeter(OperationContext* opCtx,
 namespace {
 
 // Define log redirector for AWS SDK
-class MongoLogSystem : public Aws::Utils::Logging::FormattedLogSystem
-{
+class MongoLogSystem : public Aws::Utils::Logging::FormattedLogSystem {
 public:
-
     using Base = FormattedLogSystem;
 
-    MongoLogSystem() :
-        Base(Aws::Utils::Logging::LogLevel::Info)
-    {}
+    MongoLogSystem() : Base(Aws::Utils::Logging::LogLevel::Info) {}
 
     ~MongoLogSystem() override {}
 
 protected:
-
     void ProcessFormattedStatement(Aws::String&& statement) override {
         LOGV2(29011, "{statement}", "statement"_attr = statement);
     }
@@ -2248,14 +2245,15 @@ protected:
 // It works with TransferManager because TransferManager uses seekg/tellg
 // in its CreateUploadFileHandle method to get file length and then does not
 // try to read after acquired length value.
-class AWS_CORE_API SizedFileBuf : public std::filebuf
-{
+class AWS_CORE_API SizedFileBuf : public std::filebuf {
 public:
     SizedFileBuf(std::size_t lengthToRead) : _lengthToRead(lengthToRead) {}
 
 protected:
-    pos_type seekoff(off_type off, std::ios_base::seekdir dir,
-                     std::ios_base::openmode which = std::ios_base::in | std::ios_base::out) override {
+    pos_type seekoff(off_type off,
+                     std::ios_base::seekdir dir,
+                     std::ios_base::openmode which = std::ios_base::in |
+                         std::ios_base::out) override {
         if (dir == std::ios_base::end)
             return std::filebuf::seekpos(_lengthToRead + off);
         return std::filebuf::seekoff(off, dir, which);
@@ -2263,14 +2261,14 @@ protected:
 
 private:
     const std::size_t _lengthToRead;
-
 };
 
 // Subclass Aws::IOStream to manage SizedFileBuf's lifetime
-class AWS_CORE_API SizedFileStream : public Aws::IOStream
-{
+class AWS_CORE_API SizedFileStream : public Aws::IOStream {
 public:
-    SizedFileStream(std::size_t lengthToRead, const std::string &filename, ios_base::openmode mode = ios_base::in)
+    SizedFileStream(std::size_t lengthToRead,
+                    const std::string& filename,
+                    ios_base::openmode mode = ios_base::in)
         : _filebuf(lengthToRead) {
         init(&_filebuf);
 
@@ -2286,12 +2284,15 @@ private:
 // Subclass AsyncCallerContext
 class UploadContext : public Aws::Client::AsyncCallerContext {
 public:
-    UploadContext(std::shared_ptr<SizedFileStream>& stream)
-        : _stream(stream) {}
+    UploadContext(std::shared_ptr<SizedFileStream>& stream) : _stream(stream) {}
 
-    const std::shared_ptr<SizedFileStream>& GetStream() const { return _stream; }
+    const std::shared_ptr<SizedFileStream>& GetStream() const {
+        return _stream;
+    }
 
-    bool ShouldRetry() const { return _retry_cnt-- > 0; }
+    bool ShouldRetry() const {
+        return _retry_cnt-- > 0;
+    }
 
     void doProgress(OperationContext* opCtx,
                     ProgressMeterHolder& progressMeter,
@@ -2311,10 +2312,12 @@ private:
     mutable uint64_t _bytes_reported = 0;
 };
 
-}
+}  // namespace
 
-//TODO: (15) consider replacing s3params with BSONObj and moving parse code from backup_commands.cpp
-Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) {
+// TODO: (15) consider replacing s3params with BSONObj and moving parse code from
+// backup_commands.cpp
+Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
+                                     const percona::S3BackupParameters& s3params) {
     WiredTigerHotBackupGuard backupGuard{opCtx};
     // list of DBs to backup
     std::vector<DBTuple> dbList;
@@ -2339,23 +2342,29 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
     ON_BLOCK_EXIT([&] { Aws::Utils::Logging::ShutdownAWSLogging(); });
 
     Aws::Client::ClientConfiguration config;
-    config.endpointOverride = s3params.endpoint; // for example "127.0.0.1:9000"
+    config.endpointOverride = s3params.endpoint;  // for example "127.0.0.1:9000"
     config.scheme = Aws::Http::SchemeMapper::FromString(s3params.scheme.c_str());
     if (!s3params.region.empty())
         config.region = s3params.region;
 
     std::shared_ptr<Aws::Auth::AWSCredentialsProvider> credentialsProvider;
     if (!s3params.accessKeyId.empty()) {
-        credentialsProvider = Aws::MakeShared<Aws::Auth::SimpleAWSCredentialsProvider>("AWS",
-                                                                                       s3params.accessKeyId,
-                                                                                       s3params.secretAccessKey);
+        credentialsProvider = Aws::MakeShared<Aws::Auth::SimpleAWSCredentialsProvider>(
+            "AWS", s3params.accessKeyId, s3params.secretAccessKey);
     } else {
         // using ProfileConfigFileAWSCredentialsProvider to allow loading of non-default profile
         credentialsProvider = s3params.profile.empty()
-            ? Aws::MakeShared<Aws::Auth::ProfileConfigFileAWSCredentialsProvider>("AWS", 1000 * 3600)
-            : Aws::MakeShared<Aws::Auth::ProfileConfigFileAWSCredentialsProvider>("AWS", s3params.profile.c_str(), 1000 * 3600);
+            ? Aws::MakeShared<Aws::Auth::ProfileConfigFileAWSCredentialsProvider>("AWS",
+                                                                                  1000 * 3600)
+            : Aws::MakeShared<Aws::Auth::ProfileConfigFileAWSCredentialsProvider>(
+                  "AWS", s3params.profile.c_str(), 1000 * 3600);
     }
-    auto s3_client = Aws::MakeShared<Aws::S3::S3Client>("AWS", credentialsProvider, config, Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never, s3params.useVirtualAddressing);
+    auto s3_client = Aws::MakeShared<Aws::S3::S3Client>(
+        "AWS",
+        credentialsProvider,
+        config,
+        Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never,
+        s3params.useVirtualAddressing);
 
     // check if bucket already exists and skip create if it does
     bool bucketExists{false};
@@ -2364,8 +2373,8 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InternalError,
                           str::stream() << "Cannot list buckets on storage server"
-                                        << " : " << outcome.GetError().GetExceptionName()
-                                        << " : " << outcome.GetError().GetMessage());
+                                        << " : " << outcome.GetError().GetExceptionName() << " : "
+                                        << outcome.GetError().GetMessage());
         }
         for (auto&& bucket : outcome.GetResult().GetBuckets()) {
             if (bucket.GetName() == s3params.bucket) {
@@ -2382,11 +2391,13 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         auto outcome = s3_client->CreateBucket(request);
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InvalidPath,
-                          str::stream() << "Cannot create '" << s3params.bucket << "' bucket for the backup"
-                                        << " : " << outcome.GetError().GetExceptionName()
-                                        << " : " << outcome.GetError().GetMessage());
+                          str::stream()
+                              << "Cannot create '" << s3params.bucket << "' bucket for the backup"
+                              << " : " << outcome.GetError().GetExceptionName() << " : "
+                              << outcome.GetError().GetMessage());
         }
-        LOGV2(29012, "Successfully created bucket for backup: {bucket}",
+        LOGV2(29012,
+              "Successfully created bucket for backup: {bucket}",
               "bucket"_attr = s3params.bucket);
     }
 
@@ -2401,12 +2412,12 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InvalidPath,
                           str::stream() << "Cannot list objects in the target location"
-                                        << " : " << outcome.GetError().GetExceptionName()
-                                        << " : " << outcome.GetError().GetMessage());
+                                        << " : " << outcome.GetError().GetExceptionName() << " : "
+                                        << outcome.GetError().GetMessage());
         }
         const auto root = s3params.path + '/';
         Aws::Vector<Aws::S3::Model::Object> object_list = outcome.GetResult().GetContents();
-        for (auto const &s3_object : object_list) {
+        for (auto const& s3_object : object_list) {
             if (s3_object.GetKey() != root) {
                 return Status(ErrorCodes::InvalidPath,
                               str::stream() << "Target location is not empty"
@@ -2422,31 +2433,33 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
     {
         boost::filesystem::path key{s3params.path};
         key /= "multipart_upload_probe";
-        auto outcome = s3_client->CreateMultipartUpload(
-                Aws::S3::Model::CreateMultipartUploadRequest()
-                .WithBucket(s3params.bucket)
-                .WithKey(key.string())
-                .WithContentType("application/octet-stream"));
-        
+        auto outcome =
+            s3_client->CreateMultipartUpload(Aws::S3::Model::CreateMultipartUploadRequest()
+                                                 .WithBucket(s3params.bucket)
+                                                 .WithKey(key.string())
+                                                 .WithContentType("application/octet-stream"));
+
         if (!outcome.IsSuccess()) {
             auto e = outcome.GetError();
-            if (e.GetResponseCode() == Aws::Http::HttpResponseCode::BAD_REQUEST
-                && e.GetErrorType() == Aws::S3::S3Errors::UNKNOWN) {
+            if (e.GetResponseCode() == Aws::Http::HttpResponseCode::BAD_REQUEST &&
+                e.GetErrorType() == Aws::S3::S3Errors::UNKNOWN) {
                 multipart_supported = false;
             } else {
-                return Status(ErrorCodes::InternalError,
-                              str::stream() << "Unexpected error while trying to probe multipart upload support."
-                                            << " Response code: " << int(e.GetResponseCode())
-                                            << " Error type: " << int(e.GetErrorType()));
+                return Status(
+                    ErrorCodes::InternalError,
+                    str::stream()
+                        << "Unexpected error while trying to probe multipart upload support."
+                        << " Response code: " << int(e.GetResponseCode())
+                        << " Error type: " << int(e.GetErrorType()));
             }
         } else {
             // cancel test upload
             auto upload_id = outcome.GetResult().GetUploadId();
-            auto outcome2 = s3_client->AbortMultipartUpload(
-                    Aws::S3::Model::AbortMultipartUploadRequest()
-                    .WithBucket(s3params.bucket)
-                    .WithKey(key.string())
-                    .WithUploadId(upload_id));
+            auto outcome2 =
+                s3_client->AbortMultipartUpload(Aws::S3::Model::AbortMultipartUploadRequest()
+                                                    .WithBucket(s3params.bucket)
+                                                    .WithKey(key.string())
+                                                    .WithUploadId(upload_id));
             if (!outcome2.IsSuccess()) {
                 return Status(ErrorCodes::InternalError,
                               str::stream() << "Cannot abort test multipart upload"
@@ -2460,7 +2473,8 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         using namespace Aws::Transfer;
 
         const size_t poolSize = s3params.threadPoolSize;
-        auto executor = Aws::MakeShared<Aws::Utils::Threading::PooledThreadExecutor>("PooledThreadExecutor", poolSize);
+        auto executor = Aws::MakeShared<Aws::Utils::Threading::PooledThreadExecutor>(
+            "PooledThreadExecutor", poolSize);
 
         TransferManagerConfiguration trManConf(executor.get());
         trManConf.s3Client = s3_client;
@@ -2479,8 +2493,9 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
                 if (fsize > maxS3Object) {
                     boost::filesystem::path srcFile{std::get<0>(file)};
                     return Status(ErrorCodes::InvalidPath,
-                                  str::stream() << "Cannot upload '" << srcFile.string() << "' to s3 "
-                                                << "because its size is over maximum s3 object size (5TB)");
+                                  str::stream()
+                                      << "Cannot upload '" << srcFile.string() << "' to s3 "
+                                      << "because its size is over maximum s3 object size (5TB)");
                 }
                 if (fsize > biggestFile) {
                     biggestFile = fsize;
@@ -2489,7 +2504,10 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
             // find minimum chunk size and round it to MB
             size_t minChunkSizeMB = ((biggestFile / 10000) + (1 << 20) - 1) >> 20;
             if (minChunkSizeMB << 20 > trManConf.bufferSize) {
-                LOGV2_DEBUG(29075, 2, "setting multipart upload's chunk size to {minChunkSizeMB}MB", "minChunkSizeMB"_attr = minChunkSizeMB);
+                LOGV2_DEBUG(29075,
+                            2,
+                            "setting multipart upload's chunk size to {minChunkSizeMB}MB",
+                            "minChunkSizeMB"_attr = minChunkSizeMB);
                 trManConf.bufferSize = minChunkSizeMB << 20;
                 trManConf.transferBufferMaxHeapSize = poolSize * trManConf.bufferSize;
             }
@@ -2507,7 +2525,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
             if (backupCancelled.load()) {
                 if (h->IsMultipart()) {
                     const_cast<TransferManager*>(trMan)->AbortMultipartUpload(
-                            std::const_pointer_cast<TransferHandle>(h));
+                        std::const_pointer_cast<TransferHandle>(h));
                 } else {
                     std::const_pointer_cast<TransferHandle>(h)->Cancel();
                 }
@@ -2518,14 +2536,18 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         };
 
         // error callback
-        trManConf.errorCallback = [](const TransferManager*, const std::shared_ptr<const TransferHandle>& h, const Aws::Client::AWSError<Aws::S3::S3Errors>& e) {
-            LOGV2(29076, "errorCallback",
+        trManConf.errorCallback = [](const TransferManager*,
+                                     const std::shared_ptr<const TransferHandle>& h,
+                                     const Aws::Client::AWSError<Aws::S3::S3Errors>& e) {
+            LOGV2(29076,
+                  "errorCallback",
                   "IsMultipart"_attr = h->IsMultipart(),
                   "Id"_attr = h->GetId(),
                   "Key"_attr = h->GetKey(),
                   "MultiPartId"_attr = h->GetMultiPartId(),
                   "VersionId"_attr = h->GetVersionId());
-            LOGV2(29077, "errorcallback error",
+            LOGV2(29077,
+                  "errorcallback error",
                   "ErrorType"_attr = static_cast<int>(e.GetErrorType()),
                   "ExceptionName"_attr = e.GetExceptionName(),
                   "Message"_attr = e.GetMessage(),
@@ -2533,62 +2555,75 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
                   "RequestId"_attr = e.GetRequestId(),
                   "ResponseCode"_attr = static_cast<int>(e.GetResponseCode()),
                   "ShouldRetry"_attr = e.ShouldRetry());
-            // response headers 
+            // response headers
             std::stringstream ss;
             for (auto&& header : e.GetResponseHeaders()) {
                 ss << header.first << " = " << header.second << ";";
             }
-            LOGV2(29078, "errorCallback response headers",
-                  "headers"_attr = ss.str());
+            LOGV2(29078, "errorCallback response headers", "headers"_attr = ss.str());
         };
 
         // transfer status update callback
-        trManConf.transferStatusUpdatedCallback = [&](const TransferManager* trMan, const std::shared_ptr<const TransferHandle>& h) {
+        trManConf
+            .transferStatusUpdatedCallback = [&](const TransferManager* trMan,
+                                                 const std::shared_ptr<const TransferHandle>& h) {
             const char* status = "nullptr";
             switch (h->GetStatus()) {
-            //this value is only used for directory synchronization
-            case TransferStatus::EXACT_OBJECT_ALREADY_EXISTS:
-                status = "EXACT_OBJECT_ALREADY_EXISTS"; break;
-            //Operation is still queued and has not begun processing
-            case TransferStatus::NOT_STARTED:
-                status = "NOT_STARTED"; break;
-            //Operation is now running
-            case TransferStatus::IN_PROGRESS:
-                status = "IN_PROGRESS"; break;
-            //Operation was canceled. A Canceled operation can still be retried
-            case TransferStatus::CANCELED:
-                status = "CANCELED"; break;
-            //Operation failed, A failed operaton can still be retried.
-            case TransferStatus::FAILED:
-                status = "FAILED"; break;
-            //Operation was successful
-            case TransferStatus::COMPLETED:
-                status = "COMPLETED"; break;
-            //Operation either failed or was canceled and a user deleted the multi-part upload from S3.
-            case TransferStatus::ABORTED:
-                status = "ABORTED"; break;
+                // this value is only used for directory synchronization
+                case TransferStatus::EXACT_OBJECT_ALREADY_EXISTS:
+                    status = "EXACT_OBJECT_ALREADY_EXISTS";
+                    break;
+                // Operation is still queued and has not begun processing
+                case TransferStatus::NOT_STARTED:
+                    status = "NOT_STARTED";
+                    break;
+                // Operation is now running
+                case TransferStatus::IN_PROGRESS:
+                    status = "IN_PROGRESS";
+                    break;
+                // Operation was canceled. A Canceled operation can still be retried
+                case TransferStatus::CANCELED:
+                    status = "CANCELED";
+                    break;
+                // Operation failed, A failed operaton can still be retried.
+                case TransferStatus::FAILED:
+                    status = "FAILED";
+                    break;
+                // Operation was successful
+                case TransferStatus::COMPLETED:
+                    status = "COMPLETED";
+                    break;
+                // Operation either failed or was canceled and a user deleted the multi-part upload
+                // from S3.
+                case TransferStatus::ABORTED:
+                    status = "ABORTED";
+                    break;
             }
-            LOGV2_DEBUG(29079, 2, "transferStatusUpdatedCallback",
+            LOGV2_DEBUG(29079,
+                        2,
+                        "transferStatusUpdatedCallback",
                         "status"_attr = status,
                         "Id"_attr = h->GetId());
             if (h->GetStatus() == TransferStatus::FAILED) {
                 auto uploadContext = std::static_pointer_cast<const UploadContext>(h->GetContext());
                 auto err = h->GetLastError();
-                LOGV2_WARNING(29080, "Error uploading",
+                LOGV2_WARNING(29080,
+                              "Error uploading",
                               "Key"_attr = h->GetKey(),
                               "errmsg"_attr = err.GetMessage());
                 if (err.ShouldRetry() && uploadContext->ShouldRetry()) {
-                    LOGV2(29081, "Retrying upload",
-                          "Key"_attr = h->GetKey());
+                    LOGV2(29081, "Retrying upload", "Key"_attr = h->GetKey());
                     const_cast<TransferManager*>(trMan)->RetryUpload(
-                            uploadContext->GetStream(), std::const_pointer_cast<TransferHandle>(h));
+                        uploadContext->GetStream(), std::const_pointer_cast<TransferHandle>(h));
                 } else {
-                    LOGV2_ERROR(29082, "Unrecoverable error occured or retry count exhausted. Cancelling backup");
+                    LOGV2_ERROR(
+                        29082,
+                        "Unrecoverable error occured or retry count exhausted. Cancelling backup");
                     cancelMessage = err.GetMessage();
                     backupCancelled.store(true);
                     if (h->IsMultipart()) {
                         const_cast<TransferManager*>(trMan)->AbortMultipartUpload(
-                                std::const_pointer_cast<TransferHandle>(h));
+                            std::const_pointer_cast<TransferHandle>(h));
                     } else {
                         std::const_pointer_cast<TransferHandle>(h)->Cancel();
                     }
@@ -2618,12 +2653,17 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
                     boost::filesystem::path destFile{std::get<1>(file)};
                     auto fsize{std::get<2>(file)};
 
-                    LOGV2_DEBUG(29083, 2, "uploading",
+                    LOGV2_DEBUG(29083,
+                                2,
+                                "uploading",
                                 "fileName"_attr = srcFile.string(),
                                 "Key"_attr = destFile.string());
 
-                    auto fileStream = Aws::MakeShared<SizedFileStream>("AWS", static_cast<std::size_t>(fsize),
-                            srcFile.string(), std::ios_base::in | std::ios_base::binary);
+                    auto fileStream =
+                        Aws::MakeShared<SizedFileStream>("AWS",
+                                                         static_cast<std::size_t>(fsize),
+                                                         srcFile.string(),
+                                                         std::ios_base::in | std::ios_base::binary);
                     if (!fileStream->good()) {
                         auto eno = errno;
                         // cancel all uploads
@@ -2646,7 +2686,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
                 // set backupCancelled on any exception
                 cancelMessage = ex.what();
                 backupCancelled.store(true);
-            } 
+            }
         }
 
         if (failed) {
@@ -2660,7 +2700,7 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         return Status::OK();
     }
 
-    // upload files without TransferManager (for those servers which have no 
+    // upload files without TransferManager (for those servers which have no
     // multipart upload support)
     // TODO: for GCP/GCS it is possible to use 'compose' operations
 
@@ -2684,11 +2724,13 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         request.SetContentLength(fsize);
         request.SetContentType("application/octet-stream");
 
-        auto fileToUpload = Aws::MakeShared<Aws::FStream>("AWS", srcFile.string(), std::ios_base::in | std::ios_base::binary);
+        auto fileToUpload = Aws::MakeShared<Aws::FStream>(
+            "AWS", srcFile.string(), std::ios_base::in | std::ios_base::binary);
         if (!fileToUpload) {
             return Status(ErrorCodes::InvalidPath,
-                          str::stream() << "Cannot open file '" << srcFile.string() << "' for backup"
-                                        << " : " << strerror(errno));
+                          str::stream()
+                              << "Cannot open file '" << srcFile.string() << "' for backup"
+                              << " : " << strerror(errno));
         }
         request.SetBody(fileToUpload);
 
@@ -2696,14 +2738,16 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const percona::S3B
         if (!outcome.IsSuccess()) {
             return Status(ErrorCodes::InternalError,
                           str::stream() << "Cannot backup '" << srcFile.string() << "'"
-                                        << " : " << outcome.GetError().GetExceptionName()
-                                        << " : " << outcome.GetError().GetMessage());
+                                        << " : " << outcome.GetError().GetExceptionName() << " : "
+                                        << outcome.GetError().GetMessage());
         }
         {
             stdx::unique_lock<Client> lk(*opCtx->getClient());
             progressMeter.get(lk)->hit(fsize);
         }
-        LOGV2_DEBUG(29004, 2, "Successfully uploaded file: {destFile}",
+        LOGV2_DEBUG(29004,
+                    2,
+                    "Successfully uploaded file: {destFile}",
                     "destFile"_attr = destFile.string());
         opCtx->checkForInterrupt();
     }
@@ -2756,7 +2800,6 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
         } catch (const std::exception& ex) {
             return Status(ErrorCodes::InternalError, ex.what());
         }
-
     }
 
     return Status::OK();
@@ -2764,8 +2807,8 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx, const std::string&
 
 namespace {
 
-template<typename T1, typename T2>
-void a_assert_eq(struct archive *a, T1 r1, T2 r2) {
+template <typename T1, typename T2>
+void a_assert_eq(struct archive* a, T1 r1, T2 r2) {
     if (r1 != r2) {
         std::stringstream ss;
         ss << "libarchive error " << archive_errno(a);
@@ -2774,7 +2817,7 @@ void a_assert_eq(struct archive *a, T1 r1, T2 r2) {
     }
 }
 
-} // namespace
+}  // namespace
 
 Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::string& path) {
     namespace fs = boost::filesystem;
@@ -2797,17 +2840,17 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
 
     // Write tar archive
     try {
-        struct archive *a{archive_write_new()};
+        struct archive* a{archive_write_new()};
         if (a == nullptr)
             throw std::runtime_error("cannot create archive");
-        ON_BLOCK_EXIT([&] { archive_write_free(a);});
+        ON_BLOCK_EXIT([&] { archive_write_free(a); });
         a_assert_eq(a, 0, archive_write_set_format_pax_restricted(a));
         a_assert_eq(a, 0, archive_write_open_filename(a, path.c_str()));
 
-        struct archive_entry *entry{archive_entry_new()};
+        struct archive_entry* entry{archive_entry_new()};
         if (entry == nullptr)
             throw std::runtime_error("cannot create archive entry");
-        ON_BLOCK_EXIT([&] { archive_entry_free(entry);});
+        ON_BLOCK_EXIT([&] { archive_entry_free(entry); });
 
         constexpr int bufsize = 8 * 1024;
         auto buf = std::make_unique<char[]>(bufsize);
@@ -2821,10 +2864,9 @@ Status WiredTigerKVEngine::hotBackupTar(OperationContext* opCtx, const std::stri
             auto fsize{std::get<2>(file)};
             auto fmtime{std::get<3>(file)};
 
-            LOGV2_DEBUG(29005, 2, "backup of file: {srcFile}",
-                        "srcFile"_attr = srcFile.string());
-            LOGV2_DEBUG(29006, 2, "    storing as: {destFile}",
-                        "destFile"_attr = destFile.string());
+            LOGV2_DEBUG(29005, 2, "backup of file: {srcFile}", "srcFile"_attr = srcFile.string());
+            LOGV2_DEBUG(
+                29006, 2, "    storing as: {destFile}", "destFile"_attr = destFile.string());
 
             archive_entry_clear(entry);
             archive_entry_set_pathname(entry, destFile.string().c_str());
@@ -3579,7 +3621,8 @@ void WiredTigerKVEngine::_checkpoint(WT_SESSION* session) try {
     // Do KeysDB checkpoint
     auto encryptionKeyDB = _sessionCache->getKVEngine()->getEncryptionKeyDB();
     if (encryptionKeyDB) {
-        std::unique_ptr<WiredTigerSession> sess = std::make_unique<WiredTigerSession>(encryptionKeyDB->getConnection());
+        std::unique_ptr<WiredTigerSession> sess =
+            std::make_unique<WiredTigerSession>(encryptionKeyDB->getConnection());
         WT_SESSION* s = sess->getSession();
         invariantWTOK(s->checkpoint(s, "use_timestamp=false"), s);
     }

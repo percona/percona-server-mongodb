@@ -62,6 +62,41 @@ mongo_cc_library(
         "//src/mongo/db/storage/wiredtiger:wiredtiger_stats.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_util.cpp",
     ],
+    linkopts = select({
+        # When linking statically, don't use the dynamic AWS libraries even if
+        # they are available. For dynamic linking, prefer the dynamic AWS
+        # libraries but if they are absent, resort to the static ones.
+        "//bazel/config:linkstatic_enabled": [
+            "-Wl,--push-state,-Bstatic",
+        ],
+        "//conditions:default": [],
+    }) + [
+        # S3 and its dependencies
+        # order is important here
+        "-laws-cpp-sdk-transfer",
+        "-laws-cpp-sdk-s3",
+        "-laws-cpp-sdk-core",
+        "-laws-crt-cpp",
+        "-laws-c-event-stream",
+        "-laws-c-mqtt",
+        "-laws-c-s3",
+        "-laws-c-auth",
+        "-laws-c-http",
+        "-laws-c-compression",
+        "-laws-c-io",
+        "-laws-c-cal",
+        "-laws-c-sdkutils",
+        "-ls2n",
+        "-laws-checksums",
+        "-laws-c-common",
+    ] + select({
+        "//bazel/config:linkstatic_enabled": [
+            "-Wl,--pop-state",
+        ],
+        "//conditions:default": [],
+    }) + [
+        "-lcurl",
+    ],
     deps = [
         ":oplog_truncate_marker_parameters_idl",
         "//src/mongo/db:dbhelpers",
@@ -111,41 +146,6 @@ mongo_cc_library(
         "//src/third_party/snappy",
         "//src/third_party/wiredtiger",
         "//src/third_party/zlib",
-    ],
-    linkopts = select({
-        # When linking statically, don't use the dynamic AWS libraries even if
-        # they are available. For dynamic linking, prefer the dynamic AWS
-        # libraries but if they are absent, resort to the static ones.
-        "//bazel/config:linkstatic_enabled": [
-            "-Wl,--push-state,-Bstatic",
-        ],
-        "//conditions:default": [],
-    }) + [
-        # S3 and its dependencies
-        # order is important here
-        "-laws-cpp-sdk-transfer",
-        "-laws-cpp-sdk-s3",
-        "-laws-cpp-sdk-core",
-        "-laws-crt-cpp",
-        "-laws-c-event-stream",
-        "-laws-c-mqtt",
-        "-laws-c-s3",
-        "-laws-c-auth",
-        "-laws-c-http",
-        "-laws-c-compression",
-        "-laws-c-io",
-        "-laws-c-cal",
-        "-laws-c-sdkutils",
-        "-ls2n",
-        "-laws-checksums",
-        "-laws-c-common",
-    ] + select({
-        "//bazel/config:linkstatic_enabled": [
-            "-Wl,--pop-state",
-        ],
-        "//conditions:default": [],
-    }) + [
-        "-lcurl",
     ],
 )
 
@@ -338,9 +338,10 @@ mongo_cc_unit_test(
     srcs = [
         "//src/mongo/db/storage/wiredtiger:wiredtiger_encryption_test.cpp",
     ],
+    tags = ["mongo_unittest_seventh_group"],
     deps = [
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger_core",
-    ]
+    ],
 )
 
 mongo_cc_unit_test(
@@ -348,6 +349,7 @@ mongo_cc_unit_test(
     srcs = [
         "//src/mongo/db/storage/wiredtiger:wiredtiger_kv_engine_encryption_key_test.cpp",
     ],
+    tags = ["mongo_unittest_eighth_group"],
     deps = [
         "//src/mongo/db:service_context_d_test_fixture",
         "//src/mongo/db/auth:authmocks",

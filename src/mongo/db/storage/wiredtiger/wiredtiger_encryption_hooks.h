@@ -38,8 +38,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 class EncryptionKeyDB;
 
-class WiredTigerEncryptionHooks: public EncryptionHooks
-{
+class WiredTigerEncryptionHooks : public EncryptionHooks {
 public:
     explicit WiredTigerEncryptionHooks(EncryptionKeyDB* encryptionKeyDB);
     ~WiredTigerEncryptionHooks() override;
@@ -76,20 +75,18 @@ public:
     /**
      * Get list of log files changed since the moment of backup cursor creation
      */
-    StatusWith<std::deque<std::string>> extendBackupCursor(
-        OperationContext* opCtx) override;
+    StatusWith<std::deque<std::string>> extendBackupCursor(OperationContext* opCtx) override;
 
 protected:
     EncryptionKeyDB* _encryptionKeyDB;
     static constexpr int _key_len{32};
-    const EVP_CIPHER *_cipher{nullptr};
+    const EVP_CIPHER* _cipher{nullptr};
     int _iv_len = 0;
 
     const unsigned char* dbKey(boost::optional<DatabaseName> dbName, unsigned char* buf);
 };
 
-class WiredTigerEncryptionHooksCBC: public WiredTigerEncryptionHooks
-{
+class WiredTigerEncryptionHooksCBC : public WiredTigerEncryptionHooks {
 public:
     explicit WiredTigerEncryptionHooksCBC(EncryptionKeyDB* encryptionKeyDB);
     ~WiredTigerEncryptionHooksCBC() override;
@@ -131,11 +128,10 @@ public:
 
 private:
     static constexpr int _chksum_len{sizeof(uint32_t)};
-    uint32_t (*wiredtiger_checksum_crc32c)(const void *, size_t);
+    uint32_t (*wiredtiger_checksum_crc32c)(const void*, size_t);
 };
 
-class WiredTigerEncryptionHooksGCM: public WiredTigerEncryptionHooks
-{
+class WiredTigerEncryptionHooksGCM : public WiredTigerEncryptionHooks {
 public:
     explicit WiredTigerEncryptionHooksGCM(EncryptionKeyDB* encryptionKeyDB);
     ~WiredTigerEncryptionHooksGCM() override;

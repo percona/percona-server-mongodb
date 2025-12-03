@@ -343,7 +343,7 @@ mongo_cc_library(
         "//src/mongo:base",
         "//src/mongo/db:ldap_options_idl",
         "//src/mongo/db:server_base",
-        "//src/mongo/util/options_parser:options_parser",
+        "//src/mongo/util/options_parser",
     ],
 )
 
@@ -355,10 +355,9 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:ldap_options",
         "//src/mongo/util/net:network",
-        "//src/mongo/util/options_parser:options_parser",
+        "//src/mongo/util/options_parser",
     ],
 )
-
 
 mongo_cc_library(
     name = "mongod_options",
@@ -373,8 +372,8 @@ mongo_cc_library(
         "//src/mongo/db:mongod_options_general_idl",
         "//src/mongo/db:mongod_options_ldapauthz_idl",
         "//src/mongo/db:mongod_options_legacy_idl",
-        "//src/mongo/db:mongod_options_replication_idl",
         "//src/mongo/db:mongod_options_removed_idl",
+        "//src/mongo/db:mongod_options_replication_idl",
         "//src/mongo/db:mongod_options_sharding_idl",
         "//src/mongo/db:mongod_options_storage_idl",
         "//src/mongo/db:ratelimit_parameter_idl",
@@ -703,7 +702,7 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/db:service_context",
-    ]
+    ],
 )
 
 mongo_cc_library(
@@ -2681,7 +2680,7 @@ mongo_cc_library(
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/audit:audit_options",
         "//src/mongo/db/auth:user_cache_invalidator",
-        "//src/mongo/db/auth/oidc:oidc",
+        "//src/mongo/db/auth/oidc",
         "//src/mongo/idl:cluster_server_parameter_idl",
         "//src/mongo/idl:cluster_server_parameter_initializer",
         "//src/mongo/idl:cluster_server_parameter_op_observer",

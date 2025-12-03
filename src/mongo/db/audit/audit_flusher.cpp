@@ -96,4 +96,3 @@ void startAuditLogFlusherWithFsync() {
 }
 
 }  // namespace mongo
-

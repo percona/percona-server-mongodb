@@ -26,13 +26,13 @@ mongo_cc_library(
         "//src/mongo/db/ldap:ldap_manager.cpp",
         "//src/mongo/db/ldap:ldap_manager_impl.cpp",
     ],
+    linkopts = [
+        "-lldap",
+        "-llber",
+    ],
     deps = [
         "//src/mongo/db:ldap_options",
         "//src/mongo/db:service_context",
         "//src/mongo/util:background_job",
-    ],
-    linkopts = [
-        "-lldap",
-        "-llber",
     ],
 )

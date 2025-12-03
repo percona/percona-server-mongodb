@@ -61,10 +61,10 @@ mongo_cc_library(
         "//src/mongo/db:query_expressions",
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/exec:projection_executor",
-        "//src/mongo/db/storage/inmemory:storage_inmemory",
         "//src/mongo/db/query:projection_ast",
         "//src/mongo/db/query:query_test_service_context",
         "//src/mongo/db/repl:replica_set_messages",
+        "//src/mongo/db/storage/inmemory:storage_inmemory",
     ] + select({
         "//bazel/config:enterprise_feature_inmemory_enabled": [
             "//src/mongo/db/modules/enterprise/src/inmemory:storage_inmemory",

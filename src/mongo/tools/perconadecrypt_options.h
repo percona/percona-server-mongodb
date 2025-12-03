@@ -65,7 +65,7 @@ void printPerconaDecryptHelp(std::ostream* out);
 bool handlePreValidationPerconaDecryptOptions(const moe::Environment& params);
 
 Status storePerconaDecryptOptions(const moe::Environment& params,
-                               const std::vector<std::string>& args);
+                                  const std::vector<std::string>& args);
 
 inline Status validateEncryptionCipherModeSetting(const std::string& value) {
     constexpr auto kCBC = "AES256-CBC"_sd;
@@ -79,4 +79,4 @@ inline Status validateEncryptionCipherModeSetting(const std::string& value) {
     return Status::OK();
 }
 
-}
+}  // namespace mongo

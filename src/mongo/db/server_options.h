@@ -111,8 +111,9 @@ struct ServerGlobalParams {
 
     int defaultProfile = 0;  // --profile
     boost::optional<BSONObj> defaultProfileFilter;
-    AtomicWord<int> slowMS{100};           // --time in ms that is "slow"
-    AtomicWord<int> rateLimit{1};          // --rate limit in the range 1-RATE_LIMIT_MAX represents a  1/N probability that a query will be profiled
+    AtomicWord<int> slowMS{100};   // --time in ms that is "slow"
+    AtomicWord<int> rateLimit{1};  // --rate limit in the range 1-RATE_LIMIT_MAX represents a  1/N
+                                   // probability that a query will be profiled
     AtomicWord<double> sampleRate{1.0};    // --samplerate rate at which to sample slow queries
     int defaultLocalThresholdMillis = 15;  // --localThreshold in ms to consider a node local
 
@@ -151,10 +152,10 @@ struct ServerGlobalParams {
      * Percona Server for MongoDB features.
      **************************************/
 
-    std::string auditDestination; // Output type: enables auditing functionality.
-    std::string auditFormat;      // Output format
-    std::string auditFilter;      // JSON query filter on events, users, etc.
-    std::string auditPath;        // Event destination file path and name.
+    std::string auditDestination;  // Output type: enables auditing functionality.
+    std::string auditFormat;       // Output format
+    std::string auditFilter;       // JSON query filter on events, users, etc.
+    std::string auditPath;         // Event destination file path and name.
 
     time_t started = ::time(nullptr);
 

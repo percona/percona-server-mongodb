@@ -43,7 +43,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/storage_options.h"
 
 namespace mongo {
-    extern StorageGlobalParams storageGlobalParams;
+extern StorageGlobalParams storageGlobalParams;
 }
 using namespace mongo;
 
@@ -172,8 +172,7 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* opCtx,
                     return false;
                 }
                 s3params.threadPoolSize = i;
-            }
-            else {
+            } else {
                 errmsg = str::stream()
                     << "s3 subobject contains usupported field or field's name is misspelled: "
                     << elem.fieldName();
@@ -212,7 +211,7 @@ void CreateBackupCommand::snipForLogging(mutablebson::Document* cmdObj) const {
     if (s3Element.ok()) {
         const auto f1 = "accessKeyId"_sd;
         const auto f2 = "secretAccessKey"_sd;
-        auto predicate = [&](const mmb::ConstElement& element){
+        auto predicate = [&](const mmb::ConstElement& element) {
             return f1 == element.getFieldName() || f2 == element.getFieldName();
         };
         mmb::Element element = mmb::findFirstChild(s3Element, predicate);
@@ -223,4 +222,4 @@ void CreateBackupCommand::snipForLogging(mutablebson::Document* cmdObj) const {
     }
 }
 
-}  // end of percona namespace.
+}  // namespace percona

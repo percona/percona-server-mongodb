@@ -38,17 +38,17 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
-        "//src/mongo/db/audit:audit_parameters_idl",
         "//src/mongo/db/audit:audit_options_idl",
-        "//src/mongo/util/options_parser:options_parser",
+        "//src/mongo/db/audit:audit_parameters_idl",
+        "//src/mongo/util/options_parser",
     ],
 )
 
 mongo_cc_library(
     name = "audit_impl",
     srcs = [
-        "//src/mongo/db/audit:audit_flusher.cpp",
         "//src/mongo/db/audit:audit.cpp",
+        "//src/mongo/db/audit:audit_flusher.cpp",
     ],
     deps = [
         "//src/mongo/db:audit_interface",
@@ -69,11 +69,11 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/db:audit",
+        "//src/mongo/db:commands",
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/audit:audit_options",
-        "//src/mongo/db/auth:auth",
+        "//src/mongo/db/auth",
         "//src/mongo/db/auth:authprivilege",
-        "//src/mongo/db:commands",
         "//src/mongo/db/commands:test_commands_enabled",
     ],
 )
@@ -83,6 +83,7 @@ mongo_cc_unit_test(
     srcs = [
         "//src/mongo/db/audit:audit_options_test.cpp",
     ],
+    tags = ["mongo_unittest_first_group"],
     deps = [
         "//src/mongo/db:server_options_base",
         "//src/mongo/db/audit:audit_options",
