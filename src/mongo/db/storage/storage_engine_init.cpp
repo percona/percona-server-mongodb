@@ -87,8 +87,8 @@ void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
         return;
     }
     bool metadataNeedsWriting = false;
-    BSONObj options = metadata ? metadata->getStorageEngineOptions()
-                               : factory->createMetadataOptions(params);
+    BSONObj options =
+        metadata ? metadata->getStorageEngineOptions() : factory->createMetadataOptions(params);
     if (!metadata) {
         metadataNeedsWriting = true;
         metadata = std::make_unique<StorageEngineMetadata>(storageGlobalParams.dbpath);
@@ -290,14 +290,14 @@ StorageEngine::LastShutdownState initializeStorageEngine(
         auto scopedTimer = createTimeElapsedBuilderScopedTimer(
             service->getFastClockSource(), "Create storage engine", startupTimeElapsedBuilder);
         if ((initFlags & StorageEngineInitFlags::kForRestart) == StorageEngineInitFlags{}) {
-            auto storageEngine = std::unique_ptr<StorageEngine>(factory->create(
-                opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr));
+            auto storageEngine = std::unique_ptr<StorageEngine>(
+                factory->create(opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr));
             service->setStorageEngine(std::move(storageEngine));
         } else {
             auto storageEngineChangeContext = StorageEngineChangeContext::get(service);
             auto token = storageEngineChangeContext->killOpsForStorageEngineChange(service);
-            auto storageEngine = std::unique_ptr<StorageEngine>(factory->create(
-                opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr));
+            auto storageEngine = std::unique_ptr<StorageEngine>(
+                factory->create(opCtx, storageGlobalParams, lockFile ? &*lockFile : nullptr));
             storageEngineChangeContext->changeStorageEngine(
                 service, std::move(token), std::move(storageEngine));
         }

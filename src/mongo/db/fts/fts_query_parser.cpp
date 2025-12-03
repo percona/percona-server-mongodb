@@ -73,7 +73,7 @@ QueryToken FTSQueryParser::next() {
 /**
  * This method will treat intermediate '-' as TEXT,
  *   Original FTSQueryParser::next() will ignore intermediate '-'.
-*/
+ */
 QueryToken FTSQueryParser::nextForNgram() {
     if (_pos >= _raw.size())
         return QueryToken(QueryToken::INVALID, "", 0, false);
@@ -88,11 +88,14 @@ QueryToken FTSQueryParser::nextForNgram() {
 
     if (type == QueryToken::TEXT) {
         QueryToken::Type t;
-        while(_pos < _raw.size()){
+        while (_pos < _raw.size()) {
             t = getType(_raw[_pos]);
-            if(t==QueryToken::TEXT || (t==QueryToken::DELIMITER && '-'==_raw[_pos])){ // Regarding '-' as part of TEXT (if previous character is not SPACE)
+            if (t == QueryToken::TEXT ||
+                (t == QueryToken::DELIMITER &&
+                 '-' == _raw[_pos])) {  // Regarding '-' as part of TEXT (if previous character is
+                                        // not SPACE)
                 _pos++;
-            }else{
+            } else {
                 break;
             }
         }

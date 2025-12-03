@@ -43,9 +43,7 @@ env.Library(
 
 env.Library(
     target='telemetry_s',
-    source=[
-        'telemetry_thread_s.cpp'
-    ],
+    source=['telemetry_thread_s.cpp'],
     LIBDEPS=[
         'telemetry_base',
     ],

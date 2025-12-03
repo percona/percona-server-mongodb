@@ -73,6 +73,7 @@ bool operator<(const IssuerAudiencePair& lhs, const IssuerAudiencePair& rhs) noe
     return std::tie(lhs.issuer, lhs.audience) < std::tie(rhs.issuer, rhs.audience);
 }
 
+// clang-format off
 template <typename R>
 requires std::ranges::range<R> && std::is_same_v<std::ranges::range_value_t<R>, std::size_t>
 str::stream errorMsgHeader(const R& indexes) {
@@ -84,6 +85,7 @@ str::stream errorMsgHeader(const R& indexes) {
     s << ": ";
     return s;
 }
+// clang-format on
 
 template <typename ValueType>
 requires std::equality_comparable<ValueType> && std::copyable<ValueType>

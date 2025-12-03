@@ -76,7 +76,7 @@ function test_claims_are_logged(clusterClass, configuredLogClaims, expectedLogCl
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass, /* with_audit = */ true);
 
-    test.create_role("test/group", [{ role: "readWrite", db: "test_db" }]);
+    test.create_role("test/group", [{role: "readWrite", db: "test_db"}]);
 
     var conn = test.create_conn();
 
@@ -84,7 +84,7 @@ function test_claims_are_logged(clusterClass, configuredLogClaims, expectedLogCl
 
     test.assert_authenticated(conn, "test/user", [
         "test/group",
-        { role: "readWrite", db: "test_db" },
+        {role: "readWrite", db: "test_db"},
     ]);
 
     const expectedLog = {
@@ -94,7 +94,7 @@ function test_claims_are_logged(clusterClass, configuredLogClaims, expectedLogCl
         }
     };
 
-    sleep(1000); // Wait for the audit log to be flushed
+    sleep(1000);  // Wait for the audit log to be flushed
 
     const auditLog = test.checkAuditLogExists(expectedLog);
     assert(auditLog, "No audit log for successful authentication");

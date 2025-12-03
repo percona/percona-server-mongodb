@@ -83,9 +83,8 @@ const rolesmap = {
 //	},
 //	"ok" : 1
 //}
-function checkConnectionStatus(username, cs, name_to_dn)
-{
-    'use strict'
+function checkConnectionStatus(username, cs, name_to_dn) {
+    'use strict';
 
     assert.eq(cs.authInfo.authenticatedUsers[0].db, "$external");
 
@@ -99,13 +98,14 @@ function checkConnectionStatus(username, cs, name_to_dn)
     assert(userroles, "Unexpected user");
     let authorizedroles = [];
     // all authorized roles must be in our rolesmap
-    cs.authInfo.authenticatedUserRoles.forEach(function(entry){
-        assert(userroles.includes(entry.role), `User '${user}' was authorized to unexpected role '${entry.role}'`);
+    cs.authInfo.authenticatedUserRoles.forEach(function(entry) {
+        assert(userroles.includes(entry.role),
+               `User '${user}' was authorized to unexpected role '${entry.role}'`);
         authorizedroles.push(entry.role);
     });
     // all roles from our rolesmap must be authorized
-    userroles.forEach(function(entry){
-        assert(authorizedroles.includes(entry), `User '${user}' was not authorized '${entry}' role`);
+    userroles.forEach(function(entry) {
+        assert(authorizedroles.includes(entry),
+               `User '${user}' was not authorized '${entry}' role`);
     });
 }
-

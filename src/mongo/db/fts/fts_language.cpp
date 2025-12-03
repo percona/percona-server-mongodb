@@ -41,9 +41,9 @@
 #include "mongo/base/string_data.h"
 #include "mongo/db/fts/fts_basic_phrase_matcher.h"
 #include "mongo/db/fts/fts_basic_tokenizer.h"
+#include "mongo/db/fts/fts_unicode_ngram_tokenizer.h"
 #include "mongo/db/fts/fts_unicode_phrase_matcher.h"
 #include "mongo/db/fts/fts_unicode_tokenizer.h"
-#include "mongo/db/fts/fts_unicode_ngram_tokenizer.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/ctype.h"
 
@@ -200,7 +200,7 @@ std::unique_ptr<FTSTokenizer> BasicFTSLanguage::createTokenizer() const {
 }
 
 std::unique_ptr<FTSTokenizer> UnicodeFTSLanguage::createTokenizer() const {
-    if("ngram" == str()){
+    if ("ngram" == str()) {
         return std::make_unique<UnicodeNgramFTSTokenizer>(this);
     }
     return std::make_unique<UnicodeFTSTokenizer>(this);

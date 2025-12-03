@@ -1,25 +1,23 @@
 // name: Retrieve Local Users
 // mode: auth
 
-function showAllUsersRun(){
-  'use strict'
-  var db = conn.getDB( 'admin' )
+function showAllUsersRun() {
+    'use strict';
+    var db = conn.getDB('admin');
 
-  assert( db.auth( 'localadmin' , 'localadmin9a5S' ) )
+    assert(db.auth('localadmin', 'localadmin9a5S'));
 
-  // display users from test database
+    // display users from test database
 
-  print( 'test database:' )
-  print( '--------------' )
+    print('test database:');
+    print('--------------');
 
-  var findtest=0
+    var findtest = 0;
 
-  db.getSiblingDB( 'admin' ).system.users.find().forEach(
-    function(u) {
-      printjson(u);
-      findtest++;
-    }
-  )
+    db.getSiblingDB('admin').system.users.find().forEach(function(u) {
+        printjson(u);
+        findtest++;
+    });
 }
 
-showAllUsersRun()
+showAllUsersRun();

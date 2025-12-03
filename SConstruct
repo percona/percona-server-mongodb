@@ -92,6 +92,7 @@ def has_option(name):
     # if the value is falsish (empty string, None, etc.), coerce to False.
     return True if optval == () else bool(optval)
 
+
 def use_system_version_of_library(name):
     return has_option('use-system-all') or has_option('use-system-' + name)
 
@@ -2656,7 +2657,6 @@ def link_guard_libdeps_tag_expand(source, target, env, for_signature):
 
 
 env['LIBDEPS_TAG_EXPANSIONS'].append(link_guard_libdeps_tag_expand)
-
 
 env.Tool('forceincludes')
 

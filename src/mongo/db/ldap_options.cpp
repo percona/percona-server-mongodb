@@ -49,7 +49,7 @@ std::string LDAPGlobalParams::getServersStr() const {
     std::string ldap_servers;
     std::string pfx;
     auto guard = *ldapServers;
-    for (auto& s: *guard) {
+    for (auto& s : *guard) {
         ldap_servers += pfx;
         ldap_servers += s;
         pfx = ",";
@@ -83,7 +83,7 @@ std::string LDAPGlobalParams::ldapURIList() const {
     std::string uri;
     auto backins = std::back_inserter(uri);
     auto guard = *ldapServers;
-    for (auto& s: *guard) {
+    for (auto& s : *guard) {
         if (!uri.empty())
             backins = ',';
         fmt::format_to(backins, "{}://{}/", ldapprot, s);
@@ -111,7 +111,8 @@ Status validateLDAPBindMethod(const std::string& value) {
     constexpr auto kSasl = "sasl"_sd;
 
     if (!kSimple.equalCaseInsensitive(value) && !kSasl.equalCaseInsensitive(value)) {
-        return {ErrorCodes::BadValue, "security.ldap.bind.method expects one of 'simple' or 'sasl'"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.bind.method expects one of 'simple' or 'sasl'"};
     }
 
     return Status::OK();
@@ -122,7 +123,8 @@ Status validateLDAPTransportSecurity(const std::string& value) {
     constexpr auto kTls = "tls"_sd;
 
     if (!kNone.equalCaseInsensitive(value) && !kTls.equalCaseInsensitive(value)) {
-        return {ErrorCodes::BadValue, "security.ldap.transportSecurity expects one of 'none' or 'tls'"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.transportSecurity expects one of 'none' or 'tls'"};
     }
 
     return Status::OK();
@@ -130,19 +132,24 @@ Status validateLDAPTransportSecurity(const std::string& value) {
 
 Status validateLDAPUserToDNMapping(const std::string& mapping) {
     if (!isArray(mapping))
-        return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: User to DN mapping must be json array of objects"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.userToDNMapping: User to DN mapping must be json array of objects"};
 
     BSONArray bsonmapping{fromjson(mapping)};
-    for (const auto& elt: bsonmapping) {
+    for (const auto& elt : bsonmapping) {
         auto step = elt.Obj();
         BSONElement elmatch = step["match"];
         if (!elmatch)
-            return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: Each object in user to DN mapping array must contain the 'match' string"};
+            return {ErrorCodes::BadValue,
+                    "security.ldap.userToDNMapping: Each object in user to DN mapping array must "
+                    "contain the 'match' string"};
         BSONElement eltempl = step["substitution"];
         if (!eltempl)
             eltempl = step["ldapQuery"];
         if (!eltempl)
-            return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: Each object in user to DN mapping array must contain either 'substitution' or 'ldapQuery' string"};
+            return {ErrorCodes::BadValue,
+                    "security.ldap.userToDNMapping: Each object in user to DN mapping array must "
+                    "contain either 'substitution' or 'ldapQuery' string"};
         try {
             std::regex rex{elmatch.str()};
             const auto sm_count = rex.mark_count();
@@ -151,18 +158,21 @@ Status validateLDAPUserToDNMapping(const std::string& mapping) {
             const std::string stempl = eltempl.str();
             std::sregex_iterator it{stempl.begin(), stempl.end(), placeholder_rex};
             std::sregex_iterator end;
-            for(; it != end; ++it){
+            for (; it != end; ++it) {
                 if (std::stol((*it)[1].str()) >= sm_count)
-                    return {ErrorCodes::BadValue,
-                            "security.ldap.userToDNMapping: "
-                            "Regular expresssion '{}' has {} capture groups so '{}' placeholder is invalid "
-                            "(placeholder number must be less than number of capture groups)"_format(
-                                elmatch.str(), sm_count, it->str())};
+                    return {
+                        ErrorCodes::BadValue,
+                        "security.ldap.userToDNMapping: "
+                        "Regular expresssion '{}' has {} capture groups so '{}' placeholder is "
+                        "invalid "
+                        "(placeholder number must be less than number of capture groups)"_format(
+                            elmatch.str(), sm_count, it->str())};
             }
         } catch (std::regex_error& e) {
-            return {ErrorCodes::BadValue,
-                    "security.ldap.userToDNMapping: std::regex_error exception while validating '{}'. "
-                    "Error message is: {}"_format(elmatch.str(), e.what())};
+            return {
+                ErrorCodes::BadValue,
+                "security.ldap.userToDNMapping: std::regex_error exception while validating '{}'. "
+                "Error message is: {}"_format(elmatch.str(), e.what())};
         }
     }
 
@@ -182,27 +192,29 @@ Status validateLDAPAuthzQueryTemplate(const std::string& templ) {
         std::regex placeholder_rex{R"(\{\{|\}\}|\{(.*?)\})"};
         std::sregex_iterator it{templ.begin(), templ.end(), placeholder_rex};
         std::sregex_iterator end;
-        for(; it != end; ++it){
+        for (; it != end; ++it) {
             auto w = (*it)[0].str();
             if (w == "{{" || w == "}}")
                 continue;
             auto v = (*it)[1].str();
             if (v != "USER" && v != "PROVIDED_USER")
-                return {ErrorCodes::BadValue,
-                        "security.ldap.authz.queryTemplate: "
-                        "{} placeholder is invalid. Only {{USER}} and {{PROVIDED_USER}} placeholders are supported"_format((*it)[0].str())};
+                return {
+                    ErrorCodes::BadValue,
+                    "security.ldap.authz.queryTemplate: "
+                    "{} placeholder is invalid. Only {{USER}} and {{PROVIDED_USER}} placeholders are supported"_format(
+                        (*it)[0].str())};
         }
         // test format (throws fmt::format_error if something is wrong)
-        fmt::format(templ,
-            fmt::arg("USER", "test user"),
-            fmt::arg("PROVIDED_USER", "test user"));
+        fmt::format(templ, fmt::arg("USER", "test user"), fmt::arg("PROVIDED_USER", "test user"));
     } catch (std::regex_error& e) {
-        return {ErrorCodes::BadValue,
-                "security.ldap.authz.queryTemplate: std::regex_error exception while validating '{}'. "
-                "Error message is: {}"_format(templ, e.what())};
+        return {
+            ErrorCodes::BadValue,
+            "security.ldap.authz.queryTemplate: std::regex_error exception while validating '{}'. "
+            "Error message is: {}"_format(templ, e.what())};
     } catch (fmt::format_error& e) {
         return {ErrorCodes::BadValue,
-                "security.ldap.authz.queryTemplate is malformed, attempt to substitute placeholders thrown an exception. "
+                "security.ldap.authz.queryTemplate is malformed, attempt to substitute "
+                "placeholders thrown an exception. "
                 "Error message is: {}"_format(e.what())};
     }
 

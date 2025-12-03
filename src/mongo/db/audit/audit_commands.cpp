@@ -52,93 +52,109 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-    class AuditCommand : public ErrmsgCommandDeprecated {
-    public:
-        AuditCommand(const char *name, const char *oldName=NULL) : ErrmsgCommandDeprecated(name, oldName) {}
-        virtual ~AuditCommand() {}
-        // TODO: Investigate if any other Command class virtual
-        // methods need to be overridden.
-        virtual bool isWriteCommandForConfigServer() const { return false; }
-        virtual AllowedOnSecondary secondaryAllowed(ServiceContext* context) const override {
-            return AllowedOnSecondary::kAlways;
-        }
-        virtual bool supportsWriteConcern(const BSONObj& cmd) const { return false; }
-    };
-
-    class LogApplicationMessageCommand : public AuditCommand {
-    public:
-        LogApplicationMessageCommand() : AuditCommand("logApplicationMessage") { }
-        virtual ~LogApplicationMessageCommand() { }
-        virtual std::string help() const override {
-            return "Log a custom application message string to the audit log. Must be a string."
-                   "Example: { logApplicationMessage: \"it's a trap!\" }";
-        }
-
-        // Our original implementation was based on 'logApplicationMessage' action type
-        // then we realized this command should also work when 'applicationMessage' action type
-        // is granted.
-        // To keep compatibility for users of 'logApplicationMessage' we need to override
-        // 'checkAuthForCommand' because its default implementation only allows AND predicate
-        // for set of action types. We need OR here.
-        Status checkAuthForOperation(OperationContext* opCtx,
-                                     const DatabaseName& dbname,
-                                     const BSONObj& cmdObj) const override {
-            auto authzSess = AuthorizationSession::get(opCtx->getClient());
-            if (authzSess->isAuthorizedForPrivilege(Privilege{ResourcePattern::forAnyNormalResource(), ActionType::logApplicationMessage}) ||
-                authzSess->isAuthorizedForPrivilege(Privilege{ResourcePattern::forClusterResource(), ActionType::applicationMessage}))
-                return Status::OK();
-            return Status(ErrorCodes::Unauthorized, "unauthorized");
-        }
-
-        // If we will ever remove 'logApplicationMessage' action type
-        // we can return to this implementation instead of 'checkAuthForCommand' override
-        //virtual void addRequiredPrivileges(const std::string& dbname,
-        //                                   const BSONObj& cmdObj,
-        //                                   std::vector<Privilege>* out) const override {
-        //    out->push_back(Privilege{ResourcePattern::forClusterResource(), ActionType::applicationMessage});
-        //}
-
-        bool errmsgRun(OperationContext* txn, const std::string& dbname, const BSONObj& jsobj, std::string& errmsg, BSONObjBuilder& result) override {
-            bool ok = true;
-            const BSONElement &e = jsobj["logApplicationMessage"];
-
-            if (e.type() == String) {
-                audit::logApplicationMessage(Client::getCurrent(), e.checkAndGetStringData());
-            } else {
-                errmsg = "logApplicationMessage only accepts string messages";
-                ok = false;
-            }
-            return ok;
-        }
-    } cmdLogApplicationMessage;
-
-    class AuditGetOptionsCommand : public AuditCommand {
-    public:
-        AuditGetOptionsCommand() : AuditCommand("auditGetOptions") { }
-        virtual ~AuditGetOptionsCommand() { }
-        virtual std::string help() const override {
-            return "Get the options the audit system is currently using"
-                   "Example: { auditGetOptions: 1 }";
-        }
-
-        Status checkAuthForOperation(OperationContext*,
-                                     const DatabaseName&,
-                                     const BSONObj&) const override {
-            return Status::OK();
-        }
-
-        bool errmsgRun(OperationContext* txn, const std::string& dbname, const BSONObj& jsobj, std::string& errmsg, BSONObjBuilder& result) override {
-            result.appendElements(auditOptions.toBSON());
-            return true;
-        }
-    };
-
-    // so tests can determine where the audit log lives
-    MONGO_INITIALIZER(RegisterAuditGetOptionsCommand)(InitializerContext* context) {
-        if (getTestCommandsEnabled()) {
-            // Leaked intentionally: a Command registers itself when constructed.
-            new AuditGetOptionsCommand();
-        }
+class AuditCommand : public ErrmsgCommandDeprecated {
+public:
+    AuditCommand(const char* name, const char* oldName = NULL)
+        : ErrmsgCommandDeprecated(name, oldName) {}
+    virtual ~AuditCommand() {}
+    // TODO: Investigate if any other Command class virtual
+    // methods need to be overridden.
+    virtual bool isWriteCommandForConfigServer() const {
+        return false;
     }
+    virtual AllowedOnSecondary secondaryAllowed(ServiceContext* context) const override {
+        return AllowedOnSecondary::kAlways;
+    }
+    virtual bool supportsWriteConcern(const BSONObj& cmd) const {
+        return false;
+    }
+};
+
+class LogApplicationMessageCommand : public AuditCommand {
+public:
+    LogApplicationMessageCommand() : AuditCommand("logApplicationMessage") {}
+    virtual ~LogApplicationMessageCommand() {}
+    virtual std::string help() const override {
+        return "Log a custom application message string to the audit log. Must be a string."
+               "Example: { logApplicationMessage: \"it's a trap!\" }";
+    }
+
+    // Our original implementation was based on 'logApplicationMessage' action type
+    // then we realized this command should also work when 'applicationMessage' action type
+    // is granted.
+    // To keep compatibility for users of 'logApplicationMessage' we need to override
+    // 'checkAuthForCommand' because its default implementation only allows AND predicate
+    // for set of action types. We need OR here.
+    Status checkAuthForOperation(OperationContext* opCtx,
+                                 const DatabaseName& dbname,
+                                 const BSONObj& cmdObj) const override {
+        auto authzSess = AuthorizationSession::get(opCtx->getClient());
+        if (authzSess->isAuthorizedForPrivilege(Privilege{ResourcePattern::forAnyNormalResource(),
+                                                          ActionType::logApplicationMessage}) ||
+            authzSess->isAuthorizedForPrivilege(
+                Privilege{ResourcePattern::forClusterResource(), ActionType::applicationMessage}))
+            return Status::OK();
+        return Status(ErrorCodes::Unauthorized, "unauthorized");
+    }
+
+    // If we will ever remove 'logApplicationMessage' action type
+    // we can return to this implementation instead of 'checkAuthForCommand' override
+    // virtual void addRequiredPrivileges(const std::string& dbname,
+    //                                   const BSONObj& cmdObj,
+    //                                   std::vector<Privilege>* out) const override {
+    //    out->push_back(Privilege{ResourcePattern::forClusterResource(),
+    //    ActionType::applicationMessage});
+    //}
+
+    bool errmsgRun(OperationContext* txn,
+                   const std::string& dbname,
+                   const BSONObj& jsobj,
+                   std::string& errmsg,
+                   BSONObjBuilder& result) override {
+        bool ok = true;
+        const BSONElement& e = jsobj["logApplicationMessage"];
+
+        if (e.type() == String) {
+            audit::logApplicationMessage(Client::getCurrent(), e.checkAndGetStringData());
+        } else {
+            errmsg = "logApplicationMessage only accepts string messages";
+            ok = false;
+        }
+        return ok;
+    }
+} cmdLogApplicationMessage;
+
+class AuditGetOptionsCommand : public AuditCommand {
+public:
+    AuditGetOptionsCommand() : AuditCommand("auditGetOptions") {}
+    virtual ~AuditGetOptionsCommand() {}
+    virtual std::string help() const override {
+        return "Get the options the audit system is currently using"
+               "Example: { auditGetOptions: 1 }";
+    }
+
+    Status checkAuthForOperation(OperationContext*,
+                                 const DatabaseName&,
+                                 const BSONObj&) const override {
+        return Status::OK();
+    }
+
+    bool errmsgRun(OperationContext* txn,
+                   const std::string& dbname,
+                   const BSONObj& jsobj,
+                   std::string& errmsg,
+                   BSONObjBuilder& result) override {
+        result.appendElements(auditOptions.toBSON());
+        return true;
+    }
+};
+
+// so tests can determine where the audit log lives
+MONGO_INITIALIZER(RegisterAuditGetOptionsCommand)(InitializerContext* context) {
+    if (getTestCommandsEnabled()) {
+        // Leaked intentionally: a Command registers itself when constructed.
+        new AuditGetOptionsCommand();
+    }
+}
 
 }  // namespace mongo

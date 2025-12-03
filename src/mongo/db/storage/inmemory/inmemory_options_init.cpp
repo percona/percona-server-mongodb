@@ -53,4 +53,4 @@ MONGO_STARTUP_OPTIONS_STORE(InMemoryOptions)(InitializerContext* context) {
         ::_exit(static_cast<int>(ExitCode::badOptions));
     }
 }
-}
+}  // namespace mongo

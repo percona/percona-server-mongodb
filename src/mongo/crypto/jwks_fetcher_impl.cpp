@@ -30,9 +30,9 @@
 #include "mongo/crypto/jwks_fetcher_impl.h"
 
 #include "mongo/bson/json.h"
+#include "mongo/crypto/jwt_parameters_gen.h"
 #include "mongo/db/auth/oauth_discovery_factory.h"
 #include "mongo/db/commands/test_commands_enabled.h"
-#include "mongo/crypto/jwt_parameters_gen.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/net/http_client.h"
@@ -40,7 +40,10 @@
 namespace mongo::crypto {
 
 JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath)
-    : _issuer(issuer), _caFilePath(caFilePath), _clock(clock), _lastSuccessfulFetch(Date_t::min()) {}
+    : _issuer(issuer),
+      _caFilePath(caFilePath),
+      _clock(clock),
+      _lastSuccessfulFetch(Date_t::min()) {}
 
 JWKSet JWKSFetcherImpl::fetch() {
     try {

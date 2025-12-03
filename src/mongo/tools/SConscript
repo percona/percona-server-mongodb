@@ -18,7 +18,7 @@ perconadecrypt = env.Program(
         'perconadecrypt.cpp',
         'perconadecrypt_options.cpp',
         'perconadecrypt_options.idl',
-        'perconadecrypt_options_init.cpp'
+        'perconadecrypt_options_init.cpp',
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/encryption/encryption_options',
@@ -27,4 +27,3 @@ perconadecrypt = env.Program(
     ],
     AIB_COMPONENT='perconadecrypt',
 )
-

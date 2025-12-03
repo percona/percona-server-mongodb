@@ -39,7 +39,6 @@ namespace percona {
 /**
  * Storage engine extension interface.
  */
-class EngineExtension : public Backupable, public KeyDBAPI {
-};
+class EngineExtension : public Backupable, public KeyDBAPI {};
 
-}  // end of percona namespace.
+}  // namespace percona

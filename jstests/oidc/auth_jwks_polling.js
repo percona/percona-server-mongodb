@@ -1,10 +1,9 @@
 import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
 
 const pollingIntervalSecs = 3;
-const sleepMargin = 0.1  // 10%
+const sleepMargin = 0.1;  // 10%
 const sleepTime = pollingIntervalSecs * 1000;
 const sleepTimeMargin = sleepMargin * sleepTime;
-
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
