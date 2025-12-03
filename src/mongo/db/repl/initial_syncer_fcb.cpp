@@ -464,8 +464,8 @@ bool InitialSyncerFCB::_isShuttingDown_inlock() const {
 std::string InitialSyncerFCB::getDiagnosticString() const {
     LockGuard lk(_mutex);
     str::stream out;
-    out << "InitialSyncerFCB -" << " active: " << _isActive_inlock()
-        << " shutting down: " << _isShuttingDown_inlock();
+    out << "InitialSyncerFCB -"
+        << " active: " << _isActive_inlock() << " shutting down: " << _isShuttingDown_inlock();
     if (_initialSyncState) {
         out << " opsAppied: " << _initialSyncState->appliedOps;
     }
@@ -1449,8 +1449,11 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
     }
 
     // Check directoryperdb and wiredTigerDirectoryForIndexes via getParameter command.
-    executor::RemoteCommandRequest getParameterRequest(
-        syncSource, "admin", BSON("getParameter" << "*"), nullptr);
+    executor::RemoteCommandRequest getParameterRequest(syncSource,
+                                                       "admin",
+                                                       BSON("getParameter"
+                                                            << "*"),
+                                                       nullptr);
     scheduleResult =
         (*_attemptExec)
             ->scheduleRemoteCommand(
@@ -2378,9 +2381,7 @@ void InitialSyncerFCB::_executeRecovery(
 
     auto* serviceCtx = opCtx->getServiceContext();
     inReplicationRecovery(serviceCtx) = true;
-    ON_BLOCK_EXIT([serviceCtx] {
-        inReplicationRecovery(serviceCtx) = false;
-    });
+    ON_BLOCK_EXIT([serviceCtx] { inReplicationRecovery(serviceCtx) = false; });
 
     _replicationProcess->getReplicationRecovery()->recoverFromOplogAsStandalone(opCtx.get(), true);
 

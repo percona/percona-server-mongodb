@@ -49,21 +49,27 @@ const verifyCommand = (test, name, command) => {
     assert(command.secondaryOk, `${name} command should have secondaryOk=true`);
 
     var conn = test.create_conn();
-    const runCommandParam = { [name]: 1 };
+    const runCommandParam = {[name]: 1};
 
     // expect the command to fail without auth
-    assert.commandFailedWithCode(conn.getDB("admin").runCommand(runCommandParam), ErrorCodes.Unauthorized, `${name} command should fail without auth`);
+    assert.commandFailedWithCode(conn.getDB("admin").runCommand(runCommandParam),
+                                 ErrorCodes.Unauthorized,
+                                 `${name} command should fail without auth`);
 
     // expect the command to fail without authorization on admin db
     assert(test.auth(conn, "user"), "Failed to authenticate");
-    test.assert_authenticated(conn, "test/user", [{ role: "readWrite", db: "test_db" }]);
-    assert.commandFailedWithCode(conn.getDB("admin").runCommand(runCommandParam), ErrorCodes.Unauthorized, `${name} command should fail with auth but not with authz on admin`);
+    test.assert_authenticated(conn, "test/user", [{role: "readWrite", db: "test_db"}]);
+    assert.commandFailedWithCode(
+        conn.getDB("admin").runCommand(runCommandParam),
+        ErrorCodes.Unauthorized,
+        `${name} command should fail with auth but not with authz on admin`);
 
     // expect the command to work when run as admin
     var adminConn = test.create_conn();
     assert(test.auth(adminConn, "admin"), "Failed to authenticate");
-    test.assert_authenticated(adminConn, "test/admin", [{ role: "root", db: "admin" }]);
-    assert.commandWorked(adminConn.getDB("admin").runCommand(runCommandParam), `${name} command should work`);
+    test.assert_authenticated(adminConn, "test/admin", [{role: "root", db: "admin"}]);
+    assert.commandWorked(adminConn.getDB("admin").runCommand(runCommandParam),
+                         `${name} command should work`);
 };
 
 function test_oidc_commands_work_only_if_user_has_sufficient_privileges(clusterClass) {

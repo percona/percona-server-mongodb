@@ -153,7 +153,9 @@ class MultiVersionDownloader(object):  # pylint: disable=too-many-instance-attri
         """Return the download and generic download links."""
         temp_file = tempfile.mktemp()
         # the upstream file was at: https://downloads.mongodb.org/full.json
-        download_file("https://raw.githubusercontent.com/Percona-QA/psmdb-misc-scripts/master/psmdb_download_links.json", temp_file)
+        download_file(
+            "https://raw.githubusercontent.com/Percona-QA/psmdb-misc-scripts/master/psmdb_download_links.json",
+            temp_file)
         with open(temp_file) as file_handle:
             full_json = json.load(file_handle)
         os.remove(temp_file)

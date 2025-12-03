@@ -71,4 +71,4 @@ SecureString readFileToSecureString(const std::string& path, const std::string& 
     f >> *data;
     return data;
 }
-}
+}  // namespace mongo::encryption::detail

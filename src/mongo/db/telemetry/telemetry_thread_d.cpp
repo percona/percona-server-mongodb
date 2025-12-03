@@ -31,7 +31,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include <boost/filesystem.hpp>  // IWYU pragma: keep
 #include <boost/optional/optional.hpp>
-#include <fmt/format.h>          // IWYU pragma: keep
+#include <fmt/format.h>  // IWYU pragma: keep
 #include <fstream>
 #include <memory>
 #include <vector>
@@ -107,8 +107,8 @@ encryption::VaultClient createVaultClient() {
     // Without the token the response will be shorter but the fields we need should be available.
     return encryption::VaultClient(encryptionGlobalParams.vaultServerName,
                                    encryptionGlobalParams.vaultPort,
-                                   "", // encryptionGlobalParams.vaultToken,
-                                   "", // encryptionGlobalParams.vaultTokenFile,
+                                   "",  // encryptionGlobalParams.vaultToken,
+                                   "",  // encryptionGlobalParams.vaultTokenFile,
                                    encryptionGlobalParams.vaultServerCAFile,
                                    encryptionGlobalParams.vaultCheckMaxVersions,
                                    encryptionGlobalParams.vaultDisableTLS,

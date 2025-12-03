@@ -84,8 +84,7 @@ const KeyId* getKeyIdPtr() {
 
 class EncryptionSSS : public ServerStatusSection {
 public:
-    EncryptionSSS() : 
-        ServerStatusSection(kEncryptionSSSName.toString()) {}
+    EncryptionSSS() : ServerStatusSection(kEncryptionSSSName.toString()) {}
 
     bool includeByDefault() const override {
         return true;

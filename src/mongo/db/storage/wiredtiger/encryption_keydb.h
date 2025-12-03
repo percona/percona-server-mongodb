@@ -45,8 +45,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-class EncryptionKeyDB
-{
+class EncryptionKeyDB {
 public:
     ~EncryptionKeyDB();
 
@@ -84,24 +83,26 @@ public:
     // returns encryption key from keys DB
     // create key if it does not exists
     // return key from keyfile if len == 0
-    int get_key_by_id(const char *keyid, size_t len, unsigned char *key, void *pe);
+    int get_key_by_id(const char* keyid, size_t len, unsigned char* key, void* pe);
 
     // drop key for specific keyid (used in dropDatabase)
-    int delete_key_by_id(const std::string&  keyid);
+    int delete_key_by_id(const std::string& keyid);
 
     // get new counter value for IV in GCM mode
-    int get_iv_gcm(uint8_t *buf, int len);
+    int get_iv_gcm(uint8_t* buf, int len);
 
     // len should be multiple of 4
-    void store_pseudo_bytes(uint8_t *buf, int len);
+    void store_pseudo_bytes(uint8_t* buf, int len);
 
     // get connection for hot backup procedure to create backup
-    WT_CONNECTION*  getConnection() const { return _conn; }
+    WT_CONNECTION* getConnection() const {
+        return _conn;
+    }
 
     // reconfigure wiredtiger (used for downgrade)
     // after reconfiguration this instance is not fully functional
     // for example _sess pointer is null
-    void reconfigure(const char *);
+    void reconfigure(const char*);
 
     // generate secure encryption key
     // _srng use protected by _lock_key
@@ -149,11 +150,13 @@ private:
     const bool _rotation;
     const std::string _path;
     std::string _wtOpenConfig;
-    WT_CONNECTION *_conn = nullptr;
+    WT_CONNECTION* _conn = nullptr;
     stdx::recursive_mutex _lock;  // _prng, _gcm_iv, _gcm_iv_reserved
     Mutex _lock_sess = MONGO_MAKE_LATCH("EncryptionKeyDB::_lock_sess");  // _sess
-    Mutex _lock_key = MONGO_MAKE_LATCH("EncryptionKeyDB::_lock_key");  // serialize access to the encryption keys table, also protects _srng
-    WT_SESSION *_sess = nullptr;
+    Mutex _lock_key =
+        MONGO_MAKE_LATCH("EncryptionKeyDB::_lock_key");  // serialize access to the encryption keys
+                                                         // table, also protects _srng
+    WT_SESSION* _sess = nullptr;
     std::unique_ptr<SecureRandom> _srng;
     std::unique_ptr<PseudoRandom> _prng;
     encryption::Key _masterkey;

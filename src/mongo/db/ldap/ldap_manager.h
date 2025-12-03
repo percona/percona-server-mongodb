@@ -32,8 +32,8 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 #pragma once
 
 #include "mongo/base/status.h"
-#include "mongo/db/auth/user_name.h"
 #include "mongo/db/auth/role_name.h"
+#include "mongo/db/auth/user_name.h"
 #include "mongo/db/service_context.h"
 #include "mongo/stdx/unordered_set.h"
 
@@ -54,7 +54,8 @@ public:
 
     virtual void start_threads() = 0;
 
-    virtual Status queryUserRoles(const UserName& userName, stdx::unordered_set<RoleName>& roles) = 0;
+    virtual Status queryUserRoles(const UserName& userName,
+                                  stdx::unordered_set<RoleName>& roles) = 0;
 
     virtual Status mapUserToDN(const std::string& user, std::string& out) = 0;
 };
