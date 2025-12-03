@@ -31,15 +31,16 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <boost/optional.hpp>
+#include "mongo/crypto/jwk_manager.h"
+#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
+#include "mongo/db/service_context.h"
+
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "mongo/crypto/jwk_manager.h"
-#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
-#include "mongo/db/service_context.h"
+#include <boost/optional.hpp>
 
 namespace mongo {
 

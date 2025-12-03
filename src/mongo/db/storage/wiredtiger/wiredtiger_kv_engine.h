@@ -737,9 +737,15 @@ private:
     };
 
     // srcPath, destPath, session, cursor
-    typedef std::tuple<boost::filesystem::path, boost::filesystem::path, std::shared_ptr<WiredTigerSession>, WT_CURSOR*> DBTuple;
+    typedef std::tuple<boost::filesystem::path,
+                       boost::filesystem::path,
+                       std::shared_ptr<WiredTigerSession>,
+                       WT_CURSOR*>
+        DBTuple;
     // srcPath, destPath, filename, size to copy
-    typedef std::tuple<boost::filesystem::path, boost::filesystem::path, boost::uintmax_t, std::time_t> FileTuple;
+    typedef std::
+        tuple<boost::filesystem::path, boost::filesystem::path, boost::uintmax_t, std::time_t>
+            FileTuple;
 
     Status _createRecordStore(const NamespaceString& ns,
                               StringData ident,

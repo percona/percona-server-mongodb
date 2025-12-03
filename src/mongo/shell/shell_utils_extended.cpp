@@ -60,8 +60,8 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
-#include "mongo/bson/json.h"
 #include "mongo/bson/column/bsoncolumn.h"
+#include "mongo/bson/json.h"
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/scripting/engine.h"
 #include "mongo/shell/shell_utils.h"

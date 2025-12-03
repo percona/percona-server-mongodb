@@ -29,21 +29,21 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <stdio.h>
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-//#include <assert>
+// #include <assert>
 
-#include <openssl/conf.h>
-#include <openssl/evp.h>
-#include <openssl/err.h>
+#include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
-#include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
+#include <openssl/conf.h>
+#include <openssl/err.h>
+#include <openssl/evp.h>
 
 #define KEY_LEN 32
 #define GCM_TAG_LEN 16
@@ -52,14 +52,14 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 typedef struct {
     // WT_ENCRYPTOR must be the first field
     WT_ENCRYPTOR encryptor;
-    WT_EXTENSION_API *wt_api;
-    const EVP_CIPHER *cipher;
+    WT_EXTENSION_API* wt_api;
+    const EVP_CIPHER* cipher;
     int iv_len;
     unsigned char key[KEY_LEN];
-    uint32_t (*wiredtiger_checksum_crc32c)(const void *, size_t);
-    void (*store_pseudo_bytes)(uint8_t *buf, int len);
-    int (*get_iv_gcm)(uint8_t *buf, int len);
-    int (*get_key_by_id)(const char *keyid, size_t len, unsigned char *key, void *pe);
+    uint32_t (*wiredtiger_checksum_crc32c)(const void*, size_t);
+    void (*store_pseudo_bytes)(uint8_t* buf, int len);
+    int (*get_iv_gcm)(uint8_t* buf, int len);
+    int (*get_key_by_id)(const char* keyid, size_t len, unsigned char* key, void* pe);
 } PERCONA_ENCRYPTOR;
 
 
@@ -67,7 +67,8 @@ static const bool printDebugMessages = false;
 #define DBG if (printDebugMessages)
 #define DBG_MSG(...) DBG pe->wt_api->msg_printf(pe->wt_api, session, __VA_ARGS__)
 
-// define DBG_ENC_EXT to enable verbose debugging info (size of data before and after encryption, used key)
+// define DBG_ENC_EXT to enable verbose debugging info (size of data before and after encryption,
+// used key)
 #ifdef DBG_ENC_EXT
 typedef struct {
     size_t src_len;
@@ -77,26 +78,23 @@ typedef struct {
 } DEBUG_DATA;
 #endif
 
-static int report_error(
-    PERCONA_ENCRYPTOR *pe, WT_SESSION *session, int err, const char *msg)
-{
-    WT_EXTENSION_API *wt_api;
+static int report_error(PERCONA_ENCRYPTOR* pe, WT_SESSION* session, int err, const char* msg) {
+    WT_EXTENSION_API* wt_api;
 
     wt_api = pe->wt_api;
-    (void)wt_api->err_printf(wt_api, session,
-                             "encryption: %s: %s", msg, wt_api->strerror(wt_api, NULL, err));
+    (void)wt_api->err_printf(
+        wt_api, session, "encryption: %s: %s", msg, wt_api->strerror(wt_api, NULL, err));
     return err;
 }
 
 typedef struct {
-    WT_EXTENSION_API *wt_api;
-    WT_SESSION *session;
-    int *pret;
+    WT_EXTENSION_API* wt_api;
+    WT_SESSION* session;
+    int* pret;
 } ERR_PARAM;
 
-static void print_errors_cb(int (*cb) (const char *str, size_t len, void *u, unsigned long ecode),
-                         void *u)
-{
+static void print_errors_cb(int (*cb)(const char* str, size_t len, void* u, unsigned long ecode),
+                            void* u) {
     unsigned long l;
     char buf[256];
     char buf2[4096];
@@ -105,27 +103,30 @@ static void print_errors_cb(int (*cb) (const char *str, size_t len, void *u, uns
 
     while ((l = ERR_get_error_line_data(&file, &line, &data, &flags)) != 0) {
         ERR_error_string_n(l, buf, sizeof(buf));
-        BIO_snprintf(buf2, sizeof(buf2), "%s:%s:%d:%s\n", buf,
-                     file, line, (flags & ERR_TXT_STRING) ? data : "");
+        BIO_snprintf(buf2,
+                     sizeof(buf2),
+                     "%s:%s:%d:%s\n",
+                     buf,
+                     file,
+                     line,
+                     (flags & ERR_TXT_STRING) ? data : "");
         if (cb(buf2, strlen(buf2), u, l) <= 0)
-            break;              /* abort outputting the error report */
+            break; /* abort outputting the error report */
     }
 }
 
 // callback for print_errors_cb
-static int err_print_cb(const char *str, size_t len, void *param, unsigned long ecode) {
-    ERR_PARAM *p = (ERR_PARAM*)param;
-    p->wt_api->err_printf(p->wt_api, p->session,
-                              "libcrypto: %s", str);
+static int err_print_cb(const char* str, size_t len, void* param, unsigned long ecode) {
+    ERR_PARAM* p = (ERR_PARAM*)param;
+    p->wt_api->err_printf(p->wt_api, p->session, "libcrypto: %s", str);
     if (ERR_GET_REASON(ecode) == EVP_R_BAD_DECRYPT) {
         *(p->pret) = WT_PANIC;
-        p->wt_api->err_printf(p->wt_api, p->session,
-                              "setting return code to WT_PANIC");
+        p->wt_api->err_printf(p->wt_api, p->session, "setting return code to WT_PANIC");
     }
     return 1;
 }
 
-static int handleErrors(PERCONA_ENCRYPTOR *pe, WT_SESSION *session, int *pret) {
+static int handleErrors(PERCONA_ENCRYPTOR* pe, WT_SESSION* session, int* pret) {
     ERR_PARAM param;
     param.wt_api = pe->wt_api;
     param.session = session;
@@ -135,8 +136,7 @@ static int handleErrors(PERCONA_ENCRYPTOR *pe, WT_SESSION *session, int *pret) {
     return 0;
 }
 
-static char value_type_char(int type)
-{
+static char value_type_char(int type) {
     switch (type) {
         case WT_CONFIG_ITEM_STRING:
             return 's';
@@ -152,11 +152,15 @@ static char value_type_char(int type)
     return 'x';
 }
 
-static void dump_key(PERCONA_ENCRYPTOR *pe, WT_SESSION *session, unsigned char *key, const int _key_len, const char * msg) {
+static void dump_key(PERCONA_ENCRYPTOR* pe,
+                     WT_SESSION* session,
+                     unsigned char* key,
+                     const int _key_len,
+                     const char* msg) {
     const char* m = "0123456789ABCDEF";
     char buf[_key_len * 3 + 1];
-    char* p=buf;
-    for (int i=0; i<_key_len; ++i) {
+    char* p = buf;
+    for (int i = 0; i < _key_len; ++i) {
         *p++ = m[*key >> 4];
         *p++ = m[*key & 0xf];
         *p++ = ' ';
@@ -166,23 +170,31 @@ static void dump_key(PERCONA_ENCRYPTOR *pe, WT_SESSION *session, unsigned char *
     DBG_MSG("%s: %s", msg, buf);
 }
 
-static int dump_config_arg(PERCONA_ENCRYPTOR *pe, WT_SESSION *session, WT_CONFIG_ARG *config) {
-    WT_EXTENSION_API *wt_api = pe->wt_api;
-    WT_CONFIG_PARSER *parser = NULL;
+static int dump_config_arg(PERCONA_ENCRYPTOR* pe, WT_SESSION* session, WT_CONFIG_ARG* config) {
+    WT_EXTENSION_API* wt_api = pe->wt_api;
+    WT_CONFIG_PARSER* parser = NULL;
     int ret = wt_api->config_parser_open_arg(wt_api, session, config, &parser);
     if (ret != 0)
         return ret;
     WT_CONFIG_ITEM k, v;
     while ((ret = parser->next(parser, &k, &v)) == 0) {
-        DBG_MSG("%c%c:%.*s:%.*s", value_type_char(k.type), value_type_char(v.type), (int)k.len, k.str, (int)v.len, v.str);
+        DBG_MSG("%c%c:%.*s:%.*s",
+                value_type_char(k.type),
+                value_type_char(v.type),
+                (int)k.len,
+                k.str,
+                (int)v.len,
+                v.str);
     }
     parser->close(parser);
     return 0;
 }
 
-static int parse_customization_config(PERCONA_ENCRYPTOR *pe, WT_SESSION *session, WT_CONFIG_ARG *config) {
-    WT_EXTENSION_API *wt_api = pe->wt_api;
-    WT_CONFIG_PARSER *parser = NULL;
+static int parse_customization_config(PERCONA_ENCRYPTOR* pe,
+                                      WT_SESSION* session,
+                                      WT_CONFIG_ARG* config) {
+    WT_EXTENSION_API* wt_api = pe->wt_api;
+    WT_CONFIG_PARSER* parser = NULL;
     int ret = wt_api->config_parser_open_arg(wt_api, session, config, &parser);
     if (ret != 0)
         return ret;
@@ -199,49 +211,52 @@ static int parse_customization_config(PERCONA_ENCRYPTOR *pe, WT_SESSION *session
     return ret;
 }
 
-static void store_IV(PERCONA_ENCRYPTOR *pe, uint8_t *dst) {
+static void store_IV(PERCONA_ENCRYPTOR* pe, uint8_t* dst) {
     uint8_t buf[pe->iv_len];
     (pe->store_pseudo_bytes)(buf, pe->iv_len);
-    //TODO: encrypt pseudo bytes same way as PS does
+    // TODO: encrypt pseudo bytes same way as PS does
     memcpy(dst, buf, pe->iv_len);
 }
 
-static int panic_encrypt(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    uint8_t *src, size_t src_len,
-    uint8_t *dst, size_t dst_len,
-    size_t *result_lenp)
-{
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+static int panic_encrypt(WT_ENCRYPTOR* encryptor,
+                         WT_SESSION* session,
+                         uint8_t* src,
+                         size_t src_len,
+                         uint8_t* dst,
+                         size_t dst_len,
+                         size_t* result_lenp) {
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("wiredTiger attempted to encrypt data block after encryptor paniced");
     return WT_PANIC;
 }
 
-static int percona_encrypt_cbc(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    uint8_t *src, size_t src_len,
-    uint8_t *dst, size_t dst_len,
-    size_t *result_lenp)
-{
+static int percona_encrypt_cbc(WT_ENCRYPTOR* encryptor,
+                               WT_SESSION* session,
+                               uint8_t* src,
+                               size_t src_len,
+                               uint8_t* dst,
+                               size_t dst_len,
+                               size_t* result_lenp) {
     int ret = EINVAL;
     int encrypted_len = 0;
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("entering encrypt %lu %lu", src_len, dst_len);
     if (dst_len < pe->iv_len + src_len + EVP_CIPHER_block_size(pe->cipher))
-        return (report_error(pe, session,
-                ENOMEM, "encrypt buffer not big enough"));
+        return (report_error(pe, session, ENOMEM, "encrypt buffer not big enough"));
 
     *result_lenp = 0;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX ctx_value;
-    EVP_CIPHER_CTX *ctx= &ctx_value;
+    EVP_CIPHER_CTX* ctx = &ctx_value;
     EVP_CIPHER_CTX_init(ctx);
 #else
-    EVP_CIPHER_CTX *ctx= EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     if (!ctx)
         goto err;
 #endif
 
 #ifdef DBG_ENC_EXT
-    DEBUG_DATA *dbg_data = (DEBUG_DATA*)dst;
+    DEBUG_DATA* dbg_data = (DEBUG_DATA*)dst;
     *result_lenp += sizeof(DEBUG_DATA);
     dbg_data->src_len = src_len;
     dbg_data->dst_len = dst_len;
@@ -252,18 +267,18 @@ static int percona_encrypt_cbc(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
     *(uint32_t*)(dst + *result_lenp) = (pe->wiredtiger_checksum_crc32c)(src, src_len);
     *result_lenp += CHKSUM_LEN;
 
-    uint8_t *iv = dst + *result_lenp;
+    uint8_t* iv = dst + *result_lenp;
     store_IV(pe, iv);
     *result_lenp += pe->iv_len;
 
-    if(1 != EVP_EncryptInit_ex(ctx, pe->cipher, NULL, pe->key, iv))
+    if (1 != EVP_EncryptInit_ex(ctx, pe->cipher, NULL, pe->key, iv))
         goto err;
 
-    if(1 != EVP_EncryptUpdate(ctx, dst + *result_lenp, &encrypted_len, src, src_len))
+    if (1 != EVP_EncryptUpdate(ctx, dst + *result_lenp, &encrypted_len, src, src_len))
         goto err;
     *result_lenp += encrypted_len;
 
-    if(1 != EVP_EncryptFinal_ex(ctx, dst + *result_lenp, &encrypted_len))
+    if (1 != EVP_EncryptFinal_ex(ctx, dst + *result_lenp, &encrypted_len))
         goto err;
     *result_lenp += encrypted_len;
 
@@ -286,26 +301,27 @@ cleanup:
     return ret;
 }
 
-static int percona_encrypt_gcm(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    uint8_t *src, size_t src_len,
-    uint8_t *dst, size_t dst_len,
-    size_t *result_lenp)
-{
+static int percona_encrypt_gcm(WT_ENCRYPTOR* encryptor,
+                               WT_SESSION* session,
+                               uint8_t* src,
+                               size_t src_len,
+                               uint8_t* dst,
+                               size_t dst_len,
+                               size_t* result_lenp) {
     int ret = EINVAL;
     int encrypted_len = 0;
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("entering encrypt %lu %lu", src_len, dst_len);
     if (dst_len < pe->iv_len + src_len + GCM_TAG_LEN)
-        return (report_error(pe, session,
-                ENOMEM, "encrypt buffer not big enough"));
+        return (report_error(pe, session, ENOMEM, "encrypt buffer not big enough"));
 
     *result_lenp = 0;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX ctx_value;
-    EVP_CIPHER_CTX *ctx= &ctx_value;
+    EVP_CIPHER_CTX* ctx = &ctx_value;
     EVP_CIPHER_CTX_init(ctx);
 #else
-    EVP_CIPHER_CTX *ctx= EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     if (!ctx)
         goto err;
 #endif
@@ -316,21 +332,21 @@ static int percona_encrypt_gcm(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
     }
     *result_lenp += pe->iv_len;
 
-    if(1 != EVP_EncryptInit_ex(ctx, pe->cipher, NULL, pe->key, dst))
+    if (1 != EVP_EncryptInit_ex(ctx, pe->cipher, NULL, pe->key, dst))
         goto err;
 
     // we don't provide any AAD data yet
 
-    if(1 != EVP_EncryptUpdate(ctx, dst + *result_lenp, &encrypted_len, src, src_len))
+    if (1 != EVP_EncryptUpdate(ctx, dst + *result_lenp, &encrypted_len, src, src_len))
         goto err;
     *result_lenp += encrypted_len;
 
-    if(1 != EVP_EncryptFinal_ex(ctx, dst + *result_lenp, &encrypted_len))
+    if (1 != EVP_EncryptFinal_ex(ctx, dst + *result_lenp, &encrypted_len))
         goto err;
     *result_lenp += encrypted_len;
 
     // get the tag
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_TAG_LEN, dst + *result_lenp))
+    if (1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_TAG_LEN, dst + *result_lenp))
         goto err;
     *result_lenp += GCM_TAG_LEN;
 
@@ -350,37 +366,43 @@ cleanup:
     return ret;
 }
 
-static int percona_decrypt_cbc(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    uint8_t *src, size_t src_len,
-    uint8_t *dst, size_t dst_len,
-    size_t *result_lenp)
-{
+static int percona_decrypt_cbc(WT_ENCRYPTOR* encryptor,
+                               WT_SESSION* session,
+                               uint8_t* src,
+                               size_t src_len,
+                               uint8_t* dst,
+                               size_t dst_len,
+                               size_t* result_lenp) {
     int ret = EINVAL;
     int decrypted_len = 0;
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     uint32_t crc32c = 0;
     DBG_MSG("entering decrypt %lu %lu", src_len, dst_len);
 
     *result_lenp = 0;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX ctx_value;
-    EVP_CIPHER_CTX *ctx= &ctx_value;
+    EVP_CIPHER_CTX* ctx = &ctx_value;
     EVP_CIPHER_CTX_init(ctx);
 #else
-    EVP_CIPHER_CTX *ctx= EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     if (!ctx)
         goto err;
 #endif
 
 #ifdef DBG_ENC_EXT
-    DEBUG_DATA *dbg_data = (DEBUG_DATA*)src;
-    char *key_msg = "";
+    DEBUG_DATA* dbg_data = (DEBUG_DATA*)src;
+    char* key_msg = "";
     if (memcmp(dbg_data->key, pe->key, KEY_LEN)) {
         key_msg = "(WRONG KEY)";
         dump_key(pe, session, dbg_data->key, KEY_LEN, "encrypt key");
         dump_key(pe, session, pe->key, KEY_LEN, "decrypt key");
     }
-    DBG_MSG("encrypt info s: %lu, d: %lu, r: %lu %s", dbg_data->src_len, dbg_data->dst_len, dbg_data->result_len, key_msg);
+    DBG_MSG("encrypt info s: %lu, d: %lu, r: %lu %s",
+            dbg_data->src_len,
+            dbg_data->dst_len,
+            dbg_data->result_len,
+            key_msg);
     src += sizeof(DEBUG_DATA);
     src_len -= sizeof(DEBUG_DATA);
 #endif
@@ -389,21 +411,25 @@ static int percona_decrypt_cbc(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
     src += CHKSUM_LEN;
     src_len -= CHKSUM_LEN;
 
-    if(1 != EVP_DecryptInit_ex(ctx, pe->cipher, NULL, pe->key, src))
+    if (1 != EVP_DecryptInit_ex(ctx, pe->cipher, NULL, pe->key, src))
         goto err;
     src += pe->iv_len;
     src_len -= pe->iv_len;
 
-    if(1 != EVP_DecryptUpdate(ctx, dst, &decrypted_len, src, src_len))
+    if (1 != EVP_DecryptUpdate(ctx, dst, &decrypted_len, src, src_len))
         goto err;
     *result_lenp += decrypted_len;
 
-    if(1 != EVP_DecryptFinal_ex(ctx, dst + *result_lenp, &decrypted_len))
+    if (1 != EVP_DecryptFinal_ex(ctx, dst + *result_lenp, &decrypted_len))
         goto err;
     *result_lenp += decrypted_len;
 
     if ((pe->wiredtiger_checksum_crc32c)(dst, *result_lenp) != crc32c) {
-        ret = report_error(pe, session, EINVAL, "Decrypted data integrity check has failed. Probably the encryption key was wrong.");
+        ret = report_error(
+            pe,
+            session,
+            EINVAL,
+            "Decrypted data integrity check has failed. Probably the encryption key was wrong.");
         ret = WT_PANIC;
         goto err;
     }
@@ -428,35 +454,37 @@ cleanup:
     return ret;
 }
 
-static int percona_decrypt_gcm(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    uint8_t *src, size_t src_len,
-    uint8_t *dst, size_t dst_len,
-    size_t *result_lenp)
-{
+static int percona_decrypt_gcm(WT_ENCRYPTOR* encryptor,
+                               WT_SESSION* session,
+                               uint8_t* src,
+                               size_t src_len,
+                               uint8_t* dst,
+                               size_t dst_len,
+                               size_t* result_lenp) {
     int ret = EINVAL;
     int decrypted_len = 0;
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("entering decrypt %lu %lu", src_len, dst_len);
 
     *result_lenp = 0;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX ctx_value;
-    EVP_CIPHER_CTX *ctx= &ctx_value;
+    EVP_CIPHER_CTX* ctx = &ctx_value;
     EVP_CIPHER_CTX_init(ctx);
 #else
-    EVP_CIPHER_CTX *ctx= EVP_CIPHER_CTX_new();
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     if (!ctx)
         goto err;
 #endif
 
-    if(1 != EVP_DecryptInit_ex(ctx, pe->cipher, NULL, pe->key, src))
+    if (1 != EVP_DecryptInit_ex(ctx, pe->cipher, NULL, pe->key, src))
         goto err;
     src += pe->iv_len;
     src_len -= pe->iv_len;
 
     // we have no AAD yet
 
-    if(1 != EVP_DecryptUpdate(ctx, dst, &decrypted_len, src, src_len - GCM_TAG_LEN))
+    if (1 != EVP_DecryptUpdate(ctx, dst, &decrypted_len, src, src_len - GCM_TAG_LEN))
         goto err;
     *result_lenp += decrypted_len;
     dst += decrypted_len;
@@ -464,10 +492,10 @@ static int percona_decrypt_gcm(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
     src_len = GCM_TAG_LEN;
 
     // Set expected tag value. Works in OpenSSL 1.0.1d and later
-    if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, GCM_TAG_LEN, src))
+    if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, GCM_TAG_LEN, src))
         goto err;
 
-    if(1 != EVP_DecryptFinal_ex(ctx, dst, &decrypted_len))
+    if (1 != EVP_DecryptFinal_ex(ctx, dst, &decrypted_len))
         goto err;
     *result_lenp += decrypted_len;
 
@@ -491,12 +519,12 @@ cleanup:
     return ret;
 }
 
-static int percona_sizing_cbc(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    size_t *expansion_constantp)
-{
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+static int percona_sizing_cbc(WT_ENCRYPTOR* encryptor,
+                              WT_SESSION* session,
+                              size_t* expansion_constantp) {
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("entering sizing");
-    (void)session;              /* Unused parameters */
+    (void)session; /* Unused parameters */
 
     *expansion_constantp = CHKSUM_LEN + pe->iv_len + EVP_CIPHER_block_size(pe->cipher);
 #ifdef DBG_ENC_EXT
@@ -505,26 +533,27 @@ static int percona_sizing_cbc(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
     return 0;
 }
 
-static int percona_sizing_gcm(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    size_t *expansion_constantp)
-{
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+static int percona_sizing_gcm(WT_ENCRYPTOR* encryptor,
+                              WT_SESSION* session,
+                              size_t* expansion_constantp) {
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("entering sizing");
-    (void)session;              /* Unused parameters */
+    (void)session; /* Unused parameters */
 
     *expansion_constantp = pe->iv_len + GCM_TAG_LEN;
     return 0;
 }
 
-static int percona_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    WT_CONFIG_ARG *encrypt_config, WT_ENCRYPTOR **customp)
-{
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+static int percona_customize(WT_ENCRYPTOR* encryptor,
+                             WT_SESSION* session,
+                             WT_CONFIG_ARG* encrypt_config,
+                             WT_ENCRYPTOR** customp) {
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("entering customize");
     DBG dump_config_arg(pe, session, encrypt_config);
-    PERCONA_ENCRYPTOR *cpe;
+    PERCONA_ENCRYPTOR* cpe;
     if ((cpe = calloc(1, sizeof(PERCONA_ENCRYPTOR))) == NULL)
-            return errno;
+        return errno;
     *cpe = *pe;
     // new instance passed to parse_customization_config because it should fill encryption key field
     int ret = parse_customization_config(cpe, session, encrypt_config);
@@ -536,10 +565,10 @@ static int percona_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
     return 0;
 }
 
-static int percona_sessioncreate(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
-    WT_CONFIG_ARG *encrypt_config)
-{
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+static int percona_sessioncreate(WT_ENCRYPTOR* encryptor,
+                                 WT_SESSION* session,
+                                 WT_CONFIG_ARG* encrypt_config) {
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("entering sessioncreate");
     DBG dump_config_arg(pe, session, encrypt_config);
     // get/generate encryption key
@@ -552,19 +581,17 @@ static int percona_sessioncreate(WT_ENCRYPTOR *encryptor, WT_SESSION *session,
     return ret;
 }
 
-static int percona_terminate(WT_ENCRYPTOR *encryptor, WT_SESSION *session)
-{
-    PERCONA_ENCRYPTOR *pe = (PERCONA_ENCRYPTOR*)encryptor;
+static int percona_terminate(WT_ENCRYPTOR* encryptor, WT_SESSION* session) {
+    PERCONA_ENCRYPTOR* pe = (PERCONA_ENCRYPTOR*)encryptor;
     DBG_MSG("entering terminate");
     free(encryptor);
     return 0;
 }
 
-static int init_from_config(PERCONA_ENCRYPTOR *pe, WT_CONFIG_ARG *config)
-{
-    WT_EXTENSION_API *wt_api = pe->wt_api;
+static int init_from_config(PERCONA_ENCRYPTOR* pe, WT_CONFIG_ARG* config) {
+    WT_EXTENSION_API* wt_api = pe->wt_api;
     bool cipherMode = false;
-    WT_CONFIG_PARSER *parser = NULL;
+    WT_CONFIG_PARSER* parser = NULL;
     int ret = wt_api->config_parser_open_arg(wt_api, NULL, config, &parser);
     if (ret != 0)
         return ret;
@@ -583,17 +610,16 @@ static int init_from_config(PERCONA_ENCRYPTOR *pe, WT_CONFIG_ARG *config)
                 pe->encryptor.encrypt = percona_encrypt_cbc;
                 pe->encryptor.decrypt = percona_decrypt_cbc;
                 pe->encryptor.sizing = percona_sizing_cbc;
-            }
-            else if (!strncmp("AES256-GCM", v.str, (int)v.len)) {
+            } else if (!strncmp("AES256-GCM", v.str, (int)v.len)) {
                 cipherMode = true;
                 pe->cipher = EVP_aes_256_gcm();
                 pe->encryptor.encrypt = percona_encrypt_gcm;
                 pe->encryptor.decrypt = percona_decrypt_gcm;
                 pe->encryptor.sizing = percona_sizing_gcm;
-            }
-            else
+            } else
                 return (report_error(pe, NULL, EINVAL, "specified cipher mode is not supported"));
-        } else if (!strncmp("rotation", k.str, (int)k.len) && v.type == WT_CONFIG_ITEM_BOOL && v.val != 0) {
+        } else if (!strncmp("rotation", k.str, (int)k.len) && v.type == WT_CONFIG_ITEM_BOOL &&
+                   v.val != 0) {
             // use rotation instance when it is explicitly specified
             pe->store_pseudo_bytes = &rotation_store_pseudo_bytes;
             pe->get_iv_gcm = &rotation_get_iv_gcm;
@@ -607,13 +633,13 @@ static int init_from_config(PERCONA_ENCRYPTOR *pe, WT_CONFIG_ARG *config)
     return 0;
 }
 
-int percona_encryption_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config) {
+int percona_encryption_extension_init(WT_CONNECTION* connection, WT_CONFIG_ARG* config) {
     int ret = 0;
-    PERCONA_ENCRYPTOR *pe;
-    WT_SESSION *session = NULL; // NULL session pointer for the DBG_MSG macro
+    PERCONA_ENCRYPTOR* pe;
+    WT_SESSION* session = NULL;  // NULL session pointer for the DBG_MSG macro
 
     if ((pe = calloc(1, sizeof(PERCONA_ENCRYPTOR))) == NULL)
-            return errno;
+        return errno;
 
     pe->wt_api = connection->get_extension_api(connection);
     DBG_MSG("hello from the percona_encryption_extension_init");
@@ -653,8 +679,8 @@ failure:
 // existing encryptor with old encryption key for specific keyid.
 // This function configures encryptor to give it a chance to get new
 // encryption key.)
-int percona_encryption_extension_drop_keyid(void *vp) {
-    PERCONA_ENCRYPTOR *pe = vp;
+int percona_encryption_extension_drop_keyid(void* vp) {
+    PERCONA_ENCRYPTOR* pe = vp;
     pe->encryptor.sessioncreate = percona_sessioncreate;
     return 0;
 }

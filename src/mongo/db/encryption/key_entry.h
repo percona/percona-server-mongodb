@@ -31,10 +31,10 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <memory>
-
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/encryption/key_id.h"
+
+#include <memory>
 
 namespace mongo::encryption {
 struct KeyEntry {

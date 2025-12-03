@@ -29,7 +29,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-//#include "mongo/base/init.h"
+// #include "mongo/base/init.h"
 #include "mongo/db/ratelimit_parameter_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/util/str.h"  // for str::stream()!
@@ -59,12 +59,12 @@ Status _set(int rateLimit) {
                       "cannot set both sampleRate and ratelimit to non-default values");
     }
     StringBuilder sb;
-    sb << "Bad value for profilingRateLimit: " << rateLimit
-       << ".  Supported range is 0-" << RATE_LIMIT_MAX;
+    sb << "Bad value for profilingRateLimit: " << rateLimit << ".  Supported range is 0-"
+       << RATE_LIMIT_MAX;
     return Status(ErrorCodes::BadValue, sb.str());
 }
 
-}
+}  // namespace
 
 Status RateLimitParameter::set(const BSONElement& newValueElement,
                                const boost::optional<TenantId>&) {
@@ -78,7 +78,8 @@ Status RateLimitParameter::setFromString(StringData newValueString,
                                          const boost::optional<TenantId>&) {
     int num = 0;
     Status status = NumberParser{}(newValueString, &num);
-    if (!status.isOK()) return status;
+    if (!status.isOK())
+        return status;
     return _set(num);
 }
 

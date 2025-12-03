@@ -29,13 +29,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <boost/filesystem.hpp>  // IWYU pragma: keep
-#include <boost/optional/optional.hpp>
-#include <fmt/format.h>          // IWYU pragma: keep
-#include <fstream>
-#include <memory>
-#include <vector>
-
 #include "mongo/base/data_range.h"
 #include "mongo/base/data_type_validated.h"
 #include "mongo/base/error_codes.h"
@@ -64,14 +57,22 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/storage_options.h"
-#include "mongo/db/telemetry/telemetry_thread_base.h"
 #include "mongo/db/telemetry/telemetry_thread.h"
+#include "mongo/db/telemetry/telemetry_thread_base.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/catalog/sharding_catalog_client.h"
 #include "mongo/s/catalog/type_config_version_gen.h"
 #include "mongo/s/grid.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/time_support.h"
+
+#include <fstream>
+#include <memory>
+#include <vector>
+
+#include <boost/filesystem.hpp>  // IWYU pragma: keep
+#include <boost/optional/optional.hpp>
+#include <fmt/format.h>  // IWYU pragma: keep
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
@@ -107,8 +108,8 @@ encryption::VaultClient createVaultClient() {
     // Without the token the response will be shorter but the fields we need should be available.
     return encryption::VaultClient(encryptionGlobalParams.vaultServerName,
                                    encryptionGlobalParams.vaultPort,
-                                   "", // encryptionGlobalParams.vaultToken,
-                                   "", // encryptionGlobalParams.vaultTokenFile,
+                                   "",  // encryptionGlobalParams.vaultToken,
+                                   "",  // encryptionGlobalParams.vaultTokenFile,
                                    encryptionGlobalParams.vaultServerCAFile,
                                    encryptionGlobalParams.vaultCheckMaxVersions,
                                    encryptionGlobalParams.vaultDisableTLS,

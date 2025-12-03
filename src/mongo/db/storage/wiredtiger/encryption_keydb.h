@@ -31,22 +31,22 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <map>
-#include <string>
-
-#include <boost/multiprecision/cpp_int.hpp>
-#include <wiredtiger.h>
-
 #include "mongo/db/encryption/key.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
 #include "mongo/platform/random.h"
 #include "mongo/stdx/mutex.h"
 
+#include <map>
+#include <string>
+
+#include <wiredtiger.h>
+
+#include <boost/multiprecision/cpp_int.hpp>
+
 namespace mongo {
 
-class EncryptionKeyDB
-{
+class EncryptionKeyDB {
 public:
     ~EncryptionKeyDB();
 
@@ -84,16 +84,16 @@ public:
     // returns encryption key from keys DB
     // create key if it does not exists
     // return key from keyfile if len == 0
-    int get_key_by_id(const char *keyid, size_t len, unsigned char *key, void *pe);
+    int get_key_by_id(const char* keyid, size_t len, unsigned char* key, void* pe);
 
     // drop key for specific keyid (used in dropDatabase)
-    int delete_key_by_id(const std::string&  keyid);
+    int delete_key_by_id(const std::string& keyid);
 
     // get new counter value for IV in GCM mode
-    int get_iv_gcm(uint8_t *buf, int len);
+    int get_iv_gcm(uint8_t* buf, int len);
 
     // len should be multiple of 4
-    void store_pseudo_bytes(uint8_t *buf, int len);
+    void store_pseudo_bytes(uint8_t* buf, int len);
 
     // get connection for hot backup procedure to create backup
     WiredTigerConnection* getConnection() const {
@@ -103,7 +103,7 @@ public:
     // reconfigure wiredtiger (used for downgrade)
     // after reconfiguration this instance is not fully functional
     // for example _sess pointer is null
-    void reconfigure(const char *);
+    void reconfigure(const char*);
 
     // generate secure encryption key
     // _srng use protected by _lock_key
@@ -156,7 +156,7 @@ private:
     stdx::recursive_mutex _lock;  // _prng, _gcm_iv, _gcm_iv_reserved
     stdx::mutex _lock_sess;       // _sess
     stdx::mutex _lock_key;  // serialize access to the encryption keys table, also protects _srng
-    WT_SESSION *_sess = nullptr;
+    WT_SESSION* _sess = nullptr;
     std::unique_ptr<SecureRandom> _srng;
     std::unique_ptr<PseudoRandom> _prng;
     encryption::Key _masterkey;

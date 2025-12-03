@@ -31,9 +31,9 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <string>
-
 #include "mongo/base/secure_allocator.h"
+
+#include <string>
 
 /// The code in this namespace is not intended to be called from outside
 /// the `mongo::encryption` namespace

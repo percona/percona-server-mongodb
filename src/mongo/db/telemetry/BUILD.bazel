@@ -25,7 +25,7 @@ mongo_cc_library(
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
         "//src/mongo/db/auth:sasl_options",
-        "//src/mongo/db/auth/oidc:oidc",
+        "//src/mongo/db/auth/oidc",
         "//src/mongo/util:background_job",
     ],
 )

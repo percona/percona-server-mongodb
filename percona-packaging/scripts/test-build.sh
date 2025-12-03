@@ -27,14 +27,14 @@ function prepare {
 }
 
 function install_deps {
-    if [ -f /etc/redhat-release ]; then 
+    if [ -f /etc/redhat-release ]; then
         yum install -y perl-Time-HiRes perl numactl numactl-libs libaio git libidn || true
     else
         apt install -y perl numactl libaio-dev git libidn11 || true
     fi
 }
 
-main () {
+main() {
 
     DIRLIST="bin lib lib/private lib/plugin"
 
@@ -62,7 +62,7 @@ main () {
     wget -O tests/big.json https://raw.githubusercontent.com/feliixx/mgodatagen/master/datagen/testdata/big.json
     tar -xvf $TMP_DIR/mgodatagen.tar.gz
 
-    ./bin/mongod --dbpath $TMP_DIR/db 2>&1 > status.log &
+    ./bin/mongod --dbpath $TMP_DIR/db 2>&1 >status.log &
     MONGOPID=$(echo $!)
     ./mgodatagen -f tests/big.json
     if [ $? -eq 0 ]; then
@@ -77,9 +77,9 @@ main () {
 }
 
 case "$1" in
-    --install_deps) install_deps ;;
-    --test) main ;;
-    --help|*)
+--install_deps) install_deps ;;
+--test) main ;;
+--help | *)
     cat <<EOF
 Usage: $0 [OPTIONS]
     The following options may be given :

@@ -31,6 +31,11 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/kmip_client.h"
 
+#include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/kmip_exchange.h"
+#include "mongo/db/encryption/kmip_session.h"
+#include "mongo/util/str.h"
+
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -42,11 +47,6 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <boost/asio/ssl.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/optional.hpp>
-
-#include "mongo/db/encryption/key.h"
-#include "mongo/db/encryption/kmip_exchange.h"
-#include "mongo/db/encryption/kmip_session.h"
-#include "mongo/util/str.h"
 
 
 namespace mongo::encryption {
@@ -81,8 +81,8 @@ public:
     Impl& operator=(Impl&&) = default;
 
     std::string registerSymmetricKey(const Key& key, bool activate);
-    std::pair<boost::optional<Key>, boost::optional<KeyState>> getSymmetricKey(const std::string& keyId,
-                                                                           bool verifyState);
+    std::pair<boost::optional<Key>, boost::optional<KeyState>> getSymmetricKey(
+        const std::string& keyId, bool verifyState);
     boost::optional<KeyState> getKeyState(const std::string& keyId);
 
 private:
@@ -212,13 +212,9 @@ void KmipClient::Impl::loadSystemCaCertificates(net::ssl::context& sslCtx) {
         "/etc/ssl/ca-bundle.pem",
         "/etc/pki/tls/cacert.pem",
         "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
-        "/etc/ssl/cert.pem"
-    };
+        "/etc/ssl/cert.pem"};
     static constexpr std::array<const char*, 3> certDirs = {
-        "/etc/ssl/certs",
-        "/etc/pki/tls/certs",
-        "/system/etc/security/cacerts"
-    };
+        "/etc/ssl/certs", "/etc/pki/tls/certs", "/system/etc/security/cacerts"};
 
     for (const auto& f : certFiles) {
         if (bfs::is_regular_file(bfs::path(f))) {

@@ -29,21 +29,21 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <boost/filesystem.hpp>
-
-#include "mongo/db/exec/mutable_bson/algorithm.h"
-#include "mongo/db/exec/mutable_bson/const_element.h"
-#include "mongo/db/exec/mutable_bson/document.h"
 #include "mongo/db/auth/action_type.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/backup/backupable.h"
 #include "mongo/db/commands.h"
+#include "mongo/db/exec/mutable_bson/algorithm.h"
+#include "mongo/db/exec/mutable_bson/const_element.h"
+#include "mongo/db/exec/mutable_bson/document.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/engine_extension.h"
 #include "mongo/db/storage/storage_options.h"
 
+#include <boost/filesystem.hpp>
+
 namespace mongo {
-    extern StorageGlobalParams storageGlobalParams;
+extern StorageGlobalParams storageGlobalParams;
 }
 using namespace mongo;
 
@@ -172,8 +172,7 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* opCtx,
                     return false;
                 }
                 s3params.threadPoolSize = i;
-            }
-            else {
+            } else {
                 errmsg = str::stream()
                     << "s3 subobject contains usupported field or field's name is misspelled: "
                     << elem.fieldName();
@@ -212,7 +211,7 @@ void CreateBackupCommand::snipForLogging(mutablebson::Document* cmdObj) const {
     if (s3Element.ok()) {
         const auto f1 = "accessKeyId"_sd;
         const auto f2 = "secretAccessKey"_sd;
-        auto predicate = [&](const mmb::ConstElement& element){
+        auto predicate = [&](const mmb::ConstElement& element) {
             return f1 == element.getFieldName() || f2 == element.getFieldName();
         };
         mmb::Element element = mmb::findFirstChild(s3Element, predicate);
@@ -223,4 +222,4 @@ void CreateBackupCommand::snipForLogging(mutablebson::Document* cmdObj) const {
     }
 }
 
-}  // end of percona namespace.
+}  // namespace percona

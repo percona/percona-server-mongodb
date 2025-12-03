@@ -31,11 +31,11 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/logv2/log_component.h"
+
 #include <functional>
 #include <memory>
 #include <utility>
-
-#include "mongo/logv2/log_component.h"
 
 namespace mongo {
 struct EncryptionGlobalParams;

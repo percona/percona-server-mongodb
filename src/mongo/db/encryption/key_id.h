@@ -31,11 +31,11 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/base/string_data.h"
+
 #include <cstdint>
 #include <memory>
 #include <string>
-
-#include "mongo/base/string_data.h"
 
 namespace mongo {
 class BSONObj;
@@ -80,7 +80,8 @@ public:
     /// @brief Makes the class and its subclasses loggable with LOGV2.
     virtual void serialize(BSONObjBuilder* b) const = 0;
 
-    /// @brief Serializes the key identifier for the server status command with the given field name.
+    /// @brief Serializes the key identifier for the server status command with the given field
+    /// name.
     virtual void serializeToServerStatus(BSONObjBuilder* b, StringData fieldName) const = 0;
 
     virtual void accept(KeyIdConstVisitor& v) const = 0;

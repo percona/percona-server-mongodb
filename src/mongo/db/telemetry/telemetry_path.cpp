@@ -31,9 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/telemetry/telemetry_path.h"
 
-#include <boost/optional.hpp>
-#include <string>
-
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
@@ -42,6 +39,10 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
 #include "mongo/db/tenant_id.h"
+
+#include <string>
+
+#include <boost/optional.hpp>
 
 namespace mongo {
 

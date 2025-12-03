@@ -30,6 +30,8 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 #include "mongo/db/ldap_options.h"
+
+#include "mongo/bson/json.h"
 #include "mongo/db/ldap_options_gen.h"
 #include "mongo/util/str.h"
 
@@ -37,8 +39,6 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #include <boost/algorithm/string/split.hpp>
 #include <fmt/format.h>
-
-#include "mongo/bson/json.h"
 
 namespace mongo {
 
@@ -50,7 +50,7 @@ std::string LDAPGlobalParams::getServersStr() const {
     std::string ldap_servers;
     std::string pfx;
     auto guard = *ldapServers;
-    for (auto& s: *guard) {
+    for (auto& s : *guard) {
         ldap_servers += pfx;
         ldap_servers += s;
         pfx = ",";
@@ -60,8 +60,7 @@ std::string LDAPGlobalParams::getServersStr() const {
 
 void LDAPGlobalParams::setServersStr(StringData ldap_servers) {
     auto guard = *ldapServers;
-    boost::split(
-        *guard, ldap_servers, [](char c) { return c == ','; }, boost::token_compress_on);
+    boost::split(*guard, ldap_servers, [](char c) { return c == ','; }, boost::token_compress_on);
 }
 
 std::string LDAPGlobalParams::logString() const {
@@ -84,7 +83,7 @@ std::string LDAPGlobalParams::ldapURIList() const {
     std::string uri;
     auto backins = std::back_inserter(uri);
     auto guard = *ldapServers;
-    for (auto& s: *guard) {
+    for (auto& s : *guard) {
         if (!uri.empty())
             backins = ',';
         fmt::format_to(backins, "{}://{}/", ldapprot, s);
@@ -112,7 +111,8 @@ Status validateLDAPBindMethod(const std::string& value) {
     constexpr auto kSasl = "sasl"_sd;
 
     if (!str::equalCaseInsensitive(kSimple, value) && !str::equalCaseInsensitive(kSasl, value)) {
-        return {ErrorCodes::BadValue, "security.ldap.bind.method expects one of 'simple' or 'sasl'"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.bind.method expects one of 'simple' or 'sasl'"};
     }
 
     return Status::OK();
@@ -123,7 +123,8 @@ Status validateLDAPTransportSecurity(const std::string& value) {
     constexpr auto kTls = "tls"_sd;
 
     if (!str::equalCaseInsensitive(kNone, value) && !str::equalCaseInsensitive(kTls, value)) {
-        return {ErrorCodes::BadValue, "security.ldap.transportSecurity expects one of 'none' or 'tls'"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.transportSecurity expects one of 'none' or 'tls'"};
     }
 
     return Status::OK();
@@ -131,19 +132,24 @@ Status validateLDAPTransportSecurity(const std::string& value) {
 
 Status validateLDAPUserToDNMapping(const std::string& mapping) {
     if (!JParse(mapping).isArray())
-        return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: User to DN mapping must be json array of objects"};
+        return {ErrorCodes::BadValue,
+                "security.ldap.userToDNMapping: User to DN mapping must be json array of objects"};
 
     BSONArray bsonmapping{fromjson(mapping)};
-    for (const auto& elt: bsonmapping) {
+    for (const auto& elt : bsonmapping) {
         auto step = elt.Obj();
         BSONElement elmatch = step["match"];
         if (!elmatch)
-            return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: Each object in user to DN mapping array must contain the 'match' string"};
+            return {ErrorCodes::BadValue,
+                    "security.ldap.userToDNMapping: Each object in user to DN mapping array must "
+                    "contain the 'match' string"};
         BSONElement eltempl = step["substitution"];
         if (!eltempl)
             eltempl = step["ldapQuery"];
         if (!eltempl)
-            return {ErrorCodes::BadValue, "security.ldap.userToDNMapping: Each object in user to DN mapping array must contain either 'substitution' or 'ldapQuery' string"};
+            return {ErrorCodes::BadValue,
+                    "security.ldap.userToDNMapping: Each object in user to DN mapping array must "
+                    "contain either 'substitution' or 'ldapQuery' string"};
         try {
             std::regex rex{elmatch.str()};
             const auto sm_count = rex.mark_count();
@@ -152,7 +158,7 @@ Status validateLDAPUserToDNMapping(const std::string& mapping) {
             const std::string stempl = eltempl.str();
             std::sregex_iterator it{stempl.begin(), stempl.end(), placeholder_rex};
             std::sregex_iterator end;
-            for(; it != end; ++it){
+            for (; it != end; ++it) {
                 if (std::stol((*it)[1].str()) >= sm_count)
                     return {ErrorCodes::BadValue,
                             fmt::format(
@@ -190,7 +196,7 @@ Status validateLDAPAuthzQueryTemplate(const std::string& templ) {
         std::regex placeholder_rex{R"(\{\{|\}\}|\{(.*?)\})"};
         std::sregex_iterator it{templ.begin(), templ.end(), placeholder_rex};
         std::sregex_iterator end;
-        for(; it != end; ++it){
+        for (; it != end; ++it) {
             auto w = (*it)[0].str();
             if (w == "{{" || w == "}}")
                 continue;
@@ -204,8 +210,8 @@ Status validateLDAPAuthzQueryTemplate(const std::string& templ) {
         }
         // test format (throws fmt::format_error if something is wrong)
         (void)fmt::format(fmt::runtime(templ),
-                    fmt::arg("USER", "test user"),
-                    fmt::arg("PROVIDED_USER", "test user"));
+                          fmt::arg("USER", "test user"),
+                          fmt::arg("PROVIDED_USER", "test user"));
     } catch (std::regex_error& e) {
         return {ErrorCodes::BadValue,
                 fmt::format("security.ldap.authz.queryTemplate: std::regex_error exception while "

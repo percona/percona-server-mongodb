@@ -31,10 +31,10 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/vault_secret_metadata_locator.h"
 
+#include "mongo/unittest/assert.h"
+
 #include <sstream>
 #include <stdexcept>
-
-#include "mongo/unittest/assert.h"
 
 namespace mongo::encryption::detail {
 #define ASSERT_LOCATOR_EQ(secretPath, expectedEngineConfigPath, expectedMetadataPath) \

@@ -29,8 +29,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <boost/optional/optional.hpp>
-
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
@@ -40,6 +38,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/telemetry/telemetry_thread.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/str.h"
+
+#include <boost/optional/optional.hpp>
 
 namespace mongo {
 

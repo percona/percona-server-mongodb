@@ -31,6 +31,9 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/kmip_exchange.h"
 
+#include "mongo/db/encryption/key.h"
+#include "mongo/util/assert_util_core.h"
+
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -38,10 +41,8 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include <type_traits>
 
 #include <kmip_bio.h>
-#include <kmippp/kmippp.h>
 
-#include "mongo/db/encryption/key.h"
-#include "mongo/util/assert_util_core.h"
+#include <kmippp/kmippp.h>
 
 namespace mongo::encryption::detail {
 KmipExchange::KmipExchange() : _state(State::kNotStarted), _span(_buffer) {

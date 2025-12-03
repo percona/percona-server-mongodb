@@ -12,32 +12,32 @@ BASEDIR=$(dirname $0)
 # run under sudo unless we are already root
 
 if [[ $EUID -ne 0 ]]; then
-  # running as user
-  hash sudo 2>/dev/null || { 
-    echo >&2 "Script must be run as root or with the sudo command installed."
-    exit 1;
-  }
-  SUDO="sudo"
+    # running as user
+    hash sudo 2>/dev/null || {
+        echo >&2 "Script must be run as root or with the sudo command installed."
+        exit 1
+    }
+    SUDO="sudo"
 else
-  # running as root
-  SUDO=""
+    # running as root
+    SUDO=""
 fi
 
 # install net-tools for netstat if it is not installed
 
 hash netstat 2>/dev/null || {
-  apt-get install -y net-tools || {
-    echo "Failed to install net-tools for the netstat command"
-    exit 1;
-  }
+    apt-get install -y net-tools || {
+        echo "Failed to install net-tools for the netstat command"
+        exit 1
+    }
 }
 
 # return the user password from our LDAP database source
 
 function userPass {
-  USER=$1
-  RET=$(awk "f&&/^userPassword:/{print \$2;f=0} /^cn: ${USER}/{f=1}" $BASEDIR/ldap/users.ldif)
-  echo -n $RET
+    USER=$1
+    RET=$(awk "f&&/^userPassword:/{print \$2;f=0} /^cn: ${USER}/{f=1}" $BASEDIR/ldap/users.ldif)
+    echo -n $RET
 }
 
 # run the tests
@@ -61,8 +61,8 @@ echo "---------------------------------------------------------------"
 LDAPUSERS=$(awk 'BEGIN{ORS=" "} /^cn:/{print $2}' $BASEDIR/ldap/users.ldif)
 
 for userName in ${LDAPUSERS}; do
-  echo ${SUDO} testsaslauthd -u ${userName} -p $(userPass ${userName}) -f /var/run/saslauthd/mux
-  ${SUDO} testsaslauthd -u ${userName} -p $(userPass ${userName}) -f /var/run/saslauthd/mux
+    echo ${SUDO} testsaslauthd -u ${userName} -p $(userPass ${userName}) -f /var/run/saslauthd/mux
+    ${SUDO} testsaslauthd -u ${userName} -p $(userPass ${userName}) -f /var/run/saslauthd/mux
 done
 
 # show netstat again
@@ -75,4 +75,3 @@ ${SUDO} netstat -antulp | grep saslauthd
 echo
 echo "--------------------------------------------------------------"
 echo "DONE"
-

@@ -31,10 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <boost/filesystem.hpp>  // IWYU pragma: keep
-#include <memory>
-#include <string>
-
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
@@ -47,6 +43,11 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/background.h"
 #include "mongo/util/time_support.h"
+
+#include <memory>
+#include <string>
+
+#include <boost/filesystem.hpp>  // IWYU pragma: keep
 
 namespace mongo {
 
