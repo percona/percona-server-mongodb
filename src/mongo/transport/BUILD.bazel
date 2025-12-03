@@ -86,7 +86,7 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/transport:transport_layer_manager",
-    ]
+    ],
 )
 
 mongo_cc_library(

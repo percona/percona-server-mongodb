@@ -36,8 +36,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/storage_engine_impl.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/unittest/temp_dir.h"
 #include "mongo/util/clock_source_mock.h"
 
@@ -45,7 +45,7 @@ namespace mongo {
 namespace {
 
 namespace {
-    const std::string kInMemoryEngineName = "inMemory";
+const std::string kInMemoryEngineName = "inMemory";
 }
 
 class InMemoryKVHarnessHelper : public KVHarnessHelper {

@@ -2,6 +2,7 @@
 
 ###1) TOKEN DELIMITER
 Unlike MongoDB native delimiter based tokenizer, NGram use only below 5 characters as tokenizer delimiter.
+
 ```
 0x09 : HORIZONTAL-TAB
 0x0a : LINE-FEED (\n)
@@ -11,29 +12,35 @@ Unlike MongoDB native delimiter based tokenizer, NGram use only below 5 characte
 ```
 
 In MongoDB native full text search, we should use `phrase search` to search the string which contains "-" character.
+
 ```
 db.collection.find({ $text: { $search: "\"2016-12\"" } })
 ```
 
 But using NGram tokenizer, we don't need to use `phrase search` because "-" is not a delimiter in NGram tokenizer.
+
 ```
 db.collection.find({ $text: { $search: "2016-12" } })
 
 ```
 
-Exceptionally if you use "-" character at first of search string, then NGram search understand that "-" character as negate sign (like MongoDB native full text search). 
+Exceptionally if you use "-" character at first of search string, then NGram search understand that "-" character as negate sign (like MongoDB native full text search).
 
 For example, NGram full text search does not regarding "-"(in the middle of string) as either delimiter and negate-sign.
+
 ```
 db.collection.find({ $text: { $search: "6-2" } })
 ```
+
 But below case, NGram full text search will do negate search for string of "6-2".
+
 ```
 db.collection.find({ $text: { $search: "-6-2" } })
 ```
 
 ###2) Create NGram index
 If you specify `{default_language: "ngram"}` option on `createIndex` command, MongoDB will create NGram full text search index. Without this option, MongoDB will create native `delimiter based full text search` index.
+
 ```
 db.collection.createIndex({name:"text"}, {default_language: "ngram"})
 ```
@@ -41,6 +48,7 @@ db.collection.createIndex({name:"text"}, {default_language: "ngram"})
 ###3) Search with NGram index
 
 ####3-1) Basic search test
+
 ```
 -- // Insert test document
 db.coll.remove({})
@@ -65,6 +73,7 @@ db.coll.find({ $text: { $search: "나다 } }).count()    -- // ==> 0
 ```
 
 ####3-2) Special character search test
+
 ```
 -- // Insert test document
 db.coll.remove({})
@@ -88,6 +97,7 @@ db.coll.find({ $text: { $search: "\"2016*12\"" } }).count() -- // ==> 1
 ```
 
 ####3-3) String contains special char(Single character before & after special char) search test
+
 ```
 -- // Insert test document
 db.coll.remove({})
@@ -105,4 +115,3 @@ db.coll.find({ $text: { $search: "\"6-2\"" } }).count() // ==> 1
 db.coll.find({ $text: { $search: "\"6+2\"" } }).count() // ==> 1
 db.coll.find({ $text: { $search: "\"6*2\"" } }).count() // ==> 1
 ```
- No newline at end of file

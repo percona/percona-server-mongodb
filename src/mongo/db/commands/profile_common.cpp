@@ -69,7 +69,8 @@ Status ProfileCmdBase::checkAuthForOperation(OperationContext* opCtx,
         IDLParserContext("profile", false /*apiStrict*/, vts, dbName.tenantId(), sc), cmdObj);
     const auto profilingLevel = request.getCommandParameter();
 
-    if (profilingLevel < 0 && !request.getSlowms() && !request.getSampleRate() && !request.getRatelimit()) {
+    if (profilingLevel < 0 && !request.getSlowms() && !request.getSampleRate() &&
+        !request.getRatelimit()) {
         // If the user just wants to view the current values of 'slowms' and 'sampleRate', they
         // only need read rights on system.profile, even if they can't change the profiling level.
         if (authzSession->isAuthorizedForActionsOnResource(
@@ -103,7 +104,8 @@ bool ProfileCmdBase::run(OperationContext* opCtx,
     if (auto optRateLimit = request.getRatelimit()) {
         const decltype(optRateLimit)::value_type rateLimit = *optRateLimit;
         uassert(ErrorCodes::BadValue,
-                str::stream() << "ratelimit must be between 0 and " << RATE_LIMIT_MAX << " inclusive",
+                str::stream() << "ratelimit must be between 0 and " << RATE_LIMIT_MAX
+                              << " inclusive",
                 0 <= rateLimit && rateLimit <= RATE_LIMIT_MAX);
         newRateLimit = std::max(rateLimit, static_cast<decltype(rateLimit)>(1));
     }

@@ -37,11 +37,10 @@ Copyright (C) 2020-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-GSSAPIServerMechanism::~GSSAPIServerMechanism() {
-}
+GSSAPIServerMechanism::~GSSAPIServerMechanism() {}
 
-StatusWith<std::tuple<bool, std::string>> GSSAPIServerMechanism::stepImpl(
-    OperationContext* opCtx, StringData inputData) {
+StatusWith<std::tuple<bool, std::string>> GSSAPIServerMechanism::stepImpl(OperationContext* opCtx,
+                                                                          StringData inputData) {
     return _sess.step(inputData);
 }
 

@@ -53,7 +53,10 @@
 namespace mongo::crypto {
 
 JWKSFetcherImpl::JWKSFetcherImpl(ClockSource* clock, StringData issuer, StringData caFilePath)
-    : _issuer(issuer), _caFilePath(caFilePath), _clock(clock), _lastFetchQuiesceTime(Date_t::min()) {}
+    : _issuer(issuer),
+      _caFilePath(caFilePath),
+      _clock(clock),
+      _lastFetchQuiesceTime(Date_t::min()) {}
 
 JWKSet JWKSFetcherImpl::fetch() {
     try {

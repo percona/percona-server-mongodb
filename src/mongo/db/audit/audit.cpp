@@ -208,8 +208,8 @@ protected:
     }
 
     Status rotate(bool rename,
-                          StringData renameSuffix,
-                          std::function<void(Status)> onMinorError) override {
+                  StringData renameSuffix,
+                  std::function<void(Status)> onMinorError) override {
         stdx::lock_guard<SimpleMutex> lck(_mutex);
 
         // Close the current file.
@@ -1156,7 +1156,8 @@ public:
         BSONObjBuilder params;
         params << "ns" << toString(nss);
         params << "document" << doc;
-        params << "operation" << "insert";
+        params << "operation"
+               << "insert";
         _auditEvent(client, "directAuthMutation", params.done());
     }
 
@@ -1173,7 +1174,8 @@ public:
         BSONObjBuilder params;
         params << "ns" << toString(nss);
         params << "document" << doc;
-        params << "operation" << "update";
+        params << "operation"
+               << "update";
         _auditEvent(client, "directAuthMutation", params.done());
     }
 

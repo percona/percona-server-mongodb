@@ -56,7 +56,7 @@ Status FTSQueryImpl::parse(TextIndexVersion textIndexVersion) {
         return e.toStatus();
     }
 
-    bool isNgram = getLanguage()=="ngram";
+    bool isNgram = getLanguage() == "ngram";
 
     // Build a space delimited list of words to have the FtsTokenizer tokenize
     string positiveTermSentence;
@@ -135,10 +135,10 @@ Status FTSQueryImpl::parse(TextIndexVersion textIndexVersion) {
 
     std::unique_ptr<FTSTokenizer> tokenizer = ftsLanguage->createTokenizer();
 
-    if(isNgram){
+    if (isNgram) {
         _addTermsForNgram(tokenizer.get(), positiveTermSentence, false);
         _addTermsForNgram(tokenizer.get(), negativeTermSentence, true);
-    }else{
+    } else {
         _addTerms(tokenizer.get(), positiveTermSentence, false);
         _addTerms(tokenizer.get(), negativeTermSentence, true);
     }
@@ -214,8 +214,10 @@ void FTSQueryImpl::_addTerms(FTSTokenizer* tokenizer, const string& sentence, bo
  *   if(NGRAM), token will be added to phrase list (not term list)
  *   if(not NGRAM), token will be added to term list
  */
-void FTSQueryImpl::_addTermsForNgram(FTSTokenizer* tokenizer, const string& sentence, bool negated) {
-                                     tokenizer->reset(sentence.c_str(), FTSTokenizer::kFilterStopWords);
+void FTSQueryImpl::_addTermsForNgram(FTSTokenizer* tokenizer,
+                                     const string& sentence,
+                                     bool negated) {
+    tokenizer->reset(sentence.c_str(), FTSTokenizer::kFilterStopWords);
     // First, get all the terms for indexing, ie, lower cased words
     // If we are case-insensitive, we can also used this for positive, and negative terms
     // Some terms may be expanded into multiple words in some non-English languages

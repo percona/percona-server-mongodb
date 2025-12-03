@@ -57,7 +57,7 @@ private:
     CyrusSASLServerSession _sess;
 
     StatusWith<std::tuple<bool, std::string>> stepImpl(OperationContext* opCtx,
-                                                               StringData input) final;
+                                                       StringData input) final;
     StringData getPrincipalName() const final;
 };
 
@@ -68,8 +68,9 @@ public:
 
     bool canMakeMechanismForUser(const User* user) const final {
         auto credentials = user->getCredentials();
-        return credentials.isExternal && (credentials.scram<SHA1Block>().isValid() ||
-                                          credentials.scram<SHA256Block>().isValid());
+        return credentials.isExternal &&
+            (credentials.scram<SHA1Block>().isValid() ||
+             credentials.scram<SHA256Block>().isValid());
     }
 };
 

@@ -52,8 +52,8 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 
 MONGO_INITIALIZER(SetupOpenSSL)(InitializerContext*) {
-    //SSL_library_init();
-    //SSL_load_error_strings();
+    // SSL_library_init();
+    // SSL_load_error_strings();
     ERR_load_crypto_strings();
 }
 
@@ -64,7 +64,7 @@ public:
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         EVP_CIPHER_CTX_init(&_ctx_value);
 #else
-        _ctx= EVP_CIPHER_CTX_new();
+        _ctx = EVP_CIPHER_CTX_new();
 #endif
     }
 
@@ -76,7 +76,7 @@ public:
 #endif
     }
 
-    operator EVP_CIPHER_CTX* () {
+    operator EVP_CIPHER_CTX*() {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         return &_ctx_value;
 #else
@@ -88,12 +88,12 @@ private:
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     EVP_CIPHER_CTX _ctx_value;
 #else
-    EVP_CIPHER_CTX *_ctx{nullptr};
+    EVP_CIPHER_CTX* _ctx{nullptr};
 #endif
 };
 
 // callback for ERR_print_errors_cb
-static int err_print_cb(const char *str, size_t len, void *param) {
+static int err_print_cb(const char* str, size_t len, void* param) {
     std::cerr << str;
     return 1;
 }
@@ -116,7 +116,7 @@ int decryptCBC(const encryption::Key& masterKey,
     auto _cipher = EVP_aes_256_cbc();
     auto _iv_len = EVP_CIPHER_iv_length(_cipher);
     const size_t block_size = 8 * 1024;
-    const size_t tag_size = 4; // CRC32C value size
+    const size_t tag_size = 4;  // CRC32C value size
     EVPCipherCtx ctx;
 
     uint32_t checksum;
@@ -130,12 +130,16 @@ int decryptCBC(const encryption::Key& masterKey,
             return printErrorMsg("Cannot read from encrypted file");
         fsize -= _iv_len;
         if (1 !=
-            EVP_DecryptInit_ex(ctx, _cipher, nullptr, (const unsigned char*)masterKey.data(), (const unsigned char*)iv))
+            EVP_DecryptInit_ex(ctx,
+                               _cipher,
+                               nullptr,
+                               (const unsigned char*)masterKey.data(),
+                               (const unsigned char*)iv))
             return handleCryptoErrors();
     }
 
-    char e_buf[block_size]; // encrypted buffer
-    char d_buf[block_size + 32]; // decrypted buffer
+    char e_buf[block_size];       // encrypted buffer
+    char d_buf[block_size + 32];  // decrypted buffer
     int decrypted_len = 0;
     while (fsize > 0) {
         size_t to_read = block_size;
@@ -144,7 +148,9 @@ int decryptCBC(const encryption::Key& masterKey,
         if (!src.read(e_buf, to_read))
             return printErrorMsg("Cannot read from encrypted file");
         fsize -= to_read;
-        if (1 != EVP_DecryptUpdate(ctx, (unsigned char*)d_buf, &decrypted_len, (unsigned char*)e_buf, to_read))
+        if (1 !=
+            EVP_DecryptUpdate(
+                ctx, (unsigned char*)d_buf, &decrypted_len, (unsigned char*)e_buf, to_read))
             return handleCryptoErrors();
         if (!dst.write(d_buf, decrypted_len))
             return printErrorMsg("Cannot write to decrypted file");
@@ -170,7 +176,7 @@ int decryptGCM(const encryption::Key& masterKey,
     auto _cipher = EVP_aes_256_gcm();
     auto _iv_len = EVP_CIPHER_iv_length(_cipher);
     const size_t block_size = 8 * 1024;
-    const size_t _gcm_tag_len = 16; // GCM tag len
+    const size_t _gcm_tag_len = 16;  // GCM tag len
     EVPCipherCtx ctx;
 
     uint8_t gcm_tag[_gcm_tag_len];
@@ -184,12 +190,16 @@ int decryptGCM(const encryption::Key& masterKey,
             return printErrorMsg("Cannot read from encrypted file");
         fsize -= _iv_len;
         if (1 !=
-            EVP_DecryptInit_ex(ctx, _cipher, nullptr, (const unsigned char*)masterKey.data(), (const unsigned char*)iv))
+            EVP_DecryptInit_ex(ctx,
+                               _cipher,
+                               nullptr,
+                               (const unsigned char*)masterKey.data(),
+                               (const unsigned char*)iv))
             return handleCryptoErrors();
     }
 
-    char e_buf[block_size]; // encrypted buffer
-    char d_buf[block_size + 32]; // decrypted buffer
+    char e_buf[block_size];       // encrypted buffer
+    char d_buf[block_size + 32];  // decrypted buffer
     int decrypted_len = 0;
     while (fsize > 0) {
         size_t to_read = block_size;
@@ -198,7 +208,9 @@ int decryptGCM(const encryption::Key& masterKey,
         if (!src.read(e_buf, to_read))
             return printErrorMsg("Cannot read from encrypted file");
         fsize -= to_read;
-        if (1 != EVP_DecryptUpdate(ctx, (unsigned char*)d_buf, &decrypted_len, (unsigned char*)e_buf, to_read))
+        if (1 !=
+            EVP_DecryptUpdate(
+                ctx, (unsigned char*)d_buf, &decrypted_len, (unsigned char*)e_buf, to_read))
             return handleCryptoErrors();
         if (!dst.write(d_buf, decrypted_len))
             return printErrorMsg("Cannot write to decrypted file");
@@ -239,13 +251,14 @@ int decryptMain(int argc, char** argv, char** envp) {
     int ret{static_cast<int>(ExitCode::badOptions)};
     runGlobalInitializersOrDie(std::vector<std::string>(argv, argv + argc));
 
-    try{
+    try {
         encryption::Key masterKey = readMasterKey();
 
-        std::cout << "Input (encrypted) file: " << perconaDecryptGlobalParams.inputPath << std::endl;
+        std::cout << "Input (encrypted) file: " << perconaDecryptGlobalParams.inputPath
+                  << std::endl;
         if (!boost::filesystem::exists(perconaDecryptGlobalParams.inputPath)) {
-            throw std::runtime_error(std::string("specified encrypted file doesn't exist: ")
-                                                 + perconaDecryptGlobalParams.inputPath);
+            throw std::runtime_error(std::string("specified encrypted file doesn't exist: ") +
+                                     perconaDecryptGlobalParams.inputPath);
         }
 
         auto fsize{boost::filesystem::file_size(perconaDecryptGlobalParams.inputPath)};
@@ -253,19 +266,22 @@ int decryptMain(int argc, char** argv, char** envp) {
         std::ifstream src{};
         src.open(perconaDecryptGlobalParams.inputPath, std::ios::binary);
         if (!src.is_open()) {
-            throw std::runtime_error(std::string("cannot open specified encrypted file: ")
-                                                 + perconaDecryptGlobalParams.inputPath);
+            throw std::runtime_error(std::string("cannot open specified encrypted file: ") +
+                                     perconaDecryptGlobalParams.inputPath);
         }
 
-        std::cout << "Output (decrypted) file: " << perconaDecryptGlobalParams.outputPath << std::endl;
+        std::cout << "Output (decrypted) file: " << perconaDecryptGlobalParams.outputPath
+                  << std::endl;
         std::ofstream dst{};
         dst.open(perconaDecryptGlobalParams.outputPath, std::ios::binary);
         if (!dst.is_open()) {
-            throw std::runtime_error(std::string("cannot open specified decrypted result file for writing: ")
-                                                 + perconaDecryptGlobalParams.inputPath);
+            throw std::runtime_error(
+                std::string("cannot open specified decrypted result file for writing: ") +
+                perconaDecryptGlobalParams.inputPath);
         }
 
-        std::cout << "Executing decryption with cipher mode: " << encryptionGlobalParams.encryptionCipherMode << std::endl;
+        std::cout << "Executing decryption with cipher mode: "
+                  << encryptionGlobalParams.encryptionCipherMode << std::endl;
         if (encryptionGlobalParams.encryptionCipherMode == "AES256-CBC")
             ret = decryptCBC(masterKey, fsize, src, dst);
         else if ((encryptionGlobalParams.encryptionCipherMode == "AES256-GCM"))
