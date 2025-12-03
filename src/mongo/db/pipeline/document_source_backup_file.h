@@ -31,14 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <array>
-#include <fstream>
-#include <memory>
-#include <set>
-#include <string>
-
-#include <boost/optional/optional.hpp>
-
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/db/namespace_string.h"
@@ -46,6 +38,14 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/uuid.h"
+
+#include <array>
+#include <fstream>
+#include <memory>
+#include <set>
+#include <string>
+
+#include <boost/optional/optional.hpp>
 
 namespace mongo {
 

@@ -31,11 +31,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "fcb_file_cloner.h"
 
-#include <memory>
-#include <utility>
-
-#include <boost/optional.hpp>
-
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
@@ -55,6 +50,11 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/str.h"
+
+#include <memory>
+#include <utility>
+
+#include <boost/optional.hpp>
 
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kReplicationInitialSync
@@ -282,7 +282,8 @@ void FCBFileCloner::writeDataToFilesystemCallback(const executor::TaskExecutor::
             const auto& dataElem = doc["data"];
             uassert(6113312,
                     str::stream() << "Expected file data to be type BinDataGeneral. " << doc,
-                    dataElem.type() == BSONType::binData && dataElem.binDataType() == BinDataType::BinDataGeneral);
+                    dataElem.type() == BSONType::binData &&
+                        dataElem.binDataType() == BinDataType::BinDataGeneral);
             int dataLength = 0;
             const char* data = dataElem.binData(dataLength);
             _localFile.write(data, dataLength);

@@ -31,25 +31,24 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/platform/basic.h"
-
 #include "mongo/base/init.h"
 #include "mongo/db/catalog/collection_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/inmemory/inmemory_global_options.h"
-#include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_engine_impl.h"
+#include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_engine_lock_file.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 #include "mongo/db/storage/wiredtiger/spill_wiredtiger_kv_engine.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_index.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_server_status.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
+#include "mongo/platform/basic.h"
 
 #if __has_feature(address_sanitizer)
 #include <sanitizer/lsan_interface.h>
@@ -67,11 +66,11 @@ class InMemoryFactory : public StorageEngine::Factory {
 public:
     ~InMemoryFactory() override {}
     std::unique_ptr<StorageEngine> create(OperationContext* opCtx,
-                                                  const StorageGlobalParams& params,
-                                                  const StorageEngineLockFile*,
-                                                  bool isReplSet,
-                                                  bool shouldRecoverFromOplogAsStandalone,
-                                                  bool inStandaloneMode) const override {
+                                          const StorageGlobalParams& params,
+                                          const StorageEngineLockFile*,
+                                          bool isReplSet,
+                                          bool shouldRecoverFromOplogAsStandalone,
+                                          bool inStandaloneMode) const override {
         syncInMemoryAndWiredTigerOptions();
 
         size_t cacheMB = WiredTigerUtil::getMainCacheSizeMB(wiredTigerGlobalOptions.cacheSizeGB);
@@ -91,16 +90,16 @@ public:
         wtConfig.inMemory = true;
         wtConfig.logEnabled = false;
 
-        auto kv =
-            std::make_unique<WiredTigerKVEngine>(std::string{getCanonicalName()},
-                                                 params.dbpath,
-                                                 getGlobalServiceContext()->getFastClockSource(),
-                                                 std::move(wtConfig),
-                                                 WiredTigerExtensions::get(opCtx->getServiceContext()),
-                                                 params.repair,
-                                                 isReplSet,
-                                                 shouldRecoverFromOplogAsStandalone,
-                                                 inStandaloneMode);
+        auto kv = std::make_unique<WiredTigerKVEngine>(
+            std::string{getCanonicalName()},
+            params.dbpath,
+            getGlobalServiceContext()->getFastClockSource(),
+            std::move(wtConfig),
+            WiredTigerExtensions::get(opCtx->getServiceContext()),
+            params.repair,
+            isReplSet,
+            shouldRecoverFromOplogAsStandalone,
+            inStandaloneMode);
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
         kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);
 
@@ -180,8 +179,7 @@ private:
     static void syncInMemoryAndWiredTigerOptions() {
         // All wiredTigerGlobalOptions options are preserved except those that are specific to
         // inMemory storage engine.
-        wiredTigerGlobalOptions.cacheSizeGB =
-            inMemoryGlobalOptions.cacheSizeGB;
+        wiredTigerGlobalOptions.cacheSizeGB = inMemoryGlobalOptions.cacheSizeGB;
         wiredTigerGlobalOptions.statisticsLogDelaySecs =
             inMemoryGlobalOptions.statisticsLogDelaySecs;
         // Set InMemory configuration as part of engineConfig string
@@ -207,4 +205,4 @@ ServiceContext::ConstructorActionRegisterer registerInMemory(
         registerStorageEngine(service, std::make_unique<InMemoryFactory>());
     });
 }  // namespace
-}  // namespace
+}  // namespace mongo

@@ -29,8 +29,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <memory>
-
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
 #include "mongo/base/string_data.h"
@@ -39,12 +37,14 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/telemetry/telemetry_thread_base.h"
 #include "mongo/db/telemetry/telemetry_thread.h"
+#include "mongo/db/telemetry/telemetry_thread_base.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/catalog/sharding_catalog_client.h"
 #include "mongo/s/catalog/type_config_version_gen.h"
 #include "mongo/s/grid.h"
+
+#include <memory>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 

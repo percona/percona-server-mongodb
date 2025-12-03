@@ -31,12 +31,12 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/bson/bsonobj.h"
+
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
-
-#include "mongo/bson/bsonobj.h"
 
 namespace mongo::encryption {
 class VaultClient {

@@ -32,15 +32,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <string>
-#include <vector>
-
-#include <boost/filesystem.hpp>
-#include <boost/optional.hpp>
-
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
 #include "mongo/bson/bsonobj.h"
@@ -48,8 +39,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/dbclient_connection.h"
 #include "mongo/client/fetcher.h"
 #include "mongo/db/operation_context.h"
-#include "mongo/db/repl/initial_sync/callback_completion_guard.h"
 #include "mongo/db/repl/data_replicator_external_state.h"
+#include "mongo/db/repl/initial_sync/callback_completion_guard.h"
 #include "mongo/db/repl/initial_sync/initial_sync_shared_data.h"
 #include "mongo/db/repl/initial_sync/initial_syncer_interface.h"
 #include "mongo/db/repl/multiapplier.h"
@@ -69,6 +60,15 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <boost/filesystem.hpp>
+#include <boost/optional.hpp>
 
 namespace mongo {
 namespace repl {
@@ -560,8 +560,8 @@ private:
         BackupCursorInfo() = default;
         BackupCursorInfo(CursorId cursorId, NamespaceString nss, Timestamp checkpointTimestamp)
             : cursorId(cursorId),
-            nss(std::move(nss)),
-            checkpointTimestamp(std::move(checkpointTimestamp)) {}
+              nss(std::move(nss)),
+              checkpointTimestamp(std::move(checkpointTimestamp)) {}
 
         CursorId cursorId = 0;
         NamespaceString nss;
@@ -571,9 +571,9 @@ private:
     // This is set in two places:
     // - to the 'oplogEnd' field from the backup cursor metadata when it is received
     // - to the last applied optime used as the 'timestamp' parameter in $backupCursorExtend
-    OpTime _oplogEnd;                                                  // TODO:
-    const std::string _cfgDBPath;                                      // TODO:
-    std::unique_ptr<BackupCursorInfo> _backupCursorInfo;               // TODO:
+    OpTime _oplogEnd;                                     // TODO:
+    const std::string _cfgDBPath;                         // TODO:
+    std::unique_ptr<BackupCursorInfo> _backupCursorInfo;  // TODO:
 
     // This is invoked with the final status of the initial sync. If startup() fails, this callback
     // is never invoked. The caller gets the last applied optime when the initial sync completes
@@ -624,7 +624,7 @@ private:
     // $backupCursor/$backupCursorExtend. Thus it is initially set to the 'oplogEnd' value returned
     // by the backup cursor and then updated to the last applied optime which was used as the
     // 'timestamp' parameter to each $backupCursorExtend invokation.
-    OpTimeAndWallTime _lastApplied;                        // (MX)
+    OpTimeAndWallTime _lastApplied;  // (MX)
 
     // Used to signal changes in _state.
     mutable stdx::condition_variable _stateCondition;

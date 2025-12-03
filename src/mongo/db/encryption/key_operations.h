@@ -31,6 +31,12 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/db/encryption/key.h"
+#include "mongo/db/encryption/key_entry.h"
+#include "mongo/db/encryption/key_id.h"
+#include "mongo/db/encryption/key_state.h"
+#include "mongo/util/duration.h"
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -38,12 +44,6 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <variant>
 
 #include <boost/optional.hpp>
-
-#include "mongo/db/encryption/key.h"
-#include "mongo/db/encryption/key_entry.h"
-#include "mongo/db/encryption/key_id.h"
-#include "mongo/db/encryption/key_state.h"
-#include "mongo/util/duration.h"
 
 namespace mongo {
 struct EncryptionGlobalParams;

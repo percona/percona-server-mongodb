@@ -30,11 +30,10 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 
-#include "mongo/platform/basic.h"
-
 #include "mongo/db/pipeline/document_source_backup_cursor.h"
 
 #include "mongo/logv2/log.h"
+#include "mongo/platform/basic.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 

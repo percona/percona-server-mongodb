@@ -6,4 +6,3 @@ BASEDIR=$(dirname $0)
 
 ${BASEDIR}/sasl/undeploy_sasl.sh
 ${BASEDIR}/ldap/undeploy_openldap.sh
-

@@ -29,15 +29,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
-
-#include <map>
-#include <ranges> // NOLINT(mongo-cxx20-banned-includes-check)
-#include <tuple>
-#include <vector>
-
-#include <boost/optional/optional.hpp>
-
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
@@ -46,11 +37,19 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/bson/json.h"
+#include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
+
+#include <map>
+#include <ranges>  // NOLINT(mongo-cxx20-banned-includes-check)
+#include <tuple>
+#include <vector>
+
+#include <boost/optional/optional.hpp>
 
 
 namespace mongo {

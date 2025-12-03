@@ -34,9 +34,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/auth/external/external_sasl_authentication_session.h"
 
-#include <fmt/format.h>
-#include <ldap.h>
-
 #include "mongo/base/init.h"
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
@@ -48,8 +45,12 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/ldap/ldap_manager_impl.h"
 #include "mongo/db/ldap_options.h"
 #include "mongo/logv2/log.h"
-#include "mongo/util/str.h"
 #include "mongo/util/net/socket_utils.h"
+#include "mongo/util/str.h"
+
+#include <ldap.h>
+
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 
@@ -60,33 +61,32 @@ using namespace fmt::literals;
 
 static Status getInitializationError(int result) {
     return Status(ErrorCodes::OperationFailed,
-                  str::stream() <<
-                  "Could not initialize sasl server session (" <<
-                  sasl_errstring(result, nullptr, nullptr) <<
-                  ")");
+                  str::stream() << "Could not initialize sasl server session ("
+                                << sasl_errstring(result, nullptr, nullptr) << ")");
 }
 
 StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::getStepResult() const {
     if (_results.resultsShowNoError()) {
-        return std::make_tuple(_results.resultsAreOK(), std::string(_results.output, _results.length));
+        return std::make_tuple(_results.resultsAreOK(),
+                               std::string(_results.output, _results.length));
     }
 
     return Status(ErrorCodes::OperationFailed,
-                  str::stream() <<
-                  "SASL step did not complete: (" <<
-                  sasl_errstring(_results.result, nullptr, nullptr) <<
-                  ")");
+                  str::stream() << "SASL step did not complete: ("
+                                << sasl_errstring(_results.result, nullptr, nullptr) << ")");
 }
 
 Status SaslExternalLDAPServerMechanism::initializeConnection() {
-    int result = sasl_server_new(saslGlobalParams.serviceName.c_str(),
-                                 saslGlobalParams.hostName.c_str(), // Fully Qualified Domain Name (FQDN), nullptr => gethostname()
-                                 nullptr, // User Realm string, nullptr forces default value: FQDN.
-                                 nullptr, // Local IP address
-                                 nullptr, // Remote IP address
-                                 nullptr, // Callbacks specific to this connection.
-                                 0,    // Security flags.
-                                 &_saslConnection); // Connection object output parameter.
+    int result = sasl_server_new(
+        saslGlobalParams.serviceName.c_str(),
+        saslGlobalParams.hostName
+            .c_str(),       // Fully Qualified Domain Name (FQDN), nullptr => gethostname()
+        nullptr,            // User Realm string, nullptr forces default value: FQDN.
+        nullptr,            // Local IP address
+        nullptr,            // Remote IP address
+        nullptr,            // Callbacks specific to this connection.
+        0,                  // Security flags.
+        &_saslConnection);  // Connection object output parameter.
     if (result != SASL_OK) {
         return getInitializationError(result);
     }
@@ -98,11 +98,11 @@ StatusWith<std::tuple<bool, std::string>>
 SaslExternalLDAPServerMechanism::processInitialClientPayload(StringData payload) {
     _results.initialize_results();
     _results.result = sasl_server_start(_saslConnection,
-                                       mechanismName().data(),
-                                       payload.data(),
-                                       static_cast<unsigned>(payload.size()),
-                                       &_results.output,
-                                       &_results.length);
+                                        mechanismName().data(),
+                                        payload.data(),
+                                        static_cast<unsigned>(payload.size()),
+                                        &_results.output,
+                                        &_results.length);
     return getStepResult();
 }
 
@@ -110,10 +110,10 @@ StatusWith<std::tuple<bool, std::string>> SaslExternalLDAPServerMechanism::proce
     StringData payload) {
     _results.initialize_results();
     _results.result = sasl_server_step(_saslConnection,
-                                      payload.data(),
-                                      static_cast<unsigned>(payload.size()),
-                                      &_results.output,
-                                      &_results.length);
+                                       payload.data(),
+                                       static_cast<unsigned>(payload.size()),
+                                       &_results.output,
+                                       &_results.length);
     return getStepResult();
 }
 
@@ -152,15 +152,15 @@ OpenLDAPServerMechanism::~OpenLDAPServerMechanism() {
     }
 }
 
-StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(
-    OperationContext* opCtx, StringData inputData) {
+StatusWith<std::tuple<bool, std::string>> OpenLDAPServerMechanism::stepImpl(OperationContext* opCtx,
+                                                                            StringData inputData) {
     if (_step++ == 0) {
         // [authz-id]\0authn-id\0pwd
         const char* authz_id = inputData.data();
-        const char* authn_id = authz_id + std::strlen(authz_id) + 1; // authentication id
-        const char* pw = authn_id + std::strlen(authn_id) + 1; // password
+        const char* authn_id = authz_id + std::strlen(authz_id) + 1;  // authentication id
+        const char* pw = authn_id + std::strlen(authn_id) + 1;        // password
 
-        if(strlen(pw) == 0) {
+        if (strlen(pw) == 0) {
             return Status(
                 ErrorCodes::LDAPLibraryError,
                 fmt::format("Failed to authenticate '{}'; No password provided.", authn_id));
@@ -203,8 +203,10 @@ StringData OpenLDAPServerMechanism::getPrincipalName() const {
 namespace {
 
 int saslServerLog(void* context, int priority, const char* message) throw() {
-    LOGV2(29052, "SASL server message: ({priority}) {msg}",
-          "priority"_attr = priority, "msg"_attr = message);
+    LOGV2(29052,
+          "SASL server message: ({priority}) {msg}",
+          "priority"_attr = priority,
+          "msg"_attr = message);
     return SASL_OK;  // do nothing
 }
 
@@ -214,9 +216,7 @@ int saslServerLog(void* context, int priority, const char* message) throw() {
 MONGO_INITIALIZER(SaslExternalLDAPServerMechanism)(InitializerContext*) {
     typedef int (*SaslCallbackFn)();
     static sasl_callback_t saslServerGlobalCallbacks[] = {
-        {SASL_CB_LOG, SaslCallbackFn(saslServerLog), nullptr /* context */},
-        {SASL_CB_LIST_END}
-    };
+        {SASL_CB_LOG, SaslCallbackFn(saslServerLog), nullptr /* context */}, {SASL_CB_LIST_END}};
     int result = sasl_server_init(saslServerGlobalCallbacks, saslGlobalParams.serviceName.c_str());
     if (result != SASL_OK) {
         LOGV2_ERROR(29030, "SASL server initialization failed");
@@ -225,7 +225,7 @@ MONGO_INITIALIZER(SaslExternalLDAPServerMechanism)(InitializerContext*) {
 }
 
 
-/** Instantiates a SaslExternalLDAPServerMechanism or OpenLDAPServerMechanism 
+/** Instantiates a SaslExternalLDAPServerMechanism or OpenLDAPServerMechanism
  * depending on current server configuration. */
 class ExternalLDAPServerFactory : public ServerFactoryBase {
 public:
@@ -264,5 +264,5 @@ public:
 };
 
 GlobalSASLMechanismRegisterer<ExternalLDAPServerFactory> externalLDAPRegisterer;
-}
+}  // namespace
 }  // namespace mongo

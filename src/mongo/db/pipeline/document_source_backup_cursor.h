@@ -31,11 +31,11 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <boost/none.hpp>
-
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/repl/read_concern_level.h"
+
+#include <boost/none.hpp>
 
 namespace mongo {
 

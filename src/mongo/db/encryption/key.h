@@ -31,11 +31,11 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
+#include "mongo/base/secure_allocator.h"
+
 #include <cstddef>
 #include <string>
 #include <type_traits>
-
-#include "mongo/base/secure_allocator.h"
 
 namespace mongo {
 class SecureRandom;

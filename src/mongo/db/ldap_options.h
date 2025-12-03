@@ -31,14 +31,14 @@ Copyright (C) 2019-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <atomic>
-#include <string>
-#include <vector>
-
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/util/synchronized_value.h"
+
+#include <atomic>
+#include <string>
+#include <vector>
 
 namespace mongo {
 
@@ -65,7 +65,7 @@ struct LDAPGlobalParams {
     synchronized_value<std::string> ldapQueryTemplate;
     AtomicWord<bool> ldapDebug;
     AtomicWord<bool> ldapFollowReferrals;
-    AtomicWord<int>  ldapConnectionPoolSizePerHost;
+    AtomicWord<int> ldapConnectionPoolSizePerHost;
     bool ldapValidateLDAPServerConfig = true;
 
     std::string getServersStr() const;

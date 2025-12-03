@@ -30,14 +30,15 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 
-#include <cstring>
-
-#include <openssl/err.h>
+#include "mongo/db/storage/wiredtiger/wiredtiger_data_protector.h"
 
 #include "mongo/base/status.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_data_protector.h"
 #include "mongo/logv2/log.h"
+
+#include <cstring>
+
+#include <openssl/err.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kStorage
 
@@ -45,23 +46,22 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 
 namespace {
-    // callback for ERR_print_errors_cb
-    static int err_print_cb(const char *str, size_t len, void *param) {
-        LOGV2_ERROR(29028, "{str}", "str"_attr = str);
-        return 1;
-    }
-
-    Status handleCryptoErrors() {
-        ERR_print_errors_cb(&err_print_cb, nullptr);
-        return Status(ErrorCodes::InternalError,
-                      "libcrypto error");
-    }
-
-    template <typename T, typename DataRangeType>
-    T* buffer_at(DataRangeType* range, size_t offset = 0) {
-        return reinterpret_cast<T*>(range->data()) + offset;
-    }
+// callback for ERR_print_errors_cb
+static int err_print_cb(const char* str, size_t len, void* param) {
+    LOGV2_ERROR(29028, "{str}", "str"_attr = str);
+    return 1;
 }
+
+Status handleCryptoErrors() {
+    ERR_print_errors_cb(&err_print_cb, nullptr);
+    return Status(ErrorCodes::InternalError, "libcrypto error");
+}
+
+template <typename T, typename DataRangeType>
+T* buffer_at(DataRangeType* range, size_t offset = 0) {
+    return reinterpret_cast<T*>(range->data()) + offset;
+}
+}  // namespace
 
 
 WiredTigerDataProtector::WiredTigerDataProtector() {
@@ -71,7 +71,7 @@ WiredTigerDataProtector::WiredTigerDataProtector() {
     _ctx = new EVP_CIPHER_CTX{};
     EVP_CIPHER_CTX_init(_ctx);
 #else
-    _ctx= EVP_CIPHER_CTX_new();
+    _ctx = EVP_CIPHER_CTX_new();
 #endif
 }
 
@@ -103,7 +103,7 @@ Status WiredTigerDataProtectorCBC::protect(ConstDataRange in, DataRange* out) {
         std::memset(out->data(), 0, _chksum_len);
         bytesWritten += _chksum_len;
 
-        uint8_t *iv = buffer_at<uint8_t>(out, bytesWritten);
+        uint8_t* iv = buffer_at<uint8_t>(out, bytesWritten);
         store_pseudo_bytes(iv, _iv_len);
         bytesWritten += _iv_len;
 
@@ -170,10 +170,9 @@ Status WiredTigerDataProtectorGCM::protect(ConstDataRange in, DataRange* out) {
         std::memset(out->data(), 0, _gcm_tag_len);
         bytesWritten += _gcm_tag_len;
 
-        uint8_t *iv = buffer_at<uint8_t>(out, bytesWritten);
+        uint8_t* iv = buffer_at<uint8_t>(out, bytesWritten);
         if (0 != get_iv_gcm(iv, _iv_len))
-            return Status(ErrorCodes::InternalError,
-                          "failed generating IV for GCM");
+            return Status(ErrorCodes::InternalError, "failed generating IV for GCM");
         bytesWritten += _iv_len;
 
         if (1 != EVP_EncryptInit_ex(_ctx, _cipher, nullptr, _masterkey, iv))
@@ -214,7 +213,7 @@ std::size_t WiredTigerDataProtectorGCM::getNumberOfBytesReservedForTag() const {
 Status WiredTigerDataProtectorGCM::finalizeTag(DataRange* out) {
     invariant(out != nullptr);
     // get the tag
-    if(1 != EVP_CIPHER_CTX_ctrl(_ctx, EVP_CTRL_GCM_GET_TAG, _gcm_tag_len, out->data()))
+    if (1 != EVP_CIPHER_CTX_ctrl(_ctx, EVP_CTRL_GCM_GET_TAG, _gcm_tag_len, out->data()))
         return handleCryptoErrors();
     *out = DataRange(out->data(), _gcm_tag_len);
     return Status::OK();

@@ -29,16 +29,14 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/platform/basic.h"
-
-
 #include "mongo/bson/json.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
-#include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
+#include "mongo/platform/basic.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/str.h"
 

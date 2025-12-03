@@ -31,14 +31,14 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <boost/none.hpp>
-
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/pipeline/document_source.h"
 
+#include <boost/none.hpp>
+
 namespace mongo {
 
-class DocumentSourceBackupCursorExtend : public DocumentSource, public exec::agg::Stage  {
+class DocumentSourceBackupCursorExtend : public DocumentSource, public exec::agg::Stage {
 public:
     static constexpr StringData kStageName = "$backupCursorExtend"_sd;
 

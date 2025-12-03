@@ -32,11 +32,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/pipeline/document_source_backup_file.h"
 
-#include <array>
-#include <memory>
-#include <string>
-#include <utility>
-
 #include "mongo/base/data_range.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
@@ -49,6 +44,11 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/intrusive_counter.h"
 #include "mongo/util/str.h"
 #include "mongo/util/uuid.h"
+
+#include <array>
+#include <memory>
+#include <string>
+#include <utility>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 

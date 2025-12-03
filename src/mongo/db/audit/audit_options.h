@@ -34,43 +34,43 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #pragma once
 
-#include <string>
-
 #include "mongo/base/status.h"
+
+#include <string>
 
 namespace mongo {
 
 namespace optionenvironment {
-    class OptionSection;
-    class Environment;
-} // namespace optionenvironment
+class OptionSection;
+class Environment;
+}  // namespace optionenvironment
 
-    struct AuditOptions {
+struct AuditOptions {
 
-        // Output type: enables auditing functionality, eg 'file'
-        std::string destination;
+    // Output type: enables auditing functionality, eg 'file'
+    std::string destination;
 
-        // Output format, 'eg JSON'
-        std::string format;
+    // Output format, 'eg JSON'
+    std::string format;
 
-        // JSON query filter on events, users, etc.
-        // Filter query for audit events.
-        // eg "{ atype: { $in: [ 'authenticate', 'dropDatabase' ] } }"
-        std::string filter;
+    // JSON query filter on events, users, etc.
+    // Filter query for audit events.
+    // eg "{ atype: { $in: [ 'authenticate', 'dropDatabase' ] } }"
+    std::string filter;
 
-        // Event destination file path and name, eg '/data/db/audit.json'
-        std::string path;
+    // Event destination file path and name, eg '/data/db/audit.json'
+    std::string path;
 
-        AuditOptions();
-        BSONObj toBSON();
-    };
+    AuditOptions();
+    BSONObj toBSON();
+};
 
-    extern AuditOptions auditOptions;
+extern AuditOptions auditOptions;
 
-    Status addAuditOptions(optionenvironment::OptionSection* options);
+Status addAuditOptions(optionenvironment::OptionSection* options);
 
-    Status storeAuditOptions(const optionenvironment::Environment& params);
+Status storeAuditOptions(const optionenvironment::Environment& params);
 
-    Status validateAuditOptions();
+Status validateAuditOptions();
 
-} // namespace mongo
+}  // namespace mongo

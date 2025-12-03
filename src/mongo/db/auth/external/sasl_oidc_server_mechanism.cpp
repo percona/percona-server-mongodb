@@ -31,8 +31,6 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/auth/external/sasl_oidc_server_mechanism.h"
 
-#include <fmt/format.h>
-
 #include "mongo/bson/bson_time_support.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/crypto/jws_validated_token.h"
@@ -45,6 +43,8 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/time_support.h"
+
+#include <fmt/format.h>
 
 namespace mongo {
 namespace {
@@ -317,7 +317,8 @@ void SaslOidcServerMechanism::processLogClaims(const OidcIdentityProviderConfig&
     _claimsObj = builder.obj();
 }
 
-StatusWith<std::unique_ptr<UserRequest>> SaslOidcServerMechanism::makeUserRequest(OperationContext*) const  {
+StatusWith<std::unique_ptr<UserRequest>> SaslOidcServerMechanism::makeUserRequest(
+    OperationContext*) const {
     return std::make_unique<UserRequestOIDC>(
         UserName{getPrincipalName(), getAuthenticationDatabase()}, _roles, _roles);
 }

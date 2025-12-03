@@ -32,17 +32,6 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/auth/external/awsiam_server_mechanism.h"
 
-#include <algorithm>
-#include <regex>
-#include <sstream>
-#include <string>
-#include <tuple>
-#include <vector>
-
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/xml_parser.hpp>
-#include <fmt/format.h>
-
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
@@ -58,6 +47,17 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/base64.h"
 #include "mongo/util/net/http_client.h"
 #include "mongo/util/str.h"
+
+#include <algorithm>
+#include <regex>
+#include <sstream>
+#include <string>
+#include <tuple>
+#include <vector>
+
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kAccessControl
 

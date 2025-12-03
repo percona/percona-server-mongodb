@@ -31,12 +31,12 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/encryption/key.h"
 
+#include "mongo/platform/random.h"
+#include "mongo/util/base64.h"
+
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
-
-#include "mongo/platform/random.h"
-#include "mongo/util/base64.h"
 
 namespace mongo::encryption {
 Key::~Key() = default;

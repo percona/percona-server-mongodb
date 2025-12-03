@@ -174,9 +174,13 @@ public:
      * However, unlike enabling test commands, this function has no any other side effects, which
      * can be undesirable or even dangerous in the old `mongo` shell.
      */
-    static void enableLocalhostException() noexcept { _localhostExceptionEnabled = true; }
+    static void enableLocalhostException() noexcept {
+        _localhostExceptionEnabled = true;
+    }
 
-    static bool localhostExceptionEnabled() noexcept { return _localhostExceptionEnabled; }
+    static bool localhostExceptionEnabled() noexcept {
+        return _localhostExceptionEnabled;
+    }
 
 protected:
     Seconds _timeout = kTotalRequestTimeout;

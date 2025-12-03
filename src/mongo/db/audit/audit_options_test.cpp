@@ -30,17 +30,16 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 ======= */
 
 
-#include <boost/filesystem/operations.hpp>
-#include <boost/filesystem/path.hpp>
-
 #include "mongo/db/audit/audit_options.h"
+
 #include "mongo/db/server_options.h"
-
-#include "mongo/util/options_parser/environment.h"
-
 #include "mongo/unittest/assert.h"
 #include "mongo/unittest/framework.h"
 #include "mongo/unittest/temp_dir.h"
+#include "mongo/util/options_parser/environment.h"
+
+#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
 
 
 namespace mongo {

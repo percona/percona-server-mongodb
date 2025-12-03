@@ -7,7 +7,7 @@ idl_generator(
     src = "perconadecrypt_options.idl",
 )
 
-mongo_cc_library (
+mongo_cc_library(
     name = "perconadecrypt_options",
     srcs = [
         "//src/mongo/tools:perconadecrypt_options.cpp",

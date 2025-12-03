@@ -30,16 +30,16 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 ======= */
 #pragma once
 
-#include <type_traits>
-
 #include "mongo/crypto/jwks_fetcher_factory.h"
 #include "mongo/db/auth/oidc/match_pattern.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
+#include "mongo/stdx/unordered_set.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/util/base64.h"
 #include "mongo/util/periodic_runner.h"
-#include "mongo/stdx/unordered_set.h"
+
+#include <type_traits>
 
 namespace mongo {
 

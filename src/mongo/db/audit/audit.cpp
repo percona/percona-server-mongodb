@@ -32,29 +32,13 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/bson/bsonobjbuilder.h"
-
-#include <cstdio>
-#include <iostream>
-#include <string>
-#include <variant>
-
-#include <syslog.h>
-
-#include <boost/filesystem/path.hpp>
-#include <boost/iostreams/device/file_descriptor.hpp>
-#include <boost/iostreams/stream.hpp>
-#include <boost/scoped_ptr.hpp>
-#include <fmt/format.h>
-
-#include "mongo/util/debug_util.h"
-#include "mongo/util/net/socket_utils.h"
+#include "mongo/db/audit.h"
 
 #include "mongo/base/init.h"
 #include "mongo/bson/bson_field.h"
 #include "mongo/bson/bsonobj.h"
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
-#include "mongo/db/audit.h"
 #include "mongo/db/audit/audit.h"
 #include "mongo/db/audit/audit_parameters_gen.h"
 #include "mongo/db/audit/auditlog.h"
@@ -63,22 +47,36 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands.h"
-#include "mongo/db/matcher/matcher.h"
 #include "mongo/db/exec/matcher/matcher.h"
+#include "mongo/db/matcher/matcher.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_util.h"
 #include "mongo/rpc/metadata/audit_metadata.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/util/database_name_util.h"
+#include "mongo/util/debug_util.h"
 #include "mongo/util/errno_util.h"
 #include "mongo/util/exit_code.h"
 #include "mongo/util/namespace_string_util.h"
 #include "mongo/util/net/sock.h"
+#include "mongo/util/net/socket_utils.h"
 #include "mongo/util/overloaded_visitor.h"
 #include "mongo/util/string_map.h"
 
+#include <cstdio>
+#include <iostream>
+#include <string>
+#include <variant>
+
 #include "audit_options.h"
+#include <syslog.h>
+
+#include <boost/filesystem/path.hpp>
+#include <boost/iostreams/device/file_descriptor.hpp>
+#include <boost/iostreams/stream.hpp>
+#include <boost/scoped_ptr.hpp>
+#include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
@@ -128,8 +126,8 @@ public:
         }
     }
     Status rotate(bool rename,
-                          StringData renameSuffix,
-                          std::function<void(Status)> onMinorError) override {
+                  StringData renameSuffix,
+                  std::function<void(Status)> onMinorError) override {
         // No need to override this method if there is nothing to rotate
         // like it is for 'console' and 'syslog' destinations
         return Status::OK();
@@ -208,8 +206,8 @@ protected:
     }
 
     Status rotate(bool rename,
-                          StringData renameSuffix,
-                          std::function<void(Status)> onMinorError) override {
+                  StringData renameSuffix,
+                  std::function<void(Status)> onMinorError) override {
         stdx::lock_guard<stdx::mutex> lck(_mutex);
 
         // Close the current file.
