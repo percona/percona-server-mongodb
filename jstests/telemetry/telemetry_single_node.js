@@ -1,6 +1,12 @@
+import {
+    telmPath,
+    setParameterOpts,
+    cleanupTelmDir,
+    getTelmDataByConn
+} from "jstests/telemetry/_telemetry_helpers.js";
+
 (function() {
 "use strict";
-load('jstests/telemetry/_telemetry_helpers.js');
 
 var telmTestSingle = function(storage) {
     mkdir(telmPath);

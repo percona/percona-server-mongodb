@@ -1,8 +1,14 @@
 import { ReplSetTest } from "jstests/libs/replsettest.js";
+import {
+    telmPath,
+    setParameterOpts,
+    cleanupTelmDir,
+    getTelmRawData,
+    getTelmDataByConn
+} from "jstests/telemetry/_telemetry_helpers.js";
 
 (function() {
 "use strict";
-load('jstests/telemetry/_telemetry_helpers.js');
 
 var telmTestRepl = function() {
     mkdir(telmPath);

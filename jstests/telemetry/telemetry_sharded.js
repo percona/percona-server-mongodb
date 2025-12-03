@@ -1,8 +1,15 @@
 import { ShardingTest } from "jstests/libs/shardingtest.js";
+import {
+    telmPath,
+    setParameterOpts,
+    cleanupTelmDir,
+    getTelmRawData,
+    getTelmDataByConn,
+    cleanupDir
+} from "jstests/telemetry/_telemetry_helpers.js";
 
 (function() {
 "use strict";
-load('jstests/telemetry/_telemetry_helpers.js');
 
 var telmTestSharding = function() {
     mkdir(telmPath);
