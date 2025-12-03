@@ -309,18 +309,16 @@ env.Library(
 )
 
 env.Library(
-  target='ldap_options_init',
-  source=[
-      'ldap_options_init.cpp',
-  ],
-  LIBDEPS=[
-    'ldap_options'
-  ],
-  LIBDEPS_PRIVATE=[
-       '$BUILD_DIR/mongo/util/net/network',
-       '$BUILD_DIR/mongo/util/options_parser/options_parser',
-  ],
-)     
+    target='ldap_options_init',
+    source=[
+        'ldap_options_init.cpp',
+    ],
+    LIBDEPS=['ldap_options'],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/util/net/network',
+        '$BUILD_DIR/mongo/util/options_parser/options_parser',
+    ],
+)
 
 env.Library(
     target='server_options_base',
@@ -734,23 +732,15 @@ env.Library(
     source=[
         'audit/audit_commands.cpp',
     ],
-    LIBDEPS_PRIVATE=[
-        '$BUILD_DIR/mongo/db/commands/test_commands_enabled',
-        'audit',
-        'commands'
-    ],
+    LIBDEPS_PRIVATE=['$BUILD_DIR/mongo/db/commands/test_commands_enabled', 'audit', 'commands'],
 )
 
-env.CppUnitTest(
-    target='audit_test',
-    source=[
-        'audit/audit_options_test.cpp',
-    ],
-    LIBDEPS=[
-        'audit',
-        'server_options_base',
-    ]
-)
+env.CppUnitTest(target='audit_test', source=[
+    'audit/audit_options_test.cpp',
+], LIBDEPS=[
+    'audit',
+    'server_options_base',
+])
 
 env.Library(
     target='client_out_of_line_executor',
@@ -2586,7 +2576,7 @@ if env.TargetOSIs('windows'):
     env.Depends("mongod.res", generatedDbManifest)
 
 # Do not discard encryption extension's entry point
-env.Append( LINKFLAGS=["-upercona_encryption_extension_init"] );
+env.Append(LINKFLAGS=["-upercona_encryption_extension_init"])
 
 env.Program(
     target="mongod",

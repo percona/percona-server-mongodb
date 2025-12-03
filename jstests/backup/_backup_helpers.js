@@ -43,4 +43,4 @@ assert.hashesEq = function(orig, backup) {
         var hashBackup = backup[i];
         assert.eq(hashOrig.md5, hashBackup.md5, 'original and backup hashes don\'t match');
     }
-}
+};

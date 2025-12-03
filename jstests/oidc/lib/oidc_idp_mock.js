@@ -42,11 +42,11 @@ export class OIDCIdPMock {
 
         clearRawMongoProgramOutput();
 
-        this.pid = _startMongoProgram({ args: args });
+        this.pid = _startMongoProgram({args: args});
         assert(checkProgram(this.pid).alive);
 
         const start_msg = OIDC_IDP_MOCK_START_STR + this.issuer_url;
-        assert.soon(function () {
+        assert.soon(function() {
             return rawMongoProgramOutput().search(start_msg) !== -1;
         });
     }
@@ -67,7 +67,7 @@ export class OIDCIdPMock {
      */
     assert_http_request(method, path, timeout = 1000) {
         const request_msg = method + " " + this.issuer_url + path;
-        assert.soon(function () {
+        assert.soon(function() {
             return rawMongoProgramOutput().search(request_msg) !== -1;
         }, "Request not found: " + request_msg, timeout, 100);
     }
@@ -95,7 +95,7 @@ export class OIDCIdPMock {
         // The tests are re-using this flow to test OIDC authentication.
         // The '/token' endpoint is used by both flows.
 
-        let auth_search = "/device/authorize"
+        let auth_search = "/device/authorize";
         if (client_id) {
             auth_search += ".*client_id=" + client_id + ".*";
         }

@@ -32,18 +32,12 @@ env.Library(
     ],
 )
 
-env.Library(
-    target='read_file_to_secure_string',
-    source=[
-        'read_file_to_secure_string.cpp'
-    ],
-    LIBDEPS=[
-        '$BUILD_DIR/mongo/base/secure_allocator',
-    ],
-    LIBDEPS_PRIVATE=[
-        '$BUILD_DIR/mongo/db/server_base',
-    ]
-)
+env.Library(target='read_file_to_secure_string', source=['read_file_to_secure_string.cpp'],
+            LIBDEPS=[
+                '$BUILD_DIR/mongo/base/secure_allocator',
+            ], LIBDEPS_PRIVATE=[
+                '$BUILD_DIR/mongo/db/server_base',
+            ])
 
 env.Library(
     target='vault_secret_metadata_locator',
@@ -91,10 +85,7 @@ kmipClientEnv = env.Clone()
 kmipClientEnv.InjectThirdParty(libraries=['libkmip', 'kmippp'])
 kmipClientEnv.Library(
     target='kmip_client',
-    source=[
-        'kmip_client.cpp',
-        'kmip_exchange.cpp'
-    ],
+    source=['kmip_client.cpp', 'kmip_exchange.cpp'],
     LIBDEPS=[
         'key',
     ],

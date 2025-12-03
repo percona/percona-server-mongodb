@@ -17,7 +17,8 @@ function hexToPrintableString(hex) {
 function test_no_principal_name_is_not_ok_if_multiple_identity_providers(clusterClass) {
     // Test that when multiple identity providers are configured, the server rejects the request
     // with no principal name in saslStart command (payload is empty BSON object).
-    // The error message should indicate that a principal name is required to choose an identity provider.
+    // The error message should indicate that a principal name is required to choose an identity
+    // provider.
     const oidcProviders = [
         {
             issuer: OIDCFixture.allocate_issuer_url(),
@@ -37,18 +38,17 @@ function test_no_principal_name_is_not_ok_if_multiple_identity_providers(cluster
         }
     ];
 
-    var test = new OIDCFixture({ oidcProviders: oidcProviders });
+    var test = new OIDCFixture({oidcProviders: oidcProviders});
     test.setup(clusterClass);
 
-    const res = test.admin.getSiblingDB('$external').runCommand(
-        {
-            saslStart: 1,
-            mechanism: "MONGODB-OIDC",
-            payload: EmptyBSONPayload,
-        }
-    );
+    const res = test.admin.getSiblingDB('$external').runCommand({
+        saslStart: 1,
+        mechanism: "MONGODB-OIDC",
+        payload: EmptyBSONPayload,
+    });
     assert.commandFailedWithCode(res, ErrorCodes.AuthenticationFailed);
-    OIDCFixture.assert_mongod_output_match("BadValue: Multiple identity providers are known, provide a principal name for choosing a one")
+    OIDCFixture.assert_mongod_output_match(
+        "BadValue: Multiple identity providers are known, provide a principal name for choosing a one");
     test.teardown();
 }
 
@@ -64,16 +64,14 @@ function test_no_principal_name_is_ok_if_single_identity_provider(clusterClass) 
         authorizationClaim: "claim1"
     };
 
-    var test = new OIDCFixture({ oidcProviders: [oidcProvider] });
+    var test = new OIDCFixture({oidcProviders: [oidcProvider]});
     test.setup(clusterClass);
 
-    const res = test.admin.getSiblingDB('$external').runCommand(
-        {
-            saslStart: 1,
-            mechanism: "MONGODB-OIDC",
-            payload: EmptyBSONPayload,
-        }
-    );
+    const res = test.admin.getSiblingDB('$external').runCommand({
+        saslStart: 1,
+        mechanism: "MONGODB-OIDC",
+        payload: EmptyBSONPayload,
+    });
 
     assert.commandWorked(res);
 

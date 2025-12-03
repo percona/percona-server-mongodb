@@ -289,8 +289,9 @@ TEST_F(OidcRefreshKeysTest, Run_OneJwkManager_Failed) {
 
     const BSONObj expectedFailure{
         BSON("issuer" << issuer << "error"
-                      << BSON("code" << 211 << "codeName" << "KeyNotFound" << "errmsg"
-                                     << std::string("No JWK for issuer ") + issuer))};
+                      << BSON("code" << 211 << "codeName"
+                                     << "KeyNotFound"
+                                     << "errmsg" << std::string("No JWK for issuer ") + issuer))};
     const BSONObj::ComparisonRulesSet rules{BSONObj::ComparatorInterface::kConsiderFieldName |
                                             BSONObj::ComparatorInterface::kIgnoreFieldOrder};
     ASSERT_EQ(failures[0].Obj().woCompare(expectedFailure, {}, rules), 0);
@@ -344,7 +345,9 @@ TEST_F(OidcRefreshKeysTest, Run_MultipleJwkManagers_Failed) {
 
     auto expectedFailure = [](const std::string issuer) {
         return BSON("issuer" << issuer << "error"
-                             << BSON("code" << 211 << "codeName" << "KeyNotFound" << "errmsg"
+                             << BSON("code" << 211 << "codeName"
+                                            << "KeyNotFound"
+                                            << "errmsg"
                                             << std::string("No JWK for issuer ") + issuer));
     };
     auto failureEq = [](const BSONObj& lhs, const BSONObj& rhs) {

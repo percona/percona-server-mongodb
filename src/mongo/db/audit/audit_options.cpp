@@ -32,15 +32,15 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
+#include <boost/filesystem/path.hpp>
 
 #include <fstream>
 
 #include "mongo/base/status.h"
 #include "mongo/db/audit/audit_options_gen.h"
-#include "mongo/db/server_options.h"
 #include "mongo/db/json.h"
+#include "mongo/db/server_options.h"
 #include "mongo/util/options_parser/startup_option_init.h"
 #include "mongo/util/options_parser/startup_options.h"
 
@@ -48,133 +48,120 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-    AuditOptions auditOptions;
+AuditOptions auditOptions;
 
-    AuditOptions::AuditOptions():
-        format("JSON"),
-        filter("{}")
-    {
+AuditOptions::AuditOptions() : format("JSON"), filter("{}") {}
+
+BSONObj AuditOptions::toBSON() {
+    return BSON("format" << format << "path" << path << "destination" << destination << "filter"
+                         << filter);
+}
+
+Status storeAuditOptions(const optionenvironment::Environment& params) {
+    if (params.count("auditLog.destination")) {
+        auditOptions.destination = params["auditLog.destination"].as<std::string>();
+    }
+    if (auditOptions.destination != "") {
+        if (auditOptions.destination != "file" && auditOptions.destination != "console" &&
+            auditOptions.destination != "syslog") {
+            return Status(ErrorCodes::BadValue,
+                          "Supported audit log destinations are 'file', 'console', 'syslog'");
+        }
     }
 
-    BSONObj AuditOptions::toBSON() {
-        return BSON("format" << format <<
-                    "path" << path <<
-                    "destination" << destination <<
-                    "filter" << filter);
+    if (params.count("auditLog.format")) {
+        auditOptions.format = params["auditLog.format"].as<std::string>();
+    }
+    if (auditOptions.format != "JSON" && auditOptions.format != "BSON") {
+        return Status(ErrorCodes::BadValue, "Supported audit log formats are 'JSON' and 'BSON'");
+    }
+    if (auditOptions.format == "BSON" && auditOptions.destination != "file") {
+        return Status(
+            ErrorCodes::BadValue,
+            "BSON audit log format is only allowed when audit log destination is a 'file'");
     }
 
-    Status storeAuditOptions(const optionenvironment::Environment& params) {
-        if (params.count("auditLog.destination")) {
-            auditOptions.destination =
-                params["auditLog.destination"].as<std::string>();
-        }
-        if (auditOptions.destination != "") {
-            if (auditOptions.destination != "file" &&
-                auditOptions.destination != "console" &&
-                auditOptions.destination != "syslog") {
-                return Status(ErrorCodes::BadValue,
-                              "Supported audit log destinations are 'file', 'console', 'syslog'");
-            }
-        }
+    if (params.count("auditLog.filter")) {
+        auditOptions.filter = params["auditLog.filter"].as<std::string>();
+    }
+    try {
+        fromjson(auditOptions.filter);
+    } catch (const std::exception& ex) {
+        return Status(ErrorCodes::BadValue,
+                      "Could not parse audit filter into valid json: " + auditOptions.filter);
+    }
 
-        if (params.count("auditLog.format")) {
-            auditOptions.format =
-                params["auditLog.format"].as<std::string>();
-        }
-        if (auditOptions.format != "JSON" && auditOptions.format != "BSON") {
-            return Status(ErrorCodes::BadValue,
-                          "Supported audit log formats are 'JSON' and 'BSON'");
-        }
-        if (auditOptions.format == "BSON" && auditOptions.destination != "file") {
-            return Status(ErrorCodes::BadValue,
-                          "BSON audit log format is only allowed when audit log destination is a 'file'");
-        }
+    if (params.count("auditLog.path")) {
+        auditOptions.path = params["auditLog.path"].as<std::string>();
+    }
 
-        if (params.count("auditLog.filter")) {
-            auditOptions.filter =
-                params["auditLog.filter"].as<std::string>();
-        }
-        try {
-            fromjson(auditOptions.filter);
-        }
-        catch (const std::exception &ex) {
-            return Status(ErrorCodes::BadValue,
-                          "Could not parse audit filter into valid json: "
-                          + auditOptions.filter);
-        }
+    return Status::OK();
+}
 
-        if (params.count("auditLog.path")) {
-            auditOptions.path =
-                params["auditLog.path"].as<std::string>();
-        }
-
+Status validateAuditOptions() {
+    if (auditOptions.destination != "file") {
+        // no validation needed if audit is disabled or destination is not to a file
         return Status::OK();
     }
 
-    Status validateAuditOptions() {
-        if (auditOptions.destination != "file") {
-            // no validation needed if audit is disabled or destination is not to a file
-            return Status::OK();
-        }
+    auto getAbsolutePath = [](auto const& p) {
+        return boost::filesystem::absolute(p, serverGlobalParams.cwd).native();
+    };
 
-        auto getAbsolutePath = [](auto const& p) {
-            return boost::filesystem::absolute(p, serverGlobalParams.cwd).native();
-        };
+    auto isWritable = [](const std::string& path) -> bool {
+        // Check if the file is writable by trying to open it for appending.
+        const bool exists = boost::filesystem::exists(path);
+        std::ofstream testFile(path.c_str(), std::ios_base::app);
+        const bool writable = testFile.is_open();
+        if (writable) {
+            testFile.close();
 
-        auto isWritable = [](const std::string& path) -> bool {
-            // Check if the file is writable by trying to open it for appending.
-            const bool exists = boost::filesystem::exists(path);
-            std::ofstream testFile(path.c_str(), std::ios_base::app);
-            const bool writable = testFile.is_open();
-            if (writable) {
-                testFile.close();
-
-                if (!exists) {
-                    // If the file didn't exist, remove it
-                    boost::filesystem::remove(path);
-                }
+            if (!exists) {
+                // If the file didn't exist, remove it
+                boost::filesystem::remove(path);
             }
-
-            return writable;
-        };
-
-        if (!auditOptions.path.empty()) {
-            auditOptions.path = getAbsolutePath(auditOptions.path);
-        } else {
-            const std::string defaultFilePath =
-                (auditOptions.format == "BSON") ? "auditLog.bson" : "auditLog.json";
-
-            const bool useLogPathBase =
-                !serverGlobalParams.logWithSyslog && !serverGlobalParams.logpath.empty();
-
-            const auto base = useLogPathBase
-                ? boost::filesystem::path(serverGlobalParams.logpath).parent_path()
-                : boost::filesystem::path();
-
-            auditOptions.path = getAbsolutePath(base / defaultFilePath);
         }
 
-        if (!isWritable(auditOptions.path)) {
-            return Status(ErrorCodes::BadValue,
-                          "Could not open a file for writing at the given auditPath: " +
-                              auditOptions.path);
-        }
+        return writable;
+    };
 
-        return Status::OK();
+    if (!auditOptions.path.empty()) {
+        auditOptions.path = getAbsolutePath(auditOptions.path);
+    } else {
+        const std::string defaultFilePath =
+            (auditOptions.format == "BSON") ? "auditLog.bson" : "auditLog.json";
+
+        const bool useLogPathBase =
+            !serverGlobalParams.logWithSyslog && !serverGlobalParams.logpath.empty();
+
+        const auto base = useLogPathBase
+            ? boost::filesystem::path(serverGlobalParams.logpath).parent_path()
+            : boost::filesystem::path();
+
+        auditOptions.path = getAbsolutePath(base / defaultFilePath);
     }
 
-    MONGO_MODULE_STARTUP_OPTIONS_REGISTER(AuditOptions)(InitializerContext* context) {
-        uassertStatusOK(addAuditOptions(&optionenvironment::startupOptions));
+    if (!isWritable(auditOptions.path)) {
+        return Status(ErrorCodes::BadValue,
+                      "Could not open a file for writing at the given auditPath: " +
+                          auditOptions.path);
     }
 
-    MONGO_STARTUP_OPTIONS_STORE(AuditOptions)(InitializerContext* context) {
-        uassertStatusOK(storeAuditOptions(optionenvironment::startupOptionsParsed));
-    }
+    return Status::OK();
+}
 
-    // Can't use MONGO_STARTUP_OPTIONS_VALIDATE here as we need serverGlobalParams
-    // to be already initialized.
-    MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"), ("default"))
-    (InitializerContext*) {
-        uassertStatusOK(validateAuditOptions());
-    }
-} // namespace mongo
+MONGO_MODULE_STARTUP_OPTIONS_REGISTER(AuditOptions)(InitializerContext* context) {
+    uassertStatusOK(addAuditOptions(&optionenvironment::startupOptions));
+}
+
+MONGO_STARTUP_OPTIONS_STORE(AuditOptions)(InitializerContext* context) {
+    uassertStatusOK(storeAuditOptions(optionenvironment::startupOptionsParsed));
+}
+
+// Can't use MONGO_STARTUP_OPTIONS_VALIDATE here as we need serverGlobalParams
+// to be already initialized.
+MONGO_INITIALIZER_GENERAL(AuditOptionsPath_Validate, ("EndStartupOptionHandling"), ("default"))
+(InitializerContext*) {
+    uassertStatusOK(validateAuditOptions());
+}
+}  // namespace mongo

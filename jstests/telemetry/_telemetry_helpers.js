@@ -8,9 +8,7 @@ const setParameterOpts = {
 
 var cleanupDir = function(dir) {
     var files = listFiles(dir);
-    files.forEach((file) => {
-        removeFile(file.name)
-    });
+    files.forEach((file) => {removeFile(file.name);});
 };
 
 var cleanupTelmDir = function() {
@@ -20,9 +18,7 @@ var cleanupTelmDir = function() {
 var getTelmRawData = function() {
     var files = listFiles(telmPath);
     var data = '';
-    files.forEach((file) => {
-        data = data + cat(file.name)
-    });
+    files.forEach((file) => {data = data + cat(file.name);});
     return data;
 };
 
@@ -36,10 +32,10 @@ var getTelmInstanceId = function(conn) {
 var getTelmDataByConn = function(conn) {
     var id = getTelmInstanceId(conn);
     var files = listFiles(telmPath);
-    var data = [] ;
+    var data = [];
     files.forEach((file) => {
         if (file.name.includes(id)) {
-            data.push(JSON.parse(cat(file.name)))
+            data.push(JSON.parse(cat(file.name)));
         }
     });
     return data;
@@ -55,4 +51,4 @@ var getTelmDataForMongos = function() {
         }
     });
     return data;
-}
+};

@@ -1,4 +1,4 @@
-import { OIDCIdPMock } from 'jstests/oidc/lib/oidc_idp_mock.js';
+import {OIDCIdPMock} from 'jstests/oidc/lib/oidc_idp_mock.js';
 
 Random.setRandomSeed();
 
@@ -184,9 +184,10 @@ export class OIDCFixture {
      *
      * @param {object} oidcProviders - The OIDC providers configuration object for mongod.
      * @param {object} idps - The IdP configuration object for the OIDC IdP mock.
-     * @param {function} client_callback - The callback function to handle authentication callbacks on the client side.
+     * @param {function} client_callback - The callback function to handle authentication callbacks
+     *     on the client side.
      */
-    constructor({ oidcProviders, idps, client_callback }) {
+    constructor({oidcProviders, idps, client_callback}) {
         this.idps = {};
         this.client_callback = client_callback;
         if (idps) {
@@ -288,8 +289,8 @@ export class OIDCFixture {
      *     the testing is going to be done. Allowed values: `StandaloneMongod` (default),
      *     `ShardedCluster`.
      * @param {boolean} with_audit - If true, enables audit logging.
-     * @param {number} jwksMinimumQuiescePeriodSecs - The minimum quiesce period for JWKS in seconds;
-     *     default is 0, which means disabled.
+     * @param {number} jwksMinimumQuiescePeriodSecs - The minimum quiesce period for JWKS in
+     *     seconds; default is 0, which means disabled.
      *
      * NOTE: The SCRAM-SHA-256 mechanism is specified to allow admin authentication.
      *       The admin session is created so that it is possible to run admin commands
@@ -306,21 +307,22 @@ export class OIDCFixture {
             this.idps[idp_url].start();
         }
 
-        this.cluster = new clusterClass(this.oidc_providers, this.audit_path, jwksMinimumQuiescePeriodSecs);
+        this.cluster =
+            new clusterClass(this.oidc_providers, this.audit_path, jwksMinimumQuiescePeriodSecs);
         this.admin_conn = this.cluster.connection();
         this.admin = this.admin_conn.getDB("admin");
         assert.commandWorked(this.admin.runCommand(
-            { createUser: "admin", pwd: "admin", roles: [{ role: "root", db: "admin" }] }));
+            {createUser: "admin", pwd: "admin", roles: [{role: "root", db: "admin"}]}));
         assert(this.admin.auth("admin", "admin"));
 
-        var callback = function (authInfo) {
+        var callback = function(authInfo) {
             print("OIDCFixture.OIDCIdPAuthCallback: ", JSON.stringify(this));
             if (this.client_callback) {
-                var issuer = authInfo.activationEndpoint.replace("/device/verify", "")
-                this.client_callback({
-                    user: authInfo.userName,
-                    issuer: issuer,
-                })
+                var issuer =
+                    authInfo.activationEndpoint.replace("/device/verify", "") this.client_callback({
+                        user: authInfo.userName,
+                        issuer: issuer,
+                    })
             }
         };
 
@@ -361,7 +363,8 @@ export class OIDCFixture {
      * @param {object} expectedLog - The expected log object to check for.
      * @param {Date} lastDate - The date of the last processed log entry.
      * @param {function} getDate - Function to extract the date from the log entry.
-     * @returns {object} - Returns pair including a boolean which indicates if the expected log exists,
+     * @returns {object} - Returns pair including a boolean which indicates if the expected log
+     *     exists,
      * and the date of found element.
      */
     static checkLogExistsWithDate(logs, expectedLog, lastDate, getDate) {
@@ -380,7 +383,7 @@ export class OIDCFixture {
             return found;
         });
 
-        return { res, lastDate };
+        return {res, lastDate};
     }
 
     /**
@@ -395,12 +398,13 @@ export class OIDCFixture {
      * @returns True if the expected log exists, false otherwise.
      */
     checkLogExists(expectedLog, advanceLogCutOffTimePoint = true) {
-        const logs =
-            assert.commandWorked(this.admin.runCommand({ getLog: "global" })).log.map(element => JSON.parse(element));
+        const logs = assert.commandWorked(this.admin.runCommand({getLog: "global"}))
+                         .log.map(element => JSON.parse(element));
 
-        const result = OIDCFixture.checkLogExistsWithDate(logs, expectedLog, this.last_log_date, element => {
-            new Date(element["t"]["$date"]);
-        });
+        const result =
+            OIDCFixture.checkLogExistsWithDate(logs, expectedLog, this.last_log_date, element => {
+                new Date(element["t"]["$date"]);
+            });
 
         if (result.res && advanceLogCutOffTimePoint) {
             this.last_log_date = result.lastDate;
@@ -426,9 +430,10 @@ export class OIDCFixture {
             auditLogs.push(logJson);
         });
 
-        const result = OIDCFixture.checkLogExistsWithDate(auditLogs, expectedLog, this.last_audit_log_date, element => {
-            new Date(element["ts"]);
-        });
+        const result = OIDCFixture.checkLogExistsWithDate(
+            auditLogs, expectedLog, this.last_audit_log_date, element => {
+                new Date(element["ts"]);
+            });
 
         if (result.res) {
             this.last_audit_log_date = result.lastDate;
@@ -449,9 +454,8 @@ export class OIDCFixture {
 
         print("OIDCFixture.auth")
         try {
-            return conn.auth({ mechanism: 'MONGODB-OIDC', user });
-        }
-        catch (e) {
+            return conn.auth({mechanism: 'MONGODB-OIDC', user});
+        } catch (e) {
             print("OIDCFixture.auth exception: ", e);
         }
 
@@ -460,7 +464,7 @@ export class OIDCFixture {
 
     /**
      * Refresh the access token for the current user and reauthenticate.
-     * 
+     *
      * @param {object} conn - The connection object.
      * @returns {string|null} - Returns the new access token if successful, null otherwise.
      */
@@ -469,10 +473,7 @@ export class OIDCFixture {
         assert(conn, "Connection is not defined");
         try {
             const accessToken = conn._refreshAccessToken();
-            conn.auth({
-                oidcAccessToken: accessToken,
-                mechanism: 'MONGODB-OIDC'
-            });
+            conn.auth({oidcAccessToken: accessToken, mechanism: 'MONGODB-OIDC'});
 
             return accessToken;
         } catch (e) {
@@ -505,7 +506,7 @@ export class OIDCFixture {
     authInfo(conn) {
         assert(conn, "Connection is not defined");
         var db = conn.getDB('$external');
-        return db.runCommand({ connectionStatus: 1, showPrivileges: 1 }).authInfo;
+        return db.runCommand({connectionStatus: 1, showPrivileges: 1}).authInfo;
     }
 
     /**
@@ -517,7 +518,8 @@ export class OIDCFixture {
      */
     assert_has_privileges(allPrivileges, expectedPrivileges) {
         // Ignore privileges for system.js collections.
-        const privileges = allPrivileges.filter(privilege => privilege.resource.collection !== "system.js");
+        const privileges =
+            allPrivileges.filter(privilege => privilege.resource.collection !== "system.js");
 
         assert.eq(privileges.length, expectedPrivileges.length, "Privileges count mismatch");
 
@@ -531,14 +533,19 @@ export class OIDCFixture {
                     return false;
                 }
 
-                assert.eq(privilege.actions.length, expectedPrivilege.actions.length, "Actions count mismatch");
+                assert.eq(privilege.actions.length,
+                          expectedPrivilege.actions.length,
+                          "Actions count mismatch");
                 for (const action of expectedPrivilege.actions) {
                     assert(privilege.actions.includes(action),
-                        `Action ${action} not found in privilege actions: ${JSON.stringify(privilege.actions)}`);
+                           `Action ${action} not found in privilege actions: ${
+                               JSON.stringify(privilege.actions)}`);
                 }
 
                 return true;
-            }), `Privileges mismatch: expected: ${JSON.stringify(expectedPrivileges)} current: ${JSON.stringify(privileges)}`);
+            }),
+                   `Privileges mismatch: expected: ${JSON.stringify(expectedPrivileges)} current: ${
+                       JSON.stringify(privileges)}`);
         }
     }
 
@@ -557,13 +564,13 @@ export class OIDCFixture {
                 }
 
                 return role.role == expectedRole.role && role.db == expectedRole.db;
-            }), "Role not found: " + JSON.stringify(expectedRole));
+            }),
+                   "Role not found: " + JSON.stringify(expectedRole));
         }
     }
 
-
     /**
-     * Assert that the user is authenticated with the provided roles. 
+     * Assert that the user is authenticated with the provided roles.
      *
      * @param {object} conn - The connection object.
      * @param {string} user The expected user name.
@@ -577,12 +584,8 @@ export class OIDCFixture {
         // Make sure the user is authenticated according to server's logs
         var expectedLog = {
             msg: "Successfully authenticated",
-            attr: {
-                mechanism: "MONGODB-OIDC",
-                user: user
-            }
-        }
-        assert(this.checkLogExists(expectedLog), user + " is not authenticated");
+            attr: {mechanism: "MONGODB-OIDC", user: user}
+        } assert(this.checkLogExists(expectedLog), user + " is not authenticated");
 
         // Make sure the user is authenticated according to the connectionStatus command
         var authInfo = this.authInfo(conn);
@@ -628,11 +631,9 @@ export class OIDCFixture {
         assert(role_name, "Role name is not defined");
 
         print(`OIDCFixture.create_role: ${role_name}`);
-        assert.commandWorked(this.admin.runCommand({
-            createRole: role_name,
-            privileges: privileges,
-            roles: roles
-        }), `Failed to create role: ${role_name}`);
+        assert.commandWorked(
+            this.admin.runCommand({createRole: role_name, privileges: privileges, roles: roles}),
+            `Failed to create role: ${role_name}`);
     }
 
     /**
@@ -647,7 +648,8 @@ export class OIDCFixture {
         assert.commandWorked(this.admin.getSiblingDB("$external").runCommand({
             createUser: user,
             roles: roles,
-        }), `Failed to create user: ${user}`);
+        }),
+                             `Failed to create user: ${user}`);
     }
 
     /**

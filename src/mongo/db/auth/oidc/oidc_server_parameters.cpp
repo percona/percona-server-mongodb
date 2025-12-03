@@ -75,7 +75,7 @@ bool operator<(const IssuerAudiencePair& lhs, const IssuerAudiencePair& rhs) noe
 
 template <typename R>
 requires std::ranges::range<R> && std::is_same_v<std::ranges::range_value_t<R>, std::size_t>
-str::stream errorMsgHeader(const R& indexes) {
+    str::stream errorMsgHeader(const R& indexes) {
     str::stream s;
     s << "In ";
     for (std::size_t i{0u}; auto index : indexes) {

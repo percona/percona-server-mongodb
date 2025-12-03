@@ -15,9 +15,7 @@ env.SConscript(
 perconadecrypt = env.Program(
     target='perconadecrypt',
     source=[
-        'perconadecrypt.cpp',
-        'perconadecrypt_options.cpp',
-        'perconadecrypt_options.idl',
+        'perconadecrypt.cpp', 'perconadecrypt_options.cpp', 'perconadecrypt_options.idl',
         'perconadecrypt_options_init.cpp'
     ],
     LIBDEPS=[
@@ -27,4 +25,3 @@ perconadecrypt = env.Program(
     ],
     AIB_COMPONENT='perconadecrypt',
 )
-

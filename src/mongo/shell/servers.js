@@ -789,15 +789,28 @@ MongoRunner.mongodOptions = function(opts = {}) {
             opts[optName] = optValue;
         }
     }
-    const switchOptNames = ['enableEncryption', 'vaultDisableTLSForTesting', 'vaultRotateMasterKey',
-                            'kmipRotateMasterKey'];
+    const switchOptNames = [
+        'enableEncryption',
+        'vaultDisableTLSForTesting',
+        'vaultRotateMasterKey',
+        'kmipRotateMasterKey'
+    ];
     const stringOptNames = [
-        'encryptionCipherMode', 'encryptionKeyFile', 'vaultServerName', 'vaultServerCAFile',
-        'vaultTokenFile', 'vaultSecret', 'kmipServerName', 'kmipServerCAFile',
-        'kmipClientCertificateFile', 'kmipClientCertificatePassword', 'kmipKeyIdentifier',
-        'auditDestination'];
+        'encryptionCipherMode',
+        'encryptionKeyFile',
+        'vaultServerName',
+        'vaultServerCAFile',
+        'vaultTokenFile',
+        'vaultSecret',
+        'kmipServerName',
+        'kmipServerCAFile',
+        'kmipClientCertificateFile',
+        'kmipClientCertificatePassword',
+        'kmipKeyIdentifier',
+        'auditDestination'
+    ];
     const numberOptNames = ['vaultPort', 'vaultSecretVersion', 'kmipPort'];
-    mergeOptions(switchOptNames, opt => opt == ''             , "an empty string");
+    mergeOptions(switchOptNames, opt => opt == '', "an empty string");
     mergeOptions(stringOptNames, opt => typeof opt == 'string', "a string");
     mergeOptions(numberOptNames, opt => typeof opt == 'number', "a number");
 

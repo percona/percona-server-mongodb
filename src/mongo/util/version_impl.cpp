@@ -75,23 +75,21 @@ public:
     }
 
     std::vector<StringData> perconaFeatures() const final {
-        return {
-            "MemoryEngine",
-            "HotBackup",
-            "BackupCursorAggregationStage",
-            "BackupCursorExtendAggregationStage",
-            "AWSIAM",
-            "Kerberos",
-            "LDAP",
-            "OIDC",
-            "TDE",
-            "FIPSMode",
-            "FCBIS",
-            "Auditing",
-            "ProfilingRateLimit",
-            "LogRedaction",
-            "ngram"
-        };
+        return {"MemoryEngine",
+                "HotBackup",
+                "BackupCursorAggregationStage",
+                "BackupCursorExtendAggregationStage",
+                "AWSIAM",
+                "Kerberos",
+                "LDAP",
+                "OIDC",
+                "TDE",
+                "FIPSMode",
+                "FCBIS",
+                "Auditing",
+                "ProfilingRateLimit",
+                "LogRedaction",
+                "ngram"};
     }
 
     StringData allocator() const noexcept final {
