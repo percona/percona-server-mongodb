@@ -1,4 +1,11 @@
-load('jstests/telemetry/_telemetry_helpers.js');
+import { ShardingTest } from "jstests/libs/shardingtest.js";
+import {
+    telmPath,
+    setParameterOpts,
+    cleanupTelmDir,
+    getTelmDataByConn,
+    getTelmDataForMongos
+} from "jstests/telemetry/_telemetry_helpers.js";
 
 // check for LDAP test configuration
 function isLDAPTestConfigured() {

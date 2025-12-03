@@ -1,23 +1,23 @@
-const telmPath = "/tmp/psmdb";
-const setParameterOpts = {
+export const telmPath = "/tmp/psmdb";
+export const setParameterOpts = {
     perconaTelemetryPath: telmPath,
     perconaTelemetryGracePeriod: 2,
     perconaTelemetryScrapeInterval: 5,
     perconaTelemetryHistoryKeepInterval: 9
 };
 
-var cleanupDir = function(dir) {
+export var cleanupDir = function(dir) {
     var files = listFiles(dir);
     files.forEach((file) => {
         removeFile(file.name)
     });
 };
 
-var cleanupTelmDir = function() {
+export var cleanupTelmDir = function() {
     cleanupDir(telmPath);
 };
 
-var getTelmRawData = function() {
+export var getTelmRawData = function() {
     var files = listFiles(telmPath);
     var data = '';
     files.forEach((file) => {
@@ -33,7 +33,7 @@ var getTelmInstanceId = function(conn) {
     return telmId[0]['db_instance_id'].str;
 };
 
-var getTelmDataByConn = function(conn) {
+export var getTelmDataByConn = function(conn) {
     var id = getTelmInstanceId(conn);
     var files = listFiles(telmPath);
     var data = [] ;
@@ -45,7 +45,7 @@ var getTelmDataByConn = function(conn) {
     return data;
 };
 
-var getTelmDataForMongos = function() {
+export var getTelmDataForMongos = function() {
     var files = listFiles(telmPath);
     var data = [];
     files.forEach((file) => {
