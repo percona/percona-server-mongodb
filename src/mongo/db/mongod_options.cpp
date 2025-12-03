@@ -573,15 +573,18 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("security.encryptionCipherMode")) {
-        encryptionGlobalParams.encryptionCipherMode = params["security.encryptionCipherMode"].as<std::string>();
+        encryptionGlobalParams.encryptionCipherMode =
+            params["security.encryptionCipherMode"].as<std::string>();
     }
 
     if (params.count("security.encryptionKeyFile")) {
-        encryptionGlobalParams.encryptionKeyFile = params["security.encryptionKeyFile"].as<std::string>();
+        encryptionGlobalParams.encryptionKeyFile =
+            params["security.encryptionKeyFile"].as<std::string>();
     }
 
     if (params.count("security.vault.serverName")) {
-        encryptionGlobalParams.vaultServerName = params["security.vault.serverName"].as<std::string>();
+        encryptionGlobalParams.vaultServerName =
+            params["security.vault.serverName"].as<std::string>();
     }
 
     if (params.count("security.vault.port")) {
@@ -589,7 +592,8 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("security.vault.tokenFile")) {
-        encryptionGlobalParams.vaultTokenFile = params["security.vault.tokenFile"].as<std::string>();
+        encryptionGlobalParams.vaultTokenFile =
+            params["security.vault.tokenFile"].as<std::string>();
     }
 
     if (params.count("security.vault.secret")) {
@@ -611,11 +615,13 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("security.vault.rotateMasterKey")) {
-        encryptionGlobalParams.vaultRotateMasterKey = params["security.vault.rotateMasterKey"].as<bool>();
+        encryptionGlobalParams.vaultRotateMasterKey =
+            params["security.vault.rotateMasterKey"].as<bool>();
     }
 
     if (params.count("security.vault.serverCAFile")) {
-        encryptionGlobalParams.vaultServerCAFile = params["security.vault.serverCAFile"].as<std::string>();
+        encryptionGlobalParams.vaultServerCAFile =
+            params["security.vault.serverCAFile"].as<std::string>();
     }
 
     if (params.count("security.vault.checkMaxVersions")) {
@@ -624,11 +630,13 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("security.vault.disableTLSForTesting")) {
-        encryptionGlobalParams.vaultDisableTLS = params["security.vault.disableTLSForTesting"].as<bool>();
+        encryptionGlobalParams.vaultDisableTLS =
+            params["security.vault.disableTLSForTesting"].as<bool>();
     }
 
     if (params.count("security.kmip.serverName")) {
-        encryptionGlobalParams.kmipServerName = params["security.kmip.serverName"].as<std::string>();
+        encryptionGlobalParams.kmipServerName =
+            params["security.kmip.serverName"].as<std::string>();
     }
 
     if (params.count("security.kmip.port")) {
@@ -636,11 +644,13 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("security.kmip.serverCAFile")) {
-        encryptionGlobalParams.kmipServerCAFile = params["security.kmip.serverCAFile"].as<std::string>();
+        encryptionGlobalParams.kmipServerCAFile =
+            params["security.kmip.serverCAFile"].as<std::string>();
     }
 
     if (params.count("security.kmip.clientCertificateFile")) {
-        encryptionGlobalParams.kmipClientCertificateFile = params["security.kmip.clientCertificateFile"].as<std::string>();
+        encryptionGlobalParams.kmipClientCertificateFile =
+            params["security.kmip.clientCertificateFile"].as<std::string>();
     }
 
     if (params.count("security.kmip.clientCertificatePassword")) {
@@ -659,7 +669,8 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("security.kmip.keyIdentifier")) {
-        encryptionGlobalParams.kmipKeyIdentifier = params["security.kmip.keyIdentifier"].as<std::string>();
+        encryptionGlobalParams.kmipKeyIdentifier =
+            params["security.kmip.keyIdentifier"].as<std::string>();
     }
 
     if (params.count("security.kmip.rotateMasterKey")) {
@@ -685,7 +696,8 @@ Status storeMongodOptions(const moe::Environment& params) {
     }
 
     if (params.count("security.ldap.authz.queryTemplate")) {
-        ldapGlobalParams.ldapQueryTemplate = params["security.ldap.authz.queryTemplate"].as<std::string>();
+        ldapGlobalParams.ldapQueryTemplate =
+            params["security.ldap.authz.queryTemplate"].as<std::string>();
     }
 
     if (params.count("storage.journal.commitIntervalMs")) {

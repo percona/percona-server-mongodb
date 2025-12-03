@@ -49,7 +49,7 @@ FTSMatcher::FTSMatcher(const FTSQueryImpl& query, const FTSSpec& spec)
     : _query(query), _spec(spec) {}
 
 bool FTSMatcher::matches(const BSONObj& obj) const {
-    if(_query.getLanguage()!="ngram"){ // Always doing phrase match for Ngram
+    if (_query.getLanguage() != "ngram") {  // Always doing phrase match for Ngram
         if (canSkipPositiveTermCheck()) {
             // We can assume that 'obj' has at least one positive term, and dassert as a sanity
             // check.

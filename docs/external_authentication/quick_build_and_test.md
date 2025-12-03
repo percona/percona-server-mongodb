@@ -2,14 +2,14 @@ These are instructions for quick start building and testing Percona Server for M
 
 # Build and Test Requirements
 
-* A bare bones Ubuntu 14.x or Debian 7.x installation
-  * Minimum 3GB RAM minimum
-    * Minimum 20GB free space (this is not a typo)
-    * An internet connection to download toolchain and source code
+- A bare bones Ubuntu 14.x or Debian 7.x installation
+    - Minimum 3GB RAM minimum
+        - Minimum 20GB free space (this is not a typo)
+        - An internet connection to download toolchain and source code
 
 # Transparent huge pages
 
-Percona Server for MongoDB comes with the Percona Fractal Tree storage engine. This engine requires the transparent hugepage feature of modern Linux kernels to be disabled.  Before running the server with the Percona Fractal Tree it is important to disable this feature on the machine.  If you are building and testing under Docker,  you will need to set these in the host machine's kernel before running the container.
+Percona Server for MongoDB comes with the Percona Fractal Tree storage engine. This engine requires the transparent hugepage feature of modern Linux kernels to be disabled. Before running the server with the Percona Fractal Tree it is important to disable this feature on the machine. If you are building and testing under Docker, you will need to set these in the host machine's kernel before running the container.
 
 ```sh
 sudo /bin/bash -c 'echo never > /sys/kernel/mm/transparent_hugepage/enabled'
@@ -18,7 +18,7 @@ sudo /bin/bash -c 'echo never > /sys/kernel/mm/transparent_hugepage/defrag'
 
 # Using Docker
 
-Most default docker installations do not provide enough free space to build and test external authentication.   You may need to use the `--volume` option to map a host directory to the docker container.
+Most default docker installations do not provide enough free space to build and test external authentication. You may need to use the `--volume` option to map a host directory to the docker container.
 
 ```bash
 mkdir $HOME/percona-server-mongodb
@@ -46,7 +46,7 @@ cd ~/git/percona-server-mongodb/support-files/ldap-sasl
 ./deploy_ldap_and_sasl.sh
 ```
 
-After the scripts run you should see `0: OK "Success."` reported at the end.   To run a test of the OpenLDAP/Cyrus SASL installation you can run the `check_saslauthd.sh` script.
+After the scripts run you should see `0: OK "Success."` reported at the end. To run a test of the OpenLDAP/Cyrus SASL installation you can run the `check_saslauthd.sh` script.
 
 ```sh
 ./check_saslauthd.sh
@@ -65,7 +65,7 @@ cd ~/git/percona-server-mongodb/scripts
 ./build_ubuntu14.sh
 ```
 
-*NOTE:* The script builds the binaries without debug symbols by default.  You may edit the value at the top of `scripts/build_ubuntu14.sh` to build the Debug version.
+_NOTE:_ The script builds the binaries without debug symbols by default. You may edit the value at the top of `scripts/build_ubuntu14.sh` to build the Debug version.
 
 # Install
 
@@ -112,5 +112,3 @@ External user with read (only) on 'test' and readWrite on 'other'         [OK]
 External user with readWrite on 'test' and read (only) on 'other'         [OK]
 mongod shutdown                                                           [OK]
 ```
-
-

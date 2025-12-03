@@ -704,7 +704,7 @@ mongo_cc_library(
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/audit:audit_options",
         "//src/mongo/db/auth:authserver",
-        "//src/mongo/db/auth/oidc:oidc",
+        "//src/mongo/db/auth/oidc",
         "//src/mongo/db:change_stream_options_manager",
         "//src/mongo/db:change_streams_cluster_parameter",
         "//src/mongo/db/commands:rwc_defaults_commands_idl",

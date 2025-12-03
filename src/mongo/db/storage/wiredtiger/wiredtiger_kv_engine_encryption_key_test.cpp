@@ -29,7 +29,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include <cstring>    // for `::strerror`
+#include <cstring>     // for `::strerror`
 #include <sys/stat.h>  // for `::chmod`
 
 #include <cstdint>
@@ -84,7 +84,8 @@ EncryptionGlobalParams encryptionParamsKeyFile(const KeyFilePath& keyFilePath) {
 }
 
 EncryptionGlobalParams encryptionParamsVault(
-    const std::string& secretPath = "", boost::optional<std::uint64_t> secretVersion = boost::none) {
+    const std::string& secretPath = "",
+    boost::optional<std::uint64_t> secretVersion = boost::none) {
     EncryptionGlobalParams params;
     params.enableEncryption = true;
     params.vaultServerName = "vault.com";

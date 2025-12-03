@@ -4,13 +4,6 @@ package(default_visibility = ["//visibility:public"])
 
 mongo_cc_library(
     name = "libarchive",
-    local_defines = [
-        "HAVE_CONFIG_H",
-    ],
-    copts = [
-        "-Isrc/third_party/libarchive-3.4.0/libarchive/build_linux",
-        "-Wno-implicit-fallthrough",
-    ],
     srcs = [
         "libarchive/archive_acl.c",
         "libarchive/archive_check_magic.c",
@@ -133,7 +126,14 @@ mongo_cc_library(
     hdrs = [
         "libarchive/build_linux/config.h",
     ] + glob(["libarchive/*.h"]),
+    copts = [
+        "-Isrc/third_party/libarchive-3.4.0/libarchive/build_linux",
+        "-Wno-implicit-fallthrough",
+    ],
     includes = [
         ".",
+    ],
+    local_defines = [
+        "HAVE_CONFIG_H",
     ],
 )

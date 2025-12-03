@@ -46,8 +46,8 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/read_file_to_secure_string.h"
 #include "mongo/db/encryption/vault_client.h"
 #include "mongo/logv2/log.h"
-#include "mongo/util/assert_util_core.h"
 #include "mongo/stdx/chrono.h"
+#include "mongo/util/assert_util_core.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kNetwork
 
@@ -60,14 +60,15 @@ auto retryKmipOperation(MemFn&& operation) {
         serverNames, encryptionGlobalParams.kmipServerName, [](char c) { return c == ','; });
     std::string portStr = std::to_string(encryptionGlobalParams.kmipPort);
 
-    for (unsigned remainingAttemptCount = encryptionGlobalParams.kmipConnectRetries + 1; ;) {
+    for (unsigned remainingAttemptCount = encryptionGlobalParams.kmipConnectRetries + 1;;) {
         for (const auto& serverName : serverNames) {
-            KmipClient client(serverName,
-                              portStr,
-                              encryptionGlobalParams.kmipServerCAFile,
-                              encryptionGlobalParams.kmipClientCertificateFile,
-                              encryptionGlobalParams.kmipClientCertificatePassword,
-                              stdx::chrono::milliseconds(encryptionGlobalParams.kmipConnectTimeoutMS));
+            KmipClient client(
+                serverName,
+                portStr,
+                encryptionGlobalParams.kmipServerCAFile,
+                encryptionGlobalParams.kmipClientCertificateFile,
+                encryptionGlobalParams.kmipClientCertificatePassword,
+                stdx::chrono::milliseconds(encryptionGlobalParams.kmipConnectTimeoutMS));
             try {
                 return std::invoke(operation, client);
             } catch (const std::runtime_error& e) {
@@ -87,8 +88,9 @@ auto retryKmipOperation(MemFn&& operation) {
         break;
     }
 
-    throw std::runtime_error("KMIP sessions failed for all the server hosts. "
-                             "No more remaining attempts.");
+    throw std::runtime_error(
+        "KMIP sessions failed for all the server hosts. "
+        "No more remaining attempts.");
 }
 
 VaultClient createVaultClient() {
@@ -101,7 +103,7 @@ VaultClient createVaultClient() {
                        encryptionGlobalParams.vaultDisableTLS,
                        encryptionGlobalParams.vaultTimeout);
 }
-}
+}  // namespace
 
 BadKeyState::BadKeyState(KeyState keyState)
     : _keyState((invariant(keyState != KeyState::kActive), keyState)) {}
@@ -228,7 +230,8 @@ KmipKeyOperationFactory::KmipKeyOperationFactory(bool rotateMasterKey,
 }
 
 namespace detail {
-template <typename T> struct Messages;
+template <typename T>
+struct Messages;
 
 template <>
 struct Messages<VaultSecretOperationFactory> {
@@ -251,7 +254,7 @@ struct Messages<VaultSecretOperationFactory> {
         "`security.vault.secretVersion` configuration parameters. ";
 };
 
-template<>
+template <>
 struct Messages<KmipKeyOperationFactory> {
     static constexpr const char* kNotConfigured =
         "Trying to decrypt the data-at-rest with a key from a KMIP server "
@@ -268,7 +271,6 @@ struct Messages<KmipKeyOperationFactory> {
         "`security.kmip.rotateMasterKey` configuration file parameter. "
         "Otherwise, please omit the `--kmipMasterKeyId` command line option and "
         "the `security.kmip.keyIdentifier` configuration parameter.";
-
 };
 
 constexpr const char* kRotationEqualKeyIdsMsg =
