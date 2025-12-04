@@ -3,7 +3,7 @@
 
 # Disable the addition of mini debuginfo and gdb index options
 %global _include_minidebuginfo %{nil}
-%global _include_gdb_index %{nil}
+%undefine _include_gdb_index
 
 # Optionally disable source extraction to avoid empty debugsourcefiles.list errors
 %global __find_debugsource %{nil}
