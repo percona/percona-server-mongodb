@@ -40,7 +40,7 @@ auditTest('authzCommand', function(m) {
 
     // Verify that audit event was inserted.
     const beforeLoad = Date.now();
-    auditColl = getAuditEventsCollection(m, testDBName, undefined, true);
+    var auditColl = getAuditEventsCollection(m, testDBName, undefined, true);
 
     // Audit event for user tom.
     assert.eq(1,

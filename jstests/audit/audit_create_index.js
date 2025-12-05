@@ -9,7 +9,7 @@ if (TestData.testData !== undefined) {
 var testDBName = 'audit_create_index';
 
 auditTest('createIndex', function(m) {
-    testDB = m.getDB(testDBName);
+    var testDB = m.getDB(testDBName);
     assert.commandWorked(testDB.dropDatabase());
 
     // insert some data to index
@@ -23,7 +23,7 @@ auditTest('createIndex', function(m) {
     assert.commandWorked(testDB.coll.createIndex({a: 1}, {name: 'idx_a'}));
 
     const beforeLoad = Date.now();
-    auditColl = getAuditEventsCollection(m, testDBName);
+    var auditColl = getAuditEventsCollection(m, testDBName);
 
     // two records are logged with param.indexBuildState:
     // - IndexBuildStarted

@@ -22,7 +22,7 @@ auditTest('auth_logApplicationMessage', function(m) {
     assert.commandWorked(adminDB.runCommand({logApplicationMessage: msg}));
 
     const beforeLoad = Date.now();
-    auditColl = getAuditEventsCollection(m, testDBName, undefined, true);
+    const auditColl = getAuditEventsCollection(m, testDBName, undefined, true);
     assert.eq(1,
               auditColl.count({
                   atype: "applicationMessage",

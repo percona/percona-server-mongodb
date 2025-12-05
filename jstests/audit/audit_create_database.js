@@ -9,13 +9,13 @@ if (TestData.testData !== undefined) {
 var testDBName = 'audit_create_database';
 
 auditTest('createDatabase', function(m) {
-    testDB = m.getDB(testDBName);
+    var testDB = m.getDB(testDBName);
     assert.commandWorked(testDB.dropDatabase());
     const beforeCmd = Date.now();
     assert.commandWorked(testDB.createCollection('foo'));
 
     const beforeLoad = Date.now();
-    auditColl = getAuditEventsCollection(m, testDBName);
+    const auditColl = getAuditEventsCollection(m, testDBName);
     assert.eq(1,
               auditColl.count({
                   atype: "createDatabase",

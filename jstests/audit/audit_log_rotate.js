@@ -32,7 +32,7 @@ auditTest('logRotate',
 
               const beforeCmd = Date.now();
               // This should generate a few new audit log entries on ns 'test.foo'
-              testDB = m.getDB(testDBName);
+              var testDB = m.getDB(testDBName);
               assert.commandWorked(testDB.createCollection('foo'));
               assert(testDB.getCollection('foo').drop());
 
@@ -93,7 +93,7 @@ auditTest('logRotateReopen',
 
               const beforeCmd = Date.now();
               // This should generate a few new audit log entries on ns 'test.foo'
-              testDB = m.getDB(testDBName);
+              var testDB = m.getDB(testDBName);
               assert.commandWorked(testDB.createCollection('foo'));
               assert(testDB.getCollection('foo').drop());
 

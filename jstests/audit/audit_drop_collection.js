@@ -9,7 +9,7 @@ if (TestData.testData !== undefined) {
 var testDBName = 'audit_drop_collection';
 
 auditTest('dropCollection', function(m) {
-    testDB = m.getDB(testDBName);
+    var testDB = m.getDB(testDBName);
     var collName = 'foo';
     var coll = testDB.getCollection(collName);
     assert.writeOK(coll.insert({a: 17}));

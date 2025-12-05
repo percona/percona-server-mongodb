@@ -9,7 +9,7 @@ if (TestData.testData !== undefined) {
 var testDBName = 'audit_drop_index';
 
 auditTest('dropIndex', function(m) {
-    testDB = m.getDB(testDBName);
+    var testDB = m.getDB(testDBName);
     var collName = 'foo';
     var idxName = 'fooIdx';
     var coll = testDB.getCollection(collName);
