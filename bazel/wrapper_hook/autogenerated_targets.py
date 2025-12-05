@@ -51,12 +51,21 @@ def generate_targets(
         targets.append(create_target(tag, filtered_labels))
     write_bazel_file(targets, output_file)
 
+# Don't pass args after '--' to bazel as these args are for the target executable
+def get_extra_args(args):
+    extra_args = []
+    for arg in args:
+        if arg == "--":
+            break
+        if arg.startswith("--"):
+            extra_args.append(arg)
+    return extra_args
 
 def get_bazel_labels_from_tags(args, bazel, tag):
     # This way we mostly keep the passed config, this parsing isn't perfect
     # for the ways you can call bazel configs but this should mostly just be used in CI
     # where we control how things are called
-    extra_args = [arg for arg in args if arg.startswith("--")]
+    extra_args = get_extra_args(args)
     # The .cquery file is used to get info on which targets are compatible
     # with our current config. Without it dependent targets would just be skipped.
     proc = subprocess.run(
