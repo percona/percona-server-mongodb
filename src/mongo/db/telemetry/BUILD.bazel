@@ -26,26 +26,25 @@ mongo_idl_library(
 )
 
 mongo_cc_library(
-    name="telemetry_base",
+    name = "telemetry_base",
     srcs = [
         "//src/mongo/db/telemetry:telemetry_parameter.cpp",
         "//src/mongo/db/telemetry:telemetry_path.cpp",
         "//src/mongo/db/telemetry:telemetry_thread_base.cpp",
     ],
     deps = [
+        "//src/mongo/db:ldap_options",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
-        "//src/mongo/db:ldap_options",
         "//src/mongo/db/auth:sasl_options",
-        "//src/mongo/db/auth/oidc:oidc",
+        "//src/mongo/db/auth/oidc",
         "//src/mongo/db/telemetry:telemetry_parameter_idl",
         "//src/mongo/util:background_job",
     ],
-
 )
 
 mongo_cc_library(
-    name="telemetry_d",
+    name = "telemetry_d",
     srcs = [
         "//src/mongo/db/telemetry:telemetry_thread_d.cpp",
     ],
@@ -60,7 +59,7 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
-    name="telemetry_s",
+    name = "telemetry_s",
     srcs = [
         "//src/mongo/db/telemetry:telemetry_thread_s.cpp",
     ],

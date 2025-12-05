@@ -4,7 +4,7 @@ The purpose of this feature is to limit the number of queries that are logged as
 
 ## Implementation details
 
-Profiling rate limit is an integer value in the range 1-1000. The rate limit value N represents a  1/N probability that a query will be profiled. Thus higher value will reduce the number of profiled queries. The default value of 1 will disable the feature entirely ( A 1/1 rate should log each query).  For compatibility reasons a value of 0 will set the rate limit to 1 and in fact will disable the feature too.
+Profiling rate limit is an integer value in the range 1-1000. The rate limit value N represents a 1/N probability that a query will be profiled. Thus higher value will reduce the number of profiled queries. The default value of 1 will disable the feature entirely ( A 1/1 rate should log each query). For compatibility reasons a value of 0 will set the rate limit to 1 and in fact will disable the feature too.
 
 The `mongod` profiling feature has three profiling levels: no profiling, slow queries profiling, all queries profiling. Profiling rate limit only affects the number of queries profiled in the "all queries" mode. Slow queries are always profiled in both "slow queries" and "all queries" modes no matter what is rate limit value. Other (not slow) queries are sampled as described above.
 

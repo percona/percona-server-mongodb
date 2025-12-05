@@ -124,7 +124,8 @@ Status StorageEngineImpl::hotBackupTar(OperationContext* opCtx, const std::strin
     return _engine->hotBackupTar(opCtx, path);
 }
 
-Status StorageEngineImpl::hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) {
+Status StorageEngineImpl::hotBackup(OperationContext* opCtx,
+                                    const percona::S3BackupParameters& s3params) {
     return _engine->hotBackup(opCtx, s3params);
 }
 

@@ -27,10 +27,10 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/bson/mutable:mutable_bson",
-        "//src/mongo/db/auth:auth",
-        "//src/mongo/db/auth:authprivilege",
         "//src/mongo/db:commands",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/auth",
+        "//src/mongo/db/auth:authprivilege",
         "//src/mongo/db/storage:storage_options",
     ],
 )

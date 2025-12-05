@@ -50,14 +50,14 @@ public:
 
     void fsyncUnlock(OperationContext* opCtx) override;
 
-    BackupCursorState openBackupCursor(
-        OperationContext* opCtx, const StorageEngine::BackupOptions& options) override;
+    BackupCursorState openBackupCursor(OperationContext* opCtx,
+                                       const StorageEngine::BackupOptions& options) override;
 
     void closeBackupCursor(OperationContext* opCtx, const UUID& backupId) override;
 
     BackupCursorExtendState extendBackupCursor(OperationContext* opCtx,
-                                                       const UUID& backupId,
-                                                       const Timestamp& extendTo) override;
+                                               const UUID& backupId,
+                                               const Timestamp& extendTo) override;
 
     bool isBackupCursorOpen() const override;
 

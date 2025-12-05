@@ -43,9 +43,15 @@ PerconaDecryptGlobalParams perconaDecryptGlobalParams;
 
 void printPerconaDecryptHelp(std::ostream* out) {
     *out << "Usage:" << std::endl
-         << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> --encryptionKeyFile <key path>" << std::endl
-         << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> --vaultServerName <server name> [other Vault options]" << std::endl
-         << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> --kmipServerName <server name> [other KMIP options]" << std::endl
+         << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> "
+            "--encryptionKeyFile <key path>"
+         << std::endl
+         << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> --vaultServerName "
+            "<server name> [other Vault options]"
+         << std::endl
+         << "    perconadecrypt [options] --inputPath <src> --outputPath <dest> --kmipServerName "
+            "<server name> [other KMIP options]"
+         << std::endl
          << "    perconadecrypt --help" << std::endl;
     *out << moe::startupOptions.helpString();
     *out << std::flush;
@@ -71,9 +77,12 @@ bool handlePreValidationPerconaDecryptOptions(const moe::Environment& params) {
 }
 
 Status storePerconaDecryptOptions(const moe::Environment& params,
-                               const std::vector<std::string>& args) {
-    if (!params.count("encryptionKeyFile") && !params.count("vaultServerName") && !params.count("kmipServerName")) {
-        return {ErrorCodes::BadValue, "Missing required option: one of --encryptionKeyFile, --vaultServerName or --kmipServerName must be specified"};
+                                  const std::vector<std::string>& args) {
+    if (!params.count("encryptionKeyFile") && !params.count("vaultServerName") &&
+        !params.count("kmipServerName")) {
+        return {ErrorCodes::BadValue,
+                "Missing required option: one of --encryptionKeyFile, --vaultServerName or "
+                "--kmipServerName must be specified"};
     }
 
     if (params.count("encryptionKeyFile")) {
@@ -117,7 +126,8 @@ Status storePerconaDecryptOptions(const moe::Environment& params,
     }
 
     if (params.count("kmipClientCertificateFile")) {
-        encryptionGlobalParams.kmipClientCertificateFile = params["kmipClientCertificateFile"].as<std::string>();
+        encryptionGlobalParams.kmipClientCertificateFile =
+            params["kmipClientCertificateFile"].as<std::string>();
     }
 
     if (params.count("kmipClientCertificatePassword")) {
@@ -130,7 +140,8 @@ Status storePerconaDecryptOptions(const moe::Environment& params,
     }
 
     if (params.count("encryptionCipherMode")) {
-        encryptionGlobalParams.encryptionCipherMode = params["encryptionCipherMode"].as<std::string>();
+        encryptionGlobalParams.encryptionCipherMode =
+            params["encryptionCipherMode"].as<std::string>();
     }
 
     if (!params.count("inputPath")) {

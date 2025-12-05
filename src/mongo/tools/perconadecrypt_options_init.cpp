@@ -58,4 +58,4 @@ MONGO_STARTUP_OPTIONS_STORE(PerconaDecryptOptions)(InitializerContext* context) 
         quickExit(ExitCode::badOptions);
     }
 }
-}
+}  // namespace mongo

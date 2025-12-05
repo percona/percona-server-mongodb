@@ -189,7 +189,7 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/db:server_base",
-        "//src/mongo/db/pipeline:pipeline",
+        "//src/mongo/db/pipeline",
     ],
 )
 

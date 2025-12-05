@@ -61,11 +61,11 @@ public:
 
 private:
     int _step{0};
-    sasl_conn_t * _saslConnection{nullptr};
+    sasl_conn_t* _saslConnection{nullptr};
 
     struct SaslServerResults {
         int result;
-        const char *output;
+        const char* output;
         unsigned length;
         inline void initialize_results() {
             result = SASL_OK;

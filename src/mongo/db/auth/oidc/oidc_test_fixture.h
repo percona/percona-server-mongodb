@@ -36,10 +36,10 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/oidc/match_pattern.h"
 #include "mongo/db/auth/oidc/oidc_identity_providers_registry.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
+#include "mongo/stdx/unordered_set.h"
 #include "mongo/unittest/assert.h"
 #include "mongo/util/base64.h"
 #include "mongo/util/periodic_runner.h"
-#include "mongo/stdx/unordered_set.h"
 
 namespace mongo {
 
@@ -212,8 +212,11 @@ public:
 
 // Creates a sample JWK with a given key ID (kid).
 static inline BSONObj create_sample_jwk(const std::string& kid) {
-    return BSON("kty" << "RSA" << "kid" << kid << "e" << "AQAB" << "n"
-                      << base64::encode(std::string("X", 256)));
+    return BSON("kty"
+                << "RSA"
+                << "kid" << kid << "e"
+                << "AQAB"
+                << "n" << base64::encode(std::string("X", 256)));
 }
 
 // Mock for JWKSFetcherFactory to control the creation of JWKSFetcher instances.

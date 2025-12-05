@@ -268,8 +268,9 @@ public:
 
         while (!_shuttingDown) {
             MONGO_IDLE_THREAD_BLOCK;
-            auto cv_status = _condvar.wait_for(lock, stdx::chrono::seconds(
-                        ldapGlobalParams.ldapUserCacheInvalidationInterval.load()));
+            auto cv_status = _condvar.wait_for(
+                lock,
+                stdx::chrono::seconds(ldapGlobalParams.ldapUserCacheInvalidationInterval.load()));
 
             if (cv_status == stdx::cv_status::timeout) {
                 _authzManager->invalidateUsersFromDB(DatabaseName::kExternal);

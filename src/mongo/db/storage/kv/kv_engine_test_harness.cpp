@@ -1258,7 +1258,8 @@ TEST_F(DurableCatalogTest, Idx1) {
         md.nss = NamespaceString::createNamespaceString_forTest(boost::none, "a.b");
 
         BSONCollectionCatalogEntry::IndexMetaData imd;
-        imd.spec = BSON("name" << "foo");
+        imd.spec = BSON("name"
+                        << "foo");
         imd.ready = false;
         imd.multikey = false;
         imd.isBackgroundSecondaryBuild = false;
@@ -1292,7 +1293,8 @@ TEST_F(DurableCatalogTest, Idx1) {
         putMetaData(opCtx, catalog.get(), catalogId, md);  // remove index
 
         BSONCollectionCatalogEntry::IndexMetaData imd;
-        imd.spec = BSON("name" << "foo");
+        imd.spec = BSON("name"
+                        << "foo");
         imd.ready = false;
         imd.multikey = false;
         imd.isBackgroundSecondaryBuild = false;
@@ -1353,7 +1355,8 @@ TEST_F(DurableCatalogTest, DirectoryPerDb1) {
         md.nss = NamespaceString::createNamespaceString_forTest(boost::none, "a.b");
 
         BSONCollectionCatalogEntry::IndexMetaData imd;
-        imd.spec = BSON("name" << "foo");
+        imd.spec = BSON("name"
+                        << "foo");
         imd.ready = false;
         imd.multikey = false;
         imd.isBackgroundSecondaryBuild = false;
@@ -1411,7 +1414,8 @@ TEST_F(DurableCatalogTest, Split1) {
         md.nss = NamespaceString::createNamespaceString_forTest(boost::none, "a.b");
 
         BSONCollectionCatalogEntry::IndexMetaData imd;
-        imd.spec = BSON("name" << "foo");
+        imd.spec = BSON("name"
+                        << "foo");
         imd.ready = false;
         imd.multikey = false;
         imd.isBackgroundSecondaryBuild = false;
@@ -1469,7 +1473,8 @@ TEST_F(DurableCatalogTest, DirectoryPerAndSplit1) {
         md.nss = NamespaceString::createNamespaceString_forTest(boost::none, "a.b");
 
         BSONCollectionCatalogEntry::IndexMetaData imd;
-        imd.spec = BSON("name" << "foo");
+        imd.spec = BSON("name"
+                        << "foo");
         imd.ready = false;
         imd.multikey = false;
         imd.isBackgroundSecondaryBuild = false;
@@ -1532,7 +1537,10 @@ DEATH_TEST_REGEX_F(DurableCatalogTest,
         uow.commit();
     }
 
-    IndexDescriptor desc("", BSON("v" << "1" << "key" << BSON("a" << 1)));
+    IndexDescriptor desc("",
+                         BSON("v"
+                              << "1"
+                              << "key" << BSON("a" << 1)));
     std::unique_ptr<SortedDataInterface> sorted;
     {
         auto clientAndCtx = makeClientAndCtx("opCtx");

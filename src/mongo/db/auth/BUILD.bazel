@@ -220,8 +220,8 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:dbdirectclient",
         "//src/mongo/db:dbhelpers",
-        "//src/mongo/db:server_base",
         "//src/mongo/db:ldap_options_init",
+        "//src/mongo/db:server_base",
         "//src/mongo/db/auth",
         "//src/mongo/db/auth:auth_impl_internal_local",
         "//src/mongo/db/auth:authorization_manager_global",

@@ -54,32 +54,63 @@ namespace {
 using namespace encryption;
 
 TEST(KeyIdTest, CreateWithValidBsonIsOk) {
-    ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra" << "version"<< "1")),
+    ASSERT_EQ(*VaultSecretId::create(BSON("path"
+                                          << "sierra"
+                                          << "version"
+                                          << "1")),
               VaultSecretId("sierra", 1));
-    ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra/tango/uniform" << "version" << "42")),
+    ASSERT_EQ(*VaultSecretId::create(BSON("path"
+                                          << "sierra/tango/uniform"
+                                          << "version"
+                                          << "42")),
               VaultSecretId("sierra/tango/uniform", 42));
-    ASSERT_EQ(*VaultSecretId::create(BSON("path" << "sierra/tango/uniform" << "version" << "42" <<
-                                          "bravo"<< "charlie")),
+    ASSERT_EQ(*VaultSecretId::create(BSON("path"
+                                          << "sierra/tango/uniform"
+                                          << "version"
+                                          << "42"
+                                          << "bravo"
+                                          << "charlie")),
               VaultSecretId("sierra/tango/uniform", 42));
 
-    ASSERT_EQ(*KmipKeyId::create(BSON("keyId" << "42")), KmipKeyId("42"));
-    ASSERT_EQ(*KmipKeyId::create(BSON("keyId" << "sierra")), KmipKeyId("sierra"));
-    ASSERT_EQ(*KmipKeyId::create(BSON("keyId" << "sierra" << "bravo" << "charlie")),
+    ASSERT_EQ(*KmipKeyId::create(BSON("keyId"
+                                      << "42")),
+              KmipKeyId("42"));
+    ASSERT_EQ(*KmipKeyId::create(BSON("keyId"
+                                      << "sierra")),
+              KmipKeyId("sierra"));
+    ASSERT_EQ(*KmipKeyId::create(BSON("keyId"
+                                      << "sierra"
+                                      << "bravo"
+                                      << "charlie")),
               KmipKeyId("sierra"));
 }
 
 TEST(KeyIdTest, CrateWithInvalidBsonIsNotOk) {
-    ASSERT_THROWS(VaultSecretId::create(BSON("bravo"<< "charlie")), std::runtime_error);
-    ASSERT_THROWS(VaultSecretId::create(BSON("version" << "1")), std::runtime_error);
-    ASSERT_THROWS(VaultSecretId::create(BSON("path" << 42 << "version" << "1")),
+    ASSERT_THROWS(VaultSecretId::create(BSON("bravo"
+                                             << "charlie")),
                   std::runtime_error);
-    ASSERT_THROWS(VaultSecretId::create(BSON("path" << "" << "version" << "1")),
+    ASSERT_THROWS(VaultSecretId::create(BSON("version"
+                                             << "1")),
                   std::runtime_error);
-    ASSERT_THROWS(VaultSecretId::create(BSON("path" << "sierra")), std::runtime_error);
-    ASSERT_THROWS(VaultSecretId::create(BSON("path" << "sierra" << "version" << 1)),
+    ASSERT_THROWS(VaultSecretId::create(BSON("path" << 42 << "version"
+                                                    << "1")),
+                  std::runtime_error);
+    ASSERT_THROWS(VaultSecretId::create(BSON("path"
+                                             << ""
+                                             << "version"
+                                             << "1")),
+                  std::runtime_error);
+    ASSERT_THROWS(VaultSecretId::create(BSON("path"
+                                             << "sierra")),
+                  std::runtime_error);
+    ASSERT_THROWS(VaultSecretId::create(BSON("path"
+                                             << "sierra"
+                                             << "version" << 1)),
                   std::runtime_error);
 
-    ASSERT_THROWS(KmipKeyId::create(BSON("bravo" << "charlie")), std::runtime_error);
+    ASSERT_THROWS(KmipKeyId::create(BSON("bravo"
+                                         << "charlie")),
+                  std::runtime_error);
     ASSERT_THROWS(KmipKeyId::create(BSON("keyId" << 42)), std::runtime_error);
 }
 

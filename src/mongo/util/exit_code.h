@@ -61,7 +61,7 @@ enum class ExitCode {
     possibleCorruption [[deprecated]] = 60,  // e.g. buffer overflow
     watchdog = 61,                           // Internal Watchdog has terminated mongod
     needDowngrade = 62,                      // This exe can't use the existing data files
-    reservedBegin = 64,       // FreeBSD uses this range. Avoiding to prevent confusion.
+    reservedBegin = 64,  // FreeBSD uses this range. Avoiding to prevent confusion.
     perconaAuditError = 70,
     reservedEnd = 78,         // FreeBSD uses this range. Avoiding to prevent confusion.
     threadSanitizer = 86,     // Default exit code for Thread Sanitizer failures

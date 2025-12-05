@@ -93,8 +93,8 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo:base",
-        "//src/mongo/db/encryption:key",
         "//src/mongo/db/encryption:encryption_options",
+        "//src/mongo/db/encryption:key",
         "//src/mongo/db/encryption:kmip_client",
         "//src/mongo/db/encryption:read_file_to_secure_string",
         "//src/mongo/db/encryption:vault_client",
@@ -109,9 +109,9 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo:base",
+        "//src/mongo/db/commands:server_status_core",
         "//src/mongo/db/encryption:encryption_options",
         "//src/mongo/db/encryption:key_management",
-        "//src/mongo/db/commands:server_status_core",
     ],
 )
 
@@ -120,6 +120,7 @@ mongo_cc_unit_test(
     srcs = [
         "//src/mongo/db/encryption:key_id_test.cpp",
     ],
+    tags = ["mongo_unittest_second_group"],
     deps = [
         "//src/mongo/db/encryption:key",
     ],
@@ -130,6 +131,7 @@ mongo_cc_unit_test(
     srcs = [
         "//src/mongo/db/encryption:vault_secret_metadata_locator_test.cpp",
     ],
+    tags = ["mongo_unittest_second_group"],
     deps = [
         "//src/mongo/db/encryption:vault_secret_metadata_locator",
     ],
@@ -140,6 +142,7 @@ mongo_cc_unit_test(
     srcs = [
         "//src/mongo/db/encryption:encryption_status_test.cpp",
     ],
+    tags = ["mongo_unittest_fourth_group"],
     deps = [
         "//src/mongo/db:service_context",
         "//src/mongo/db/commands:server_status_core",
@@ -152,6 +155,7 @@ mongo_cc_unit_test(
     srcs = [
         "//src/mongo/db/encryption:vault_client_test.cpp",
     ],
+    tags = ["mongo_unittest_eighth_group"],
     deps = [
         "//src/mongo/db/encryption:vault_client",
         "//src/mongo/util/net:http_client",

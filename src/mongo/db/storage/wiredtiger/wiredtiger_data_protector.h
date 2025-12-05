@@ -39,8 +39,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-class WiredTigerDataProtector: public DataProtector
-{
+class WiredTigerDataProtector : public DataProtector {
 public:
     WiredTigerDataProtector();
     ~WiredTigerDataProtector() override;
@@ -48,14 +47,13 @@ public:
 protected:
     static constexpr int _key_len{32};
     unsigned char _masterkey[_key_len];
-    const EVP_CIPHER *_cipher{nullptr};
+    const EVP_CIPHER* _cipher{nullptr};
     int _iv_len;
     bool _first{true};
-    EVP_CIPHER_CTX *_ctx{nullptr};
+    EVP_CIPHER_CTX* _ctx{nullptr};
 };
 
-class WiredTigerDataProtectorCBC: public WiredTigerDataProtector
-{
+class WiredTigerDataProtectorCBC : public WiredTigerDataProtector {
 public:
     WiredTigerDataProtectorCBC();
     ~WiredTigerDataProtectorCBC() override;
@@ -75,7 +73,9 @@ public:
      * Declares that this DataProtector will be provided no more data to protect.
      * Fills `out` with any leftover state that needs serialization.
      */
-    virtual Status finalize(std::uint8_t* out, std::size_t outLen, std::size_t* bytesWritten) override;
+    virtual Status finalize(std::uint8_t* out,
+                            std::size_t outLen,
+                            std::size_t* bytesWritten) override;
 
     /**
      * Returns the number of bytes reserved for metadata at the end of the last output
@@ -98,8 +98,7 @@ private:
     boost::crc_optimal<32, 0x1EDC6F41, 0xFFFFFFFF, 0xFFFFFFFF, true, true> crc32c;
 };
 
-class WiredTigerDataProtectorGCM: public WiredTigerDataProtector
-{
+class WiredTigerDataProtectorGCM : public WiredTigerDataProtector {
 public:
     WiredTigerDataProtectorGCM();
     ~WiredTigerDataProtectorGCM() override;
@@ -119,7 +118,9 @@ public:
      * Declares that this DataProtector will be provided no more data to protect.
      * Fills `out` with any leftover state that needs serialization.
      */
-    virtual Status finalize(std::uint8_t* out, std::size_t outLen, std::size_t* bytesWritten) override;
+    virtual Status finalize(std::uint8_t* out,
+                            std::size_t outLen,
+                            std::size_t* bytesWritten) override;
 
     /**
      * Returns the number of bytes reserved for metadata at the end of the last output

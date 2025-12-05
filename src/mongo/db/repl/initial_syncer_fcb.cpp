@@ -476,8 +476,8 @@ bool InitialSyncerFCB::_isShuttingDown_inlock() const {
 std::string InitialSyncerFCB::getDiagnosticString() const {
     LockGuard lk(_mutex);
     str::stream out;
-    out << "InitialSyncerFCB -" << " active: " << _isActive_inlock()
-        << " shutting down: " << _isShuttingDown_inlock();
+    out << "InitialSyncerFCB -"
+        << " active: " << _isActive_inlock() << " shutting down: " << _isShuttingDown_inlock();
     if (_initialSyncState) {
         out << " opsAppied: " << _initialSyncState->appliedOps;
     }
@@ -567,9 +567,7 @@ BSONObj InitialSyncerFCB::_getInitialSyncProgress_inlock() const {
         }
         return bob.obj();
     } catch (const DBException& e) {
-        LOGV2(128421,
-              "Error creating initial sync progress object",
-              "error"_attr = e.toString());
+        LOGV2(128421, "Error creating initial sync progress object", "error"_attr = e.toString());
     }
     BSONObjBuilder bob;
     _appendInitialSyncProgressMinimal_inlock(&bob);
@@ -854,21 +852,15 @@ Status InitialSyncerFCB::_truncateOplogAndDropReplicatedDatabases() {
     UnreplicatedWritesBlock unreplicatedWritesBlock(opCtx.get());
 
     // 1.) Truncate the oplog.
-    LOGV2_DEBUG(128432,
-                2,
-                "Truncating the existing oplog",
-                logAttrs(NamespaceString::kRsOplogNamespace));
+    LOGV2_DEBUG(
+        128432, 2, "Truncating the existing oplog", logAttrs(NamespaceString::kRsOplogNamespace));
     Timer timer;
     auto status = _storage->truncateCollection(opCtx.get(), NamespaceString::kRsOplogNamespace);
-    LOGV2(128433,
-          "Initial syncer oplog truncation finished",
-          "durationMillis"_attr = timer.millis());
+    LOGV2(
+        128433, "Initial syncer oplog truncation finished", "durationMillis"_attr = timer.millis());
     if (!status.isOK()) {
         // 1a.) Create the oplog.
-        LOGV2_DEBUG(128434,
-                    2,
-                    "Creating the oplog",
-                    logAttrs(NamespaceString::kRsOplogNamespace));
+        LOGV2_DEBUG(128434, 2, "Creating the oplog", logAttrs(NamespaceString::kRsOplogNamespace));
         status = _storage->createOplog(opCtx.get(), NamespaceString::kRsOplogNamespace);
         if (!status.isOK()) {
             return status;
@@ -1452,8 +1444,11 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource_inlock() {
     }
 
     // Check directoryperdb and wiredTigerDirectoryForIndexes via getParameter command.
-    executor::RemoteCommandRequest getParameterRequest(
-        syncSource, DatabaseName::kAdmin, BSON("getParameter" << "*"), nullptr);
+    executor::RemoteCommandRequest getParameterRequest(syncSource,
+                                                       DatabaseName::kAdmin,
+                                                       BSON("getParameter"
+                                                            << "*"),
+                                                       nullptr);
     scheduleResult =
         (*_attemptExec)
             ->scheduleRemoteCommand(

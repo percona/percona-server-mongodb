@@ -21,7 +21,7 @@ switched to db admin
 { "ok" : 1 }
 ```
 
-You should receive an `{ "ok" : 1 }` object as a return value if the backup was successful.  If there was an error, you will receive an error message along with failing `ok` status.  It may look something like this:
+You should receive an `{ "ok" : 1 }` object as a return value if the backup was successful. If there was an error, you will receive an error message along with failing `ok` status. It may look something like this:
 
 ```
 > db.runCommand({createBackup: 1, backupDir: ""})

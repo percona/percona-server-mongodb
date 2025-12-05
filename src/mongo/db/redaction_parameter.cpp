@@ -51,7 +51,7 @@ Status _set(bool v) {
     return Status::OK();
 }
 
-}
+}  // namespace
 
 Status RedactClientLogDataParameter::set(const BSONElement& newValueElement,
                                          const boost::optional<TenantId>&) {

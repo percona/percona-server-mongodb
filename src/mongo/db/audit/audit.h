@@ -43,4 +43,3 @@ void fsyncAuditLog();
 }  // namespace audit
 
 }  // namespace mongo
-

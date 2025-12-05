@@ -1,4 +1,3 @@
-
 # InMemory engine
 
 This document describes how to build, enable, configure and test InMemory engine in Percona Server for MongoDB.

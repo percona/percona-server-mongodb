@@ -1,22 +1,21 @@
-
 # Auditing
 
-This document describes how to build, enable, configure and test auditing in Percona Server for MongoDB.  
+This document describes how to build, enable, configure and test auditing in Percona Server for MongoDB.
 
-Auditing allows administrators to track and log user activity on a server.  With auditing enabled, the server 
+Auditing allows administrators to track and log user activity on a server. With auditing enabled, the server
 will generate an audit log file. This file contains information about different user events including authentication, authorization failures, and more.
 
 ## Building
 
-By default, when building Percona Server for MongoDB from source, audit functionality is 
-neither compiled with, nor linked into, the final binary executable.  To enable auditing, execute
+By default, when building Percona Server for MongoDB from source, audit functionality is
+neither compiled with, nor linked into, the final binary executable. To enable auditing, execute
 SCons with the `--audit` argument:
 
     scons <other options> --audit <targets>
 
 ## Activation and Configuration
 
-The following server parameters control auditing.  They are entered at the command line when starting a server instance.
+The following server parameters control auditing. They are entered at the command line when starting a server instance.
 
 ### --auditDestination
 
@@ -50,28 +49,29 @@ mongod --auditDestination=file --auditFormat=BSON
 
 This is the fully qualified path to the file you want the server to create.
 If this parameter is not specified then:
- - The default file name will be `auditLog.json` or `auditLog.bson`, depending on whether the audit log format is `JSON` or `BSON`.
- - If `--logpath` is provided, the file will be created in the parent directory of the log path.
- - Otherwise, the file will be created in the current working directory.
+
+- The default file name will be `auditLog.json` or `auditLog.bson`, depending on whether the audit log format is `JSON` or `BSON`.
+- If `--logpath` is provided, the file will be created in the parent directory of the log path.
+- Otherwise, the file will be created in the current working directory.
 
 ```
 mongod --auditDestination=file --auditPath /var/log/tokumx/audit.json
 ```
 
-**Note:** This file will rotate in the same manner as the system logpath, either on server reboot or 
+**Note:** This file will rotate in the same manner as the system logpath, either on server reboot or
 using the logRotate command. The time of the rotation will be added to old file’s name.
 
 ### --auditFilter
 
-This parameter specifies a filter to apply to incoming audit events, 
+This parameter specifies a filter to apply to incoming audit events,
 allowing the administrator to only capture a subset of all possible audit events.
 
-This filter should be a JSON string that can be interpreted as a query object; 
-each audit log event that matches this query will be logged, 
-events which do not match this query will be ignored.  If this parameter is 
+This filter should be a JSON string that can be interpreted as a query object;
+each audit log event that matches this query will be logged,
+events which do not match this query will be ignored. If this parameter is
 not specified then all audit events are stored in the audit log.
 
-**Example:** 
+**Example:**
 
 To log only events from a user named “tim”, start the server with the following parameters:
 
@@ -89,11 +89,13 @@ By default auditing in Percona Server for MongoDB logs `authCheck` events only f
 With `auditAuthorizationSuccess` parameter set to `true` both authorized and unauthorized operations will be logged.
 
 To set `auditAuthorizationSuccess` parameter at startup run server with following options:
+
 ```
 mongod  --auditDestination=file --setParameter auditAuthorizationSuccess=true
 ```
 
 You can also change `auditAuthorizationSuccess` parameter at runtime with command:
+
 ```
 db.adminCommand({ setParameter: 1, 'auditAuthorizationSuccess': true });
 ```
@@ -107,6 +109,6 @@ them run:
 
     python buildscripts/resmoke.py --audit
 
-**Note:** the `mongoimport` utility is required to run the audit tests. 
-It must be placed in the same directory from which `resmoke.py` is run. 
+**Note:** the `mongoimport` utility is required to run the audit tests.
+It must be placed in the same directory from which `resmoke.py` is run.
 Typically this location is the top level MongoDB build/source directory.

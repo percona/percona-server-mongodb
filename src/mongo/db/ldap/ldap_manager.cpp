@@ -49,8 +49,7 @@ std::unique_ptr<LDAPManager> LDAPManager::create() {
 
 namespace {
 
-const auto getLDAPManager =
-    ServiceContext::declareDecoration<std::unique_ptr<LDAPManager>>();
+const auto getLDAPManager = ServiceContext::declareDecoration<std::unique_ptr<LDAPManager>>();
 
 }  // namespace
 
@@ -62,25 +61,21 @@ LDAPManager* LDAPManager::get(ServiceContext& service) {
     return getLDAPManager(service).get();
 }
 
-void LDAPManager::set(ServiceContext* service,
-                      std::unique_ptr<LDAPManager> authzManager) {
+void LDAPManager::set(ServiceContext* service, std::unique_ptr<LDAPManager> authzManager) {
     getLDAPManager(service) = std::move(authzManager);
 }
 
 ServiceContext::ConstructorActionRegisterer createLDAPManager(
-    "CreateLDAPManager",
-    {"EndStartupOptionStorage"},
-    [](ServiceContext* service) {
+    "CreateLDAPManager", {"EndStartupOptionStorage"}, [](ServiceContext* service) {
         if (!ldapGlobalParams.ldapServers->empty()) {
             auto ldapManager = LDAPManager::create();
             Status res = ldapManager->initialize();
             using namespace fmt::literals;
             uassertStatusOKWithContext(res,
-                "Cannot initialize LDAP manager (parameters are: {})"_format(
-                    ldapGlobalParams.logString()));
+                                       "Cannot initialize LDAP manager (parameters are: {})"_format(
+                                           ldapGlobalParams.logString()));
             LDAPManager::set(service, std::move(ldapManager));
         }
     });
 
 }  // namespace mongo
-

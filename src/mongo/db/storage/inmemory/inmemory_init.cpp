@@ -38,8 +38,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/jsobj.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/inmemory/inmemory_global_options.h"
-#include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_engine_impl.h"
+#include "mongo/db/storage/storage_engine_init.h"
 #include "mongo/db/storage/storage_engine_lock_file.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/db/storage/storage_options.h"
@@ -139,8 +139,7 @@ private:
         // Re-create WiredTiger options to fill it with default values
         wiredTigerGlobalOptions = WiredTigerGlobalOptions();
 
-        wiredTigerGlobalOptions.cacheSizeGB =
-            inMemoryGlobalOptions.cacheSizeGB;
+        wiredTigerGlobalOptions.cacheSizeGB = inMemoryGlobalOptions.cacheSizeGB;
         wiredTigerGlobalOptions.statisticsLogDelaySecs =
             inMemoryGlobalOptions.statisticsLogDelaySecs;
         // Set InMemory configuration as part of engineConfig string
@@ -166,4 +165,4 @@ ServiceContext::ConstructorActionRegisterer registerInMemory(
         registerStorageEngine(service, std::make_unique<InMemoryFactory>());
     });
 }  // namespace
-}  // namespace
+}  // namespace mongo

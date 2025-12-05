@@ -45,7 +45,7 @@ mongo_cc_library(
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
         "//src/mongo/db/auth/oidc:oidc_server_parameters_idl",
-        "//src/mongo/util/options_parser"
+        "//src/mongo/util/options_parser",
     ],
 )
 
@@ -56,7 +56,7 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/db:commands",
-        "//src/mongo/db/auth/oidc:oidc",
+        "//src/mongo/db/auth/oidc",
         "//src/mongo/db/commands:test_commands_enabled",
     ],
 )
@@ -72,7 +72,7 @@ mongo_cc_library(
         "//src/mongo/db/auth:auth_impl_internal",
         "//src/mongo/db/auth:authmocks",
         "//src/mongo/db/auth:authorization_session_test_fixture",
-        "//src/mongo/db/auth/oidc:oidc",
+        "//src/mongo/db/auth/oidc",
     ],
 )
 
@@ -82,10 +82,11 @@ mongo_cc_unit_test(
         "//src/mongo/db/auth/oidc:oidc_commands_test.cpp",
         "//src/mongo/db/auth/oidc:oidc_identity_providers_registry_test.cpp",
     ],
+    tags = ["mongo_unittest_seventh_group"],
     deps = [
         "//src/mongo/db:server_base",
-        "//src/mongo/db/auth/oidc:oidc",
+        "//src/mongo/db/auth/oidc",
         "//src/mongo/db/auth/oidc:oidc_commands",
         "//src/mongo/db/auth/oidc:oidc_test_fixture",
-    ]
+    ],
 )
