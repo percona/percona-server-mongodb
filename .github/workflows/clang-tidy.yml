@@ -37,37 +37,11 @@ jobs:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-skip-clang-tidy') && needs.changed_files.outputs.changed_files != '' }}
     needs: changed_files
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        id: setup-python
-        with:
-          python-version: "3.10"
-          cache: "pip"
-          cache-dependency-path: poetry.lock
-
-      - name: Configure Python
-        run: |
-          python -m pip install -U pip "virtualenv>=20.35,<21" poetry==2.0.0
-          poetry config virtualenvs.create true
-          poetry config virtualenvs.in-project true
-
-      - name: Poetry virtualenv cache
-        uses: actions/cache@v4
-        id: venv
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-py${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
-
-      - name: Install Python deps
-        if: steps.venv.outputs.cache-hit != 'true'
-        run: |
-          poetry install --no-root --without export
-
-      - name: Install Bazel
-        run: |
-          poetry run python buildscripts/install_bazel.py
+      - name: Setup environment
+        uses: ./.github/actions/setup-env
 
       - name: Bazel cache
         uses: actions/cache@v4
