@@ -1,29 +1,29 @@
 load('jstests/backup/_backup_helpers.js');
 
 (function() {
-    'use strict';
+'use strict';
 
-    // Run the original instance and fill it with data.
-    var dbPath = MongoRunner.dataPath + 'original';
-    var conn = MongoRunner.runMongod({
-        dbpath: dbPath,
-    });
+// Run the original instance and fill it with data.
+var dbPath = MongoRunner.dataPath + 'original';
+var conn = MongoRunner.runMongod({
+    dbpath: dbPath,
+});
 
-    fillData(conn);
-    var hashesOrig = computeHashes(conn);
+fillData(conn);
+var hashesOrig = computeHashes(conn);
 
-    // Do backup into existing folder.
-    var backupPath = backup(conn, true);
-    MongoRunner.stopMongod(conn);
+// Do backup into existing folder.
+var backupPath = backup(conn, true);
+MongoRunner.stopMongod(conn);
 
-    // Run the backup instance.
-    var conn = MongoRunner.runMongod({
-        dbpath: backupPath,
-        noCleanData: true,
-    });
+// Run the backup instance.
+var conn = MongoRunner.runMongod({
+    dbpath: backupPath,
+    noCleanData: true,
+});
 
-    var hashesBackup = computeHashes(conn);
-    assert.hashesEq(hashesOrig, hashesBackup);
+var hashesBackup = computeHashes(conn);
+assert.hashesEq(hashesOrig, hashesBackup);
 
-    MongoRunner.stopMongod(conn);
+MongoRunner.stopMongod(conn);
 })();

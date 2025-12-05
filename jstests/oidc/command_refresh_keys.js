@@ -57,12 +57,15 @@ const idps = [
 
 // verifies the key sets for a given issuer_url and the expected number of keys
 const verifyKeys = (keys, issuer_url, expectedNumberOfKeys) => {
-    assert.eq(keys?.keySets[issuer_url]?.keys?.length, expectedNumberOfKeys, `key set for ${issuer_url} should have ${expectedNumberOfKeys} keys`);
+    assert.eq(keys?.keySets[issuer_url]?.keys?.length,
+              expectedNumberOfKeys,
+              `key set for ${issuer_url} should have ${expectedNumberOfKeys} keys`);
 };
 
 // executes the command and verifies the keys for all issuer_urls
 const verifyAllKeys = (test, count1, count2, count3) => {
-    const keys = assert.commandWorked(test.admin.runCommand({ oidcListKeys: 1 }), "oidcListKeys should work");
+    const keys =
+        assert.commandWorked(test.admin.runCommand({oidcListKeys: 1}), "oidcListKeys should work");
 
     verifyKeys(keys, issuer_url1, count1);
     verifyKeys(keys, issuer_url2, count2);

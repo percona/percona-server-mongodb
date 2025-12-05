@@ -33,7 +33,7 @@ function test_request_to_idp_includes_scopes(clusterClass) {
     test.setup(clusterClass);
 
     test.create_role("test/group", [{role: "readWrite", db: "test_db"}]);
-    var idp = test.get_idp(issuer_url)
+    var idp = test.get_idp(issuer_url);
 
     var conn = test.create_conn();
 
@@ -42,7 +42,7 @@ function test_request_to_idp_includes_scopes(clusterClass) {
         "test/group",
         {role: "readWrite", db: "test_db"},
     ]);
-    idp.assert_token_requested(clientId, requestScopes)
+    idp.assert_token_requested(clientId, requestScopes);
     test.logout(conn);
 
     test.teardown();

@@ -213,8 +213,11 @@ public:
 
 // Creates a sample JWK with a given key ID (kid).
 static inline BSONObj create_sample_jwk(const std::string& kid) {
-    return BSON("kty" << "RSA" << "kid" << kid << "e" << "AQAB" << "n"
-                      << base64::encode(std::string("X", 256)));
+    return BSON("kty"
+                << "RSA"
+                << "kid" << kid << "e"
+                << "AQAB"
+                << "n" << base64::encode(std::string("X", 256)));
 }
 
 // Mock for JWKSFetcherFactory to control the creation of JWKSFetcher instances.

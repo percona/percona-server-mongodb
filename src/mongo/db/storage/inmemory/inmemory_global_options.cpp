@@ -49,13 +49,19 @@ InMemoryGlobalOptions inMemoryGlobalOptions;
 Status InMemoryGlobalOptions::store(const moe::Environment& params) {
     // InMemory storage engine options
     if (!inMemoryGlobalOptions.engineConfig.empty()) {
-        LOGV2(29025, "Engine custom option: {value}", "value"_attr = inMemoryGlobalOptions.engineConfig);
+        LOGV2(29025,
+              "Engine custom option: {value}",
+              "value"_attr = inMemoryGlobalOptions.engineConfig);
     }
     if (!inMemoryGlobalOptions.collectionConfig.empty()) {
-        LOGV2(29026, "Collection custom option: {value}", "value"_attr = inMemoryGlobalOptions.collectionConfig);
+        LOGV2(29026,
+              "Collection custom option: {value}",
+              "value"_attr = inMemoryGlobalOptions.collectionConfig);
     }
     if (!inMemoryGlobalOptions.indexConfig.empty()) {
-        LOGV2(29027, "Index custom option: {value}", "value"_attr = inMemoryGlobalOptions.indexConfig);
+        LOGV2(29027,
+              "Index custom option: {value}",
+              "value"_attr = inMemoryGlobalOptions.indexConfig);
     }
 
     return Status::OK();

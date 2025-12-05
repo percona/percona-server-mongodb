@@ -62,7 +62,7 @@ enum class ExitCode {
     watchdog = 61,                           // Internal Watchdog has terminated mongod
     needDowngrade = 62,                      // This exe can't use the existing data files
     reservedBegin = 64,       // FreeBSD uses this range. Avoiding to prevent confusion.
-    perconaAuditError = 70,
+    perconaAuditError = 70,   // Percona Audit system could not write the data to the audit log
     reservedEnd = 78,         // FreeBSD uses this range. Avoiding to prevent confusion.
     threadSanitizer = 86,     // Default exit code for Thread Sanitizer failures
     processHealthCheck = 87,  // Process health check triggered the crash.

@@ -32,7 +32,6 @@ let addNodeConfig = function(rst, nodeId, conn) {
 
 const basenodes = 1;
 
-
 var rsname = 'fcbis_replset_bce';
 var rs = new ReplSetTest({
     name: rsname,
@@ -40,8 +39,7 @@ var rs = new ReplSetTest({
     nodeOptions: {verbose: 2},
 });
 
-
-rs.startSet({ });
+rs.startSet({});
 rs.initiate();
 
 // Add a new member that will undergo initial sync
@@ -101,9 +99,8 @@ rs.waitForAllNewlyAddedRemovals();
 jsTest.log("--XXXX-- Added new member");
 
 // Output serverStatus for reference
-jsTest.log("--XXXX-- newNode serverStatus: " + tojson(newNode.adminCommand({'serverStatus': 1, repl: 1})));
-
+jsTest.log("--XXXX-- newNode serverStatus: " +
+           tojson(newNode.adminCommand({'serverStatus': 1, repl: 1})));
 
 rs.stopSet();
 })();
-

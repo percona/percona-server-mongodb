@@ -31,14 +31,11 @@ const oidcProviderNoClaim = {
 };
 
 const roles = [
-    { role: "readWrite", db: "test_db1" },
-    { role: "read", db: "test_db2" },
-]
-
-const expectedRolesWithClaim = [
-    "test/group",
-    ...roles
+    {role: "readWrite", db: "test_db1"},
+    {role: "read", db: "test_db2"},
 ];
+
+const expectedRolesWithClaim = ["test/group", ...roles];
 
 const expectedRolesNoClaim = roles;
 
@@ -83,20 +80,19 @@ const readActions = [
 
 const expectedPrivileges = [
     {
-        resource: { db: "test_db1", collection: "" },
+        resource: {db: "test_db1", collection: ""},
         actions: readWriteActions,
     },
     {
-        resource: { db: "test_db2", collection: "" },
+        resource: {db: "test_db2", collection: ""},
         actions: readActions,
     },
 ];
 
 function test_roles_and_privileges_with_auth_claim(
     clusterClass, should_create_roles, expected_roles, expected_privileges) {
-    var test = new OIDCFixture({
-        oidcProviders: [oidcProviderWithClaim], idps: [{ url: issuer_url, config: idp_config }]
-    });
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProviderWithClaim], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
     if (should_create_roles) {
         // Create a role that inherits from built-in roles on test_db1 and test_db2.
@@ -114,9 +110,8 @@ function test_roles_and_privileges_with_auth_claim(
 }
 
 function test_roles_and_privileges_without_auth_claim(clusterClass) {
-    var test = new OIDCFixture({
-        oidcProviders: [oidcProviderNoClaim], idps: [{ url: issuer_url, config: idp_config }]
-    });
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProviderNoClaim], idps: [{url: issuer_url, config: idp_config}]});
 
     test.setup(clusterClass);
 
@@ -136,9 +131,8 @@ function test_roles_and_privileges_without_auth_claim(clusterClass) {
 
 function test_roles_and_privileges_with_auth_claim_after_invalidate(
     clusterClass, should_create_roles, expected_roles, expected_privileges) {
-    var test = new OIDCFixture({
-        oidcProviders: [oidcProviderWithClaim], idps: [{ url: issuer_url, config: idp_config }]
-    });
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProviderWithClaim], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
     if (should_create_roles) {
         // Create a role that inherits from built-in roles on test_db1 and test_db2.

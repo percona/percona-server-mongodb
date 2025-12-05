@@ -68,8 +68,9 @@ public:
 
     bool canMakeMechanismForUser(const User* user) const final {
         auto credentials = user->getCredentials();
-        return credentials.isExternal && (credentials.scram<SHA1Block>().isValid() ||
-                                          credentials.scram<SHA256Block>().isValid());
+        return credentials.isExternal &&
+            (credentials.scram<SHA1Block>().isValid() ||
+             credentials.scram<SHA256Block>().isValid());
     }
 };
 

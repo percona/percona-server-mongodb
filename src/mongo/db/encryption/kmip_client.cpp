@@ -145,12 +145,14 @@ KmipClient::Impl::Impl(const std::string& host,
 
 namespace {
 template <typename Fn>
-concept AcceptsErrorCodeByRef = requires(Fn fn, sys::error_code& ec) { fn(ec); };
+concept AcceptsErrorCodeByRef = requires(Fn fn, sys::error_code& ec) {
+    fn(ec);
+};
 
 template <typename Fn, typename String>
 requires AcceptsErrorCodeByRef<Fn> &&
-    (std::is_same_v<String, std::string> || std::is_same_v<String, const char*>)
-void expectOk(Fn fn, const char* description, const String& filepath) {
+    (std::is_same_v<String, std::string> || std::is_same_v<String, const char*>)void expectOk(
+        Fn fn, const char* description, const String& filepath) {
     sys::error_code ec;
     fn(ec);
     if (ec) {
@@ -205,13 +207,9 @@ void KmipClient::Impl::loadSystemCaCertificates(net::ssl::context& sslCtx) {
         "/etc/ssl/ca-bundle.pem",
         "/etc/pki/tls/cacert.pem",
         "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
-        "/etc/ssl/cert.pem"
-    };
+        "/etc/ssl/cert.pem"};
     static constexpr std::array<const char*, 3> certDirs = {
-        "/etc/ssl/certs",
-        "/etc/pki/tls/certs",
-        "/system/etc/security/cacerts"
-    };
+        "/etc/ssl/certs", "/etc/pki/tls/certs", "/system/etc/security/cacerts"};
 
     for (const auto& f : certFiles) {
         if (bfs::is_regular_file(bfs::path(f))) {

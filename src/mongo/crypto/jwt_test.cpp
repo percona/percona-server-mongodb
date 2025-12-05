@@ -30,9 +30,9 @@
 #include "mongo/platform/basic.h"
 
 #include "mongo/bson/json.h"
-#include "mongo/unittest/unittest.h"
 #include "mongo/crypto/jwk_manager_test_framework.h"
 #include "mongo/idl/server_parameter_test_util.h"
+#include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 
 namespace mongo::crypto::test {

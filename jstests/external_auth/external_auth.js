@@ -2,12 +2,17 @@
  * This file runs all external_auth tests for PSMDB
  */
 
-function runTestScript(testFile){
-  jsTestLog("---- START: ".concat(testFile, " ----"));
-  conn = MongoRunner.runMongod({restart: conn, noCleanData: true, setParameter: "authenticationMechanisms=PLAIN,SCRAM-SHA-1", auth: ""});
-  load(testFile);
-  MongoRunner.stopMongod(conn);
-  jsTestLog("---- END: ".concat(testFile, " ----"));
+function runTestScript(testFile) {
+    jsTestLog("---- START: ".concat(testFile, " ----"));
+    conn = MongoRunner.runMongod({
+        restart: conn,
+        noCleanData: true,
+        setParameter: "authenticationMechanisms=PLAIN,SCRAM-SHA-1",
+        auth: ""
+    });
+    load(testFile);
+    MongoRunner.stopMongod(conn);
+    jsTestLog("---- END: ".concat(testFile, " ----"));
 }
 
 // setup a test database

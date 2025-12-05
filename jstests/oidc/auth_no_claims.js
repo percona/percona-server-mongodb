@@ -53,14 +53,17 @@ const variants = [
 ];
 
 function test_user_has_only_roles_it_was_created_with(clusterClass, variant) {
-    var test = new OIDCFixture({ oidcProviders: [variant.oidc_config], idps: [{ url: issuer_url, config: variant.idp_config }] });
+    var test = new OIDCFixture({
+        oidcProviders: [variant.oidc_config],
+        idps: [{url: issuer_url, config: variant.idp_config}]
+    });
     test.setup(clusterClass);
-    test.create_user("test/user", [{ role: "readWrite", db: "test_db" }]);
+    test.create_user("test/user", [{role: "readWrite", db: "test_db"}]);
 
     var conn = test.create_conn();
 
     assert(test.auth(conn, "user"), "Failed to authenticate");
-    test.assert_authenticated(conn, "test/user", [{ role: "readWrite", db: "test_db" }]);
+    test.assert_authenticated(conn, "test/user", [{role: "readWrite", db: "test_db"}]);
 
     test.teardown();
 }

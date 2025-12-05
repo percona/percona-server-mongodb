@@ -33,13 +33,13 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 #include <cstddef>
 #include <random>
+#include <regex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
-#include <regex>
 
 #include <boost/tokenizer.hpp>
 
@@ -266,7 +266,7 @@ VaultClient::Impl::Impl(const std::string& host,
         std::vector<std::string> headers(1, "X-Vault-Token: ");
         headers.at(0).append(!token.empty() ? token
                                             : std::string_view(*detail::readFileToSecureString(
-                                                tokenFile, "Vault token")));
+                                                  tokenFile, "Vault token")));
         _httpClient->setHeaders(headers);
     }
 }

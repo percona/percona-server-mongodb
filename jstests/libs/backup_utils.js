@@ -17,7 +17,7 @@ function openBackupCursor(mongo) {
             return mongo.getDB("admin").aggregate([{$backupCursor: {}}]);
         } catch (exc) {
             // Retry only on Location50915 error
-            if ( !exc.toString().includes("Location50915") ) {
+            if (!exc.toString().includes("Location50915")) {
                 throw exc;
             }
             jsTestLog({"Failed to open a backup cursor, retrying.": exc});

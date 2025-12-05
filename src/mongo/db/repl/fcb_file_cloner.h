@@ -208,7 +208,7 @@ private:
     std::ofstream _localFile;  // (M)
     // File offset we will request from the remote side in the next query.
     off_t _fileOffset = 0;  // (M)
-    bool _sawEof = false;  // (X)
+    bool _sawEof = false;   // (X)
 
     // Data read from source to insert.
     std::vector<BSONObj> _dataToWrite;  // (M)

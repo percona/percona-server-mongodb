@@ -8,36 +8,35 @@ if (TestData.testData !== undefined) {
 
 var testDBName = 'audit_rename_collection';
 
-auditTest(
-    'renameCollection',
-    function(m) {
-        testDB = m.getDB(testDBName);
-        assert.commandWorked(testDB.dropDatabase());
+auditTest('renameCollection', function(m) {
+    testDB = m.getDB(testDBName);
+    assert.commandWorked(testDB.dropDatabase());
 
-        var oldName = 'john';
-        var newName = 'christian';
+    var oldName = 'john';
+    var newName = 'christian';
 
-        assert.commandWorked(testDB.createCollection(oldName));
-        const beforeCmd = Date.now();
-        assert.commandWorked(testDB.getCollection(oldName).renameCollection(newName));
+    assert.commandWorked(testDB.createCollection(oldName));
+    const beforeCmd = Date.now();
+    assert.commandWorked(testDB.getCollection(oldName).renameCollection(newName));
 
-        const beforeLoad = Date.now();
-        var auditColl = getAuditEventsCollection(m, testDBName);
-        var checkAuditLogForSingleRename = function() {
-            assert.eq(1, auditColl.count({
-                atype: "renameCollection",
-                ts: withinInterval(beforeCmd, beforeLoad),
-                'param.old': testDBName + '.' + oldName,
-                'param.new': testDBName + '.' + newName,
-                result: 0,
-            }), "FAILED, audit log: " + tojson(auditColl.find().toArray()));
-        }
-        checkAuditLogForSingleRename();
+    const beforeLoad = Date.now();
+    var auditColl = getAuditEventsCollection(m, testDBName);
+    var checkAuditLogForSingleRename = function() {
+        assert.eq(1,
+                  auditColl.count({
+                      atype: "renameCollection",
+                      ts: withinInterval(beforeCmd, beforeLoad),
+                      'param.old': testDBName + '.' + oldName,
+                      'param.new': testDBName + '.' + newName,
+                      result: 0,
+                  }),
+                  "FAILED, audit log: " + tojson(auditColl.find().toArray()));
+    };
 
-        assert.commandFailed(testDB.getCollection(oldName).renameCollection(newName));
+    checkAuditLogForSingleRename();
 
-        // Second rename won't be audited because it did not succeed.
-        checkAuditLogForSingleRename();
-    },
-    { /* no special mongod options */ }
-);
+    assert.commandFailed(testDB.getCollection(oldName).renameCollection(newName));
+
+    // Second rename won't be audited because it did not succeed.
+    checkAuditLogForSingleRename();
+}, {/* no special mongod options */});

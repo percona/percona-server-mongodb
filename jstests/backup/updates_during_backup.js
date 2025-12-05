@@ -19,50 +19,51 @@ function countObjs(conn) {
 }
 
 (function() {
-    'use strict';
+'use strict';
 
-    // Run the original instance.
-    var dbPath = MongoRunner.dataPath + 'original';
-    var conn = MongoRunner.runMongod({
-        dbpath: dbPath,
-        port: 20100,
-    });
-    var signal = conn.getDB('signal').signal;
+// Run the original instance.
+var dbPath = MongoRunner.dataPath + 'original';
+var conn = MongoRunner.runMongod({
+    dbpath: dbPath,
+    port: 20100,
+});
+var signal = conn.getDB('signal').signal;
 
-    // Start parallel update workers.
-    var w = [];
-    for (var i = 0; i < updateWorkers; i++) {
-        w[i] = startParallelShell(function() {
-            Random.setRandomSeed();
-            db = db.getSiblingDB('db' + Random.randInt(10));
-            var coll = db.getCollection('coll' + Random.randInt(10));
-            var signal = db.getSiblingDB('signal').signal;
-            while (signal.findOne() == null) {
-                var key = 'key' + Random.randInt(1000);
-                assert.writeOK(coll.insert({k: 1}));
-            }
-        }, 20100);
-    }
+// Start parallel update workers.
+var w = [];
+for (var i = 0; i < updateWorkers; i++) {
+    w[i] = startParallelShell(function() {
+        Random.setRandomSeed();
+        db = db.getSiblingDB('db' + Random.randInt(10));
+        var coll = db.getCollection('coll' + Random.randInt(10));
+        var signal = db.getSiblingDB('signal').signal;
+        while (signal.findOne() == null) {
+            var key = 'key' + Random.randInt(1000);
+            assert.writeOK(coll.insert({k: 1}));
+        }
+    }, 20100);
+}
 
-    // Wait for filling in some data.
-    sleep(sleepTime);
+// Wait for filling in some data.
+sleep(sleepTime);
 
-    // Create backup.
-    var objsSleep = countObjs(conn);
-    var startTime = Date.now();
-    backup(conn);
+// Create backup.
+var objsSleep = countObjs(conn);
+var startTime = Date.now();
+backup(conn);
 
-    // Signal workers.
-    signal.insert({1: 1});
-    var backupTime = Date.now() - startTime;
+// Signal workers.
+signal.insert({1: 1});
+var backupTime = Date.now() - startTime;
 
-    for (var i = 0; i < updateWorkers; i++) {
-        assert.eq(0, w[i](), 'wrong shell\'s exit code');
-    }
+for (var i = 0; i < updateWorkers; i++) {
+    assert.eq(0, w[i](), 'wrong shell\'s exit code');
+}
 
-    // Ensure backup speed is good enough.
-    var objsBackup = countObjs(conn) - objsSleep;
-    assert.gte(objsBackup / backupTime, backupSpeedRatio * objsSleep / sleepTime, 'hot backup is too slow');
+// Ensure backup speed is good enough.
+var objsBackup = countObjs(conn) - objsSleep;
+assert.gte(
+    objsBackup / backupTime, backupSpeedRatio * objsSleep / sleepTime, 'hot backup is too slow');
 
-    MongoRunner.stopMongod(conn);
+MongoRunner.stopMongod(conn);
 })();

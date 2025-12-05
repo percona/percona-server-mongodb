@@ -29,15 +29,16 @@ function test_auth_succeeds_with_custom_principal_name_and_auth_claim_disabled(c
     // don't use auth claims
     const oidcProvider = Object.assign(oidcProviderBase, {useAuthorizationClaim: false});
 
-    var test = new OIDCFixture({ oidcProviders: [oidcProvider], idps: [{ url: issuer_url, config: idp_config }] });
+    var test = new OIDCFixture(
+        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
-    test.create_user("test/custom_username", [{ role: "readWrite", db: "test_db" }]);
+    test.create_user("test/custom_username", [{role: "readWrite", db: "test_db"}]);
 
     var conn = test.create_conn();
 
     assert(test.auth(conn, "custom_username"), "Failed to authenticate");
     // verify user is authenticated with no roles
-    test.assert_authenticated(conn, "test/custom_username", [{ role: "readWrite", db: "test_db" }]);
+    test.assert_authenticated(conn, "test/custom_username", [{role: "readWrite", db: "test_db"}]);
 
     test.teardown();
 }
@@ -49,14 +50,14 @@ function test_auth_succeeds_with_custom_principal_name_and_auth_claim_enabled(cl
     var test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
-    test.create_role("test/group1", [{ role: "readWrite", db: "test_db1" }]);
-    test.create_role("test/group2", [{ role: "read", db: "test_db2" }]);
+    test.create_role("test/group1", [{role: "readWrite", db: "test_db1"}]);
+    test.create_role("test/group2", [{role: "read", db: "test_db2"}]);
 
     const expectedRoles = [
         "test/group1",
         "test/group2",
-        { role: "readWrite", db: "test_db1" },
-        { role: "read", db: "test_db2" },
+        {role: "readWrite", db: "test_db1"},
+        {role: "read", db: "test_db2"},
     ];
 
     var conn = test.create_conn();
@@ -77,13 +78,13 @@ function test_auth_succeeds_with_default_principal_name_and_auth_claim_disabled(
     var test = new OIDCFixture(
         {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
-    test.create_user("test/user", [{ role: "readWrite", db: "test_db" }]);
+    test.create_user("test/user", [{role: "readWrite", db: "test_db"}]);
 
     var conn = test.create_conn();
 
     assert(test.auth(conn, "user"), "Failed to authenticate");
     // verify user is authenticated with correct roles
-    test.assert_authenticated(conn, "test/user", [{ role: "readWrite", db: "test_db" }]);
+    test.assert_authenticated(conn, "test/user", [{role: "readWrite", db: "test_db"}]);
 
     test.teardown();
 }

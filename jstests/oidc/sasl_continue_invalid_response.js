@@ -19,40 +19,36 @@ const EmptyBSONPayload = new BinData(0, "BQAAAAAA");
 const invalid_step2_payload = [
     {
         payload: EmptyBSONPayload,
-        expectedError: "IDLFailedToParse: BSON field 'OIDCStep2Request.jwt' is missing but a required field",
+        expectedError:
+            "IDLFailedToParse: BSON field 'OIDCStep2Request.jwt' is missing but a required field",
     },
     {
         // DgAAABBqd3QAAQAAAAA is base64 encoded bson doc: { 'n': 'user' }
         // which is a valid payload for saslStart, but not for saslContinue
         payload: new BinData(0, "EQAAAAJuAAUAAAB1c2VyAAA="),
-        expectedError: "IDLFailedToParse: BSON field 'OIDCStep2Request.jwt' is missing but a required field",
+        expectedError:
+            "IDLFailedToParse: BSON field 'OIDCStep2Request.jwt' is missing but a required field",
     },
     {
 
         // DgAAABBqd3QAAQAAAAA is base64 encoded bson doc: { 'jwt': 1 }
         payload: new BinData(0, "DgAAABBqd3QAAQAAAAA="),
-        expectedError: "TypeMismatch: BSON field 'OIDCStep2Request.jwt' is the wrong type 'int', expected type 'string'"
+        expectedError:
+            "TypeMismatch: BSON field 'OIDCStep2Request.jwt' is the wrong type 'int', expected type 'string'"
     },
 ];
 
 const run_saslStart = function(test) {
-    return test.admin.getSiblingDB('$external').runCommand(
-        {
-            saslStart: 1,
-            mechanism: "MONGODB-OIDC",
-            payload: EmptyBSONPayload
-        }
-    );
+    return test.admin.getSiblingDB('$external')
+        .runCommand({saslStart: 1, mechanism: "MONGODB-OIDC", payload: EmptyBSONPayload});
 };
 
 const run_saslContinue = function(test, conversationId, payload) {
-    return test.admin.getSiblingDB('$external').runCommand(
-        {
-            saslContinue: 1,
-            conversationId: NumberInt(conversationId),
-            payload: payload,
-        }
-    );
+    return test.admin.getSiblingDB('$external').runCommand({
+        saslContinue: 1,
+        conversationId: NumberInt(conversationId),
+        payload: payload,
+    });
 };
 
 function test_sasl_step_2_fails_if_invalid_payload(clusterClass) {

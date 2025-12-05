@@ -35,8 +35,8 @@
 #include <ios>
 #include <ostream>
 
-#include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonmisc.h"
+#include "mongo/bson/bsonobj.h"
 #include "mongo/db/json.h"
 #include "mongo/db/storage/storage_engine_metadata.h"
 #include "mongo/unittest/temp_dir.h"
@@ -269,7 +269,8 @@ TEST(StorageEngineMetadataTest, ValidEncryptionOptionsIsOk) {
         StorageEngineMetadata metadata(tempDir.path());
         ASSERT_OK(metadata.read());
         ASSERT_EQUALS("storageEngine1", metadata.getStorageEngine());
-        const auto expectedOpts = BSON("encryption" << BSON("kmip" << BSON("keyId" << "42")));
+        const auto expectedOpts = BSON("encryption" << BSON("kmip" << BSON("keyId"
+                                                                           << "42")));
         ASSERT_EQUALS(0, metadata.getStorageEngineOptions().woCompare(expectedOpts));
         // For more tests on key id itself, please @see the
         // `src/mongo/db/encryption/key_id_test.cpp` file

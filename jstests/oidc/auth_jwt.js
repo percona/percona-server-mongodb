@@ -32,8 +32,7 @@ const variants = [
     },
     {
         faults: {jwt_invalid_format: true},
-        expectedError:
-            "BadValue: Invalid JWT :: caused by :: parsing failed: invalid base64",
+        expectedError: "BadValue: Invalid JWT :: caused by :: parsing failed: invalid base64",
     },
 ];
 

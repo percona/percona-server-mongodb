@@ -34,10 +34,11 @@ using std::string;
  * 0x0d : CARRIAGE-RETURN (\r)
  * 0x20 : SPACE
  */
-bool codepointIsDelimiter(char32_t codepoint){
+bool codepointIsDelimiter(char32_t codepoint) {
     if (codepoint <= 0x7f) {
-      if(codepoint==0x09 || codepoint==0x0a || codepoint==0x0b || codepoint==0x0d || codepoint==0x20)
-        return true;
+        if (codepoint == 0x09 || codepoint == 0x0a || codepoint == 0x0b || codepoint == 0x0d ||
+            codepoint == 0x20)
+            return true;
     }
 
     return false;
@@ -60,16 +61,16 @@ void UnicodeNgramFTSTokenizer::reset(StringData document, Options options) {
 bool UnicodeNgramFTSTokenizer::moveNext() {
     bool hasToken = false;
 
-    if(_options & kGenerateDelimiterTokensForNGram){
+    if (_options & kGenerateDelimiterTokensForNGram) {
         hasToken = moveNextForDelimiter();
-    }else{
+    } else {
         hasToken = moveNextForNgram();
     }
 
     return hasToken;
 }
 
-bool UnicodeNgramFTSTokenizer::moveNextForNgram(){
+bool UnicodeNgramFTSTokenizer::moveNextForNgram() {
     while (true) {
         if (_pos >= _document.size()) {
             _word = "";
@@ -79,14 +80,15 @@ bool UnicodeNgramFTSTokenizer::moveNextForNgram(){
         // Traverse through non-delimiters and build the next token.
         size_t start = _pos;
         while (_pos < _document.size()) {
-            if(codepointIsDelimiter(_document[_pos])){
-                // Not sufficient characters for NGRAM_TOKEN_SIZE, Ignore this and move DELIMITER-TOKEN
+            if (codepointIsDelimiter(_document[_pos])) {
+                // Not sufficient characters for NGRAM_TOKEN_SIZE, Ignore this and move
+                // DELIMITER-TOKEN
                 _skipDelimiters();
                 start = _pos;
                 continue;
             }
 
-            if(_pos - start >= NGRAM_TOKEN_SIZE-1){
+            if (_pos - start >= NGRAM_TOKEN_SIZE - 1) {
                 break;
             }
             _pos++;
@@ -105,7 +107,7 @@ bool UnicodeNgramFTSTokenizer::moveNextForNgram(){
 
         if (_options & kGenerateCaseSensitiveTokens) {
             _word = _document.substrToBuf(&_wordBuf, start, NGRAM_TOKEN_SIZE);
-        }else{
+        } else {
             _word = _document.toLowerToBuf(&_wordBuf, _caseFoldMode, start, NGRAM_TOKEN_SIZE);
         }
 
@@ -133,8 +135,7 @@ bool UnicodeNgramFTSTokenizer::moveNextForDelimiter() {
 
         // Traverse through non-delimiters and build the next token.
         size_t start = _pos++;
-        while (_pos < _document.size() &&
-               (!codepointIsDelimiter(_document[_pos]))) {
+        while (_pos < _document.size() && (!codepointIsDelimiter(_document[_pos]))) {
             ++_pos;
         }
         const size_t len = _pos - start;
@@ -144,7 +145,7 @@ bool UnicodeNgramFTSTokenizer::moveNextForDelimiter() {
 
         if (_options & kGenerateCaseSensitiveTokens) {
             _word = _document.substrToBuf(&_wordBuf, start, len);
-        }else{
+        } else {
             _word = _document.toLowerToBuf(&_wordBuf, _caseFoldMode, start, len);
         }
 

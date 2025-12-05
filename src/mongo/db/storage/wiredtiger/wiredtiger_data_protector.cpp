@@ -45,18 +45,17 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 
 namespace {
-    // callback for ERR_print_errors_cb
-    static int err_print_cb(const char *str, size_t len, void *param) {
-        LOGV2_ERROR(29028, "{str}", "str"_attr = str);
-        return 1;
-    }
-
-    Status handleCryptoErrors() {
-        ERR_print_errors_cb(&err_print_cb, nullptr);
-        return Status(ErrorCodes::InternalError,
-                      "libcrypto error");
-    }
+// callback for ERR_print_errors_cb
+static int err_print_cb(const char* str, size_t len, void* param) {
+    LOGV2_ERROR(29028, "{str}", "str"_attr = str);
+    return 1;
 }
+
+Status handleCryptoErrors() {
+    ERR_print_errors_cb(&err_print_cb, nullptr);
+    return Status(ErrorCodes::InternalError, "libcrypto error");
+}
+}  // namespace
 
 
 WiredTigerDataProtector::WiredTigerDataProtector() {
@@ -66,7 +65,7 @@ WiredTigerDataProtector::WiredTigerDataProtector() {
     _ctx = new EVP_CIPHER_CTX{};
     EVP_CIPHER_CTX_init(_ctx);
 #else
-    _ctx= EVP_CIPHER_CTX_new();
+    _ctx = EVP_CIPHER_CTX_new();
 #endif
 }
 
@@ -88,10 +87,10 @@ WiredTigerDataProtectorCBC::WiredTigerDataProtectorCBC() {
 WiredTigerDataProtectorCBC::~WiredTigerDataProtectorCBC() {}
 
 Status WiredTigerDataProtectorCBC::protect(const std::uint8_t* in,
-                                        std::size_t inLen,
-                                        std::uint8_t* out,
-                                        std::size_t outLen,
-                                        std::size_t* bytesWritten) {
+                                           std::size_t inLen,
+                                           std::uint8_t* out,
+                                           std::size_t outLen,
+                                           std::size_t* bytesWritten) {
     *bytesWritten = 0;
 
     if (_first) {
@@ -101,7 +100,7 @@ Status WiredTigerDataProtectorCBC::protect(const std::uint8_t* in,
         std::memset(out + *bytesWritten, 0, _chksum_len);
         *bytesWritten += _chksum_len;
 
-        uint8_t *iv = out + *bytesWritten;
+        uint8_t* iv = out + *bytesWritten;
         store_pseudo_bytes(iv, _iv_len);
         *bytesWritten += _iv_len;
 
@@ -118,7 +117,9 @@ Status WiredTigerDataProtectorCBC::protect(const std::uint8_t* in,
     return Status::OK();
 }
 
-Status WiredTigerDataProtectorCBC::finalize(std::uint8_t* out, std::size_t outLen, std::size_t* bytesWritten) {
+Status WiredTigerDataProtectorCBC::finalize(std::uint8_t* out,
+                                            std::size_t outLen,
+                                            std::size_t* bytesWritten) {
     int encrypted_len = 0;
     if (1 != EVP_EncryptFinal_ex(_ctx, out, &encrypted_len))
         return handleCryptoErrors();
@@ -132,8 +133,8 @@ std::size_t WiredTigerDataProtectorCBC::getNumberOfBytesReservedForTag() const {
 }
 
 Status WiredTigerDataProtectorCBC::finalizeTag(std::uint8_t* out,
-                                            std::size_t outLen,
-                                            std::size_t* bytesWritten) {
+                                               std::size_t outLen,
+                                               std::size_t* bytesWritten) {
     *(uint32_t*)out = crc32c();
     *bytesWritten = _chksum_len;
     return Status::OK();
@@ -148,10 +149,10 @@ WiredTigerDataProtectorGCM::WiredTigerDataProtectorGCM() {
 WiredTigerDataProtectorGCM::~WiredTigerDataProtectorGCM() {}
 
 Status WiredTigerDataProtectorGCM::protect(const std::uint8_t* in,
-                                        std::size_t inLen,
-                                        std::uint8_t* out,
-                                        std::size_t outLen,
-                                        std::size_t* bytesWritten) {
+                                           std::size_t inLen,
+                                           std::uint8_t* out,
+                                           std::size_t outLen,
+                                           std::size_t* bytesWritten) {
     *bytesWritten = 0;
 
     if (_first) {
@@ -161,10 +162,9 @@ Status WiredTigerDataProtectorGCM::protect(const std::uint8_t* in,
         std::memset(out + *bytesWritten, 0, _gcm_tag_len);
         *bytesWritten += _gcm_tag_len;
 
-        uint8_t *iv = out + *bytesWritten;
+        uint8_t* iv = out + *bytesWritten;
         if (0 != get_iv_gcm(iv, _iv_len))
-            return Status(ErrorCodes::InternalError,
-                          "failed generating IV for GCM");
+            return Status(ErrorCodes::InternalError, "failed generating IV for GCM");
         *bytesWritten += _iv_len;
 
         if (1 != EVP_EncryptInit_ex(_ctx, _cipher, nullptr, _masterkey, iv))
@@ -179,7 +179,9 @@ Status WiredTigerDataProtectorGCM::protect(const std::uint8_t* in,
     return Status::OK();
 }
 
-Status WiredTigerDataProtectorGCM::finalize(std::uint8_t* out, std::size_t outLen, std::size_t* bytesWritten) {
+Status WiredTigerDataProtectorGCM::finalize(std::uint8_t* out,
+                                            std::size_t outLen,
+                                            std::size_t* bytesWritten) {
     int encrypted_len = 0;
     if (1 != EVP_EncryptFinal_ex(_ctx, out, &encrypted_len))
         return handleCryptoErrors();
@@ -193,10 +195,10 @@ std::size_t WiredTigerDataProtectorGCM::getNumberOfBytesReservedForTag() const {
 }
 
 Status WiredTigerDataProtectorGCM::finalizeTag(std::uint8_t* out,
-                                            std::size_t outLen,
-                                            std::size_t* bytesWritten) {
+                                               std::size_t outLen,
+                                               std::size_t* bytesWritten) {
     // get the tag
-    if(1 != EVP_CIPHER_CTX_ctrl(_ctx, EVP_CTRL_GCM_GET_TAG, _gcm_tag_len, out))
+    if (1 != EVP_CIPHER_CTX_ctrl(_ctx, EVP_CTRL_GCM_GET_TAG, _gcm_tag_len, out))
         return handleCryptoErrors();
     *bytesWritten += _gcm_tag_len;
     return Status::OK();

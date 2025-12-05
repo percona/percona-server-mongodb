@@ -27,8 +27,8 @@ const oidcProvider = {
 const expectedRoles = [
     "test/group1",
     "test/group2",
-    { role: "readWrite", db: "test_db1" },
-    { role: "read", db: "test_db2" },
+    {role: "readWrite", db: "test_db1"},
+    {role: "read", db: "test_db2"},
 ];
 
 // Use refresh token to get the access token for next authentication

@@ -43,13 +43,15 @@ Status storeLDAPOptions(const moe::Environment& params) {
         ldapGlobalParams.setServersStr(ldap_servers);
     }
     if (params.count("security.ldap.transportSecurity")) {
-        ldapGlobalParams.ldapTransportSecurity = params["security.ldap.transportSecurity"].as<std::string>();
+        ldapGlobalParams.ldapTransportSecurity =
+            params["security.ldap.transportSecurity"].as<std::string>();
     }
     if (params.count("security.ldap.bind.method")) {
         ldapGlobalParams.ldapBindMethod = params["security.ldap.bind.method"].as<std::string>();
     }
     if (params.count("security.ldap.bind.saslMechanisms")) {
-        ldapGlobalParams.ldapBindSaslMechanisms = params["security.ldap.bind.saslMechanisms"].as<std::string>();
+        ldapGlobalParams.ldapBindSaslMechanisms =
+            params["security.ldap.bind.saslMechanisms"].as<std::string>();
     }
     if (params.count("security.ldap.timeoutMS")) {
         ldapGlobalParams.ldapTimeoutMS.store(params["security.ldap.timeoutMS"].as<int>());
@@ -58,13 +60,16 @@ Status storeLDAPOptions(const moe::Environment& params) {
         ldapGlobalParams.ldapQueryUser = params["security.ldap.bind.queryUser"].as<std::string>();
     }
     if (params.count("security.ldap.bind.queryPassword")) {
-        ldapGlobalParams.ldapQueryPassword = params["security.ldap.bind.queryPassword"].as<std::string>();
+        ldapGlobalParams.ldapQueryPassword =
+            params["security.ldap.bind.queryPassword"].as<std::string>();
     }
     if (params.count("security.ldap.userToDNMapping")) {
-        ldapGlobalParams.ldapUserToDNMapping = params["security.ldap.userToDNMapping"].as<std::string>();
+        ldapGlobalParams.ldapUserToDNMapping =
+            params["security.ldap.userToDNMapping"].as<std::string>();
     }
     if (params.count("security.ldap.validateLDAPServerConfig")) {
-        ldapGlobalParams.ldapValidateLDAPServerConfig = params["security.ldap.validateLDAPServerConfig"].as<bool>();
+        ldapGlobalParams.ldapValidateLDAPServerConfig =
+            params["security.ldap.validateLDAPServerConfig"].as<bool>();
     }
     return Status::OK();
 }
@@ -73,4 +78,4 @@ MONGO_INITIALIZER_GENERAL(StoreLDAPOptions, ("CoreOptions_Store"), ("EndStartupO
 (InitializerContext* const context) {
     uassertStatusOK(storeLDAPOptions(moe::startupOptionsParsed));
 }
-}  // namespace mongo 
+}  // namespace mongo

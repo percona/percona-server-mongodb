@@ -552,9 +552,9 @@ private:
     // This is set in two places:
     // - to the 'oplogEnd' field from the backup cursor metadata when it is received
     // - to the last applied optime used as the 'timestamp' parameter in $backupCursorExtend
-    OpTime _oplogEnd;                                                  // TODO:
-    const std::string _cfgDBPath;                                      // TODO:
-    std::unique_ptr<BackupCursorInfo> _backupCursorInfo;               // TODO:
+    OpTime _oplogEnd;                                     // TODO:
+    const std::string _cfgDBPath;                         // TODO:
+    std::unique_ptr<BackupCursorInfo> _backupCursorInfo;  // TODO:
 
     // This is invoked with the final status of the initial sync. If startup() fails, this callback
     // is never invoked. The caller gets the last applied optime when the initial sync completes
@@ -605,7 +605,7 @@ private:
     // $backupCursor/$backupCursorExtend. Thus it is initially set to the 'oplogEnd' value returned
     // by the backup cursor and then updated to the last applied optime which was used as the
     // 'timestamp' parameter to each $backupCursorExtend invokation.
-    OpTimeAndWallTime _lastApplied;                        // (MX)
+    OpTimeAndWallTime _lastApplied;  // (MX)
 
     // Used to signal changes in _state.
     mutable stdx::condition_variable _stateCondition;

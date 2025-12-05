@@ -41,7 +41,8 @@ function test_jwks_quiesce_period(clusterClass) {
     idp.clear_output();
 
     // Expect authentication failure due to JWKSMinimumQuiescePeriodSecs not yet passed
-    assert(!test.auth(conn, "user"), "Authentication should fail due to JWKSMinimumQuiescePeriodSecs");
+    assert(!test.auth(conn, "user"),
+           "Authentication should fail due to JWKSMinimumQuiescePeriodSecs");
     idp.assert_no_http_request("GET", "/keys");
 
     // Wait for JWKSMinimumQuiescePeriodSecs to pass

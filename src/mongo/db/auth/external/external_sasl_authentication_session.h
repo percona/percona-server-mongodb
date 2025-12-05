@@ -61,11 +61,11 @@ public:
 
 private:
     int _step{0};
-    sasl_conn_t * _saslConnection{nullptr};
+    sasl_conn_t* _saslConnection{nullptr};
 
     struct SaslServerResults {
         int result;
-        const char *output;
+        const char* output;
         unsigned length;
         inline void initialize_results() {
             result = SASL_OK;
@@ -85,7 +85,8 @@ private:
     virtual StringData getPrincipalName() const override final;
 
     Status initializeConnection();
-    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(const StringData& payload);
+    StatusWith<std::tuple<bool, std::string>> processInitialClientPayload(
+        const StringData& payload);
     StatusWith<std::tuple<bool, std::string>> processNextClientPayload(const StringData& payload);
     StatusWith<std::tuple<bool, std::string>> getStepResult() const;
 };
