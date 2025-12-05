@@ -9,7 +9,7 @@ if (TestData.testData !== undefined) {
 var testDBName = 'audit_drop_database';
 
 auditTest('dropDatabase', function(m) {
-    testDB = m.getDB(testDBName);
+    var testDB = m.getDB(testDBName);
     assert.writeOK(testDB.getCollection('foo').insert({a: 1}));
     const beforeCmd = Date.now();
     assert.commandWorked(testDB.dropDatabase());

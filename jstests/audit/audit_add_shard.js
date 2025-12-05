@@ -24,7 +24,7 @@ auditTestShard('addShard', function(st) {
     assert.commandWorked(st.s0.adminCommand({addshard: connstr}));
 
     const beforeLoad = Date.now();
-    auditColl = loadAuditEventsIntoCollection(
+    let auditColl = loadAuditEventsIntoCollection(
         st.s0, getDBPath() + '/auditLog-s0.json', jsTestName(), 'auditEvents');
     assert.eq(1,
               auditColl.count({

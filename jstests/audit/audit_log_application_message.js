@@ -14,7 +14,7 @@ auditTest('logApplicationMessage', function(m) {
     assert.commandWorked(m.getDB('admin').runCommand({logApplicationMessage: msg}));
 
     const beforeLoad = Date.now();
-    auditColl = getAuditEventsCollection(m, testDBName);
+    var auditColl = getAuditEventsCollection(m, testDBName);
     assert.eq(1,
               auditColl.count({
                   atype: "applicationMessage",

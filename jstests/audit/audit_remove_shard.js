@@ -33,7 +33,7 @@ auditTestShard('removeShard', function(st) {
     } while (removeRet.state != 'completed');
 
     const beforeLoad = Date.now();
-    auditColl = loadAuditEventsIntoCollection(
+    let auditColl = loadAuditEventsIntoCollection(
         st.s0, getDBPath() + '/auditLog-c0.json', jsTestName(), 'auditEvents');
     assert.eq(cmdcnt,
               auditColl.count({

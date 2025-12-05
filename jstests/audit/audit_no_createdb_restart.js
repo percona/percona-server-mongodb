@@ -9,7 +9,7 @@ if (TestData.testData !== undefined) {
 var testDBName = 'audit_no_createdb_restart';
 
 auditTest('noCreateDatabaseRestart', function(m, restartServer) {
-    testDB = m.getDB(testDBName);
+    var testDB = m.getDB(testDBName);
     assert.commandWorked(testDB.dropDatabase());
     assert.commandWorked(testDB.createCollection('foo'));
 
@@ -20,7 +20,7 @@ auditTest('noCreateDatabaseRestart', function(m, restartServer) {
     m = restartServer();
 
     const beforeLoad = Date.now();
-    auditColl = getAuditEventsCollection(m, testDBName);
+    const auditColl = getAuditEventsCollection(m, testDBName);
     assert.eq(0,
               auditColl.count({
                   atype: "createDatabase",

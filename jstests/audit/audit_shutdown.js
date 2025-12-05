@@ -14,7 +14,7 @@ auditTest('shutdown', function(m, restartServer) {
     m = restartServer();
 
     const beforeLoad = Date.now();
-    auditColl =
+    var auditColl =
         getAuditEventsCollection(m, testDBName, undefined, undefined, /*loadRotated =*/ true);
     assert.eq(1,
               auditColl.count({

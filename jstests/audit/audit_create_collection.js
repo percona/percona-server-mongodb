@@ -9,12 +9,12 @@ if (TestData.testData !== undefined) {
 var testDBName = 'audit_create_collection';
 
 auditTest('createCollection', function(m) {
-    testDB = m.getDB(testDBName);
+    const testDB = m.getDB(testDBName);
     const beforeCmd = Date.now();
     assert.commandWorked(testDB.createCollection('foo'));
 
     const beforeLoad = Date.now();
-    auditColl = getAuditEventsCollection(m, testDBName);
+    const auditColl = getAuditEventsCollection(m, testDBName);
     assert.eq(1,
               auditColl.count({
                   atype: "createCollection",

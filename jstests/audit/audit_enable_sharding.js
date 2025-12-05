@@ -7,13 +7,13 @@ if (TestData.testData !== undefined) {
 }
 
 auditTestShard('enableSharding', function(st) {
-    testDB = st.s0.getDB(jsTestName());
+    let testDB = st.s0.getDB(jsTestName());
     assert.commandWorked(testDB.dropDatabase());
     const beforeCmd = Date.now();
     assert.commandWorked(st.s0.adminCommand({enableSharding: jsTestName()}));
 
     const beforeLoad = Date.now();
-    auditColl = loadAuditEventsIntoCollection(
+    const auditColl = loadAuditEventsIntoCollection(
         st.s0, getDBPath() + '/auditLog-c0.json', testDB.getName(), 'auditEvents');
     assert.eq(1,
               auditColl.count({
