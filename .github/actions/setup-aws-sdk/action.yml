@@ -1,0 +1,39 @@
+name: "AWS SDK setup"
+description: "AWS SDK C++ build and installation"
+
+inputs:
+  aws-sdk-version:
+    description: "AWS SDK C++ version tag"
+    required: false
+    default: "1.9.379"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Repo cache
+      uses: actions/cache@v4
+      id: repo-cache
+      with:
+        path: build/aws-sdk-cpp
+        key: aws-sdk-cpp-${{ runner.os }}-${{ inputs.aws-sdk-version }}
+
+    - name: Setup repo
+      if: steps.repo-cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        AWS_SDK_VERSION: ${{ inputs.aws-sdk-version }}
+      run: |
+        mkdir -p build
+        cd build
+        git clone --branch "$AWS_SDK_VERSION" --depth 1 --recurse-submodules https://github.com/aws/aws-sdk-cpp.git
+        cd aws-sdk-cpp
+        curl -L https://github.com/aws/aws-sdk-cpp/commit/0fba9f908d7ddc30aceab69b939f997330a44bb3.patch | git apply
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="/usr"
+
+    - name: Build and install
+      shell: bash
+      run: |
+        cd build/aws-sdk-cpp/build
+        sudo cmake --build . --target install
