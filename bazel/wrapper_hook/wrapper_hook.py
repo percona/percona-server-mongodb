@@ -14,6 +14,13 @@ from bazel.wrapper_hook.wrapper_debug import wrapper_debug
 
 wrapper_debug(f"wrapper hook script is using {sys.executable}")
 
+# Append new_args before the '--' separator if it exists
+def append_args(args, new_args):
+    if "--" in args:
+        separator_index = args.index("--")
+        return args[:separator_index] + new_args + args[separator_index:]
+    else:
+        return args + new_args
 
 def main():
     install_modules(sys.argv[1])
@@ -36,7 +43,7 @@ def main():
             print(
                 f"{enterprise_mod.relative_to(REPO_ROOT).as_posix()} missing, defaulting to local non-enterprise build (--config=local --build_enterprise=False). Add the directory to not automatically add these options."
             )
-            args += ["--build_enterprise=False", "--config=local"]
+            args = append_args(args, ["--config=local", "--build_enterprise=False"])
 
         write_workstation_bazelrc(args)
 
