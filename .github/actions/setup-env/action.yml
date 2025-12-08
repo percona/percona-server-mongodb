@@ -4,6 +4,14 @@ description: "Shared setup steps for the workflows"
 runs:
   using: "composite"
   steps:
+    - name: Install deps
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt install -y gcc g++ cmake curl libssl-dev libldap2-dev libkrb5-dev \
+                            libcurl4-openssl-dev libsasl2-dev liblz4-dev libbz2-dev \
+                            libsnappy-dev zlib1g-dev libzlcore-dev liblzma-dev e2fslibs-dev
+
     - name: Set up Python
       uses: actions/setup-python@v5
       id: setup-python

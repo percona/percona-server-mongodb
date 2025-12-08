@@ -43,6 +43,9 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup-env
 
+      - name: Setup AWS SDK
+        uses: ./.github/actions/setup-aws-sdk
+
       - name: Bazel cache
         uses: actions/cache@v4
         id: bazel_cache
@@ -67,7 +70,8 @@ jobs:
         run: |
           {
             echo 'common --config=local'
-            echo 'common --build_enterprise=false'
+            echo 'build --build_enterprise=false'
+            echo 'build --//bazel/config:compiler_type=clang'
           } > .bazelrc.compiledb
           bazel \
             --bazelrc=.bazelrc.compiledb \
