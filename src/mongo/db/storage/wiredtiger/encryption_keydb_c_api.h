@@ -36,6 +36,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 void store_pseudo_bytes(uint8_t* buf, int len);
 int get_iv_gcm(uint8_t* buf, int len);
 int get_key_by_id(const char* keyid, size_t len, unsigned char* key, void* pe);
