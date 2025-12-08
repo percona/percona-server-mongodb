@@ -43,6 +43,9 @@ jobs:
       - name: Setup environment
         uses: ./.github/actions/setup-env
 
+      - name: Setup AWS SDK
+        uses: ./.github/actions/setup-aws-sdk
+
       - name: Bazel cache
         uses: actions/cache@v4
         id: bazel_cache
