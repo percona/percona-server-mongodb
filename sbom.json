@@ -2235,6 +2235,50 @@
         ]
       },
       "scope": "excluded"
+    },
+    {
+      "supplier": {
+        "name": "Organization: github"
+      },
+      "name": "libarchive",
+      "version": "3.4.0",
+      "licenses": [
+        {
+          "license": {
+            "name": "Mix of licenses",
+            "url": "https://github.com/libarchive/libarchive/blob/v3.4.0/COPYING"
+          }
+        }
+      ],
+      "purl": "pkg:github/libarchive/libarchive@3.4.0",
+      "properties": [
+        {
+          "name": "internal:team_responsible",
+          "value": "Percona Server for MongoDB Team"
+        },
+        {
+          "name": "emits_persisted_data",
+          "value": "true"
+        },
+        {
+          "name": "info_link",
+          "value": "https://www.libarchive.org"
+        },
+        {
+          "name": "import_script_path",
+          "value": "src/third_party/libarchive-3.4.0/scripts/import.sh"
+        }
+      ],
+      "type": "library",
+      "bom-ref": "899d5a67-2609-4216-90ae-d5f4a89a8d38",
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/third_party/libarchive-3.4.0"
+          }
+        ]
+      },
+      "scope": "required"
     }
   ],
   "dependencies": [
@@ -2289,7 +2333,8 @@
         "ac34fe8e-c549-4f64-a38f-948184c1dd52",
         "f10406eb-8a93-4695-91e9-cee00dc8237a",
         "eb888ce9-e2b6-47f7-980e-b65e7d68e92a",
-        "bc384adb-9013-4a4f-a248-d1d0f240aec2"
+        "bc384adb-9013-4a4f-a248-d1d0f240aec2",
+        "899d5a67-2609-4216-90ae-d5f4a89a8d38"
       ]
     }
   ]
