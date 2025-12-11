@@ -1705,6 +1705,7 @@ Status InitialSyncerFCB::_switchStorageLocation(
     OperationContext* opCtx,
     const std::string& newLocation,
     const boost::optional<startup_recovery::StartupRecoveryMode> recoveryMode) {
+    LOGV2_DEBUG(128469, 1, "Switching storage location", "newLocation"_attr = newLocation);
     invariant(opCtx->lockState()->isW());
 
     boost::system::error_code ec;
@@ -1714,6 +1715,12 @@ Status InitialSyncerFCB::_switchStorageLocation(
                 str::stream() << "Failed to create directory " << newLocation
                               << " Error: " << ec.message()};
     }
+
+    // closeCatalog invariants if any index builds are in progress
+    IndexBuildsCoordinator::get(opCtx)->waitForAllIndexBuildsToStop(opCtx);
+    // Alternatively, we could abort index builds. Reconsider if anything goes wrong.
+    // IndexBuildsCoordinator::get(opCtx)->abortAllIndexBuildsForInitialSync(
+    //    opCtx, "Aborting index builds before closing catalog for changing storage location");
 
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
