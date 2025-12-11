@@ -1670,14 +1670,13 @@ Status InitialSyncerFCB::_moveFiles(const boost::filesystem::path& sourceDir,
 }
 
 // Open a local backup cursor and obtain a list of files from that.
-StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles() {
+StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles(OperationContext* opCtx) {
     std::vector<std::string> files;
     try {
         // Open a local backup cursor and obtain a list of files from that.
 
         // Try to use DBDirectClient
-        auto opCtx = makeOpCtx();
-        DBDirectClient client(opCtx.get());
+        DBDirectClient client(opCtx);
         auto cursor = uassertStatusOK(DBClientCursor::fromAggregationRequest(
             &client, makeBackupCursorRequest(), true /* secondaryOk */, false /* useExhaust */));
         if (cursor->more()) {
@@ -2262,9 +2261,11 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         return;
     }
 
+    auto opCtx = makeOpCtx();
+
     // Save list of files existing in dbpath. We will delete them later
     LOGV2_DEBUG(128404, 2, "Reading the list of local files via $backupCursor");
-    auto bfiles = _getBackupFiles();
+    auto bfiles = _getBackupFiles(opCtx.get());
     if (!bfiles.isOK()) {
         LOGV2_DEBUG(
             128405, 2, "Failed to get the list of local files", "status"_attr = bfiles.getStatus());
@@ -2275,7 +2276,6 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
     _localFiles = bfiles.getValue();
 
-    auto opCtx = makeOpCtx();
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // retrieve the current on-disk replica set configuration
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
