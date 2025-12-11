@@ -2276,6 +2276,14 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
     _localFiles = bfiles.getValue();
 
+    status = _checkForShutdownAndConvertStatus_inlock(
+        callbackArgs,
+        "_switchToDownloadedCallback cancelled by shutdown before switching storage location");
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // retrieve the current on-disk replica set configuration
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
