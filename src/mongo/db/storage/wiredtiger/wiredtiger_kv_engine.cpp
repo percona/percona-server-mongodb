@@ -1419,6 +1419,12 @@ void WiredTigerKVEngine::cleanShutdown(bool memLeakAllowed) {
 
     _connection->shuttingDown(WiredTigerConnection::ShutdownReason::kCleanShutdown);
 
+    // Since shutting down the WT_CONNECTION will close all WT_SESSIONS, we shouldn't also try to
+    // directly close this session.
+    if (_backupSession) {
+        _backupSession->dropSessionBeforeDeleting();
+    }
+
     syncSizeInfo(/*syncToDisk=*/true);
 
     // The size storer has to be destructed after the session cache has shut down. This sets the
