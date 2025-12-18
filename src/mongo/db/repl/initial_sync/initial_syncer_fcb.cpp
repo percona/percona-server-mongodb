@@ -2319,6 +2319,10 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         _switchStorageLocation(opCtx.get(), _cfgDBPath + "/.initialsync", true /* runRecovery */);
     lock.lock();
     if (!status.isOK()) {
+        // Corner case: we need to reset _inStorageChange flag here because
+        // _restoreStorageLocation will not be called in this case
+        _inStorageChange = false;
+        _inStorageChangeCondition.notify_all();
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         return;
     }
