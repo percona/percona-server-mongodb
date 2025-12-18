@@ -40,6 +40,7 @@
 #include "mongo/db/exec/plan_stats.h"
 #include "mongo/db/exec/sort_executor.h"
 #include "mongo/db/index/sort_key_generator.h"
+#include "mongo/db/memory_tracking/memory_usage_tracker.h"
 #include "mongo/db/pipeline/dependencies.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_limit.h"
@@ -48,9 +49,9 @@
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/stage_constraints.h"
 #include "mongo/db/pipeline/variables.h"
+#include "mongo/db/query/compiler/logical_model/sort_pattern/sort_pattern.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
-#include "mongo/db/query/sort_pattern.h"
 #include "mongo/db/sorter/sorter.h"
 #include "mongo/db/sorter/sorter_stats.h"
 #include "mongo/logv2/log_attr.h"
@@ -273,6 +274,10 @@ public:
         return isBoundedSortStage() ? &_timeSorterStats : &_sortExecutor->stats();
     }
 
+    const SimpleMemoryUsageTracker* getMemoryTracker_forTest() const {
+        return &_memoryTracker;
+    }
+
 protected:
     GetNextResult doGetNext() final;
     /**
@@ -377,6 +382,8 @@ private:
     SortStats _timeSorterStats;
 
     QueryMetadataBitSet _requiredMetadata;
+
+    SimpleMemoryUsageTracker _memoryTracker;
 };
 
 }  // namespace mongo

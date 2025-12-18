@@ -84,6 +84,10 @@
 #include "mongo/db/query/canonical_distinct.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/collation/collator_interface.h"
+#include "mongo/db/query/compiler/logical_model/projection/projection.h"
+#include "mongo/db/query/compiler/logical_model/projection/projection_parser.h"
+#include "mongo/db/query/compiler/logical_model/projection/projection_policies.h"
+#include "mongo/db/query/compiler/logical_model/sort_pattern/sort_pattern.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/stage_types.h"
 #include "mongo/db/query/find_command.h"
 #include "mongo/db/query/get_executor.h"
@@ -92,15 +96,11 @@
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/query/plan_yield_policy_impl.h"
 #include "mongo/db/query/plan_yield_policy_remote_cursor.h"
-#include "mongo/db/query/projection.h"
-#include "mongo/db/query/projection_parser.h"
-#include "mongo/db/query/projection_policies.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/query/query_knob_configuration.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/query/query_planner_params.h"
 #include "mongo/db/query/query_request_helper.h"
-#include "mongo/db/query/sort_pattern.h"
 #include "mongo/db/query/tailable_mode_gen.h"
 #include "mongo/db/query/timeseries/bucket_spec.h"
 #include "mongo/db/query/util/make_data_structure.h"
@@ -413,7 +413,8 @@ StatusWith<unique_ptr<PlanExecutor, PlanExecutor::Deleter>> PipelineD::createRan
     }
 
     // Attempt to get a random cursor from the RecordStore.
-    auto rsRandCursor = coll.getRecordStore()->getRandomCursor(opCtx);
+    auto rsRandCursor =
+        coll.getRecordStore()->getRandomCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     if (!rsRandCursor) {
         // The storage engine has no random cursor support.
         return nullptr;

@@ -540,19 +540,13 @@ public:
      * the same document more than once and, as a result, may return more documents than exist in
      * the record store. Implementations should avoid obvious biases toward older, newer, larger
      * smaller or other specific classes of documents.
-     *
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
      */
-    virtual std::unique_ptr<RecordCursor> getRandomCursor(OperationContext*) const = 0;
     virtual std::unique_ptr<RecordCursor> getRandomCursor(OperationContext*,
                                                           RecoveryUnit&) const = 0;
 
     /**
      * Removes all Records.
-     *
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
      */
-    virtual Status truncate(OperationContext*) = 0;
     virtual Status truncate(OperationContext*, RecoveryUnit&) = 0;
 
     /**
@@ -581,10 +575,7 @@ public:
      * Attempt to reduce the storage space used by this RecordStore.
      * Only called if compactSupported() returns true.
      * Returns an estimated number of bytes when doing a dry run.
-     *
-     * TODO (SERVER-105771): Remove the overload without RecoveryUnit.
      */
-    virtual StatusWith<int64_t> compact(OperationContext*, const CompactOptions&) = 0;
     virtual StatusWith<int64_t> compact(OperationContext*,
                                         RecoveryUnit&,
                                         const CompactOptions&) = 0;

@@ -50,8 +50,8 @@
 #include "mongo/db/query/collection_query_info.h"
 #include "mongo/db/query/compiler/ce/sampling/sampling_estimator.h"
 #include "mongo/db/query/compiler/ce/sampling/sampling_estimator_impl.h"
+#include "mongo/db/query/compiler/optimizer/cost_based_ranker/estimates.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
-#include "mongo/db/query/cost_based_ranker/estimates.h"
 #include "mongo/db/query/find_command.h"
 #include "mongo/db/query/get_executor.h"
 #include "mongo/db/query/mock_yield_policies.h"
@@ -218,6 +218,7 @@ public:
             std::make_unique<ce::SamplingEstimatorImpl>(
                 &_opCtx,
                 collectionsAccessor,
+                PlanYieldPolicy::YieldPolicy::YIELD_AUTO,
                 static_cast<size_t>(N),
                 ce::SamplingEstimatorImpl::SamplingStyle::kRandom,
                 boost::none,

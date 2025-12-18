@@ -83,10 +83,13 @@
 #include "mongo/db/query/collation/collator_factory_interface.h"
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/db/query/collection_query_info.h"
+#include "mongo/db/query/compiler/logical_model/projection/projection.h"
+#include "mongo/db/query/compiler/logical_model/projection/projection_parser.h"
+#include "mongo/db/query/compiler/logical_model/projection/projection_policies.h"
+#include "mongo/db/query/compiler/optimizer/index_bounds_builder/index_bounds_builder.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/eof_node_type.h"
 #include "mongo/db/query/distinct_access.h"
 #include "mongo/db/query/find_command.h"
-#include "mongo/db/query/index_bounds_builder.h"
 #include "mongo/db/query/internal_plans.h"
 #include "mongo/db/query/plan_cache/classic_plan_cache.h"
 #include "mongo/db/query/plan_cache/plan_cache.h"
@@ -97,9 +100,6 @@
 #include "mongo/db/query/plan_yield_policy_sbe.h"
 #include "mongo/db/query/planner_analysis.h"
 #include "mongo/db/query/planner_ixselect.h"
-#include "mongo/db/query/projection.h"
-#include "mongo/db/query/projection_parser.h"
-#include "mongo/db/query/projection_policies.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/query/query_knob_configuration.h"
 #include "mongo/db/query/query_knobs_gen.h"
@@ -360,10 +360,12 @@ class PrepareExecutionHelper {
 public:
     PrepareExecutionHelper(OperationContext* opCtx,
                            const MultipleCollectionAccessor& collections,
+                           PlanYieldPolicy::YieldPolicy yieldPolicy,
                            CanonicalQuery* cq,
                            std::unique_ptr<QueryPlannerParams> plannerParams)
         : _opCtx{opCtx},
           _collections{collections},
+          _yieldPolicy{yieldPolicy},
           _cq{cq},
           _plannerParams(std::move(plannerParams)),
           _result{std::make_unique<ResultType>()} {
@@ -469,6 +471,7 @@ public:
                 samplingEstimator = std::make_unique<ce::SamplingEstimatorImpl>(
                     _cq->getOpCtx(),
                     getCollections(),
+                    _yieldPolicy,
                     samplingMode == SamplingCEMethodEnum::kRandom
                         ? ce::SamplingEstimatorImpl::SamplingStyle::kRandom
                         : ce::SamplingEstimatorImpl::SamplingStyle::kChunk,
@@ -617,6 +620,7 @@ protected:
 
     OperationContext* _opCtx;
     const MultipleCollectionAccessor& _collections;
+    PlanYieldPolicy::YieldPolicy _yieldPolicy;
     CanonicalQuery* _cq;
     // Stored as a smart pointer for memory safety reasons. Storing a reference would be even
     // faster, but also more prone to memory errors. Storing a direct value would incur copying
@@ -639,9 +643,8 @@ public:
                                   CanonicalQuery* cq,
                                   PlanYieldPolicy::YieldPolicy yieldPolicy,
                                   std::unique_ptr<QueryPlannerParams> plannerParams)
-        : PrepareExecutionHelper{opCtx, collections, cq, std::move(plannerParams)},
-          _ws{std::move(ws)},
-          _yieldPolicy{yieldPolicy} {}
+        : PrepareExecutionHelper{opCtx, collections, yieldPolicy, cq, std::move(plannerParams)},
+          _ws{std::move(ws)} {}
 
 private:
     using CachedSolutionPair =
@@ -777,7 +780,6 @@ private:
     }
 
     std::unique_ptr<WorkingSet> _ws;
-    PlanYieldPolicy::YieldPolicy _yieldPolicy;
     boost::optional<size_t> _cachedPlanHash;
 };
 
@@ -806,9 +808,8 @@ public:
         std::unique_ptr<QueryPlannerParams> plannerParams,
         bool useSbePlanCache)
         : PrepareExecutionHelper<CacheKey, RuntimePlanningResult>(
-              opCtx, collections, cq, std::move(plannerParams)),
+              opCtx, collections, policy, cq, std::move(plannerParams)),
           _ws{std::move(ws)},
-          _yieldPolicy{policy},
           _sbeYieldPolicy{std::move(sbeYieldPolicy)},
           _useSbePlanCache{useSbePlanCache} {}
 
@@ -821,7 +822,7 @@ protected:
                                           std::move(_ws),
                                           this->_collections,
                                           std::move(this->_plannerParams),
-                                          _yieldPolicy,
+                                          this->_yieldPolicy,
                                           _cachedPlanHash,
                                           std::move(_sbeYieldPolicy),
                                           _useSbePlanCache};
@@ -871,8 +872,8 @@ protected:
     std::unique_ptr<WorkingSet> _ws;
 
     // When using the classic multi-planner for SBE, we need both classic and SBE yield policy to
-    // support yielding during trial period in classic engine.
-    PlanYieldPolicy::YieldPolicy _yieldPolicy;
+    // support yielding during trial period in classic engine. The classic yield policy to stored in
+    // 'PrepareExecutionHelper'.
     std::unique_ptr<PlanYieldPolicySBE> _sbeYieldPolicy;
 
     const bool _useSbePlanCache;

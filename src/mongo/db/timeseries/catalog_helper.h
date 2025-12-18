@@ -47,9 +47,9 @@ class OperationContext;
 namespace timeseries {
 
 /**
- * This function is a wrapper of `acquireCollection`.
+ * This function is a wrapper of `acquireCollectionOrView`.
  *
- * It returns a pair where the first element is the resulting collection acquisition.
+ * It returns a pair where the first element is the resulting collection or view acquisition.
  *
  * The second element is a boolean indicating if the acquisition has been made after translating the
  * namespace to the underlying timeseries system buckets collection. This boolean will be set to
@@ -60,16 +60,33 @@ namespace timeseries {
  * TODO SERVER-101784 remove this function once 9.0 becomes last LTS. By then only viewless
  * timeseries collection will exist.
  */
+std::pair<CollectionOrViewAcquisition, bool> acquireCollectionOrViewWithBucketsLookup(
+    OperationContext* opCtx, CollectionOrViewAcquisitionRequest acquisitionReq, LockMode mode);
+
+/**
+ * Similar to acquireCollectionOrViewWithBucketsLookup above, but it will throw
+ * `CommandNotSupportedOnView` if the target namespace is a normal view.
+ *
+ * For timeseries view instead it will return the CollectionAcquistion of the underlying
+ * system.buckets collection.
+ *
+ * TODO SERVER-101784 remove this function once 9.0 becomes last LTS. By then only viewless
+ * timeseries collection will exist.
+ */
 std::pair<CollectionAcquisition, bool> acquireCollectionWithBucketsLookup(
     OperationContext* opCtx, CollectionAcquisitionRequest acquisitionReq, LockMode mode);
 
 struct TimeseriesLookupInfo {
     // If the namespace refer to a timeseries collection
     bool isTimeseries;
+    // If the namespace refers to a viewless time-series collection
+    bool isViewlessTimeseries;
     // If the namespace was translated from view to system.buckets collection
     bool wasNssTranslated;
     // The namespace of the target buckets collection
     NamespaceString targetNss;
+    // The UUID for the collection. boost::none if no such collection exists
+    boost::optional<UUID> uuid;
 };
 
 /**

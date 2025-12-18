@@ -210,6 +210,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/secondary_lag.py @10gen/server-jstest-infra @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/stepdown.py @10gen/server-jstest-infra @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/wait_for_replication.py @10gen/server-jstest-infra @svc-auto-approve-bot
+/buildscripts/resmokelib/testing/hooks/**/generate_and_check_perf_results.py @10gen/devprod-performance-analysis @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokelib/testing/testcases/OWNERS.yml
 /buildscripts/resmokelib/testing/testcases/**/query_tester_server_test.py @10gen/query-optimization @svc-auto-approve-bot
@@ -278,11 +279,17 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /etc/evergreen_yml_components/tasks/release_tasks.yml @10gen/devprod-release-infrastructure @svc-auto-approve-bot
 /etc/evergreen_yml_components/variants/release/release.yml @10gen/devprod-release-infrastructure @svc-auto-approve-bot
 
+# The following patterns are parsed from ./etc/evergreen_yml_components/tasks/resmoke/non_server_teams/OWNERS.yml
+/etc/evergreen_yml_components/tasks/resmoke/non_server_teams/ @10gen/devprod-correctness @svc-auto-approve-bot
+
 # The following patterns are parsed from ./etc/evergreen_yml_components/tasks/resmoke/server_divisions/query/OWNERS.yml
 /etc/evergreen_yml_components/tasks/resmoke/server_divisions/query/**/* @10gen/query @svc-auto-approve-bot
 
 # The following patterns are parsed from ./etc/evergreen_yml_components/variants/codecoverage/OWNERS.yml
 /etc/evergreen_yml_components/variants/codecoverage/**/* @10gen/devprod-build @10gen/devprod-correctness @svc-auto-approve-bot
+
+# The following patterns are parsed from ./etc/evergreen_yml_components/variants/misc/OWNERS.yml
+/etc/evergreen_yml_components/variants/misc/ @10gen/devprod-correctness @svc-auto-approve-bot
 
 # The following patterns are parsed from ./etc/evergreen_yml_components/variants/mongot/OWNERS.yml
 /etc/evergreen_yml_components/variants/mongot/**/* @10gen/query-integration-search @svc-auto-approve-bot
@@ -294,8 +301,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/failed_unittests_gather.sh @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/generate_clang_tidy_report.py @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/generate_evergreen_bazelrc.sh @10gen/devprod-build @svc-auto-approve-bot
-/evergreen/generate_custom_build_promotion_expansions.sh @10gen/devprod-build @svc-auto-approve-bot
-/evergreen/upload_custom_build_to_cloud_dev.sh @10gen/devprod-build @svc-auto-approve-bot
+/evergreen/get_custom_build_promotion_expansions.sh @10gen/devprod-release-infrastructure @svc-auto-approve-bot
+/evergreen/get_custom_build_promotion_expansions_debug.sh @10gen/devprod-release-infrastructure @svc-auto-approve-bot
+/evergreen/upload_custom_build_to_cloud_dev.sh @10gen/devprod-release-infrastructure @svc-auto-approve-bot
 /evergreen/package* @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/validate_compile_commands.py @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/packager_crypt_py_run.sh @10gen/devprod-build @svc-auto-approve-bot
@@ -448,6 +456,10 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/concurrency/fsm_libs/OWNERS.yml
 /jstests/concurrency/fsm_libs/**/reshard_collection_util.js @10gen/server-cluster-scalability @svc-auto-approve-bot
+
+# The following patterns are parsed from ./jstests/concurrency/fsm_workload_helpers/query/OWNERS.yml
+/jstests/concurrency/fsm_workload_helpers/query/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
+/jstests/concurrency/fsm_workload_helpers/query/**/OWNERS.yml @10gen/query-execution-staff-leads @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/concurrency/fsm_workload_modifiers/OWNERS.yml
 /jstests/concurrency/fsm_workload_modifiers/**/drop_all_indexes.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
@@ -954,8 +966,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/set_feature_compatibility_version_confirm.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/test_replica_set_startup_in_downgrading_state.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/test_sharding_startup_in_downgrading_state.js @10gen/server-fcv @svc-auto-approve-bot
-/jstests/multiVersion/genericSetFCVUsage/**/set_fcv_dry_run_mode_downgrade.js @10gen/server-fcv @svc-auto-approve-bot
-/jstests/multiVersion/genericSetFCVUsage/**/set_fcv_dry_run_mode_upgrade.js @10gen/server-fcv @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/set_fcv_dry_run_mode.js @10gen/server-fcv @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/collection_write_path/OWNERS.yml
 /jstests/multiVersion/genericSetFCVUsage/collection_write_path/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -2308,28 +2319,20 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/query/**/*geo* @10gen/query-integration-extensions @svc-auto-approve-bot
 /src/mongo/db/query/**/plan_explainer* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/bind_input_params* @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/query/**/interval_evaluation_tree* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/partitioned_cache.h @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/canonical_query* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/canonical_query_encoder* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/plan_rank* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/*.idl @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/query_feature_flags.idl @10gen/query-execution @10gen/query-integration @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/query/**/projection_parser* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/hint_parser* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/parsed* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/canonical_distinct* @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/query/**/projection_ast* @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/query/**/projection_policies.h @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/query/**/projection_test.cpp @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/query/**/projection.* @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/query/**/sort_pattern* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/query_planner* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/planner* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/interval.* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/interval_test.* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/index_tag* @10gen/query-optimization @svc-auto-approve-bot
-/src/mongo/db/query/**/index_bounds_builder* @10gen/query-optimization @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/query/algebra/OWNERS.yml
 /src/mongo/db/query/algebra/**/* @10gen/query-execution-sbe @10gen/query-optimization @svc-auto-approve-bot
@@ -2358,6 +2361,27 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/query/compiler/ce/**/* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/compiler/ce/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
 
+# The following patterns are parsed from ./src/mongo/db/query/compiler/logical_model/projection/OWNERS.yml
+/src/mongo/db/query/compiler/logical_model/projection/**/* @10gen/query-optimization @svc-auto-approve-bot
+/src/mongo/db/query/compiler/logical_model/projection/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/query/compiler/logical_model/sort_pattern/OWNERS.yml
+/src/mongo/db/query/compiler/logical_model/sort_pattern/**/* @10gen/query-optimization @svc-auto-approve-bot
+/src/mongo/db/query/compiler/logical_model/sort_pattern/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/query/compiler/metadata/OWNERS.yml
+/src/mongo/db/query/compiler/metadata/**/* @10gen/query-optimization @svc-auto-approve-bot
+/src/mongo/db/query/compiler/metadata/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/query/compiler/optimizer/cost_based_ranker/OWNERS.yml
+/src/mongo/db/query/compiler/optimizer/cost_based_ranker/**/* @10gen/query-optimization-cost-based-ranker @svc-auto-approve-bot
+/src/mongo/db/query/compiler/optimizer/cost_based_ranker/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/query/compiler/optimizer/index_bounds_builder/OWNERS.yml
+/src/mongo/db/query/compiler/optimizer/index_bounds_builder/**/* @10gen/query-optimization @svc-auto-approve-bot
+/src/mongo/db/query/compiler/optimizer/index_bounds_builder/**/expression_geo* @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/query/compiler/optimizer/index_bounds_builder/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+
 # The following patterns are parsed from ./src/mongo/db/query/compiler/physical_model/index_bounds/OWNERS.yml
 /src/mongo/db/query/compiler/physical_model/index_bounds/**/* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/compiler/physical_model/index_bounds/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
@@ -2377,10 +2401,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/db/query/compiler/stats/OWNERS.yml
 /src/mongo/db/query/compiler/stats/**/* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/compiler/stats/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
-
-# The following patterns are parsed from ./src/mongo/db/query/cost_based_ranker/OWNERS.yml
-/src/mongo/db/query/cost_based_ranker/**/* @10gen/query-optimization-cost-based-ranker @svc-auto-approve-bot
-/src/mongo/db/query/cost_based_ranker/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/query/datetime/OWNERS.yml
 /src/mongo/db/query/datetime/**/* @10gen/query-execution @svc-auto-approve-bot
@@ -3114,7 +3134,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/util/**/read_through_cache* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/util/**/version_constants_gen.py @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/util/**/moving_average* @10gen/server-networking-and-observability @svc-auto-approve-bot
-/src/mongo/util/**/observation_token* @10gen/server-networking-and-observability @svc-auto-approve-bot
+/src/mongo/util/**/observable_mutex* @10gen/server-networking-and-observability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/util/cmdline_utils/OWNERS.yml
 /src/mongo/util/cmdline_utils/**/* @10gen/server-security @svc-auto-approve-bot

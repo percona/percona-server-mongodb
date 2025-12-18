@@ -145,13 +145,6 @@ std::unique_ptr<SeekableRecordCursor> RecordStoreBase::getCursor(OperationContex
     return getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx), forward);
 }
 
-std::unique_ptr<RecordCursor> RecordStoreBase::getRandomCursor(OperationContext* opCtx) const {
-    return getRandomCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
-}
-
-Status RecordStoreBase::truncate(OperationContext* opCtx) {
-    return truncate(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
-}
 Status RecordStoreBase::truncate(OperationContext* opCtx, RecoveryUnit& ru) {
     validateWriteAllowed(opCtx);
     return _truncate(opCtx, ru);
@@ -171,10 +164,6 @@ Status RecordStoreBase::rangeTruncate(OperationContext* opCtx,
         opCtx, ru, minRecordId, maxRecordId, hintDataSizeIncrement, hintNumRecordsIncrement);
 }
 
-StatusWith<int64_t> RecordStoreBase::compact(OperationContext* opCtx,
-                                             const CompactOptions& options) {
-    return compact(opCtx, *shard_role_details::getRecoveryUnit(opCtx), options);
-}
 StatusWith<int64_t> RecordStoreBase::compact(OperationContext* opCtx,
                                              RecoveryUnit& ru,
                                              const CompactOptions& options) {
