@@ -2305,6 +2305,10 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
                                     startup_recovery::StartupRecoveryMode::kReplicaSetMember);
     lock.lock();
     if (!status.isOK()) {
+        // Corner case: we need to reset _inStorageChange flag here because
+        // _restoreStorageLocation will not be called in this case
+        _inStorageChange = false;
+        _inStorageChangeCondition.notify_all();
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
