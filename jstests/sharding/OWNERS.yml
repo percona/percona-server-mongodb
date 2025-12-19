@@ -55,7 +55,7 @@ filters:
   - "check_metadata*":
     approvers:
       - 10gen/server-catalog-and-routing
-  - "*configure_background_tasks*":
+  - "direct_shard*":
     approvers:
       - 10gen/server-catalog-and-routing
   - "start_shard_draining*":
@@ -65,5 +65,8 @@ filters:
     approvers:
       - 10gen/server-catalog-and-routing
   - "replica_set_to_csrs_promotion.js":
+    approvers:
+      - 10gen/server-catalog-and-routing
+  - "replica_set_promotion_demotion.js":
     approvers:
       - 10gen/server-catalog-and-routing

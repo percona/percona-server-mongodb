@@ -679,7 +679,7 @@ Status runAggregateImpl(OperationContext* opCtx,
 
     const auto& involvedNamespaces = liteParsedPipeline.getInvolvedNamespaces();
 
-    const auto cri = routingCtx.hasNss(namespaces.executionNss)
+    const auto& cri = routingCtx.hasNss(namespaces.executionNss)
         ? boost::optional<CollectionRoutingInfo>(
               routingCtx.getCollectionRoutingInfo(namespaces.executionNss))
         : boost::none;
@@ -836,13 +836,11 @@ Status runAggregateImpl(OperationContext* opCtx,
                                            {"stages", targeter.pipeline->writeExplainOps(opts)}};
                         return Status::OK();
                     }
-                    auto execPipeline = exec::agg::buildPipeline(targeter.pipeline->freeze());
                     return cluster_aggregation_planner::runPipelineOnMongoS(
                         namespaces,
                         request.getCursor().getBatchSize().value_or(
                             aggregation_request_helper::kDefaultBatchSize),
                         std::move(targeter.pipeline),
-                        std::move(execPipeline),
                         &result,
                         privileges,
                         requestQueryStatsFromRemotes);

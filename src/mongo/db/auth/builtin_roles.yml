@@ -371,7 +371,6 @@ roles:
           - checkMetadataConsistency
           - transitionFromDedicatedConfigServer
           - transitionToDedicatedConfigServer
-          - configureBackgroundTask
 
       - matchType: any_normal
         actions: &clusterManagerRoleDatabaseActions

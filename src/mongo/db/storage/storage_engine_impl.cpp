@@ -648,9 +648,9 @@ Status StorageEngineImpl::repairRecordStore(OperationContext* opCtx,
 std::unique_ptr<SpillTable> StorageEngineImpl::makeSpillTable(OperationContext* opCtx,
                                                               KeyFormat keyFormat,
                                                               int64_t thresholdBytes) {
-    auto& engine = _spillEngine ? _spillEngine : _engine;
-    auto ru = engine->newRecoveryUnit();
-    auto rs = engine->makeTemporaryRecordStore(*ru, ident::generateNewInternalIdent(), keyFormat);
+    auto ru = _spillEngine->newRecoveryUnit();
+    auto rs =
+        _spillEngine->makeTemporaryRecordStore(*ru, ident::generateNewInternalIdent(), keyFormat);
     LOGV2_DEBUG(10380301, 1, "Created spill table", "ident"_attr = rs->getIdent());
 
     return std::make_unique<SpillTable>(std::move(ru),
@@ -661,14 +661,12 @@ std::unique_ptr<SpillTable> StorageEngineImpl::makeSpillTable(OperationContext* 
 }
 
 void StorageEngineImpl::dropSpillTable(RecoveryUnit& ru, StringData ident) {
-    auto& engine = _spillEngine ? _spillEngine : _engine;
-
     // TODO (SERVER-107058): Remove this retry loop.
     for (size_t retries = 0;; ++retries) {
-        auto status = engine->dropIdent(ru,
-                                        ident,
-                                        false, /* identHasSizeInfo */
-                                        nullptr /* onDrop */);
+        auto status = _spillEngine->dropIdent(ru,
+                                              ident,
+                                              false, /* identHasSizeInfo */
+                                              nullptr /* onDrop */);
         if (status.isOK()) {
             return;
         }
@@ -795,8 +793,9 @@ void StorageEngineImpl::clearDropPendingState(OperationContext* opCtx) {
     _dropPendingIdentReaper.clearDropPendingState(opCtx);
 }
 
-void StorageEngineImpl::clearDropPendingStateForIdent(OperationContext* opCtx, StringData ident) {
-    _dropPendingIdentReaper.clearDropPendingStateForIdent(opCtx, ident);
+Status StorageEngineImpl::immediatelyCompletePendingDrop(OperationContext* opCtx,
+                                                         StringData ident) {
+    return _dropPendingIdentReaper.immediatelyCompletePendingDrop(opCtx, ident);
 }
 
 Timestamp StorageEngineImpl::getAllDurableTimestamp() const {
