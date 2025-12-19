@@ -834,6 +834,8 @@ void TransactionParticipant::Participant::_continueMultiDocumentTransaction(
     uassert(ErrorCodes::NoSuchTransaction,
             str::stream()
                 << "Given transaction number " << txnNumberAndRetryCounter.getTxnNumber()
+                << " on session " << _sessionId() << " using txnRetryCounter "
+                << txnNumberAndRetryCounter.getTxnRetryCounter()
                 << " does not match any in-progress transactions. The active transaction number is "
                 << o().activeTxnNumberAndRetryCounter.getTxnNumber(),
             txnNumberAndRetryCounter.getTxnNumber() ==
@@ -2087,6 +2089,11 @@ void TransactionParticipant::Participant::_commitSplitPreparedTxnOnPrimary(
             newTxnParticipant.o().txnResourceStash->locker());  // NOLINT
         newTxnParticipant.unstashTransactionResources(splitOpCtx.get(), "commitTransaction");
 
+        BSONObjBuilder builder;
+        reportUnstashedState(userOpCtx, &builder);
+        LOGV2(10631000,
+              "Setting the commit timestamp for a split prepared transaction on primary",
+              "unstashed state"_attr = builder.obj());
         splitOpCtx->recoveryUnit()->setCommitTimestamp(commitTimestamp);
         splitOpCtx->recoveryUnit()->setDurableTimestamp(durableTimestamp);
 
