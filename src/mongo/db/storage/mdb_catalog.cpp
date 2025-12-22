@@ -65,7 +65,7 @@ MDBCatalog::MDBCatalog(RecordStore* rs, KVEngine* engine) : _rs(rs), _engine(eng
 
 void MDBCatalog::init(OperationContext* opCtx) {
     // No locking needed since called single threaded.
-    auto cursor = _rs->getCursor(opCtx);
+    auto cursor = _rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     while (auto record = cursor->next()) {
         BSONObj obj = record->data.releaseToBson();
 
@@ -84,7 +84,7 @@ void MDBCatalog::init(OperationContext* opCtx) {
 
 RecordId MDBCatalog::reserveCatalogId(OperationContext* opCtx) {
     std::vector<RecordId> reservedRids;
-    _rs->reserveRecordIds(opCtx, &reservedRids, 1);
+    _rs->reserveRecordIds(opCtx, *shard_role_details::getRecoveryUnit(opCtx), &reservedRids, 1);
     invariant(reservedRids.size() == 1);
     return std::move(reservedRids[0]);
 }
@@ -93,7 +93,7 @@ std::vector<MDBCatalog::EntryIdentifier> MDBCatalog::getAllCatalogEntries(
     OperationContext* opCtx) const {
     std::vector<MDBCatalog::EntryIdentifier> ret;
 
-    auto cursor = _rs->getCursor(opCtx);
+    auto cursor = _rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     while (auto record = cursor->next()) {
         BSONObj obj = record->data.releaseToBson();
         if (feature_document_util::isFeatureDocument(obj)) {
@@ -117,8 +117,18 @@ MDBCatalog::EntryIdentifier MDBCatalog::getEntry(const RecordId& catalogId) cons
     return it->second;
 }
 
+boost::optional<MDBCatalog::EntryIdentifier> MDBCatalog::getEntry_forTest(
+    const RecordId& catalogId) const {
+    stdx::lock_guard<stdx::mutex> lk(_catalogIdToEntryMapLock);
+    auto it = _catalogIdToEntryMap.find(catalogId);
+    if (it != _catalogIdToEntryMap.end()) {
+        return it->second;
+    }
+    return boost::none;
+}
+
 BSONObj MDBCatalog::getRawCatalogEntry(OperationContext* opCtx, const RecordId& catalogId) const {
-    auto cursor = _rs->getCursor(opCtx);
+    auto cursor = _rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     return _findRawEntry(*cursor, catalogId).getOwned();
 }
 
@@ -144,7 +154,7 @@ void MDBCatalog::putUpdatedEntry(OperationContext* opCtx,
 std::vector<std::string> MDBCatalog::getAllIdents(OperationContext* opCtx) const {
     std::vector<std::string> v;
 
-    auto cursor = _rs->getCursor(opCtx);
+    auto cursor = _rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     while (auto record = cursor->next()) {
         BSONObj obj = record->data.releaseToBson();
         if (feature_document_util::isFeatureDocument(obj)) {
@@ -173,7 +183,7 @@ std::string MDBCatalog::getIndexIdent(OperationContext* opCtx,
                                       const RecordId& catalogId,
                                       StringData idxName) const {
     std::string identForIndex;
-    auto cursor = _rs->getCursor(opCtx);
+    auto cursor = _rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     BSONObj obj = _findRawEntry(*cursor, catalogId);
     BSONObj idxIdent = obj["idxIdent"].Obj();
     if (!idxIdent.isEmpty()) {
@@ -185,7 +195,7 @@ std::string MDBCatalog::getIndexIdent(OperationContext* opCtx,
 std::vector<std::string> MDBCatalog::getIndexIdents(OperationContext* opCtx,
                                                     const RecordId& catalogId) {
 
-    auto cursor = _rs->getCursor(opCtx);
+    auto cursor = _rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     BSONObj obj = _findRawEntry(*cursor, catalogId);
     return _getIndexIdents(obj);
 }
@@ -195,37 +205,47 @@ std::unique_ptr<SeekableRecordCursor> MDBCatalog::getCursor(OperationContext* op
     if (!_rs) {
         return nullptr;
     }
-    return _rs->getCursor(opCtx, forward);
+    return _rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx), forward);
 }
 
-StatusWith<MDBCatalog::EntryIdentifier> MDBCatalog::addOrphanedEntry(
-    OperationContext* opCtx,
-    const std::string& ident,
-    const NamespaceString& nss,
-    const BSONObj& catalogEntryObj) {
-    return _addEntry(opCtx, ident, nss, catalogEntryObj);
+StatusWith<MDBCatalog::EntryIdentifier> MDBCatalog::addEntry(OperationContext* opCtx,
+                                                             const std::string& ident,
+                                                             const NamespaceString& nss,
+                                                             const BSONObj& catalogEntryObj,
+                                                             const RecordId& catalogId) {
+    StatusWith<RecordId> res = _rs->insertRecord(opCtx,
+                                                 *shard_role_details::getRecoveryUnit(opCtx),
+                                                 catalogId,
+                                                 catalogEntryObj.objdata(),
+                                                 catalogEntryObj.objsize(),
+                                                 Timestamp());
+    if (!res.isOK())
+        return res.getStatus();
+
+    stdx::lock_guard<stdx::mutex> lk(_catalogIdToEntryMapLock);
+    invariant(_catalogIdToEntryMap.find(res.getValue()) == _catalogIdToEntryMap.end());
+    _catalogIdToEntryMap[res.getValue()] = EntryIdentifier(res.getValue(), ident, nss);
+    shard_role_details::getRecoveryUnit(opCtx)->registerChange(
+        std::make_unique<AddIdentChange>(this, res.getValue()));
+
+    LOGV2_DEBUG(22213,
+                1,
+                "stored meta data for {namespace} @ {res_getValue}",
+                logAttrs(nss),
+                "res_getValue"_attr = res.getValue());
+
+    return {{res.getValue(), ident, nss}};
 }
 
-StatusWith<std::unique_ptr<RecordStore>> MDBCatalog::initializeNewEntry(
+StatusWith<std::unique_ptr<RecordStore>> MDBCatalog::createRecordStoreForEntry(
     OperationContext* opCtx,
-    boost::optional<UUID>& uuid,
-    const std::string& ident,
-    const NamespaceString& nss,
-    const RecordStore::Options& recordStoreOptions,
-    const BSONObj& catalogEntryObj,
-    const RecordId& catalogId) {
-    invariant(!catalogId.isNull());
-
-    StatusWith<EntryIdentifier> swEntry = _addEntry(opCtx, ident, nss, catalogEntryObj, catalogId);
-    if (!swEntry.isOK())
-        return swEntry.getStatus();
-
-    EntryIdentifier& entry = swEntry.getValue();
-    invariant(catalogId == entry.catalogId);
-
-    Status status = _engine->createRecordStore(nss, ident, recordStoreOptions);
-    if (!status.isOK())
+    const MDBCatalog::EntryIdentifier& entry,
+    const boost::optional<UUID>& uuid,
+    const RecordStore::Options& recordStoreOptions) {
+    Status status = _engine->createRecordStore(entry.nss, entry.ident, recordStoreOptions);
+    if (!status.isOK()) {
         return status;
+    }
 
     auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
     ru.onRollback([&ru, catalog = this, ident = entry.ident](OperationContext*) {
@@ -233,7 +253,7 @@ StatusWith<std::unique_ptr<RecordStore>> MDBCatalog::initializeNewEntry(
         catalog->_engine->dropIdent(ru, ident, /*identHasSizeInfo=*/true).ignore();
     });
 
-    auto rs = _engine->getRecordStore(opCtx, nss, ident, recordStoreOptions, uuid);
+    auto rs = _engine->getRecordStore(opCtx, entry.nss, entry.ident, recordStoreOptions, uuid);
     invariant(rs);
     return rs;
 }
@@ -351,7 +371,7 @@ NamespaceString MDBCatalog::getNSSFromCatalog(OperationContext* opCtx,
     }
 
     // Re-read the catalog at the provided timestamp in case the collection was dropped.
-    auto cursor = _rs->getCursor(opCtx);
+    auto cursor = _rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     BSONObj obj = _findRawEntry(*cursor, catalogId);
     if (!obj.isEmpty()) {
         return NamespaceStringUtil::parseFromStringExpectTenantIdInMultitenancyMode(
@@ -399,7 +419,7 @@ StatusWith<std::string> MDBCatalog::newOrphanedIdent(OperationContext* opCtx,
     NamespaceString nss;
     std::string ns;
     auto catalogEntry = _buildOrphanedCatalogEntryObjAndNs(ident, isClustered, &nss, &ns);
-    auto res = addOrphanedEntry(opCtx, ident, nss, catalogEntry);
+    auto res = addEntry(opCtx, ident, nss, catalogEntry, reserveCatalogId(opCtx));
     if (!res.isOK()) {
         return res.getStatus();
     }
@@ -466,35 +486,6 @@ RecordStore::Options MDBCatalog::_parseRecordStoreOptions(const NamespaceString&
     }
 
     return recordStoreOptions;
-}
-
-StatusWith<MDBCatalog::EntryIdentifier> MDBCatalog::_addEntry(OperationContext* opCtx,
-                                                              const std::string& ident,
-                                                              const NamespaceString& nss,
-                                                              const BSONObj& catalogEntryObj,
-                                                              const RecordId& catalogId) {
-    StatusWith<RecordId> res = _rs->insertRecord(opCtx,
-                                                 *shard_role_details::getRecoveryUnit(opCtx),
-                                                 catalogId,
-                                                 catalogEntryObj.objdata(),
-                                                 catalogEntryObj.objsize(),
-                                                 Timestamp());
-    if (!res.isOK())
-        return res.getStatus();
-
-    stdx::lock_guard<stdx::mutex> lk(_catalogIdToEntryMapLock);
-    invariant(_catalogIdToEntryMap.find(res.getValue()) == _catalogIdToEntryMap.end());
-    _catalogIdToEntryMap[res.getValue()] = EntryIdentifier(res.getValue(), ident, nss);
-    shard_role_details::getRecoveryUnit(opCtx)->registerChange(
-        std::make_unique<AddIdentChange>(this, res.getValue()));
-
-    LOGV2_DEBUG(22213,
-                1,
-                "stored meta data for {namespace} @ {res_getValue}",
-                logAttrs(nss),
-                "res_getValue"_attr = res.getValue());
-
-    return {{res.getValue(), ident, nss}};
 }
 
 BSONObj MDBCatalog::_findRawEntry(SeekableRecordCursor& cursor, const RecordId& catalogId) const {

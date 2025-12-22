@@ -37,36 +37,49 @@ function assertNoMatchInLog(logLine, regex) {
 
 /**
  * Runs the aggregation and fetches the corresponding diagnostics from the source -- the slow query
- * log or profiler. A pipeline comment is used to identify the log lines or profiler entries
+ * log or profiler. The query's cursorId is used to identify the log lines or profiler entries
  * corresponding to this aggregation.
  */
 function runPipelineAndGetDiagnostics({db, collName, commandObj, source}) {
     const pipelineComment = commandObj.comment;
 
-    // Use toArray() to exhaust the cursor.
-    const options = {
-        comment: pipelineComment,
+    // Retrieve the cursor.
+    const aggregateCommandResult = db.runCommand({
+        aggregate: collName,
+        pipeline: commandObj.pipeline,
         cursor: commandObj.cursor,
+        comment: pipelineComment,
         allowDiskUse: commandObj.allowDiskUse,
-    };
-    db[collName].aggregate(commandObj.pipeline, options).toArray();
+    });
+    const cursorId = aggregateCommandResult.cursor.id;
+    let currentCursorId = cursorId;
+
+    // Iteratively call getMore until the cursor is exhausted.
+    while (currentCursorId.toString() !== "NumberLong(0)") {
+        const getMoreResult = db.runCommand({
+            getMore: currentCursorId,
+            collection: collName,
+            batchSize: commandObj.cursor.batchSize,
+            comment: pipelineComment,
+        });
+        currentCursorId = getMoreResult.cursor.id;
+    }
 
     if (source === "log") {
         let logLines = [];
         assert.soon(() => {
             const globalLog = assert.commandWorked(db.adminCommand({getLog: "global"}));
             logLines = [...iterateMatchingLogLines(globalLog.log,
-                                                   {msg: "Slow query", comment: pipelineComment})];
+                                                   {msg: "Slow query", cursorid: cursorId})];
             return logLines.length >= 1;
-        }, "Failed to find a log line for comment: " + pipelineComment);
+        }, "Failed to find a log line for cursorid: " + cursorId.toString());
         return logLines;
     } else if (source === "profiler") {
         let profilerEntries = [];
         assert.soon(() => {
-            profilerEntries =
-                db.system.profile.find({"command.comment": pipelineComment}).toArray();
+            profilerEntries = db.system.profile.find({"cursorid": cursorId}).toArray();
             return profilerEntries.length >= 1;
-        }, "Failed to find a profiler entry for comment: " + pipelineComment);
+        }, "Failed to find a profiler entry for cursorid: " + cursorId.toString());
         return profilerEntries;
     }
 }
@@ -80,7 +93,7 @@ function verifySlowQueryLogMetrics({
     verifyOptions,
 }) {
     if (!verifyOptions.featureFlagEnabled) {
-        jsTestLog(
+        jsTest.log.info(
             "Test that memory usage metrics do not appear in the slow query logs when the feature flag is off.");
 
         logLines.forEach(line => assertNoMatchInLog(line, maxUsedMemBytesRegex));
@@ -88,7 +101,7 @@ function verifySlowQueryLogMetrics({
         return;
     }
 
-    jsTestLog(
+    jsTest.log.info(
         "Test that memory usage metrics appear in the slow query logs and persists across getMore calls when the feature flag is on.");
 
     // Get the cursorId from the initial request. We filter based off of the original cursorId
@@ -161,7 +174,7 @@ function verifyProfilerMetrics({
     verifyOptions,
 }) {
     if (!verifyOptions.featureFlagEnabled) {
-        jsTestLog(
+        jsTest.log.info(
             "Test that memory metrics do not appear in the profiler when the feature flag is off.");
 
         for (const entry of profilerEntries) {
@@ -172,7 +185,7 @@ function verifyProfilerMetrics({
         }
         return;
     }
-    jsTestLog(
+    jsTest.log.info(
         "Test that memory usage metrics appear in the profiler and persists across getMores when the feature flag is on.");
 
     // Get the cursorId from the initial request. We filter based off of the original cursorId
@@ -289,7 +302,7 @@ function verifyExplainMetrics({db, collName, pipeline, stageName, featureFlagEna
     }
 
     if (!featureFlagEnabled) {
-        jsTestLog(
+        jsTest.log.info(
             "Test that memory metrics do not appear in the explain output when the feature flag is off.");
         assert(!explainRes.hasOwnProperty("maxUsedMemBytes"),
                "Unexpected maxUsedMemBytes in explain: " + tojson(explainRes));
@@ -300,7 +313,7 @@ function verifyExplainMetrics({db, collName, pipeline, stageName, featureFlagEna
         return;
     }
 
-    jsTestLog(
+    jsTest.log.info(
         "Test that memory usage metrics appear in the explain output when the feature flag is on.");
 
     // Memory usage metrics should appear in the top-level explain for unsharded explains.
@@ -315,7 +328,7 @@ function verifyExplainMetrics({db, collName, pipeline, stageName, featureFlagEna
     // Memory usage metrics appear within the stage's statistics.
     assertHasMemoryMetricsInStages(explainRes, stageName);
 
-    jsTestLog(
+    jsTest.log.info(
         "Test that memory usage metrics do not appear in the explain output when the verbosity is lower than executionStats.");
     const explainQueryPlannerRes = db[collName].explain("queryPlanner").aggregate(pipeline);
     assert(!explainQueryPlannerRes.hasOwnProperty("maxUsedMemBytes"),
@@ -348,10 +361,10 @@ export function runMemoryStatsTest({
     assert("aggregate" in commandObj, "Command object must include an aggregate field.");
 
     const featureFlagEnabled = FeatureFlagUtil.isPresentAndEnabled(db, "QueryMemoryTracking");
-    jsTestLog("QueryMemoryTracking feature flag is " + featureFlagEnabled);
+    jsTest.log.info("QueryMemoryTracking feature flag is " + featureFlagEnabled);
 
     if (skipInUseMemBytesCheck) {
-        jsTestLog("Skipping inUseMemBytes checks");
+        jsTest.log.info("Skipping inUseMemBytes checks");
     }
 
     // Log every operation.
@@ -410,7 +423,7 @@ export function runShardedMemoryStatsTest({
     assert("aggregate" in commandObj, "Command object must include an aggregate field.");
 
     const featureFlagEnabled = FeatureFlagUtil.isPresentAndEnabled(db, "QueryMemoryTracking");
-    jsTestLog("QueryMemoryTracking feature flag is " + featureFlagEnabled);
+    jsTest.log.info("QueryMemoryTracking feature flag is " + featureFlagEnabled);
 
     // Record every operation in the slow query log.
     db.setProfilingLevel(0, {slowms: -1});
@@ -427,7 +440,7 @@ export function runShardedMemoryStatsTest({
     });
 
     if (skipExplain) {
-        jsTestLog("Skipping explain metrics verification");
+        jsTest.log.info("Skipping explain metrics verification");
         return;
     }
 
@@ -447,7 +460,7 @@ export function runShardedMemoryStatsTest({
  */
 export function runMemoryStatsTestForTimeseriesUpdateCommand({db, collName, commandObj}) {
     const featureFlagEnabled = FeatureFlagUtil.isPresentAndEnabled(db, "QueryMemoryTracking");
-    jsTestLog("QueryMemoryTracking feature flag is " + featureFlagEnabled);
+    jsTest.log.info("QueryMemoryTracking feature flag is " + featureFlagEnabled);
 
     // Log every operation.
     db.setProfilingLevel(2, {slowms: -1});
@@ -455,7 +468,7 @@ export function runMemoryStatsTestForTimeseriesUpdateCommand({db, collName, comm
     // Verify that maxUsedMemBytes appears in the top-level and stage-level explain output. We need
     // to run explain first here; if we first run the command, it will perform the update and
     // explain will return zero memory used.
-    jsTestLog("Testing explain...");
+    jsTest.log.info("Testing explain...");
     const explainRes =
         assert.commandWorked(db.runCommand({explain: commandObj, verbosity: "executionStats"}));
     const execStages = getExecutionStages(explainRes);
@@ -482,7 +495,7 @@ export function runMemoryStatsTestForTimeseriesUpdateCommand({db, collName, comm
     assert.commandWorked(db.runCommand(commandObj));
 
     // Get the log line associated with the write operation.
-    jsTestLog("Testing slow query logs...");
+    jsTest.log.info("Testing slow query logs...");
     let logLines = [];
     assert.soon(() => {
         const globalLog = assert.commandWorked(db.adminCommand({getLog: "global"}));
@@ -515,7 +528,7 @@ export function runMemoryStatsTestForTimeseriesUpdateCommand({db, collName, comm
 
     // Verify that maxUsedMemBytes appears in the profiler entries for update operations.
     // In the case of a multi-update, there may be more than one profiler entry.
-    jsTestLog("Testing profiler...");
+    jsTest.log.info("Testing profiler...");
     const profilerEntries = db.system.profile.find({ns: db.getName() + '.' + collName}).toArray();
     assert.gte(profilerEntries.length,
                1,

@@ -170,8 +170,6 @@ public:
     }
 
     std::unique_ptr<SeekableRecordCursor> getCursor(OperationContext* opCtx,
-                                                    bool forward = true) const final;
-    std::unique_ptr<SeekableRecordCursor> getCursor(OperationContext* opCtx,
                                                     RecoveryUnit& ru,
                                                     bool forward = true) const final;
 
@@ -220,9 +218,6 @@ public:
         return {};
     }
 
-    void reserveRecordIds(OperationContext*, std::vector<RecordId>*, size_t numRecords) final {
-        unimplementedTasserted();
-    }
     void reserveRecordIds(OperationContext*,
                           RecoveryUnit&,
                           std::vector<RecordId>*,

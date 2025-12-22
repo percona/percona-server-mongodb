@@ -539,7 +539,8 @@ bool CollectionImpl::requiresIdIndex() const {
 std::unique_ptr<SeekableRecordCursor> CollectionImpl::getCursor(OperationContext* opCtx,
                                                                 bool forward) const {
     dassert(shard_role_details::getLocker(opCtx)->isReadLocked());
-    return _shared->_recordStore->getCursor(opCtx, forward);
+    return _shared->_recordStore->getCursor(
+        opCtx, *shard_role_details::getRecoveryUnit(opCtx), forward);
 }
 
 
@@ -1586,6 +1587,14 @@ Status CollectionImpl::prepareForIndexBuild(OperationContext* opCtx,
         auto ii = _indexCatalog->getIndexIterator(IndexCatalog::InclusionPolicy::kAll);
         while (ii->more()) {
             auto entry = ii->next();
+            if (entry->getIdent() == ident) {
+                return Status(
+                    ErrorCodes::ObjectAlreadyExists,
+                    fmt::format(
+                        "Attempting to create index '{}' with ident '{}' that is already in use",
+                        spec->indexName(),
+                        ident));
+            }
             indexIdents.append(entry->descriptor()->indexName(), entry->getIdent());
         }
 

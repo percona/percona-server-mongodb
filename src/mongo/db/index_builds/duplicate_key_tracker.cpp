@@ -65,23 +65,11 @@ namespace {
 static constexpr StringData kKeyField = "key"_sd;
 }
 
-DuplicateKeyTracker::DuplicateKeyTracker(OperationContext* opCtx, const IndexCatalogEntry* entry)
-    : _keyConstraintsTable(opCtx->getServiceContext()->getStorageEngine()->makeTemporaryRecordStore(
-          opCtx, KeyFormat::Long)) {
-
-    invariant(entry->descriptor()->unique());
-}
-
 DuplicateKeyTracker::DuplicateKeyTracker(OperationContext* opCtx,
-                                         const IndexCatalogEntry* entry,
-                                         StringData ident) {
-    _keyConstraintsTable =
-        opCtx->getServiceContext()->getStorageEngine()->makeTemporaryRecordStoreFromExistingIdent(
-            opCtx, ident, KeyFormat::Long);
-
-    invariant(entry->descriptor()->unique(),
-              str::stream() << "Duplicate key tracker table exists on disk with ident: " << ident
-                            << " but the index is not unique: " << entry->descriptor());
+                                         std::unique_ptr<TemporaryRecordStore> keyConstraintsTable,
+                                         const IndexCatalogEntry* entry)
+    : _keyConstraintsTable(std::move(keyConstraintsTable)) {
+    invariant(entry->descriptor()->unique());
 }
 
 void DuplicateKeyTracker::keepTemporaryTable() {
@@ -131,7 +119,8 @@ boost::optional<SortedDataInterface::DuplicateKey> DuplicateKeyTracker::checkCon
     OperationContext* opCtx, const IndexCatalogEntry* indexCatalogEntry) const {
     invariant(!shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
 
-    auto constraintsCursor = _keyConstraintsTable->rs()->getCursor(opCtx);
+    auto constraintsCursor =
+        _keyConstraintsTable->rs()->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx));
     auto record = constraintsCursor->next();
 
     auto index = indexCatalogEntry->accessMethod()->asSortedData()->getSortedDataInterface();

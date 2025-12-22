@@ -97,8 +97,6 @@ public:
                                              const DamageVector&) final;
 
     std::unique_ptr<SeekableRecordCursor> getCursor(OperationContext*,
-                                                    bool forward = true) const final;
-    std::unique_ptr<SeekableRecordCursor> getCursor(OperationContext*,
                                                     RecoveryUnit&,
                                                     bool forward = true) const override = 0;
 
@@ -118,7 +116,6 @@ public:
 
     RecordId getLargestKey(OperationContext*, RecoveryUnit&) const override = 0;
 
-    void reserveRecordIds(OperationContext*, std::vector<RecordId>*, size_t numRecords) final;
     void reserveRecordIds(OperationContext*,
                           RecoveryUnit&,
                           std::vector<RecordId>*,
