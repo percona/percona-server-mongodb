@@ -3420,7 +3420,6 @@ TEST_F(BucketCatalogTest, GetEligibleBucketAllocateBucket) {
 
     auto batchedInsertCtx = batchedInsertContexts[0];
     auto measurementTimestamp = std::get<1>(batchedInsertCtx.measurementsTimesAndIndices[0]);
-    auto era = getCurrentEra(_bucketCatalog->bucketStateRegistry);
 
     ASSERT(_bucketCatalog->stripes[batchedInsertCtx.stripeNumber]->openBucketsByKey.empty());
     ASSERT(_bucketCatalog->stripes[batchedInsertCtx.stripeNumber]->openBucketsById.empty());
@@ -3439,7 +3438,6 @@ TEST_F(BucketCatalogTest, GetEligibleBucketAllocateBucket) {
                                          measurementTimestamp,
                                          batchedInsertCtx.options,
                                          bucketsColl->getDefaultCollator(),
-                                         era,
                                          _storageCacheSizeBytes,
                                          _compressBucketFuncUnused,
                                          batchedInsertCtx.stats,
@@ -3472,7 +3470,6 @@ TEST_F(BucketCatalogTest, GetEligibleBucketOpenBucket) {
 
     auto batchedInsertCtx = batchedInsertContexts[0];
     auto measurementTimestamp = std::get<1>(batchedInsertCtx.measurementsTimesAndIndices[0]);
-    auto era = getCurrentEra(_bucketCatalog->bucketStateRegistry);
 
     Bucket& bucketAllocated =
         internal::allocateBucket(*_bucketCatalog,
@@ -3502,7 +3499,6 @@ TEST_F(BucketCatalogTest, GetEligibleBucketOpenBucket) {
                               measurementTimestamp,
                               batchedInsertCtx.options,
                               bucketsColl->getDefaultCollator(),
-                              era,
                               _storageCacheSizeBytes,
                               _compressBucketFuncUnused,
                               batchedInsertCtx.stats,
@@ -4017,6 +4013,23 @@ TEST_F(BucketCatalogTest, StageInsertBatchHandlesRolloverReasonTimeForwardWithou
 }
 
 TEST_F(BucketCatalogTest, StageInsertBatchHandlesRolloverReasonSchemaChangeWithMetaField) {
+    // Testing fix of mixed schema detection when using large measurements
+    auto batchOfMeasurementsWithSchemaChangeAtEnd = _generateMeasurementsWithRolloverReason(
+        {.reason = bucket_catalog::RolloverReason::kSchemaChange,
+         .numMeasurements = 3,      // staying below bucket mincount to keep bucket open
+         .extraPayload = 130000});  // exceeding bucket size to exercise large path
+
+    // The last measurement in batchOfMeasurementsWithSchemaChangeAtEnd will have a int rather than
+    // a string for field "deathGrips", which means this measurement will be in a different
+    // bucket.
+    std::vector<size_t> numWriteBatches{2};
+
+    // Inserting a batch of measurements with meta field values into a collection with a meta field.
+    _testStageInsertBatchWithMetaField(
+        _ns1, _uuid1, batchOfMeasurementsWithSchemaChangeAtEnd, numWriteBatches);
+}
+
+TEST_F(BucketCatalogTest, StageInsertBatchChecksSchemaChangeWithLargeMeasurements) {
     // Max bucket size with only the last measurement having kSchemaChange.
     auto batchOfMeasurementsWithSchemaChangeAtEnd = _generateMeasurementsWithRolloverReason(
         {.reason = bucket_catalog::RolloverReason::kSchemaChange});

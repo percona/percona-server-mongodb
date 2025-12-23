@@ -80,8 +80,10 @@ common --noexperimental_throttle_remote_action_building
 # Port blocks that can be exclusively used by one test action at a time, representing
 # a range of 250 ports up until the next block.
 # The contract for acquiring is detailed in buildscripts/bazel_local_resources.py.
-test --local_resources=port_block=40 # 40 distinct port blocks
-test --define=LOCAL_RESOURCES="port_block=20000,20250,20500,20750,21000,21250,21500,21750,22000,22250,22500,22750,23000,23250,23500,23750,24000,24250,24500,24750,25000,25250,25500,25750,26000,26250,26500,26750,27000,27250,27500,27750,28000,28250,28500,28750,29000,29250,29500,29750"
+# "common" is used  to avoid invalidating bazel's analysis cache when switching between 
+# build and test commands.
+common --local_resources=port_block=40 # 40 distinct port blocks
+common --define=LOCAL_RESOURCES="port_block=20000,20250,20500,20750,21000,21250,21500,21750,22000,22250,22500,22750,23000,23250,23500,23750,24000,24250,24500,24750,25000,25250,25500,25750,26000,26250,26500,26750,27000,27250,27500,27750,28000,28250,28500,28750,29000,29250,29500,29750"
 
 # Pin down the OSS LLVM Clang version for MacOS builds.
 common:macos --repo_env=LLVM_VERSION=19
@@ -136,6 +138,7 @@ common --flag_alias=use_wiredtiger=//bazel/config:use_wiredtiger
 common --flag_alias=use_glibcxx_debug=//bazel/config:use_glibcxx_debug
 common --flag_alias=use_tracing_profiler=//bazel/config:use_tracing_profiler
 common --flag_alias=build_otel=//bazel/config:build_otel
+common --flag_alias=mutex_observation=//bazel/config:mutex_observation
 common --flag_alias=detect_odr_violations=//bazel/config:detect_odr_violations
 common --flag_alias=shared_archive=//bazel/config:shared_archive
 common --flag_alias=skip_archive=//bazel/config:skip_archive
