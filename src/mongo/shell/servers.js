@@ -1,5 +1,3 @@
-let MongoRunner, _startMongod, startMongoProgram, runMongoProgram, startMongoProgramNoConnect,
-    myPort;
 
 const SIGTERM = 15;
 
@@ -66,7 +64,8 @@ function pathJoin(...parts) {
     return parts.join(separator);
 }
 
-MongoRunner = function() {};
+function MongoRunner() {
+};
 
 MongoRunner.dataDir = "/data/db";
 MongoRunner.dataPath = "/data/db/";
@@ -938,7 +937,7 @@ MongoRunner.runningChildPids = function() {
 /**
  * Starts a mongod instance.
  *
- * @param {Object} opts
+ * @param {Object} [opts]
  *
  *   {
  *     useHostName {boolean}: Uses hostname of machine if true.
@@ -1227,7 +1226,7 @@ let _startMongodEmpty = function() {
     return startMongoProgram.apply(null, args);
 };
 
-_startMongod = function() {
+function _startMongod() {
     print("startMongod WARNING DELETES DATA DIRECTORY THIS IS FOR TESTING ONLY");
     return _startMongodEmpty.apply(null, arguments);
 };
@@ -1649,14 +1648,14 @@ MongoRunner._startWithArgs = function(argArray, env, waitForConnect, waitForConn
 };
 
 /**
- * DEPRECATED
- *
  * Start mongod or mongos and return a Mongo() object connected to there.
  * This function's first argument is "mongod" or "mongos" program name, \
  * and subsequent arguments to this function are passed as
  * command line arguments to the program.
+ *
+ * @deprecated
  */
-startMongoProgram = function() {
+function startMongoProgram() {
     let port = MongoRunner.parsePort.apply(null, arguments);
 
     // Enable test commands.
@@ -1748,18 +1747,20 @@ function _getMongoProgramArguments(args) {
     return args;
 }
 
-runMongoProgram = function() {
+function runMongoProgram() {
     return _runMongoProgram.apply(null, _getMongoProgramArguments(arguments));
 };
 
-// Start a mongo program instance.  This function's first argument is the
-// program name, and subsequent arguments to this function are passed as
-// command line arguments to the program.  Returns pid of the spawned program.
-startMongoProgramNoConnect = function() {
+/**
+ *  Start a mongo program instance.  This function's first argument is the
+ * program name, and subsequent arguments to this function are passed as
+ * command line arguments to the program.  Returns pid of the spawned program.
+ */
+function startMongoProgramNoConnect() {
     return _startMongoProgram.apply(null, _getMongoProgramArguments(arguments));
 };
 
-myPort = function() {
+function myPort() {
     const hosts = globalThis.db.getMongo().host.split(',');
 
     const ip6Numeric = hosts[0].match(/^\[[0-9A-Fa-f:]+\]:(\d+)$/);

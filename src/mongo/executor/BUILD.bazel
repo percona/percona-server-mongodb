@@ -511,6 +511,7 @@ mongo_cc_library(
         ":task_executor_interface",
         "//src/mongo:base",
         "//src/mongo/db:query_expressions",
+        "//src/mongo/db:query_matcher",
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/audit:audit_options",
         "//src/mongo/rpc:metadata",

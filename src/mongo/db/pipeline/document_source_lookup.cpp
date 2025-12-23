@@ -50,7 +50,6 @@
 #include "mongo/db/field_ref.h"
 #include "mongo/db/matcher/expression.h"
 #include "mongo/db/matcher/expression_algo.h"
-#include "mongo/db/matcher/expression_parser.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
 #include "mongo/db/pipeline/document_path_support.h"
@@ -70,6 +69,7 @@
 #include "mongo/db/pipeline/variable_validation.h"
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/collation/collator_factory_interface.h"
+#include "mongo/db/query/compiler/parsers/matcher/expression_parser.h"
 #include "mongo/db/query/explain_options.h"
 #include "mongo/db/query/plan_summary_stats.h"
 #include "mongo/db/query/query_knobs_gen.h"
@@ -318,15 +318,11 @@ void DocumentSourceLookUp::resolvedPipelineHelper(
     // When fromNs represents a view, we have to decipher if the view is mongot-indexed or not.
     // Currently, if the pipeline to be run on the joined collection is a
     // mongot pipeline (it starts with $search, $searchMeta), $lookup assumes the view is
-    // mongot-indexed. However, if the view pipeline (_resolvedPipeline) is a mongot pipeline, then
-    // we know the view is not mongot indexed because mongot doesn't support indexing a $search view
-    // pipeline. and doesn't need the special support inside $_internalSearchIdLookup.
-    if (_fromNsIsAView && search_helper_bson_obj::isMongotPipeline(pipeline) &&
-        !search_helper_bson_obj::isMongotPipeline(_resolvedPipeline)) {
-        // The user pipeline is a mongot pipeline but the view pipeline is not - so we assume it's a
-        // mongot-indexed view. As such, we overwrite the view pipeline. This is because in the case
-        // of mongot queries on mongot-indexed views, idLookup applies the view transforms as part
-        // of its subpipeline.
+    // mongot-indexed.
+    if (_fromNsIsAView && search_helper_bson_obj::isMongotPipeline(pipeline)) {
+        // The user pipeline is a mongot pipeline so we assume the view is a mongot-indexed view. As
+        // such, we overwrite the view pipeline. This is because in the case of mongot queries on
+        // mongot-indexed views, idLookup applies the view transforms as part of its subpipeline.
         _fromExpCtx->setView(boost::make_optional(std::make_pair(fromNs, _resolvedPipeline)));
         _resolvedPipeline = pipeline;
         _fieldMatchPipelineIdx = 1;

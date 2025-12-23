@@ -103,7 +103,6 @@ mongo_cc_library(
         "//src/mongo/db:server_base",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db:vector_clock_mutable",
         "//src/mongo/db/admission:flow_control",
-        "//src/mongo/db/repl:oplog_visibility_manager",
         "//src/mongo/db/repl:optime",
         "//src/mongo/db/repl:repl_coordinator_interface",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/storage:oplog_truncate_markers",
@@ -634,6 +633,7 @@ mongo_cc_library(
         "//src/mongo/db:audit",
         "//src/mongo/db:collection_index_usage_tracker",
         "//src/mongo/db:dbcommands_idl",
+        "//src/mongo/db:fle_implicit_validator",
         "//src/mongo/db:multitenancy",
         "//src/mongo/db:record_id_helpers",
         "//src/mongo/db:server_base",
@@ -646,6 +646,7 @@ mongo_cc_library(
         "//src/mongo/db/disagg_storage:server_parameters",
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/index:preallocated_container_pool",
+        "//src/mongo/db/matcher/doc_validation",
         "//src/mongo/db/op_observer",
         "//src/mongo/db/query/query_stats",
         "//src/mongo/db/query/virtual_collection",

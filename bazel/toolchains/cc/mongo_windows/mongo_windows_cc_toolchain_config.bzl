@@ -769,6 +769,78 @@ def _impl(ctx):
                                 "/D_CONSOLE",
                                 "/D_ENABLE_EXTENDED_ALIGNED_STORAGE",
                                 "/D_SCL_SECURE_NO_WARNINGS",
+
+                                # C4068: unknown pragma. added so that we can specify unknown
+                                # pragmas for other compilers.
+                                "/wd4068",
+
+                                # C4244: 'conversion' conversion from 'type1' to 'type2', possible loss
+                                # of data. An integer type is converted to a smaller integer type.
+                                "/wd4244",
+
+                                # C4267: 'var' : conversion from 'size_t' to 'type', possible loss of
+                                # data. When compiling with /Wp64, or when compiling on a 64-bit
+                                # operating system, type is 32 bits but size_t is 64 bits when compiling
+                                # for 64-bit targets. To fix this warning, use size_t instead of a type.
+                                "/wd4267",
+
+                                # C4290: C++ exception specification ignored except to indicate a
+                                # function is not __declspec(nothrow). A function is declared using
+                                # exception specification, which Visual C++ accepts but does not
+                                # implement.
+                                "/wd4290",
+
+                                # C4355: 'this' : used in base member initializer list. The this pointer
+                                # is valid only within nonstatic member functions. It cannot be used in
+                                # the initializer list for a base class.
+                                "/wd4355",
+
+                                # C4373: Older versions of MSVC would fail to make a function in a
+                                # derived class override a virtual function in the parent, when defined
+                                # inline and at least one of the parameters is made const. The behavior
+                                # is incorrect under the standard. MSVC is fixed now, and the warning
+                                # exists merely to alert users who may have relied upon the older,
+                                # non-compliant behavior. Our code should not have any problems with the
+                                # older behavior, so we can just disable this warning.
+                                "/wd4373",
+
+                                # C4800: 'type' : forcing value to bool 'true' or 'false' (performance
+                                # warning). This warning is generated when a value that is not bool is
+                                # assigned or coerced into type bool.
+                                "/wd4800",
+
+                                # C4251: This warning attempts to prevent usage of CRT (C++ standard
+                                # library) types in DLL interfaces. That is a good idea for DLLs you
+                                # ship to others, but in our case, we know that all DLLs are built
+                                # consistently. Suppress the warning.
+                                "/wd4251",
+
+                                # some warnings we should treat as errors:
+                                # c4013
+                                #  'function' undefined; assuming extern returning int
+                                #
+                                # This warning occurs when files compiled for the C language use
+                                # functions not defined in a header file.
+                                "/we4013",
+
+                                # c4099
+                                #  'identifier' : type name first seen using 'objecttype1' now seen
+                                #                 using 'objecttype2'
+                                #
+                                # This warning occurs when classes and structs are declared with a mix
+                                # of struct and classwhich can cause linker failures
+                                "/we4099",
+
+                                # c4930
+                                #  'identifier': prototyped function not called (was a variable
+                                #                definition intended?)
+                                #
+                                # This warning indicates a most-vexing parse error, where a user
+                                # declared a function that was probably intended as a variable
+                                # definition. A common example is accidentally declaring a function
+                                # called lock that takes a mutex when one meant to create a guard object
+                                # called lock on the stack.
+                                "/we4930",
                             ],
                         ),
                     ],
@@ -1145,17 +1217,22 @@ def _impl(ctx):
 
         smaller_binary_feature = feature(
             name = "smaller_binary",
-            enabled = False,
+            enabled = ctx.attr.smaller_binary,
             flag_sets = [
                 flag_set(
                     actions = [ACTION_NAMES.c_compile, ACTION_NAMES.cpp_compile],
-                    flag_groups = [flag_group(flags = ["/Gy", "/Gw"])],
-                    with_features = [with_feature_set(features = ["opt"])],
+                    flag_groups = [flag_group(flags = [
+                        # https://devblogs.microsoft.com/cppblog/introducing-gw-compiler-switch/
+                        "/Gy",
+                        "/Gw",
+                    ])],
                 ),
                 flag_set(
                     actions = all_link_actions,
-                    flag_groups = [flag_group(flags = ["/OPT:ICF", "/OPT:REF"])],
-                    with_features = [with_feature_set(features = ["opt"])],
+                    flag_groups = [flag_group(flags = [
+                        # https://devblogs.microsoft.com/cppblog/introducing-gw-compiler-switch/
+                        "/OPT:REF",
+                    ])],
                 ),
             ],
         )
@@ -1166,7 +1243,10 @@ def _impl(ctx):
             flag_sets = [
                 flag_set(
                     actions = [ACTION_NAMES.c_compile, ACTION_NAMES.cpp_compile],
-                    flag_groups = [flag_group(flags = ["/Zc:inline"])],
+                    flag_groups = [flag_group(flags = [
+                        # https://devblogs.microsoft.com/cppblog/linker-enhancements-in-visual-studio-2013-update-2-ctp2/
+                        "/Zc:inline",
+                    ])],
                 ),
             ],
         )
@@ -1278,6 +1358,34 @@ def _impl(ctx):
             ],
         )
 
+        win_level_3_warning_feature = feature(
+            name = "win_level_3_warning",
+            enabled = True,
+            flag_sets = [
+                flag_set(
+                    actions = [
+                        ACTION_NAMES.assemble,
+                        ACTION_NAMES.preprocess_assemble,
+                        ACTION_NAMES.linkstamp_compile,
+                        ACTION_NAMES.c_compile,
+                        ACTION_NAMES.cpp_compile,
+                        ACTION_NAMES.cpp_header_parsing,
+                        ACTION_NAMES.cpp_module_compile,
+                        ACTION_NAMES.cpp_module_codegen,
+                        ACTION_NAMES.lto_backend,
+                        ACTION_NAMES.clif_match,
+                    ],
+                    flag_groups = [
+                        flag_group(
+                            flags = [
+                                "/W3",
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
+
         features = [
             no_legacy_features_feature,
             nologo_feature,
@@ -1331,6 +1439,7 @@ def _impl(ctx):
             supports_interface_shared_libraries_feature,
             symbol_check_feature,
             mongodb_boost_all_no_lib_link_feature,
+            win_level_3_warning_feature,
         ]
     else:
         targets_windows_feature = feature(
@@ -1659,6 +1768,7 @@ mongo_windows_cc_toolchain_config = rule(
         "tool_paths": attr.string_dict(),
         "toolchain_identifier": attr.string(),
         "windows_version_minimal": attr.label(default = "//bazel/config:win_min_version"),
+        "smaller_binary": attr.bool(default = False),
     },
     provides = [CcToolchainConfigInfo],
 )

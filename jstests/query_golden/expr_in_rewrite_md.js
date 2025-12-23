@@ -102,10 +102,10 @@ function validateResultsSame(filter) {
 
 function validateError(filter) {
     assert.commandWorked(db.adminCommand({setParameter: 1, [paramName]: false}));
-    assert.commandFailedWithCode(db.runCommand({find: coll.getName(), filter}), 40081);
+    assert.commandFailedWithCode(db.runCommand({find: coll.getName(), filter}), [40081, 5153700]);
 
     assert.commandWorked(db.adminCommand({setParameter: 1, [paramName]: true}));
-    assert.commandFailedWithCode(db.runCommand({find: coll.getName(), filter}), 40081);
+    assert.commandFailedWithCode(db.runCommand({find: coll.getName(), filter}), [40081, 5153700]);
 }
 
 try {

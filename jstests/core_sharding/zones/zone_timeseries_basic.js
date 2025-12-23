@@ -31,21 +31,38 @@ describe('Basic timeseries zone sharding test', function() {
 
     let shardNames;
 
-    const defineZones = coll => {
-        assert.commandWorked(db.adminCommand({
-            updateZoneKeyRange: getTimeseriesCollForDDLOps(db, coll).getFullName(),
-            min: {"meta": MinKey()},
-            max: {"meta": zoneCutoff},
-            zone: zones[0],
-            // TODO(SERVER-107478): Use rawData mode
-        }));
-        assert.commandWorked(db.adminCommand({
-            updateZoneKeyRange: getTimeseriesCollForDDLOps(db, coll).getFullName(),
-            min: {"meta": zoneCutoff},
-            max: {"meta": MaxKey()},
-            zone: zones[1],
-            // TODO(SERVER-107478): Use rawData mode
-        }));
+    const withDefinedZones = (coll, callback) => {
+        const zoneKeyRanges = [
+            {
+                min: {"meta": MinKey()},
+                max: {"meta": zoneCutoff},
+                zone: zones[0],
+            },
+            {
+                min: {"meta": zoneCutoff},
+                max: {"meta": MaxKey()},
+                zone: zones[1],
+            }
+        ];
+
+        try {
+            for (const zoneKeyRange of zoneKeyRanges) {
+                assert.commandWorked(db.adminCommand({
+                    updateZoneKeyRange: getTimeseriesCollForDDLOps(db, coll).getFullName(),
+                    ...zoneKeyRange
+                }));
+            }
+            callback();
+        } finally {
+            // Clean up the zone key ranges so that shards can be removed from the zones on teardown
+            for (const zoneKeyRange of zoneKeyRanges) {
+                assert.commandWorked(db.adminCommand({
+                    updateZoneKeyRange: getTimeseriesCollForDDLOps(db, coll).getFullName(),
+                    ...zoneKeyRange,
+                    zone: null
+                }));
+            }
+        }
     };
 
     const populateShardedTimeseriesCollection = coll => {
@@ -78,7 +95,6 @@ describe('Basic timeseries zone sharding test', function() {
     });
 
     after(function() {
-        db.dropDatabase();  // Drops the zone key ranges, so we can remove the shards from the zones
         assert.commandWorked(db.adminCommand({removeShardFromZone: shardNames[0], zone: zones[0]}));
         assert.commandWorked(db.adminCommand({removeShardFromZone: shardNames[1], zone: zones[1]}));
     });
@@ -86,12 +102,13 @@ describe('Basic timeseries zone sharding test', function() {
     it('should distribute the chunks by zones when sharding with predefined zones', function() {
         const coll = db.getCollection('zoneThenShard');
         coll.drop();
-        defineZones(coll);
-        populateShardedTimeseriesCollection(coll);
-        // shardCollection creates chunks according to the zones,
-        // so we can immediately assert that the chunks match the expected distribution.
-        assert(areChunksDistributedByZones(coll));
-        assert.sameMembers(docs, coll.find({}, {_id: 0}).toArray());
+        withDefinedZones(coll, () => {
+            populateShardedTimeseriesCollection(coll);
+            // shardCollection creates chunks according to the zones,
+            // so we can immediately assert that the chunks match the expected distribution.
+            assert(areChunksDistributedByZones(coll));
+            assert.sameMembers(docs, coll.find({}, {_id: 0}).toArray());
+        });
     });
 
     it('should distribute the chunks by zones when defining zones after sharding', function() {
@@ -103,9 +120,10 @@ describe('Basic timeseries zone sharding test', function() {
         const coll = db.getCollection('zoneAfterSharding');
         coll.drop();
         populateShardedTimeseriesCollection(coll);
-        defineZones(coll);
-        // We must wait for the balancer to split and move the chunks according to the defined zones
-        assert.soon(() => areChunksDistributedByZones(coll));
-        assert.sameMembers(docs, coll.find({}, {_id: 0}).toArray());
+        withDefinedZones(coll, () => {
+            // We must wait for the balancer to split and move the chunks according to the zones
+            assert.soon(() => areChunksDistributedByZones(coll));
+            assert.sameMembers(docs, coll.find({}, {_id: 0}).toArray());
+        });
     });
 });
