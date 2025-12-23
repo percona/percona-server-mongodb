@@ -77,6 +77,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/server_recovery.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
+#include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_control.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/transaction_resources.h"
@@ -2262,6 +2263,27 @@ void InitialSyncerFCB::_compareLastAppliedCallback(
     onCompletionGuard->setResultAndCancelRemainingWork(lock, exceptionToStatus());
 }
 
+namespace {
+
+Status resetLocalLastVoteDocument(OperationContext* opCtx) try {
+    writeConflictRetry(
+        opCtx, "reset last vote document", NamespaceString::kLastVoteNamespace, [opCtx] {
+            auto coll = acquireCollection(
+                opCtx,
+                CollectionAcquisitionRequest::fromOpCtx(
+                    opCtx, NamespaceString::kLastVoteNamespace, AcquisitionPrerequisites::kWrite),
+                MODE_X);
+
+            LastVote lastVote{OpTime::kInitialTerm, -1};
+            Helpers::putSingleton(opCtx, coll, lastVote.toBSON());
+        });
+    return Status::OK();
+} catch (const DBException& e) {
+    return e.toStatus();
+}
+
+}  // namespace
+
 void InitialSyncerFCB::_switchToDownloadedCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
@@ -2346,13 +2368,7 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
                                                           StorageInterface::get(opCtx.get()),
                                                           ReplicationProcess::get(opCtx.get()));
     // replace the lastVote document with a default one
-    status = StorageInterface::get(opCtx.get())
-                 ->dropCollection(opCtx.get(), NamespaceString::kLastVoteNamespace);
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
-        return;
-    }
-    status = externalState.createLocalLastVoteCollection(opCtx.get());
+    status = resetLocalLastVoteDocument(opCtx.get());
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork(lock, status);
         return;
