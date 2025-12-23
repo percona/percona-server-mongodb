@@ -1710,10 +1710,10 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
         /*forRestart=*/false);
 
     // closeCatalog invariants if any index builds are in progress
-    IndexBuildsCoordinator::get(opCtx)->waitForAllIndexBuildsToStop(opCtx);
-    // Alternatively, we could abort index builds. Reconsider if anything goes wrong.
-    // IndexBuildsCoordinator::get(opCtx)->abortAllIndexBuildsForInitialSync(
-    //    opCtx, "Aborting index builds before closing catalog for changing storage location");
+    IndexBuildsCoordinator::get(opCtx)->abortAllIndexBuildsForInitialSync(
+        opCtx, "Aborting index builds before closing catalog for changing storage location");
+    // Alternatively, we could wait for index builds to finish. Reconsider if anything goes wrong.
+    // IndexBuildsCoordinator::get(opCtx)->waitForAllIndexBuildsToStop(opCtx);
 
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
