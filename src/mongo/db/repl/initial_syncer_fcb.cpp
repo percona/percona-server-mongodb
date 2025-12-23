@@ -57,6 +57,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/catalog/catalog_control.h"
 #include "mongo/db/client.h"
 #include "mongo/db/concurrency/d_concurrency.h"
+#include "mongo/db/concurrency/exception_util.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
@@ -2253,6 +2254,26 @@ void InitialSyncerFCB::_compareLastAppliedCallback(
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
 
+namespace {
+
+Status resetLocalLastVoteDocument(OperationContext* opCtx) try {
+    writeConflictRetry(
+        opCtx, "reset last vote document", NamespaceString::kLastVoteNamespace.toString(), [opCtx] {
+            WriteUnitOfWork wuow(opCtx);
+            AutoGetCollection coll(opCtx, NamespaceString::kLastVoteNamespace, MODE_X);
+            LastVote lastVote{OpTime::kInitialTerm, -1};
+            Helpers::putSingleton(opCtx, NamespaceString::kLastVoteNamespace, lastVote.toBSON());
+            wuow.commit();
+        });
+    return Status::OK();
+} catch (const DBException& e) {
+    LOGV2_DEBUG(
+        128472, 1, "Exception during reset last vote document", "error"_attr = e.toString());
+    return e.toStatus();
+}
+
+}  // namespace
+
 void InitialSyncerFCB::_switchToDownloadedCallback(
     const executor::TaskExecutor::CallbackArgs& callbackArgs,
     // NOLINTNEXTLINE(*-unnecessary-value-param)
@@ -2341,13 +2362,7 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         StorageInterface::get(opCtx.get()),
         ReplicationProcess::get(opCtx.get()));
     // replace the lastVote document with a default one
-    status = StorageInterface::get(opCtx.get())
-                 ->dropCollection(opCtx.get(), NamespaceString::kLastVoteNamespace);
-    if (!status.isOK()) {
-        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
-        return;
-    }
-    status = externalState.createLocalLastVoteCollection(opCtx.get());
+    status = resetLocalLastVoteDocument(opCtx.get());
     if (!status.isOK()) {
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
