@@ -119,6 +119,8 @@ variables:
         archive-mongocryptd-debug
       push_path: linux
       push_bucket: downloads.10gen.com
+      push_bucket_new: cdn-origin-mongodb-server-enterprise
+      push_role_arn: arn:aws:iam::119629040606:role/s3-access.cdn-origin-mongodb-server-enterprise
       push_name: linux
       push_arch: x86_64-enterprise-rhel8
       bazel_compile_flags: >-
@@ -312,7 +314,7 @@ buildvariants:
     tags: ["suggested"]
     tasks:
       &experimental-task-list # TODO(SERVER-90936): Remove streams_kafka* and streams_lambda tests when they work with the "default" tag.
-      - name: streams_kafka_gen
+      - name: streams_kafka
       - name: streams_kafka_gwproxy
       - name: streams_lambda
       - name: streams_s3

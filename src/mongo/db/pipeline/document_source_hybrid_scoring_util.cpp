@@ -51,6 +51,8 @@
 
 #include <fmt/ranges.h>
 
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
+
 namespace mongo::hybrid_scoring_util {
 
 bool isScoreStage(const boost::intrusive_ptr<DocumentSource>& stage) {
@@ -70,7 +72,7 @@ double getPipelineWeight(const StringMap<double>& weights, const std::string& pi
 
 StringMap<double> validateWeights(
     const mongo::BSONObj& inputWeights,
-    const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& inputPipelines,
+    const std::map<std::string, std::unique_ptr<Pipeline>>& inputPipelines,
     const StringData stageName) {
     // Output map of pipeline name, to weight of pipeline.
     StringMap<double> weights;
@@ -148,7 +150,7 @@ StringMap<double> validateWeights(
 }
 
 void failWeightsValidationWithPipelineSuggestions(
-    const std::map<std::string, std::unique_ptr<Pipeline, PipelineDeleter>>& allPipelines,
+    const std::map<std::string, std::unique_ptr<Pipeline>>& allPipelines,
     const stdx::unordered_set<std::string>& matchedPipelines,
     const std::vector<std::string>& invalidWeights,
     const StringData stageName) {
@@ -380,8 +382,6 @@ Status isScoredPipeline(const std::vector<BSONObj>& bsonPipeline,
 }
 
 bool isHybridSearchPipeline(const std::vector<BSONObj>& bsonPipeline) {
-    tassert(10473000, "Input pipeline must not be empty.", !bsonPipeline.empty());
-
     // Please keep the following in alphabetical order.
     static const std::set<StringData> hybridScoringStages{
         DocumentSourceRankFusion::kStageName,
@@ -396,6 +396,41 @@ bool isHybridSearchPipeline(const std::vector<BSONObj>& bsonPipeline) {
     };
 
     return false;
+}
+
+void validateIsHybridSearchNotSetByUser(boost::intrusive_ptr<ExpressionContext> expCtx,
+                                        const BSONObj& spec) {
+    if (spec.hasField(kIsHybridSearchFlagFieldName)) {
+        assertAllowedInternalIfRequired(expCtx->getOperationContext(),
+                                        kIsHybridSearchFlagFieldName,
+                                        AllowedWithClientType::kInternal);
+    }
+}
+
+void assertForeignCollectionIsNotTimeseries(const NamespaceString& nss,
+                                            const boost::intrusive_ptr<ExpressionContext>& expCtx) {
+    const auto opCtx = expCtx->getOperationContext();
+    const auto collectionCatalog = CollectionCatalog::get(opCtx);
+
+    if (auto collectionPtr = collectionCatalog->lookupCollectionByNamespace(opCtx, nss)) {
+        uassert(10787900,
+                "$rankFusion and $scoreFusion are unsupported on timeseries collections",
+                !collectionPtr->isTimeseriesCollection());
+    } else if (auto viewPtr = collectionCatalog->lookupView(opCtx, nss)) {
+        uassert(10787901,
+                "$rankFusion and $scoreFusion are unsupported on timeseries collections",
+                !viewPtr->timeseries());
+    } else {
+        // Note that we try our best to ban timeseries collections on hybrid search.
+        // However, in a sharded collections environment, a mongod shard might not know the
+        // information about the timeseries collection (if it is owned by another shard). In
+        // that case, it is non-trivial to ban the timeseries query.
+        // TODO SERVER-108218 Ban hybrid search inside of subpipelines on time series collections.
+        LOGV2(10787902,
+              "$rankFusion and $scoreFusion are unsupported on timeseries collections, but not "
+              "enough information is available to determine if a subpipeline is running on a "
+              "timeseries collection.");
+    }
 }
 
 namespace score_details {

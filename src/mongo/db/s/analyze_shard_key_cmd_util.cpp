@@ -978,6 +978,7 @@ std::pair<BSONObj, Timestamp> generateSplitPoints(OperationContext* opCtx,
             throw;
         }
     }();
+    uassert(10828001, "Expected to find at least one split point", !splitPoints.empty());
 
     Timestamp splitPointsAfterClusterTime;
     auto uassertWriteStatusFn = [&](const BSONObj& resObj) {
@@ -1006,7 +1007,7 @@ std::pair<BSONObj, Timestamp> generateSplitPoints(OperationContext* opCtx,
     std::vector<BSONObj> splitPointsToInsert;
     int64_t objSize = 0;
 
-    auto expireAt = opCtx->getServiceContext()->getFastClockSource()->now() +
+    auto expireAt = opCtx->fastClockSource().now() +
         mongo::Milliseconds(gAnalyzeShardKeySplitPointExpirationSecs.load() * 1000);
     for (const auto& splitPoint : splitPoints) {
         // Performs best-effort validation again that the shard key does not contain an array field
@@ -1039,7 +1040,10 @@ std::pair<BSONObj, Timestamp> generateSplitPoints(OperationContext* opCtx,
         splitPointsToInsert.clear();
     }
 
-    invariant(!splitPointsAfterClusterTime.isNull());
+    tassert(10828002,
+            "Expected to have set the afterClusterTime since there is at least one split point "
+            "document to insert",
+            !splitPointsAfterClusterTime.isNull());
     auto splitPointsFilter = BSON((AnalyzeShardKeySplitPointDocument::kIdFieldName + "." +
                                    AnalyzeShardKeySplitPointId::kAnalyzeShardKeyIdFieldName)
                                   << analyzeShardKeyId);

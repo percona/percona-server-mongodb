@@ -305,8 +305,7 @@ void implicitlyAbortAllTransactions(OperationContext* opCtx) {
     SessionKiller::Matcher matcherAllSessions(
         KillAllSessionsByPatternSet{makeKillAllSessionsByPattern(opCtx)});
 
-    const auto abortDeadline =
-        opCtx->getServiceContext()->getFastClockSource()->now() + Seconds(15);
+    const auto abortDeadline = opCtx->fastClockSource().now() + Seconds(15);
 
     std::vector<AbortTransactionDetails> toKill;
     catalog->scanSessions(matcherAllSessions, [&](const ObservableSession& session) {
@@ -590,7 +589,7 @@ Status initializeSharding(
                                                          std::move(shardRemovalHooks));
 
     {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::initializeGlobalShardingState,
                                        startupTimeElapsedBuilder);
         Status status = initializeGlobalShardingState(
@@ -616,7 +615,7 @@ Status initializeSharding(
     auto configShardConnStr =
         Grid::get(opCtx->getServiceContext())->shardRegistry()->getConfigServerConnectionString();
     if (configShardConnStr.type() == ConnectionString::ConnectionType::kReplicaSet) {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::resetConfigConnectionString,
                                        startupTimeElapsedBuilder);
         ConnectionString rsMonitorConfigConnStr(
@@ -629,7 +628,7 @@ Status initializeSharding(
     }
 
     {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::loadGlobalSettings,
                                        startupTimeElapsedBuilder);
         Status status =
@@ -640,7 +639,7 @@ Status initializeSharding(
     }
 
     {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::waitForSigningKeys,
                                        startupTimeElapsedBuilder);
         Status status = waitForSigningKeys(opCtx);
@@ -652,7 +651,7 @@ Status initializeSharding(
     // Loading of routing information may fail. Since this is just an optimization (warmup), any
     // failure must not prevent mongos from starting.
     try {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::preCacheRoutingInfo,
                                        startupTimeElapsedBuilder);
         preCacheMongosRoutingInfo(opCtx);
@@ -663,7 +662,7 @@ Status initializeSharding(
     // Pre-warm the connection pool may fail. Since this is just an optimization, any failure must
     // not prevent mongos from starting.
     {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::preWarmConnectionPool,
                                        startupTimeElapsedBuilder);
         Status status = preWarmConnectionPool(opCtx);

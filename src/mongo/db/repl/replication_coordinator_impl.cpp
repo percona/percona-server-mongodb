@@ -1207,7 +1207,7 @@ void ReplicationCoordinatorImpl::shutdown(OperationContext* opCtx,
     }
 
     {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::shutDownReplicaSetAwareServices,
                                        shutdownTimeElapsedBuilder);
         LOGV2(5074000, "Shutting down the replica set aware services.");
@@ -1230,7 +1230,7 @@ void ReplicationCoordinatorImpl::shutdown(OperationContext* opCtx,
         }
         if (_rsConfigState == kConfigStartingUp) {
             // Wait until we are finished starting up, so that we can cleanly shut everything down.
-            SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+            SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                            TimedSectionId::waitForStartupComplete,
                                            shutdownTimeElapsedBuilder);
             lk.unlock();
@@ -1238,7 +1238,7 @@ void ReplicationCoordinatorImpl::shutdown(OperationContext* opCtx,
             lk.lock();
             fassert(18823, _rsConfigState != kConfigStartingUp);
         }
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::shutDownReplication,
                                        shutdownTimeElapsedBuilder);
         _replicationWaiterList.setErrorAll(
@@ -1253,7 +1253,7 @@ void ReplicationCoordinatorImpl::shutdown(OperationContext* opCtx,
 
     // joining the replication executor is blocking so it must be run outside of the mutex
     if (initialSyncerCopy) {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::shutDownInitialSyncer,
                                        shutdownTimeElapsedBuilder);
         LOGV2_DEBUG(
@@ -1267,19 +1267,19 @@ void ReplicationCoordinatorImpl::shutdown(OperationContext* opCtx,
     }
 
     {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::shutDownExternalState,
                                        shutdownTimeElapsedBuilder);
         _externalState->shutdown(opCtx);
     }
     {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::shutDownReplExecutor,
                                        shutdownTimeElapsedBuilder);
         _replExecutor->shutdown();
     }
     {
-        SectionScopedTimer scopedTimer(opCtx->getServiceContext()->getFastClockSource(),
+        SectionScopedTimer scopedTimer(&opCtx->fastClockSource(),
                                        TimedSectionId::joinReplExecutor,
                                        shutdownTimeElapsedBuilder);
         _replExecutor->join();
@@ -2339,14 +2339,14 @@ ReplicationCoordinator::StatusAndDuration ReplicationCoordinatorImpl::awaitRepli
     }
 
     auto wTimeoutDate = [&]() -> Date_t {
-        auto clockSource = opCtx->getServiceContext()->getFastClockSource();
+        auto& clockSource = opCtx->fastClockSource();
         if (writeConcern.wTimeout == WriteConcernOptions::kNoTimeout) {
             return Date_t::max();
         }
         if (writeConcern.wTimeout == WriteConcernOptions::kNoWaiting) {
-            return clockSource->now();
+            return clockSource.now();
         }
-        return clockSource->now() + clockSource->getPrecision() + writeConcern.wTimeout.duration();
+        return clockSource.now() + clockSource.getPrecision() + writeConcern.wTimeout.duration();
     }();
 
     const auto opCtxDeadline = opCtx->getDeadline();

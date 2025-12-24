@@ -55,6 +55,7 @@
 #include "mongo/db/pipeline/document_path_support.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_documents.h"
+#include "mongo/db/pipeline/document_source_hybrid_scoring_util.h"
 #include "mongo/db/pipeline/document_source_merge_gen.h"
 #include "mongo/db/pipeline/document_source_queue.h"
 #include "mongo/db/pipeline/document_source_sequential_document_cache.h"
@@ -70,6 +71,7 @@
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/collation/collator_factory_interface.h"
 #include "mongo/db/query/compiler/parsers/matcher/expression_parser.h"
+#include "mongo/db/query/compiler/rewrites/matcher/expression_optimizer.h"
 #include "mongo/db/query/explain_options.h"
 #include "mongo/db/query/plan_summary_stats.h"
 #include "mongo/db/query/query_knobs_gen.h"
@@ -638,7 +640,7 @@ DocumentSource::GetNextResult DocumentSourceLookUp::doGetNext() {
     // '_unwindSrc' would be non-null, and we would not have made it here.
     invariant(!_matchSrc);
 
-    std::unique_ptr<Pipeline, PipelineDeleter> pipeline;
+    std::unique_ptr<Pipeline> pipeline;
     std::unique_ptr<exec::agg::Pipeline> execPipeline;
     try {
         pipeline = buildPipeline(_fromExpCtx, inputDoc);
@@ -684,7 +686,7 @@ DocumentSource::GetNextResult DocumentSourceLookUp::doGetNext() {
     return output.freeze();
 }
 
-std::unique_ptr<Pipeline, PipelineDeleter> DocumentSourceLookUp::buildPipelineFromViewDefinition(
+std::unique_ptr<Pipeline> DocumentSourceLookUp::buildPipelineFromViewDefinition(
     std::vector<BSONObj> serializedPipeline, ResolvedNamespace resolvedNamespace) {
     // We don't want to optimize or attach a cursor source here because we need to update
     // _resolvedPipeline so we can reuse it on subsequent calls to getNext(), and we may need to
@@ -1065,7 +1067,7 @@ DocumentSourceContainer::iterator DocumentSourceLookUp::doOptimizeAt(
     // longer be true for the combined $match's MatchExpression.
     _additionalFilter =
         DocumentSourceMatch::descendMatchOnPath(
-            needToOptimize ? MatchExpression::optimize(
+            needToOptimize ? optimizeMatchExpression(
                                  std::move(_matchSrc->getMatchProcessor()->getExpression()),
                                  /* enableSimplification */ false)
                                  .get()
@@ -1310,6 +1312,13 @@ void DocumentSourceLookUp::serializeToArray(std::vector<Value>& array,
         output[getSourceName()]["let"] = Value(exprList.freeze());
 
         output[getSourceName()]["pipeline"] = Value(serializedPipeline);
+
+        if (!opts.isSerializingForExplain() &&
+            hybrid_scoring_util::isHybridSearchPipeline(
+                _userPipeline.value_or(std::vector<BSONObj>()))) {
+            output[getSourceName()][hybrid_scoring_util::kIsHybridSearchFlagFieldName] =
+                Value(true);
+        }
     }
 
     if (opts.isSerializingForExplain()) {
@@ -1550,8 +1559,10 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
     bool hasPipeline = false;
     bool hasLet = false;
 
-    auto lookupSpec = DocumentSourceLookupSpec::parse(IDLParserContext(kStageName), elem.Obj());
+    // TODO SERVER-108117 Validate that the isHybridSearch flag is only set internally. See helper
+    // hybrid_scoring_util::validateIsHybridSearchNotSetByUser to handle this.
 
+    auto lookupSpec = DocumentSourceLookupSpec::parse(IDLParserContext(kStageName), elem.Obj());
 
     if (lookupSpec.getFrom().has_value()) {
         fromNs = parseLookupFromAndResolveNamespace(lookupSpec.getFrom().value().getElement(),
@@ -1580,6 +1591,17 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
         fromNs =
             NamespaceString::makeCollectionlessAggregateNSS(pExpCtx->getNamespaceString().dbName());
     }
+
+    if (lookupSpec.getIsHybridSearch() || hybrid_scoring_util::isHybridSearchPipeline(pipeline)) {
+        // If there is a hybrid search stage in our pipeline, then we should validate that we
+        // are not running on a timeseries collection.
+        //
+        // If the hybrid search flag is set to true, this request may have
+        // come from a mongos that does not know if the collection is a valid collection for
+        // hybrid search. Therefore, we must validate it here.
+        hybrid_scoring_util::assertForeignCollectionIsNotTimeseries(fromNs, pExpCtx);
+    }
+
     boost::intrusive_ptr<DocumentSourceLookUp> lookupStage = nullptr;
     if (hasPipeline) {
         if (localField.empty() && foreignField.empty()) {
