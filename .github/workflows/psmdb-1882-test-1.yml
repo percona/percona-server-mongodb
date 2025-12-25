@@ -1,6 +1,7 @@
 name: "PSMDB 1882 Test 1"
 on:
   workflow_dispatch:
+  push:
 
 jobs:
   create-runner:
