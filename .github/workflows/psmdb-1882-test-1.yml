@@ -1,0 +1,47 @@
+name: "PSMDB 1882 Test 1"
+on:
+  workflow_dispatch:
+
+jobs:
+  create-runner:
+    name: Create Hetzner Cloud runner
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.create-hcloud-runner.outputs.label }}
+      server_id: ${{ steps.create-hcloud-runner.outputs.server_id }}
+    steps:
+      - name: Create runner
+        id: create-hcloud-runner
+        uses: Percona-Lab/hcloud-github-runner@v1.3.0
+        with:
+          mode: create
+          github_token: ${{ secrets.PSMDB_HCLOUD_BOT_PAT }}
+          hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          server_type: cpx32
+          location: nbg1  # Nuremberg, Germany
+          image: ubuntu-24.04
+
+  do-the-job:
+    name: Do the job on the runner
+    needs: create-runner # required to start the main job when the runner is ready
+    runs-on: ${{ needs.create-runner.outputs.label }} # run the job on the newly created runner
+    steps:
+      - name: Hello from runner
+        run: echo "PSMDB 1882 Hey Test 1"
+
+  delete-runner:
+    name: Delete Hetzner Cloud runner
+    needs:
+      - create-runner # required to get output from the create-runner job
+      - do-the-job # required to wait when the main job is done
+    runs-on: ubuntu-latest
+    if: ${{ always() }} # required to stop the runner even if the error happened in the previous jobs
+    steps:
+      - name: Delete runner
+        uses: Percona-Lab/hcloud-github-runner@v1.3.0
+        with:
+          mode: delete
+          github_token: ${{ secrets.PSMDB_HCLOUD_BOT_PAT }}
+          hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          name: ${{ needs.create-runner.outputs.label }}
+          server_id: ${{ needs.create-runner.outputs.server_id }}
