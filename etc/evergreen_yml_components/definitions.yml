@@ -831,13 +831,25 @@ functions:
       display_name: Pip Requirements
 
   "send benchmark results":
-  - command: perf.send
-    params:
-      aws_key: ${aws_key}
-      aws_secret: ${aws_secret}
-      bucket: mciuploads
-      prefix: ${task_id}_${execution}
-      file: src/cedar_report.json
+    - command: subprocess.exec
+      params:
+        binary: bash
+        args:
+          - "./src/evergreen/perf_submission.sh"
+        env:
+          perf_file_path: src/cedar_report.json
+        include_expansions_in_env:
+          - requester
+          - revision_order_id
+          - project_id
+          - version_id
+          - build_variant
+          - parsed_order_id
+          - task_name
+          - task_id
+          - execution
+          - is_mainline
+      type: test
 
   "analyze benchmark results":
   - *f_expansions_write
@@ -2205,13 +2217,25 @@ functions:
         args:
           - "./src/evergreen/scons_metrics_report.sh"
 
-    - command: perf.send
+    - command: subprocess.exec
       params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        bucket: mciuploads
-        prefix: ${task_id}_${execution}
-        file: src/scons_cedar_report.json
+        binary: bash
+        args:
+          - "./src/evergreen/perf_submission.sh"
+        env:
+          perf_file_path: src/scons_cedar_report.json
+        include_expansions_in_env:
+          - requester
+          - revision_order_id
+          - project_id
+          - version_id
+          - build_variant
+          - parsed_order_id
+          - task_name
+          - task_id
+          - execution
+          - is_mainline
+      type: test
 
   "attach report":
     command: attach.results
@@ -2258,6 +2282,19 @@ functions:
       binary: bash
       args:
         - "./src/evergreen/sasl_windows_cyrussasl_teardown.sh"
+
+  "log into devprod container registry":
+  - command: ec2.assume_role
+    params:
+      role_arn: ${ecr_role_evergreen_arn}
+  - *f_expansions_write
+  - command: subprocess.exec
+    params:
+      binary: bash
+      include_expansions_in_env:
+        [AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN]
+      args:
+        - "./src/evergreen/container_registry_login.sh"
 
 # Pre task steps
 pre:
@@ -7103,15 +7140,7 @@ tasks:
       aws_key_remote: ${repo_aws_key}
       aws_secret_remote: ${repo_aws_secret}
   - func: "f_expansions_write"
-
-  # login to container registry
-  - command: shell.exec
-    params:
-      shell: bash
-      silent: true
-      script: |
-        set -oe
-        echo "${release_tools_container_registry_password}" | podman login --password-stdin --username ${release_tools_container_registry_username} ${release_tools_container_registry}
+  - func: "log into devprod container registry"
 
   # signing windows artifacts
   - command: subprocess.exec
@@ -7442,14 +7471,7 @@ tasks:
       aws_key_remote: ${repo_aws_key}
       aws_secret_remote: ${repo_aws_secret}
   - func: "f_expansions_write"
-  # login to container registry
-  - command: shell.exec
-    params:
-      shell: bash
-      silent: true
-      script: |
-        set -oe
-        echo "${release_tools_container_registry_password}" | podman login --password-stdin --username ${release_tools_container_registry_username} ${release_tools_container_registry}
+  - func: "log into devprod container registry"
   - command: subprocess.exec
     params:
       binary: bash
