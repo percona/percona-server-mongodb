@@ -36,6 +36,7 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/feature_flag.h"
+#include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/query/canonical_query.h"
 #include "mongo/db/query/collation/collation_index_key.h"
 #include "mongo/db/query/collation/collation_spec.h"
@@ -102,7 +103,7 @@ using UpdateType = write_ops::UpdateModification::Type;
  *            or
  *          coll.update({x: 1}, [{$addFields: {y: 2}}])
  */
-void validateUpdateDoc(const UpdateRef& updateRef) {
+void validateUpdateDoc(const UpdateOpRef& updateRef) {
     const auto& updateMod = updateRef.getUpdateMods();
     if (updateMod.type() == write_ops::UpdateModification::Type::kPipeline) {
         return;
@@ -428,7 +429,7 @@ bool isRetryableWrite(OperationContext* opCtx) {
 NSTargeter::TargetingResult CollectionRoutingInfoTargeter::targetUpdate(
     OperationContext* opCtx, const BatchItemRef& itemRef) const {
     NSTargeter::TargetingResult result;
-    const auto& updateOp = itemRef.getUpdateRef();
+    auto updateOp = itemRef.getUpdateOp();
     const bool isMulti = updateOp.getMulti();
 
     if (!_cri.isSharded()) {
@@ -445,13 +446,14 @@ NSTargeter::TargetingResult CollectionRoutingInfoTargeter::targetUpdate(
     // Collection is sharded
     const auto collation = write_ops::collationOf(updateOp);
 
-    auto expCtx = makeExpressionContextWithDefaultsForTargeter(opCtx,
-                                                               _nss,
-                                                               _cri,
-                                                               collation,
-                                                               boost::none,  // explain
-                                                               itemRef.getLet(),
-                                                               itemRef.getLegacyRuntimeConstants());
+    auto expCtx = makeExpressionContextWithDefaultsForTargeter(
+        opCtx,
+        _nss,
+        _cri,
+        collation,
+        boost::none,  // explain
+        itemRef.getCommand().getLet(),
+        itemRef.getCommand().getLegacyRuntimeConstants());
 
     const bool isUpsert = updateOp.getUpsert();
     auto query = updateOp.getFilter();
@@ -555,7 +557,7 @@ NSTargeter::TargetingResult CollectionRoutingInfoTargeter::targetDelete(
     OperationContext* opCtx, const BatchItemRef& itemRef) const {
     NSTargeter::TargetingResult result;
 
-    const auto& deleteOp = itemRef.getDeleteRef();
+    auto deleteOp = itemRef.getDeleteOp();
     const bool isMulti = deleteOp.getMulti();
     const auto collation = write_ops::collationOf(deleteOp);
 
@@ -571,13 +573,14 @@ NSTargeter::TargetingResult CollectionRoutingInfoTargeter::targetDelete(
     }
 
     // Collection is sharded
-    auto expCtx = makeExpressionContextWithDefaultsForTargeter(opCtx,
-                                                               _nss,
-                                                               _cri,
-                                                               collation,
-                                                               boost::none,  // explain
-                                                               itemRef.getLet(),
-                                                               itemRef.getLegacyRuntimeConstants());
+    auto expCtx = makeExpressionContextWithDefaultsForTargeter(
+        opCtx,
+        _nss,
+        _cri,
+        collation,
+        boost::none,  // explain
+        itemRef.getCommand().getLet(),
+        itemRef.getCommand().getLegacyRuntimeConstants());
 
     BSONObj deleteQuery = deleteOp.getFilter();
 

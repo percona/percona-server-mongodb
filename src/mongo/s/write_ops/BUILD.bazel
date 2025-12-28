@@ -16,18 +16,21 @@ mongo_cc_library(
         "batched_command_response.cpp",
         "batched_upsert_detail.cpp",
         "bulk_write_command_modifier.cpp",
+        "write_command_ref.cpp",
     ],
     hdrs = [
         "batched_command_request.h",
         "batched_command_response.h",
         "batched_upsert_detail.h",
         "bulk_write_command_modifier.h",
+        "write_command_ref.h",
     ],
     deps = [
         "//src/mongo:base",
         "//src/mongo/db:commands",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db:common",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db:error_labels",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/db:expression_context_builder",
         "//src/mongo/db:query_expressions",
         "//src/mongo/db:vector_clock",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/commands/query_cmd:bulk_write_parser",

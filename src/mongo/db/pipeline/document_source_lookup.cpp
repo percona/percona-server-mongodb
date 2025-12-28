@@ -62,6 +62,7 @@
 #include "mongo/db/pipeline/document_source_unwind.h"
 #include "mongo/db/pipeline/expression.h"
 #include "mongo/db/pipeline/expression_context.h"
+#include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/pipeline/expression_dependencies.h"
 #include "mongo/db/pipeline/process_interface/mongo_process_interface.h"
 #include "mongo/db/pipeline/search/search_helper_bson_obj.h"
@@ -257,8 +258,8 @@ DocumentSourceLookUp::DocumentSourceLookUp(NamespaceString fromNs,
     _resolvedPipeline = resolvedNamespace.pipeline;
     _fromNsIsAView = resolvedNamespace.involvedNamespaceIsAView;
 
-    _fromExpCtx = expCtx->copyForSubPipeline(
-        resolvedNamespace.ns, resolvedNamespace.uuid, boost::none, _fromNs);
+    _fromExpCtx = makeCopyForSubPipelineFromExpressionContext(
+        expCtx, resolvedNamespace.ns, resolvedNamespace.uuid, boost::none, _fromNs);
     _fromExpCtx->setInLookup(true);
 }
 
@@ -417,10 +418,11 @@ DocumentSourceLookUp::DocumentSourceLookUp(const DocumentSourceLookUp& original,
       _fieldMatchPipelineIdx(original._fieldMatchPipelineIdx),
       _variables(original._variables),
       _variablesParseState(original._variablesParseState.copyWith(_variables.useIdGenerator())),
-      _fromExpCtx(original._fromExpCtx->copyWith(_resolvedNs,
-                                                 original._fromExpCtx->getUUID(),
-                                                 boost::none,
-                                                 original._fromExpCtx->getView())),
+      _fromExpCtx(makeCopyFromExpressionContext(original._fromExpCtx,
+                                                _resolvedNs,
+                                                original._fromExpCtx->getUUID(),
+                                                boost::none,
+                                                original._fromExpCtx->getView())),
       _resolvedPipeline(original._resolvedPipeline),
       _userPipeline(original._userPipeline),
       _resolvedIntrospectionPipeline(original._resolvedIntrospectionPipeline->clone(_fromExpCtx)),
@@ -712,10 +714,12 @@ std::unique_ptr<Pipeline> DocumentSourceLookUp::buildPipelineFromViewDefinition(
 
     // Update the expression context with any new namespaces the resolved pipeline has introduced.
     LiteParsedPipeline liteParsedPipeline(resolvedNamespace.ns, resolvedNamespace.pipeline);
-    _fromExpCtx = _fromExpCtx->copyWith(resolvedNamespace.ns,
-                                        resolvedNamespace.uuid,
-                                        boost::none,
-                                        std::make_pair(_fromNs, resolvedNamespace.pipeline));
+    _fromExpCtx =
+        makeCopyFromExpressionContext(_fromExpCtx,
+                                      resolvedNamespace.ns,
+                                      resolvedNamespace.uuid,
+                                      boost::none,
+                                      std::make_pair(_fromNs, resolvedNamespace.pipeline));
     _fromExpCtx->addResolvedNamespaces(liteParsedPipeline.getInvolvedNamespaces());
 
     return pipeline;
@@ -1456,8 +1460,12 @@ void DocumentSourceLookUp::detachFromOperationContext() {
         tassert(10713705,
                 "expecting _fromExpCtx->getOperationContext() == nullptr",
                 _fromExpCtx->getOperationContext() == nullptr);
-    } else if (_fromExpCtx) {
+    }
+    if (_fromExpCtx) {
         _fromExpCtx->setOperationContext(nullptr);
+    }
+    if (_resolvedIntrospectionPipeline) {
+        _resolvedIntrospectionPipeline->detachFromOperationContext();
     }
 }
 
@@ -1474,8 +1482,12 @@ void DocumentSourceLookUp::detachSourceFromOperationContext() {
         tassert(10713707,
                 "expecting _fromExpCtx->getOperationContext() == nullptr",
                 _fromExpCtx->getOperationContext() == nullptr);
-    } else if (_fromExpCtx) {
+    }
+    if (_fromExpCtx) {
         _fromExpCtx->setOperationContext(nullptr);
+    }
+    if (_resolvedIntrospectionPipeline) {
+        _resolvedIntrospectionPipeline->detachFromOperationContext();
     }
 }
 
@@ -1492,8 +1504,12 @@ void DocumentSourceLookUp::reattachToOperationContext(OperationContext* opCtx) {
         tassert(10713709,
                 "expecting _fromExpCtx->getOperationContext() == opCtx",
                 _fromExpCtx->getOperationContext() == opCtx);
-    } else if (_fromExpCtx) {
+    }
+    if (_fromExpCtx) {
         _fromExpCtx->setOperationContext(opCtx);
+    }
+    if (_resolvedIntrospectionPipeline) {
+        _resolvedIntrospectionPipeline->reattachToOperationContext(opCtx);
     }
 }
 
@@ -1510,8 +1526,12 @@ void DocumentSourceLookUp::reattachSourceToOperationContext(OperationContext* op
         tassert(10713711,
                 "expecting _fromExpCtx->getOperationContext() == opCtx",
                 _fromExpCtx->getOperationContext() == opCtx);
-    } else if (_fromExpCtx) {
+    }
+    if (_fromExpCtx) {
         _fromExpCtx->setOperationContext(opCtx);
+    }
+    if (_resolvedIntrospectionPipeline) {
+        _resolvedIntrospectionPipeline->reattachToOperationContext(opCtx);
     }
 }
 
@@ -1520,9 +1540,12 @@ bool DocumentSourceLookUp::validateOperationContext(const OperationContext* opCt
         (_fromExpCtx && _fromExpCtx->getOperationContext() != opCtx)) {
         return false;
     }
-
-    if (_execPipeline) {
-        return _execPipeline->validateOperationContext(opCtx);
+    if (_execPipeline && !_execPipeline->validateOperationContext(opCtx)) {
+        return false;
+    }
+    if (_resolvedIntrospectionPipeline &&
+        !_resolvedIntrospectionPipeline->validateOperationContext(opCtx)) {
+        return false;
     }
 
     return true;
@@ -1533,9 +1556,12 @@ bool DocumentSourceLookUp::validateSourceOperationContext(const OperationContext
         (_fromExpCtx && _fromExpCtx->getOperationContext() != opCtx)) {
         return false;
     }
-
-    if (_execPipeline) {
-        return _execPipeline->validateOperationContext(opCtx);
+    if (_execPipeline && !_execPipeline->validateOperationContext(opCtx)) {
+        return false;
+    }
+    if (_resolvedIntrospectionPipeline &&
+        !_resolvedIntrospectionPipeline->validateOperationContext(opCtx)) {
+        return false;
     }
 
     return true;

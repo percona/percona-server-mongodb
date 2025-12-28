@@ -32,13 +32,15 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/util/uuid.h"
 
+#include <string>
+
 namespace mongo {
 
 /**
  * Describes an index build on a collection.
  */
-struct IndexBuildDetails {
-    IndexBuildDetails(UUID collUUID) : collUUID(collUUID) {}
+struct IndexBuildsEntry {
+    IndexBuildsEntry(UUID collUUID) : collUUID(collUUID) {}
 
     // Collection UUID.
     const UUID collUUID;
@@ -50,6 +52,6 @@ struct IndexBuildDetails {
 /**
  * IndexBuilds is a mapping from index build UUID to details about how to start the index build.
  */
-using IndexBuilds = stdx::unordered_map<UUID, IndexBuildDetails, UUID::Hash>;
+using IndexBuilds = stdx::unordered_map<UUID, IndexBuildsEntry, UUID::Hash>;
 
 }  // namespace mongo

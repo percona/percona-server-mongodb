@@ -27,48 +27,27 @@
  *    it in the license file.
  */
 
-#pragma once
+template <typename T>
+inline void invariantWithLocation(const T& testOK) {}
 
-#include "mongo/db/s/drop_indexes_coordinator_document_gen.h"
-#include "mongo/db/s/sharding_ddl_coordinator.h"
-#include "mongo/util/assert_util.h"
-
-#include <boost/optional/optional.hpp>
+#define invariant(...) invariantWithLocation(__VA_ARGS__)
 
 namespace mongo {
 
-class DropIndexesCoordinator final
-    : public RecoverableShardingDDLCoordinator<DropIndexesCoordinatorDocument,
-                                               DropIndexesCoordinatorPhaseEnum> {
+void helperFun() {
+    invariant(true);
+}
+
+class ShardingDDLCoordinator {};
+
+class RecoverableShardingDDLCoordinator : public ShardingDDLCoordinator {
 public:
-    using StateDoc = DropIndexesCoordinatorDocument;
-    using Phase = DropIndexesCoordinatorPhaseEnum;
-
-    DropIndexesCoordinator(ShardingDDLCoordinatorService* service, const BSONObj& initialState);
-
-    void checkIfOptionsConflict(const BSONObj& doc) const override;
-
-    void appendCommandInfo(BSONObjBuilder* cmdInfoBuilder) const override;
-
-    BSONObj getResult(OperationContext* opCtx) {
-        getCompletionFuture().get(opCtx);
-        tassert(10695001, "dropIndexes result unavailable", _result.is_initialized());
-        return *_result;
-    }
-
-private:
-    StringData serializePhase(const Phase& phase) const override {
-        return DropIndexesCoordinatorPhase_serializer(phase);
-    }
-
-    ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
-                                  const CancellationToken& token) noexcept override;
-
-    void _dropIndexesPhase(OperationContext* opCtx,
-                           std::shared_ptr<executor::ScopedTaskExecutor> executor,
-                           const CancellationToken& token);
-
-    const DropIndexesRequest _request;
-    boost::optional<BSONObj> _result;
+    virtual void doSomething() = 0;
 };
+
+class MyCoordinator : public RecoverableShardingDDLCoordinator {
+public:
+    void doSomething() override;
+};
+
 }  // namespace mongo

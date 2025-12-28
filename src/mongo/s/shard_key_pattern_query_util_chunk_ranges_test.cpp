@@ -34,11 +34,13 @@
 #include "mongo/bson/json.h"
 #include "mongo/db/hasher.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/query/write_ops/write_ops_parsers.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/s/catalog/type_shard.h"
 #include "mongo/s/catalog_cache_test_fixture.h"
 #include "mongo/s/shard_key_pattern_query_util.h"
+#include "mongo/s/write_ops/write_command_ref.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/duration.h"
 
@@ -121,14 +123,14 @@ private:
                                                  const BSONObj& collation,
                                                  const ChunkManager& cm) {
         auto itemRef = BatchItemRef(&request, 0);
-        return makeCQ(itemRef.getUpdateRef().getFilter(), fromjson("{}"), cm);
+        return makeCQ(itemRef.getUpdateOp().getFilter(), fromjson("{}"), cm);
     }
 
     std::unique_ptr<CanonicalQuery> makeCQDelete(BatchedCommandRequest& request,
                                                  const BSONObj& collation,
                                                  const ChunkManager& cm) {
         auto itemRef = BatchItemRef(&request, 0);
-        return makeCQ(itemRef.getDeleteRef().getFilter(), fromjson("{}"), cm);
+        return makeCQ(itemRef.getDeleteOp().getFilter(), fromjson("{}"), cm);
     }
 };
 

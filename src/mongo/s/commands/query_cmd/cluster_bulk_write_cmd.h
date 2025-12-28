@@ -48,6 +48,7 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/not_primary_error_tracker.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/query/find_common.h"
 #include "mongo/db/query/shard_key_diagnostic_printer.h"
 #include "mongo/db/repl/read_concern_args.h"
@@ -386,9 +387,7 @@ public:
             }
 
             if (internalQueryUnifiedWriteExecutor.load()) {
-                response = unified_write_executor::execWriteRequest<BulkWriteCommandReply,
-                                                                    BulkWriteCommandRequest>(
-                    opCtx, bulkRequest);
+                response = unified_write_executor::bulkWrite(opCtx, bulkRequest);
             } else {
                 // Dispatch the bulk write through the cluster.
                 // - To ensure that possible writeErrors are properly managed, a "fire and forget"

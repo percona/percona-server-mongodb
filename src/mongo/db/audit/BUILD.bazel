@@ -43,6 +43,7 @@ mongo_cc_library(
     deps = [
         ":audit_options",
         "//src/mongo/db:audit_interface",
+        "//src/mongo/db:expression_context_builder",
         "//src/mongo/db:query_matcher",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",

@@ -41,6 +41,7 @@
 #include "mongo/db/fle_crud.h"
 #include "mongo/db/generic_argument_util.h"
 #include "mongo/db/internal_transactions_feature_flag_gen.h"
+#include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/query/write_ops/write_ops_parsers.h"
 #include "mongo/db/raw_data_operation.h"
 #include "mongo/db/server_feature_flags_gen.h"
@@ -440,7 +441,8 @@ void ClusterWriteCmd::commandOpWrite(OperationContext* opCtx,
         // Note that this implementation will not handle targeting retries and does not
         // completely emulate write behavior.
         if (targetingBatchItem.getOpType() == BatchedCommandRequest::BatchType_Insert) {
-            return std::vector{targeter.targetInsert(opCtx, targetingBatchItem.getDocument())};
+            return std::vector{
+                targeter.targetInsert(opCtx, targetingBatchItem.getInsertOp().getDocument())};
         } else if (targetingBatchItem.getOpType() == BatchedCommandRequest::BatchType_Update) {
             return targeter.targetUpdate(opCtx, targetingBatchItem).endpoints;
         } else if (targetingBatchItem.getOpType() == BatchedCommandRequest::BatchType_Delete) {
@@ -604,13 +606,12 @@ void ClusterWriteCmd::executeWriteOpExplain(OperationContext* opCtx,
     BatchItemRef targetingBatchItem(requestPtr, 0);
     std::vector<AsyncRequestsSender::Response> shardResponses;
     commandOpWrite(opCtx, nss, explainCmd, std::move(targetingBatchItem), &shardResponses);
-    uassertStatusOK(ClusterExplain::buildExplainResult(
-        ExpressionContext::makeBlankExpressionContext(opCtx, nss),
-        shardResponses,
-        ClusterExplain::kWriteOnShards,
-        timer.millis(),
-        originalRequestBSON,
-        &bodyBuilder));
+    uassertStatusOK(ClusterExplain::buildExplainResult(makeBlankExpressionContext(opCtx, nss),
+                                                       shardResponses,
+                                                       ClusterExplain::kWriteOnShards,
+                                                       timer.millis(),
+                                                       originalRequestBSON,
+                                                       &bodyBuilder));
 }
 
 bool ClusterWriteCmd::InvocationBase::runImpl(OperationContext* opCtx,
