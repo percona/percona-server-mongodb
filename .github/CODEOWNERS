@@ -179,7 +179,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/rollback* @10gen/server-recovery @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/*txn* @10gen/server-transactions @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/write_concern* @10gen/server-rw-concerns @svc-auto-approve-bot
-/buildscripts/resmokeconfig/suites/**/unified_write_executor.yml @10gen/query-execution-router @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/unified_write_executor* @10gen/query-execution-router @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharding_unified_write_executor.yml @10gen/query-execution-router @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharded_collections_jscore_passthrough_with_config_transitions_and_add_remove_shard.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharding_jscore_passthrough_with_config_transitions_and_add_remove_shard.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
@@ -727,6 +727,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./jstests/core/replicate_record_ids/OWNERS.yml
 /jstests/core/replicate_record_ids/**/* @10gen/server-storage-engine-integration @svc-auto-approve-bot
 
+# The following patterns are parsed from ./jstests/core/shell/OWNERS.yml
+/jstests/core/shell/ @10gen/devprod-correctness @svc-auto-approve-bot
+
 # The following patterns are parsed from ./jstests/core/testing/OWNERS.yml
 /jstests/core/testing/**/* @10gen/server-programmability @svc-auto-approve-bot
 
@@ -851,6 +854,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/libs/**/pause_after_populate.js @10gen/query-optimization @svc-auto-approve-bot
 /jstests/libs/**/check_shard_filtering_metadata_helpers.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/libs/**/check_metadata_consistency_helpers.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/jstests/libs/**/catalog_list_operations_consistency_validator.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/libs/**/raw_operation_utils.js @10gen/server-collection-write-path @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/libs/clustered_collections/OWNERS.yml
@@ -975,11 +979,12 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/restart_during_downgrading_fcv.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/rollback* @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/run_feature_flag_multiversion_test.js @10gen/server-fcv @svc-auto-approve-bot
-/jstests/multiVersion/genericSetFCVUsage/**/set_feature_compatibility_version.js @10gen/server-fcv @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/set_feature_compatibility_version.js @10gen/server-catalog-and-routing @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/set_feature_compatibility_version_confirm.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/test_replica_set_startup_in_downgrading_state.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/test_sharding_startup_in_downgrading_state.js @10gen/server-fcv @svc-auto-approve-bot
-/jstests/multiVersion/genericSetFCVUsage/**/set_fcv_dry_run_mode.js @10gen/server-fcv @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/set_fcv_dry_run_mode.js @10gen/server-catalog-and-routing @10gen/server-fcv @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/set_fcv_automatic_dryRun.js @10gen/server-catalog-and-routing @10gen/server-fcv @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/collection_write_path/OWNERS.yml
 /jstests/multiVersion/genericSetFCVUsage/collection_write_path/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -1004,6 +1009,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/targetedTestsLastLtsFeatures/query-integration-observability/OWNERS.yml
 /jstests/multiVersion/targetedTestsLastLtsFeatures/query-integration-observability/ @10gen/query-integration-observability @svc-auto-approve-bot
+
+# The following patterns are parsed from ./jstests/multiVersion/targetedTestsLastLtsFeatures/query-integration-search/OWNERS.yml
+/jstests/multiVersion/targetedTestsLastLtsFeatures/query-integration-search/ @10gen/query-integration-search @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/targetedTestsLastLtsFeatures/query-optimization/OWNERS.yml
 /jstests/multiVersion/targetedTestsLastLtsFeatures/query-optimization/ @10gen/query-optimization @svc-auto-approve-bot
@@ -1174,6 +1182,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/noPassthrough/query/**/kill_pinned_cursor.js @10gen/query-execution-router @svc-auto-approve-bot
 /jstests/noPassthrough/query/**/missing_shard_key.js @10gen/query-execution-router @svc-auto-approve-bot
 /jstests/noPassthrough/query/**/parse_zone_info.js @10gen/query-execution @svc-auto-approve-bot
+/jstests/noPassthrough/query/**/filemd5_kill_during_yield.js @10gen/query-execution @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/query/change_streams/OWNERS.yml
 /jstests/noPassthrough/query/change_streams/**/* @10gen/query-execution-change-streams @svc-auto-approve-bot
@@ -1435,6 +1444,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/replica_set_promotion_demotion.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/stop_shard_draining_test.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/remove_shard_interoperability_tests.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/jstests/sharding/**/commit_shard_removal_test.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/analyze_shard_key/OWNERS.yml
 /jstests/sharding/analyze_shard_key/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -1996,6 +2006,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/memory_tracking/**/OWNERS.yml @10gen/query-execution-staff-leads @10gen/query-integration-staff-leads @svc-auto-approve-bot
 /src/mongo/db/memory_tracking/**/memory_usage_tracker* @10gen/query-execution-classic @svc-auto-approve-bot
 /src/mongo/db/memory_tracking/**/operation_memory_usage_tracker* @10gen/query-integration-observability @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/modules/atlas/OWNERS.yml
+/src/mongo/db/modules/atlas/**/* @10gen/server-disagg-storage @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/modules/enterprise/OWNERS.yml
 /src/mongo/db/modules/enterprise/BUILD.bazel @10gen/devprod-build @svc-auto-approve-bot
@@ -2676,6 +2689,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/s/config/**/configsvr_start_shard_draining_command.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/s/config/**/configsvr_shard_draining_status_command.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/db/s/config/**/configsvr_stop_shard_draining_command.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/src/mongo/db/s/config/**/configsvr_commit_shard_removal_command.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/s/metrics/OWNERS.yml
 /src/mongo/db/s/metrics/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -2919,6 +2933,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/s/**/async_rpc_shard* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/s/**/load_balancer_support* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/s/**/balancer_feature_flag* @10gen/server-cluster-scalability @svc-auto-approve-bot
+/src/mongo/s/**/list_shards.idl @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/s/catalog/OWNERS.yml
 /src/mongo/s/catalog/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
@@ -2992,6 +3007,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/s/commands/**/cluster_start_shard_draining_cmd.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/s/commands/**/cluster_shard_draining_status_cmd.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /src/mongo/s/commands/**/cluster_stop_shard_draining_cmd.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/src/mongo/s/commands/**/cluster_commit_shard_removal_cmd.cpp @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/s/commands/commit_quorum/OWNERS.yml
 /src/mongo/s/commands/commit_quorum/**/* @10gen/server-index-builds @svc-auto-approve-bot

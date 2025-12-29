@@ -944,14 +944,14 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
 
           // Sanitize storage engine options to remove options which might not apply to this node.
           // See SERVER-68122.
-          for (auto& spec : oplogEntry.indexSpecs) {
-              spec = getObjWithSanitizedStorageEngineOptions(opCtx, spec);
-          }
-
-          if (oplogEntry.indexIdents.empty()) {
-              oplogEntry.indexIdents =
-                  opCtx->getServiceContext()->getStorageEngine()->generateNewIndexIdents(
-                      entry.getNss().dbName(), oplogEntry.indexSpecs.size());
+          for (auto& indexBuildInfo : oplogEntry.indexes) {
+              indexBuildInfo.spec =
+                  getObjWithSanitizedStorageEngineOptions(opCtx, indexBuildInfo.spec);
+              if (indexBuildInfo.indexIdent.empty()) {
+                  indexBuildInfo.indexIdent =
+                      opCtx->getServiceContext()->getStorageEngine()->generateNewIndexIdent(
+                          entry.getNss().dbName());
+              }
           }
 
           IndexBuildsCoordinator::ApplicationMode applicationMode =
@@ -1139,7 +1139,8 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
           const auto& cmd = entry.getObject();
           convertToCapped(opCtx,
                           extractNsFromUUIDorNs(opCtx, entry.getNss(), entry.getUuid(), cmd),
-                          cmd["size"].safeNumberLong());
+                          cmd["size"].safeNumberLong(),
+                          entry.getFromMigrate().value_or(false));
           return Status::OK();
       },
       {ErrorCodes::NamespaceNotFound}}},

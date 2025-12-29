@@ -406,6 +406,7 @@ const allTestCases = {
             }
         },
         commitReshardCollection: {skip: "always targets the config server"},
+        commitShardRemoval: {skip: "not on a user database"},
         commitTransaction: {skip: "unversioned and uses special targetting rules"},
         compact: {skip: "not allowed through mongos"},
         compactStructuredEncryptionData: {skip: "requires encrypted collections"},
@@ -891,6 +892,7 @@ const allTestCases = {
         _configsvrCommitMovePrimary: {skip: "TODO"},
         _configsvrCommitRefineCollectionShardKey: {skip: "TODO"},
         _configsvrCommitReshardCollection: {skip: "TODO"},
+        _configsvrCommitShardRemoval: {skip: "runs on the configserver"},
         _configsvrConfigureCollectionBalancing: {skip: "TODO"},
         _configsvrCreateDatabase: {skip: "TODO"},
         _configsvrEnsureChunkVersionIsGreaterThan: {skip: "TODO"},

@@ -506,6 +506,7 @@ ddl:
     - src/mongo/s/request_types/*reshard_collection*
     - src/mongo/s/commands/cluster_set_allow_migrations_cmd.cpp
     - src/mongo/s/commands/cluster_untrack_unsplittable_collection.cpp
+    - src/mongo/s/request_types/list_shards.idl
 
     # unsorted: Everything else.
     - src/mongo/s/cluster_ddl.*
@@ -631,6 +632,8 @@ routing_and_topology:
     - src/mongo/s/request_types/remove_shard*
     - src/mongo/db/s/config/configsvr_shard_draining_status_command.cpp
     - src/mongo/s/commands/cluster_shard_draining_status_cmd.cpp
+    - src/mongo/db/s/config/configsvr_commit_shard_removal_command.cpp
+    - src/mongo/s/commands/cluster_commit_shard_removal_cmd.cpp
 
     - src/mongo/db/s/complete_promotion_to_sharded_cluster_coordinator*
     - src/mongo/db/s/topology_change_helpers*
@@ -1114,6 +1117,7 @@ disagg_storage:
     slack: disaggregated-storage-mongod
     jira: RSSD
   files:
+    - src/mongo/db/modules/atlas
     - src/mongo/db/disagg_storage
 
 storage_engine_api:
@@ -1269,6 +1273,14 @@ replication:
     - src/mongo/dbtests/repltests.cpp
     - src/mongo/dbtests/mock/mock_replica_set*
 
+replication.hello:
+  meta:
+    slack: server-replication
+    jira: Server Replication
+  files:
+    - src/mongo/db/repl/hello/
+    - src/mongo/db/repl/replication_info.cpp
+
 replication.initial_sync:
   meta:
     slack: server-replication
@@ -1336,3 +1348,10 @@ replication.recovery:
     - src/mongo/db/repl/*rollback*
     - src/mongo/db/modules/enterprise/src/magic_restore
     - src/mongo/dbtests/rollbacktests.cpp
+
+replication.split_horizon:
+  meta:
+    slack: server-replication
+    jira: Replication
+  files:
+    - src/mongo/db/repl/split_horizon/

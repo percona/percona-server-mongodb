@@ -1065,7 +1065,8 @@ void IndexBuildsCoordinator::applyStartIndexBuild(OperationContext* opCtx,
             CollectionWriter collWriter{opCtx, coll};
             IndexCatalog* indexCatalog = collWriter.getWritableCollection(opCtx)->getIndexCatalog();
 
-            for (const auto& spec : oplogEntry.indexSpecs) {
+            for (const auto& indexBuildInfo : oplogEntry.indexes) {
+                const auto& spec = indexBuildInfo.spec;
                 std::string name =
                     std::string{spec.getStringField(IndexDescriptor::kIndexNameFieldName)};
                 uassert(ErrorCodes::BadValue,
@@ -1093,20 +1094,13 @@ void IndexBuildsCoordinator::applyStartIndexBuild(OperationContext* opCtx,
         });
     }
 
-    invariant(oplogEntry.indexSpecs.size() == oplogEntry.indexSpecs.size());
-    std::vector<IndexBuildInfo> indexes;
-    indexes.reserve(oplogEntry.indexSpecs.size());
-    for (size_t i = 0; i < oplogEntry.indexSpecs.size(); ++i) {
-        indexes.push_back(IndexBuildInfo(oplogEntry.indexSpecs[i], oplogEntry.indexIdents[i]));
-    }
-
     auto indexBuildsCoord = IndexBuildsCoordinator::get(opCtx);
     uassertStatusOK(
         indexBuildsCoord
             ->startIndexBuild(opCtx,
                               nss.dbName(),
                               collUUID,
-                              indexes,
+                              oplogEntry.indexes,
                               oplogEntry.buildUUID,
                               /* This oplog entry is only replicated for two-phase index builds */
                               IndexBuildProtocol::kTwoPhase,
@@ -1199,8 +1193,8 @@ void IndexBuildsCoordinator::applyCommitIndexBuild(OperationContext* opCtx,
         // Restart the 'paused' index build in the background.
         IndexBuilds buildsToRestart;
         IndexBuildsEntry details{collUUID};
-        for (const auto& spec : oplogEntry.indexSpecs) {
-            details.indexSpecs.emplace_back(spec.getOwned());
+        for (const auto& indexBuildInfo : oplogEntry.indexes) {
+            details.indexSpecs.emplace_back(indexBuildInfo.spec.getOwned());
         }
         buildsToRestart.insert({buildUUID, details});
 
@@ -1281,15 +1275,15 @@ void IndexBuildsCoordinator::applyAbortIndexBuild(OperationContext* opCtx,
         CollectionWriter collWriter{opCtx, autoColl};
 
         auto indexCatalog = collWriter.getWritableCollection(opCtx)->getIndexCatalog();
-        for (const auto& indexSpec : oplogEntry.indexSpecs) {
+        for (const auto& indexBuildInfo : oplogEntry.indexes) {
             auto writableEntry = indexCatalog->getWritableEntryByName(
                 opCtx,
-                indexSpec.getStringField(IndexDescriptor::kIndexNameFieldName),
+                indexBuildInfo.spec.getStringField(IndexDescriptor::kIndexNameFieldName),
                 IndexCatalog::InclusionPolicy::kAll);
 
             LOGV2(6455400,
                   "Dropping unfinished index during oplog recovery as standalone",
-                  "spec"_attr = indexSpec);
+                  "spec"_attr = indexBuildInfo.spec);
 
             invariant(writableEntry && writableEntry->isFrozen());
             invariant(indexCatalog->dropUnfinishedIndex(
@@ -2206,9 +2200,8 @@ void IndexBuildsCoordinator::createIndexesOnEmptyCollection(OperationContext* op
     //
     // For more information on assigning timestamps to multiple index builds, please see
     // SERVER-35780 and SERVER-35070.
-    // TODO(SERVER-103398): Investigate usage validity of CollectionPtr::CollectionPtr_UNSAFE
     auto writeableCollection = collection.getWritableCollection(opCtx);
-    auto collectionPtr = CollectionPtr::CollectionPtr_UNSAFE(writeableCollection);
+    auto collectionPtr = CollectionPtr(writeableCollection);
 
     for (auto indexBuildInfo : indexes) {
         if (indexBuildInfo.spec.getBoolField(IndexDescriptor::kClusteredFieldName)) {

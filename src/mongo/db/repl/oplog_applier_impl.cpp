@@ -67,6 +67,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
+#include "mongo/platform/random.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/mutex.h"
 #include "mongo/stdx/thread.h"
@@ -524,12 +525,6 @@ void OplogApplierImpl::_run(OplogBuffer* oplogBuffer) {
             rsSyncApplyStop.pauseWhileSet(&opCtx);
         }
 
-        // Prevent oplog application while there is an active replication state transition.
-        if (rss::consensus::IntentRegistry::get(getGlobalServiceContext())
-                .activeStateTransition()) {
-            continue;
-        }
-
         // Blocks up to a second waiting for a batch to be ready to apply. If one doesn't become
         // ready in time, we'll loop again so we can do the above checks periodically.
         OplogApplierBatch ops = _oplogBatcher->getNextBatch(Seconds(1));
@@ -676,10 +671,32 @@ StatusWith<OpTime> OplogApplierImpl::_applyOplogBatch(OperationContext* opCtx,
         // Use this fail point to hang after we have written the oplog entries but before we have
         // applied them.
         if (MONGO_unlikely(pauseBatchApplicationAfterWritingOplogEntries.shouldFail())) {
-            LOGV2(21231,
-                  "pauseBatchApplicationAfterWritingOplogEntries fail point enabled. Blocking "
-                  "until fail point is disabled");
-            pauseBatchApplicationAfterWritingOplogEntries.pauseWhileSet(opCtx);
+            pauseBatchApplicationAfterWritingOplogEntries.executeIf(
+                [&](const BSONObj& data) {
+                    // Optional delay before the pause, if blockMS is provided
+                    auto blockDuration =
+                        Milliseconds{data.hasField("blockMS") ? data.getIntField("blockMS") : 0};
+                    if (blockDuration.count() > 0) {
+                        static mongo::PseudoRandom prng(Date_t::now().asInt64());
+                        if (prng.nextInt32(100) == 0) {
+                            LOGV2(1084140,
+                                  "pauseBatchApplicationAfterWritingOplogEntries fail point "
+                                  "enabled with blockMS. "
+                                  "Blocking oplog application",
+                                  "duration"_attr = blockDuration);
+                        }
+                        opCtx->sleepFor(blockDuration);
+                    }
+
+                    LOGV2(21231,
+                          "pauseBatchApplicationAfterWritingOplogEntries fail point enabled. "
+                          "Blocking "
+                          "until fail point is disabled");
+                    pauseBatchApplicationAfterWritingOplogEntries.pauseWhileSet(opCtx);
+
+                    return true;
+                },
+                [](const BSONObj&) { return true; });
         }
 
         // Compare with _minValid Optime.

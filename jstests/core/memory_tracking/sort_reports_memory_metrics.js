@@ -12,10 +12,11 @@
  * queries_system_profile_collection,
  * # The test runs the profile and getLog commands, which are not supported in Serverless.
  * command_not_supported_in_serverless,
+ * assumes_against_mongod_not_mongos,
  * requires_fcv_82,
  * ]
  */
-import {before, describe, it} from "jstests/libs/mochalite.js";
+import {after, before, describe, it} from "jstests/libs/mochalite.js";
 import {runMemoryStatsTest} from "jstests/libs/query/memory_tracking_utils.js";
 
 const collName = jsTestName();
@@ -153,5 +154,7 @@ for (const config of configs) {
 }
 
 // Clean up.
-assert.commandWorked(db.adminCommand(
-    {setParameter: 1, internalQueryFrameworkControl: kOriginalInternalQueryFrameworkControl}));
+after(() => {
+    assert.commandWorked(db.adminCommand(
+        {setParameter: 1, internalQueryFrameworkControl: kOriginalInternalQueryFrameworkControl}));
+});

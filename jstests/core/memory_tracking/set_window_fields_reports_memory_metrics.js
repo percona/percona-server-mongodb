@@ -11,6 +11,7 @@
  * queries_system_profile_collection,
  * # The test runs the profile and getLog commands, which are not supported in Serverless.
  * command_not_supported_in_serverless,
+ * assumes_against_mongod_not_mongos,
  * requires_fcv_82,
  * ]
  */
@@ -25,7 +26,7 @@ db[collName].drop();
 const kOriginalInternalQueryFrameworkControl =
     assert.commandWorked(db.adminCommand({getParameter: 1, internalQueryFrameworkControl: 1}))
         .internalQueryFrameworkControl;
-// TODO SERVER-105228 We can remove this when memory stats are added to SBE stages.
+// TODO SERVER-104607 Test with SBE knob.
 assert.commandWorked(
     db.adminCommand({setParameter: 1, internalQueryFrameworkControl: "forceClassicEngine"}));
 

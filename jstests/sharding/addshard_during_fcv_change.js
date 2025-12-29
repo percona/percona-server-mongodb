@@ -2,6 +2,8 @@
  * Test to ensure that fcv change and add shard are mutually exclusive
  * @tags: [
  *   requires_fcv_82,
+ *   # TODO(SERVER-108416): Remove exclusion when 8.2 -> 8.3 FCV change finishes
+ *   multiversion_incompatible,
  * ]
  */
 
@@ -19,8 +21,7 @@ const rs = new ReplSetTest({nodes: 1});
 rs.startSet({shardsvr: ""});
 rs.initiate();
 
-const addShardFP = configureFailPoint(cluster.configRS.getPrimary(),
-                                      "hangAddShardBeforeUpdatingClusterCardinalityParameter");
+const addShardFP = configureFailPoint(cluster.configRS.getPrimary(), "hangAfterLockingNewShard");
 const addShardParallelShell =
     startParallelShell(funWithArgs(function(url) {
                            assert.commandWorked(db.adminCommand({addShard: url, name: "newShard"}));

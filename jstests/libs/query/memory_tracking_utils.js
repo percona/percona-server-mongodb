@@ -257,8 +257,10 @@ function verifyProfilerMetrics({
     }
 }
 
-function verifyExplainMetrics({db, collName, pipeline, stageName, featureFlagEnabled, numStages}) {
-    const explainRes = db[collName].explain("executionStats").aggregate(pipeline);
+function verifyExplainMetrics(
+    {db, collName, pipeline, stageName, featureFlagEnabled, numStages, allowDiskUse}) {
+    const explainRes =
+        db[collName].explain("executionStats").aggregate(pipeline, {allowDiskUse: allowDiskUse});
 
     // If a query uses sbe, the explain version will be 2.
     const isSbeExplain = explainRes.explainVersion === "2";
@@ -351,7 +353,6 @@ export function runMemoryStatsTest({
     stageName,
     expectedNumGetMores,
     skipInUseMemBytesCheck = false,
-    // TODO SERVER-105637 Remove this param.
     checkInUseMemBytesResets = true
 }) {
     assert("pipeline" in commandObj, "Command object must include a pipeline field.");
@@ -396,7 +397,8 @@ export function runMemoryStatsTest({
         pipeline: commandObj.pipeline,
         stageName: stageName,
         featureFlagEnabled: featureFlagEnabled,
-        numStages: 1
+        numStages: 1,
+        allowDiskUse: commandObj.allowDiskUse,
     });
 }
 
@@ -450,7 +452,8 @@ export function runShardedMemoryStatsTest({
         pipeline: commandObj.pipeline,
         stageName: stageName,
         featureFlagEnabled: featureFlagEnabled,
-        numStages: numShards
+        numStages: numShards,
+        allowDiskUse: commandObj.allowDiskUse,
     });
 }
 

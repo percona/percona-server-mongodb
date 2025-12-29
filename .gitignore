@@ -2,6 +2,7 @@
 /build
 /src/mongo/db/modules/*
 !/src/mongo/db/modules/enterprise/
+!/src/mongo/db/modules/atlas/
 /.jsdbshell
 /.cache
 /.dbshell
@@ -294,6 +295,7 @@ buildozer
 .bazelrc.gitinfo
 .bazelrc.workstation
 .bazelrc.common_bes
+.bazelrc.mongo_version
 .bazelrc.compiledb
 .bazelrc.sync
 .compiledb

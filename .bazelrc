@@ -185,6 +185,7 @@ common --flag_alias=mongo_toolchain_version=//bazel/config:mongo_toolchain_versi
 common --flag_alias=simple_build_id=//bazel/config:simple_build_id
 common --flag_alias=create_dwp=//bazel/config:create_dwp
 common --flag_alias=win_min_version=//bazel/config:win_min_version
+common --flag_alias=build_atlas=//bazel/config:build_atlas
 
 #############################################################################################################################
 # BUILD 'PROFILES' - this is the area to set up configurations of flags to be used by developers.
@@ -519,9 +520,6 @@ common:fission --remote_download_regex=.*\.dwo$
 # Avoid failing builds when BES metadata fails to upload.
 common --bes_upload_mode=fully_async
 
-# Default Mongo Version if a version is not specified.
-common --define=MONGO_VERSION=8.2.0-alpha
-
 # Default distmod if not specified.
 common --define=MONGO_DISTMOD=""
 
@@ -536,6 +534,9 @@ try-import %workspace%/.bazelrc.evergreen
 
 # local default dev settings
 try-import %workspace%/.bazelrc.common_bes
+
+# local default dev settings
+try-import %workspace%/.bazelrc.mongo_version
 
 # local git version info
 try-import %workspace%/.bazelrc.git

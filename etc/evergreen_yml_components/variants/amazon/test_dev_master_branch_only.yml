@@ -346,6 +346,8 @@ buildvariants:
       - name: noPassthroughWithMongod_gen
       - name: initial_sync_fuzzer_sanity_patch_gen
       - name: rollback_fuzzer_sanity_patch_gen
+      - name: query_golden_cbr_automatic
+        cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
       - name: query_cbr_heuristic_jscore_passthrough
         cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
       - name: query_cbr_heuristic_aggregation_passthrough
@@ -354,9 +356,13 @@ buildvariants:
         cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
       - name: query_cbr_sampling_aggregation_passthrough
         cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
+      - name: query_golden_cbr_sampling
+        cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
       - name: query_cbr_histogram_jscore_passthrough
         cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
       - name: query_cbr_histogram_aggregation_passthrough
+        cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
+      - name: query_golden_cbr_histogram
         cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
 
   - <<: *amazon_linux2023_arm64_static_compile_variant_dependency
@@ -456,6 +462,14 @@ buildvariants:
     tasks:
       - name: unified_write_executor
       - name: sharding_unified_write_executor
+      - name: unified_write_executor_concurrency_sharded_multi_stmt_txn_gen
+      - name: unified_write_executor_concurrency_sharded_multi_stmt_txn_with_balancer_and_config_transitions_and_add_remove_shard_gen
+      - name: unified_write_executor_concurrency_sharded_multi_stmt_txn_with_balancer_gen
+      - name: unified_write_executor_sharded_jscore_txns
+      - name: unified_write_executor_sharded_jscore_txns_sharded_collections
+      - name: unified_write_executor_sharded_jscore_txns_without_snapshot
+      - name: unified_write_executor_multi_shard_multi_stmt_txn_jscore_passthrough_gen
+      - name: unified_write_executor_multi_shard_multi_stmt_txn_kill_primary_jscore_passthrough_gen
       - name: burn_in_tests_gen
         depends_on:
           - name: version_burn_in_gen
