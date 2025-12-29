@@ -2202,7 +2202,9 @@ long long ReplicationCoordinatorImpl::_calculateRemainingQuiesceTimeMillis() con
 }
 
 std::shared_ptr<HelloResponse> ReplicationCoordinatorImpl::_makeHelloResponse(
-    boost::optional<StringData> horizonString, WithLock lock, const bool hasValidConfig) const {
+    const boost::optional<std::string>& horizonString,
+    WithLock lock,
+    const bool hasValidConfig) const {
 
     uassert(ShutdownInProgressQuiesceInfo(_calculateRemainingQuiesceTimeMillis()),
             kQuiesceModeShutdownMessage,
@@ -2251,7 +2253,7 @@ SharedSemiFuture<ReplicationCoordinatorImpl::SharedHelloResponse>
 ReplicationCoordinatorImpl::_getHelloResponseFuture(
     WithLock lk,
     const SplitHorizon::Parameters& horizonParams,
-    boost::optional<StringData> horizonString,
+    const boost::optional<std::string>& horizonString,
     boost::optional<TopologyVersion> clientTopologyVersion) {
 
     uassert(ShutdownInProgressQuiesceInfo(_calculateRemainingQuiesceTimeMillis()),
@@ -2315,11 +2317,11 @@ ReplicationCoordinatorImpl::getHelloResponseFuture(
     return _getHelloResponseFuture(lk, horizonParams, horizonString, clientTopologyVersion);
 }
 
-boost::optional<StringData> ReplicationCoordinatorImpl::_getHorizonString(
+boost::optional<std::string> ReplicationCoordinatorImpl::_getHorizonString(
     WithLock, const SplitHorizon::Parameters& horizonParams) const {
     const auto myState = _topCoord->getMemberState();
     const bool hasValidConfig = _rsConfig.isInitialized() && !myState.removed();
-    boost::optional<StringData> horizonString;
+    boost::optional<std::string> horizonString;
     if (hasValidConfig) {
         const auto& self = _rsConfig.getMemberAt(_selfIndex);
         horizonString = self.determineHorizon(horizonParams);
@@ -2491,11 +2493,19 @@ void ReplicationCoordinatorImpl::_killConflictingOpsOnStepUpAndStepDown(
         // Don't kill step up/step down thread.
         if (toKill && !toKill->isKillPending() && toKill->getOpID() != rstlOpCtx->getOpID()) {
             auto locker = toKill->lockState();
-            if (toKill->shouldAlwaysInterruptAtStepDownOrUp() ||
-                locker->wasGlobalLockTakenInModeConflictingWithWrites() ||
-                PrepareConflictTracker::get(toKill).isWaitingOnPrepareConflict()) {
+            bool alwaysInterrupt = toKill->shouldAlwaysInterruptAtStepDownOrUp();
+            bool globalLockConfict = locker->wasGlobalLockTakenInModeConflictingWithWrites();
+            bool isWaitingOnPrepareConflict =
+                PrepareConflictTracker::get(toKill).isWaitingOnPrepareConflict();
+            if (alwaysInterrupt || globalLockConfict || isWaitingOnPrepareConflict) {
                 serviceCtx->killOperation(lk, toKill, reason);
                 arsc->incrementUserOpsKilled();
+                LOGV2(8562701,
+                      "Repl state change interrupted a thread.",
+                      "name"_attr = client->desc(),
+                      "alwaysInterrupt"_attr = alwaysInterrupt,
+                      "globalLockConflict"_attr = globalLockConfict,
+                      "isWaitingOnPrepareConflict"_attr = isWaitingOnPrepareConflict);
             } else {
                 arsc->incrementUserOpsRunning();
             }
@@ -3682,8 +3692,10 @@ Status ReplicationCoordinatorImpl::_doReplSetReconfig(OperationContext* opCtx,
 
     if (!force && !skipSafetyChecks && !MONGO_unlikely(omitConfigQuorumCheck.shouldFail())) {
         LOGV2(4509600, "Executing quorum check for reconfig");
-        status =
-            checkQuorumForReconfig(_replExecutor.get(), newConfig, myIndex, _topCoord->getTerm());
+        lk.lock();
+        auto term = _topCoord->getTerm();
+        lk.unlock();
+        status = checkQuorumForReconfig(_replExecutor.get(), newConfig, myIndex, term);
         if (!status.isOK()) {
             LOGV2_ERROR(21421,
                         "replSetReconfig failed; {error}",
@@ -4234,7 +4246,7 @@ void ReplicationCoordinatorImpl::_fulfillTopologyChangePromise(WithLock lock) {
                 Status(ShutdownInProgressQuiesceInfo(_calculateRemainingQuiesceTimeMillis()),
                        kQuiesceModeShutdownMessage));
         } else {
-            StringData horizonString = iter->first;
+            boost::optional<std::string> horizonString = iter->first;
             auto response = _makeHelloResponse(horizonString, lock, hasValidConfig);
             LOGV2_FOR_HEARTBEATS(8697306,
                                  5,
@@ -4259,7 +4271,8 @@ void ReplicationCoordinatorImpl::_fulfillTopologyChangePromise(WithLock lock) {
                                    "The original request horizon parameter does not exist in the "
                                    "current replica set config"});
             } else {
-                const auto horizon = sni.empty() ? SplitHorizon::kDefaultHorizon : iter->second;
+                const boost::optional<std::string> horizon =
+                    sni.empty() ? SplitHorizon::kDefaultHorizon.toString() : iter->second;
                 const auto response = _makeHelloResponse(horizon, lock, hasValidConfig);
                 LOGV2_FOR_HEARTBEATS(8697305,
                                      5,

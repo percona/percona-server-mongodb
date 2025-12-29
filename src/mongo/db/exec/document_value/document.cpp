@@ -209,7 +209,8 @@ Value& DocumentStorage::appendField(StringData name, ValueElement::Kind kind) {
     append(nextCollision);
     append(nameSize);
     append(kind);
-    name.copyTo(dest, true);
+    dest += name.copy(dest, name.size());
+    *dest++ = '\0';  // Like std::string, there is both an explicit size and final NUL byte.
 // Padding for alignment handled above
 #undef append
 
@@ -379,6 +380,12 @@ Document DocumentStorage::shred() const {
     }
     md.setMetadata(DocumentMetadataFields(metadata()));
     return md.freeze();
+}
+
+void DocumentStorage::loadIntoCache() const {
+    for (DocumentStorageIterator it = iterator(); !it.atEnd(); it.advance()) {
+        it.get();
+    }
 }
 
 void DocumentStorage::loadLazyMetadata() const {
@@ -800,7 +807,7 @@ void Document::serializeForSorter(BufBuilder& buf) const {
     buf.appendNum(static_cast<int>(numElems));
 
     for (DocumentStorageIterator it = storage().iterator(); !it.atEnd(); it.advance()) {
-        buf.appendStr(it->nameSD(), /*NUL byte*/ true);
+        buf.appendCStr(it->nameSD());
         it->val.serializeForSorter(buf);
     }
 

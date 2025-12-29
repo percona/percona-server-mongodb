@@ -544,7 +544,16 @@ void ShardServerOpObserver::onCreateCollection(OperationContext* opCtx,
                                                const BSONObj& idIndex,
                                                const OplogSlot& createOpTime) {
     // Only the shard primay nodes control the collection creation and secondaries just follow
+    // Secondaries CSR will be the defaulted one (UNKNOWN in most of the cases)
     if (!opCtx->writesAreReplicated()) {
+        // On secondaries node of sharded cluster we force the cleanup of the filtering metadata in
+        // order to remove anything that was left from any previous collection instance. This could
+        // happen by first having an UNSHARDED version for a collection that didn't exist followed
+        // by a movePrimary to the current shard.
+        if (ShardingState::get(opCtx)->enabled()) {
+            CollectionShardingRuntime::get(opCtx, collectionName)->clearFilteringMetadata(opCtx);
+        }
+
         return;
     }
 
@@ -573,7 +582,9 @@ void ShardServerOpObserver::onCreateCollection(OperationContext* opCtx,
     // TODO (SERVER-55284): Delete the lines below once all usages of
     // ScopedAllowImplicitCollectionCreate_UNSAFE have been removed
     auto* const csr = CollectionShardingRuntime::get(opCtx, collectionName);
-    if (!csr->getCurrentMetadataIfKnown()) {
+    if (oss._forceCSRAsUnknownAfterCollectionCreation) {
+        csr->clearFilteringMetadata(opCtx);
+    } else if (!csr->getCurrentMetadataIfKnown()) {
         csr->setFilteringMetadata(opCtx, CollectionMetadata());
     }
 }

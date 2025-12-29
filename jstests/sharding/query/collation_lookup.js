@@ -304,130 +304,6 @@ function runTests(withDefaultCollationColl, withoutDefaultCollationColl, collati
     assert(arrayEq(expected, res),
            "Expected " + tojson(expected) + " to equal " + tojson(res) + " up to ordering");
 
-    // Test that an explicit collation on the $lookup stage is respected.
-    res = withoutDefaultCollationColl
-                  .aggregate(
-                      [
-                        {$match: {_id: "lowercase"}},
-                        {
-                          $lookup: {
-                              from: withoutDefaultCollationColl.getName(),
-                              localField: "str",
-                              foreignField: "str",
-                              as: "matched",
-                              _internalCollation: collation["collation"],
-                          },
-                        },
-                      ])
-                  .toArray();
-    assert.eq(1, res.length, tojson(res));
-
-    expected = [{_id: "lowercase", str: "abc"}, {_id: "uppercase", str: "ABC"}];
-    assert(
-        arrayEq(expected, res[0].matched),
-        "Expected " + tojson(expected) + " to equal " + tojson(res[0].matched) + " up to ordering");
-
-    res = withoutDefaultCollationColl
-                  .aggregate(
-                      [
-                        {$match: {_id: "lowercase"}},
-                        {
-                          $lookup: {
-                              from: withoutDefaultCollationColl.getName(),
-                              let : {str1: "$str"},
-                              pipeline: [
-                                  {$match: {$expr: {$eq: ["$str", "$$str1"]}}},
-                                  {
-                                    $lookup: {
-                                        from: withoutDefaultCollationColl.getName(),
-                                        let : {str2: "$str"},
-                                        pipeline: [{$match: {$expr: {$eq: ["$str", "$$str1"]}}}],
-                                        as: "matched2"
-                                    }
-                                  }
-                              ],
-                              as: "matched1",
-                              _internalCollation: collation["collation"],
-                          },
-                        }
-                      ])
-                  .toArray();
-    assert.eq(1, res.length, tojson(res));
-
-    expected = [
-        {
-            "_id": "lowercase",
-            "str": "abc",
-            "matched2": [{"_id": "lowercase", "str": "abc"}, {"_id": "uppercase", "str": "ABC"}]
-        },
-        {
-            "_id": "uppercase",
-            "str": "ABC",
-            "matched2": [{"_id": "lowercase", "str": "abc"}, {"_id": "uppercase", "str": "ABC"}]
-        }
-    ];
-    assert(arrayEq(expected, res[0].matched1),
-           "Expected " + tojson(expected) + " to equal " + tojson(res[0].matched1) +
-               " up to ordering");
-
-    // Test that an explicit collation on the $lookup stage takes precedence over a command
-    // collation.
-    res = withoutDefaultCollationColl
-                  .aggregate(
-                      [
-                        {$match: {_id: "lowercase"}},
-                        {
-                          $lookup: {
-                              from: withoutDefaultCollationColl.getName(),
-                              localField: "str",
-                              foreignField: "str",
-                              as: "matched",
-                              _internalCollation: {locale: "simple"},
-                          },
-                        },
-                      ],
-                      collation)
-                  .toArray();
-    assert.eq(1, res.length, tojson(res));
-
-    expected = [{_id: "lowercase", str: "abc"}];
-    assert(
-        arrayEq(expected, res[0].matched),
-        "Expected " + tojson(expected) + " to equal " + tojson(res[0].matched) + " up to ordering");
-
-    res = withoutDefaultCollationColl
-                  .aggregate(
-                      [
-                        {$match: {_id: "lowercase"}},
-                        {
-                          $lookup: {
-                              from: withoutDefaultCollationColl.getName(),
-                              let : {str1: "$str"},
-                              pipeline: [
-                                  {$match: {$expr: {$eq: ["$str", "$$str1"]}}},
-                                  {
-                                    $lookup: {
-                                        from: withoutDefaultCollationColl.getName(),
-                                        let : {str2: "$str"},
-                                        pipeline: [{$match: {$expr: {$eq: ["$str", "$$str1"]}}}],
-                                        as: "matched2"
-                                    }
-                                  }
-                              ],
-                              as: "matched1",
-                              _internalCollation: {locale: "simple"},
-                          },
-                        }
-                      ],collation)
-                  .toArray();
-    assert.eq(1, res.length, tojson(res));
-
-    expected =
-        [{"_id": "lowercase", "str": "abc", "matched2": [{"_id": "lowercase", "str": "abc"}]}];
-    assert(arrayEq(expected, res[0].matched1),
-           "Expected " + tojson(expected) + " to equal " + tojson(res[0].matched1) +
-               " up to ordering");
-
     // Test that the $lookup stage uses the "simple" collation if a collation isn't set on the
     // collection or the aggregation operation, even if the foreign collection has a collation.
     // TODO SERVER-38830: when a pipeline $lookup is capable of serializing its 'let' variables to
@@ -497,6 +373,10 @@ const mongosDB = st.s0.getDB(testName);
 const withDefaultCollationColl = mongosDB[testName + "_with_default"];
 const withoutDefaultCollationColl = mongosDB[testName + "_without_default"];
 
+// Enable sharding on the test DB and ensure its primary is shard0000.
+assert.commandWorked(mongosDB.adminCommand({enableSharding: mongosDB.getName()}));
+st.ensurePrimaryShard(mongosDB.getName(), st.shard0.shardName);
+
 assert.commandWorked(
     mongosDB.createCollection(withDefaultCollationColl.getName(), caseInsensitive));
 assert.commandWorked(withDefaultCollationColl.insert({_id: "lowercase", str: "abc"}));
@@ -511,10 +391,6 @@ assert.commandWorked(withoutDefaultCollationColl.insert({_id: "unmatched", str: 
 //
 assert.commandWorked(
     withDefaultCollationColl.createIndex({str: 1}, {collation: {locale: "simple"}}));
-
-// Enable sharding on the test DB and ensure its primary is shard0000.
-assert.commandWorked(mongosDB.adminCommand({enableSharding: mongosDB.getName()}));
-st.ensurePrimaryShard(mongosDB.getName(), st.shard0.shardName);
 
 // Shard the collection with a default collation.
 assert.commandWorked(mongosDB.adminCommand({

@@ -47,7 +47,8 @@ void saslSetError(sasl_conn_t* conn, const std::string& msg) {
 }
 
 SaslClientSession* createCyrusSaslClientSession(const std::string& mech) {
-    if ((mech == "SCRAM-SHA-1") || (mech == "SCRAM-SHA-256") || mech == "MONGODB-AWS") {
+    if ((mech == "SCRAM-SHA-1") || (mech == "SCRAM-SHA-256") || (mech == "PLAIN") ||
+        mech == "MONGODB-AWS") {
         return new NativeSaslClientSession();
     }
     return new CyrusSaslClientSession();
@@ -263,7 +264,7 @@ void CyrusSaslClientSession::setParameter(Parameter id, StringData value) {
         _secret.reset(new char[sizeof(sasl_secret_t) + value.size() + 1]);
         sasl_secret_t* secret = static_cast<sasl_secret_t*>(static_cast<void*>(_secret.get()));
         secret->len = value.size();
-        value.copyTo(static_cast<char*>(static_cast<void*>(&secret->data[0])), false);
+        value.copy(static_cast<char*>(static_cast<void*>(&secret->data[0])), value.size());
     }
     SaslClientSession::setParameter(id, value);
 }

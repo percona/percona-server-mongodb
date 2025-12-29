@@ -1,5 +1,6 @@
 """Module for syncing a repo with Copybara and setting up configurations."""
 import argparse
+import fileinput
 import subprocess
 import os
 import sys
@@ -9,6 +10,9 @@ from github import GithubIntegration
 
 from buildscripts.util.read_config import read_config_file
 from evergreen.api import RetryingEvergreenApi
+
+# Commit hash of Copybara to use (v20251110)
+COPYBARA_COMMIT_HASH = "3f050c9e08b84aeda98875bf1b02a3288d351333"
 
 
 def run_command(command):  # noqa: D406,D407
@@ -92,7 +96,7 @@ def send_failure_message_to_slack(expansions):
     )
 
 
-def main():
+def main():  # pylint: disable=too-many-locals
     """Clone the Copybara repo, build its Docker image, and set up and run migrations."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--expansion-file", dest="expansion_file", type=str,
@@ -106,31 +110,65 @@ def main():
     else:
         run_command("git clone https://github.com/10gen/copybara.git")
 
+    # Checkout the specific commit of Copybara we want to use
+    run_command(f"cd copybara && git checkout {COPYBARA_COMMIT_HASH}")
+
     # Navigate to the Copybara directory and build the Copybara Docker image
     run_command("cd copybara && docker build --rm -t copybara .")
 
     # Read configurations
     expansions = read_config_file(args.expansion_file)
 
-    access_token_copybara_syncer = get_installation_access_token(
-        expansions["app_id_copybara_syncer"], expansions["private_key_copybara_syncer"],
-        expansions["installation_id_copybara_syncer"])
+    token_mongodb_mongo = get_installation_access_token(
+        expansions["app_id_copybara_syncer"],
+        expansions["private_key_copybara_syncer"],
+        expansions["installation_id_copybara_syncer"],
+    )
+    token_10gen_mongo = get_installation_access_token(
+        expansions["app_id_copybara_syncer_10gen"],
+        expansions["private_key_copybara_syncer_10gen"],
+        expansions["installation_id_copybara_syncer_10gen"],
+    )
+
+    tokens_map = {
+        "https://github.com/mongodb/mongo.git": token_mongodb_mongo,
+        "https://github.com/10gen/mongo.git": token_10gen_mongo,
+    }
 
     # Create the mongodb-bot.gitconfig file as necessary.
     create_mongodb_bot_gitconfig()
 
     current_dir = os.getcwd()
-    git_destination_url_with_token = f"https://x-access-token:{access_token_copybara_syncer}@github.com/mongodb/mongo.git"
+    config_file = f"{current_dir}/copy.bara.sky"
+
+    # Overwrite repo urls in copybara config in-place
+    with fileinput.FileInput(config_file, inplace=True) as file:
+        for line in file:
+            token = None
+            for repo, value in tokens_map.items():
+                if repo in line:
+                    token = value
+
+            if token:
+                print(
+                    line.replace(
+                        "https://github.com",
+                        f"https://x-access-token:{token}@github.com",
+                    ),
+                    end="",
+                )
+            else:
+                print(line, end="")
 
     # Set up the Docker command and execute it
     docker_cmd = [
         "docker run",
         "-v ~/.ssh:/root/.ssh",
         "-v ~/mongodb-bot.gitconfig:/root/.gitconfig",
-        f'-v "{current_dir}/copy.bara.sky":/usr/src/app/copy.bara.sky',
+        f'-v "{config_file}":/usr/src/app/copy.bara.sky',
         "-e COPYBARA_CONFIG='copy.bara.sky'",
         "-e COPYBARA_SUBCOMMAND='migrate'",
-        f"-e COPYBARA_OPTIONS='-v --git-destination-url={git_destination_url_with_token}'",
+        "-e COPYBARA_OPTIONS='-v'",
         "copybara copybara",
     ]
 

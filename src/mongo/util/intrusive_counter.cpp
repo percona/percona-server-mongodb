@@ -52,7 +52,8 @@ intrusive_ptr<const RCString> RCString::create(StringData s) {
 
     ptr->_size = s.size();
     char* stringStart = reinterpret_cast<char*>(ptr.get()) + sizeof(RCString);
-    s.copyTo(stringStart, true);
+    s.copy(stringStart, s.size());
+    stringStart[s.size()] = '\0';
 
     return ptr;
 }
