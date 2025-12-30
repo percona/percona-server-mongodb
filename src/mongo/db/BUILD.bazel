@@ -1421,6 +1421,7 @@ mongo_cc_library(
         "//src/mongo/db/exec:scoped_timer",
         "//src/mongo/db/exec:sort_executor",
         "//src/mongo/db/exec:working_set",
+        "//src/mongo/db/exec/classic:histogram_server_status_metric",
         "//src/mongo/db/exec/sbe:query_sbe_stages",
         "//src/mongo/db/exec/sbe:query_sbe_storage",
         "//src/mongo/db/fts:base_fts",
@@ -1984,6 +1985,7 @@ mongo_cc_library(
         "//src/mongo/db/repl:optime",
         "//src/mongo/db/session:logical_session_id",
         "//src/mongo/idl:idl_parser",
+        "//src/mongo/util:pcre_wrapper",
         "//src/mongo/util/net:hostandport_impl",
     ],
 )
@@ -4056,7 +4058,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/pipeline:change_stream_pipeline",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
         "//src/mongo/idl:server_parameter_test_util",
-        "//src/third_party/asio-master:asio",
+        "//src/third_party/asio",
     ],
 )
 
@@ -4100,7 +4102,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
         "//src/mongo/idl:server_parameter_test_util",
         "//src/mongo/util:clock_source_mock",
-        "//src/third_party/asio-master:asio",
+        "//src/third_party/asio",
     ],
 )
 
@@ -4130,7 +4132,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/pipeline:aggregation_context_fixture",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
         "//src/mongo/util:clock_source_mock",
-        "//src/third_party/asio-master:asio",
+        "//src/third_party/asio",
     ],
 )
 
@@ -4177,7 +4179,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger",
         "//src/mongo/idl:server_parameter_test_util",
         "//src/mongo/transport:transport_layer_mock",
-        "//src/third_party/asio-master:asio",
+        "//src/third_party/asio",
     ],
 )
 
@@ -4226,7 +4228,7 @@ mongo_cc_unit_test(
         "//src/mongo/transport:transport_layer_mock",
         "//src/mongo/util:clock_source_mock",
         "//src/mongo/util:periodic_runner_factory",
-        "//src/third_party/asio-master:asio",
+        "//src/third_party/asio",
     ],
 )
 
@@ -4295,17 +4297,19 @@ mongo_cc_unit_test(
         "//src/mongo/idl:server_parameter_test_util",
         "//src/mongo/transport:transport_layer_mock",
         "//src/mongo/util/concurrency:thread_pool",
-        "//src/third_party/asio-master:asio",
+        "//src/third_party/asio",
     ],
 )
 
 mongo_cc_library(
     name = "op_msg_fuzzer_fixture",
     srcs = [
-        "op_msg_fuzzer_fixture.cpp",
+        "op_msg_fuzzer_router_fixture.cpp",
+        "op_msg_fuzzer_shard_fixture.cpp",
     ],
     hdrs = [
-        "op_msg_fuzzer_fixture.h",
+        "op_msg_fuzzer_router_fixture.h",
+        "op_msg_fuzzer_shard_fixture.h",
         "session_manager_mongod.h",
     ],
     deps = [
@@ -4376,7 +4380,8 @@ mongo_cc_unit_test(
 mongo_cc_unit_test(
     name = "op_msg_fuzzer_fixture_test",
     srcs = [
-        "op_msg_fuzzer_fixture_test.cpp",
+        "op_msg_fuzzer_router_fixture_test.cpp",
+        "op_msg_fuzzer_shard_fixture_test.cpp",
     ],
     tags = ["mongo_unittest_fifth_group"],
     deps = [
@@ -4437,15 +4442,11 @@ mongo_cc_unit_test(
 )
 
 mongo_cc_unit_test(
-    name = "replica_set_endpoint_test",
+    name = "direct_shard_client_tracker_test",
     srcs = [
         "direct_shard_client_tracker_test.cpp",
-        "replica_set_endpoint_sharding_state_test.cpp",
-        "replica_set_endpoint_test_fixture.cpp",
-        "replica_set_endpoint_test_fixture.h",
-        "replica_set_endpoint_util_test.cpp",
     ],
-    tags = ["mongo_unittest_first_group"],
+    tags = ["mongo_unittest_fourth_group"],
     deps = [
         ":commands",
         ":commands_test_example",
@@ -4672,12 +4673,23 @@ filegroup(
 )
 
 mongo_cc_fuzzer_test(
-    name = "op_msg_fuzzer",
+    name = "op_msg_fuzzer_shard",
     srcs = [
-        "op_msg_fuzzer.cpp",
+        "op_msg_fuzzer_shard.cpp",
     ],
     deps = [
-        "op_msg_fuzzer_fixture",
+        "op_msg_fuzzer_shard_fixture",
+        "server_base",
+    ],
+)
+
+mongo_cc_fuzzer_test(
+    name = "op_msg_fuzzer_router",
+    srcs = [
+        "op_msg_fuzzer_router.cpp",
+    ],
+    deps = [
+        "op_msg_fuzzer_router_fixture",
         "server_base",
     ],
 )
