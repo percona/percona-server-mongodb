@@ -2772,6 +2772,10 @@ public:
         return _valueVar;
     }
 
+    size_t getAccumulatedValueDepthCheckInterval() const {
+        return _accumulatedValueDepthCheckInterval;
+    }
+
 private:
     static constexpr size_t _kInput = 0;
     static constexpr size_t _kInitial = 1;
@@ -2779,6 +2783,9 @@ private:
 
     Variables::Id _thisVar;
     Variables::Id _valueVar;
+
+    const size_t _accumulatedValueDepthCheckInterval =
+        gInternalReduceAccumulatedValueDepthCheckInterval.load();
 
     template <typename H>
     friend class ExpressionHashVisitor;
@@ -3770,6 +3777,30 @@ public:
 
     ExpressionType(ExpressionContext* const expCtx, ExpressionVector&& children)
         : ExpressionFixedArity<ExpressionType, 1>(expCtx, std::move(children)) {
+        expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+    }
+
+    Value evaluate(const Document& root, Variables* variables) const final;
+    const char* getOpName() const final;
+
+    void acceptVisitor(ExpressionMutableVisitor* visitor) final {
+        return visitor->visit(this);
+    }
+
+    void acceptVisitor(ExpressionConstVisitor* visitor) const final {
+        return visitor->visit(this);
+    }
+};
+
+class ExpressionSubtype final : public ExpressionFixedArity<ExpressionSubtype, 1> {
+public:
+    explicit ExpressionSubtype(ExpressionContext* const expCtx)
+        : ExpressionFixedArity<ExpressionSubtype, 1>(expCtx) {
+        expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
+    }
+
+    ExpressionSubtype(ExpressionContext* const expCtx, ExpressionVector&& children)
+        : ExpressionFixedArity<ExpressionSubtype, 1>(expCtx, std::move(children)) {
         expCtx->setSbeCompatibility(SbeCompatibility::notCompatible);
     }
 

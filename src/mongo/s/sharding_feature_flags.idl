@@ -38,12 +38,6 @@ feature_flags:
         default: true
         version: 6.3
         fcv_gated: true
-    # TODO (SERVER-73632): Remove once 9.0 becomes last LTS.
-    featureFlagRouterPort:
-        description: "Feature flag to open the router port."
-        cpp_varname: feature_flags::gRouterPort
-        default: false
-        fcv_gated: false
     # TODO (SERVER-88107): Remove once 8.0 becomes last LTS.
     featureFlagMultiServiceLogAndFTDCFormat:
         description: "Feature flag to enable multi-service format of the log and FTDC data files."
@@ -227,7 +221,7 @@ feature_flags:
         cpp_varname: feature_flags::gUseTwoStepRSToShardPromotion
         default: false
         fcv_gated: true
-    # TODO (SERVER-106948): remove feature once 9.0 becomes LTS.
+    # TODO (SERVER-107148): remove feature once 9.0 becomes LTS.
     featureFlagDropIndexesDDLCoordinator:
         description: "Enable the sharding DDL coordinator for drop indexes operations"
         cpp_varname: feature_flags::gFeatureFlagDropIndexesDDLCoordinator
@@ -236,5 +230,11 @@ feature_flags:
     featureFlagEnableReplicasetTransitionToCSRS:
         description: "Enable the transitioning from a replica set to a sharded cluster with an embedded config server"
         cpp_varname: feature_flags::gFeatureFlagEnableReplicasetTransitionToCSRS
+        default: false
+        fcv_gated: true
+    # TODO (SERVER-109004): remove feature flag once 9.0 becomes last LTS.
+    featureFlagPreventDirectShardDDLsDuringPromotion:
+        description: "Enable the prevention of direct shard connection DDL operations during addShard"
+        cpp_varname: feature_flags::gFeatureFlagPreventDirectShardDDLsDuringPromotion
         default: false
         fcv_gated: true

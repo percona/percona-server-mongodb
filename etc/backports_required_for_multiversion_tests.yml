@@ -21,6 +21,8 @@
 #
 last-continuous:
   all:
+    - test_file: jstests/core/index/elemmatch_index.js
+      ticket: SERVER-108945
     - test_file: jstests/replsets/malformed_heartbeat_request.js
       ticket: SERVER-104563
     - test_file: jstests/core/query/query_settings/query_settings_strict_api.js
@@ -476,9 +478,13 @@ last-continuous:
       ticket: SERVER-95570
     - test_file: jstests/core/timeseries/query/timeseries_hybrid_search_disallowed.js
       ticket: SERVER-82020
+    - test_file: jstests/aggregation/expressions/reduce_overflow.js
+      ticket: SERVER-102364
   suites: null
 last-lts:
   all:
+    - test_file: jstests/core/index/elemmatch_index.js
+      ticket: SERVER-108945
     - test_file: jstests/replsets/malformed_heartbeat_request.js
       ticket: SERVER-104563
     - test_file: jstests/core/query/query_settings/query_settings_strict_api.js
@@ -1007,4 +1013,6 @@ last-lts:
       ticket: SERVER-108341
     - test_file: jstests/concurrency/fsm_workloads/query/remove/update_and_batched_delete.js
       ticket: SERVER-95570
+    - test_file: jstests/aggregation/expressions/reduce_overflow.js
+      ticket: SERVER-102364
   suites: null

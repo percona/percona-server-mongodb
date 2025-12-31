@@ -159,22 +159,26 @@ let coll1 = db["coll1"];
 
         if (testCase === "killOp") {
             let configPrimary = st.configRS.getPrimary();
-            let removeShardOpId = configPrimary.getDB("admin")
-                                      .aggregate([
-                                          {$currentOp: {allUsers: true}},
-                                          {$match: {"command._configsvrRemoveShard": shardToRemove}}
-                                      ])
-                                      .toArray()[0]
-                                      .opid;
+            let removeShardOpId =
+                configPrimary.getDB("admin")
+                    .aggregate([
+                        {$currentOp: {allUsers: true}},
+                        {
+                            $match: {
+                                $or: [
+                                    {"command._configsvrRemoveShard": shardToRemove},
+                                    {"command._configsvrCommitShardRemoval": shardToRemove}
+                                ]
+                            }
+                        }
+                    ])
+                    .toArray()[0]
+                    .opid;
             assert.commandWorked(configPrimary.getDB("admin").killOp(removeShardOpId));
         } else if (testCase === "stopServer") {
             // Restart the configsvr.
             st.stopAllConfigServers({} /* opts */, true /* forRestart */);
             st.restartAllConfigServers();
-            // Take again references to db and coll1, since in embedded router suites they may be
-            // invalid after restarting the configsvr.
-            db = st.s.getDB(dbName);
-            coll1 = db["coll1"];
         } else if (testCase === "stepUp") {
             st.configRS.stepUp(st.configRS.getSecondary());
         }

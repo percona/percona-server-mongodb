@@ -280,7 +280,7 @@ buildvariants:
   - name: &al2023-arm64-sep-benchmark al2023-arm64-sep-benchmark
     display_name: "! AL2023.3 arm64 Enterprise (SEP Benchmark)"
     tags: ["required"]
-    cron: "0 1,5,9,13,17,21 * * *"
+    activate: true
     run_on:
       - amazon2023.3-arm64-large
     expansions:
@@ -456,6 +456,7 @@ buildvariants:
       idle_timeout_factor: 1.5
       exec_timeout_factor: 1.5
       test_flags: >-
+        --runAllFeatureFlagTests
         --mongodSetParameters="{internalQueryUnifiedWriteExecutor: true}"
         --mongosSetParameters="{internalQueryUnifiedWriteExecutor: true}"
     # For now just unified write executor suites but tasks will be added as development continues.
@@ -478,33 +479,17 @@ buildvariants:
           - name: archive_dist_test
             variant: *amazon_linux2023_arm64_static_compile_variant_name
 
-  - name: enterprise-amazon-linux2023-arm64-all-feature-flags-with-extensions
+  - <<: *enterprise-amazon-linux2023-arm64-all-feature-flags-template
+    name: enterprise-amazon-linux2023-arm64-all-feature-flags-with-extensions
     display_name: "Amazon Linux 2023 arm64 Enterprise with Extensions (all feature flags)"
     tags: []
     cron: "0 1 * * *" # From the ${project_nightly_cron} parameter.
-    run_on:
-      - amazon2023-arm64-atlas-latest-small
-    stepback: true
-    depends_on:
-      - name: archive_dist_test
-        variant: *amazon_linux2023_arm64_static_compile_variant_name
-      - name: archive_jstestshell
-        variant: *amazon_linux2023_arm64_static_compile_variant_name
-      - name: archive_extensions
-        variant: *amazon_linux2023_arm64_static_compile_variant_name
-      - name: version_gen
-        variant: generate-tasks-for-version
-        # This is added because of EVG-18211.
-        # Without this we are adding extra dependencies on evergreen and it is causing strain
-        omit_generated_tasks: true
-    # - name: generate_buildid_to_debug_symbols_mapping
-    #   variant: amazon-linux2023-arm64-static-compile
     expansions:
       <<: *amazon_linux2023_arm64_all_feature_flags_dynamic_expansions
       test_flags: >-
         --runAllFeatureFlagTests
         --excludeWithAnyTags=incompatible_with_amazon_linux,requires_ldap_pool,requires_external_data_source,incompatible_with_atlas_environment
-        --extensions=${extension_paths}
+        --loadExtensions=${extension_paths}
       extensions_required: true
     tasks:
       - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only !.multiversion

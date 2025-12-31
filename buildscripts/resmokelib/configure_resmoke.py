@@ -180,7 +180,7 @@ def _validate_config(parser: argparse.ArgumentParser):
             parser.error("--shellTlsCertificateKeyFile requires --shellTls")
 
     if not sys.platform.startswith("linux") and _config.EXTENSIONS:
-        parser.error("--extensions is only supported on Linux")
+        parser.error("--loadExtensions is only supported on Linux")
         
     # Ranges through param specs and checks that they are valid parameter declarations.
     for param_type in config_fuzzer_params:
@@ -512,6 +512,8 @@ flags in common: {common_set}
     _config.SHARD_INDEX = int(shard_index) if shard_index is not None else None
     _config.SHARD_COUNT = int(shard_count) if shard_count is not None else None
 
+    _config.HISTORIC_TEST_RUNTIMES = config.pop("historic_test_runtimes")
+
     mongo_version_file = config.pop("mongo_version_file")
     if mongo_version_file is not None:
         _config.MONGO_VERSION_FILE = mongo_version_file
@@ -679,7 +681,6 @@ flags in common: {common_set}
     _config.CONFIG_SHARD = utils.pick_catalog_shard_node(
         config.pop("config_shard"), _config.NUM_SHARDS
     )
-    _config.EMBEDDED_ROUTER = config.pop("embedded_router")
     _config.ORIGIN_SUITE = config.pop("origin_suite")
     _config.CEDAR_REPORT_FILE = config.pop("cedar_report_file")
     _config.RANDOM_SEED = config.pop("seed")

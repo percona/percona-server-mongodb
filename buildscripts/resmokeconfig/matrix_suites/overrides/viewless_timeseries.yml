@@ -165,6 +165,7 @@
         - jstests/noPassthrough/timeseries/ttl/timeseries_expire.js
         - jstests/noPassthrough/timeseries/ttl/timeseries_expires_with_partial_index.js
         - jstests/noPassthrough/timeseries/ttl/timeseries_ttl.js
+        - jstests/noPassthrough/timeseries/updates_deletes/intermediate_data_consistency_check_arbitrary_update.js
         - jstests/noPassthrough/timeseries/updates_deletes/timeseries_delete_one_transaction.js
         - jstests/noPassthrough/timeseries/updates_deletes/timeseries_direct_update.js
         - jstests/noPassthrough/timeseries/updates_deletes/timeseries_multi_update_spill_to_disk.js
@@ -220,7 +221,10 @@
   value:
     selector:
       exclude_files: null
-      roots: []
+      roots:
+        - jstests/replsets/backwards_compatible_timeseries_catalog_options.js
+        - jstests/replsets/secondary_as_sync_source.js
+        - jstests/replsets/timeseries_mixed_schema_bucket_initial_sync.js
 - name: exclude_viewless_timeseries_incompabile_tag
   value:
     exclude_with_any_tags:

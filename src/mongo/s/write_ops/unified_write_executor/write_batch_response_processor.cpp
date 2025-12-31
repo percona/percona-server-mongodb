@@ -157,7 +157,6 @@ void WriteBatchResponseProcessor::noteErrorResponseOnAbort(int opId, const Statu
 Result WriteBatchResponseProcessor::onShardResponse(OperationContext* opCtx,
                                                     RoutingContext& routingCtx,
                                                     const ShardId& shardId,
-
                                                     const ShardResponse& response) {
     const Status& status = response.swResponse.getStatus();
     const auto& ops = response.ops;
@@ -357,31 +356,43 @@ std::vector<WriteOp> WriteBatchResponseProcessor::processOpsNotInReplyItems(
     return toRetry;
 }
 
-WriteCommandResponse WriteBatchResponseProcessor::generateClientResponse() {
-    return _context.visitRequest(OverloadedVisitor{
+WriteCommandResponse WriteBatchResponseProcessor::generateClientResponse(OperationContext* opCtx) {
+    return _cmdRef.visitRequest(OverloadedVisitor{
         [&](const BatchedCommandRequest&) {
             return WriteCommandResponse{generateClientResponseForBatchedCommand()};
         },
         [&](const BulkWriteCommandRequest&) {
-            return WriteCommandResponse{generateClientResponseForBulkWriteCommand()};
+            return WriteCommandResponse{generateClientResponseForBulkWriteCommand(opCtx)};
         }});
 }
 
-BulkWriteCommandReply WriteBatchResponseProcessor::generateClientResponseForBulkWriteCommand() {
+BulkWriteCommandReply WriteBatchResponseProcessor::generateClientResponseForBulkWriteCommand(
+    OperationContext* opCtx) {
+    // Generate the list of reply items that should be returned to the client. For non-verbose bulk
+    // write command requests, we always return an empty list of reply items. This matches the
+    // behavior of ClusterBulkWriteCmd::Invocation::_populateCursorReply().
     std::vector<BulkWriteReplyItem> results;
+
     for (const auto& [id, item] : _results) {
-        results.push_back(item);
-        // Set the Idx to be the one from the original client request.
-        tassert(10347002,
+        if (!_isNonVerbose) {
+            results.push_back(item);
+            // Set the Idx to be the one from the original client request.
+            tassert(
+                10347002,
                 fmt::format(
                     "expected id in reply ({}) to match id of operation from original request ({})",
                     item.getIdx(),
                     id),
                 static_cast<WriteOpId>(item.getIdx()) == id);
+        }
         // TODO SERVER-104123 Handle multi: true case where we have multiple reply items for the
         // same op id from the original client request.
+        _stats.incrementOpCounters(opCtx, _cmdRef.getOp(id));
     }
 
+    // Construct a BulkWriteCommandReply object. We always store the values of the top-level
+    // counters for the command (nInserted, nMatched, etc) into the BulkWriteCommandReply object,
+    // regardless of whether '_isNonVerbose' is true or false.
     auto reply = BulkWriteCommandReply(
         // TODO SERVER-104535 cursor support for UnifiedWriteExec.
         BulkWriteCommandResponseCursor(
@@ -406,6 +417,12 @@ BulkWriteCommandReply WriteBatchResponseProcessor::generateClientResponseForBulk
 BatchedCommandResponse WriteBatchResponseProcessor::generateClientResponseForBatchedCommand() {
     BatchedCommandResponse resp;
     resp.setStatus(Status::OK());
+
+    // For non-verbose batched command requests, we always return an OK response with n=0.
+    // This matches the behavior of BatchWriteOp::buildClientResponse().
+    if (_isNonVerbose) {
+        return resp;
+    }
 
     for (const auto& [id, item] : _results) {
         auto status = item.getStatus();

@@ -246,7 +246,8 @@ feature_flags:
     featureFlagPQSBackfill:
         description: "Enables PQS representative query backfilling"
         cpp_varname: gFeatureFlagPQSBackfill
-        default: false
+        default: true
+        version: 8.3
         fcv_gated: true
 
     featureFlagVectorSimilarityExpressions:
@@ -269,3 +270,9 @@ feature_flags:
         cpp_varname: gFeatureFlagMqlJsEngineGap
         default: false
         fcv_gated: true
+
+    featureFlagExtendedAutoSpilling:
+        description: "Feature flag to enable auto spilling to additional stages"
+        cpp_varname: gFeatureFlagExtendedAutoSpilling
+        default: false
+        fcv_gated: false

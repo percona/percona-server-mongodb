@@ -69,7 +69,6 @@ struct ServerGlobalParams {
 
     int port = DefaultDBPort;  // --port
     enum {
-        RouterPort = 27016,
         DefaultDBPort = 27017,
         ShardServerPort = 27018,
         ConfigServerPort = 27019,
@@ -96,7 +95,6 @@ struct ServerGlobalParams {
     MaintenanceMode maintenanceMode;                   // --maintenanceMode
     bool replicaSetConfigShardMaintenanceMode{false};  // --replicaSetConfigShardMaintenanceMode
 
-    boost::optional<int> routerPort;      // --routerPort
     boost::optional<int> proxyPort;       // --proxyPort
     bool doAutoBootstrapSharding{false};  // This is derived from other settings during startup.
 

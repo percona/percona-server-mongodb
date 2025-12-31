@@ -102,7 +102,6 @@
 #include "mongo/s/config_server_catalog_cache_loader_impl.h"
 #include "mongo/s/database_version.h"
 #include "mongo/s/grid.h"
-#include "mongo/s/router_uptime_reporter.h"
 #include "mongo/s/routing_information_cache.h"
 #include "mongo/s/shard_version.h"
 #include "mongo/s/sharding_feature_flags_gen.h"
@@ -759,8 +758,6 @@ void ShardingInitializationMongoD::_initializeShardingEnvironmentOnShardServer(
         }
     }
 
-    RouterUptimeReporter::get(service).startPeriodicThread(service);
-
     // Determine primary/secondary/standalone state in order to properly initialize sharding
     // components.
     const auto replCoord = repl::ReplicationCoordinator::get(opCtx);
@@ -848,11 +845,15 @@ boost::optional<ShardIdentity> ShardingInitializationMongoD::getShardIdentityDoc
     // document is inserted)
     BSONObj shardIdentityBSON;
     const bool foundShardIdentity = [&] {
-        AutoGetCollection autoColl(opCtx, NamespaceString::kServerConfigurationNamespace, MODE_IS);
-        return Helpers::findOne(opCtx,
-                                autoColl.getCollection(),
-                                BSON("_id" << ShardIdentityType::IdName),
-                                shardIdentityBSON);
+        auto coll = acquireCollection(
+            opCtx,
+            CollectionAcquisitionRequest(NamespaceString::kServerConfigurationNamespace,
+                                         PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
+                                         repl::ReadConcernArgs::get(opCtx),
+                                         AcquisitionPrerequisites::kRead),
+            LockMode::MODE_IS);
+        return Helpers::findOne(
+            opCtx, coll, BSON("_id" << ShardIdentityType::IdName), shardIdentityBSON);
     }();
 
     if (serverGlobalParams.clusterRole.has(ClusterRole::ShardServer)) {

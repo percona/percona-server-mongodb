@@ -34,6 +34,7 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
 #include "mongo/db/server_options.h"
+#include "mongo/idl/server_parameter_test_util.h"
 #include "mongo/platform/decimal128.h"
 #include "mongo/util/time_support.h"
 
@@ -105,7 +106,30 @@ std::vector<double> generateNormal(size_t n) {
     return inputs;
 }
 
+void configureLogging(bool disable) {
+    auto& lv2Manager = logv2::LogManager::global();
+    logv2::LogDomainGlobal::ConfigurationOptions lv2Config;
+    if (disable)
+        lv2Config.makeDisabled();
+    uassertStatusOK(lv2Manager.getGlobalDomainInternal().configure(lv2Config));
+}
+
 }  // namespace
+
+void ExpressionBenchmarkFixture::SetUp(benchmark::State& state) {
+    QueryFCVEnvironmentForTest::setUp();
+    // Temporarily disable logging because we don't want logs from service context
+    // initialization to clutter the benchmark results table.
+    configureLogging(true);
+    ON_BLOCK_EXIT([&] { configureLogging(false); });
+    _scopedGlobalServiceContext = std::make_unique<QueryTestScopedGlobalServiceContext>();
+    ScriptEngine::setup(ExecutionEnvironment::Server);
+}
+
+void ExpressionBenchmarkFixture::TearDown(benchmark::State& state) {
+    ScriptEngine::dropScopeCache();
+    _scopedGlobalServiceContext = nullptr;
+}
 
 void ExpressionBenchmarkFixture::benchmarkExpression(BSONObj expressionSpec,
                                                      benchmark::State& state) {
@@ -1906,6 +1930,198 @@ void ExpressionBenchmarkFixture::benchmarkAddWithDottedFieldPath(benchmark::Stat
                             1,
                             {{"lhs"_sd, BSON("a" << BSON("b" << BSON("c" << BSON("d" << 10))))},
                              {"rhs"_sd, BSON("a" << BSON("b" << BSON("c" << BSON("d" << 20))))}}));
+}
+
+/**
+ * Tests performance of $reduce that sums an array.
+ */
+void ExpressionBenchmarkFixture::benchmarkReduceSum(benchmark::State& state) {
+    const size_t numEntries = 16 * 1000;
+    BSONArray entries = rangeBSONArray(0, numEntries);
+
+    BSONObj constantDepthExpr = BSON("$sum" << BSON_ARRAY("$$value" << 1));
+
+    BSONObj reduceExpression =
+        BSON("$reduce" << BSON("input" << "$entries"
+                                       << "initialValue" << 0 << "in" << constantDepthExpr));
+
+    benchmarkExpression(
+        reduceExpression, state, std::vector<Document>(1, {{"entries"_sd, entries}}));
+}
+
+/**
+ * Tests performance of $reduce that's equivalent to the identity function (uses $concatArrays
+ * to build the same array again).
+ */
+void ExpressionBenchmarkFixture::benchmarkReduceConcatArrays(benchmark::State& state) {
+    const size_t numEntries = 1000;
+    BSONArray entries = rangeBSONArray(0, numEntries);
+
+    BSONArray emptyArray = rangeBSONArray(0, 0);
+
+    BSONObj reduceExpression =
+        BSON("$reduce" << BSON("input" << "$entries"
+                                       << "initialValue" << emptyArray << "in"
+                                       << BSON("$concatArrays"
+                                               << BSON_ARRAY("$$value" << BSON_ARRAY("$$this")))));
+
+    benchmarkExpression(
+        reduceExpression, state, std::vector<Document>(1, {{"entries"_sd, entries}}));
+}
+
+/**
+ * Tests performance of $reduce that transforms an array into a deeply nested document.
+ *
+ *     "$reduce": {
+ *         "input": "$entries",
+ *         "initialValue": [],
+ *         "in": {"a": {"a" : {"a": ... {"a": {}}}}}
+ *     }
+ *
+ * The nestedness of the "in" expression is configured by 'perIterationNestingDepth'.
+ */
+void ExpressionBenchmarkFixture::benchmarkReduceCreatingNestedObject(
+    benchmark::State& state, size_t perIterationNestingDepth) {
+    const size_t numEntries = 16 * 8 / perIterationNestingDepth;
+    BSONArray entries = rangeBSONArray(0, numEntries);
+    BSONObj recursiveObject = BSON("a" << "$$value");
+    for (size_t depth = 1; depth < perIterationNestingDepth; depth++) {
+        recursiveObject = BSON("a" << recursiveObject);
+    }
+    BSONArray emptyArray = rangeBSONArray(0, 0);
+    BSONObj reduceExpression =
+        BSON("$reduce" << BSON("input" << "$entries"
+                                       << "initialValue" << emptyArray << "in" << recursiveObject));
+    benchmarkExpression(
+        reduceExpression, state, std::vector<Document>(1, {{"entries"_sd, entries}}));
+}
+
+void ExpressionBenchmarkFixture::benchmarkReduceCreatingNestedObject1(benchmark::State& state) {
+    benchmarkReduceCreatingNestedObject(state, 1);
+}
+void ExpressionBenchmarkFixture::benchmarkReduceCreatingNestedObject2(benchmark::State& state) {
+    benchmarkReduceCreatingNestedObject(state, 2);
+}
+void ExpressionBenchmarkFixture::benchmarkReduceCreatingNestedObject4(benchmark::State& state) {
+    benchmarkReduceCreatingNestedObject(state, 4);
+}
+void ExpressionBenchmarkFixture::benchmarkReduceCreatingNestedObject8(benchmark::State& state) {
+    benchmarkReduceCreatingNestedObject(state, 8);
+}
+
+/**
+ * Tests performance of aggregation expression {"$replaceOne": {input: "$input", find: /<a.+>/,
+ * replacement: "<a>"}]} against document {"_id": ObjectId(...), "input": _kLongHTMLString}
+ */
+void ExpressionBenchmarkFixture::benchmarkMQLReplaceOneRegex(benchmark::State& state) {
+    RAIIServerParameterControllerForTest featureFlagController("featureFlagMqlJsEngineGap", true);
+    benchmarkExpression(
+        BSON("$replaceOne" << BSON("input" << "$input" << "find" << BSONRegEx("<a.+>")
+                                           << "replacement" << "<a>")),
+        state,
+        std::vector<Document>(1, {{"input"_sd, _kLongHTMLString}}));
+}
+
+void ExpressionBenchmarkFixture::benchmarkJSReplaceOneRegex(benchmark::State& state) {
+    benchmarkExpression(
+        BSON("$function" << BSON("body" << "function(input) {return input.replace(/<a.+>/, '<a>');}"
+                                        << "args" << BSON_ARRAY("$input") << "lang" << "js")),
+        state,
+        std::vector<Document>(1, {{"input"_sd, _kLongHTMLString}}));
+}
+
+/**
+ * Tests performance of aggregation expression {"$replaceAll": {input: "$input", find: /<a.+>/,
+ * replacement: "<a>"}]} against document {"_id": ObjectId(...), "input": _kLongHTMLString}
+ */
+void ExpressionBenchmarkFixture::benchmarkMQLReplaceAllRegex(benchmark::State& state) {
+    RAIIServerParameterControllerForTest featureFlagController("featureFlagMqlJsEngineGap", true);
+    benchmarkExpression(
+        BSON("$replaceAll" << BSON("input" << "$input" << "find" << BSONRegEx("<a.+>")
+                                           << "replacement" << "<a>")),
+        state,
+        std::vector<Document>(1, {{"input"_sd, _kLongHTMLString}}));
+}
+
+void ExpressionBenchmarkFixture::benchmarkJSReplaceAllRegex(benchmark::State& state) {
+    benchmarkExpression(
+        BSON("$function" << BSON("body"
+                                 << "function(input) {return input.replace(/<a.+>/g, '<a>');}"
+                                 << "args" << BSON_ARRAY("$input") << "lang" << "js")),
+        state,
+        std::vector<Document>(1, {{"input"_sd, _kLongHTMLString}}));
+}
+
+/**
+ * Tests performance of aggregation expression {"split": ["$input", /<a.+>/]} against document
+ * {"_id": ObjectId(...), "input": _kLongHTMLString}
+ */
+void ExpressionBenchmarkFixture::benchmarkMQLSplitRegex(benchmark::State& state) {
+    RAIIServerParameterControllerForTest featureFlagController("featureFlagMqlJsEngineGap", true);
+    benchmarkExpression(BSON("$split" << BSON_ARRAY("$input" << BSONRegEx("<a.+>"))),
+                        state,
+                        std::vector<Document>(1, {{"input"_sd, _kLongHTMLString}}));
+}
+
+void ExpressionBenchmarkFixture::benchmarkJSSplitRegex(benchmark::State& state) {
+    benchmarkExpression(
+        BSON("$function" << BSON("body" << "function(input) {return input.split(/<a.+>/);}"
+                                        << "args" << BSON_ARRAY("$input") << "lang" << "js")),
+        state,
+        std::vector<Document>(1, {{"input"_sd, _kLongHTMLString}}));
+}
+
+/**
+ * Tests performance of aggregation expression {"$convert": {input: "$input", to: "string",
+ * base: <base>}]} against document {"_id": ObjectId(...), "input": <input>}
+ */
+void ExpressionBenchmarkFixture::benchmarkMQLConvertToString(int32_t base,
+                                                             int32_t input,
+                                                             benchmark::State& state) {
+    RAIIServerParameterControllerForTest featureFlagController("featureFlagMqlJsEngineGap", true);
+    benchmarkExpression(BSON("$convert" << BSON("input" << "$input" << "to"
+                                                        << "string"
+                                                        << "base" << base)),
+                        state,
+                        std::vector<Document>(1, {{"input"_sd, input}}));
+}
+
+/**
+ * Tests performance of aggregation expression {"$convert": {input: "$input", to: "int",
+ * base: <base>}]} against document {"_id": ObjectId(...), "input": <input>}
+ */
+void ExpressionBenchmarkFixture::benchmarkMQLConvertToInt(int32_t base,
+                                                          StringData input,
+                                                          benchmark::State& state) {
+    RAIIServerParameterControllerForTest featureFlagController("featureFlagMqlJsEngineGap", true);
+    benchmarkExpression(
+        BSON("$convert" << BSON("input" << "$input" << "to" << "int" << "base" << base)),
+        state,
+        std::vector<Document>(1, {{"input"_sd, input}}));
+}
+
+void ExpressionBenchmarkFixture::benchmarkJSConvertToString(int32_t base,
+                                                            int32_t input,
+                                                            benchmark::State& state) {
+    benchmarkExpression(
+        BSON("$function" << BSON("body" << "function(input) {return input.toString(" +
+                                     std::to_string(base) + ");}"
+                                        << "args" << BSON_ARRAY("$input") << "lang"
+                                        << "js")),
+        state,
+        std::vector<Document>(1, {{"input"_sd, input}}));
+}
+
+void ExpressionBenchmarkFixture::benchmarkJSConvertToInt(int32_t base,
+                                                         StringData input,
+                                                         benchmark::State& state) {
+    benchmarkExpression(
+        BSON("$function" << BSON("body" << "function(input) {return parseInt(input, " +
+                                     std::to_string(base) + ");}"
+                                        << "args" << BSON_ARRAY("$input") << "lang"
+                                        << "js")),
+        state,
+        std::vector<Document>(1, {{"input"_sd, input}}));
 }
 
 }  // namespace mongo

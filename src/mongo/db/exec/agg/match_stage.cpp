@@ -35,8 +35,8 @@
 namespace mongo {
 
 boost::intrusive_ptr<exec::agg::Stage> documentSourceMatchToStageFn(
-    const boost::intrusive_ptr<const DocumentSource>& documentSource) {
-    auto matchDS = boost::dynamic_pointer_cast<const DocumentSourceMatch>(documentSource);
+    const boost::intrusive_ptr<DocumentSource>& documentSource) {
+    auto matchDS = boost::dynamic_pointer_cast<DocumentSourceMatch>(documentSource);
 
     tassert(10422700, "expected 'DocumentSourceMatch' type", matchDS);
 

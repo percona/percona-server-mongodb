@@ -56,6 +56,7 @@
 #include "mongo/db/commands/query_cmd/aggregation_execution_state.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/db_raii.h"
+#include "mongo/db/exec/agg/exchange_stage.h"
 #include "mongo/db/exec/disk_use_options_gen.h"
 #include "mongo/db/fle_crud.h"
 #include "mongo/db/logical_time.h"
@@ -587,8 +588,8 @@ std::vector<std::unique_ptr<Pipeline>> createExchangePipelinesIfNeeded(
         // opCtx for the ExpressionContextBuilder call below, store the pointer ahead of the
         // Exchange() call.
         auto* opCtx = aggExState.getOpCtx();
-        auto exchange = make_intrusive<Exchange>(aggExState.getRequest().getExchange().value(),
-                                                 std::move(pipeline));
+        auto exchange = make_intrusive<exec::agg::Exchange>(
+            aggExState.getRequest().getExchange().value(), std::move(pipeline));
 
         for (size_t idx = 0; idx < exchange->getConsumers(); ++idx) {
             // For every new pipeline we have create a new ExpressionContext as the context
@@ -612,6 +613,7 @@ std::vector<std::unique_ptr<Pipeline>> createExchangePipelinesIfNeeded(
                          .build();
             // Create a new pipeline for the consumer consisting of a single
             // DocumentSourceExchange.
+            const auto& resourceYielder = ResourceYielderFactory::get(*opCtx->getService());
             auto consumer = make_intrusive<DocumentSourceExchange>(
                 expCtx,
                 exchange,
@@ -619,7 +621,7 @@ std::vector<std::unique_ptr<Pipeline>> createExchangePipelinesIfNeeded(
                 // Assumes this is only called from the 'aggregate' or 'getMore' commands.  The code
                 // which relies on this parameter does not distinguish/care about the difference so
                 // we simply always pass 'aggregate'.
-                ResourceYielderFactory::get(*opCtx->getService()).make(opCtx, "aggregate"_sd));
+                resourceYielder ? resourceYielder->make(opCtx, "aggregate"_sd) : nullptr);
             pipelines.emplace_back(Pipeline::create({consumer}, expCtx));
         }
     } else {
@@ -995,6 +997,11 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
         pipeline =
             aggExState.handleViewHelper(expCtx, std::move(pipeline), aggCatalogState.getUUID());
         expCtx->stopExpressionCounters();
+    }
+
+    // Validate the entire pipeline with the view definition.
+    if (aggCatalogState.lockAcquired()) {
+        pipeline->validateWithCollectionMetadata(aggCatalogState.getMainCollectionOrView());
     }
 
     expCtx->initializeReferencedSystemVariables();

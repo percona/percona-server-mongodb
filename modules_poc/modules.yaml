@@ -440,7 +440,7 @@ ddl:
     - src/mongo/db/s/sharding_recovery_service*
 
     # placement history
-    - src/mongo/db/s/placement_history_bm.cpp
+    - src/mongo/db/s/*placement_history*
     - src/mongo/db/s/config/*historical_placement*
     - src/mongo/db/s/config/*placement_history*
     - src/mongo/s/commands/*placement_history*
@@ -679,6 +679,9 @@ routing_and_topology:
     - src/mongo/s/mongos_topology_coordinator*
     - src/mongo/s/read_write_concern_defaults_cache_lookup_mongos*
     - src/mongo/s/router_uptime_reporter*
+
+    # change streams
+    - src/mongo/s/change_streams*
 
 sharding_clients:
   meta:

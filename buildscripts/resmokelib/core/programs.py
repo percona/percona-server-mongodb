@@ -120,7 +120,7 @@ def mongod_program(
         mongod_options["tlsCAFile"] = config.TLS_CA_FILE
 
     if config.EXTENSIONS:
-        mongod_options["extensions"] = config.EXTENSIONS
+        mongod_options["loadExtensions"] = config.EXTENSIONS
 
     if "port" not in mongod_options:
         mongod_options["port"] = network.PortAllocator.next_fixture_port(job_num)
@@ -198,7 +198,7 @@ def mongos_program(
         mongos_options["tlsCAFile"] = config.TLS_CA_FILE
 
     if config.EXTENSIONS:
-        mongos_options["extensions"] = config.EXTENSIONS
+        mongos_options["loadExtensions"] = config.EXTENSIONS
 
     if "port" not in mongos_options:
         mongos_options["port"] = network.PortAllocator.next_fixture_port(job_num)
@@ -410,9 +410,6 @@ def mongo_shell_program(
 
     if "configShard" not in test_data and config.CONFIG_SHARD is not None:
         test_data["configShard"] = True
-
-    if "embeddedRouter" not in test_data and config.EMBEDDED_ROUTER is not None:
-        test_data["embeddedRouter"] = True
 
     # There's a periodic background thread that checks for and aborts expired transactions.
     # "transactionLifetimeLimitSeconds" specifies for how long a transaction can run before expiring

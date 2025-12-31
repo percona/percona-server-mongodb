@@ -38,18 +38,24 @@ std::vector<Value> mergeExplains(const Pipeline& p1,
                                  const SerializationOptions& opts) {
     auto e1 = p1.writeExplainOps(opts);
     auto e2 = p2.writeExplainOps(opts);
-    tassert(10422601, "pipeline sizes are not equal", e1.size() == e2.size());
+    return mergeExplains(e1, e2);
+}
+
+std::vector<Value> mergeExplains(const std::vector<Value>& lhs, const std::vector<Value>& rhs) {
+    tassert(10422601, "pipeline sizes are not equal", lhs.size() == rhs.size());
 
     std::vector<Value> result;
-    result.reserve(e1.size());
+    result.reserve(lhs.size());
 
-    for (size_t i = 0; i < e1.size(); i++) {
-        tassert(
-            10422602, "expected explain input of type object", e1[i].getType() == BSONType::object);
-        tassert(
-            10422603, "expected explain input of type object", e2[i].getType() == BSONType::object);
-        Document d1 = e1[i].getDocument();
-        Document d2 = e2[i].getDocument();
+    for (size_t i = 0; i < lhs.size(); i++) {
+        tassert(10422602,
+                "expected explain input of type object",
+                lhs[i].getType() == BSONType::object);
+        tassert(10422603,
+                "expected explain input of type object",
+                rhs[i].getType() == BSONType::object);
+        Document d1 = lhs[i].getDocument();
+        Document d2 = rhs[i].getDocument();
         result.emplace_back(Document::merge(d1, d2));
     }
 

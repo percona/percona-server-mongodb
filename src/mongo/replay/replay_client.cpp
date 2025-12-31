@@ -43,12 +43,12 @@
 
 namespace mongo {
 /**
- * Helper class for for applying a callable to a container of N elements,
+ * Helper class for applying a callable to a container of N elements,
  * spawning a new thread for each element.
  *
  * e.g.,
  *     std::vector<Task> vec{...};
- *     Async::apply(vec, [](token stop_token, auto value) {
+ *     ParallelExecutor::apply(vec, [](token stop_token, auto value) {
  *          // Do something on a separate thread per task.
  *     });
  *
@@ -58,14 +58,14 @@ namespace mongo {
  * will be re-thrown.
  *
  */
-class Async {
+class ParallelExecutor {
 public:
-    Async() = default;
-    Async(const Async&) = delete;
-    Async(Async&&) = delete;
+    ParallelExecutor() = default;
+    ParallelExecutor(const ParallelExecutor&) = delete;
+    ParallelExecutor(ParallelExecutor&&) = delete;
 
-    Async& operator=(const Async&) = delete;
-    Async& operator=(Async&&) = delete;
+    ParallelExecutor& operator=(const ParallelExecutor&) = delete;
+    ParallelExecutor& operator=(ParallelExecutor&&) = delete;
 
     /**
      * Apply a callable to each element of a container in a separate thread, passing the provided
@@ -79,7 +79,7 @@ public:
         std::vector<stdx::thread> instances;
         instances.reserve(taskCount);
 
-        Async state;
+        ParallelExecutor state;
 
         for (auto&& task : container) {
             state.started();
@@ -157,6 +157,7 @@ private:
     std::exception_ptr exception = nullptr;
 };
 
+// NOLINTNEXTLINE needs audit
 static std::unordered_set<std::string> forbiddenKeywords{
     "legacy", "cursor", "endSessions", "ok", "isWritablePrimary", "n"};
 
@@ -211,7 +212,7 @@ void recordingDispatcher(mongo::stop_token stop, const ReplayConfig& replayConfi
 }
 
 void ReplayClient::replayRecording(const ReplayConfigs& configs) {
-    Async::apply(configs, recordingDispatcher);
+    ParallelExecutor::apply(configs, recordingDispatcher);
 }
 
 void ReplayClient::replayRecording(const std::string& recordingFileName, const std::string& uri) {

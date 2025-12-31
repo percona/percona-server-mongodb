@@ -29,6 +29,7 @@
 
 #include "mongo/s/write_ops/unified_write_executor/unified_write_executor.h"
 
+#include "mongo/s/write_ops/unified_write_executor/stats.h"
 #include "mongo/s/write_ops/unified_write_executor/write_batch_executor.h"
 #include "mongo/s/write_ops/unified_write_executor/write_batch_response_processor.h"
 #include "mongo/s/write_ops/unified_write_executor/write_batch_scheduler.h"
@@ -38,10 +39,33 @@
 namespace mongo {
 namespace unified_write_executor {
 
+namespace {
+bool isNonVerboseWriteCommand(OperationContext* opCtx, WriteCommandRef cmdRef) {
+    if (!opCtx) {
+        return false;
+    }
+
+    // When determining if a write command is non-verbose, we follow slightly different rules
+    // for batch write commands vs. bulk write commands. For batch write commands, we match the
+    // existing behavior of BatchWriteOp::buildClientResponse(). For bulk write commands, we
+    // match the existing behavior of ClusterBulkWriteCmd::Invocation::_populateCursorReply().
+    const auto& wc = opCtx->getWriteConcern();
+    return cmdRef.visitRequest(OverloadedVisitor{
+        [&](const BatchedCommandRequest&) { return !wc.requiresWriteAcknowledgement(); },
+        [&](const BulkWriteCommandRequest&) {
+            return !wc.requiresWriteAcknowledgement() &&
+                (wc.syncMode == WriteConcernOptions::SyncMode::NONE ||
+                 wc.syncMode == WriteConcernOptions::SyncMode::UNSET);
+        }});
+}
+}  // namespace
+
 WriteCommandResponse executeWriteCommand(OperationContext* opCtx, WriteCommandRef cmdRef) {
-    WriteOpContext context(cmdRef);
+    const bool isNonVerbose = isNonVerboseWriteCommand(opCtx, cmdRef);
+
+    Stats stats;
     WriteOpProducer producer(cmdRef);
-    WriteOpAnalyzer analyzer;
+    WriteOpAnalyzerImpl analyzer = WriteOpAnalyzerImpl(stats);
 
     std::set<NamespaceString> nssSet = cmdRef.getNssSet();
     const bool ordered = cmdRef.getOrdered();
@@ -53,13 +77,13 @@ WriteCommandResponse executeWriteCommand(OperationContext* opCtx, WriteCommandRe
         batcher = std::make_unique<UnorderedWriteOpBatcher>(producer, analyzer);
     }
 
-    WriteBatchExecutor executor(context);
-    WriteBatchResponseProcessor processor(context);
+    WriteBatchExecutor executor(cmdRef);
+    WriteBatchResponseProcessor processor(cmdRef, stats, isNonVerbose);
     WriteBatchScheduler scheduler(*batcher, executor, processor);
 
     scheduler.run(opCtx, nssSet);
-
-    return processor.generateClientResponse();
+    stats.updateMetrics(opCtx);
+    return processor.generateClientResponse(opCtx);
 }
 
 BatchedCommandResponse write(OperationContext* opCtx, const BatchedCommandRequest& request) {

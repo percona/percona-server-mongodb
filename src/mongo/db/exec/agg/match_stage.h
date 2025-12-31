@@ -36,7 +36,7 @@ namespace mongo {
 namespace exec {
 namespace agg {
 
-class MatchStage final : public mongo::exec::agg::Stage {
+class MatchStage final : public Stage {
 
 public:
     MatchStage(StringData stageName,

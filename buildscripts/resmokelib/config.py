@@ -58,7 +58,6 @@ DEFAULTS = {
     "archive_limit_tests": 10,
     "base_port": 20000,
     "backup_on_restart_dir": None,
-    "embedded_router": None,
     "config_shard": None,
     "continue_on_failure": False,
     "dbpath_prefix": None,
@@ -116,6 +115,7 @@ DEFAULTS = {
     "shard_count": None,
     "shard_index": None,
     "shell_conn_string": None,
+    "historic_test_runtimes": None,
     "shell_port": None,
     "shuffle": None,
     "stagger_jobs": None,
@@ -361,9 +361,6 @@ DRY_RUN = None
 
 # If set, specifies which node is the config shard. Can also be set to 'any'.
 CONFIG_SHARD = None
-
-# If set, use mongod's embedded router functionality for all sharding tests instead of mongos.
-EMBEDDED_ROUTER = None
 
 # if set, enables enterprise jstest to automatically be included
 ENABLE_ENTERPRISE_TESTS = None
@@ -701,6 +698,9 @@ SHARD_COUNT = None
 
 # The shard index of the shard to run.
 SHARD_INDEX = None
+
+# JSON containing historic test runtimes
+HISTORIC_TEST_RUNTIMES = None
 
 ##
 # Internally used configuration options that aren't exposed to the user

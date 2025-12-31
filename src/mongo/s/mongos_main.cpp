@@ -468,7 +468,7 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
             opCtx->setIsExecutingShutdown();
         }
 
-        if (serviceContext) {
+        {
             SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
                                            TimedSectionId::killAllOperations,
                                            &shutdownTimeElapsedBuilder);
@@ -767,7 +767,6 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
             serviceContext,
             useEgressGRPC,
             loadBalancerPort,
-            boost::none,
             std::make_unique<ClientTransportObserverMongos>());
         if (auto res = tl->setup(); !res.isOK()) {
             LOGV2_ERROR(22856, "Error setting up transport layer", "error"_attr = res);

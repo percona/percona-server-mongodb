@@ -752,6 +752,24 @@ TEST_F(OperationDeadlineTests, DuringWaitMaxTimeExpirationDominatesUntilExpirati
     ASSERT_TRUE(opCtx->getCancellationToken().isCanceled());
 }
 
+TEST_F(OperationDeadlineTests, MaxTimeRestoredAfterDeadlineGuard) {
+    auto tickSource = checked_cast<TickSourceMock<>*>(getServiceContext()->getTickSource());
+    auto opCtx = client->makeOperationContext();
+    auto originDeadline = mockClock->now() + Seconds{1};
+    opCtx->setDeadlineByDate(originDeadline, ErrorCodes::MaxTimeMSExpired);
+
+    ASSERT_EQ(Seconds{1}, opCtx->getRemainingMaxTimeMicros());
+
+    auto newDeadline = mockClock->now() + Milliseconds{500};
+    opCtx->runWithDeadline(newDeadline, ErrorCodes::MaxTimeMSExpired, [&]() -> void {
+        tickSource->advance(Milliseconds(300));
+        mockClock->advance(Milliseconds(300));
+    });
+
+    ASSERT_EQ(originDeadline, opCtx->getDeadline());
+    ASSERT_EQ(Milliseconds{700}, opCtx->getRemainingMaxTimeMicros());
+}
+
 class ThreadedOperationDeadlineTests : public OperationDeadlineTests {
 public:
     using CvPred = std::function<bool()>;
@@ -770,7 +788,7 @@ public:
                                  boost::optional<Date_t> maxTime,
                                  WaitFn waitFn) {
             auto barrier = std::make_shared<unittest::Barrier>(2);
-            task = stdx::packaged_task<bool()>([=, this] {
+            task = std::packaged_task<bool()>([=, this] {  // NOLINT
                 if (maxTime)
                     opCtx->setDeadlineByDate(*maxTime, ErrorCodes::ExceededTimeLimit);
                 stdx::unique_lock<stdx::mutex> lk(mutex);
@@ -795,7 +813,7 @@ public:
         stdx::mutex mutex;
         stdx::condition_variable cv;
         bool isSignaled = false;
-        stdx::packaged_task<bool()> task;
+        std::packaged_task<bool()> task;  // NOLINT
         JoinThread waiter;
     };
 

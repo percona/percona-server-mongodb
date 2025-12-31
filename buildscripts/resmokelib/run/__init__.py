@@ -1825,6 +1825,11 @@ class RunPlugin(PluginInterface):
         parser.add_argument("--shardCount", dest="shard_count", help="The total shard count.")
 
         parser.add_argument(
+            "--historicTestRuntimes",
+            dest="historic_test_runtimes",
+            help='JSON containing historic test runtime, like [{"test_name": test.js, "avg_duration_pass": 1.4}]',
+        )
+        parser.add_argument(
             "--mongoVersionFile",
             dest="mongo_version_file",
             help="A YAML file containing the current `mongo_version`",
@@ -2065,14 +2070,7 @@ class RunPlugin(PluginInterface):
         )
 
         mongodb_server_options.add_argument(
-            "--embeddedRouter",
-            dest="embedded_router",
-            metavar="CONFIG",
-            help="If set, uses embedded routers instead of dedicated mongos.",
-        )
-
-        mongodb_server_options.add_argument(
-            "--extensions",
+            "--loadExtensions",
             dest="extensions",
             metavar="EXTENSION1,EXTENSION2",
             help="Comma separated list of extensions to load into the server upon startup.",

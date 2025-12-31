@@ -145,9 +145,9 @@ MONGO_FAIL_POINT_DEFINE(failDowngrading);
 MONGO_FAIL_POINT_DEFINE(hangWhileDowngrading);
 MONGO_FAIL_POINT_DEFINE(hangBeforeUpdatingFcvDoc);
 MONGO_FAIL_POINT_DEFINE(failBeforeUpdatingFcvDoc);
-MONGO_FAIL_POINT_DEFINE(failDowngradingDuringIsCleaningServerMetadata);
+MONGO_FAIL_POINT_DEFINE(failTransitionDuringIsCleaningServerMetadata);
 MONGO_FAIL_POINT_DEFINE(hangBeforeTransitioningToDowngraded);
-MONGO_FAIL_POINT_DEFINE(hangDowngradingBeforeIsCleaningServerMetadata);
+MONGO_FAIL_POINT_DEFINE(hangTransitionBeforeIsCleaningServerMetadata);
 MONGO_FAIL_POINT_DEFINE(failAfterReachingTransitioningState);
 MONGO_FAIL_POINT_DEFINE(hangAtSetFCVStart);
 MONGO_FAIL_POINT_DEFINE(failAfterSendingShardsToDowngradingOrUpgrading);
@@ -155,6 +155,7 @@ MONGO_FAIL_POINT_DEFINE(automaticallyCollmodToRecordIdsReplicatedFalse);
 MONGO_FAIL_POINT_DEFINE(setFCVPauseAfterReadingConfigDropPedingDBs);
 MONGO_FAIL_POINT_DEFINE(failDowngradeValidationDueToIncompatibleFeature);
 MONGO_FAIL_POINT_DEFINE(failUpgradeValidationDueToIncompatibleFeature);
+
 
 /**
  * Ensures that only one instance of setFeatureCompatibilityVersion can run at a given time.
@@ -519,6 +520,9 @@ public:
         // TODO SERVER-25778: replace this with the general mechanism for specifying a default
         // writeConcern.
         ON_BLOCK_EXIT([&] {
+            if (isDryRun) {
+                return;
+            }
             WriteConcernResult res;
             auto waitForWCStatus = waitForWriteConcern(
                 opCtx,
@@ -787,18 +791,47 @@ public:
             }
         }
 
-        invariant(serverGlobalParams.featureCompatibility.acquireFCVSnapshot()
-                      .isUpgradingOrDowngrading());
+        const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
+        invariant(fcvSnapshot.isUpgradingOrDowngrading());
         invariant(!request.getPhase() || request.getPhase() == SetFCVPhaseEnum::kComplete);
+
+
+        const bool isDowngradeTransition = requestedVersion < actualVersion;
+        if (isDowngradeTransition ||
+            repl::feature_flags::gFeatureFlagUpgradingToDowngrading.isEnabled()) {
+
+            hangTransitionBeforeIsCleaningServerMetadata.pauseWhileSet(opCtx);
+            // Set the isCleaningServerMetadata field to true. This prohibits the upgradingTo
+            // Downgrading/ downgradingToUpgrading transition until the isCleaningServerMetadata is
+            // unset when we successfully finish the FCV upgrade/downgrade and transition to the
+            // upgraded/downgraded state.
+            {
+                const auto fcvChangeRegion(
+                    FeatureCompatibilityVersion::enterFCVChangeRegion(opCtx));
+                FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
+                    opCtx,
+                    fcvSnapshot.getVersion(),
+                    requestedVersion,
+                    isFromConfigServer,
+                    changeTimestamp,
+                    true /* setTargetVersion */,
+                    true /* setIsCleaningServerMetadata*/);
+            }
+
+            uassert(ErrorCodes::Error(10778000),
+                    "Failing transition due to 'failTransitionDuringIsCleaningServerMetadata' "
+                    "failpoint set",
+                    !failTransitionDuringIsCleaningServerMetadata.shouldFail());
+        }
 
         // All feature-specific FCV upgrade or downgrade code should go into the respective
         // _runUpgrade and _runDowngrade functions. Each of them have their own helper functions
         // where all feature-specific upgrade/downgrade code should be placed. Please read the
         // comments on the helper functions for more details on where to place the code.
-        if (requestedVersion > actualVersion) {
-            _runUpgrade(opCtx, request, changeTimestamp);
-        } else {
+        if (isDowngradeTransition) {
             _runDowngrade(opCtx, request, changeTimestamp);
+        } else {
+            _runUpgrade(opCtx, request, changeTimestamp);
         }
 
         {
@@ -1350,7 +1383,7 @@ private:
                     PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
                     repl::ReadConcernArgs::get(opCtx),
                     AcquisitionPrerequisites::kRead});
-            hasUserDocs = Helpers::findOne(opCtx, userColl.getCollectionPtr(), BSONObj(), userDoc);
+            hasUserDocs = Helpers::findOne(opCtx, userColl, BSONObj(), userDoc);
         }
 
         {
@@ -1361,7 +1394,7 @@ private:
                     PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
                     repl::ReadConcernArgs::get(opCtx),
                     AcquisitionPrerequisites::kRead});
-            hasRoleDocs = Helpers::findOne(opCtx, rolesColl.getCollectionPtr(), BSONObj(), roleDoc);
+            hasRoleDocs = Helpers::findOne(opCtx, rolesColl, BSONObj(), roleDoc);
         }
 
         // If they do, write an authorization schema document to disk set to schemaVersionSCRAM28.
@@ -1541,31 +1574,7 @@ private:
                        boost::optional<Timestamp> changeTimestamp) {
         auto role = ShardingState::get(opCtx)->pollClusterRole();
         const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-        invariant(fcvSnapshot.isUpgradingOrDowngrading());
-
         const auto requestedVersion = request.getCommandParameter();
-        auto isFromConfigServer = request.getFromConfigServer().value_or(false);
-
-        hangDowngradingBeforeIsCleaningServerMetadata.pauseWhileSet(opCtx);
-        // Set the isCleaningServerMetadata field to true. This prohibits the downgrading to
-        // upgrading transition until the isCleaningServerMetadata is unset when we successfully
-        // finish the FCV downgrade and transition to the DOWNGRADED state.
-        {
-            const auto fcvChangeRegion(FeatureCompatibilityVersion::enterFCVChangeRegion(opCtx));
-            FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
-                opCtx,
-                fcvSnapshot.getVersion(),
-                requestedVersion,
-                isFromConfigServer,
-                changeTimestamp,
-                true /* setTargetVersion */,
-                true /* setIsCleaningServerMetadata*/);
-        }
-
-        uassert(ErrorCodes::Error(7428201),
-                "Failing downgrade due to 'failDowngradingDuringIsCleaningServerMetadata' "
-                "failpoint set",
-                !failDowngradingDuringIsCleaningServerMetadata.shouldFail());
 
         // This helper function is for any internal server downgrade cleanup, such as dropping
         // collections or aborting. This cleanup will happen after user collection downgrade

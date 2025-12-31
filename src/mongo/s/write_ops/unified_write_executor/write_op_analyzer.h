@@ -31,6 +31,8 @@
 
 #include "mongo/s/chunk_manager.h"
 #include "mongo/s/routing_context.h"
+#include "mongo/s/write_ops/unified_write_executor/stats.h"
+#include "mongo/s/write_ops/unified_write_executor/unified_write_executor.h"
 #include "mongo/s/write_ops/unified_write_executor/write_op.h"
 
 #include <boost/optional.hpp>
@@ -57,7 +59,23 @@ public:
      */
     virtual Analysis analyze(OperationContext* opCtx,
                              const RoutingContext& routingCtx,
-                             const WriteOp& op);
+                             const WriteOp& op) = 0;
+};
+
+class WriteOpAnalyzerImpl : public WriteOpAnalyzer {
+public:
+    WriteOpAnalyzerImpl(Stats& stats) : _stats(stats) {}
+
+    /**
+     * Analyzes the given write op to determine which shards it would affect, and if it could be
+     * combined into a batch with other writes.
+     */
+    Analysis analyze(OperationContext* opCtx,
+                     const RoutingContext& routingCtx,
+                     const WriteOp& op) override;
+
+private:
+    Stats& _stats;
 };
 
 }  // namespace unified_write_executor
