@@ -34,11 +34,11 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/cluster_role.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/telemetry/telemetry_parameter_gen.h"
 #include "mongo/db/tenant_id.h"
+#include "mongo/db/topology/cluster_role.h"
 
 #include <string>
 

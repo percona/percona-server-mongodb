@@ -28,13 +28,13 @@
  */
 #pragma once
 
+#include "mongo/db/local_catalog/shard_role_catalog/scoped_collection_metadata.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/query/compiler/metadata/index_entry.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/query_planner_params.h"
 #include "mongo/db/query/write_ops/parsed_delete.h"
 #include "mongo/db/query/write_ops/parsed_update.h"
-#include "mongo/db/s/scoped_collection_metadata.h"
 #include "mongo/db/session/logical_session_id.h"
 
 #include <boost/optional/optional.hpp>
@@ -98,7 +98,7 @@ inline BSONObj getQueryFilterMaybeUnwrapEq(const BSONObj& query) {
     // We allow queries of the shape {_id: {$eq: <value>}} to use the express path, but we
     // want to pass in BSON of the shape {_id: <value>} to the executor for consistency and
     // because a later code path may rely on this shape. Note that we don't have to use
-    // 'isExactMatchOnId' here since we know we haven't reached this code via the eligibilty
+    // 'isExactMatchOnId' here since we know we haven't reached this code via the eligibility
     // check on the CanonicalQuery's MatchExpression (since there was no CanonicalQuery created
     // for this path). Therefore, we know the incoming query is either exactly of the shape
     // {_id: <value>} or {_id: {$eq: <value>}}.

@@ -30,9 +30,9 @@
 #include "mongo/db/query/plan_executor.h"
 
 #include "mongo/base/error_codes.h"
-#include "mongo/db/catalog/collection.h"
-#include "mongo/db/s/collection_sharding_state.h"
-#include "mongo/db/shard_role.h"
+#include "mongo/db/local_catalog/collection.h"
+#include "mongo/db/local_catalog/shard_role_api/shard_role.h"
+#include "mongo/db/local_catalog/shard_role_catalog/collection_sharding_state.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
@@ -85,17 +85,16 @@ void PlanExecutor::checkFailPointPlanExecAlwaysFails() {
     }
 }
 
-size_t PlanExecutor::getNextBatch(const size_t batchSize, AppendBSONObjFn append) {
+size_t PlanExecutor::getNextBatch(size_t batchSize, AppendBSONObjFn append) {
     // Subclasses may override this in order to provide a more optimized loop.
-    uint64_t numResults = 0;
-    BSONObj obj;
-    PlanExecutor::ExecState state = PlanExecutor::ADVANCED;
     const bool hasAppendFn = static_cast<bool>(append);
+    BSONObj obj;
     BSONObj* objPtr = hasAppendFn ? &obj : nullptr;
 
+    size_t numResults = 0;
+
     while (numResults < batchSize) {
-        state = getNext(objPtr, nullptr);
-        if (state == PlanExecutor::IS_EOF) {
+        if (PlanExecutor::IS_EOF == getNext(objPtr, nullptr)) {
             break;
         }
 

@@ -29,8 +29,8 @@
 
 #pragma once
 
-#include "mongo/s/cannot_implicitly_create_collection_info.h"
-#include "mongo/s/cluster_ddl.h"
+#include "mongo/db/global_catalog/ddl/cannot_implicitly_create_collection_info.h"
+#include "mongo/db/global_catalog/ddl/cluster_ddl.h"
 #include "mongo/s/write_ops/unified_write_executor/write_batch_executor.h"
 #include "mongo/s/write_ops/wc_error.h"
 
@@ -145,6 +145,15 @@ private:
     std::vector<WriteOp> processOpsNotInReplyItems(const std::vector<WriteOp>& requestedOps,
                                                    const std::vector<BulkWriteReplyItem>&,
                                                    std::vector<WriteOp>&& toRetry);
+
+
+    /**
+     * Handle errors when we do not have responses from the remote shards.
+     */
+    Result handleLocalError(OperationContext* opCtx,
+                            Status status,
+                            WriteOp op,
+                            boost::optional<const ShardId&> shardId);
 
     /**
      * Adds a BulkReplyItem with the opId and status to '_results' and increments '_nErrors'. Used

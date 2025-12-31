@@ -39,14 +39,18 @@
 #include "mongo/bson/oid.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/client/dbclient_cursor.h"
-#include "mongo/db/catalog/collection.h"
-#include "mongo/db/catalog/collection_options.h"
-#include "mongo/db/concurrency/lock_manager_defs.h"
-#include "mongo/db/concurrency/locker.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
+#include "mongo/db/global_catalog/catalog_cache/catalog_cache.h"
+#include "mongo/db/global_catalog/chunk_manager.h"
+#include "mongo/db/global_catalog/type_chunk.h"
+#include "mongo/db/global_catalog/type_collection_common_types_gen.h"
 #include "mongo/db/index_builds/index_builds_coordinator_mock.h"
 #include "mongo/db/keypattern.h"
+#include "mongo/db/local_catalog/collection.h"
+#include "mongo/db/local_catalog/collection_options.h"
+#include "mongo/db/local_catalog/lock_manager/lock_manager_defs.h"
+#include "mongo/db/local_catalog/lock_manager/locker.h"
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/op_observer/op_observer_registry.h"
 #include "mongo/db/persistent_task_store.h"
@@ -70,18 +74,14 @@
 #include "mongo/db/s/resharding/resharding_service_test_helpers.h"
 #include "mongo/db/s/resharding/resharding_util.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/sharding_environment/sharding_test_fixture_common.h"
+#include "mongo/db/versioning_protocol/chunk_version.h"
+#include "mongo/db/versioning_protocol/database_version.h"
 #include "mongo/executor/task_executor.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/idl/server_parameter_test_util.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/random.h"
-#include "mongo/s/catalog/type_chunk.h"
-#include "mongo/s/catalog_cache.h"
-#include "mongo/s/chunk_manager.h"
-#include "mongo/s/chunk_version.h"
-#include "mongo/s/database_version.h"
-#include "mongo/s/sharding_test_fixture_common.h"
-#include "mongo/s/type_collection_common_types_gen.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
@@ -2634,7 +2634,7 @@ TEST_F(ReshardingRecipientServiceTest, UnrecoverableErrorDuringCreatingCollectio
     for (const auto& testOptions : makeBasicTestOptions()) {
         LOGV2(10494600,
               "Running case",
-              "test"_attr = _agent.getTestName(),
+              "test"_attr = unittest::getTestName(),
               "testOptions"_attr = testOptions);
 
         runUnrecoverableErrorTest(
@@ -2646,7 +2646,7 @@ TEST_F(ReshardingRecipientServiceTest, UnrecoverableErrorDuringCloning) {
     for (const auto& testOptions : makeBasicTestOptions()) {
         LOGV2(10494601,
               "Running case",
-              "test"_attr = _agent.getTestName(),
+              "test"_attr = unittest::getTestName(),
               "testOptions"_attr = testOptions);
 
         runUnrecoverableErrorTest(
@@ -2658,7 +2658,7 @@ TEST_F(ReshardingRecipientServiceTest, UnrecoverableErrorDuringBuildingIndex) {
     for (const auto& testOptions : makeBasicTestOptions()) {
         LOGV2(10494602,
               "Running case",
-              "test"_attr = _agent.getTestName(),
+              "test"_attr = unittest::getTestName(),
               "testOptions"_attr = testOptions);
 
         runUnrecoverableErrorTest(
@@ -2670,7 +2670,7 @@ TEST_F(ReshardingRecipientServiceTest, UnrecoverableErrorDuringApplying) {
     for (const auto& testOptions : makeBasicTestOptions()) {
         LOGV2(10494603,
               "Running case",
-              "test"_attr = _agent.getTestName(),
+              "test"_attr = unittest::getTestName(),
               "testOptions"_attr = testOptions);
 
         runUnrecoverableErrorTest(

@@ -37,10 +37,6 @@
 #include "mongo/bson/dotted_path/dotted_path_support.h"
 #include "mongo/bson/json.h"
 #include "mongo/bson/oid.h"
-#include "mongo/db/catalog/collection.h"
-#include "mongo/db/catalog/collection_catalog.h"
-#include "mongo/db/catalog/collection_yield_restore.h"
-#include "mongo/db/catalog/database.h"
 #include "mongo/db/client.h"
 #include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/curop.h"
@@ -53,6 +49,10 @@
 #include "mongo/db/exec/classic/working_set.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/value.h"
+#include "mongo/db/local_catalog/collection.h"
+#include "mongo/db/local_catalog/collection_catalog.h"
+#include "mongo/db/local_catalog/collection_yield_restore.h"
+#include "mongo/db/local_catalog/database.h"
 #include "mongo/db/memory_tracking/memory_usage_tracker.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
@@ -198,12 +198,12 @@ public:
      */
     uint64_t checkMemoryTracking(const SimpleMemoryUsageTracker& tracker,
                                  uint64_t oldPeakMemBytes) {
-        uint64_t currentMemBytes = tracker.currentMemoryBytes();
+        uint64_t inUseTrackedMemBytes = tracker.inUseTrackedMemoryBytes();
         // If we have processed any rows, we should have seen some memory usage.
-        ASSERT_GT(currentMemBytes, 0);
+        ASSERT_GT(inUseTrackedMemBytes, 0);
 
-        uint64_t actualPeakMemBytes = tracker.maxMemoryBytes();
-        ASSERT_GTE(actualPeakMemBytes, currentMemBytes);
+        uint64_t actualPeakMemBytes = tracker.peakTrackedMemoryBytes();
+        ASSERT_GTE(actualPeakMemBytes, inUseTrackedMemBytes);
         ASSERT_GTE(actualPeakMemBytes, oldPeakMemBytes);
         return actualPeakMemBytes;
     }
@@ -297,7 +297,7 @@ public:
         ASSERT_EQUALS(PlanExecutor::IS_EOF, state);
         checkCount(count);
 
-        ASSERT_EQUALS(memoryTracker.currentMemoryBytes(), 0);
+        ASSERT_EQUALS(memoryTracker.inUseTrackedMemoryBytes(), 0);
     }
 
     /**

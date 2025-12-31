@@ -33,10 +33,10 @@
 
 #include "mongo/db/exec/sbe/sbe_plan_stage_test.h"
 
-#include "mongo/db/concurrency/d_concurrency.h"
-#include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/exec/sbe/stages/virtual_scan.h"
-#include "mongo/db/transaction_resources.h"
+#include "mongo/db/local_catalog/lock_manager/d_concurrency.h"
+#include "mongo/db/local_catalog/lock_manager/lock_manager_defs.h"
+#include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/logv2/log.h"
 #include "mongo/unittest/unittest.h"
 
@@ -217,7 +217,7 @@ std::pair<value::TypeTags, value::Value> PlanStageTestFixture::getAllResultsMult
             // check the forceSpill stage
             stage->forceSpill(nullptr /*yieldPolicy*/);
             if (stage->getMemoryTracker()) {
-                ASSERT_EQ(stage->getMemoryTracker()->currentMemoryBytes(), 0);
+                ASSERT_EQ(stage->getMemoryTracker()->inUseTrackedMemoryBytes(), 0);
             }
         }
     }

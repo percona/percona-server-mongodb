@@ -36,9 +36,6 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
-#include "mongo/db/catalog/collection.h"
-#include "mongo/db/catalog/database.h"
-#include "mongo/db/catalog/index_catalog.h"
 #include "mongo/db/client.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/exec/classic/fetch.h"
@@ -48,7 +45,10 @@
 #include "mongo/db/exec/classic/working_set.h"
 #include "mongo/db/exec/classic/working_set_common.h"
 #include "mongo/db/exec/document_value/document.h"
-#include "mongo/db/index/index_descriptor.h"
+#include "mongo/db/local_catalog/collection.h"
+#include "mongo/db/local_catalog/database.h"
+#include "mongo/db/local_catalog/index_catalog.h"
+#include "mongo/db/local_catalog/index_descriptor.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/expression_context.h"
@@ -159,12 +159,12 @@ public:
 
     uint64_t checkMemoryTracking(const SimpleMemoryUsageTracker& tracker,
                                  uint64_t oldPeakMemBytes) {
-        uint64_t currentMemoryBytes = tracker.currentMemoryBytes();
+        uint64_t inUseTrackedMemoryBytes = tracker.inUseTrackedMemoryBytes();
 
-        ASSERT_GT(currentMemoryBytes, 0);
+        ASSERT_GT(inUseTrackedMemoryBytes, 0);
 
-        uint64_t actualPeakMemBytes = tracker.maxMemoryBytes();
-        ASSERT_GTE(actualPeakMemBytes, currentMemoryBytes);
+        uint64_t actualPeakMemBytes = tracker.peakTrackedMemoryBytes();
+        ASSERT_GTE(actualPeakMemBytes, inUseTrackedMemoryBytes);
         ASSERT_GTE(actualPeakMemBytes, oldPeakMemBytes);
         return actualPeakMemBytes;
     }
@@ -323,8 +323,8 @@ public:
         // Should be done now.
         BSONObj foo;
         ASSERT_EQUALS(PlanExecutor::IS_EOF, exec->getNext(&foo, nullptr));
-        ASSERT_EQUALS(memoryTracker.maxMemoryBytes(), peakMemoryBytes);
-        ASSERT_EQUALS(stats->maxUsedMemBytes, peakMemoryBytes);
+        ASSERT_EQUALS(memoryTracker.peakTrackedMemoryBytes(), peakMemoryBytes);
+        ASSERT_EQUALS(stats->peakTrackedMemBytes, peakMemoryBytes);
     }
 };
 

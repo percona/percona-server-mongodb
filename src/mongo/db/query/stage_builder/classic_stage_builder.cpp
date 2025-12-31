@@ -39,9 +39,6 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/bson/timestamp.h"
-#include "mongo/db/catalog/collection.h"
-#include "mongo/db/catalog/index_catalog.h"
-#include "mongo/db/catalog/index_catalog_entry.h"
 #include "mongo/db/exec/classic/and_hash.h"
 #include "mongo/db/exec/classic/and_sorted.h"
 #include "mongo/db/exec/classic/collection_scan.h"
@@ -67,7 +64,10 @@
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/matcher/matcher.h"
 #include "mongo/db/index/fts_access_method.h"
-#include "mongo/db/index/index_descriptor.h"
+#include "mongo/db/local_catalog/collection.h"
+#include "mongo/db/local_catalog/index_catalog.h"
+#include "mongo/db/local_catalog/index_catalog_entry.h"
+#include "mongo/db/local_catalog/index_descriptor.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/query/compiler/logical_model/sort_pattern/sort_pattern.h"
 #include "mongo/db/query/compiler/metadata/index_entry.h"
@@ -220,10 +220,12 @@ std::unique_ptr<PlanStage> ClassicStageBuilder::build(const QuerySolutionNode* r
             case STAGE_PROJECTION_SIMPLE: {
                 auto pn = static_cast<const ProjectionNodeSimple*>(root);
                 auto childStage = build(pn->children[0].get());
+                auto* proj = _cq.getProj();
+                tassert(10853300, "'getProj()' must not return null", proj);
                 return std::make_unique<ProjectionStageSimple>(
                     _cq.getExpCtxRaw(),
                     _cq.getFindCommandRequest().getProjection(),
-                    _cq.getProj(),
+                    proj,
                     _ws,
                     std::move(childStage));
             }
@@ -336,7 +338,7 @@ std::unique_ptr<PlanStage> ClassicStageBuilder::build(const QuerySolutionNode* r
                 tassert(5432202,
                         str::stream() << "no index named '" << node->index.identifier.catalogName
                                       << "' found in catalog",
-                        catalog);
+                        desc);
                 auto fam =
                     static_cast<const FTSAccessMethod*>(catalog->getEntry(desc)->accessMethod());
                 tassert(5432203, "access method for index is not defined", fam);

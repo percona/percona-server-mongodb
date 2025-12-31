@@ -35,8 +35,6 @@
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/concurrency/d_concurrency.h"
-#include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/exec/sbe/expressions/compile_ctx.h"
 #include "mongo/db/exec/sbe/expressions/expression.h"
 #include "mongo/db/exec/sbe/sbe_plan_stage_test.h"
@@ -47,6 +45,8 @@
 #include "mongo/db/exec/sbe/stages/stages.h"
 #include "mongo/db/exec/sbe/values/slot.h"
 #include "mongo/db/exec/sbe/values/value.h"
+#include "mongo/db/local_catalog/lock_manager/d_concurrency.h"
+#include "mongo/db/local_catalog/lock_manager/lock_manager_defs.h"
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/db/query/collation/collator_interface_mock.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/stage_types.h"
@@ -108,21 +108,21 @@ public:
         ASSERT_EQ(expectedSpillingStats.getSpilledRecords(),
                   stats->spillingStats.getSpilledRecords());
 
-        ASSERT_EQ(stage->getMemoryTracker()->currentMemoryBytes(), 0);
+        ASSERT_EQ(stage->getMemoryTracker()->inUseTrackedMemoryBytes(), 0);
 
         // Get ready to retrieve more records.
         stage->restoreState();
     }
 
     void checkMemoryStats(mongo::sbe::PlanStage* stage, bool spill) {
-        ASSERT_GT(stage->getMemoryTracker()->maxMemoryBytes(), 0);
+        ASSERT_GT(stage->getMemoryTracker()->peakTrackedMemoryBytes(), 0);
         if (spill) {
-            ASSERT_EQ(stage->getMemoryTracker()->currentMemoryBytes(), 0);
+            ASSERT_EQ(stage->getMemoryTracker()->inUseTrackedMemoryBytes(), 0);
         } else {
-            ASSERT_GT(stage->getMemoryTracker()->currentMemoryBytes(), 0);
+            ASSERT_GT(stage->getMemoryTracker()->inUseTrackedMemoryBytes(), 0);
         }
         auto stats = static_cast<const HashAggStats*>(stage->getSpecificStats());
-        ASSERT_GT(stats->maxUsedMemBytes, 0);
+        ASSERT_GT(stats->peakTrackedMemBytes, 0);
     }
 
 private:
@@ -219,11 +219,11 @@ void HashAggStageTest::performHashAggWithSpillChecking(
     }
 
     assertValuesEqual(sortedResultsTag, sortedResultsVal, expectedTag, expectedVal);
-    ASSERT_GT(stage->getMemoryTracker()->maxMemoryBytes(), 0);
+    ASSERT_GT(stage->getMemoryTracker()->peakTrackedMemoryBytes(), 0);
     if (shouldSpill) {
-        ASSERT_EQ(stage->getMemoryTracker()->currentMemoryBytes(), 0);
+        ASSERT_EQ(stage->getMemoryTracker()->inUseTrackedMemoryBytes(), 0);
     } else {
-        ASSERT_GT(stage->getMemoryTracker()->currentMemoryBytes(), 0);
+        ASSERT_GT(stage->getMemoryTracker()->inUseTrackedMemoryBytes(), 0);
     }
 };
 
@@ -399,8 +399,8 @@ TEST_F(HashAggStageTest, HashAggAddToSetTest) {
     ASSERT_TRUE(resultsEnumerator.atEnd());
 
     // The group-by key is empty, so we never compute an estimate for the amount of memory.
-    ASSERT_EQ(stage->getMemoryTracker()->maxMemoryBytes(), 0);
-    ASSERT_EQ(stage->getMemoryTracker()->currentMemoryBytes(), 0);
+    ASSERT_EQ(stage->getMemoryTracker()->peakTrackedMemoryBytes(), 0);
+    ASSERT_EQ(stage->getMemoryTracker()->inUseTrackedMemoryBytes(), 0);
 }
 
 TEST_F(HashAggStageTest, HashAggCollationTest) {
@@ -883,8 +883,8 @@ TEST_F(HashAggStageTest, HashAggBasicCountNoSpillWithNoGroupByDouble) {
     ASSERT_EQ(0, stats->spillingStats.getSpilledRecords());
 
     // The group-by key is empty, so we never compute an estimate for the amount of memory.
-    ASSERT_EQ(stage->getMemoryTracker()->maxMemoryBytes(), 0);
-    ASSERT_EQ(stage->getMemoryTracker()->currentMemoryBytes(), 0);
+    ASSERT_EQ(stage->getMemoryTracker()->peakTrackedMemoryBytes(), 0);
+    ASSERT_EQ(stage->getMemoryTracker()->inUseTrackedMemoryBytes(), 0);
 
     stage->close();
 }

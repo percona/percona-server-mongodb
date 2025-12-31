@@ -43,6 +43,11 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/field_ref.h"
+#include "mongo/db/global_catalog/chunk_manager.h"
+#include "mongo/db/global_catalog/router_role_api/cluster_commands_helpers.h"
+#include "mongo/db/global_catalog/router_role_api/collection_uuid_mismatch.h"
+#include "mongo/db/global_catalog/router_role_api/router_role.h"
+#include "mongo/db/global_catalog/shard_key_pattern.h"
 #include "mongo/db/keypattern.h"
 #include "mongo/db/logical_time.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
@@ -66,11 +71,19 @@
 #include "mongo/db/query/explain_common.h"
 #include "mongo/db/query/query_request_helper.h"
 #include "mongo/db/query/query_stats/query_stats.h"
+#include "mongo/db/raw_data_operation.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/session/logical_session_id_gen.h"
-#include "mongo/db/vector_clock.h"
+#include "mongo/db/sharding_environment/grid.h"
+#include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
+#include "mongo/db/topology/shard_registry.h"
+#include "mongo/db/vector_clock/vector_clock.h"
 #include "mongo/db/version_context.h"
+#include "mongo/db/versioning_protocol/database_version.h"
+#include "mongo/db/versioning_protocol/shard_version.h"
+#include "mongo/db/versioning_protocol/shard_version_factory.h"
+#include "mongo/db/versioning_protocol/stale_exception.h"
 #include "mongo/db/write_concern_options.h"
 #include "mongo/executor/remote_command_response.h"
 #include "mongo/executor/task_executor.h"
@@ -79,23 +92,11 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/get_status_from_command_result.h"
-#include "mongo/s/chunk_manager.h"
-#include "mongo/s/client/shard_registry.h"
-#include "mongo/s/cluster_commands_helpers.h"
-#include "mongo/s/collection_uuid_mismatch.h"
-#include "mongo/s/database_version.h"
-#include "mongo/s/grid.h"
 #include "mongo/s/query/cluster_query_knobs_gen.h"
 #include "mongo/s/query/exec/async_results_merger_params_gen.h"
 #include "mongo/s/query/exec/document_source_merge_cursors.h"
 #include "mongo/s/query/exec/establish_cursors.h"
 #include "mongo/s/query_analysis_sampler_util.h"
-#include "mongo/s/router_role.h"
-#include "mongo/s/shard_key_pattern.h"
-#include "mongo/s/shard_version.h"
-#include "mongo/s/shard_version_factory.h"
-#include "mongo/s/sharding_feature_flags_gen.h"
-#include "mongo/s/stale_exception.h"
 #include "mongo/s/transaction_router.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
@@ -246,7 +247,30 @@ BSONObj genericTransformForShards(MutableDocument&& cmdForShards,
         cmdForShards["readConcern"] = Value(*readConcern);
     }
 
-    return cmdForShards.freeze().toBson();
+    auto shardCommand = cmdForShards.freeze().toBson();
+    auto filteredCommand = CommandHelpers::filterCommandRequestForPassthrough(shardCommand);
+
+    // TODO(SERVER-108928): rawData should be declared as should_forward_to_shards: true
+    // If rawData was explicitly set on the aggregate command, it will have been stripped by the
+    // call to filterCommandRequestForPassthrough. For rawData operations, it will be added back
+    // by the egress hook. However, if sending a rawData aggregate command from a non-rawData
+    // operation, we must add it back for it to be included in the outgoing network request.
+    auto cmdRawData = shardCommand.getField(GenericArguments::kRawDataFieldName);
+    if (!cmdRawData.eoo()) {
+        auto isRawOpCtx = isRawDataOperation(expCtx->getOperationContext());
+        tassert(10892200,
+                "Trying to send a non-rawData command from a rawData operation",
+                cmdRawData.boolean() || !isRawOpCtx);
+        if (cmdRawData.boolean() && !isRawOpCtx) {
+            filteredCommand = filteredCommand.addField(cmdRawData);
+        }
+    }
+
+    // Apply RW concern to the final shard command.
+    return applyReadWriteConcern(expCtx->getOperationContext(),
+                                 true,              /* appendRC */
+                                 !explainVerbosity, /* appendWC */
+                                 filteredCommand);
 }
 
 std::vector<RemoteCursor> establishShardCursors(
@@ -767,15 +791,8 @@ BSONObj createPassthroughCommandForShard(
         targetedCmd[AggregateCommandRequest::kIsHybridSearchFieldName] = Value(true);
     }
 
-    auto shardCommand = genericTransformForShards(
+    auto filteredCommand = genericTransformForShards(
         std::move(targetedCmd), expCtx, explainVerbosity, std::move(readConcern));
-
-    // Apply filter and RW concern to the final shard command.
-    auto filteredCommand = CommandHelpers::filterCommandRequestForPassthrough(
-        applyReadWriteConcern(expCtx->getOperationContext(),
-                              true,              /* appendRC */
-                              !explainVerbosity, /* appendWC */
-                              shardCommand));
 
     // Request the targeted shard to gossip back the routing metadata versions for the involved
     // collections.
@@ -860,14 +877,8 @@ BSONObj createCommandForTargetedShards(const boost::intrusive_ptr<ExpressionCont
         targetedCmd[AggregateCommandRequest::kIncludeQueryStatsMetricsFieldName] = Value(true);
     }
 
-    auto shardCommand = CommandHelpers::filterCommandRequestForPassthrough(
-        genericTransformForShards(std::move(targetedCmd), expCtx, explain, std::move(readConcern)));
-
-    // Apply RW concern to the final shard command.
-    return applyReadWriteConcern(expCtx->getOperationContext(),
-                                 true,     /* appendRC */
-                                 !explain, /* appendWC */
-                                 shardCommand);
+    return genericTransformForShards(
+        std::move(targetedCmd), expCtx, explain, std::move(readConcern));
 }
 
 TargetingResults targetPipeline(const boost::intrusive_ptr<ExpressionContext>& expCtx,

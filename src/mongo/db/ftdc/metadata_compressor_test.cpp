@@ -31,13 +31,13 @@
 
 #include "mongo/db/exec/mutable_bson/algorithm.h"
 #include "mongo/db/exec/mutable_bson/document.h"
-#include "mongo/s/sharding_feature_flags_gen.h"
+#include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/unittest/unittest.h"
 
 namespace mongo {
 
 #define TEST_BEGIN auto runTest = [this](bool multiservice) { \
-    std::cout << "Running " << _testInfo.testName() <<" with multiservice=" << \
+    std::cout << "Running " << unittest::getTestName() << " with multiservice=" << \
     multiservice << std::endl
 
 #define TEST_END                          \

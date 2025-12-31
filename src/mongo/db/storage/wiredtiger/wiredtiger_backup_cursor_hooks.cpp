@@ -32,11 +32,11 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.h"
 
-#include "mongo/db/concurrency/lock_manager_defs.h"
-#include "mongo/db/concurrency/replication_state_transition_lock_guard.h"
 #include "mongo/db/dbhelpers.h"
+#include "mongo/db/local_catalog/lock_manager/lock_manager_defs.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/storage_interface.h"
+#include "mongo/db/replication_state_transition_lock_guard.h"
 #include "mongo/db/storage/encryption_hooks.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/logv2/log.h"

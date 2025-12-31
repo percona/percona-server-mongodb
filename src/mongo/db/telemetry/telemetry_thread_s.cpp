@@ -34,15 +34,15 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/oid.h"
+#include "mongo/db/global_catalog/sharding_catalog_client.h"
+#include "mongo/db/global_catalog/type_config_version_gen.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/telemetry/telemetry_thread.h"
 #include "mongo/db/telemetry/telemetry_thread_base.h"
 #include "mongo/logv2/log.h"
-#include "mongo/s/catalog/sharding_catalog_client.h"
-#include "mongo/s/catalog/type_config_version_gen.h"
-#include "mongo/s/grid.h"
 
 #include <memory>
 

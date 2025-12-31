@@ -30,10 +30,11 @@
 #include "mongo/db/query/client_cursor/clientcursor.h"
 
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/catalog/external_data_source_scope_guard.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands/server_status_metric.h"
 #include "mongo/db/curop.h"
+#include "mongo/db/local_catalog/external_data_source_scope_guard.h"
+#include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/db/memory_tracking/operation_memory_usage_tracker.h"
 #include "mongo/db/query/client_cursor/cursor_manager.h"
 #include "mongo/db/query/client_cursor/cursor_server_params.h"
@@ -42,7 +43,6 @@
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/storage/write_unit_of_work.h"
-#include "mongo/db/transaction_resources.h"
 #include "mongo/util/background.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/concurrency/idle_thread_block.h"
@@ -210,11 +210,11 @@ GenericCursor ClientCursor::toGenericCursor() const {
     gc.setCreatedDate(getCreatedDate());
     gc.setNBatchesReturned(getNBatches());
     if (_memoryUsageTracker) {
-        if (auto inUseMemBytes = _memoryUsageTracker->currentMemoryBytes()) {
-            gc.setInUseMemBytes(inUseMemBytes);
+        if (auto inUseTrackedMemBytes = _memoryUsageTracker->inUseTrackedMemoryBytes()) {
+            gc.setInUseTrackedMemBytes(inUseTrackedMemBytes);
         }
-        if (auto maxUsedMemBytes = _memoryUsageTracker->maxMemoryBytes()) {
-            gc.setMaxUsedMemBytes(maxUsedMemBytes);
+        if (auto peakTrackedMemBytes = _memoryUsageTracker->peakTrackedMemoryBytes()) {
+            gc.setPeakTrackedMemBytes(peakTrackedMemBytes);
         }
     }
     gc.setPlanSummary(getPlanSummary());

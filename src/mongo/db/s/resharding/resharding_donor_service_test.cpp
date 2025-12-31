@@ -36,9 +36,11 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/client/dbclient_cursor.h"
-#include "mongo/db/catalog/collection_options.h"
-#include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/dbdirectclient.h"
+#include "mongo/db/global_catalog/ddl/sharding_recovery_service.h"
+#include "mongo/db/global_catalog/sharding_catalog_client.h"
+#include "mongo/db/local_catalog/collection_options.h"
+#include "mongo/db/local_catalog/lock_manager/lock_manager_defs.h"
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/op_observer/op_observer_registry.h"
 #include "mongo/db/persistent_task_store.h"
@@ -53,12 +55,10 @@
 #include "mongo/db/s/resharding/resharding_service_test_helpers.h"
 #include "mongo/db/s/resharding/resharding_test_util.h"
 #include "mongo/db/s/resharding/resharding_util.h"
-#include "mongo/db/s/sharding_recovery_service.h"
 #include "mongo/db/service_context.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/idl/server_parameter_test_util.h"
 #include "mongo/logv2/log.h"
-#include "mongo/s/catalog/sharding_catalog_client.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
@@ -1380,7 +1380,7 @@ TEST_F(ReshardingDonorServiceTest, UnrecoverableErrorDuringPreparingToDonate) {
     for (auto& test : makeAllTestOptions()) {
         LOGV2(10494604,
               "Running case",
-              "test"_attr = _agent.getTestName(),
+              "test"_attr = unittest::getTestName(),
               "testOptions"_attr = test);
 
         runUnrecoverableErrorTest(test, DonorStateEnum::kPreparingToDonate);
@@ -1394,7 +1394,7 @@ TEST_F(ReshardingDonorServiceTest, UnrecoverableErrorDuringPreparingToDonate) {
 //          std::vector<TestOptions>{{.isAlsoRecipient = false}, {.isAlsoRecipient = true}}) {
 //         LOGV2(10885200,
 //               "Running case",
-//               "test"_attr = _agent.getTestName(),
+//               "test"_attr = unittest::getTestName(),
 //               "testOptions"_attr = test);
 
 //         FailPointEnableBlock
@@ -1411,7 +1411,7 @@ TEST_F(ReshardingDonorServiceTest, UnrecoverableErrorDuringPreparingToBlockWrite
     for (auto& test : makeAllTestOptions()) {
         LOGV2(10494605,
               "Running case",
-              "test"_attr = _agent.getTestName(),
+              "test"_attr = unittest::getTestName(),
               "testOptions"_attr = test);
 
         runUnrecoverableErrorTest(test, DonorStateEnum::kPreparingToBlockWrites);

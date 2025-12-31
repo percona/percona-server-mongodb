@@ -36,6 +36,8 @@
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/document_metadata_fields.h"
 #include "mongo/db/exec/document_value/value.h"
+#include "mongo/db/global_catalog/catalog_cache/catalog_cache.h"
+#include "mongo/db/local_catalog/shard_role_api/shard_role.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/document_source.h"
@@ -52,9 +54,7 @@
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/shard_role.h"
 #include "mongo/executor/task_executor.h"
-#include "mongo/s/catalog_cache.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
@@ -190,8 +190,9 @@ public:
      * set on the aggRequest. The state of the returned pipeline will depend upon the supplied
      * MakePipelineOptions:
      * - The boolean opts.optimize determines whether the pipeline will be optimized.
+     * - If opts.attachCursorSource is false, the pipeline will be returned without attempting to
+     * add an initial cursor source.
      *
-     * This function requires opts.attachCursorSource to be true.
      * This function throws if parsing the pipeline set on aggRequest failed.
      */
     static std::unique_ptr<Pipeline> makePipeline(

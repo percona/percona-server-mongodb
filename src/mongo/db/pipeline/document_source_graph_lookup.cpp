@@ -53,14 +53,14 @@
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/query/stage_memory_limit_knobs/knobs.h"
-#include "mongo/db/s/sharding_state.h"
 #include "mongo/db/stats/counters.h"
+#include "mongo/db/topology/sharding_state.h"
+#include "mongo/db/versioning_protocol/database_version.h"
+#include "mongo/db/versioning_protocol/shard_version.h"
+#include "mongo/db/versioning_protocol/stale_exception.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
-#include "mongo/s/database_version.h"
-#include "mongo/s/shard_version.h"
-#include "mongo/s/stale_exception.h"
 #include "mongo/util/namespace_string_util.h"
 #include "mongo/util/str.h"
 #include "mongo/util/uuid.h"
@@ -644,7 +644,7 @@ DocumentSourceContainer::iterator DocumentSourceGraphLookUp::doOptimizeAt(
 void DocumentSourceGraphLookUp::checkMemoryUsage() {
     if (_memoryUsageTracker.withinMemoryLimit()) {
         _cache.evictDownTo(_memoryUsageTracker.maxAllowedMemoryUsageBytes() -
-                           _memoryUsageTracker.currentMemoryBytes());
+                           _memoryUsageTracker.inUseTrackedMemoryBytes());
     } else {
         spill(_memoryUsageTracker.maxAllowedMemoryUsageBytes());
     }
@@ -652,7 +652,7 @@ void DocumentSourceGraphLookUp::checkMemoryUsage() {
 
 void DocumentSourceGraphLookUp::spill(int64_t maximumMemoryUsage) {
     const auto& needToSpill = [&]() {
-        return _memoryUsageTracker.currentMemoryBytes() > maximumMemoryUsage;
+        return _memoryUsageTracker.inUseTrackedMemoryBytes() > maximumMemoryUsage;
     };
 
     if (needToSpill() && _unwindIterator.has_value() &&
@@ -671,7 +671,7 @@ void DocumentSourceGraphLookUp::spill(int64_t maximumMemoryUsage) {
     }
 
     _cache.evictDownTo(
-        needToSpill() ? 0 : maximumMemoryUsage - _memoryUsageTracker.currentMemoryBytes());
+        needToSpill() ? 0 : maximumMemoryUsage - _memoryUsageTracker.inUseTrackedMemoryBytes());
     updateSpillingStats();
 }
 
@@ -686,7 +686,7 @@ void DocumentSourceGraphLookUp::spillDuringVisitedUnwinding() {
 }
 
 void DocumentSourceGraphLookUp::updateSpillingStats() {
-    _stats.maxMemoryUsageBytes = _memoryUsageTracker.maxMemoryBytes();
+    _stats.maxMemoryUsageBytes = _memoryUsageTracker.peakTrackedMemoryBytes();
     _stats.spillingStats = _queue.getSpillingStats();
     _stats.spillingStats.accumulate(_visitedDocuments.getSpillingStats());
     _stats.spillingStats.accumulate(_visitedFromValues.getSpillingStats());
@@ -754,7 +754,7 @@ void DocumentSourceGraphLookUp::serializeToArray(std::vector<Value>& array,
         out["spilledRecords"] =
             opts.serializeLiteral(static_cast<long long>(_stats.spillingStats.getSpilledRecords()));
         if (feature_flags::gFeatureFlagQueryMemoryTracking.isEnabled()) {
-            out["maxUsedMemBytes"] =
+            out["peakTrackedMemBytes"] =
                 opts.serializeLiteral(static_cast<long long>(_stats.maxMemoryUsageBytes));
         }
     }

@@ -39,12 +39,12 @@
 #include "mongo/bson/oid.h"
 #include "mongo/bson/simple_bsonobj_comparator.h"
 #include "mongo/client/read_preference.h"
-#include "mongo/db/cluster_role.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/exec/agg/pipeline_builder.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/field_ref.h"
+#include "mongo/db/global_catalog/type_shard.h"
 #include "mongo/db/logical_time.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
@@ -52,15 +52,16 @@
 #include "mongo/db/pipeline/process_interface/shardsvr_process_interface.h"
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/s/balancer/balancer_policy.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/sharding_environment/client/shard.h"
+#include "mongo/db/sharding_environment/grid.h"
+#include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/storage/storage_options.h"
-#include "mongo/db/vector_clock.h"
+#include "mongo/db/topology/cluster_role.h"
+#include "mongo/db/topology/shard_registry.h"
+#include "mongo/db/vector_clock/vector_clock.h"
 #include "mongo/executor/task_executor_pool.h"
-#include "mongo/s/catalog/type_shard.h"
-#include "mongo/s/client/shard.h"
-#include "mongo/s/client/shard_registry.h"
-#include "mongo/s/grid.h"
-#include "mongo/s/sharding_feature_flags_gen.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
@@ -914,6 +915,14 @@ SamplingBasedSplitPolicy::SampleDocumentPipeline SamplingBasedSplitPolicy::_make
         return MongoProcessInterface::create(opCtx);
     }();
 
+    // Send with rawData since the shard key is already translated for timeseries.
+    auto aggRequest = AggregateCommandRequest(ns, rawPipeline);
+    if (gFeatureFlagAllBinariesSupportRawDataOperations.isEnabled(
+            VersionContext::getDecoration(opCtx),
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        aggRequest.setRawData(true);
+    }
+
     auto expCtx = ExpressionContextBuilder{}
                       .opCtx(opCtx)
                       .mongoProcessInterface(std::move(pi))
@@ -923,7 +932,7 @@ SamplingBasedSplitPolicy::SampleDocumentPipeline SamplingBasedSplitPolicy::_make
                       .bypassDocumentValidation(true)
                       .tmpDir(storageGlobalParams.dbpath + "/_tmp")
                       .build();
-    return Pipeline::makePipeline(rawPipeline, expCtx, opts);
+    return Pipeline::makePipeline(aggRequest, expCtx, boost::none /* shardCursorsSortSpec */, opts);
 }
 
 SamplingBasedSplitPolicy::PipelineDocumentSource::PipelineDocumentSource(
