@@ -618,7 +618,8 @@ std::unique_ptr<Pipeline> tryAttachCursorSourceForLocalRead(
         auto shardVersion = [&] {
             auto sv = targetingCri.hasRoutingTable() ? targetingCri.getShardVersion(localShardId)
                                                      : ShardVersion::UNSHARDED();
-            if (auto txnRouter = TransactionRouter::get(opCtx)) {
+            if (auto txnRouter = TransactionRouter::get(opCtx);
+                txnRouter && opCtx->inMultiDocumentTransaction()) {
                 if (auto optOriginalPlacementConflictTime = txnRouter.getPlacementConflictTime()) {
                     sv.setPlacementConflictTime(*optOriginalPlacementConflictTime);
                 }
@@ -849,6 +850,19 @@ BSONObj createCommandForTargetedShards(const boost::intrusive_ptr<ExpressionCont
             })) {
             targetedCmd[WriteConcernOptions::kWriteConcernField] = Value();
         }
+    }
+
+    // Indicate to the shards whether they need to produce documents with their $sortKey populated.
+    // Gate this behavior on FCV of the cluster. Otherwise, we can run into a situation of a mixed
+    // version cluster where a new shard sends an internal aggregation to an old shard and the old
+    // shard receiving the AggregateCommandRequest does not know how to parse the 'needsSortedMerge'
+    // bit.
+    // Suppress clang-tidy FCV check as we don't need a feature flag to gate this behavior, it
+    // represents a bug fix.
+    if (serverGlobalParams.featureCompatibility.acquireFCVSnapshot().isGreaterThanOrEqualTo(
+            multiversion::FeatureCompatibilityVersion::kVersion_8_3)) {  // NOLINT
+        targetedCmd[AggregateCommandRequest::kNeedsSortedMergeFieldName] =
+            Value(splitPipeline.shardCursorsSortSpec.has_value());
     }
 
     // Request the targeted shards to gossip back the routing metadata versions for the involved

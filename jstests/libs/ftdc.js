@@ -19,14 +19,6 @@ export function setParameter(adminDb, obj) {
 }
 
 /**
- * Returns whether the FTDC file format should follow the new format or not.
- */
-export function hasMultiserviceFTDCSchema(adminDb) {
-    return FeatureFlagUtil.isPresentAndEnabled(adminDb, "MultiServiceLogAndFTDCFormat") &&
-        (isMongos(adminDb) || isClusterNode(adminDb));
-}
-
-/**
  * `has(obj, "foo", "bar", "baz")` returns whether `obj.foo.bar.baz` exists.
  */
 function has(object, ...properties) {
@@ -42,19 +34,11 @@ function has(object, ...properties) {
  * determine whether the response returned for "getDiagnosticData" is as
  * expected.
  */
-function getCriteriaForGetDiagnosticData({data, adminDb, assumeMultiserviceSchema}) {
+function getCriteriaForGetDiagnosticData(data) {
     let criteria = [];
 
     criteria.push(() => has(data, "start"));
-
-    if (hasMultiserviceFTDCSchema(adminDb) || assumeMultiserviceSchema ||
-        TestData.testingReplicaSetEndpoint) {
-        criteria.push(() => has(data, "shard", "serverStatus") ||
-                          has(data, "router", "connPoolStats"));
-    } else {
-        criteria.push(() => has(data, "serverStatus"));
-    }
-
+    criteria.push(() => has(data, "serverStatus"));
     criteria.push(() => has(data, "end"));
 
     return criteria;
@@ -63,17 +47,17 @@ function getCriteriaForGetDiagnosticData({data, adminDb, assumeMultiserviceSchem
 /**
  * Verify that getDiagnosticData is working correctly.
  */
-export function verifyGetDiagnosticData(adminDb, logData = true, assumeMultiserviceSchema = false) {
+export function verifyGetDiagnosticData(adminDb, logData = true) {
     const maxAttempts = 60;
     const retryMillis = 500;
     // We need to retry a few times in case we're running this test immediately
     // after mongod is started. FTDC may not have run yet, or some collectors
     // might have timed out initially and so be missing from the response.
-    for (let attempt = 1;; ++attempt) {
+    for (let attempt = 1; ; ++attempt) {
         const result = adminDb.runCommand("getDiagnosticData");
         assert.commandWorked(result);
         const data = result.data;
-        const criteria = getCriteriaForGetDiagnosticData({data, adminDb, assumeMultiserviceSchema});
+        const criteria = getCriteriaForGetDiagnosticData(data);
         // results :: {[some predicate]: bool result, ...}
         const results = criteria.reduce((results, predicate) => {
             results[predicate.toString()] = predicate();
@@ -82,21 +66,22 @@ export function verifyGetDiagnosticData(adminDb, logData = true, assumeMultiserv
         if (Object.values(results).indexOf(false) === -1) {
             // all predicates are satisfied
             if (logData) {
-                jsTestLog("getDiagnosticData response met all criteria: " +
-                          tojson({criteria: results}));
+                jsTestLog("getDiagnosticData response met all criteria: " + tojson({criteria: results}));
             }
             return data;
         }
 
-        assert(attempt < maxAttempts,
-               `getDiagnosticData response failed to satisfy criteria after ${
-                   maxAttempts} attempts: ` +
-                   tojson({criteria: results, data}));
+        assert(
+            attempt < maxAttempts,
+            `getDiagnosticData response failed to satisfy criteria after ${maxAttempts} attempts: ` +
+                tojson({criteria: results, data}),
+        );
 
         jsTestLog(
             `getDiagnosticData response did not satisfy one or more criteria. Trying again in ${
-                retryMillis} milliseconds (attempt ${attempt}/${maxAttempts}). Criteria: ` +
-            tojson(results));
+                retryMillis
+            } milliseconds (attempt ${attempt}/${maxAttempts}). Criteria: ` + tojson(results),
+        );
         sleep(retryMillis);
     }
 }
@@ -106,7 +91,7 @@ export function verifyGetDiagnosticData(adminDb, logData = true, assumeMultiserv
  */
 export function verifyCommonFTDCParameters(adminDb, isEnabled) {
     // Are we running against MongoS?
-    var isMongos = ("isdbgrid" == adminDb.runCommand("ismaster").msg);
+    var isMongos = "isdbgrid" == adminDb.runCommand("ismaster").msg;
 
     // Check the defaults are correct
     //
@@ -117,18 +102,7 @@ export function verifyCommonFTDCParameters(adminDb, isEnabled) {
     // Verify the defaults are as we documented them
     assert.eq(getparam("diagnosticDataCollectionEnabled"), isEnabled);
     assert.eq(getparam("diagnosticDataCollectionPeriodMillis"), 1000);
-
-    const diagnosticDataCollectionDirectorySizeMB =
-        getparam("diagnosticDataCollectionDirectorySizeMB");
-
-    const isShardedCluster = adminDb.system.version.findOne({_id: "shardIdentity"});
-    if (isShardedCluster &&
-        FeatureFlagUtil.isPresentAndEnabled(adminDb, "MultiServiceLogAndFTDCFormat") && !isMongos) {
-        assert.eq(diagnosticDataCollectionDirectorySizeMB, 500);
-    } else {
-        assert.eq(diagnosticDataCollectionDirectorySizeMB, 250);
-    }
-
+    assert.eq(getparam("diagnosticDataCollectionDirectorySizeMB"), 250);
     assert.eq(getparam("diagnosticDataCollectionFileSizeMB"), 10);
     assert.eq(getparam("diagnosticDataCollectionSamplesPerChunk"), 300);
     assert.eq(getparam("diagnosticDataCollectionSamplesPerInterimUpdate"), 10);
@@ -165,19 +139,20 @@ export function verifyCommonFTDCParameters(adminDb, isEnabled) {
 
     // Reset
     assert.commandWorked(setparam({"diagnosticDataCollectionFileSizeMB": 10}));
-    assert.commandWorked(setparam(
-        {"diagnosticDataCollectionDirectorySizeMB": diagnosticDataCollectionDirectorySizeMB}));
+    assert.commandWorked(setparam({"diagnosticDataCollectionDirectorySizeMB": 250}));
     assert.commandWorked(setparam({"diagnosticDataCollectionPeriodMillis": 1000}));
     assert.commandWorked(setparam({"diagnosticDataCollectionSamplesPerChunk": 300}));
     assert.commandWorked(setparam({"diagnosticDataCollectionSamplesPerInterimUpdate": 10}));
 }
 
 export function waitFailedToStart(pid, exitCode) {
-    assert.soon(function() {
-        return !checkProgram(pid).alive;
-    }, `Failed to wait for ${pid} to die`, 30 * 1000);
+    assert.soon(
+        function () {
+            return !checkProgram(pid).alive;
+        },
+        `Failed to wait for ${pid} to die`,
+        30 * 1000,
+    );
 
-    assert.eq(exitCode,
-              checkProgram(pid).exitCode,
-              `Failed to wait for ${pid} to die with exit code ${exitCode}`);
+    assert.eq(exitCode, checkProgram(pid).exitCode, `Failed to wait for ${pid} to die with exit code ${exitCode}`);
 }

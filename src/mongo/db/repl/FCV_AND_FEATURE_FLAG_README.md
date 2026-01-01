@@ -302,7 +302,27 @@ The dry-run check is exposed in two complementary ways:
 
 If a setFCV command fails during dry-run mode, a `CannotUpgrade` or `CannotDowngrade` error will be thrown and the transition won't start, preventing the user from leaving the FCV in a transitional state.
 
-The compatibility checks are done respectively in functions `_userCollectionsUassertsForDowngrade` and `_userCollectionsUassertsForUpgrade`, so every added check should be placed in one of those functions.
+### Guidelines for adding new compatibility checks
+
+The upgrade/downgrade compatibility checks are done in the functions `_userCollectionsUassertsForUpgrade` and `_userCollectionsUassertsForDowngrade`, respectively. These functions are read-only (i.e. must not modify any user data or system state), so that their only purpose is to check for unmet preconditions and fail with a `CannotUpgrade` or `CannotDowngrade` error if the user needs to manually clean up data or settings before proceeding. Thus, every added check should be placed in one of these functions and must adhere to the following principles:
+
+- **Fast and non-disruptive**: Checks must complete quickly (under 10 seconds in typical scenarios) and have no noticeable impact on performance. This ensures users can perform a dry-run validation on a live system without disruption.
+  - In particular, avoid scanning large datasets like user data or chunks. It may be acceptable, however, to inspect collection/index metadata through the in-memory collection catalog.
+- **Report downstream impact**: When adding a new feasibility check, remember to fill the appropriate project/ticket metadata to notify any impact to other teams and document any manual upgrade/downgrade instructions.
+
+### Skipping the automatic dry-run
+
+For advanced use cases, you can bypass the automatic dry-run validation by including the `skipDryRun: true` parameter.
+
+```
+db.runCommand({
+  setFeatureCompatibilityVersion: '9.0',
+  confirm: true,
+  skipDryRun: true
+})
+```
+
+**Warning**: When this parameter is used and incompatible user data exists, the setFCV command will not fail before the actual FCV transition. Instead, it will begin the process of transitioning and then fail, leaving the FCV in a transitional "upgrading" or "downgrading" state.
 
 ## SetFCV Command Errors
 
@@ -410,7 +430,7 @@ in the helper functions:
 - `_userCollectionsUassertsForUpgrade`: for any checks on user data or settings that will uassert
   with the `CannotUpgrade` code if users need to manually clean up user data or settings. It must
   not modify any user data or system state. It only checks preconditions for upgrades and fails
-  if they are unmet.
+  if they are unmet (see [guidelines for adding new compatibility checks](#guidelines-for-adding-new-compatibility-checks)).
 - `_userCollectionsWorkForUpgrade`: for any user collections uasserts (with the `CannotUpgrade` error code),
   creations, or deletions that need to happen during the upgrade. This happens after the global lock.
   It is required that the code in this helper function is idempotent and could be
@@ -446,7 +466,7 @@ placed in the helper functions:
 - `_userCollectionsUassertsForDowngrade`: for any checks on user data or settings that will uassert
   with the `CannotDowngrade` code if users need to manually clean up user data or settings. It must
   not modify any user data or system state. It only checks preconditions for downgrades and fails
-  if they are unmet.
+  if they are unmet (see [guidelines for adding new compatibility checks](#guidelines-for-adding-new-compatibility-checks)).
 
 `_runDowngrade:` \_runDowngrade performs all the metadata-changing actions of an FCV downgrade. Any
 new feature specific downgrade code should be placed in the `_runDowngrade` helper functions:
@@ -784,18 +804,6 @@ A feature flag has the following properties:
     been upgraded to a binary version that includes the feature.
   - Must be `false` if `incremental_rollout_phase` has any value other than the default. A feature flag cannot be both an IFR flag and an FCV-gated flag.
   - See [Determining if a feature flag should be binary-compatible or FCV-gated](#determining-which-style-of-feature-flag-to-use) for guidelines on when each type of feature flag should be used.
-- enable_on_transitional_fcv: boolean
-  - Optional. Can only be specified for FCV-gated feature flags (`fcv_gated: true`). Default
-    value is `false`.
-  - When set to `true`, an FCV-gated feature flag will also be enabled during `kUpgradingFrom_X_To_Y`
-    or `kDowngradingFrom_Y_To_X`, where `Y` is the version specified in `version`. For example, if
-    a feature flag specifies `version: 8.0` and `enable_on_transitional_fcv: true`, then it will be
-    enabled during `kUpgradingFrom_7_0_To_8_0` or `kDowngradingFrom_8_0_To_7_0`. Notably, it won't
-    be enabled during `kUpgradingFrom_7_0_To_7_3`.
-  - Can be used to enable certain complex features in a staged fashion. For example, one can use
-    one feature flag that is enabled during the transition phase, which would enable some aspects of
-    the feature, along with a different feature flag that is enabled normally in fully upgraded
-    state.
 - incremental_rollout_phase: (`not_for_incremental_rollout`|`in_development`|`rollout`|`released`)
   - Optional. Use the default value `not_for_incremental_rollout` for FCV-gated and
     binary-compatible feature flags.
@@ -809,6 +817,35 @@ A feature flag has the following properties:
   - The `default` property is optional for IFR feature flags. It is an error to specify a `default`
     value that does not match the rollout phase (`false` for `in_development` and `true` for
     `rollout` or `released`).
+- enable_on_transitional_fcv_UNSAFE: boolean
+  - Optional. Can only be specified for FCV-gated feature flags (`fcv_gated: true`). Default
+    value is `false`.
+  - When set to `true`, an FCV-gated feature flag will also be enabled during `kUpgradingFrom_X_To_Y`
+    or `kDowngradingFrom_Y_To_X`, where `Y` is the version specified in `version`. For example, if
+    a feature flag specifies `version: 8.0` and `enable_on_transitional_fcv_UNSAFE: true`, then it
+    will be enabled during `kUpgradingFrom_7_0_To_8_0` or `kDowngradingFrom_8_0_To_7_0`.
+    Notably, it won't be enabled during `kUpgradingFrom_7_0_To_7_3`.
+  - Its intended use is deploying complex features in a staged fashion: A feature flag is enabled
+    during the transition phase in order to prepare some aspects of a feature, along with another
+    feature flag that is enabled in the fully upgraded FCV and enables the feature's functionality.
+  - This option must not be used as a general way to deploy features because it drops many of the
+    safeguards provided by setFCV for feature flags, introducing many pitfalls such as:
+    - Upon starting a upgrade, an operation may find the feature flag enabled while operations on
+      the fully downgraded FCV (`kVersion_X`) still run (before the global lock barrier & draining).
+      Since that FCV is already released, so there is no wiggle room to change its behavior.
+    - On a sharded cluster, the flag may be enabled on one shard, while others shards are
+      still on the fully downgraded FCV (`kVersion_X`).
+    - Upon finishing a downgrade, an operation may have checked a feature flag as enabled, then the
+      FCV may have transitioned to fully downgraded (`kVersion_X`). Persisting data such as oplog
+      entries in new formats after this can cause incompatibilites if the binaries are downgraded.
+    - Since the feature is enabled during the 'start' and 'prepare' phases of setFCV, if it creates
+      incompatible user data such that setFCV could fail with `CannotUpgrade` or `CannotDowngrade`,
+      it can trap the user in a transitional FCV without being able to neither complete the
+      upgrade/downgrade without manual intervention nor return to the original FCV.
+    - See [SERVER-105672](https://jira.mongodb.org/browse/SERVER-105672) and
+      [SERVER-102169](https://jira.mongodb.org/browse/SERVER-102169) for further discussion.
+  - If you enable this property, the feature flag description must contain the text
+    '(Enable on transitional FCV): ' followed by a justification for why the use of the property is safe.
 - fcv_context_unaware: boolean
   - Optional. Can only be specified for FCV-gated feature flags (`fcv_gated: true`). Default value is `false`.
   - `true` for feature flags that have not yet been adapted to the new feature flag API introduced in SERVER-99351.

@@ -480,6 +480,8 @@ last-continuous:
       ticket: SERVER-82020
     - test_file: jstests/aggregation/expressions/reduce_overflow.js
       ticket: SERVER-102364
+    - test_file: jstests/sharding/txn_lookup_hits_migration_conflict_all_colls_local.js
+      ticket: SERVER-107535
     - test_file: jstests/sharding/validate_collection_shard_version.js
       ticket: SERVER-87119
     - test_file: jstests/core/query/internal_apply_oplog_update.js
@@ -488,6 +490,10 @@ last-continuous:
       ticket: SERVER-107211
     - test_file: jstests/concurrency/fsm_workloads/query/yield/repl_set_resize_oplog.js
       ticket: SERVER-94787
+    - test_file: jstests/core/timeseries/ddl/rename_timeseries.js
+      ticket: SERVER-109087
+    - test_file: jstests/core/timeseries/ddl/timeseries_bucket_index.js
+      ticket: SERVER-87119
   suites: null
 last-lts:
   all:
@@ -1023,6 +1029,8 @@ last-lts:
       ticket: SERVER-95570
     - test_file: jstests/aggregation/expressions/reduce_overflow.js
       ticket: SERVER-102364
+    - test_file: jstests/sharding/txn_lookup_hits_migration_conflict_all_colls_local.js
+      ticket: SERVER-107535
     - test_file: jstests/sharding/validate_collection_shard_version.js
       ticket: SERVER-87119
     - test_file: jstests/core/query/internal_apply_oplog_update.js
@@ -1031,4 +1039,8 @@ last-lts:
       ticket: SERVER-107211
     - test_file: jstests/concurrency/fsm_workloads/query/yield/repl_set_resize_oplog.js
       ticket: SERVER-94787
+    - test_file: jstests/core/timeseries/ddl/rename_timeseries.js
+      ticket: SERVER-109087
+    - test_file: jstests/core/timeseries/ddl/timeseries_bucket_index.js
+      ticket: SERVER-87119
   suites: null

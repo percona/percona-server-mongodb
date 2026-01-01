@@ -36,6 +36,7 @@
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/session/logical_session_id_gen.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
 
@@ -45,7 +46,9 @@
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 
-namespace mongo {
+namespace MONGO_MOD_PUB mongo {
+
+struct IndexBuildInfo;
 namespace repl {
 /**
  * Creates an OplogEntry with given parameters and preset defaults.
@@ -107,11 +110,9 @@ OplogEntry makeCreateIndexOplogEntry(OpTime opTime,
  */
 OplogEntry makeStartIndexBuildOplogEntry(OpTime opTime,
                                          const NamespaceString& nss,
-                                         const std::string& indexName,
-                                         const BSONObj& keyPattern,
                                          const UUID& uuid,
                                          const UUID& indexBuildUUID,
-                                         StringData ident);
+                                         const IndexBuildInfo& indexBuildInfo);
 
 /**
  * Creates a two-phase index build commit oplog entry with a given optime, namespace, and index
@@ -119,10 +120,9 @@ OplogEntry makeStartIndexBuildOplogEntry(OpTime opTime,
  */
 OplogEntry makeCommitIndexBuildOplogEntry(OpTime opTime,
                                           const NamespaceString& nss,
-                                          const std::string& indexName,
-                                          const BSONObj& keyPattern,
                                           const UUID& uuid,
-                                          const UUID& indexBuildUUID);
+                                          const UUID& indexBuildUUID,
+                                          const IndexBuildInfo& indexBuildInfo);
 
 /**
  * Creates an oplog entry for 'command' with the given 'optime', 'namespace' and optional 'uuid'.
@@ -165,4 +165,4 @@ OplogEntry makeInsertDocumentOplogEntryWithSessionInfoAndStmtIds(
 
 BSONObj makeInsertApplyOpsEntry(const NamespaceString& nss, const UUID& uuid, const BSONObj& doc);
 }  // namespace repl
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUB mongo

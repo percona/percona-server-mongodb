@@ -30,10 +30,9 @@
 import pathlib
 import shlex
 import typing
+from dataclasses import fields
 
-import datagen.config
 import datagen.database_instance
-import datagen.util
 
 
 class CorrelatedGeneratorFactory:
@@ -57,7 +56,7 @@ class CorrelatedGeneratorFactory:
         # Faker and random do not allow the seed to be retrieved after instantiation,
         # so the spec files can not create uncorrelated Faker objects after the fact that
         # use the same seed. So, we instantiate a global uncorrelated Faker here.
-        datagen.util.set_uncorrelated_faker(faker.Faker(seed = seed))
+        datagen.util.set_uncorrelated_faker(faker.Faker(seed=seed))
 
     def make_generator(self) -> typing.Generator:
         """Generates the dictated objects as a generator."""
@@ -181,6 +180,10 @@ async def main():
     )
     parser.add_argument("--drop", action="store_true", help="Drop the collection before inserting.")
     parser.add_argument("--dump", nargs="?", const="", help="Dump the collection after inserting.")
+    parser.add_argument("--analyze", action="store_true", help="""
+                        Run the 'analyze' command against each field of the collection.
+                        Analyze is not preserved across restarts, or when dumping or restoring.
+                        """)
     parser.add_argument("--indices", action="append", help="An index set to load.")
     parser.add_argument("--restore-args", type=str, help="Parameters to pass to mongorestore.")
     parser.add_argument(
@@ -234,36 +237,26 @@ async def main():
 
         seed = None
 
-        # 2-3. Generate data and create indices.
-        if issubclass(spec, datagen.config.DataGeneratorProducer):
-            # 2a. CE data generator spec.
+        # 2. Create and insert the documents.
+        if args.size:
+            # Generate 1024 bits of randomness as the initial seed if one was not already provided.
             seed = args.seed if args.seed else f"{random.getrandbits(1024)}"
-            data_generator = spec.generator_function(seed)
-            generator = datagen.util.DataGenerator(database_instance, data_generator)
-            await generator.populate_collections()
-        else:
-            # 2b. Create and insert the documents.
-            if args.size:
-                # Generate 1024 bits of randomness as the initial seed if one was not already provided.
-                seed = args.seed if args.seed else f"{random.getrandbits(1024)}"
-                generator_factory = CorrelatedGeneratorFactory(spec, seed)
-                generator = generator_factory.make_generator()
-                await upstream(database_instance, collection_name, generator, args.size)
-                generator_factory.dump_metadata(collection_name, args.size, seed, metadata_path)
+            generator_factory = CorrelatedGeneratorFactory(spec, seed)
+            generator = generator_factory.make_generator()
+            await upstream(database_instance, collection_name, generator, args.size)
+            generator_factory.dump_metadata(collection_name, args.size, seed, metadata_path)
 
-            # 3b. Create indices after documents.
-            indices = args.indices if args.indices else ()
-            for index_set_name in indices:
-                if hasattr(module, index_set_name):
-                    index_set = getattr(module, index_set_name)
-                    indices = index_set() if callable(index_set) else index_set
-                    await database_instance.database.get_collection(collection_name).create_indexes(
-                        indices
-                    )
-                else:
-                    raise RuntimeError(
-                        f"Module {module} does not define index set {index_set_name}."
-                    )
+        # 3. Create indices after documents.
+        indices = args.indices if args.indices else ()
+        for index_set_name in indices:
+            if hasattr(module, index_set_name):
+                index_set = getattr(module, index_set_name)
+                indices = index_set() if callable(index_set) else index_set
+                await database_instance.database.get_collection(collection_name).create_indexes(
+                    indices
+                )
+            else:
+                raise RuntimeError(f"Module {module} does not define index set {index_set_name}.")
 
         # 4. Only record things if the dataset is somehow actually changed.
         if any((args.size, args.indices, args.drop, args.restore)):
@@ -280,6 +273,10 @@ async def main():
             database_instance.dump(dump_additional_args)
             dump_commands(args.out)
 
+        # 6. Run 'analyze' on each field
+        if args.analyze is not None:
+            for field in fields(spec):
+                await field.type.analyze(database_instance, collection_name, field.name)
 
 if __name__ == "__main__":
     import asyncio

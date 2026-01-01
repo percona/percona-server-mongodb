@@ -30,7 +30,6 @@
 #include "mongo/db/extension/host/load_extension.h"
 
 #include "mongo/db/extension/host/extension_handle.h"
-#include "mongo/db/extension/host/stage_registry.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/extension_status.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
@@ -56,7 +55,7 @@ void assertVersionCompatibility(const ::MongoExtensionAPIVersionVector* hostVers
     bool foundCompatibleMajor = false;
     bool foundCompatibleMinor = false;
 
-    for (size_t i = 0; i < hostVersions->len; ++i) {
+    for (uint64_t i = 0; i < hostVersions->len; ++i) {
         const auto& hostVersion = hostVersions[i].versions;
         if (hostVersion->major == extensionVersion.major) {
             foundCompatibleMajor = true;
@@ -100,14 +99,7 @@ ExtensionHandle getMongoExtension(SharedLibrary& extensionLib, const std::string
                           << "': get_mongodb_extension failed to set an extension",
             extension != nullptr);
 
-    const auto extHandle = ExtensionHandle{extension};
-
-    uassert(10615506,
-            str::stream() << "Loading extension '" << extensionPath
-                          << "' failed: initialize function is not defined",
-            extHandle.vtable().initialize != nullptr);
-
-    return extHandle;
+    return ExtensionHandle{extension};
 }
 }  // namespace
 
@@ -170,9 +162,8 @@ void ExtensionLoader::load(const std::string& extensionPath) {
                .getIncomingInternalClient()
                .maxWireVersion);
 
-    ::MongoExtensionHostPortal portal{
-        extHandle.getVersion(), maxWireVersion, registerStageDescriptor};
-    extHandle.initialize(&portal);
+    HostPortal portal{extHandle.getVersion(), maxWireVersion};
+    extHandle.initialize(portal);
 
     // Add the 'SharedLibrary' pointer to our loaded extensions array to keep it alive for the
     // lifetime of the server.

@@ -9,9 +9,8 @@ if (assert.commandWorked(isPSMDBOrEnterprise(db.runCommand({buildInfo: 1})))) {
     const auditPath = control.getMountPath();
 
     testFuseAndMongoD(control, {
-
-        auditDestination: 'file',
-        auditFormat: 'JSON',
-        auditPath: auditPath + "/auditLog.json"
+        auditDestination: "file",
+        auditFormat: "JSON",
+        auditPath: auditPath + "/auditLog.json",
     });
 }

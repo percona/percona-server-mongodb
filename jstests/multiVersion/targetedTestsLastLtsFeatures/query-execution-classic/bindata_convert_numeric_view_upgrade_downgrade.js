@@ -3,12 +3,8 @@
  */
 
 import {assertDropAndRecreateCollection} from "jstests/libs/collection_drop_recreate.js";
-import {
-    testPerformUpgradeDowngradeReplSet
-} from "jstests/multiVersion/libs/mixed_version_fixture_test.js";
-import {
-    testPerformUpgradeDowngradeSharded
-} from "jstests/multiVersion/libs/mixed_version_sharded_fixture_test.js";
+import {testPerformUpgradeReplSet} from "jstests/multiVersion/libs/mixed_version_fixture_test.js";
+import {testPerformUpgradeSharded} from "jstests/multiVersion/libs/mixed_version_sharded_fixture_test.js";
 
 const collectionName = "coll";
 
@@ -30,23 +26,25 @@ function setupCollection(primaryConnection, shardingTest = null) {
         shardingTest.shardColl(coll, {asBinData: 1}, false);
     }
 
-    assert.commandWorked(coll.insertMany([
-        {
-            _id: 0,
-            asInt: NumberInt(42),
-            asBinData: BinData(0, "AAAAKg=="),
-        },
-        {
-            _id: 1,
-            asLong: NumberLong(674),
-            asBinData: BinData(0, "ogIAAA=="),
-        },
-        {
-            _id: 2,
-            asDouble: 13.199999809265137,
-            asBinData: BinData(0, "QVMzMw=="),
-        },
-    ]));
+    assert.commandWorked(
+        coll.insertMany([
+            {
+                _id: 0,
+                asInt: NumberInt(42),
+                asBinData: BinData(0, "AAAAKg=="),
+            },
+            {
+                _id: 1,
+                asLong: NumberLong(674),
+                asBinData: BinData(0, "ogIAAA=="),
+            },
+            {
+                _id: 2,
+                asDouble: 13.199999809265137,
+                asBinData: BinData(0, "QVMzMw=="),
+            },
+        ]),
+    );
 }
 
 function assertViewCanBeCreatedButNotExecuted(primaryConnection) {
@@ -56,18 +54,15 @@ function assertViewCanBeCreatedButNotExecuted(primaryConnection) {
     // bindata-to-double and bindata-to-long conversions.
     db[toIntViewName].drop();
     assert.commandWorked(db.createView(toIntViewName, collectionName, toIntPipeline));
-    assert.commandFailedWithCode(db.runCommand({find: toIntViewName, filter: {}}),
-                                 ErrorCodes.ConversionFailure);
+    assert.commandFailedWithCode(db.runCommand({find: toIntViewName, filter: {}}), ErrorCodes.ConversionFailure);
 
     db[toLongViewName].drop();
     assert.commandWorked(db.createView(toLongViewName, collectionName, toLongPipeline));
-    assert.commandFailedWithCode(db.runCommand({find: toLongViewName, filter: {}}),
-                                 ErrorCodes.ConversionFailure);
+    assert.commandFailedWithCode(db.runCommand({find: toLongViewName, filter: {}}), ErrorCodes.ConversionFailure);
 
     db[toDoubleViewName].drop();
     assert.commandWorked(db.createView(toDoubleViewName, collectionName, toDoublePipeline));
-    assert.commandFailedWithCode(db.runCommand({find: toDoubleViewName, filter: {}}),
-                                 ErrorCodes.ConversionFailure);
+    assert.commandFailedWithCode(db.runCommand({find: toDoubleViewName, filter: {}}), ErrorCodes.ConversionFailure);
 }
 
 function assertViewCanBeCreatedAndExecuted(primaryConnection) {
@@ -90,79 +85,90 @@ function assertQueriesOnViewsFail(primaryConnection) {
     const db = getDB(primaryConnection);
 
     // Queries on views using BinData $convert numeric should fail after downgrading the FCV.
-    assert.commandFailedWithCode(db.runCommand({find: toIntViewName, filter: {}}),
-                                 ErrorCodes.ConversionFailure);
-    assert.commandFailedWithCode(db.runCommand({find: toLongViewName, filter: {}}),
-                                 ErrorCodes.ConversionFailure);
-    assert.commandFailedWithCode(db.runCommand({find: toDoubleViewName, filter: {}}),
-                                 ErrorCodes.ConversionFailure);
+    assert.commandFailedWithCode(db.runCommand({find: toIntViewName, filter: {}}), ErrorCodes.ConversionFailure);
+    assert.commandFailedWithCode(db.runCommand({find: toLongViewName, filter: {}}), ErrorCodes.ConversionFailure);
+    assert.commandFailedWithCode(db.runCommand({find: toDoubleViewName, filter: {}}), ErrorCodes.ConversionFailure);
 
     // BinData to int / long / double conversion still succeeds with onError value.
-    assert.commandWorked(db.runCommand({
-        aggregate: collectionName,
-        cursor: {},
-        pipeline: [{
-            $project: {
-                intFromBindata: {
-                    $convert: {
-                        input: "$asBinData",
-                        to: "int",
-                        onError: "NULL",
-                    }
-                }
-            }
-        }]
-    }));
+    assert.commandWorked(
+        db.runCommand({
+            aggregate: collectionName,
+            cursor: {},
+            pipeline: [
+                {
+                    $project: {
+                        intFromBindata: {
+                            $convert: {
+                                input: "$asBinData",
+                                to: "int",
+                                onError: "NULL",
+                            },
+                        },
+                    },
+                },
+            ],
+        }),
+    );
 
-    assert.commandWorked(db.runCommand({
-        aggregate: collectionName,
-        cursor: {},
-        pipeline: [{
-            $project: {
-                longFromBindata: {
-                    $convert: {
-                        input: "$asBinData",
-                        to: "long",
-                        onError: "NULL",
-                    }
-                }
-            }
-        }]
-    }));
+    assert.commandWorked(
+        db.runCommand({
+            aggregate: collectionName,
+            cursor: {},
+            pipeline: [
+                {
+                    $project: {
+                        longFromBindata: {
+                            $convert: {
+                                input: "$asBinData",
+                                to: "long",
+                                onError: "NULL",
+                            },
+                        },
+                    },
+                },
+            ],
+        }),
+    );
 
-    assert.commandWorked(db.runCommand({
-        aggregate: collectionName,
-        cursor: {},
-        pipeline: [{
-            $project: {
-                doubleFromBindata: {
-                    $convert: {
-                        input: "$asBinData",
-                        to: "double",
-                        onError: "NULL",
-                    }
-                }
-            }
-        }]
-    }));
+    assert.commandWorked(
+        db.runCommand({
+            aggregate: collectionName,
+            cursor: {},
+            pipeline: [
+                {
+                    $project: {
+                        doubleFromBindata: {
+                            $convert: {
+                                input: "$asBinData",
+                                to: "double",
+                                onError: "NULL",
+                            },
+                        },
+                    },
+                },
+            ],
+        }),
+    );
 
     // However, they should not succeed with a 'byteOrder' argument.
     assert.commandFailedWithCode(
         db.runCommand({
             aggregate: collectionName,
             cursor: {},
-            pipeline: [{
-                $project: {
-                    stringFromUuid: {
-                        $convert: {
-                            input: "$asBinData",
-                            to: "int",
-                            byteOrder: "little",
-                            onError: "NULL",
-                        }
-                    }
-                }
-            }]
+            pipeline: [
+                {
+                    $project: {
+                        stringFromUuid: {
+                            $convert: {
+                                input: "$asBinData",
+                                to: "int",
+                                byteOrder: "little",
+                                onError: "NULL",
+                            },
+                        },
+                    },
+                },
+            ],
         }),
         ErrorCodes.FailedToParse,
     );
@@ -171,18 +177,20 @@ function assertQueriesOnViewsFail(primaryConnection) {
         db.runCommand({
             aggregate: collectionName,
             cursor: {},
-            pipeline: [{
-                $project: {
-                    longFromBinData: {
-                        $convert: {
-                            input: "$asBinData",
-                            to: "long",
-                            byteOrder: "big",
-                            onError: "NULL",
-                        }
-                    }
-                }
-            }]
+            pipeline: [
+                {
+                    $project: {
+                        longFromBinData: {
+                            $convert: {
+                                input: "$asBinData",
+                                to: "long",
+                                byteOrder: "big",
+                                onError: "NULL",
+                            },
+                        },
+                    },
+                },
+            ],
         }),
         ErrorCodes.FailedToParse,
     );
@@ -191,18 +199,20 @@ function assertQueriesOnViewsFail(primaryConnection) {
         db.runCommand({
             aggregate: collectionName,
             cursor: {},
-            pipeline: [{
-                $project: {
-                    doubleFromBinData: {
-                        $convert: {
-                            input: "$asBinData",
-                            to: "double",
-                            byteOrder: "big",
-                            onError: "NULL",
-                        }
-                    }
-                }
-            }]
+            pipeline: [
+                {
+                    $project: {
+                        doubleFromBinData: {
+                            $convert: {
+                                input: "$asBinData",
+                                to: "double",
+                                byteOrder: "big",
+                                onError: "NULL",
+                            },
+                        },
+                    },
+                },
+            ],
         }),
         ErrorCodes.FailedToParse,
     );
@@ -212,16 +222,18 @@ function assertQueriesOnViewsFail(primaryConnection) {
         db.runCommand({
             aggregate: collectionName,
             cursor: {},
-            pipeline: [{
-                $project: {
-                    BinDataFromInt: {
-                        $convert: {
-                            input: "$asInt",
-                            to: "binData",
-                        }
-                    }
-                }
-            }]
+            pipeline: [
+                {
+                    $project: {
+                        BinDataFromInt: {
+                            $convert: {
+                                input: "$asInt",
+                                to: "binData",
+                            },
+                        },
+                    },
+                },
+            ],
         }),
         ErrorCodes.ConversionFailure,
     );
@@ -230,12 +242,13 @@ function assertQueriesOnViewsFail(primaryConnection) {
         db.runCommand({
             aggregate: collectionName,
             cursor: {},
-            pipeline: [{
-                $project: {
-                    BinDataFromInt:
-                        {$convert: {input: "$asLong", to: "binData", byteOrder: "little"}}
-                }
-            }]
+            pipeline: [
+                {
+                    $project: {
+                        BinDataFromInt: {$convert: {input: "$asLong", to: "binData", byteOrder: "little"}},
+                    },
+                },
+            ],
         }),
         ErrorCodes.FailedToParse,
     );
@@ -244,18 +257,19 @@ function assertQueriesOnViewsFail(primaryConnection) {
         db.runCommand({
             aggregate: collectionName,
             cursor: {},
-            pipeline: [{
-                $project: {
-                    BinDataFromDouble:
-                        {$convert: {input: "$asDouble", to: "binData", byteOrder: "little"}}
-                }
-            }]
+            pipeline: [
+                {
+                    $project: {
+                        BinDataFromDouble: {$convert: {input: "$asDouble", to: "binData", byteOrder: "little"}},
+                    },
+                },
+            ],
         }),
         ErrorCodes.FailedToParse,
     );
 }
 
-testPerformUpgradeDowngradeReplSet({
+testPerformUpgradeReplSet({
     setupFn: setupCollection,
     whenFullyDowngraded: assertViewCanBeCreatedButNotExecuted,
     whenSecondariesAreLatestBinary: assertViewCanBeCreatedButNotExecuted,
@@ -263,7 +277,7 @@ testPerformUpgradeDowngradeReplSet({
     whenFullyUpgraded: assertViewCanBeCreatedAndExecuted,
 });
 
-testPerformUpgradeDowngradeSharded({
+testPerformUpgradeSharded({
     setupFn: setupCollection,
     whenFullyDowngraded: assertViewCanBeCreatedButNotExecuted,
     whenOnlyConfigIsLatestBinary: assertViewCanBeCreatedButNotExecuted,

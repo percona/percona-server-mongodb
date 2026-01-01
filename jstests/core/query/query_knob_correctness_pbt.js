@@ -21,10 +21,7 @@ import {getDifferentlyShapedQueries} from "jstests/libs/property_test_helpers/co
 import {getCollectionModel} from "jstests/libs/property_test_helpers/models/collection_models.js";
 import {queryKnobsModel} from "jstests/libs/property_test_helpers/models/query_knob_models.js";
 import {getAggPipelineModel} from "jstests/libs/property_test_helpers/models/query_models.js";
-import {
-    runDeoptimized,
-    testProperty
-} from "jstests/libs/property_test_helpers/property_testing_utils.js";
+import {runDeoptimized, testProperty} from "jstests/libs/property_test_helpers/property_testing_utils.js";
 import {isSlowBuild} from "jstests/libs/query/aggregation_pipeline_utils.js";
 import {fc} from "jstests/third_party/fast_check/fc-3.1.0.js";
 
@@ -83,7 +80,7 @@ function runWithKnobs(knobToVal, fn) {
     }
 }
 
-function queriesWithKnobsSetAreSameAsControlCollScan(getQuery, testHelpers, knobToVal) {
+function queriesWithKnobsSetAreSameAsControlCollScan(getQuery, testHelpers, {knobToVal}) {
     const queries = getDifferentlyShapedQueries(getQuery, testHelpers);
 
     // Compute the control results all at once.
@@ -98,12 +95,12 @@ function queriesWithKnobsSetAreSameAsControlCollScan(getQuery, testHelpers, knob
                 return {
                     passed: false,
                     message:
-                        'A query with different knobs set has returned incorrect results compared to a collection scan query with no knobs set.',
+                        "A query with different knobs set has returned incorrect results compared to a collection scan query with no knobs set.",
                     query,
                     explain: experimentColl.explain().aggregate(query),
                     controlResults,
                     experimentResults,
-                    knobToVal
+                    knobToVal,
                 };
             }
         }
@@ -116,18 +113,20 @@ function getWorkloadModel(isTS, aggModel) {
         .record({
             collSpec: getCollectionModel({isTS}),
             queries: fc.array(aggModel, {minLength: 1, maxLength: numQueriesPerRun}),
-            knobToVal: queryKnobsModel
+            knobToVal: queryKnobsModel,
         })
         .map(({collSpec, queries, knobToVal}) => {
-            return {collSpec, queries, extraParams: [knobToVal]};
+            return {collSpec, queries, extraParams: {knobToVal}};
         });
 }
 
 // Test with a regular collection.
-testProperty(queriesWithKnobsSetAreSameAsControlCollScan,
-             {controlColl, experimentColl},
-             getWorkloadModel(false /* isTS */, getAggPipelineModel()),
-             numRuns);
+testProperty(
+    queriesWithKnobsSetAreSameAsControlCollScan,
+    {controlColl, experimentColl},
+    getWorkloadModel(false /* isTS */, getAggPipelineModel()),
+    numRuns,
+);
 
 // TODO SERVER-103381 re-enable timeseries PBT testing.
 // Test with a TS collection.

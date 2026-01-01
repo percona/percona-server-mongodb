@@ -9,6 +9,7 @@
 //   uses_map_reduce_with_temp_collections,
 //   # This test has statements that do not support non-local read concern.
 //   does_not_support_causal_consistency,
+//   requires_scripting,
 // ]
 
 db.recursion.drop();
@@ -22,13 +23,14 @@ assert.throws(shellRecursion);
 // Make sure server side stack overflow doesn't blow up.
 function mapReduceRecursion() {
     db.recursion.mapReduce(
-        function() {
+        function () {
             (function recursion() {
                 recursion.apply();
             })();
         },
-        function() {},
-        {out: {merge: 'out_coll'}});
+        function () {},
+        {out: {merge: "out_coll"}},
+    );
 }
 
 assert.commandWorked(db.recursion.insert({}));

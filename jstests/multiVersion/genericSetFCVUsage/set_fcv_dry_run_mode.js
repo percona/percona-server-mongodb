@@ -9,18 +9,18 @@ import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
 const successfulCases = [
-    {fromFCV: latestFCV, toFCV: lastLTSFCV},         // Downgrade from latest to lastLTS
-    {fromFCV: latestFCV, toFCV: lastContinuousFCV},  // Downgrade from latest to lastContinuous
-    {fromFCV: lastLTSFCV, toFCV: latestFCV},         // Upgrade from lastLTS to latest
+    {fromFCV: latestFCV, toFCV: lastLTSFCV}, // Downgrade from latest to lastLTS
+    {fromFCV: latestFCV, toFCV: lastContinuousFCV}, // Downgrade from latest to lastContinuous
+    {fromFCV: lastLTSFCV, toFCV: latestFCV}, // Upgrade from lastLTS to latest
     {
         fromFCV: lastLTSFCV,
         toFCV: lastContinuousFCV,
-        fromConfigServer: true
-    },  // Upgrade from lastLTS to lastContinuous . fromConfigServer is needed because this
-        // transition is only allowed as part of internal operations (`addShard`).
+        fromConfigServer: true,
+    }, // Upgrade from lastLTS to lastContinuous . fromConfigServer is needed because this
+    // transition is only allowed as part of internal operations (`addShard`).
 
-    {fromFCV: lastContinuousFCV, toFCV: latestFCV},  // Upgrade from lastContinuous to latest
-    {fromFCV: latestFCV, toFCV: latestFCV}           // Same requested and actual version
+    {fromFCV: lastContinuousFCV, toFCV: latestFCV}, // Upgrade from lastContinuous to latest
+    {fromFCV: latestFCV, toFCV: latestFCV}, // Same requested and actual version
 ];
 
 const failCases = [
@@ -54,7 +54,7 @@ function testSuccessfulDryRun(conn, fromFCV, toFCV, fromConfigServer) {
 
     jsTestLog(`Performing dry-run validation for transition from ${fromFCV} to ${toFCV}.`);
 
-    const commandObj = {setFeatureCompatibilityVersion: toFCV, dryRun: true, confirm: true};
+    const commandObj = {setFeatureCompatibilityVersion: toFCV, dryRun: true};
 
     // Include `fromConfigServer` if specified in the test case
     if (fromConfigServer) {
@@ -63,7 +63,7 @@ function testSuccessfulDryRun(conn, fromFCV, toFCV, fromConfigServer) {
 
     const res = db.runCommand(commandObj);
     assert.commandWorked(res, "Dry-run validation did not succeed.");
-    checkFCV(db, fromFCV);  // FCV should remain unchanged post-dry-run
+    checkFCV(db, fromFCV); // FCV should remain unchanged post-dry-run
 
     jsTestLog(`Dry-run completed successfully.`);
 
@@ -78,30 +78,32 @@ function testFailedDryRun(conn, fromFCV, toFCV, failPointName, expectedError, sh
 
     if (failPointName) {
         jsTestLog(`Enabling failpoint '${failPointName}' to simulate validation failure.`);
-        assert.commandWorked(shardConn.adminCommand({
-            configureFailPoint: failPointName,
-            mode: "alwaysOn",
-        }));
+        assert.commandWorked(
+            shardConn.adminCommand({
+                configureFailPoint: failPointName,
+                mode: "alwaysOn",
+            }),
+        );
     }
-    jsTestLog(`Performing dry-run validation for transition from ${fromFCV} to ${
-        toFCV} expecting failure.`);
+    jsTestLog(`Performing dry-run validation for transition from ${fromFCV} to ${toFCV} expecting failure.`);
     const res = db.runCommand({
         setFeatureCompatibilityVersion: toFCV,
         dryRun: true,
-        confirm: true,
     });
 
     jsTestLog("Validating the error code returned from the dry-run.");
     assert.commandFailedWithCode(res, expectedError, `Expected error during dry-run validation.`);
 
-    checkFCV(db, fromFCV);  // FCV should remain unchanged post-dry-run
+    checkFCV(db, fromFCV); // FCV should remain unchanged post-dry-run
 
     if (failPointName) {
         jsTestLog(`Disabling failpoint '${failPointName}'.`);
-        assert.commandWorked(shardConn.adminCommand({
-            configureFailPoint: failPointName,
-            mode: "off",
-        }));
+        assert.commandWorked(
+            shardConn.adminCommand({
+                configureFailPoint: failPointName,
+                mode: "off",
+            }),
+        );
     }
 
     jsTestLog(`Failure simulation for dry-run validation completed successfully.`);

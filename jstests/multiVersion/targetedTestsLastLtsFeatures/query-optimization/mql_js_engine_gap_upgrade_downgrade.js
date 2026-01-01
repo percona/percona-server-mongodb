@@ -8,12 +8,8 @@
  */
 
 import {assertDropAndRecreateCollection} from "jstests/libs/collection_drop_recreate.js";
-import {
-    testPerformUpgradeDowngradeReplSet
-} from "jstests/multiVersion/libs/mixed_version_fixture_test.js";
-import {
-    testPerformUpgradeDowngradeSharded
-} from "jstests/multiVersion/libs/mixed_version_sharded_fixture_test.js";
+import {testPerformUpgradeReplSet} from "jstests/multiVersion/libs/mixed_version_fixture_test.js";
+import {testPerformUpgradeSharded} from "jstests/multiVersion/libs/mixed_version_sharded_fixture_test.js";
 
 const collectionName = "coll";
 
@@ -26,10 +22,10 @@ const expressionsWithNewFeaturesThatCanBeParsedByOldFCV = [
             $replaceOne: {
                 input: "$replaceParams.input",
                 find: "$replaceParams.find",
-                replacement: "$replaceParams.replacement"
-            }
+                replacement: "$replaceParams.replacement",
+            },
         },
-        failureErrorCode: [51745, 10503901]
+        failureErrorCode: [51745, 10503901],
     },
     {
         viewName: "replaceAllView",
@@ -37,15 +33,15 @@ const expressionsWithNewFeaturesThatCanBeParsedByOldFCV = [
             $replaceAll: {
                 input: "$replaceParams.input",
                 find: "$replaceParams.find",
-                replacement: "$replaceParams.replacement"
-            }
+                replacement: "$replaceParams.replacement",
+            },
         },
-        failureErrorCode: [51745, 10503901]
+        failureErrorCode: [51745, 10503901],
     },
     {
         viewName: "splitView",
         expression: {$split: ["$splitParams.input", "$splitParams.delimiter"]},
-        failureErrorCode: [40086, 10503900]
+        failureErrorCode: [40086, 10503900],
     },
 ];
 
@@ -55,7 +51,7 @@ const expressionsWithNewFeaturesThatCannotBeParsedByOldFCV = [
     {
         viewName: "createObjectIdView",
         expression: {$createObjectId: {}},
-        failureErrorCode: [31325, ErrorCodes.QueryFeatureNotAllowed]
+        failureErrorCode: [31325, ErrorCodes.QueryFeatureNotAllowed],
     },
     {
         viewName: "convertToNumberView",
@@ -63,10 +59,10 @@ const expressionsWithNewFeaturesThatCannotBeParsedByOldFCV = [
             $convert: {
                 input: "$convertToNumberParams.input",
                 to: "$convertToNumberParams.to",
-                base: "$convertToNumberParams.base"
-            }
+                base: "$convertToNumberParams.base",
+            },
         },
-        failureErrorCode: [ErrorCodes.FailedToParse]
+        failureErrorCode: [ErrorCodes.FailedToParse],
     },
     {
         viewName: "convertToStringView",
@@ -74,15 +70,15 @@ const expressionsWithNewFeaturesThatCannotBeParsedByOldFCV = [
             $convert: {
                 input: "$convertToStringParams.input",
                 to: "$convertToStringParams.to",
-                base: "$convertToStringParams.base"
-            }
+                base: "$convertToStringParams.base",
+            },
         },
-        failureErrorCode: [ErrorCodes.FailedToParse]
+        failureErrorCode: [ErrorCodes.FailedToParse],
     },
     {
         viewName: "subtypeView",
         expression: {$subtype: "$binDataInput"},
-        failureErrorCode: [31325, ErrorCodes.QueryFeatureNotAllowed]
+        failureErrorCode: [31325, ErrorCodes.QueryFeatureNotAllowed],
     },
 ];
 
@@ -96,40 +92,42 @@ function setupCollection(primaryConnection, shardingTest = null) {
         shardingTest.shardColl(coll, {_id: 1}, {_id: 1});
     }
 
-    assert.commandWorked(coll.insertMany([
-        {
-            _id: 0,
-            replaceParams: {input: "123-456-7890", find: /\d{3}/, replacement: "xxx"},
-            splitParams: {input: "abacd", delimiter: /(a)(b)/},
-            convertToNumberParams: {input: "1010", to: "int", base: 2},
-            convertToStringParams: {input: NumberInt("10"), to: "string", base: 2},
-            binDataInput: BinData(0, "CQDoAwAAAAAAAAA="),
-        },
-        {
-            _id: 1,
-            replaceParams: {input: "line1\nline2", find: /^line/m, replacement: "start: "},
-            splitParams: {input: "abacd", delimiter: /(a)(b)/},
-            convertToNumberParams: {input: "12", to: "long", base: 8},
-            convertToStringParams: {input: NumberLong("10"), to: "string", base: 8},
-            binDataInput: UUID("81fd5473-1747-4c9d-8743-f10642b3bb99"),
-        },
-        {
-            _id: 2,
-            replaceParams: {input: "helloworld", find: /([aeiou]+)/, replacement: "X"},
-            splitParams: {input: "abacd", delimiter: /(a)(b)/},
-            convertToNumberParams: {input: "10", to: "double", base: 10},
-            convertToStringParams: {input: 10, to: "string", base: 10},
-            binDataInput: BinData(4, "CQDoAwAAAAAAAAA="),
-        },
-        {
-            _id: 3,
-            replaceParams: {input: "123.456.7890", find: /([0-9]+)(\.)/, replacement: "x"},
-            splitParams: {input: "abacd", delimiter: /(a)(b)/},
-            convertToNumberParams: {input: "A", to: "decimal", base: 16},
-            convertToStringParams: {input: NumberDecimal("10"), to: "string", base: 16},
-            binDataInput: BinData(128, "CQDoAwAAAAAAAAA="),
-        },
-    ]));
+    assert.commandWorked(
+        coll.insertMany([
+            {
+                _id: 0,
+                replaceParams: {input: "123-456-7890", find: /\d{3}/, replacement: "xxx"},
+                splitParams: {input: "abacd", delimiter: /(a)(b)/},
+                convertToNumberParams: {input: "1010", to: "int", base: 2},
+                convertToStringParams: {input: NumberInt("10"), to: "string", base: 2},
+                binDataInput: BinData(0, "CQDoAwAAAAAAAAA="),
+            },
+            {
+                _id: 1,
+                replaceParams: {input: "line1\nline2", find: /^line/m, replacement: "start: "},
+                splitParams: {input: "abacd", delimiter: /(a)(b)/},
+                convertToNumberParams: {input: "12", to: "long", base: 8},
+                convertToStringParams: {input: NumberLong("10"), to: "string", base: 8},
+                binDataInput: UUID("81fd5473-1747-4c9d-8743-f10642b3bb99"),
+            },
+            {
+                _id: 2,
+                replaceParams: {input: "helloworld", find: /([aeiou]+)/, replacement: "X"},
+                splitParams: {input: "abacd", delimiter: /(a)(b)/},
+                convertToNumberParams: {input: "10", to: "double", base: 10},
+                convertToStringParams: {input: 10, to: "string", base: 10},
+                binDataInput: BinData(4, "CQDoAwAAAAAAAAA="),
+            },
+            {
+                _id: 3,
+                replaceParams: {input: "123.456.7890", find: /([0-9]+)(\.)/, replacement: "x"},
+                splitParams: {input: "abacd", delimiter: /(a)(b)/},
+                convertToNumberParams: {input: "A", to: "decimal", base: 16},
+                convertToStringParams: {input: NumberDecimal("10"), to: "string", base: 16},
+                binDataInput: BinData(128, "CQDoAwAAAAAAAAA="),
+            },
+        ]),
+    );
 
     if (shardingTest) {
         // Verify that documents are distributed across both shards
@@ -143,20 +141,23 @@ function assertCreateAndEvaluateViewsWithNewFeaturesPass(primaryConnection) {
     const db = getDB(primaryConnection);
 
     // All expression should pass, so we can create a view for each of them and evaluate that view.
-    for (const expr of [...expressionsWithNewFeaturesThatCanBeParsedByOldFCV,
-                        ...expressionsWithNewFeaturesThatCannotBeParsedByOldFCV]) {
+    for (const expr of [
+        ...expressionsWithNewFeaturesThatCanBeParsedByOldFCV,
+        ...expressionsWithNewFeaturesThatCannotBeParsedByOldFCV,
+    ]) {
         db[expr.viewName].drop();
-        assert.commandWorked(
-            db.createView(expr.viewName, collectionName, [{$project: {output: expr.expression}}]));
+        assert.commandWorked(db.createView(expr.viewName, collectionName, [{$project: {output: expr.expression}}]));
         assert.commandWorked(db.runCommand({find: expr.viewName, filter: {}}));
         db[expr.viewName].drop();
 
         // Evaluating the expression without the view also passes.
-        assert.commandWorked(db.runCommand({
-            aggregate: collectionName,
-            cursor: {},
-            pipeline: [{$project: {output: expr.expression}}]
-        }));
+        assert.commandWorked(
+            db.runCommand({
+                aggregate: collectionName,
+                cursor: {},
+                pipeline: [{$project: {output: expr.expression}}],
+            }),
+        );
     }
 }
 
@@ -167,10 +168,8 @@ function assertCreateOrEvaluateViewsWithNewFeaturesFail(primaryConnection) {
     // work.
     for (const expr of expressionsWithNewFeaturesThatCanBeParsedByOldFCV) {
         db[expr.viewName].drop();
-        assert.commandWorked(
-            db.createView(expr.viewName, collectionName, [{$project: {output: expr.expression}}]));
-        assert.commandFailedWithCode(db.runCommand({find: expr.viewName, filter: {}}),
-                                     expr.failureErrorCode);
+        assert.commandWorked(db.createView(expr.viewName, collectionName, [{$project: {output: expr.expression}}]));
+        assert.commandFailedWithCode(db.runCommand({find: expr.viewName, filter: {}}), expr.failureErrorCode);
         db[expr.viewName].drop();
     }
 
@@ -179,22 +178,27 @@ function assertCreateOrEvaluateViewsWithNewFeaturesFail(primaryConnection) {
         db[expr.viewName].drop();
         assert.commandFailedWithCode(
             db.createView(expr.viewName, collectionName, [{$project: {output: expr.expression}}]),
-            expr.failureErrorCode);
+            expr.failureErrorCode,
+        );
     }
 
     // Running new expressions in an aggregation pipeline will result in an error.
-    for (const expr of [...expressionsWithNewFeaturesThatCanBeParsedByOldFCV,
-                        ...expressionsWithNewFeaturesThatCannotBeParsedByOldFCV]) {
-        assert.commandFailedWithCode(db.runCommand({
-            aggregate: collectionName,
-            cursor: {},
-            pipeline: [{$project: {output: expr.expression}}]
-        }),
-                                     expr.failureErrorCode);
+    for (const expr of [
+        ...expressionsWithNewFeaturesThatCanBeParsedByOldFCV,
+        ...expressionsWithNewFeaturesThatCannotBeParsedByOldFCV,
+    ]) {
+        assert.commandFailedWithCode(
+            db.runCommand({
+                aggregate: collectionName,
+                cursor: {},
+                pipeline: [{$project: {output: expr.expression}}],
+            }),
+            expr.failureErrorCode,
+        );
     }
 }
 
-testPerformUpgradeDowngradeReplSet({
+testPerformUpgradeReplSet({
     setupFn: setupCollection,
     whenFullyDowngraded: assertCreateOrEvaluateViewsWithNewFeaturesFail,
     whenSecondariesAreLatestBinary: assertCreateOrEvaluateViewsWithNewFeaturesFail,
@@ -202,7 +206,7 @@ testPerformUpgradeDowngradeReplSet({
     whenFullyUpgraded: assertCreateAndEvaluateViewsWithNewFeaturesPass,
 });
 
-testPerformUpgradeDowngradeSharded({
+testPerformUpgradeSharded({
     setupFn: setupCollection,
     whenFullyDowngraded: assertCreateOrEvaluateViewsWithNewFeaturesFail,
     whenOnlyConfigIsLatestBinary: assertCreateOrEvaluateViewsWithNewFeaturesFail,

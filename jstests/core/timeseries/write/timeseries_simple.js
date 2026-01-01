@@ -19,14 +19,13 @@ TimeseriesTest.run((insert) => {
     const coll = db[jsTestName()];
     coll.drop();
 
-    const timeFieldName = 'time';
-    assert.commandWorked(
-        db.createCollection(coll.getName(), {timeseries: {timeField: timeFieldName}}));
-    if (TestData.runningWithBalancer) {
-        // In suites running moveCollection in the background, it is possible to hit the issue
-        // described by SERVER-89349 which will result in more bucket documents being created.
-        // Creating an index on the time field allows the buckets to be reopened, allowing the
-        // counts in this test to be accurate.
+    const timeFieldName = "time";
+    assert.commandWorked(db.createCollection(coll.getName(), {timeseries: {timeField: timeFieldName}}));
+    if (TestData.runningWithBalancer || TestData.isRunningFCVUpgradeDowngradeSuite) {
+        // In suites running moveCollection or FCV upgrade in the background, it is possible to hit
+        // the issue described by SERVER-89349 which will result in more bucket documents being
+        // created. Creating an index on the time field allows the buckets to be reopened, allowing
+        // the counts in this test to be accurate.
         assert.commandWorked(coll.createIndex({[timeFieldName]: 1}));
     }
     Random.setRandomSeed();
@@ -74,18 +73,22 @@ TimeseriesTest.run((insert) => {
         const t = ISODate();
         const doc = Object.assign({_id: i, [timeFieldName]: t}, host.fields);
 
-        jsTestLog('Inserting doc into time-series collection: ' + i + ': ' + tojson(doc));
+        jsTestLog("Inserting doc into time-series collection: " + i + ": " + tojson(doc));
         let start = new Date();
         assert.commandWorked(insert(coll, doc));
-        jsTestLog('Insertion took ' + ((new Date()).getTime() - start.getTime()) +
-                  ' ms. Retrieving doc: ' + i);
+        jsTestLog("Insertion took " + (new Date().getTime() - start.getTime()) + " ms. Retrieving doc: " + i);
         start = new Date();
         const docFromView = coll.findOne({_id: doc._id});
-        assert(docFromView,
-               'inserted doc missing from time-series collection: ' + i + ': ' + tojson(doc));
-        jsTestLog('Doc retrieval took ' + ((new Date()).getTime() - start.getTime()) +
-                  ' ms. Fetched doc: ' + i + ': ' + tojson(docFromView));
-        assert.docEq(doc, docFromView, 'Invalid doc retrieved: ' + i);
+        assert(docFromView, "inserted doc missing from time-series collection: " + i + ": " + tojson(doc));
+        jsTestLog(
+            "Doc retrieval took " +
+                (new Date().getTime() - start.getTime()) +
+                " ms. Fetched doc: " +
+                i +
+                ": " +
+                tojson(docFromView),
+        );
+        assert.docEq(doc, docFromView, "Invalid doc retrieved: " + i);
 
         // Update expected control min/max and data in bucket.
         Object.keys(doc).forEach((key) => {
@@ -109,16 +112,14 @@ TimeseriesTest.run((insert) => {
     const bucketDoc = bucketDocs[0];
     TimeseriesTest.decompressBucket(bucketDoc);
 
-    jsTestLog('Bucket document: ' + tojson(bucketDoc));
-    assert.docEq(expectedBucketDoc.control.min,
-                 bucketDoc.control.min,
-                 'invalid min in bucket: ' + tojson(bucketDoc));
-    assert.docEq(expectedBucketDoc.control.max,
-                 bucketDoc.control.max,
-                 'invalid max in bucket: ' + tojson(bucketDoc));
+    jsTestLog("Bucket document: " + tojson(bucketDoc));
+    assert.docEq(expectedBucketDoc.control.min, bucketDoc.control.min, "invalid min in bucket: " + tojson(bucketDoc));
+    assert.docEq(expectedBucketDoc.control.max, bucketDoc.control.max, "invalid max in bucket: " + tojson(bucketDoc));
     Object.keys(expectedBucketDoc.data).forEach((key) => {
-        assert.docEq(expectedBucketDoc.data[key],
-                     bucketDoc.data[key],
-                     'invalid bucket data for field ' + key + ': ' + tojson(bucketDoc));
+        assert.docEq(
+            expectedBucketDoc.data[key],
+            bucketDoc.data[key],
+            "invalid bucket data for field " + key + ": " + tojson(bucketDoc),
+        );
     });
 });

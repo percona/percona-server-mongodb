@@ -3,6 +3,13 @@
  * interface in property_testing_utils.js.
  */
 import {runDeoptimized} from "jstests/libs/property_test_helpers/property_testing_utils.js";
+import {
+    getAllPlans,
+    getAllPlanStages,
+    getPlanStages,
+    getRejectedPlans,
+    getWinningPlanFromExplain,
+} from "jstests/libs/query/analyze_plan.js";
 
 // Returns different query shapes using the first parameters plugged in.
 export function getDifferentlyShapedQueries(getQuery, testHelpers) {
@@ -48,12 +55,11 @@ export function createCorrectnessProperty(controlColl, experimentColl, statsColl
             if (!testHelpers.comp(controlResults, experimentResults)) {
                 return {
                     passed: false,
-                    message:
-                        'Query results from experiment collection did not match plain collection using collscan.',
+                    message: "Query results from experiment collection did not match plain collection using collscan.",
                     query,
                     explain: experimentColl.explain().aggregate(query),
                     controlResults,
-                    experimentResults
+                    experimentResults,
                 };
             }
         }
@@ -83,7 +89,7 @@ export function createCacheCorrectnessProperty(controlColl, experimentColl, stat
         const resultMap = runDeoptimized(controlColl, remainingQueries);
 
         // Run the first of each shape three times to get them cached.
-        firstQueryOfEachShape.forEach(query => {
+        firstQueryOfEachShape.forEach((query) => {
             for (let i = 0; i < 3; i++) {
                 experimentColl.aggregate(query).toArray();
             }
@@ -104,16 +110,86 @@ export function createCacheCorrectnessProperty(controlColl, experimentColl, stat
             if (!testHelpers.comp(controlResults, experimentResults)) {
                 return {
                     passed: false,
-                    message: 'A query potentially using the plan cache has incorrect results. ' +
-                        'The query that created the cache entry likely has different parameters.',
+                    message:
+                        "A query potentially using the plan cache has incorrect results. " +
+                        "The query that created the cache entry likely has different parameters.",
                     query,
                     explain: experimentColl.explain().aggregate(query),
                     controlResults,
-                    experimentResults
+                    experimentResults,
                 };
             }
         }
 
+        return {passed: true};
+    };
+}
+
+/*
+ * Asserts that `costEstimate` and `cardinalityEstimate` are defined in every stage of every plan
+ * in the explain.
+ */
+function assertCeIsDefined(explain) {
+    const plans = getAllPlans(explain);
+    // If GROUP, COUNT or DISTINCT stages appear, CBR bails and the fields won't appear.
+    if (
+        getPlanStages(explain, "GROUP") ||
+        getPlanStages(explain, "COUNT_SCAN") ||
+        getPlanStages(explain, "DISTINCT_SCAN")
+    ) {
+        return;
+    }
+
+    for (const plan of plans) {
+        for (const stage of getAllPlanStages(plan)) {
+            assert(stage.costEstimate !== undefined && stage.cardinalityEstimate !== undefined, {explain, stage});
+        }
+    }
+}
+
+/*
+ * Checks if the winning plan is the same between explains, and the same rejected plans exist.
+ */
+function sameWinningAndRejectedPlans(explain1, explain2) {
+    // Compare the whole plan object using friendlyEqual (this has the same behavior as our regular
+    // assert.eq utils)
+    const cmp = friendlyEqual;
+    return (
+        cmp(getWinningPlanFromExplain(explain1), getWinningPlanFromExplain(explain2)) &&
+        cmp(getRejectedPlans(explain1), getRejectedPlans(explain2))
+    );
+}
+
+/*
+ * Creates a property to assert that winning and rejected plans are the same across several runs. If
+ * `assertCeExists` is set, an additional assertion is made that the cardinality and cost estimate
+ * fields are defined.
+ */
+export function createPlanStabilityProperty(experimentColl, assertCeExists = false) {
+    return function planStabilityProperty(getQuery, testHelpers) {
+        const queries = getDifferentlyShapedQueries(getQuery, testHelpers);
+
+        for (const query of queries) {
+            // Run explain on the query once to get the initial winning plan. Then we run explain
+            // ten more times to assert that the winning plan is the same each time.
+            const initialExplain = experimentColl.explain().aggregate(query);
+            if (assertCeExists) {
+                assertCeIsDefined(initialExplain);
+            }
+
+            for (let i = 0; i < 10; i++) {
+                const newExplain = experimentColl.explain().aggregate(query);
+                if (!sameWinningAndRejectedPlans(initialExplain, newExplain)) {
+                    return {
+                        passed: false,
+                        message:
+                            "A query was found to have unstable plan selection across runs with the same documents and indexes.",
+                        initialExplain,
+                        newExplain,
+                    };
+                }
+            }
+        }
         return {passed: true};
     };
 }

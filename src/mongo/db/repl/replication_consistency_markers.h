@@ -33,10 +33,11 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/repl/optime.h"
+#include "mongo/util/modules.h"
 
 #include <boost/optional/optional.hpp>
 
-namespace mongo {
+namespace MONGO_MOD_PUB mongo {
 
 class BSONObj;
 
@@ -89,7 +90,7 @@ class StorageInterface;
  *      wallTime: <Date_t>
  * }
  */
-class ReplicationConsistencyMarkers {
+class MONGO_MOD_OPEN ReplicationConsistencyMarkers {
     ReplicationConsistencyMarkers(const ReplicationConsistencyMarkers&) = delete;
     ReplicationConsistencyMarkers& operator=(const ReplicationConsistencyMarkers&) = delete;
 
@@ -261,4 +262,4 @@ public:
 };
 
 }  // namespace repl
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUB mongo

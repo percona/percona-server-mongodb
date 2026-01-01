@@ -301,7 +301,7 @@ const allCommands = {
     getMore: {
         command: {getMore: NumberLong(123), collection: collName},
         expectFailure: true,
-        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary
+        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary,
     },
     getQueryableEncryptionCountInfo: {skip: isPrimaryOnly},
     getParameter: {skip: isNotAUserDataRead},
@@ -329,25 +329,25 @@ const allCommands = {
     listCollections: {
         command: {listCollections: 1},
         expectFailure: true,
-        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary
+        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary,
     },
     listCommands: {command: {listCommands: 1}},
     listDatabases: {
         command: {listDatabases: 1},
         isAdminCommand: true,
         expectFailure: true,
-        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary
+        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary,
     },
     listDatabasesForAllTenants: {
         command: {listDatabasesForAllTenants: 1},
         isAdminCommand: true,
         expectFailure: true,
-        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary
+        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary,
     },
     listIndexes: {
         command: {listIndexes: collName},
         expectFailure: true,
-        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary
+        expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary,
     },
     listSearchIndexes: {skip: isNotAUserDataRead},
     lockInfo: {skip: isAnInternalCommand},
@@ -359,9 +359,9 @@ const allCommands = {
     mapReduce: {
         command: {
             mapReduce: collName,
-            map: function() {},
-            reduce: function(key, vals) {},
-            out: {inline: 1}
+            map: function () {},
+            reduce: function (key, vals) {},
+            out: {inline: 1},
         },
         expectFailure: true,
         expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary,
@@ -469,7 +469,7 @@ const allCommands = {
     waitForFailPoint: {skip: isNotAUserDataRead},
     getShardingReady: {skip: isNotAUserDataRead},
     whatsmysni: {skip: isNotAUserDataRead},
-    whatsmyuri: {skip: isNotAUserDataRead}
+    whatsmyuri: {skip: isNotAUserDataRead},
 };
 
 /**
@@ -477,7 +477,7 @@ const allCommands = {
  * If 'code' is null we only check for failure, otherwise we confirm error code matches as
  * well. On assert 'msg' is printed.
  */
-let assertCommandOrWriteFailed = function(res, code, msg) {
+let assertCommandOrWriteFailed = function (res, code, msg) {
     if (res.writeErrors !== undefined) {
         assert.neq(0, res.writeErrors.length, msg);
     } else if (res.code !== null) {
@@ -504,7 +504,7 @@ const secondaryDb = secondary.getDB(dbName);
 assert.commandWorked(secondary.adminCommand({replSetMaintenance: 1}));
 
 // Run all tests against the RECOVERING node.
-AllCommandsTest.testAllCommands(secondary, allCommands, function(test) {
+AllCommandsTest.testAllCommands(secondary, allCommands, function (test) {
     const testDb = secondaryDb.getSiblingDB("test");
     let cmdDb = testDb;
 
@@ -514,8 +514,7 @@ AllCommandsTest.testAllCommands(secondary, allCommands, function(test) {
 
     if (test.expectFailure) {
         const expectedErrorCode = test.expectedErrorCode;
-        assertCommandOrWriteFailed(
-            cmdDb.runCommand(test.command), expectedErrorCode, () => tojson(test.command));
+        assertCommandOrWriteFailed(cmdDb.runCommand(test.command), expectedErrorCode, () => tojson(test.command));
     } else {
         assert.commandWorked(cmdDb.runCommand(test.command), () => tojson(test.command));
     }

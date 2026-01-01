@@ -53,7 +53,7 @@ public:
 
 class MyExtension : public sdk::Extension {
 public:
-    void initialize(const ::MongoExtensionHostPortal* portal) override {
+    void initialize(const sdk::HostPortalHandle& portal) override {
         // Should fail due to registering the same StageDescriptor multiple times.
         _registerStage<MyStageDescriptor>(portal);
         _registerStage<MyStageDescriptor>(portal);

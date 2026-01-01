@@ -625,7 +625,9 @@ SemiFuture<void> ReshardingRecipientService::RecipientStateMachine::run(
     auto abortToken = _initAbortSource(stepdownToken);
     _markKilledExecutor->startup();
     _retryingCancelableOpCtxFactory.emplace(
-        abortToken, _markKilledExecutor, resharding::kRetryabilityPredicateIncludeLockTimeout);
+        abortToken,
+        _markKilledExecutor,
+        resharding::kRetryabilityPredicateIncludeLockTimeoutAndWriteConcern);
 
     return ExecutorFuture<void>(**executor)
         .then([this, executor, abortToken] { return _startMetrics(executor, abortToken); })
@@ -639,7 +641,7 @@ SemiFuture<void> ReshardingRecipientService::RecipientStateMachine::run(
             _retryingCancelableOpCtxFactory.emplace(
                 stepdownToken,
                 _markKilledExecutor,
-                resharding::kRetryabilityPredicateIncludeLockTimeout);
+                resharding::kRetryabilityPredicateIncludeLockTimeoutAndWriteConcern);
             if (stepdownToken.isCanceled()) {
                 // Propagate any errors from the recipient stepping down.
                 return ExecutorFuture<bool>(**executor, status);
@@ -1207,7 +1209,7 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                            auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
                            auto indexes =
                                toIndexBuildInfoVec(indexSpecs,
-                                                   storageEngine,
+                                                   *storageEngine,
                                                    _metadata.getTempReshardingNss().dbName());
                            auto* indexBuildsCoordinator = IndexBuildsCoordinator::get(opCtx.get());
                            auto indexBuildFuture = indexBuildsCoordinator->startIndexBuild(

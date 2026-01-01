@@ -28,6 +28,7 @@
  */
 #pragma once
 #include "mongo/db/extension/host/handle.h"
+#include "mongo/db/extension/host/host_portal.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/extension_status.h"
 
@@ -41,12 +42,14 @@ namespace mongo::extension::host {
 class ExtensionHandle : public UnownedHandle<const ::MongoExtension> {
 
 public:
-    ExtensionHandle(const ::MongoExtension* ext) : UnownedHandle<const ::MongoExtension>(ext) {}
+    ExtensionHandle(const ::MongoExtension* ext) : UnownedHandle<const ::MongoExtension>(ext) {
+        _assertValidVTable();
+    }
 
-    void initialize(const ::MongoExtensionHostPortal* portal) const {
+    void initialize(const HostPortal& portal) const {
         sdk::enterC([&] {
             assertValid();
-            return vtable().initialize(get(), portal);
+            return vtable().initialize(get(), &portal);
         });
     }
 
@@ -54,6 +57,11 @@ public:
         assertValid();
         return get()->version;
     }
+
+protected:
+    void _assertVTableConstraints(const VTable_t& vtable) const override {
+        tassert(10930101, "Extension 'initialize' is null", vtable.initialize != nullptr);
+    };
 };
 
 }  // namespace mongo::extension::host

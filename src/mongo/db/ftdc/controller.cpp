@@ -193,35 +193,32 @@ Status FTDCController::setDirectory(const boost::filesystem::path& path) {
     return Status::OK();
 }
 
-
-void FTDCController::addPeriodicMetadataCollector(std::unique_ptr<FTDCCollectorInterface> collector,
-                                                  ClusterRole role) {
-    stdx::lock_guard<stdx::mutex> lock(_mutex);
+void FTDCController::addPeriodicMetadataCollector(
+    std::unique_ptr<FTDCCollectorInterface> collector) {
+    stdx::lock_guard lock(_mutex);
     invariant(_state == State::kNotStarted);
 
-    _periodicMetadataCollectors.add(std::move(collector), role);
+    _periodicMetadataCollectors.add(std::move(collector));
 }
 
-void FTDCController::addPeriodicCollector(std::unique_ptr<FTDCCollectorInterface> collector,
-                                          ClusterRole role) {
-    stdx::lock_guard<stdx::mutex> lock(_mutex);
+void FTDCController::addPeriodicCollector(std::unique_ptr<FTDCCollectorInterface> collector) {
+    stdx::lock_guard lock(_mutex);
     invariant(_state == State::kNotStarted);
 
     if (feature_flags::gFeatureFlagGaplessFTDC.isEnabled()) {
-        _asyncPeriodicCollectors->add(std::move(collector), role);
+        _asyncPeriodicCollectors->add(std::move(collector));
         _numAsyncPeriodicCollectors.increment();
         return;
     }
 
-    _periodicCollectors.add(std::move(collector), role);
+    _periodicCollectors.add(std::move(collector));
 }
 
-void FTDCController::addOnRotateCollector(std::unique_ptr<FTDCCollectorInterface> collector,
-                                          ClusterRole role) {
-    stdx::lock_guard<stdx::mutex> lock(_mutex);
+void FTDCController::addOnRotateCollector(std::unique_ptr<FTDCCollectorInterface> collector) {
+    stdx::lock_guard lock(_mutex);
     invariant(_state == State::kNotStarted);
 
-    _rotateCollectors.add(std::move(collector), role);
+    _rotateCollectors.add(std::move(collector));
 }
 
 BSONObj FTDCController::getMostRecentPeriodicDocument() {
@@ -244,7 +241,7 @@ void FTDCController::start(Service* service) {
     _thread = stdx::thread([this, service] { doLoop(service); });
 
     {
-        stdx::lock_guard<stdx::mutex> lock(_mutex);
+        stdx::lock_guard lock(_mutex);
 
         invariant(_state == State::kNotStarted);
         _state = State::kStarted;
@@ -255,7 +252,7 @@ void FTDCController::stop() {
     LOGV2(20626, "Shutting down full-time diagnostic data capture");
 
     {
-        stdx::lock_guard<stdx::mutex> lock(_mutex);
+        stdx::lock_guard lock(_mutex);
 
         bool started = (_state == State::kStarted);
 
@@ -275,7 +272,10 @@ void FTDCController::stop() {
 
     _thread.join();
 
-    _state = State::kDone;
+    {
+        stdx::lock_guard lock(_mutex);
+        _state = State::kDone;
+    }
 
     if (_mgr) {
         auto s = _mgr->close();
@@ -352,8 +352,7 @@ void FTDCController::doLoop(Service* service) try {
         // Delay initialization of FTDCFileManager until we are sure the user has enabled
         // FTDC
         if (!_mgr) {
-            auto swMgr = FTDCFileManager::create(
-                &_config, _path, &_rotateCollectors, client, _multiServiceSchema);
+            auto swMgr = FTDCFileManager::create(&_config, _path, &_rotateCollectors, client);
 
             _mgr = uassertStatusOK(std::move(swMgr));
         }
@@ -363,8 +362,8 @@ void FTDCController::doLoop(Service* service) try {
         }
 
         auto collectSample = feature_flags::gFeatureFlagGaplessFTDC.isEnabled()
-            ? _asyncPeriodicCollectors->collect(client, _multiServiceSchema)
-            : _periodicCollectors.collect(client, _multiServiceSchema);
+            ? _asyncPeriodicCollectors->collect(client)
+            : _periodicCollectors.collect(client);
 
         Status s = _mgr->writeSampleAndRotateIfNeeded(
             client, std::get<0>(collectSample), std::get<1>(collectSample));
@@ -379,7 +378,7 @@ void FTDCController::doLoop(Service* service) try {
 
         if (--metadataCaptureFrequencyCountdown == 0) {
             metadataCaptureFrequencyCountdown = _config.metadataCaptureFrequency;
-            auto collectSample = _periodicMetadataCollectors.collect(client, _multiServiceSchema);
+            auto collectSample = _periodicMetadataCollectors.collect(client);
             Status s = _mgr->writePeriodicMetadataSampleAndRotateIfNeeded(
                 client, std::get<0>(collectSample), std::get<1>(collectSample));
             iassert(s);

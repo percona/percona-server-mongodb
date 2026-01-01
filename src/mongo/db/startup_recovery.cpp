@@ -229,9 +229,9 @@ Status buildMissingIdIndex(OperationContext* opCtx, const NamespaceString nss) {
         [&] { indexer.abortIndexBuild(opCtx, collWriter, MultiIndexBlock::kNoopOnCleanUpFn); });
 
     const auto indexCatalog = collWriter->getIndexCatalog();
-    IndexBuildInfo idIndexBuildInfo(
-        indexCatalog->getDefaultIdIndexSpec(collWriter.get()),
-        opCtx->getServiceContext()->getStorageEngine()->generateNewIndexIdent(nss.dbName()));
+    IndexBuildInfo idIndexBuildInfo(indexCatalog->getDefaultIdIndexSpec(collWriter.get()),
+                                    *opCtx->getServiceContext()->getStorageEngine(),
+                                    nss.dbName());
     auto swSpecs = indexer.init(opCtx,
                                 collWriter,
                                 {std::move(idIndexBuildInfo)},
@@ -801,13 +801,13 @@ void startupRepair(OperationContext* opCtx,
 // Perform collection validation for singular collection
 bool offlineValidateCollection(OperationContext* opCtx, NamespaceString nss) {
     ValidateResults validateResults;
-    Status status = CollectionValidation::validate(
-        opCtx,
-        nss,
-        {CollectionValidation::ValidateMode::kForegroundFullEnforceFastCount,
-         CollectionValidation::RepairMode::kNone,
-         /*logDiagnostics=*/false},
-        &validateResults);
+    Status status =
+        CollectionValidation::validate(opCtx,
+                                       nss,
+                                       {CollectionValidation::ValidateMode::kForegroundFull,
+                                        CollectionValidation::RepairMode::kNone,
+                                        /*logDiagnostics=*/false},
+                                       &validateResults);
 
     if (!status.isOK()) {
         uassertStatusOK({ErrorCodes::OfflineValidationFailedToComplete,

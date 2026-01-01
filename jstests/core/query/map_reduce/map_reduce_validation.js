@@ -6,6 +6,7 @@
 //   assumes_no_implicit_collection_creation_after_drop,
 //   does_not_support_stepdowns,
 //   uses_map_reduce_with_temp_collections,
+//   requires_scripting,
 // ]
 import {assertDropCollection} from "jstests/libs/collection_drop_recreate.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
@@ -33,29 +34,35 @@ function validateView(viewName) {
 }
 
 // Test that you can't specify sharded and inline.
-assert.commandFailed(db.runCommand({
-    mapReduce: source.getName(),
-    map: mapFunc,
-    reduce: reduceFunc,
-    out: {inline: 1, sharded: true}
-}));
+assert.commandFailed(
+    db.runCommand({
+        mapReduce: source.getName(),
+        map: mapFunc,
+        reduce: reduceFunc,
+        out: {inline: 1, sharded: true},
+    }),
+);
 
 // Test that you can't output to the admin or config databases.
-assert.commandFailedWithCode(db.runCommand({
-    mapReduce: source.getName(),
-    map: mapFunc,
-    reduce: reduceFunc,
-    out: {merge: targetName, db: "admin"}
-}),
-                             ErrorCodes.CommandNotSupported);
+assert.commandFailedWithCode(
+    db.runCommand({
+        mapReduce: source.getName(),
+        map: mapFunc,
+        reduce: reduceFunc,
+        out: {merge: targetName, db: "admin"},
+    }),
+    ErrorCodes.CommandNotSupported,
+);
 
-assert.commandFailedWithCode(db.runCommand({
-    mapReduce: source.getName(),
-    map: mapFunc,
-    reduce: reduceFunc,
-    out: {merge: targetName, db: "config"}
-}),
-                             ErrorCodes.CommandNotSupported);
+assert.commandFailedWithCode(
+    db.runCommand({
+        mapReduce: source.getName(),
+        map: mapFunc,
+        reduce: reduceFunc,
+        out: {merge: targetName, db: "config"},
+    }),
+    ErrorCodes.CommandNotSupported,
+);
 
 // Test that you can output to a different database.
 // Create the other database.
@@ -64,12 +71,14 @@ assert.commandFailedWithCode(db.runCommand({
     const otherDB = db.getSiblingDB(otherDatabaseName);
     otherDB[targetName].drop();
     assert.commandWorked(otherDB.createCollection(targetName));
-    assert.commandWorked(db.runCommand({
-        mapReduce: source.getName(),
-        map: mapFunc,
-        reduce: reduceFunc,
-        out: {merge: targetName, db: otherDatabaseName}
-    }));
+    assert.commandWorked(
+        db.runCommand({
+            mapReduce: source.getName(),
+            map: mapFunc,
+            reduce: reduceFunc,
+            out: {merge: targetName, db: otherDatabaseName},
+        }),
+    );
     assert.eq(otherDB[targetName].find().toArray(), [{_id: 1, value: 1}]);
 }
 
@@ -82,7 +91,7 @@ assert.commandFailedWithCode(db.runCommand({
         mapReduce: nonexistentSourceName,
         map: mapFunc,
         reduce: reduceFunc,
-        out: nonexistentTargetName
+        out: nonexistentTargetName,
     });
     if (resultWithNonExistent.ok) {
         // In the implementation which redirects to an aggregation this is expected to succeed and
@@ -96,50 +105,61 @@ assert.commandFailedWithCode(db.runCommand({
 }
 
 // Test that you can't use a regex as the namespace.
-assert.commandFailed(db.runCommand({
-    mapReduce: /mr_validation_bar/,
-    map: mapFunc,
-    reduce: reduceFunc,
-    out: {replace: targetName, db: "test"}
-}));
+assert.commandFailed(
+    db.runCommand({
+        mapReduce: /mr_validation_bar/,
+        map: mapFunc,
+        reduce: reduceFunc,
+        out: {replace: targetName, db: "test"},
+    }),
+);
 
-assert.commandFailed(db.runCommand({
-    mapReduce: source.getName(),
-    map: mapFunc,
-    reduce: reduceFunc,
-    out: {replace: /mr_validation_foo/, db: "test"}
-}));
+assert.commandFailed(
+    db.runCommand({
+        mapReduce: source.getName(),
+        map: mapFunc,
+        reduce: reduceFunc,
+        out: {replace: /mr_validation_foo/, db: "test"},
+    }),
+);
 
-assert.commandFailed(db.runCommand({
-    mapReduce: source.getName(),
-    map: mapFunc,
-    reduce: reduceFunc,
-    out: {merge: /mr_validation_foo/, db: "test"}
-}));
+assert.commandFailed(
+    db.runCommand({
+        mapReduce: source.getName(),
+        map: mapFunc,
+        reduce: reduceFunc,
+        out: {merge: /mr_validation_foo/, db: "test"},
+    }),
+);
 
-assert.commandFailed(db.runCommand({
-    mapReduce: source.getName(),
-    map: mapFunc,
-    reduce: reduceFunc,
-    out: {replace: targetName, db: /mr_validation_test/}
-}));
+assert.commandFailed(
+    db.runCommand({
+        mapReduce: source.getName(),
+        map: mapFunc,
+        reduce: reduceFunc,
+        out: {replace: targetName, db: /mr_validation_test/},
+    }),
+);
 
-assert.commandFailed(db.runCommand({
-    mapReduce: source.getName(),
-    map: mapFunc,
-    reduce: reduceFunc,
-    out: {merge: targetName, db: /mr_validation_test/}
-}));
+assert.commandFailed(
+    db.runCommand({
+        mapReduce: source.getName(),
+        map: mapFunc,
+        reduce: reduceFunc,
+        out: {merge: targetName, db: /mr_validation_test/},
+    }),
+);
 
 // Test that mapReduce fails when run against a view.
 db.getCollection(targetName).drop();
 assertDropCollection(db, viewName);
 assert.commandWorked(db.createView(viewName, source.getName(), [{$project: {_id: 0}}]));
-validateView(viewName);  // sanity check
+validateView(viewName); // sanity check
 assert.commandFailedWithCode(
     db.runCommand({mapReduce: viewName, map: mapFunc, reduce: reduceFunc, out: targetName}),
-    ErrorCodes.CommandNotSupportedOnView);
-validateView(viewName);  // sanity check
+    ErrorCodes.CommandNotSupportedOnView,
+);
+validateView(viewName); // sanity check
 
 // The new implementation is not supported in a sharded cluster yet, so avoid running it in the
 // passthrough suites.
@@ -147,12 +167,14 @@ if (!FixtureHelpers.isMongos(db)) {
     // Test that mapReduce fails when run against a view.
     db[viewName].drop();
     assert.commandWorked(db.createView(viewName, source.getName(), [{$project: {_id: 0}}]));
-    validateView(viewName);  // sanity check
+    validateView(viewName); // sanity check
     assert.commandFailedWithCode(
         db.runCommand({mapReduce: viewName, map: mapFunc, reduce: reduceFunc, out: targetName}),
-        ErrorCodes.CommandNotSupportedOnView);
+        ErrorCodes.CommandNotSupportedOnView,
+    );
 
     assert.commandFailedWithCode(
         db.runCommand({mapReduce: viewName, map: mapFunc, reduce: reduceFunc, out: targetName}),
-        ErrorCodes.CommandNotSupportedOnView);
+        ErrorCodes.CommandNotSupportedOnView,
+    );
 }
