@@ -10,8 +10,8 @@ TOP_LEVEL_DIR="${DIR}/../../.."
 # Add extension_paths.yml as the expansion.update command will fail if the file does not exist.
 touch "${TOP_LEVEL_DIR}/extension_paths.yml"
 
-if [[ "${extensions_required:-false}" != "true" ]]; then
-    echo "Skipping task 'find_extensions' because 'extensions_required' is not set to 'true'."
+if [[ "$(uname -s)" != "Linux" || "${skip_extensions:-false}" == "true" ]]; then
+    echo "Skipping task 'find_extensions'."
     exit 0
 fi
 
@@ -32,11 +32,11 @@ if [[ -n "${EXTENSION_NAME}" ]]; then
     echo "extension_paths: \"${EXTENSION_PATH}\"" >"${TOP_LEVEL_DIR}/extension_paths.yml"
 else
     echo "EXTENSION_NAME not provided. Finding all unpacked extensions."
-    # Find all *_extension.so files and create a comma-separated list.
-    EXTENSIONS_LIST=$(find "${LIB_SRC}" -name "*_extension.so" | paste -sd, -)
+    # Find all *_mongo_extension.so files and create a comma-separated list.
+    EXTENSIONS_LIST=$(find "${LIB_SRC}" -name "*_mongo_extension.so" | paste -sd, -)
 
     if [[ -z "${EXTENSIONS_LIST}" ]]; then
-        echo "Could not find any extracted extension files under lib/."
+        echo "Error: Could not find any extracted extension files."
         exit 1
     fi
 

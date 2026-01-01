@@ -212,22 +212,16 @@ typedef struct MongoExtensionLogicalAggregationStageVTable {
 } MongoExtensionLogicalAggregationStageVTable;
 
 /**
- * Represents the MongoDB server version in a type that can be passed across the API boundary.
- */
-typedef struct {
-    int major;
-    int minor;
-    int patch;
-} MongoDBVersion;
-
-/**
  * MongoExtensionHostPortal serves as the entry point for extensions to integrate with the
  * server. It exposes a function pointer, registerStageDescriptor, which allows extensions to
  * register custom aggregation stages.
  */
 typedef struct MongoExtensionHostPortal {
     MongoExtensionAPIVersion hostExtensionsAPIVersion;
-    MongoDBVersion hostMongoDBVersion;
+    // Wire versions in MongoDB are stored in an enum. Each service context will have both a min and
+    // a max wire version; the extension should only need the max wire version in order to determine
+    // if new server features have been added.
+    int hostMongoDBMaxWireVersion;
     MongoExtensionStatus* (*registerStageDescriptor)(
         const MongoExtensionAggregationStageDescriptor* descriptor);
 } MongoExtensionHostPortal;
@@ -238,16 +232,16 @@ typedef struct MongoExtensionHostPortal {
  *
  * At extension loading time, the MongoDB server will check compatibility of the extension's API
  * version with the server's API version then invoke the initializer.
- *
- * NOTE: If any new fields need to be added to this struct in the future, they must be added
- * at the end to maintain backward compatibility. Any older extensions will zero out the additional
- * field automatically.
  */
-typedef MongoExtensionStatus* (*mongo_extension_init_t)(MongoExtensionHostPortal*);
-typedef struct {
+typedef struct MongoExtension {
+    const struct MongoExtensionVTable* vtable;
     MongoExtensionAPIVersion version;
-    mongo_extension_init_t initialize;
 } MongoExtension;
+
+typedef struct MongoExtensionVTable {
+    MongoExtensionStatus* (*initialize)(const MongoExtension* extension,
+                                        const MongoExtensionHostPortal* portal);
+} MongoExtensionVTable;
 
 /**
  * The symbol that must be defined in all extension shared libraries to register the extension with

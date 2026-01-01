@@ -432,9 +432,10 @@ const skips = new Set([
     "$tumblingWindow",
     "$validate",
     "$vectorSearch",
-    // TODO SERVER-108821: Remove $testFoo from the skips list once extensions aren't listed by
-    // $listMqlEntities.
-    "$testFoo"
+    // TODO SERVER-108821: Remove $testFoo and $testBar from the skips list once extensions aren't
+    // listed by $listMqlEntities.
+    "$testFoo",
+    "$testBar"
 ]);
 
 const allPipelines = [

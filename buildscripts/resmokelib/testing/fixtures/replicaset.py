@@ -72,6 +72,7 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         initial_sync_uninitialized_fcv=False,
         hide_initial_sync_node_from_conn_string=False,
         launch_mongot=False,
+        load_all_extensions=False,
         router_endpoint_for_mongot: Optional[int] = None,
     ):
         """Initialize ReplicaSetFixture."""
@@ -84,6 +85,10 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         self.mongod_options = self.fixturelib.make_historic(
             self.fixturelib.default_if_none(mongod_options, {})
         )
+        
+        if load_all_extensions:
+            self.fixturelib.load_all_extensions(self.config.EVERGREEN_TASK_ID, self.mongod_options, self.logger)
+        
         self.preserve_dbpath = preserve_dbpath
         self.start_initial_sync_node = start_initial_sync_node
         self.electable_initial_sync_node = electable_initial_sync_node
@@ -946,7 +951,7 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
             # into Rollback (which causes it to close any open connections).
             return False
 
-    def restart_node(self, chosen):
+    def restart_node(self, chosen, temporary_flags={}):
         """Restart the new step up node."""
         self.logger.info(
             "Waiting for the old primary on port %d of replica set '%s' to exit.",
@@ -981,11 +986,15 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         # original preserve_dbpath to restore after restarting the mongod.
         original_preserve_dbpath = chosen.preserve_dbpath
         chosen.preserve_dbpath = True
+        original_flags = chosen.mongod_options
         try:
+            for key, value in temporary_flags.items():
+                chosen.mongod_options[key] = value
             chosen.setup()
             self.logger.info(interface.create_fixture_table(self))
             chosen.await_ready()
         finally:
+            chosen.mongod_options = original_flags
             chosen.preserve_dbpath = original_preserve_dbpath
 
     def get_secondaries(self):

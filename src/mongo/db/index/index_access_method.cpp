@@ -206,7 +206,6 @@ SortOptions makeSortOptions(size_t maxMemoryUsageBytes,
                             SorterFileStats* stats) {
     return SortOptions()
         .TempDir(storageGlobalParams.dbpath + "/_tmp")
-        .ExtSortAllowed()
         .MaxMemoryUsageBytes(maxMemoryUsageBytes)
         .UseMemoryPool(true)
         .FileStats(stats)
@@ -1378,8 +1377,8 @@ std::unique_ptr<IndexAccessMethod::BulkBuilder> SortedDataIndexAccessMethod::ini
     size_t maxMemoryUsageBytes,
     const boost::optional<IndexStateInfo>& stateInfo,
     const DatabaseName& dbName,
-    const IndexBuildMethod& method) {
-    if (method == IndexBuildMethod::kPrimaryDriven) {
+    const IndexBuildMethodEnum& method) {
+    if (method == IndexBuildMethodEnum::kPrimaryDriven) {
         invariant(!stateInfo);
         return std::make_unique<PrimaryDrivenBulkBuilder>(entry, this, maxMemoryUsageBytes, dbName);
     }

@@ -336,6 +336,17 @@ remap_linker_inputs_ownership = rule(
     fragments = ["cpp"],
 )
 
+def tidy_config_filegroup():
+    if native.existing_rule("clang_tidy_config") == None:
+        native.filegroup(
+            name = "clang_tidy_config",
+            srcs = native.glob(
+                [".clang-tidy"],
+                allow_empty = True,
+            ),
+            visibility = ["//visibility:public"],
+        )
+
 def mongo_cc_library(
         name,
         srcs = [],
@@ -430,12 +441,15 @@ def mongo_cc_library(
         features = features + RE_ENABLE_DISABLED_3RD_PARTY_WARNINGS_FEATURES
 
     if "modules/enterprise" in native.package_name():
-        enterprise_compatible = select({
+        target_compatible_with += select({
             "//bazel/config:build_enterprise_enabled": [],
             "//conditions:default": ["@platforms//:incompatible"],
         })
-    else:
-        enterprise_compatible = []
+    elif "modules/atlas" in native.package_name():
+        target_compatible_with += select({
+            "//bazel/config:build_atlas_enabled": [],
+            "//conditions:default": ["@platforms//:incompatible"],
+        })
 
     if "third_party" in native.package_name():
         tags = tags + ["third_party"]
@@ -498,6 +512,8 @@ def mongo_cc_library(
         header_deps = header_deps,
     )
 
+    tidy_config_filegroup()
+
     # Create a cc_library entry to generate a shared archive of the target.
     cc_library(
         name = name + SHARED_ARCHIVE_SUFFIX,
@@ -520,7 +536,7 @@ def mongo_cc_library(
         target_compatible_with = select({
             "//bazel/config:shared_archive_enabled": [],
             "//conditions:default": ["@platforms//:incompatible"],
-        }) + target_compatible_with + enterprise_compatible,
+        }) + target_compatible_with,
         additional_linker_inputs = additional_linker_inputs + MONGO_GLOBAL_ADDITIONAL_LINKER_INPUTS,
         exec_properties = exec_properties,
         **kwargs
@@ -549,7 +565,7 @@ def mongo_cc_library(
         defines = defines,
         includes = includes,
         features = SKIP_ARCHIVE_FEATURE + features,
-        target_compatible_with = target_compatible_with + enterprise_compatible,
+        target_compatible_with = target_compatible_with,
         additional_linker_inputs = additional_linker_inputs + MONGO_GLOBAL_ADDITIONAL_LINKER_INPUTS,
         exec_properties = exec_properties,
         **kwargs
@@ -589,7 +605,7 @@ def mongo_cc_library(
                                                        hex32(hash(str(UNSAFE_VERSION_ID) + str(UNSAFE_COMPILE_VARIANT)))],
             "//conditions:default": [],
         }),
-        target_compatible_with = shared_library_compatible_with + target_compatible_with + enterprise_compatible,
+        target_compatible_with = shared_library_compatible_with + target_compatible_with,
         dynamic_deps = dynamic_deps,
         shared_lib_name = shared_lib_name,
         features = select({
@@ -688,7 +704,7 @@ def _mongo_cc_binary_and_test(
         features = features + RE_ENABLE_DISABLED_3RD_PARTY_WARNINGS_FEATURES
 
     if "modules/enterprise" in native.package_name():
-        enterprise_compatible = select({
+        target_compatible_with += select({
             "//bazel/config:build_enterprise_enabled": [],
             "//conditions:default": ["@platforms//:incompatible"],
         })
@@ -698,8 +714,6 @@ def _mongo_cc_binary_and_test(
                 "//bazel/config:ssl_enabled": [],
                 "//conditions:default": ["@platforms//:incompatible"],
             })
-    else:
-        enterprise_compatible = []
 
     copts = get_copts(name, native.package_name(), copts, skip_windows_crt_flags)
     fincludes_hdr = force_includes_hdr(native.package_name(), name)
@@ -789,14 +803,16 @@ def _mongo_cc_binary_and_test(
             "//bazel/config:linkstatic_disabled": deps,
             "//conditions:default": [],
         }),
-        "target_compatible_with": target_compatible_with + enterprise_compatible,
+        "target_compatible_with": target_compatible_with,
         "additional_linker_inputs": additional_linker_inputs + MONGO_GLOBAL_ADDITIONAL_LINKER_INPUTS,
         "exec_properties": exec_properties | select({
-            # Debug compression significantly reduces .o, .dwo, and .a sizes
-            "//bazel/config:compress_debug_compile_enabled": {"cpp_link.coefficient": "18.0"},
-            "//conditions:default": {"cpp_link.coefficient": "3.0"},
+            "//bazel/config:remote_link_enabled": {},
+            "//conditions:default": {"cpp_link.coefficient": "18.0"},
         }) | select({
             "//bazel/config:thin_lto_enabled": {"cpp_link.cpus": str(NUM_CPUS)},
+            "//conditions:default": {},
+        }) | select({
+            "//bazel/config:remote_link_arm_linux_enabled": {"cpp_link.Pool": "arm_linker"},
             "//conditions:default": {},
         }),
         "env": env | SANITIZER_ENV,
@@ -1478,4 +1494,88 @@ def mongo_cc_fuzzer_test(
         features = features,
         exec_properties = exec_properties,
         **kwargs
+    )
+
+# Note: For these extensions to load successfully in the server, they must be built with
+# --allocator=system. Otherwise, the extensions will get a local instance of tcmalloc which
+# fails to run properly because there isn't enough TLS space available for both the host and
+# extension's tcmalloc. In transitions.bzl, we define a Bazel transition for managing the allocator
+# and other extension-specific options.
+def mongo_cc_extension_shared_library(
+        name,
+        srcs = [],
+        deps = [],
+        header_deps = [],
+        visibility = None,
+        data = [],
+        tags = [],
+        copts = [],
+        linkopts = [],
+        includes = [],
+        linkstatic = False,
+        local_defines = [],
+        target_compatible_with = [],
+        defines = [],
+        additional_linker_inputs = [],
+        features = [],
+        exec_properties = {},
+        **kwargs):
+    mongo_cc_library(
+        name = name,
+        srcs = srcs,
+        deps = deps + [
+            "//src/mongo/db/extension/public:api",
+            "//src/mongo/db/extension/sdk:sdk_cpp",
+        ],
+        header_deps = header_deps,
+        visibility = visibility,
+        data = data,
+        tags = tags,
+        copts = copts,
+        linkopts = linkopts,
+        includes = includes,
+        linkstatic = linkstatic,
+        local_defines = local_defines,
+        defines = defines,
+        features = features,
+        exec_properties = exec_properties,
+        additional_linker_inputs = additional_linker_inputs + select({
+            "@platforms//os:linux": [
+                ":test_extensions.version_script.lds",
+            ],
+            "//conditions:default": [],
+        }) + select({
+            "@platforms//os:macos": [
+                ":test_extensions.exported_symbols_list.lds",
+            ],
+            "//conditions:default": [],
+        }),
+        # linkshared produces a shared library as the output.
+        # TODO SERVER-109255 Make sure the test extensions are statically linked, as we expect
+        # all extensions to be.
+        linkshared = True,
+        non_transitive_dyn_linkopts = select({
+            "@platforms//os:linux": [
+                "-Wl,--version-script=$(location :test_extensions.version_script.lds)",
+            ],
+            "//conditions:default": [],
+        }) + select({
+            "@platforms//os:macos": [
+                "-Wl,-exported_symbols_list,$(location :test_extensions.exported_symbols_list.lds)",
+            ],
+            "//conditions:default": [],
+        }),
+        skip_global_deps = [
+            # This is a globally injected dependency. We don't want a special allocator linked
+            # here. Instead, the allocator should be overriden at load time.
+            "allocator",
+            "libunwind",
+        ],
+        target_compatible_with = target_compatible_with + select({
+            "//bazel/config:shared_archive_or_link_dynamic": [],
+            "//conditions:default": ["@platforms//:incompatible"],
+        }) + select({
+            "@platforms//os:linux": [],
+            "//conditions:default": ["@platforms//:incompatible"],
+        }),
     )

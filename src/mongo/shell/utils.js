@@ -1332,11 +1332,10 @@ shellHelper.show = function(what) {
     throw Error("don't know how to show [" + what + "]");
 };
 
-let __prompt__;
 function __promptWrapper__(promptFunction) {
     // Call promptFunction directly if the global "db" is not defined, e.g. --nodb.
     if (typeof globalThis.db === 'undefined' || !(globalThis.db instanceof DB)) {
-        __prompt__ = promptFunction();
+        globalThis.__prompt__ = promptFunction();
         return;
     }
 
@@ -1350,7 +1349,7 @@ function __promptWrapper__(promptFunction) {
         // commands and therefore won't interfere with the session associated with the
         // global "db" object.
         globalThis.db._session = new _DummyDriverSession(globalThis.db.getMongo());
-        __prompt__ = promptFunction();
+        globalThis.__prompt__ = promptFunction();
     } finally {
         globalThis.db = originalDB;
     }
@@ -2067,7 +2066,6 @@ export {
     Random,
     __magicNoPrint,
     __promptWrapper__,
-    __prompt__,
     _awaitRSHostViaRSMonitor,
     _getErrorWithCode,
     _isSpiderMonkeyDebugEnabled,

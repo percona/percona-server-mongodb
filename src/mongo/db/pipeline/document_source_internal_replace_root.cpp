@@ -46,8 +46,4 @@ DocumentSourceContainer::iterator DocumentSourceInternalReplaceRoot::doOptimizeA
 Value DocumentSourceInternalReplaceRoot::serialize(const SerializationOptions& opts) const {
     return Value(Document{{getSourceName(), _newRoot->serialize()}});
 }
-
-DocumentSource::GetNextResult DocumentSourceInternalReplaceRoot::doGetNext() {
-    tasserted(8105803, "Execution reached non-executable pipeline stage");
-}
 }  // namespace mongo

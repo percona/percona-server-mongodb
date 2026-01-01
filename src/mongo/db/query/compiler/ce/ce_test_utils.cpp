@@ -302,6 +302,14 @@ std::vector<std::unique_ptr<MatchExpression>> createQueryMatchExpressionOnMultip
     return allMatchExpressionQueries;
 }
 
+std::vector<std::unique_ptr<MatchExpression>> generateMatchExpressionsBasedOnWorkloadConfig(
+    WorkloadConfiguration& workloadConfig) {
+    // Generate queries.
+    std::vector<std::vector<std::pair<stats::SBEValue, stats::SBEValue>>> queryFieldsIntervals =
+        generateMultiFieldIntervals(workloadConfig);
+    return createQueryMatchExpressionOnMultipleFields(workloadConfig, queryFieldsIntervals);
+}
+
 size_t calculateCardinality(const MatchExpression* expr, std::vector<BSONObj> data) {
     size_t cnt = 0;
     for (const auto& doc : data) {
@@ -422,11 +430,11 @@ void generateDataOneField(size_t ndv,
     std::mt19937_64 seedArray(42);
     std::mt19937_64 seedDataset(seedData);
 
-    stats::MixedDistributionDescriptor zipfian{{dataDistribution, 1.0}};
+    stats::MixedDistributionDescriptor distr{{dataDistribution, 1.0}};
     stats::TypeDistrVector td;
 
     populateTypeDistrVectorAccordingToInputConfig(
-        td, dataInterval, typeCombinationData, ndv, seedArray, zipfian, arrayTypeLength);
+        td, dataInterval, typeCombinationData, ndv, seedArray, distr, arrayTypeLength);
 
     stats::DatasetDescriptorNew desc{std::move(td), seedDataset};
     data = desc.genRandomDataset(size);

@@ -51,6 +51,7 @@
       roots:
         - jstests/sharding/analyze_shard_key/timeseries.js
         - jstests/sharding/libs/timeseries_update_multi_util.js
+        - jstests/sharding/query/sample_timeseries.js
         - jstests/sharding/resharding_timeseries/move_timeseries.js
         - jstests/sharding/resharding_timeseries/reshard_timeseries.js
         - jstests/sharding/resharding_timeseries/reshard_timeseries_disallow_writes.js
@@ -126,6 +127,11 @@
         - jstests/noPassthrough/query/timeseries/timeseries_validate_mixed_schema_bucket_legacy_flag.js
         - jstests/noPassthrough/timeseries/bucket_reopening/timeseries_direct_remove_reopen.js
         - jstests/noPassthrough/timeseries/bucket_reopening/timeseries_reopen_uncompressed_bucket_for_compression.js
+        - jstests/noPassthrough/timeseries/bulkwrite/bulkwrite_timeseries_insert_ordered_false.js
+        - jstests/noPassthrough/timeseries/bulkwrite/bulkwrite_timeseries_insert_ordered_true.js
+        - jstests/noPassthrough/timeseries/bulkwrite/bulkwrite_timeseries_retry_delete_and_update.js
+        - jstests/noPassthrough/timeseries/bulkwrite/bulkwrite_timeseries_retry_writes.js
+        - jstests/noPassthrough/timeseries/bulkwrite/bulkwrite_timeseries_retryable_writes_restart.js
         - jstests/noPassthrough/timeseries/create/initial_sync_recreate_timeseries_collection.js
         - jstests/noPassthrough/timeseries/create/timeseries_block_compressor_options.js
         - jstests/noPassthrough/timeseries/create/timeseries_server_parameters.js
@@ -152,6 +158,7 @@
         - jstests/noPassthrough/timeseries/query/timeseries_nested_elem_match.js
         - jstests/noPassthrough/timeseries/query/timeseries_query_knob_sbe.js
         - jstests/noPassthrough/timeseries/query/timeseries_sample_on_buckets.js
+        - jstests/noPassthrough/timeseries/query/timeseries_sample.js
         - jstests/noPassthrough/timeseries/query/timeseries_sort.js
         - jstests/noPassthrough/timeseries/query/timeseries_sparse_fields.js
         - jstests/noPassthrough/timeseries/stats/timeseries_collStats.js
