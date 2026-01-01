@@ -1,10 +1,10 @@
-load('jstests/backup/_backup_helpers.js');
+load("jstests/backup/_backup_helpers.js");
 
-(function() {
-    'use strict';
+(function () {
+    "use strict";
 
     // Run the original instance and fill it with data.
-    var dbPath = MongoRunner.dataPath + 'original';
+    var dbPath = MongoRunner.dataPath + "original";
     var conn = MongoRunner.runMongod({
         dbpath: dbPath,
     });
@@ -25,8 +25,8 @@ load('jstests/backup/_backup_helpers.js');
 
     var statsBackup = getDB(conn).runCommand({dbStats: 1});
     assert.commandWorked(statsBackup);
-    assert.eq(statsOrig.objects, statsBackup.objects, 'objects doesn\'t match');
-    assert.eq(statsOrig.dataSize, statsBackup.dataSize, 'dataSize doesn\'t match');
+    assert.eq(statsOrig.objects, statsBackup.objects, "objects doesn't match");
+    assert.eq(statsOrig.dataSize, statsBackup.dataSize, "dataSize doesn't match");
 
     MongoRunner.stopMongod(conn);
 })();

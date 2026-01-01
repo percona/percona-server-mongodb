@@ -747,23 +747,35 @@ MongoRunner.mongodOptions = function (opts = {}) {
                 continue;
             }
             if (!optVerifier(optValue)) {
-                throw new Error("The " + optName + " option must be " + expected +
-                                " if it is specified");
+                throw new Error("The " + optName + " option must be " + expected + " if it is specified");
             }
             opts[optName] = optValue;
         }
     }
-    const switchOptNames = ['enableEncryption', 'vaultDisableTLSForTesting', 'vaultRotateMasterKey',
-                            'kmipRotateMasterKey'];
+    const switchOptNames = [
+        "enableEncryption",
+        "vaultDisableTLSForTesting",
+        "vaultRotateMasterKey",
+        "kmipRotateMasterKey",
+    ];
     const stringOptNames = [
-        'encryptionCipherMode', 'encryptionKeyFile', 'vaultServerName', 'vaultServerCAFile',
-        'vaultTokenFile', 'vaultSecret', 'kmipServerName', 'kmipServerCAFile',
-        'kmipClientCertificateFile', 'kmipClientCertificatePassword', 'kmipKeyIdentifier',
-        'auditDestination'];
-    const numberOptNames = ['vaultPort', 'vaultSecretVersion', 'kmipPort'];
-    mergeOptions(switchOptNames, opt => opt == ''             , "an empty string");
-    mergeOptions(stringOptNames, opt => typeof opt == 'string', "a string");
-    mergeOptions(numberOptNames, opt => typeof opt == 'number', "a number");
+        "encryptionCipherMode",
+        "encryptionKeyFile",
+        "vaultServerName",
+        "vaultServerCAFile",
+        "vaultTokenFile",
+        "vaultSecret",
+        "kmipServerName",
+        "kmipServerCAFile",
+        "kmipClientCertificateFile",
+        "kmipClientCertificatePassword",
+        "kmipKeyIdentifier",
+        "auditDestination",
+    ];
+    const numberOptNames = ["vaultPort", "vaultSecretVersion", "kmipPort"];
+    mergeOptions(switchOptNames, (opt) => opt == "", "an empty string");
+    mergeOptions(stringOptNames, (opt) => typeof opt == "string", "a string");
+    mergeOptions(numberOptNames, (opt) => typeof opt == "number", "a number");
 
     if (opts.hasOwnProperty("auditPath")) {
         // We need to reformat the auditPath to include the proper port
@@ -1264,7 +1276,7 @@ function appendSetParameterArgs(argArray) {
                 let randomStrLen = 20;
                 const chars = "qwertyuiopasdfghjklzxcvbnm1234567890";
                 for (let i = 0; i <= randomStrLen; i++) {
-                    randomName += chars[(Math.random() * 1000) % chars.length ^ 0];
+                    randomName += chars[((Math.random() * 1000) % chars.length) ^ 0];
                 }
                 const backtraceLogFilePath = MongoRunner.dataDir + "/" + randomName + Date.now() + ".stacktrace";
                 argArray.push(...["--setParameter", "backtraceLogFile=" + backtraceLogFilePath]);

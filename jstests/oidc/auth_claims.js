@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -8,34 +8,31 @@ const idp_config = {
             payload: {
                 aud: "audience",
                 sub: "user",
-                claim: [
-                    "group1",
-                    "group2",
-                ],
-            }
+                claim: ["group1", "group2"],
+            },
         },
         {
             payload: {
                 aud: "audience",
                 sub: "user",
                 claim: [],
-            }
+            },
         },
         {
             payload: {
                 aud: "audience",
                 sub: "user",
                 claim: ["group3"],
-            }
+            },
         },
         {
             payload: {
                 aud: "audience",
                 sub: "user",
                 claim: "group4",
-            }
-        }
-    ]
+            },
+        },
+    ],
 };
 
 const oidcProvider = {
@@ -43,12 +40,11 @@ const oidcProvider = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
-    authorizationClaim: "claim"
+    authorizationClaim: "claim",
 };
 
 function test_granted_roles_match_claims(clusterClass) {
-    var test = new OIDCFixture(
-        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    var test = new OIDCFixture({oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
 
     test.create_role("test/group1", [{role: "readWrite", db: "test_db1"}]);
@@ -68,17 +64,15 @@ function test_granted_roles_match_claims(clusterClass) {
     test.logout(conn);
 
     test.auth(conn, "user");
-    test.assert_authenticated(conn, "test/user", []);  // empty claim
+    test.assert_authenticated(conn, "test/user", []); // empty claim
     test.logout(conn);
 
     test.auth(conn, "user");
-    test.assert_authenticated(
-        conn, "test/user", ["test/group3", {role: "dbAdmin", db: "test_db3"}]);
+    test.assert_authenticated(conn, "test/user", ["test/group3", {role: "dbAdmin", db: "test_db3"}]);
     test.logout(conn);
 
     test.auth(conn, "user");
-    test.assert_authenticated(
-        conn, "test/user", ["test/group4", {role: "dbOwner", db: "test_db4"}]);
+    test.assert_authenticated(conn, "test/user", ["test/group4", {role: "dbOwner", db: "test_db4"}]);
     test.logout(conn);
 
     test.teardown();

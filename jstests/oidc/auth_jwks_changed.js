@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -11,7 +11,7 @@ const idp_config = {
                 aud: "audience",
                 sub: "user",
                 claim: "group",
-            }
+            },
         },
         {
             // The second token will be created with the same jwk
@@ -20,7 +20,7 @@ const idp_config = {
                 aud: "audience",
                 sub: "user",
                 claim: "group",
-            }
+            },
         },
         {
             // The third token will be created with a new jwk
@@ -29,7 +29,7 @@ const idp_config = {
                 aud: "audience",
                 sub: "user",
                 claim: "group",
-            }
+            },
         },
         {
             // The fourth token will be created with the same jwk
@@ -38,7 +38,7 @@ const idp_config = {
                 aud: "audience",
                 sub: "user",
                 claim: "group",
-            }
+            },
         },
     ],
 };
@@ -48,7 +48,7 @@ var oidcProvider = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
-    authorizationClaim: "claim"
+    authorizationClaim: "claim",
 };
 
 /**
@@ -56,8 +56,7 @@ var oidcProvider = {
  * with previously unknown key identifier (kid).
  */
 function test_new_kid_triggers_jwks_fetching(clusterClass) {
-    var test = new OIDCFixture(
-        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    var test = new OIDCFixture({oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
     test.create_role("test/group", [{role: "readWrite", db: "test_db"}]);
     const expectedRoles = ["test/group", {role: "readWrite", db: "test_db"}];

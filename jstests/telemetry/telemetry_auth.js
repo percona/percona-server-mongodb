@@ -1,10 +1,10 @@
-import { ShardingTest } from "jstests/libs/shardingtest.js";
+import {ShardingTest} from "jstests/libs/shardingtest.js";
 import {
     telmPath,
     setParameterOpts,
     cleanupTelmDir,
     getTelmDataByConn,
-    getTelmDataForMongos
+    getTelmDataForMongos,
 } from "jstests/telemetry/_telemetry_helpers.js";
 
 // check for LDAP test configuration
@@ -17,24 +17,25 @@ const ldapOptions = {
     ldapServers: TestData.ldapServers,
     ldapQueryUser: TestData.ldapQueryUser,
     ldapQueryPassword: TestData.ldapQueryPassword,
-    ldapTransportSecurity: 'none',
+    ldapTransportSecurity: "none",
 };
 
 // options for enabling LDAP with authorization
-const ldapAuthzOptions =
-    Object.merge(ldapOptions, {ldapAuthzQueryTemplate: '{USER}?memberOf?base'});
+const ldapAuthzOptions = Object.merge(ldapOptions, {ldapAuthzQueryTemplate: "{USER}?memberOf?base"});
 
 // options for enabling OIDC authentication
 const oidcOptions = {
     setParameter: {
-        oidcIdentityProviders: JSON.stringify([{
-            issuer: "https://localhost",
-            authNamePrefix: "test-prefix",
-            audience: "test-audience",
-            clientId: "test-client-id",
-            useAuthorizationClaim: false,
-        }]),
-    }
+        oidcIdentityProviders: JSON.stringify([
+            {
+                issuer: "https://localhost",
+                authNamePrefix: "test-prefix",
+                audience: "test-audience",
+                clientId: "test-client-id",
+                useAuthorizationClaim: false,
+            },
+        ]),
+    },
 };
 
 // default values for telementry data fields related to authentication/authorization methods
@@ -49,17 +50,19 @@ const authMethodFieldsDefault = {
 
 // check if all fields are defined in telemetry data
 function assertFieldsDefined(data) {
-    Object.keys(authMethodFieldsDefault).forEach(field => {
+    Object.keys(authMethodFieldsDefault).forEach((field) => {
         assert(data[field] !== undefined, `${field} is not defined in telemetry data`);
     });
 }
 
 // check if all fields have expected default values
 function assertDefaultFields(data) {
-    Object.keys(authMethodFieldsDefault).forEach(field => {
-        assert.eq(data[field],
-                  authMethodFieldsDefault[field],
-                  `${field} should be ${authMethodFieldsDefault[field]}, but got ${data[field]}`);
+    Object.keys(authMethodFieldsDefault).forEach((field) => {
+        assert.eq(
+            data[field],
+            authMethodFieldsDefault[field],
+            `${field} should be ${authMethodFieldsDefault[field]}, but got ${data[field]}`,
+        );
     });
 }
 
@@ -90,7 +93,7 @@ function getMongosTelemetry(options) {
         mongos: 1,
         rs: {nodes: 1, setParameter: setParameterOpts},
         mongosOptions: options,
-        configOptions: {setParameter: setParameterOpts}
+        configOptions: {setParameter: setParameterOpts},
     });
 
     assert(setParameterOpts.perconaTelemetryGracePeriod, "perconaTelemetryGracePeriod is not set");
@@ -124,7 +127,7 @@ function testFields(getTelemetryFunc, fields, options = {}) {
         fields = [fields];
     }
 
-    fields.forEach(field => {
+    fields.forEach((field) => {
         assert.eq(data[field], "true", `${field} should be true`);
     });
 }
@@ -150,9 +153,11 @@ for (const getTelemetryFunc of [getMongodTelemetry, getMongosTelemetry]) {
     testAuthMethodFields(getTelemetryFunc, "GSSAPI", "kerberos_enabled");
     testAuthMethodFields(getTelemetryFunc, "MONGODB-X509", "x509_enabled");
     testAuthMethodFields(getTelemetryFunc, "PLAIN", "ldap_sasl_authentication_enabled");
-    testAuthMethodFields(getTelemetryFunc,
-                         "GSSAPI,MONGODB-X509,PLAIN",
-                         ["kerberos_enabled", "x509_enabled", "ldap_sasl_authentication_enabled"]);
+    testAuthMethodFields(getTelemetryFunc, "GSSAPI,MONGODB-X509,PLAIN", [
+        "kerberos_enabled",
+        "x509_enabled",
+        "ldap_sasl_authentication_enabled",
+    ]);
     testAuthMethodFields(getTelemetryFunc, "MONGODB-OIDC", "oidc_enabled", oidcOptions);
 
     // check if LDAP tests are configured
@@ -161,11 +166,11 @@ for (const getTelemetryFunc of [getMongodTelemetry, getMongosTelemetry]) {
 
         // LDAP authorization is not supported by mongos
         if (getTelemetryFunc !== getMongosTelemetry) {
-            testFields(
-                getTelemetryFunc, ["ldap_enabled", "ldap_authorization_enabled"], ldapAuthzOptions);
+            testFields(getTelemetryFunc, ["ldap_enabled", "ldap_authorization_enabled"], ldapAuthzOptions);
         }
     } else {
         print(
-            "LDAP related TestData fields are not defined, skipping ldap_enabled and ldap_authorizaiton_enabled tests");
+            "LDAP related TestData fields are not defined, skipping ldap_enabled and ldap_authorizaiton_enabled tests",
+        );
     }
 }

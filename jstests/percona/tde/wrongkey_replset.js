@@ -4,24 +4,24 @@
  * encryption key does not corrupt DB (replica set version).
  * @tags: [requires_wiredtiger]
  */
-import { ReplSetTest } from "jstests/libs/replsettest.js";
+import {ReplSetTest} from "jstests/libs/replsettest.js";
 
-(function() {
-    'use strict';
-	load('jstests/backup/_backup_helpers.js');
+(function () {
+    "use strict";
+    load("jstests/backup/_backup_helpers.js");
 
     run("chmod", "600", TestData.keyFileGood);
     run("chmod", "600", TestData.keyFileWrong);
 
     // Start the replica set and fill it with data.
-    var name = 'wrongkey_replset';
+    var name = "wrongkey_replset";
     var rs = new ReplSetTest({
         name: name,
         nodes: 3,
     });
 
     rs.startSet({
-        enableEncryption: '',
+        enableEncryption: "",
         encryptionKeyFile: TestData.keyFileGood,
         encryptionCipherMode: TestData.cipherMode,
     });
@@ -43,13 +43,19 @@ import { ReplSetTest } from "jstests/libs/replsettest.js";
 
     // Start with the wrong key - ensure it fails
     print("Start from backup with the wrong key");
-    assert.throws(() => rs.start(secondary, {
-        noCleanData: true,
-        dbpath: backupPath,
-        enableEncryption: '',
-        encryptionKeyFile: TestData.keyFileWrong,
-        encryptionCipherMode: TestData.cipherMode,
-    }, true));
+    assert.throws(() =>
+        rs.start(
+            secondary,
+            {
+                noCleanData: true,
+                dbpath: backupPath,
+                enableEncryption: "",
+                encryptionKeyFile: TestData.keyFileWrong,
+                encryptionCipherMode: TestData.cipherMode,
+            },
+            true,
+        ),
+    );
 
     // Start with the correct key - ensure it succeeds and DBHash is correct
     print("Start from backup with the correct key");
@@ -58,14 +64,15 @@ import { ReplSetTest } from "jstests/libs/replsettest.js";
         {
             noCleanData: true,
             dbpath: backupPath,
-            enableEncryption: '',
+            enableEncryption: "",
             encryptionKeyFile: TestData.keyFileGood,
             encryptionCipherMode: TestData.cipherMode,
         },
-        true);
+        true,
+    );
 
     var hashesBackup = computeHashes(secondary);
     assert.hashesEq(hashesOrig, hashesBackup);
 
-    rs.stopSet();;
+    rs.stopSet();
 })();

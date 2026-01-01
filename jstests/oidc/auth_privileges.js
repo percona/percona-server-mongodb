@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -7,10 +7,8 @@ const idp_config = {
         payload: {
             aud: "audience",
             sub: "user",
-            claim: [
-                "group",
-            ],
-        }
+            claim: ["group"],
+        },
     },
 };
 
@@ -19,7 +17,7 @@ const oidcProviderWithClaim = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
-    authorizationClaim: "claim"
+    authorizationClaim: "claim",
 };
 
 const oidcProviderNoClaim = {
@@ -31,14 +29,11 @@ const oidcProviderNoClaim = {
 };
 
 const roles = [
-    { role: "readWrite", db: "test_db1" },
-    { role: "read", db: "test_db2" },
-]
-
-const expectedRolesWithClaim = [
-    "test/group",
-    ...roles
+    {role: "readWrite", db: "test_db1"},
+    {role: "read", db: "test_db2"},
 ];
+
+const expectedRolesWithClaim = ["test/group", ...roles];
 
 const expectedRolesNoClaim = roles;
 
@@ -86,19 +81,24 @@ const readActions = [
 
 const expectedPrivileges = [
     {
-        resource: { db: "test_db1", collection: "" },
+        resource: {db: "test_db1", collection: ""},
         actions: readWriteActions,
     },
     {
-        resource: { db: "test_db2", collection: "" },
+        resource: {db: "test_db2", collection: ""},
         actions: readActions,
     },
 ];
 
 function test_roles_and_privileges_with_auth_claim(
-    clusterClass, should_create_roles, expected_roles, expected_privileges) {
+    clusterClass,
+    should_create_roles,
+    expected_roles,
+    expected_privileges,
+) {
     var test = new OIDCFixture({
-        oidcProviders: [oidcProviderWithClaim], idps: [{ url: issuer_url, config: idp_config }]
+        oidcProviders: [oidcProviderWithClaim],
+        idps: [{url: issuer_url, config: idp_config}],
     });
     test.setup(clusterClass);
     if (should_create_roles) {
@@ -118,7 +118,8 @@ function test_roles_and_privileges_with_auth_claim(
 
 function test_roles_and_privileges_without_auth_claim(clusterClass) {
     var test = new OIDCFixture({
-        oidcProviders: [oidcProviderNoClaim], idps: [{ url: issuer_url, config: idp_config }]
+        oidcProviders: [oidcProviderNoClaim],
+        idps: [{url: issuer_url, config: idp_config}],
     });
 
     test.setup(clusterClass);
@@ -138,9 +139,14 @@ function test_roles_and_privileges_without_auth_claim(clusterClass) {
 }
 
 function test_roles_and_privileges_with_auth_claim_after_invalidate(
-    clusterClass, should_create_roles, expected_roles, expected_privileges) {
+    clusterClass,
+    should_create_roles,
+    expected_roles,
+    expected_privileges,
+) {
     var test = new OIDCFixture({
-        oidcProviders: [oidcProviderWithClaim], idps: [{ url: issuer_url, config: idp_config }]
+        oidcProviders: [oidcProviderWithClaim],
+        idps: [{url: issuer_url, config: idp_config}],
     });
     test.setup(clusterClass);
     if (should_create_roles) {
@@ -167,15 +173,21 @@ function test_roles_and_privileges_with_auth_claim_after_invalidate(
 test_roles_and_privileges_with_auth_claim(StandaloneMongod, false, ["test/group"], []);
 test_roles_and_privileges_with_auth_claim(ShardedCluster, false, ["test/group"], []);
 
-test_roles_and_privileges_with_auth_claim(
-    StandaloneMongod, true, expectedRolesWithClaim, expectedPrivileges);
-test_roles_and_privileges_with_auth_claim(
-    ShardedCluster, true, expectedRolesWithClaim, expectedPrivileges);
+test_roles_and_privileges_with_auth_claim(StandaloneMongod, true, expectedRolesWithClaim, expectedPrivileges);
+test_roles_and_privileges_with_auth_claim(ShardedCluster, true, expectedRolesWithClaim, expectedPrivileges);
 
 test_roles_and_privileges_without_auth_claim(StandaloneMongod);
 test_roles_and_privileges_without_auth_claim(ShardedCluster);
 
 test_roles_and_privileges_with_auth_claim_after_invalidate(
-    StandaloneMongod, true, expectedRolesWithClaim, expectedPrivileges);
+    StandaloneMongod,
+    true,
+    expectedRolesWithClaim,
+    expectedPrivileges,
+);
 test_roles_and_privileges_with_auth_claim_after_invalidate(
-    ShardedCluster, true, expectedRolesWithClaim, expectedPrivileges);
+    ShardedCluster,
+    true,
+    expectedRolesWithClaim,
+    expectedPrivileges,
+);

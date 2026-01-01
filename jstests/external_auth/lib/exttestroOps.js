@@ -4,32 +4,32 @@
 // name: External user with read (only) access to 'test'
 // mode: auth
 
-function exttestroOpsRun(){
-  'use strict'
-  var db = conn.getDB( '$external' )
+function exttestroOpsRun() {
+    "use strict";
+    var db = conn.getDB("$external");
 
-  assert(
-    db.auth({
-      user: 'exttestro',
-      pwd: 'exttestro9a5S',
-      mechanism: 'PLAIN',
-      digestPassword: false
-    })
-  )
+    assert(
+        db.auth({
+            user: "exttestro",
+            pwd: "exttestro9a5S",
+            mechanism: "PLAIN",
+            digestPassword: false,
+        }),
+    );
 
-  // check who we are authenticated as
+    // check who we are authenticated as
 
-  var res = db.runCommand({connectionStatus : 1})
+    var res = db.runCommand({connectionStatus: 1});
 
-  assert ( res.authInfo.authenticatedUsers[0].user == "exttestro")
+    assert(res.authInfo.authenticatedUsers[0].user == "exttestro");
 
-  // test access
+    // test access
 
-  load( 'jstests/external_auth/lib/_functions.js' )
+    load("jstests/external_auth/lib/_functions.js");
 
-  authuser_assertro( db.getSiblingDB('test') )
-  authuser_assertnone( db.getSiblingDB('other') )
-  authuser_assertnone( db.getSiblingDB('yetanother') )
+    authuser_assertro(db.getSiblingDB("test"));
+    authuser_assertnone(db.getSiblingDB("other"));
+    authuser_assertnone(db.getSiblingDB("yetanother"));
 }
 
-exttestroOpsRun()
+exttestroOpsRun();

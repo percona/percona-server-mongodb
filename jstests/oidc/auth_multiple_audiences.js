@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -12,7 +12,7 @@ const oidcProviders = [
         audience: "audience1",
         authNamePrefix: "idp",
         matchPattern: "1$",
-        authorizationClaim: "claim1"  // use authorization claim
+        authorizationClaim: "claim1", // use authorization claim
     },
     {
         issuer: issuer_url,
@@ -20,7 +20,7 @@ const oidcProviders = [
         audience: "audience2",
         authNamePrefix: "idp",
         matchPattern: "2$",
-        authorizationClaim: "claim2"  // use authorization claim
+        authorizationClaim: "claim2", // use authorization claim
     },
     {
         issuer: issuer_url,
@@ -28,8 +28,8 @@ const oidcProviders = [
         audience: "audience3",
         authNamePrefix: "idp",
         matchPattern: "3$",
-        useAuthorizationClaim: false,  // don't use authorization claim
-    }
+        useAuthorizationClaim: false, // don't use authorization claim
+    },
 ];
 
 // Each token is for a different user, with a different audience.
@@ -45,24 +45,24 @@ const idp_config = {
             payload: {
                 sub: "user2",
                 aud: "audience2",
-                claim1: ["group3"]  // wrong claim
-            }
+                claim1: ["group3"], // wrong claim
+            },
         },
         {
             payload: {
                 sub: "user1",
                 aud: "audience1",
-                claim3: ["group1"]  // wrong claim
-            }
+                claim3: ["group1"], // wrong claim
+            },
         },
         {
             payload: {
                 sub: "user1",
                 aud: "audience1",
-                claim2: ["group1"]  // wrong claim
-            }
-        }
-    ]
+                claim2: ["group1"], // wrong claim
+            },
+        },
+    ],
 };
 
 function test_multiple_audiences_for_single_issuer(clusterClass) {
@@ -71,7 +71,7 @@ function test_multiple_audiences_for_single_issuer(clusterClass) {
     test.setup(clusterClass);
     test.create_role("idp/group1", [{role: "readWrite", db: "test_db1"}]);
     test.create_role("idp/group2", [{role: "read", db: "test_db2"}]);
-    test.create_user('idp/user3');
+    test.create_user("idp/user3");
 
     const expectedRolesUser1 = ["idp/group1", {role: "readWrite", db: "test_db1"}];
     const expectedRolesUser2 = ["idp/group2", {role: "read", db: "test_db2"}];
@@ -99,21 +99,30 @@ function test_multiple_audiences_for_single_issuer(clusterClass) {
 
     // authenticate as user2 with wrong claim in the token
     assert(!test.auth(conn, "user2"), "Authentication should fail due to invalid claim");
-    assert(test.checkLogExists(expectedLog(
-               "BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim2' is missing")),
-           "Expected log not found for token with invalid claim");
+    assert(
+        test.checkLogExists(
+            expectedLog("BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim2' is missing"),
+        ),
+        "Expected log not found for token with invalid claim",
+    );
 
     // authenticate as user1 with wrong claim in the token
     assert(!test.auth(conn, "user1"), "Authentication should fail due to invalid claim");
-    assert(test.checkLogExists(expectedLog(
-               "BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim1' is missing")),
-           "Expected log not found for token with invalid claim");
+    assert(
+        test.checkLogExists(
+            expectedLog("BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim1' is missing"),
+        ),
+        "Expected log not found for token with invalid claim",
+    );
 
     // authenticate as user1 with wrong claim in the token
     assert(!test.auth(conn, "user1"), "Authentication should fail due to invalid claim");
-    assert(test.checkLogExists(expectedLog(
-               "BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim1' is missing")),
-           "Expected log not found for token with invalid claim");
+    assert(
+        test.checkLogExists(
+            expectedLog("BadValue: Invalid JWT :: caused by :: authorizationClaim 'claim1' is missing"),
+        ),
+        "Expected log not found for token with invalid claim",
+    );
 
     test.teardown();
 }

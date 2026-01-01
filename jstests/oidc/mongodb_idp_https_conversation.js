@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const pollingIntervalSecs = 3;
 
@@ -9,7 +9,7 @@ const idp_config = {
         payload: {
             aud: "audience",
             sub: "user",
-        }
+        },
     },
 };
 
@@ -26,11 +26,13 @@ const oidcProvider = {
 function test_mongodb_idp_https_converstation(clusterClass) {
     let test = new OIDCFixture({
         oidcProviders: [oidcProvider],
-        idps: [{
-            url: issuer_url,
-            config: idp_config,
-            cert: "jstests/oidc/lib/ca_oidc_idp.pem",
-        }]
+        idps: [
+            {
+                url: issuer_url,
+                config: idp_config,
+                cert: "jstests/oidc/lib/ca_oidc_idp.pem",
+            },
+        ],
     });
     let idp = test.get_idp(issuer_url);
 

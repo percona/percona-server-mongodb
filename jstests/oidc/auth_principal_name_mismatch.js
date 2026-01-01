@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -16,12 +16,11 @@ function assert_auth_succeeds_if_principal_names_match_at_sasl_conversation_step
             payload: {
                 sub: "bravo",
                 aud: "audience",
-            }
+            },
         },
     };
 
-    let test = new OIDCFixture(
-        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    let test = new OIDCFixture({oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
     test.create_user("alpha/bravo", [{role: "readWrite", db: "test_db"}]);
 
@@ -32,19 +31,17 @@ function assert_auth_succeeds_if_principal_names_match_at_sasl_conversation_step
     test.teardown();
 }
 
-function assert_auth_fails_if_principal_names_do_not_match_at_sasl_conversation_steps(
-    clusterClass) {
+function assert_auth_fails_if_principal_names_do_not_match_at_sasl_conversation_steps(clusterClass) {
     const idp_config = {
         token: {
             payload: {
                 sub: "charlie",
                 aud: "audience",
-            }
+            },
         },
     };
 
-    let test = new OIDCFixture(
-        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    let test = new OIDCFixture({oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
     test.create_user("alpha/bravo", [{role: "readWrite", db: "test_db"}]);
 
@@ -61,10 +58,11 @@ function assert_auth_fails_if_principal_names_do_not_match_at_sasl_conversation_
         msg: "Failed to authenticate",
         attr: {
             mechanism: "MONGODB-OIDC",
-            error: "BadValue: Invalid JWT :: caused by :: " +
+            error:
+                "BadValue: Invalid JWT :: caused by :: " +
                 "principal names at SASL step 1 (`bravo`) and " +
                 "step 2 (`charlie`) are not equal",
-        }
+        },
     };
     assert(test.checkLogExists(expectedLog), "Expected log not found");
 

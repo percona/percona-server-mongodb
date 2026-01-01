@@ -1,10 +1,10 @@
-load('jstests/backup/_backup_helpers.js');
+load("jstests/backup/_backup_helpers.js");
 
-(function() {
-    'use strict';
+(function () {
+    "use strict";
 
     // Run the original instance and fill it with data.
-    var dbPath = MongoRunner.dataPath + 'original';
+    var dbPath = MongoRunner.dataPath + "original";
     var conn = MongoRunner.runMongod({
         dbpath: dbPath,
     });

@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer1_url = OIDCFixture.allocate_issuer_url();
 const issuer2_url = OIDCFixture.allocate_issuer_url();
@@ -9,11 +9,8 @@ const idp1_config = {
         payload: {
             sub: "user1",
             aud: "audience1",
-            claim1: [
-                "group11",
-                "group12",
-            ]
-        }
+            claim1: ["group11", "group12"],
+        },
     },
 };
 
@@ -23,11 +20,8 @@ const idp2_config = {
         payload: {
             sub: "user2",
             aud: "audience2",
-            claim2: [
-                "group21",
-                "group22",
-            ]
-        }
+            claim2: ["group21", "group22"],
+        },
     },
 };
 
@@ -38,7 +32,7 @@ const oidcProviders = [
         audience: "audience1",
         authNamePrefix: "idp1",
         matchPattern: "1$",
-        authorizationClaim: "claim1"
+        authorizationClaim: "claim1",
     },
     {
         issuer: issuer2_url,
@@ -46,14 +40,17 @@ const oidcProviders = [
         audience: "audience2",
         authNamePrefix: "idp2",
         matchPattern: "2$",
-        authorizationClaim: "claim2"
-    }
+        authorizationClaim: "claim2",
+    },
 ];
 
 function test_multiple_issuers(clusterClass) {
     var test = new OIDCFixture({
         oidcProviders,
-        idps: [{url: issuer1_url, config: idp1_config}, {url: issuer2_url, config: idp2_config}]
+        idps: [
+            {url: issuer1_url, config: idp1_config},
+            {url: issuer2_url, config: idp2_config},
+        ],
     });
 
     test.setup(clusterClass);
@@ -66,14 +63,14 @@ function test_multiple_issuers(clusterClass) {
         "idp1/group11",
         "idp1/group12",
         {role: "readWrite", db: "test_db11"},
-        {role: "read", db: "test_db12"}
+        {role: "read", db: "test_db12"},
     ];
 
     const expectedRolesUser2 = [
         "idp2/group21",
         "idp2/group22",
         {role: "readWrite", db: "test_db21"},
-        {role: "read", db: "test_db22"}
+        {role: "read", db: "test_db22"},
     ];
 
     var conn = test.create_conn();
@@ -93,8 +90,8 @@ function test_multiple_issuers(clusterClass) {
         msg: "Failed to authenticate",
         attr: {
             mechanism: "MONGODB-OIDC",
-            error: "BadValue: No identity provider found for principal name `user3`"
-        }
+            error: "BadValue: No identity provider found for principal name `user3`",
+        },
     };
 
     assert(test.checkLogExists(expectedLog), "Expected log not found");

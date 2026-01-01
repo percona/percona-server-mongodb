@@ -20,92 +20,88 @@ import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {reconfig} from "jstests/replsets/rslib.js";
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 
-(function() {
-'use strict';
+(function () {
+    "use strict";
 
-// Add node, intiate reconfig but don't wait for anything to be able to wait for the failpoint
-let addNodeConfig = function(rst, nodeId, conn) {
-    var config = rst.getReplSetConfigFromNode();
-    config.version += 1;
-    config.members.push({_id: nodeId, host: conn.host});
-    reconfig(rst, config, false /* force */, true /* doNotWaitForMembers */);
-    return config;
-};
+    // Add node, intiate reconfig but don't wait for anything to be able to wait for the failpoint
+    let addNodeConfig = function (rst, nodeId, conn) {
+        var config = rst.getReplSetConfigFromNode();
+        config.version += 1;
+        config.members.push({_id: nodeId, host: conn.host});
+        reconfig(rst, config, false /* force */, true /* doNotWaitForMembers */);
+        return config;
+    };
 
-const basenodes = 1;
+    const basenodes = 1;
 
+    var rsname = "fcbis_replset_bce";
+    var rs = new ReplSetTest({
+        name: rsname,
+        nodes: basenodes,
+        nodeOptions: {verbose: 2},
+    });
 
-var rsname = 'fcbis_replset_bce';
-var rs = new ReplSetTest({
-    name: rsname,
-    nodes: basenodes,
-    nodeOptions: {verbose: 2},
-});
+    rs.startSet({});
+    rs.initiate();
 
+    // Add a new member that will undergo initial sync
+    let newNode = rs.add({
+        rsConfig: {priority: 10},
+        setParameter: {
+            "initialSyncMethod": "fileCopyBased",
+            "fileBasedInitialSyncMaxLagSec": 3,
+            //'initialSyncSourceReadPreference': 'primary',
+        },
+        verbose: 2,
+    });
 
-rs.startSet({ });
-rs.initiate();
+    const failPointAfterCloningFiles = configureFailPoint(newNode, "initialSyncHangAfterCloningFiles");
 
-// Add a new member that will undergo initial sync
-let newNode = rs.add({
-    rsConfig: {priority: 10},
-    setParameter: {
-        'initialSyncMethod': 'fileCopyBased',
-        'fileBasedInitialSyncMaxLagSec': 3,
-        //'initialSyncSourceReadPreference': 'primary',
-    },
-    verbose: 2,
-});
+    jsTest.log("--XXXX-- Reconfiguring replica set");
 
-const failPointAfterCloningFiles = configureFailPoint(newNode, 'initialSyncHangAfterCloningFiles');
+    // Add new node to the replica set
+    addNodeConfig(rs, basenodes + 1, newNode);
 
-jsTest.log("--XXXX-- Reconfiguring replica set");
+    jsTest.log("--XXXX-- Waiting for the failpoint");
 
-// Add new node to the replica set
-addNodeConfig(rs, basenodes + 1, newNode);
+    // Wait for the failpoint to be hit
+    failPointAfterCloningFiles.wait();
 
-jsTest.log("--XXXX-- Waiting for the failpoint");
+    jsTest.log("--XXXX-- Failpoint hit, inserting data");
 
-// Wait for the failpoint to be hit
-failPointAfterCloningFiles.wait();
-
-jsTest.log("--XXXX-- Failpoint hit, inserting data");
-
-// Insert some data slowly (sleep 1s between inserts)
-let coll = rs.getPrimary().getDB('test').getCollection('foo');
-for (let i = 0; i < 5; i++) {
-    sleep(1000);
-    assert.commandWorked(coll.insert({x: i}));
-}
-
-jsTest.log("--XXXX-- Inserted data, releasing failpoint");
-
-// Release the Failpoint
-clearRawMongoProgramOutput();
-failPointAfterCloningFiles.off();
-
-// Wait for the message in the log
-try {
-    checkLog.containsJson(newNode, 128455, undefined, 5000);
-} catch (e) {
-    // Falling back to rawMongoProgramOutput
-    let output = rawMongoProgramOutput(".*");
-    if (!output.includes("The lag is too big, extending backup cursor")) {
-        throw e;
+    // Insert some data slowly (sleep 1s between inserts)
+    let coll = rs.getPrimary().getDB("test").getCollection("foo");
+    for (let i = 0; i < 5; i++) {
+        sleep(1000);
+        assert.commandWorked(coll.insert({x: i}));
     }
-}
-jsTest.log("--XXXX-- Found backup cursor extend message in the log");
 
-// Wait for the new node to finish initial sync
-rs.awaitSecondaryNodes(null, [newNode]);
-rs.waitForAllNewlyAddedRemovals();
+    jsTest.log("--XXXX-- Inserted data, releasing failpoint");
 
-jsTest.log("--XXXX-- Added new member");
+    // Release the Failpoint
+    clearRawMongoProgramOutput();
+    failPointAfterCloningFiles.off();
 
-// Output serverStatus for reference
-jsTest.log("--XXXX-- newNode serverStatus: " + tojson(newNode.adminCommand({'serverStatus': 1, repl: 1})));
+    // Wait for the message in the log
+    try {
+        checkLog.containsJson(newNode, 128455, undefined, 5000);
+    } catch (e) {
+        // Falling back to rawMongoProgramOutput
+        let output = rawMongoProgramOutput(".*");
+        if (!output.includes("The lag is too big, extending backup cursor")) {
+            throw e;
+        }
+    }
+    jsTest.log("--XXXX-- Found backup cursor extend message in the log");
 
+    // Wait for the new node to finish initial sync
+    rs.awaitSecondaryNodes(null, [newNode]);
+    rs.waitForAllNewlyAddedRemovals();
 
-rs.stopSet();
+    jsTest.log("--XXXX-- Added new member");
+
+    // Output serverStatus for reference
+    jsTest.log("--XXXX-- newNode serverStatus: " + tojson(newNode.adminCommand({"serverStatus": 1, repl: 1})));
+
+    rs.stopSet();
 })();
-

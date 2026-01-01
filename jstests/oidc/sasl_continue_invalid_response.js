@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 // Test that when the payload of the saslStart command is not valid, the server rejects
 // the request with an appropriate error message. The payload is expected to be a BSON
@@ -10,7 +10,7 @@ const oidcProvider = {
     audience: "audience1",
     authNamePrefix: "idp1",
     matchPattern: "1$",
-    authorizationClaim: "claim1"
+    authorizationClaim: "claim1",
 };
 
 // BQAAAAAA is base64 encoded [05 00 00 00 00 00] which is an empty BSON object
@@ -28,31 +28,27 @@ const invalid_step2_payload = [
         expectedError: "IDLFailedToParse: BSON field 'OIDCStep2Request.jwt' is missing but a required field",
     },
     {
-
         // DgAAABBqd3QAAQAAAAA is base64 encoded bson doc: { 'jwt': 1 }
         payload: new BinData(0, "DgAAABBqd3QAAQAAAAA="),
-        expectedError: "TypeMismatch: BSON field 'OIDCStep2Request.jwt' is the wrong type 'int', expected type 'string'"
+        expectedError:
+            "TypeMismatch: BSON field 'OIDCStep2Request.jwt' is the wrong type 'int', expected type 'string'",
     },
 ];
 
-const run_saslStart = function(test) {
-    return test.admin.getSiblingDB('$external').runCommand(
-        {
-            saslStart: 1,
-            mechanism: "MONGODB-OIDC",
-            payload: EmptyBSONPayload
-        }
-    );
+const run_saslStart = function (test) {
+    return test.admin.getSiblingDB("$external").runCommand({
+        saslStart: 1,
+        mechanism: "MONGODB-OIDC",
+        payload: EmptyBSONPayload,
+    });
 };
 
-const run_saslContinue = function(test, conversationId, payload) {
-    return test.admin.getSiblingDB('$external').runCommand(
-        {
-            saslContinue: 1,
-            conversationId: NumberInt(conversationId),
-            payload: payload,
-        }
-    );
+const run_saslContinue = function (test, conversationId, payload) {
+    return test.admin.getSiblingDB("$external").runCommand({
+        saslContinue: 1,
+        conversationId: NumberInt(conversationId),
+        payload: payload,
+    });
 };
 
 function test_sasl_step_2_fails_if_invalid_payload(clusterClass) {
@@ -68,18 +64,18 @@ function test_sasl_step_2_fails_if_invalid_payload(clusterClass) {
         assert.commandFailedWithCode(
             res2,
             ErrorCodes.AuthenticationFailed,
-            "Expected saslContinue to fail for variant:" + tojson(variant));
+            "Expected saslContinue to fail for variant:" + tojson(variant),
+        );
 
         const expectedLog = {
             msg: "Failed to authenticate",
             attr: {
                 mechanism: "MONGODB-OIDC",
                 error: variant.expectedError,
-            }
+            },
         };
 
-        assert(test.checkLogExists(expectedLog),
-               "Expected log not found for variant " + tojson(variant));
+        assert(test.checkLogExists(expectedLog), "Expected log not found for variant " + tojson(variant));
     }
 
     test.teardown();

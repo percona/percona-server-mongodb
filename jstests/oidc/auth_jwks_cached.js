@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -8,7 +8,7 @@ const idp_config = {
             aud: "audience",
             sub: "user",
             claim: "group",
-        }
+        },
     },
 };
 
@@ -17,12 +17,11 @@ const oidcProvider = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
-    authorizationClaim: "claim"
+    authorizationClaim: "claim",
 };
 
 function test_jwks_are_cached(clusterClass) {
-    var test = new OIDCFixture(
-        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    var test = new OIDCFixture({oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
     test.create_role("test/group", [{role: "readWrite", db: "test_db"}]);
     const expectedRoles = ["test/group", {role: "readWrite", db: "test_db"}];
@@ -60,8 +59,7 @@ function test_jwks_are_cached(clusterClass) {
 
     // ...authenticate with access token, still without fetching jwks..
     idp.clear_output();
-    assert(conn.auth({mechanism: 'MONGODB-OIDC', oidcAccessToken: access_token}),
-           "Failed to authenticate with token");
+    assert(conn.auth({mechanism: "MONGODB-OIDC", oidcAccessToken: access_token}), "Failed to authenticate with token");
     test.assert_authenticated(conn, "test/user", expectedRoles);
     idp.assert_no_http_request("GET", "/keys");
     test.logout(conn);
@@ -70,8 +68,7 @@ function test_jwks_are_cached(clusterClass) {
     // NOTE: Restarting idp will generate new jwks
     idp.restart();
     idp.clear_output();
-    assert(conn.auth({mechanism: 'MONGODB-OIDC', oidcAccessToken: access_token}),
-           "Failed to authenticate with token");
+    assert(conn.auth({mechanism: "MONGODB-OIDC", oidcAccessToken: access_token}), "Failed to authenticate with token");
     test.assert_authenticated(conn, "test/user", expectedRoles);
     idp.assert_no_http_request("GET", "/keys");
     test.logout(conn);

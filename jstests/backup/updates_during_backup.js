@@ -1,5 +1,5 @@
 // Check that updates don't fail during backup.
-load('jstests/backup/_backup_helpers.js');
+load("jstests/backup/_backup_helpers.js");
 
 var sleepTime = 2500;
 var updateWorkers = 3;
@@ -12,33 +12,33 @@ function countObjs(conn) {
     // Just go through all possible database names.
     var objs = 0;
     for (var i = 0; i < 10; i++) {
-        var db = conn.getDB('db' + i);
+        var db = conn.getDB("db" + i);
         objs += db.stats().objects;
     }
     return objs;
 }
 
-(function() {
-    'use strict';
+(function () {
+    "use strict";
 
     // Run the original instance.
-    var dbPath = MongoRunner.dataPath + 'original';
+    var dbPath = MongoRunner.dataPath + "original";
     var conn = MongoRunner.runMongod({
         dbpath: dbPath,
         port: 20100,
     });
-    var signal = conn.getDB('signal').signal;
+    var signal = conn.getDB("signal").signal;
 
     // Start parallel update workers.
     var w = [];
     for (var i = 0; i < updateWorkers; i++) {
-        w[i] = startParallelShell(function() {
+        w[i] = startParallelShell(function () {
             Random.setRandomSeed();
-            db = db.getSiblingDB('db' + Random.randInt(10));
-            var coll = db.getCollection('coll' + Random.randInt(10));
-            var signal = db.getSiblingDB('signal').signal;
+            db = db.getSiblingDB("db" + Random.randInt(10));
+            var coll = db.getCollection("coll" + Random.randInt(10));
+            var signal = db.getSiblingDB("signal").signal;
             while (signal.findOne() == null) {
-                var key = 'key' + Random.randInt(1000);
+                var key = "key" + Random.randInt(1000);
                 assert.writeOK(coll.insert({k: 1}));
             }
         }, 20100);
@@ -57,12 +57,12 @@ function countObjs(conn) {
     var backupTime = Date.now() - startTime;
 
     for (var i = 0; i < updateWorkers; i++) {
-        assert.eq(0, w[i](), 'wrong shell\'s exit code');
+        assert.eq(0, w[i](), "wrong shell's exit code");
     }
 
     // Ensure backup speed is good enough.
     var objsBackup = countObjs(conn) - objsSleep;
-    assert.gte(objsBackup / backupTime, backupSpeedRatio * objsSleep / sleepTime, 'hot backup is too slow');
+    assert.gte(objsBackup / backupTime, (backupSpeedRatio * objsSleep) / sleepTime, "hot backup is too slow");
 
     MongoRunner.stopMongod(conn);
 })();

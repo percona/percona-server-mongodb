@@ -16,14 +16,14 @@
 
 import {BackupRestoreTest} from "jstests/noPassthrough/libs/backup_restore.js";
 
-(function() {
-"use strict";
+(function () {
+    "use strict";
 
-if (_isWindows()) {
-    return;
-}
+    if (_isWindows()) {
+        return;
+    }
 
-// Run the $backupCursor test. Will return before testing for any engine that doesn't
-// support $backupCursor
-new BackupRestoreTest({backup: 'backupCursor'}).run();
-}());
+    // Run the $backupCursor test. Will return before testing for any engine that doesn't
+    // support $backupCursor
+    new BackupRestoreTest({backup: "backupCursor"}).run();
+})();

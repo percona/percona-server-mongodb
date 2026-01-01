@@ -8,8 +8,9 @@ export function getPython3Binary() {
     const pythonVersion = rawMongoProgramOutput("Python"); // Will look like "Python 3.10.4\n"
     const match = pythonVersion.match(/Python 3\.(\d+)\./);
     if (match && match[1] >= 10) {
-        jsTest.log.info("Found python 3." + match[1] +
-              " by default. Likely this is because we are using a virtual enviorment.");
+        jsTest.log.info(
+            "Found python 3." + match[1] + " by default. Likely this is because we are using a virtual enviorment.",
+        );
         return "python";
     }
 

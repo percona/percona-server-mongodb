@@ -1,7 +1,7 @@
-load('jstests/backup/_backup_helpers.js');
+load("jstests/backup/_backup_helpers.js");
 
-(function() {
-    'use strict';
+(function () {
+    "use strict";
 
     // Grab the storage engine, default is wiredTiger
     var storageEngine = jsTest.options().storageEngine || "wiredTiger";
@@ -11,11 +11,11 @@ load('jstests/backup/_backup_helpers.js');
     }
 
     // Run the original instance and fill it with data.
-    var dbPath = MongoRunner.dataPath + 'original';
+    var dbPath = MongoRunner.dataPath + "original";
     var conn = MongoRunner.runMongod({
         dbpath: dbPath,
-        directoryperdb: '',
-        wiredTigerDirectoryForIndexes: '',
+        directoryperdb: "",
+        wiredTigerDirectoryForIndexes: "",
     });
 
     fillData(conn);
@@ -31,8 +31,8 @@ load('jstests/backup/_backup_helpers.js');
     // Run the backup instance.
     var conn = MongoRunner.runMongod({
         dbpath: backupPath,
-        directoryperdb: '',
-        wiredTigerDirectoryForIndexes: '',
+        directoryperdb: "",
+        wiredTigerDirectoryForIndexes: "",
         noCleanData: true,
     });
 

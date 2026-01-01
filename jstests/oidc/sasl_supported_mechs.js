@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -19,8 +19,7 @@ function test_sasl_mechanisms_include_oidc(clusterClass) {
     // returns the supported mechanisms including MONGODB-OIDC.
     const res = test.admin.runCommand({hello: 1, saslSupportedMechs: "$external.test/user"});
     assert.commandWorked(res, "Failed to get saslSupportedMechs");
-    assert(res.saslSupportedMechs.includes('MONGODB-OIDC'),
-           "Expected MONGODB-OIDC in saslSupportedMechs");
+    assert(res.saslSupportedMechs.includes("MONGODB-OIDC"), "Expected MONGODB-OIDC in saslSupportedMechs");
 
     test.teardown();
 }

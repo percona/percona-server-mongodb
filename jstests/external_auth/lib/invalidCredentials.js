@@ -6,149 +6,149 @@
 
 // we are going to check all of these accounts
 
-function invalidCredentialsRun(){
-  'use strict'
-  var db = conn.getDB( 'admin' )
+function invalidCredentialsRun() {
+    "use strict";
+    var db = conn.getDB("admin");
 
-  var accounts = [
-    "localadmin",
-    "localtestro",
-    "localtestrw",
-    "localotherro",
-    "localotherrw",
-    "exttestro",
-    "exttestrw",
-    "extotherro",
-    "extotherrw",
-    "extbothro",
-    "extbothrw",
-    "exttestrwotherro",
-    "exttestrootherrw"
-  ];
+    var accounts = [
+        "localadmin",
+        "localtestro",
+        "localtestrw",
+        "localotherro",
+        "localotherrw",
+        "exttestro",
+        "exttestrw",
+        "extotherro",
+        "extotherrw",
+        "extbothro",
+        "extbothrw",
+        "exttestrwotherro",
+        "exttestrootherrw",
+    ];
 
-  // should match setup/settings.conf LDAP_PASS_SUFFIX
+    // should match setup/settings.conf LDAP_PASS_SUFFIX
 
-  var passSuffix='9a5S';
+    var passSuffix = "9a5S";
 
+    // build an array of strings to add to the beginning
+    // and end of account names and passwords to test
+    // all permutations of invalidity.
 
-  // build an array of strings to add to the beginning
-  // and end of account names and passwords to test
-  // all permutations of invalidity.
-
-  var overkills=[];
-  for (var b=15; b >= 0; b--) {
-    var iValid = b == 0 ? 1 : 0;  // only 0 is valid and at end
-    var strAccountPrefix  = b & 0x1 ? 'x' : '';
-    var strAccountSuffix  = b & 0x2 ? 'x' : '';
-    var strPasswordPrefix = b & 0x4 ? 'x' : '';
-    var strPasswordSuffix = b & 0x8 ? 'x' : '';
-    overkills.push({
-      valid: iValid,
-      aprefix: strAccountPrefix,
-      asuffix: strAccountSuffix,
-      pprefix: strPasswordPrefix,
-      psuffix: strPasswordSuffix
-    });
-  }
-
-  // iterate over all of the accounts
-
-  for (var i in accounts) {
-    var account = accounts[i];
-    print("\tTesting account: "+account);
-
-    // pick the correct database for the account
-
-    var dbNames=[];
-    if (/.*admin/.test(account)) {
-      dbNames.push('admin');
-    } else if (/^ext.*/.test(account)) {
-      dbNames.push('$external');
-    } else if (/.*test.*/.test(account)) {
-      dbNames.push('test');
-    } else if (/.*other.*/.test(account)) {
-      dbNames.push('other');
+    var overkills = [];
+    for (var b = 15; b >= 0; b--) {
+        var iValid = b == 0 ? 1 : 0; // only 0 is valid and at end
+        var strAccountPrefix = b & 0x1 ? "x" : "";
+        var strAccountSuffix = b & 0x2 ? "x" : "";
+        var strPasswordPrefix = b & 0x4 ? "x" : "";
+        var strPasswordSuffix = b & 0x8 ? "x" : "";
+        overkills.push({
+            valid: iValid,
+            aprefix: strAccountPrefix,
+            asuffix: strAccountSuffix,
+            pprefix: strPasswordPrefix,
+            psuffix: strPasswordSuffix,
+        });
     }
 
-    // make sure a database name was picked
+    // iterate over all of the accounts
 
-    assert(dbNames.length > 0, "\tI don't know how to handle this account.");
+    for (var i in accounts) {
+        var account = accounts[i];
+        print("\tTesting account: " + account);
 
-    // there should be only one for the current version
+        // pick the correct database for the account
 
-    for (var j in dbNames) {
+        var dbNames = [];
+        if (/.*admin/.test(account)) {
+            dbNames.push("admin");
+        } else if (/^ext.*/.test(account)) {
+            dbNames.push("$external");
+        } else if (/.*test.*/.test(account)) {
+            dbNames.push("test");
+        } else if (/.*other.*/.test(account)) {
+            dbNames.push("other");
+        }
 
-      var dbName=dbNames[j];
-      print ( "\tDatabase: " + dbName );
+        // make sure a database name was picked
 
-      // switch to the database
+        assert(dbNames.length > 0, "\tI don't know how to handle this account.");
 
-      db = db.getSiblingDB( dbName );
+        // there should be only one for the current version
 
-      // Iterate thru permutations of invalid
-      // accounts and passwords including one
-      // valid set for each account
+        for (var j in dbNames) {
+            var dbName = dbNames[j];
+            print("\tDatabase: " + dbName);
 
-      for (var o in overkills) {
+            // switch to the database
 
-        var overkill = overkills[o];
+            db = db.getSiblingDB(dbName);
 
-          // test valid login
+            // Iterate thru permutations of invalid
+            // accounts and passwords including one
+            // valid set for each account
 
-          var success;
+            for (var o in overkills) {
+                var overkill = overkills[o];
 
-          try {
+                // test valid login
 
-            success = 0;
+                var success;
 
-            // build strings based on overkill, account name, and normal password suffix
-            var strUser = overkill.aprefix+account+overkill.asuffix;
-            var strPassword = overkill.pprefix+account+passSuffix+overkill.psuffix;
+                try {
+                    success = 0;
 
-            if (/ext.*/.test(strUser)) {
-              // external auth
-              db.auth({
-                user: strUser,
-                pwd: strPassword,
-                mechanism: 'PLAIN',
-                digestPasswd: false
-              })
-            } else {
-              // local auth
-              db.auth({
-                user: strUser,
-                pwd: strPassword
-              })
+                    // build strings based on overkill, account name, and normal password suffix
+                    var strUser = overkill.aprefix + account + overkill.asuffix;
+                    var strPassword = overkill.pprefix + account + passSuffix + overkill.psuffix;
+
+                    if (/ext.*/.test(strUser)) {
+                        // external auth
+                        db.auth({
+                            user: strUser,
+                            pwd: strPassword,
+                            mechanism: "PLAIN",
+                            digestPasswd: false,
+                        });
+                    } else {
+                        // local auth
+                        db.auth({
+                            user: strUser,
+                            pwd: strPassword,
+                        });
+                    }
+
+                    // check who we are authenticated as
+
+                    var res = db.runCommand({connectionStatus: 1});
+
+                    success = res.authInfo.authenticatedUsers[0].user == strUser ? 1 : 0;
+
+                    db.logout();
+                } catch (e) {}
+
+                // success must equal overkill.valid
+                assert(
+                    success == overkill.valid,
+                    "\t" +
+                        (overkill.valid ? "Valid credentials failed" : "Invalid credentials succeded") +
+                        " (user:" +
+                        strUser +
+                        ") (pwd:" +
+                        strPassword +
+                        ") (overkill:" +
+                        tojson(overkill) +
+                        ")",
+                );
+
+                if (overkill.valid == 1) {
+                    print("Login succeeded with valid credentials");
+                    print("\t(Success was expected)");
+                } else {
+                    print("\t(Failure was expected)");
+                }
             }
-
-            // check who we are authenticated as
-
-            var res = db.runCommand({connectionStatus : 1})
-
-            success = ( res.authInfo.authenticatedUsers[0].user == strUser ) ? 1 : 0;
-
-            db.logout();
-
-          } catch (e) {
-          }
-
-          // success must equal overkill.valid
-          assert(success == overkill.valid, "\t"+
-                 (overkill.valid ? "Valid credentials failed" : "Invalid credentials succeded") +
-                 " (user:"+strUser+") (pwd:"+strPassword+") (overkill:"+tojson(overkill)+")");
-
-          if (overkill.valid == 1) {
-            print( "Login succeeded with valid credentials" );
-            print( "\t(Success was expected)" );
-          } else {
-            print( "\t(Failure was expected)" );
-          }
-
-      }
-
+        }
     }
-
-  }
 }
 
-invalidCredentialsRun()
+invalidCredentialsRun();

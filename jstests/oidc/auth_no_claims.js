@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -7,11 +7,8 @@ const idp_config_with_claims = {
         payload: {
             aud: "audience",
             sub: "user",
-            claim: [
-                "group1",
-                "group2",
-            ],
-        }
+            claim: ["group1", "group2"],
+        },
     },
 };
 
@@ -20,7 +17,7 @@ const idp_config_without_claims = {
         payload: {
             aud: "audience",
             sub: "user",
-        }
+        },
     },
 };
 
@@ -29,8 +26,8 @@ const oidcProviderWithClaims = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
-    useAuthorizationClaim: false,  // don't use claims
-    authorizationClaim: "claim",   // this should be ignored
+    useAuthorizationClaim: false, // don't use claims
+    authorizationClaim: "claim", // this should be ignored
 };
 
 const oidcProviderNoClaims = {
@@ -38,7 +35,7 @@ const oidcProviderNoClaims = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
-    useAuthorizationClaim: false,  // don't use claims
+    useAuthorizationClaim: false, // don't use claims
 };
 
 // useAuthorizationClaim is false for all variants
@@ -53,14 +50,17 @@ const variants = [
 ];
 
 function test_user_has_only_roles_it_was_created_with(clusterClass, variant) {
-    var test = new OIDCFixture({ oidcProviders: [variant.oidc_config], idps: [{ url: issuer_url, config: variant.idp_config }] });
+    var test = new OIDCFixture({
+        oidcProviders: [variant.oidc_config],
+        idps: [{url: issuer_url, config: variant.idp_config}],
+    });
     test.setup(clusterClass);
-    test.create_user("test/user", [{ role: "readWrite", db: "test_db" }]);
+    test.create_user("test/user", [{role: "readWrite", db: "test_db"}]);
 
     var conn = test.create_conn();
 
     assert(test.auth(conn, "user"), "Failed to authenticate");
-    test.assert_authenticated(conn, "test/user", [{ role: "readWrite", db: "test_db" }]);
+    test.assert_authenticated(conn, "test/user", [{role: "readWrite", db: "test_db"}]);
 
     test.teardown();
 }

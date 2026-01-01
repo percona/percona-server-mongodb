@@ -1,4 +1,4 @@
-import { OIDCIdPMock } from 'jstests/oidc/lib/oidc_idp_mock.js';
+import {OIDCIdPMock} from "jstests/oidc/lib/oidc_idp_mock.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
 Random.setRandomSeed();
@@ -56,7 +56,7 @@ function _createCommonConfig(oidcProviders, auditLogPath = null, jwksMinimumQuie
             oidcIdentityProviders: JSON.stringify(oidcProviders),
             JWKSMinimumQuiescePeriodSecs: jwksMinimumQuiescePeriodSecs,
             userCacheInvalidationIntervalSecs: 1,
-        }
+        },
     };
     if (auditLogPath) {
         config = Object.merge(config, {
@@ -82,9 +82,9 @@ export class StandaloneMongod {
      *     default is 0, which means disabled.
      */
     constructor(oidcProviders, auditLogPath = null, jwksMinimumQuiescePeriodSecs = 0) {
-        this.conn = MongoRunner.runMongod(Object.merge(
-            {auth: ""},
-            _createCommonConfig(oidcProviders, auditLogPath, jwksMinimumQuiescePeriodSecs)));
+        this.conn = MongoRunner.runMongod(
+            Object.merge({auth: ""}, _createCommonConfig(oidcProviders, auditLogPath, jwksMinimumQuiescePeriodSecs)),
+        );
     }
 
     /**
@@ -127,22 +127,18 @@ export class ShardedCluster {
      * @param {boolean} shouldFailInit Set to `true` if construction is expected to fail; default
      *     is `false`.
      */
-    constructor(oidcProviders,
-                auditLogPath = null,
-                jwksMinimumQuiescePeriodSecs = 0,
-                shouldFailInit = false) {
+    constructor(oidcProviders, auditLogPath = null, jwksMinimumQuiescePeriodSecs = 0, shouldFailInit = false) {
         const config = {
             shouldFailInit: shouldFailInit,
             shards: 1,
             mongos: 1,
             config: 1,
             other: {
-                keyFile: 'jstests/libs/key1',
+                keyFile: "jstests/libs/key1",
                 configOptions: {auth: ""},
                 rsOptions: {auth: ""},
-                mongosOptions:
-                    _createCommonConfig(oidcProviders, auditLogPath, jwksMinimumQuiescePeriodSecs),
-            }
+                mongosOptions: _createCommonConfig(oidcProviders, auditLogPath, jwksMinimumQuiescePeriodSecs),
+            },
         };
         this.shardingTest = new ShardingTest(config);
         this.conn = this.shardingTest.s;
@@ -188,7 +184,7 @@ export class OIDCFixture {
      * @param {object} idps - The IdP configuration object for the OIDC IdP mock.
      * @param {function} client_callback - The callback function to handle authentication callbacks on the client side.
      */
-    constructor({ oidcProviders, idps, client_callback }) {
+    constructor({oidcProviders, idps, client_callback}) {
         this.idps = {};
         this.client_callback = client_callback;
         if (idps) {
@@ -270,7 +266,7 @@ export class OIDCFixture {
      * @returns {object} - The MongoDB connection object.
      */
     create_conn() {
-        print("OIDCFixture.create_session")
+        print("OIDCFixture.create_session");
         return new Mongo(this.admin_conn.host);
     }
 
@@ -298,7 +294,7 @@ export class OIDCFixture {
      *       on the server (e.g. getLog). It can also be used to create roles for the user.
      */
     setup(clusterClass = StandaloneMongod, with_audit = false, jwksMinimumQuiescePeriodSecs = 0) {
-        print("OIDCFixture.setup")
+        print("OIDCFixture.setup");
 
         if (with_audit) {
             this.audit_path = OIDCFixture.allocate_audit_path();
@@ -311,18 +307,19 @@ export class OIDCFixture {
         this.cluster = new clusterClass(this.oidc_providers, this.audit_path, jwksMinimumQuiescePeriodSecs);
         this.admin_conn = this.cluster.connection();
         this.admin = this.admin_conn.getDB("admin");
-        assert.commandWorked(this.admin.runCommand(
-            { createUser: "admin", pwd: "admin", roles: [{ role: "root", db: "admin" }] }));
+        assert.commandWorked(
+            this.admin.runCommand({createUser: "admin", pwd: "admin", roles: [{role: "root", db: "admin"}]}),
+        );
         assert(this.admin.auth("admin", "admin"));
 
         var callback = function (authInfo) {
             print("OIDCFixture.OIDCIdPAuthCallback: ", JSON.stringify(this));
             if (this.client_callback) {
-                var issuer = authInfo.activationEndpoint.replace("/device/verify", "")
+                var issuer = authInfo.activationEndpoint.replace("/device/verify", "");
                 this.client_callback({
                     user: authInfo.userName,
                     issuer: issuer,
-                })
+                });
             }
         };
 
@@ -367,7 +364,7 @@ export class OIDCFixture {
      * and the date of found element.
      */
     static checkLogExistsWithDate(logs, expectedLog, lastDate, getDate) {
-        const res = logs.find(element => {
+        const res = logs.find((element) => {
             const logDate = getDate(element);
             if (logDate <= lastDate) {
                 // Ignore logs not newer than the last log date
@@ -382,7 +379,7 @@ export class OIDCFixture {
             return found;
         });
 
-        return { res, lastDate };
+        return {res, lastDate};
     }
 
     /**
@@ -397,10 +394,11 @@ export class OIDCFixture {
      * @returns True if the expected log exists, false otherwise.
      */
     checkLogExists(expectedLog, advanceLogCutOffTimePoint = true) {
-        const logs =
-            assert.commandWorked(this.admin.runCommand({ getLog: "global" })).log.map(element => JSON.parse(element));
+        const logs = assert
+            .commandWorked(this.admin.runCommand({getLog: "global"}))
+            .log.map((element) => JSON.parse(element));
 
-        const result = OIDCFixture.checkLogExistsWithDate(logs, expectedLog, this.last_log_date, element => {
+        const result = OIDCFixture.checkLogExistsWithDate(logs, expectedLog, this.last_log_date, (element) => {
             new Date(element["t"]["$date"]);
         });
 
@@ -423,14 +421,22 @@ export class OIDCFixture {
         }
 
         let auditLogs = [];
-        cat(this.audit_path).split('\n').filter(line => line.length > 0).forEach(line => {
-            const logJson = parseJsonCanonical(line);
-            auditLogs.push(logJson);
-        });
+        cat(this.audit_path)
+            .split("\n")
+            .filter((line) => line.length > 0)
+            .forEach((line) => {
+                const logJson = parseJsonCanonical(line);
+                auditLogs.push(logJson);
+            });
 
-        const result = OIDCFixture.checkLogExistsWithDate(auditLogs, expectedLog, this.last_audit_log_date, element => {
-            new Date(element["ts"]);
-        });
+        const result = OIDCFixture.checkLogExistsWithDate(
+            auditLogs,
+            expectedLog,
+            this.last_audit_log_date,
+            (element) => {
+                new Date(element["ts"]);
+            },
+        );
 
         if (result.res) {
             this.last_audit_log_date = result.lastDate;
@@ -449,11 +455,10 @@ export class OIDCFixture {
         assert(conn, "Connection is not defined");
         assert(user, "User is not defined");
 
-        print("OIDCFixture.auth")
+        print("OIDCFixture.auth");
         try {
-            return conn.auth({ mechanism: 'MONGODB-OIDC', user });
-        }
-        catch (e) {
+            return conn.auth({mechanism: "MONGODB-OIDC", user});
+        } catch (e) {
             print("OIDCFixture.auth exception: ", e);
         }
 
@@ -462,18 +467,18 @@ export class OIDCFixture {
 
     /**
      * Refresh the access token for the current user and reauthenticate.
-     * 
+     *
      * @param {object} conn - The connection object.
      * @returns {string|null} - Returns the new access token if successful, null otherwise.
      */
     refresh_token(conn) {
-        print("OIDCFixture.refresh_token")
+        print("OIDCFixture.refresh_token");
         assert(conn, "Connection is not defined");
         try {
             const accessToken = conn._refreshAccessToken();
             conn.auth({
                 oidcAccessToken: accessToken,
-                mechanism: 'MONGODB-OIDC'
+                mechanism: "MONGODB-OIDC",
             });
 
             return accessToken;
@@ -492,7 +497,7 @@ export class OIDCFixture {
      */
     logout(conn) {
         assert(conn, "Connection is not defined");
-        var db = conn.getDB('$external');
+        var db = conn.getDB("$external");
         return db.logout();
     }
 
@@ -506,8 +511,8 @@ export class OIDCFixture {
      */
     authInfo(conn) {
         assert(conn, "Connection is not defined");
-        var db = conn.getDB('$external');
-        return db.runCommand({ connectionStatus: 1, showPrivileges: 1 }).authInfo;
+        var db = conn.getDB("$external");
+        return db.runCommand({connectionStatus: 1, showPrivileges: 1}).authInfo;
     }
 
     /**
@@ -519,28 +524,33 @@ export class OIDCFixture {
      */
     assert_has_privileges(allPrivileges, expectedPrivileges) {
         // Ignore privileges for system.js collections.
-        const privileges = allPrivileges.filter(privilege => privilege.resource.collection !== "system.js");
+        const privileges = allPrivileges.filter((privilege) => privilege.resource.collection !== "system.js");
 
         assert.eq(privileges.length, expectedPrivileges.length, "Privileges count mismatch");
 
         for (const expectedPrivilege of expectedPrivileges) {
-            assert(privileges.some(privilege => {
-                if (privilege.resource.db !== expectedPrivilege.resource.db) {
-                    return false;
-                }
+            assert(
+                privileges.some((privilege) => {
+                    if (privilege.resource.db !== expectedPrivilege.resource.db) {
+                        return false;
+                    }
 
-                if (privilege.resource.collection !== expectedPrivilege.resource.collection) {
-                    return false;
-                }
+                    if (privilege.resource.collection !== expectedPrivilege.resource.collection) {
+                        return false;
+                    }
 
-                assert.eq(privilege.actions.length, expectedPrivilege.actions.length, "Actions count mismatch");
-                for (const action of expectedPrivilege.actions) {
-                    assert(privilege.actions.includes(action),
-                        `Action ${action} not found in privilege actions: ${JSON.stringify(privilege.actions)}`);
-                }
+                    assert.eq(privilege.actions.length, expectedPrivilege.actions.length, "Actions count mismatch");
+                    for (const action of expectedPrivilege.actions) {
+                        assert(
+                            privilege.actions.includes(action),
+                            `Action ${action} not found in privilege actions: ${JSON.stringify(privilege.actions)}`,
+                        );
+                    }
 
-                return true;
-            }), `Privileges mismatch: expected: ${JSON.stringify(expectedPrivileges)} current: ${JSON.stringify(privileges)}`);
+                    return true;
+                }),
+                `Privileges mismatch: expected: ${JSON.stringify(expectedPrivileges)} current: ${JSON.stringify(privileges)}`,
+            );
         }
     }
 
@@ -553,19 +563,21 @@ export class OIDCFixture {
     assert_has_roles(roles, expectedRoles) {
         assert.eq(roles.length, expectedRoles.length, "Roles count mismatch");
         for (const expectedRole of expectedRoles) {
-            assert(roles.some(role => {
-                if (typeof expectedRole === "string") {
-                    return role.role == expectedRole && role.db == "admin";
-                }
+            assert(
+                roles.some((role) => {
+                    if (typeof expectedRole === "string") {
+                        return role.role == expectedRole && role.db == "admin";
+                    }
 
-                return role.role == expectedRole.role && role.db == expectedRole.db;
-            }), "Role not found: " + JSON.stringify(expectedRole));
+                    return role.role == expectedRole.role && role.db == expectedRole.db;
+                }),
+                "Role not found: " + JSON.stringify(expectedRole),
+            );
         }
     }
 
-
     /**
-     * Assert that the user is authenticated with the provided roles. 
+     * Assert that the user is authenticated with the provided roles.
      *
      * @param {object} conn - The connection object.
      * @param {string} user The expected user name.
@@ -581,9 +593,9 @@ export class OIDCFixture {
             msg: "Successfully authenticated",
             attr: {
                 mechanism: "MONGODB-OIDC",
-                user: user
-            }
-        }
+                user: user,
+            },
+        };
         assert(this.checkLogExists(expectedLog), user + " is not authenticated");
 
         // Make sure the user is authenticated according to the connectionStatus command
@@ -630,11 +642,14 @@ export class OIDCFixture {
         assert(role_name, "Role name is not defined");
 
         print(`OIDCFixture.create_role: ${role_name}`);
-        assert.commandWorked(this.admin.runCommand({
-            createRole: role_name,
-            privileges: privileges,
-            roles: roles
-        }), `Failed to create role: ${role_name}`);
+        assert.commandWorked(
+            this.admin.runCommand({
+                createRole: role_name,
+                privileges: privileges,
+                roles: roles,
+            }),
+            `Failed to create role: ${role_name}`,
+        );
     }
 
     /**
@@ -646,10 +661,13 @@ export class OIDCFixture {
     create_user(user, roles = []) {
         assert(user, "User is not defined");
         print(`OIDCFixture.create_user: ${user} with roles: ${JSON.stringify(roles)}`);
-        assert.commandWorked(this.admin.getSiblingDB("$external").runCommand({
-            createUser: user,
-            roles: roles,
-        }), `Failed to create user: ${user}`);
+        assert.commandWorked(
+            this.admin.getSiblingDB("$external").runCommand({
+                createUser: user,
+                roles: roles,
+            }),
+            `Failed to create user: ${user}`,
+        );
     }
 
     /**
@@ -666,9 +684,10 @@ export class OIDCFixture {
     static assertClusterInitializationFailsWith(clusterClass, oidcProviders, match) {
         clearRawMongoProgramOutput();
         try {
-            assert(!clusterClass.createForFailingInitializationTest(oidcProviders),
-                   "cluster initialization should fail with options: " +
-                       JSON.stringify(oidcProviders));
+            assert(
+                !clusterClass.createForFailingInitializationTest(oidcProviders),
+                "cluster initialization should fail with options: " + JSON.stringify(oidcProviders),
+            );
         } catch (e) {
             // ignore
         }
@@ -681,9 +700,11 @@ export class OIDCFixture {
      * @param {string} match The regular expression to match against the mongod output.
      */
     static assert_mongod_output_match(match) {
-        assert.soon(function() {
-            return rawMongoProgramOutput(match),
-                   `mongod output does not match: '${match}':\n` + rawMongoProgramOutput(match)
+        assert.soon(function () {
+            return (
+                rawMongoProgramOutput(match),
+                `mongod output does not match: '${match}':\n` + rawMongoProgramOutput(match)
+            );
         });
     }
 }

@@ -1,4 +1,4 @@
-import { getPython3Binary } from "jstests/libs/python.js";
+import {getPython3Binary} from "jstests/libs/python.js";
 
 const OIDC_IDP_MOCK_CERT = "jstests/oidc/lib/ca_oidc_idp.pem";
 const OIDC_IDP_MOCK_PATH = "jstests/oidc/lib/oidc_idp_mock.py";
@@ -42,7 +42,7 @@ export class OIDCIdPMock {
 
         clearRawMongoProgramOutput();
 
-        this.pid = _startMongoProgram({ args: args });
+        this.pid = _startMongoProgram({args: args});
         assert(checkProgram(this.pid).alive);
 
         const start_msg = OIDC_IDP_MOCK_START_STR + this.issuer_url;
@@ -67,9 +67,14 @@ export class OIDCIdPMock {
      */
     assert_http_request(method, path, timeout = 1000) {
         const request_msg = method + " " + this.issuer_url + path;
-        assert.soon(function () {
-            return rawMongoProgramOutput(request_msg);
-        }, "Request not found: " + request_msg, timeout, 100);
+        assert.soon(
+            function () {
+                return rawMongoProgramOutput(request_msg);
+            },
+            "Request not found: " + request_msg,
+            timeout,
+            100,
+        );
     }
 
     /**
@@ -95,7 +100,7 @@ export class OIDCIdPMock {
         // The tests are re-using this flow to test OIDC authentication.
         // The '/token' endpoint is used by both flows.
 
-        let auth_search = "/device/authorize"
+        let auth_search = "/device/authorize";
         if (client_id) {
             auth_search += ".*client_id=" + client_id + ".*";
         }

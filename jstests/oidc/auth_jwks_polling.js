@@ -1,10 +1,9 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const pollingIntervalSecs = 3;
-const sleepMargin = 0.1  // 10%
+const sleepMargin = 0.1; // 10%
 const sleepTime = pollingIntervalSecs * 1000;
 const sleepTimeMargin = sleepMargin * sleepTime;
-
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -13,7 +12,7 @@ const idp_config = {
         payload: {
             aud: "audience",
             sub: "user",
-        }
+        },
     },
 };
 
@@ -40,10 +39,13 @@ function test_jwks_polling_failure_is_logged(clusterClass) {
             error: {
                 code: 96,
                 codeName: "OperationFailed",
-                errmsg: "Failed loading keys from " + issuer_url + " :: caused by :: " +
+                errmsg:
+                    "Failed loading keys from " +
+                    issuer_url +
+                    " :: caused by :: " +
                     "Bad HTTP response from API server: Couldn't connect to server",
-            }
-        }
+            },
+        },
     };
     assert(test.checkLogExists(expectedLog), "Expected log not found");
 
@@ -51,8 +53,7 @@ function test_jwks_polling_failure_is_logged(clusterClass) {
 }
 
 function test_jwks_fetched_with_polling_interval(clusterClass) {
-    var test = new OIDCFixture(
-        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    var test = new OIDCFixture({oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     var idp = test.get_idp(issuer_url);
 
     test.setup(clusterClass);
@@ -90,7 +91,9 @@ function test_jwks_fetched_with_polling_interval(clusterClass) {
             issuer: issuer_url,
             error: {
                 code: 96,
-                errmsg: "Failed loading keys from " + issuer_url +
+                errmsg:
+                    "Failed loading keys from " +
+                    issuer_url +
                     " :: caused by :: Bad HTTP response from API server: " +
                     "Couldn't connect to server",
             },

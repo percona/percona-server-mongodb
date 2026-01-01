@@ -1,10 +1,10 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const oidcProviderBase = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
-    authorizationClaim: "claim"
+    authorizationClaim: "claim",
 };
 
 const variants = [
@@ -17,10 +17,7 @@ const variants = [
         // Missing 'sub'
         payload: {
             aud: "audience",
-            claim: [
-                "group1",
-                "group2",
-            ],
+            claim: ["group1", "group2"],
         },
         expectedError: "parsing failed: BSON field 'JWT.sub' is missing but a required field",
     },
@@ -28,10 +25,7 @@ const variants = [
         // Missing 'aud'
         payload: {
             sub: "user",
-            claim: [
-                "group1",
-                "group2",
-            ],
+            claim: ["group1", "group2"],
         },
         expectedError: "parsing failed: BSON field 'JWT.aud' is missing but a required field",
     },
@@ -49,10 +43,7 @@ const variants = [
             sub: "user",
             aud: "audience",
             iss: "$remove",
-            claim: [
-                "group1",
-                "group2",
-            ],
+            claim: ["group1", "group2"],
         },
         expectedError: "parsing failed: BSON field 'JWT.iss' is missing but a required field",
     },
@@ -62,10 +53,7 @@ const variants = [
             sub: "user",
             aud: "audience",
             exp: "$remove",
-            claim: [
-                "group1",
-                "group2",
-            ],
+            claim: ["group1", "group2"],
         },
         expectedError: "parsing failed: BSON field 'JWT.exp' is missing but a required field",
     },
@@ -87,8 +75,7 @@ const variants = [
             aud: "audience",
             claim: "group",
         },
-        expectedError:
-            "parsing failed: BSON field 'JWT.sub' is the wrong type 'array', expected type 'string'",
+        expectedError: "parsing failed: BSON field 'JWT.sub' is the wrong type 'array', expected type 'string'",
     },
     {
         // Expired token
@@ -117,8 +104,7 @@ function test_auth_fails(clusterClass, tokenPayload, expectedError) {
     const oidcProvider = Object.assign({issuer: issuer_url}, oidcProviderBase);
     const idp_config = {token: {payload: tokenPayload}};
 
-    var test = new OIDCFixture(
-        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    var test = new OIDCFixture({oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
 
     var conn = test.create_conn();
@@ -130,7 +116,7 @@ function test_auth_fails(clusterClass, tokenPayload, expectedError) {
         attr: {
             mechanism: "MONGODB-OIDC",
             error: "BadValue: Invalid JWT :: caused by :: " + expectedError,
-        }
+        },
     };
 
     assert(test.checkLogExists(expectedLog), "Expected log not found: " + tojson(expectedLog));

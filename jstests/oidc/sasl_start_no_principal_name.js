@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 // BQAAAAAA is base64 encoded [05 00 00 00 00 00] which is an empty BSON object
 const EmptyBSONPayload = new BinData(0, "BQAAAAAA");
@@ -6,10 +6,10 @@ const EmptyBSONPayload = new BinData(0, "BQAAAAAA");
 // Function to convert hex string to printable ASCII string
 // Helps with performing visual inspection of the payload
 function hexToPrintableString(hex) {
-    let result = '';
+    let result = "";
     for (let i = 0; i < hex.length; i += 2) {
         const byte = parseInt(hex.substr(i, 2), 16);
-        result += (byte >= 32 && byte < 127) ? String.fromCharCode(byte) : '.';
+        result += byte >= 32 && byte < 127 ? String.fromCharCode(byte) : ".";
     }
     return result;
 }
@@ -25,7 +25,7 @@ function test_no_principal_name_is_not_ok_if_multiple_identity_providers(cluster
             audience: "audience1",
             authNamePrefix: "idp1",
             matchPattern: "1$",
-            authorizationClaim: "claim1"
+            authorizationClaim: "claim1",
         },
         {
             issuer: OIDCFixture.allocate_issuer_url(),
@@ -33,22 +33,22 @@ function test_no_principal_name_is_not_ok_if_multiple_identity_providers(cluster
             audience: "audience2",
             authNamePrefix: "idp2",
             matchPattern: "2$",
-            authorizationClaim: "claim2"
-        }
+            authorizationClaim: "claim2",
+        },
     ];
 
-    var test = new OIDCFixture({ oidcProviders: oidcProviders });
+    var test = new OIDCFixture({oidcProviders: oidcProviders});
     test.setup(clusterClass);
 
-    const res = test.admin.getSiblingDB('$external').runCommand(
-        {
-            saslStart: 1,
-            mechanism: "MONGODB-OIDC",
-            payload: EmptyBSONPayload,
-        }
-    );
+    const res = test.admin.getSiblingDB("$external").runCommand({
+        saslStart: 1,
+        mechanism: "MONGODB-OIDC",
+        payload: EmptyBSONPayload,
+    });
     assert.commandFailedWithCode(res, ErrorCodes.AuthenticationFailed);
-    OIDCFixture.assert_mongod_output_match("BadValue: Multiple identity providers are known, provide a principal name for choosing a one")
+    OIDCFixture.assert_mongod_output_match(
+        "BadValue: Multiple identity providers are known, provide a principal name for choosing a one",
+    );
     test.teardown();
 }
 
@@ -61,19 +61,17 @@ function test_no_principal_name_is_ok_if_single_identity_provider(clusterClass) 
         audience: "audience1",
         authNamePrefix: "idp1",
         matchPattern: "1$",
-        authorizationClaim: "claim1"
+        authorizationClaim: "claim1",
     };
 
-    var test = new OIDCFixture({ oidcProviders: [oidcProvider] });
+    var test = new OIDCFixture({oidcProviders: [oidcProvider]});
     test.setup(clusterClass);
 
-    const res = test.admin.getSiblingDB('$external').runCommand(
-        {
-            saslStart: 1,
-            mechanism: "MONGODB-OIDC",
-            payload: EmptyBSONPayload,
-        }
-    );
+    const res = test.admin.getSiblingDB("$external").runCommand({
+        saslStart: 1,
+        mechanism: "MONGODB-OIDC",
+        payload: EmptyBSONPayload,
+    });
 
     assert.commandWorked(res);
 

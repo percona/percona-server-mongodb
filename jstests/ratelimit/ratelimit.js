@@ -1,8 +1,8 @@
-(function() {
-    'use strict';
+(function () {
+    "use strict";
 
     var conn = MongoRunner.runMongod({});
-    var db = conn.getDB('test');
+    var db = conn.getDB("test");
 
     // check default values
     {

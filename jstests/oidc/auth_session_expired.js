@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -8,10 +8,8 @@ const idp_config = {
         payload: {
             aud: "audience",
             sub: "user",
-            claim: [
-                "group",
-            ],
-        }
+            claim: ["group"],
+        },
     },
 };
 
@@ -20,12 +18,11 @@ const oidcProvider = {
     clientId: "clientId",
     audience: "audience",
     authNamePrefix: "test",
-    authorizationClaim: "claim"
+    authorizationClaim: "claim",
 };
 
 function test_not_authenticated_after_token_expires(clusterClass) {
-    var test = new OIDCFixture(
-        {oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
+    var test = new OIDCFixture({oidcProviders: [oidcProvider], idps: [{url: issuer_url, config: idp_config}]});
     test.setup(clusterClass);
 
     test.create_role("test/group", [{role: "readWrite", db: "test_db"}]);
@@ -33,10 +30,7 @@ function test_not_authenticated_after_token_expires(clusterClass) {
     var conn = test.create_conn();
 
     assert(test.auth(conn, "user"), "Failed to authenticate");
-    test.assert_authenticated(conn, "test/user", [
-        "test/group",
-        {role: "readWrite", db: "test_db"},
-    ]);
+    test.assert_authenticated(conn, "test/user", ["test/group", {role: "readWrite", db: "test_db"}]);
 
     // Wait for the token to expire.
     // The token expires in 1 second but wait for a bit longer to ensure that the token is expired

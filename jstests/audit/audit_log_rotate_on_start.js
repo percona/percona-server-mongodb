@@ -1,6 +1,6 @@
-import {getDBPath, isValidDateSuffix} from 'jstests/audit/_audit_helpers.js';
+import {getDBPath, isValidDateSuffix} from "jstests/audit/_audit_helpers.js";
 
-const auditLogDir = getDBPath() + '/auditLogs';
+const auditLogDir = getDBPath() + "/auditLogs";
 
 // Runs a mongod instance with the given configuration and stops it immediately.
 function runAndStopMongod(config) {
@@ -13,8 +13,8 @@ function runAndStopMongod(config) {
 // Returns an array of audit log files in the auditLogDir
 // that start with the fileName.
 function getFiles(fileName) {
-    return ls(auditLogDir).filter(function(path) {
-        return path.startsWith(auditLogDir + '/' + fileName);
+    return ls(auditLogDir).filter(function (path) {
+        return path.startsWith(auditLogDir + "/" + fileName);
     });
 }
 
@@ -27,7 +27,7 @@ function countFiles(fileName) {
 // Returns the current audit log file, which is the one that ends with 'fileName'
 // and is not rotated.
 function getCurrentFile(fileName) {
-    const files = getFiles(fileName).filter(function(path) {
+    const files = getFiles(fileName).filter(function (path) {
         return path.endsWith(fileName);
     });
 
@@ -39,7 +39,7 @@ function getCurrentFile(fileName) {
 // auditLogFileName.
 function getRotatedFiles(fileName) {
     const files = getFiles(fileName);
-    return files.filter(function(path) {
+    return files.filter(function (path) {
         return !path.endsWith(fileName);
     });
 }
@@ -48,7 +48,7 @@ function getRotatedFiles(fileName) {
 // and creating the directory if it does not exist.
 function initAuditLogDir() {
     if (fileExists(auditLogDir)) {
-        ls(auditLogDir).forEach(function(path) {
+        ls(auditLogDir).forEach(function (path) {
             removeFile(path);
         });
     }
@@ -59,21 +59,30 @@ function initAuditLogDir() {
 // for the given date or the current date if no date is provided.
 // The timestamp is formatted in the same way as the rotated file suffix.
 function getUTCTimestamp(date) {
-    function pad(n) { return n < 10 ? '0' + n : n; }
+    function pad(n) {
+        return n < 10 ? "0" + n : n;
+    }
 
-    return date.getUTCFullYear() + '-' +
-           pad(date.getUTCMonth() + 1) + '-' +
-           pad(date.getUTCDate()) + 'T' +
-           pad(date.getUTCHours()) + '-' +
-           pad(date.getUTCMinutes()) + '-' +
-           pad(date.getUTCSeconds());
+    return (
+        date.getUTCFullYear() +
+        "-" +
+        pad(date.getUTCMonth() + 1) +
+        "-" +
+        pad(date.getUTCDate()) +
+        "T" +
+        pad(date.getUTCHours()) +
+        "-" +
+        pad(date.getUTCMinutes()) +
+        "-" +
+        pad(date.getUTCSeconds())
+    );
 }
 
 // Runs the test for a given audit log file name and format with logRotate=rename option (default).
 function runTestRename(fileName, format) {
-    const auditPath = auditLogDir + '/' + fileName;
+    const auditPath = auditLogDir + "/" + fileName;
     const config = {
-        auditDestination: 'file',
+        auditDestination: "file",
         auditPath: auditPath,
         auditFormat: format,
     };
@@ -95,31 +104,30 @@ function runTestRename(fileName, format) {
 
     const secondFileContent = cat(getCurrentFile(fileName));
     const rotatedFileContent = cat(rotatedFiles[0]);
-    assert.neq(firstFileContent,
-               secondFileContent,
-               "Expected different content in audit log files after second mongod start");
-    assert.eq(rotatedFileContent,
-              firstFileContent,
-              "Expected rotated log file to match the first log file content");
+    assert.neq(
+        firstFileContent,
+        secondFileContent,
+        "Expected different content in audit log files after second mongod start",
+    );
+    assert.eq(rotatedFileContent, firstFileContent, "Expected rotated log file to match the first log file content");
 
     // 3rd run: expect 3 files.
     runAndStopMongod(config);
     assert.eq(countFiles(fileName), 3, "Expected 3 audit log files after starting 3rd mongod");
 
     for (const rotated of getRotatedFiles(fileName)) {
-        assert(isValidDateSuffix(rotated, auditPath),
-               "Expected rotated file to have a valid date suffix: " + rotated);
+        assert(isValidDateSuffix(rotated, auditPath), "Expected rotated file to have a valid date suffix: " + rotated);
     }
 }
 
 // Runs the test for a given audit log file name and format with logRotate=reopen option.
 function runTestReopen(fileName, format) {
-    const auditPath = auditLogDir + '/' + fileName;
+    const auditPath = auditLogDir + "/" + fileName;
     const config = {
-        auditDestination: 'file',
+        auditDestination: "file",
         auditPath: auditPath,
         auditFormat: format,
-        logRotate: 'reopen',
+        logRotate: "reopen",
         logappend: "",
     };
 
@@ -142,7 +150,8 @@ function runTestReopen(fileName, format) {
     const secondFileContent = cat(getCurrentFile(fileName));
     assert(
         secondFileContent.startsWith(firstFileContent),
-        "Expected second file content to start with first file content (file reopened in append mode)");
+        "Expected second file content to start with first file content (file reopened in append mode)",
+    );
 }
 
 // Runs the test for a given audit log file name and format with logRotate=rename,
@@ -151,7 +160,7 @@ function runTestReopen(fileName, format) {
 // filename as a previous instance. In this case, instead of overwriting the file,
 // mongod should reopen the existing file in append mode.
 function runTestRenameFileExist(fileName, format) {
-    const auditPath = auditLogDir + '/' + fileName;
+    const auditPath = auditLogDir + "/" + fileName;
 
     // Maximum number of seconds to create rotated files ahead of the current time.
     // This should be big enough to make sure that the second instance of mongod will
@@ -159,10 +168,10 @@ function runTestRenameFileExist(fileName, format) {
     const maxSeconds = 15;
 
     const config = {
-        auditDestination: 'file',
+        auditDestination: "file",
         auditPath: auditPath,
         auditFormat: format,
-        logRotate: 'rename',
+        logRotate: "rename",
         logappend: "",
     };
 
@@ -174,47 +183,55 @@ function runTestRenameFileExist(fileName, format) {
     let now = new Date();
     let existingRotatedFiles = [];
     for (let i = 0; i < maxSeconds; i++) {
-        const rotatedAuditPath = auditPath + '.' + getUTCTimestamp(now);
+        const rotatedAuditPath = auditPath + "." + getUTCTimestamp(now);
         existingRotatedFiles.push(rotatedAuditPath);
         now.setSeconds(now.getSeconds() + 1);
     }
 
     // create rotated files with their own names as content
     for (const rotated of existingRotatedFiles) {
-        writeFile(rotated, rotated + '\n');
+        writeFile(rotated, rotated + "\n");
     }
 
     assert.eq(getFiles(fileName).length, maxSeconds, "Expected " + maxSeconds + " audit log files");
 
     // 1st run: expect 1 additional file to be created - the not rotated audit log file.
     runAndStopMongod(config);
-    assert.eq(countFiles(fileName), maxSeconds + 1, `Expected ${maxSeconds + 1} audit log file after starting 1st mongod`);
+    assert.eq(
+        countFiles(fileName),
+        maxSeconds + 1,
+        `Expected ${maxSeconds + 1} audit log file after starting 1st mongod`,
+    );
     const firstFileContent = cat(getCurrentFile(fileName));
 
     // 2nd run: expect file to be appended, not rotated.
     runAndStopMongod(config);
-    assert.eq(countFiles(fileName), maxSeconds + 1, `Expected ${maxSeconds + 1} audit log files after starting 2nd mongod`);
+    assert.eq(
+        countFiles(fileName),
+        maxSeconds + 1,
+        `Expected ${maxSeconds + 1} audit log files after starting 2nd mongod`,
+    );
     const rotatedFiles = getRotatedFiles(fileName);
     assert.eq(rotatedFiles.length, maxSeconds, `Expected ${maxSeconds} rotated audit log files`);
 
     const secondFileContent = cat(getCurrentFile(fileName));
     assert(
         secondFileContent.startsWith(firstFileContent),
-        "Expected second file content to start with first file content (file reopened in append mode)");
+        "Expected second file content to start with first file content (file reopened in append mode)",
+    );
 
     // Make sure the created rotated files contain their own names and mongod did not overwrite them.
     for (const rotated of existingRotatedFiles) {
         const content = cat(rotated);
-        assert.eq(content, rotated + '\n',
-                   "Expected rotated file to contain its own name: " + rotated);
+        assert.eq(content, rotated + "\n", "Expected rotated file to contain its own name: " + rotated);
     }
 }
 
-runTestRenameFileExist('auditFileName.json', 'JSON');
-runTestRenameFileExist('auditFileName.bson', 'BSON');
+runTestRenameFileExist("auditFileName.json", "JSON");
+runTestRenameFileExist("auditFileName.bson", "BSON");
 
-runTestRename('auditFileName.json', 'JSON');
-runTestRename('auditFileName.bson', 'BSON');
+runTestRename("auditFileName.json", "JSON");
+runTestRename("auditFileName.bson", "BSON");
 
-runTestReopen('auditFileName.json', 'JSON');
-runTestReopen('auditFileName.bson', 'BSON');
+runTestReopen("auditFileName.json", "JSON");
+runTestReopen("auditFileName.bson", "BSON");

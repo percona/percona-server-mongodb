@@ -1,4 +1,4 @@
-import {OIDCFixture, ShardedCluster, StandaloneMongod} from 'jstests/oidc/lib/oidc_fixture.js';
+import {OIDCFixture, ShardedCluster, StandaloneMongod} from "jstests/oidc/lib/oidc_fixture.js";
 
 const issuer_url = OIDCFixture.allocate_issuer_url();
 
@@ -8,32 +8,28 @@ const idp_config = {
             payload: {
                 aud: "audience",
                 sub: "user1",
-                claim: [
-                    "group1",
-                    "group2",
-                ]
-            }
+                claim: ["group1", "group2"],
+            },
         },
         {
             payload: {
                 aud: "audience",
                 sub: "user2",
-                claim: [
-                    "group3",
-                    "group4",
-                ]
-            }
-        }
-    ]
+                claim: ["group3", "group4"],
+            },
+        },
+    ],
 };
 
-const oidcProviders = [{
-    issuer: issuer_url,
-    clientId: "clientId",
-    audience: "audience",
-    authNamePrefix: "idp",
-    authorizationClaim: "claim"
-}];
+const oidcProviders = [
+    {
+        issuer: issuer_url,
+        clientId: "clientId",
+        audience: "audience",
+        authNamePrefix: "idp",
+        authorizationClaim: "claim",
+    },
+];
 
 function test_multiple_concurrently_authenticated_users(clusterClass) {
     var test = new OIDCFixture({oidcProviders, idps: [{url: issuer_url, config: idp_config}]});

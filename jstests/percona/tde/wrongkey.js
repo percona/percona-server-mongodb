@@ -4,18 +4,18 @@
  * encryption key does not corrupt DB.
  * @tags: [requires_wiredtiger]
  */
-(function() {
-    'use strict';
-	load('jstests/backup/_backup_helpers.js');
+(function () {
+    "use strict";
+    load("jstests/backup/_backup_helpers.js");
 
     run("chmod", "600", TestData.keyFileGood);
     run("chmod", "600", TestData.keyFileWrong);
 
     // Run the original instance and fill it with data.
-    var dbPath = MongoRunner.dataPath + 'original';
+    var dbPath = MongoRunner.dataPath + "original";
     var conn = MongoRunner.runMongod({
         dbpath: dbPath,
-        enableEncryption: '',
+        enableEncryption: "",
         encryptionKeyFile: TestData.keyFileGood,
         encryptionCipherMode: TestData.cipherMode,
     });
@@ -35,21 +35,26 @@
 
     // Start with the wrong key - ensure it fails
     clearRawMongoProgramOutput();
-    assert.throws(() => MongoRunner.runMongod({
-        noCleanData: true,
-        dbpath: backupPath,
-        enableEncryption: '',
-        encryptionKeyFile: TestData.keyFileWrong,
-        encryptionCipherMode: TestData.cipherMode,
-    }));
-    assert(rawMongoProgramOutput(".*").includes(
-        "EncryptionKeyDB: Failed to start up WiredTiger under any compatibility version."));
+    assert.throws(() =>
+        MongoRunner.runMongod({
+            noCleanData: true,
+            dbpath: backupPath,
+            enableEncryption: "",
+            encryptionKeyFile: TestData.keyFileWrong,
+            encryptionCipherMode: TestData.cipherMode,
+        }),
+    );
+    assert(
+        rawMongoProgramOutput(".*").includes(
+            "EncryptionKeyDB: Failed to start up WiredTiger under any compatibility version.",
+        ),
+    );
 
     // Start with the correct key - ensure it succeeds and DBHash is correct
     var conn = MongoRunner.runMongod({
         noCleanData: true,
         dbpath: backupPath,
-        enableEncryption: '',
+        enableEncryption: "",
         encryptionKeyFile: TestData.keyFileGood,
         encryptionCipherMode: TestData.cipherMode,
     });
