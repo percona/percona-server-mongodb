@@ -3727,6 +3727,16 @@ REGISTER_EXPRESSION_WITH_FEATURE_FLAG(toUUID,
                                       AllowedWithApiStrict::kAlways,
                                       AllowedWithClientType::kAny,
                                       &feature_flags::gFeatureFlagBinDataConvert);
+REGISTER_EXPRESSION_WITH_FEATURE_FLAG(toArray,
+                                      makeConversionAlias("$toArray"_sd, BSONType::array),
+                                      AllowedWithApiStrict::kAlways,
+                                      AllowedWithClientType::kAny,
+                                      &feature_flags::gFeatureFlagMqlJsEngineGap);
+REGISTER_EXPRESSION_WITH_FEATURE_FLAG(toObject,
+                                      makeConversionAlias("$toObject"_sd, BSONType::object),
+                                      AllowedWithApiStrict::kAlways,
+                                      AllowedWithClientType::kAny,
+                                      &feature_flags::gFeatureFlagMqlJsEngineGap);
 
 boost::intrusive_ptr<Expression> ExpressionConvert::create(
     ExpressionContext* const expCtx,
@@ -3855,6 +3865,9 @@ intrusive_ptr<Expression> ExpressionConvert::parse(ExpressionContext* const expC
                                  allowBinDataConvertNumeric);
 }
 
+const Value ExpressionConvert::ConvertTargetTypeInfo::defaultSubtypeVal{
+    static_cast<int>(BinDataType::BinDataGeneral)};
+
 boost::optional<ExpressionConvert::ConvertTargetTypeInfo>
 ExpressionConvert::ConvertTargetTypeInfo::parse(Value value) {
     if (value.nullish()) {
@@ -3874,7 +3887,7 @@ ExpressionConvert::ConvertTargetTypeInfo::parse(Value value) {
     }
 
     if (subtypeValue.missing()) {
-        subtypeValue = Value(static_cast<int>(BinDataType::BinDataGeneral));
+        subtypeValue = defaultSubtypeVal;
     }
 
     auto targetType = computeTargetType(typeValue);

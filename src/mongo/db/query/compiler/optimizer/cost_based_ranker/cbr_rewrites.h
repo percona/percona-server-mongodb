@@ -49,6 +49,10 @@ namespace mongo::cost_based_ranker {
  * The function returns nullptr if it encounters an interval in the index bounds for which
  * the transformation to match expression is not supported. The nullptr notifies the
  * caller to use an alternative implementation.
+ * The final condition that combines the expression generated from 'bounds' and 'filterExpr' are
+ * simplified and normalized before returning. This is done to enable faster estimation with fewer
+ * terms, and to also ensure that logically equivalent expressions have the same form, and thus
+ * will be detected as equivalent by the CE cache.
  */
 std::unique_ptr<MatchExpression> getMatchExpressionFromBounds(const IndexBounds& bounds,
                                                               const MatchExpression* filterExpr);

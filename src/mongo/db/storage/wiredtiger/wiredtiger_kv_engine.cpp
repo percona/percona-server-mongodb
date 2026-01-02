@@ -68,6 +68,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_cache_pressure_monitor.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_connection.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_cursor.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_cursor_helpers.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_extensions.h"
@@ -711,6 +712,16 @@ void setUpWiredTigerEncryption(const std::string& cipherMode, EncryptionKeyDB* k
     }
     EncryptionHooks::set(getGlobalServiceContext(), std::move(hooks));
 }
+
+void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int64_t>& key) {
+    std::visit(OverloadedVisitor{
+                   [&](const std::span<const char> k) { c->set_key(c, WiredTigerItem{k}.get()); },
+                   [&](int64_t k) {
+                       c->set_key(c, k);
+                   }},
+               key);
+}
+
 }  // namespace
 
 class WiredTigerKVEngine::DataAtRestEncryption {
@@ -936,6 +947,84 @@ WiredTigerKVEngineBase::WiredTigerKVEngineBase(const std::string& canonicalName,
 
 void WiredTigerKVEngineBase::setRecordStoreExtraOptions(const std::string& options) {
     _rsOptions = options;
+}
+
+Status WiredTigerKVEngineBase::insertIntoIdent(RecoveryUnit& ru,
+                                               StringData ident,
+                                               std::variant<std::span<const char>, int64_t> key,
+                                               std::span<const char> value) {
+    invariant(ru.inUnitOfWork());
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+
+    // TODO (SERVER-109454): `genTableId()` may be replaced with different cache logic.
+    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, WiredTigerUtil::genTableId()),
+                            WiredTigerUtil::buildTableUri(ident),
+                            *wtRu.getSession()};
+    wtRu.assertInActiveTxn();
+    WT_CURSOR* c = cursor.get();
+
+    setKeyOnCursor(c, key);
+
+    c->set_value(c, WiredTigerItem{value}.get());
+
+    int rc = WT_OP_CHECK(wiredTigerCursorInsert(wtRu, c));
+    if (rc == WT_DUPLICATE_KEY)
+        // TODO (SERVER-109707): Find (or create) a new way to represent the case of a duplicate
+        // key.
+        return Status{
+            DuplicateKeyErrorInfo(BSONObj(), BSONObj(), BSONObj(), std::monostate(), boost::none),
+            "Key already exists in ident"};
+
+    return wtRCToStatus(rc, cursor->session);
+}
+
+StatusWith<UniqueBuffer> WiredTigerKVEngineBase::getFromIdent(
+    RecoveryUnit& ru, StringData ident, std::variant<std::span<const char>, int64_t> key) {
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+
+    // TODO (SERVER-109454): `genTableId()` may be replaced with different cache logic.
+    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, WiredTigerUtil::genTableId()),
+                            WiredTigerUtil::buildTableUri(ident),
+                            *wtRu.getSession()};
+    WT_CURSOR* c = cursor.get();
+
+    setKeyOnCursor(c, key);
+
+    int rc = WT_OP_CHECK(c->search(c));
+    if (rc == WT_NOTFOUND)
+        return Status(ErrorCodes::NoSuchKey, "No such key exists in ident");
+    if (auto status = wtRCToStatus(rc, cursor->session); !status.isOK())
+        return status;
+
+    WiredTigerItem v;
+    rc = c->get_value(c, v.get());
+    if (auto status = wtRCToStatus(rc, cursor->session); !status.isOK())
+        return status;
+
+    UniqueBuffer out = UniqueBuffer::allocate(v.size());
+    std::memcpy(out.get(), v.data(), v.size());
+    return out;
+}
+
+Status WiredTigerKVEngineBase::deleteFromIdent(RecoveryUnit& ru,
+                                               StringData ident,
+                                               std::variant<std::span<const char>, int64_t> key) {
+    invariant(ru.inUnitOfWork());
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+
+    // TODO (SERVER-109454): `genTableId()` may be replaced with different cache logic.
+    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, WiredTigerUtil::genTableId()),
+                            WiredTigerUtil::buildTableUri(ident),
+                            *wtRu.getSession()};
+    wtRu.assertInActiveTxn();
+    WT_CURSOR* c = cursor.get();
+
+    setKeyOnCursor(c, key);
+
+    int rc = WT_OP_CHECK(wiredTigerCursorRemove(wtRu, c));
+    if (rc == WT_NOTFOUND)
+        return Status(ErrorCodes::NoSuchKey, "No such key exists in ident");
+    return wtRCToStatus(rc, cursor->session);
 }
 
 Status WiredTigerKVEngineBase::reconfigureLogging() {
