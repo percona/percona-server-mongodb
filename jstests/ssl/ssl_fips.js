@@ -15,6 +15,7 @@
         let mongoOutput = rawMongoProgramOutput(".*");
         assert(
             mongoOutput.match(/this version of mongodb was not compiled with FIPS support/) ||
+                mongoOutput.match(/OpenSSL was not compiled with FIPS support/) ||
                 mongoOutput.match(/FIPS modes is not enabled on the operating system/) ||
                 mongoOutput.match(/FIPS_mode_set:fips mode not supported/) ||
                 mongoOutput.match(/You can compile Percona Server for MongoDB with FIPS mode yourself/),
