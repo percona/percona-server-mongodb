@@ -154,14 +154,7 @@ AutoGetDb::AutoGetDb(OperationContext* opCtx,
     }
 
     // The 'primary' database must be version checked for sharding.
-    {
-        const auto scopedSs = ShardingState::ScopedTransitionalShardingState::acquireShared(opCtx);
-        if (scopedSs.isInTransitionalPhase(opCtx)) {
-            scopedSs.checkDbVersionOrThrow(opCtx, _dbName);
-        } else {
-            DatabaseShardingState::acquire(opCtx, _dbName)->checkDbVersionOrThrow(opCtx);
-        }
-    }
+    DatabaseShardingState::acquire(opCtx, _dbName)->checkDbVersionOrThrow(opCtx);
 }
 
 bool AutoGetDb::canSkipRSTLLock(const NamespaceStringOrUUID& nsOrUUID) {
@@ -236,14 +229,7 @@ Database* AutoGetDb::ensureDbExists(OperationContext* opCtx) {
     auto databaseHolder = DatabaseHolder::get(opCtx);
     _db = databaseHolder->openDb(opCtx, _dbName, nullptr);
 
-    {
-        const auto scopedSs = ShardingState::ScopedTransitionalShardingState::acquireShared(opCtx);
-        if (scopedSs.isInTransitionalPhase(opCtx)) {
-            scopedSs.checkDbVersionOrThrow(opCtx, _dbName);
-        } else {
-            DatabaseShardingState::acquire(opCtx, _dbName)->checkDbVersionOrThrow(opCtx);
-        }
-    }
+    DatabaseShardingState::acquire(opCtx, _dbName)->checkDbVersionOrThrow(opCtx);
 
     return _db;
 }
@@ -253,15 +239,7 @@ Database* AutoGetDb::refreshDbReferenceIfNull(OperationContext* opCtx) {
         auto databaseHolder = DatabaseHolder::get(opCtx);
         _db = databaseHolder->getDb(opCtx, _dbName);
 
-        {
-            const auto scopedSs =
-                ShardingState::ScopedTransitionalShardingState::acquireShared(opCtx);
-            if (scopedSs.isInTransitionalPhase(opCtx)) {
-                scopedSs.checkDbVersionOrThrow(opCtx, _dbName);
-            } else {
-                DatabaseShardingState::acquire(opCtx, _dbName)->checkDbVersionOrThrow(opCtx);
-            }
-        }
+        DatabaseShardingState::acquire(opCtx, _dbName)->checkDbVersionOrThrow(opCtx);
     }
     return _db;
 }
@@ -271,28 +249,34 @@ CollectionNamespaceOrUUIDLock::CollectionNamespaceOrUUIDLock(OperationContext* o
                                                              const NamespaceStringOrUUID& nsOrUUID,
                                                              LockMode mode,
                                                              Date_t deadline)
-    : _lock([opCtx, &nsOrUUID, mode, deadline] {
-          if (nsOrUUID.isNamespaceString()) {
-              return Lock::CollectionLock{opCtx, nsOrUUID.nss(), mode, deadline};
-          }
+    : _lock(resolveAndLockCollectionByNssOrUUID(opCtx, nsOrUUID, mode, deadline)) {}
 
-          auto resolveNs = [opCtx, &nsOrUUID] {
-              return CollectionCatalog::get(opCtx)
-                  ->resolveNamespaceStringOrUUIDWithCommitPendingEntries_UNSAFE(opCtx, nsOrUUID);
-          };
+Lock::CollectionLock CollectionNamespaceOrUUIDLock::resolveAndLockCollectionByNssOrUUID(
+    OperationContext* opCtx,
+    const NamespaceStringOrUUID& nsOrUUID,
+    LockMode mode,
+    Date_t deadline) {
+    if (nsOrUUID.isNamespaceString()) {
+        return Lock::CollectionLock{opCtx, nsOrUUID.nss(), mode, deadline};
+    }
 
-          // We cannot be sure that the namespace we lock matches the UUID given because we resolve
-          // the namespace from the UUID without the safety of a lock. Therefore, we will continue
-          // to re-lock until the namespace we resolve from the UUID before and after taking the
-          // lock is the same.
-          while (true) {
-              auto ns = resolveNs();
-              Lock::CollectionLock lock{opCtx, ns, mode, deadline};
-              if (ns == resolveNs()) {
-                  return lock;
-              }
-          }
-      }()) {}
+    auto resolveNs = [opCtx, &nsOrUUID] {
+        return CollectionCatalog::get(opCtx)
+            ->resolveNamespaceStringOrUUIDWithCommitPendingEntries_UNSAFE(opCtx, nsOrUUID);
+    };
+
+    // We cannot be sure that the namespace we lock matches the UUID given because we resolve
+    // the namespace from the UUID without the safety of a lock. Therefore, we will continue
+    // to re-lock until the namespace we resolve from the UUID before and after taking the
+    // lock is the same.
+    while (true) {
+        auto ns = resolveNs();
+        Lock::CollectionLock lock{opCtx, ns, mode, deadline};
+        if (ns == resolveNs()) {
+            return lock;
+        }
+    }
+}
 
 AutoGetCollection::AutoGetCollection(OperationContext* opCtx,
                                      const NamespaceStringOrUUID& nsOrUUID,

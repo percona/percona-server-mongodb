@@ -522,9 +522,7 @@ RollbackImpl::_namespacesAndUUIDsForOp(const OplogEntry& oplogEntry) {
             case OplogEntry::CommandType::kCommitTransaction:
             case OplogEntry::CommandType::kAbortTransaction:
             case OplogEntry::CommandType::kCreateDatabaseMetadata:
-            case OplogEntry::CommandType::kDropDatabaseMetadata:
-            case OplogEntry::CommandType::kBeginPromotionToShardedCluster:
-            case OplogEntry::CommandType::kCompletePromotionToShardedCluster: {
+            case OplogEntry::CommandType::kDropDatabaseMetadata: {
                 // There is no specific namespace to save for these operations.
                 break;
             }
@@ -576,7 +574,8 @@ void RollbackImpl::_restoreTxnsTableEntryFromRetryableWrites(OperationContext* o
         const auto txnNumber = *opSessionInfo.getTxnNumber();
         const auto wallClockTime = entry.getWallClockTime();
 
-        invariant(!prevWriteOpTime.isNull() && prevWriteOpTime.getTimestamp() <= stableTimestamp);
+        invariant(!prevWriteOpTime.isNull());
+        invariant(prevWriteOpTime.getTimestamp() <= stableTimestamp);
         // This is a retryable writes oplog entry with a non-null 'prevWriteOpTime' value that
         // is less than or equal to the 'stableTimestamp'.
         LOGV2(5530501,
@@ -795,7 +794,7 @@ void RollbackImpl::_correctRecordStoreCounts(OperationContext* opCtx) {
                       str::stream() << "Catalog returned invalid collection: "
                                     << nss.toStringForErrorMsg() << " (" << uuid.toString() << ")");
             auto exec = getCollectionScanExecutor(opCtx,
-                                                  collToScan.getCollectionPtr(),
+                                                  collToScan,
                                                   PlanYieldPolicy::YieldPolicy::INTERRUPT_ONLY,
                                                   CollectionScanDirection::kForward);
             long long countFromScan = 0;

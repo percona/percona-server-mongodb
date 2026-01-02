@@ -97,6 +97,32 @@ public:
                   const OplogDeleteEntryArgs& args,
                   OpStateAccumulator* opAccumulator = nullptr) override {}
 
+    void onContainerInsert(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           int64_t key,
+                           std::span<const char> value) override {}
+
+    void onContainerInsert(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           std::span<const char> key,
+                           std::span<const char> value) override {}
+
+    void onContainerDelete(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           int64_t key) override {}
+
+    void onContainerDelete(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           std::span<const char> key) override {}
+
     void onInternalOpMessage(OperationContext* opCtx,
                              const NamespaceString& nss,
                              const boost::optional<UUID>& uuid,
@@ -237,12 +263,6 @@ public:
     void onCreateDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) override {}
 
     void onDropDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) override {}
-
-    void onBeginPromotionToShardedCluster(OperationContext* opCtx,
-                                          const repl::OplogEntry& op) override {}
-
-    void onCompletePromotionToShardedCluster(OperationContext* opCtx,
-                                             const repl::OplogEntry& op) override {}
 };
 
 }  // namespace mongo

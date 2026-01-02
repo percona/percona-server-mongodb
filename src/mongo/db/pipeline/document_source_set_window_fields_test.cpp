@@ -33,6 +33,7 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
 #include "mongo/db/exec/agg/document_source_to_stage_registry.h"
+#include "mongo/db/exec/agg/mock_stage.h"
 #include "mongo/db/exec/agg/pipeline_builder.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/exec/document_value/document_value_test_util.h"
@@ -149,7 +150,7 @@ TEST_F(DocumentSourceSetWindowFieldsTest, HandlesEmptyInputCorrectly) {
     auto parsedStage =
         DocumentSourceInternalSetWindowFields::createFromBson(spec.firstElement(), getExpCtx());
     auto stage = exec::agg::buildStage(parsedStage);
-    const auto mock = DocumentSourceMock::createForTest(getExpCtx());
+    const auto mock = exec::agg::MockStage::createForTest({}, getExpCtx());
     stage->setSource(mock.get());
     ASSERT_EQ((int)DocumentSource::GetNextResult::ReturnStatus::kEOF,
               (int)stage->getNext().getStatus());
@@ -302,8 +303,8 @@ TEST_F(DocumentSourceSetWindowFieldsTest, PartitionOutputIsCorrect) {
     docs.push_back(DOC("num" << 15 << "val" << 12 << "part" << 1));
     docs.push_back(DOC("num" << 2 << "val" << 1 << "part" << 2));
     docs.push_back(DOC("num" << 4 << "val" << 3 << "part" << 2));
-    auto source = DocumentSourceMock::createForTest(docs, getExpCtx());
-    stage->setSource(source.get());
+    auto mockStage = exec::agg::MockStage::createForTest(docs, getExpCtx());
+    stage->setSource(mockStage.get());
 
     auto next = stage->getNext();
     ASSERT(next.isAdvanced());
@@ -346,16 +347,9 @@ TEST_F(DocumentSourceSetWindowFieldsTest, OptimizationRemovesRedundantSortStage)
     ASSERT_EQ(std::string(pipeline.back()->getSourceName()), "$_internalSetWindowFields"_sd);
 }
 
-PlanSummaryStats collectPipelineStats(
-    const std::list<boost::intrusive_ptr<DocumentSource>>& pipelineStages) {
+PlanSummaryStats collectPipelineStats(const exec::agg::Pipeline& execPipeline) {
     PlanSummaryStats stats;
-    PlanSummaryStatsVisitor visitor{stats};
-    for (const auto& stage : pipelineStages) {
-        const auto* stageStats = exec::agg::buildStage(stage)->getSpecificStats();
-        if (stageStats != nullptr) {
-            stageStats->acceptVisitor(&visitor);
-        }
-    }
+    execPipeline.accumulatePlanSummaryStats(stats);
     return stats;
 }
 
@@ -404,7 +398,7 @@ TEST_F(DocumentSourceSetWindowFieldsSpillingTest,
         if (allowDiskUse) {
             exhaustPipeline();
 
-            auto planSummaryStats = collectPipelineStats(pipelineStages);
+            auto planSummaryStats = collectPipelineStats(*execPipeline);
             const auto& spillingStats =
                 planSummaryStats
                     .spillingStatsPerStage[PlanSummaryStats::SpillingStage::SET_WINDOW_FIELDS];
@@ -469,7 +463,7 @@ TEST_F(DocumentSourceSetWindowFieldsSpillingTest, CanForceSpill) {
     ASSERT_EQ(nextDocIndex, docs.size());
 
     SpillingStats spillingStats =
-        collectPipelineStats(pipelineStages)
+        collectPipelineStats(*execPipeline)
             .spillingStatsPerStage[PlanSummaryStats::SpillingStage::SET_WINDOW_FIELDS];
     ASSERT_EQ(spillingStats.getSpills(), 1);
     ASSERT_EQ(spillingStats.getSpilledRecords(), 80);
@@ -502,10 +496,10 @@ TEST_F(DocumentSourceSetWindowFieldsTest, outputFieldsIsDeterministic) {
     auto parsedStage =
         DocumentSourceInternalSetWindowFields::createFromBson(spec.firstElement(), getExpCtx());
     auto stage = exec::agg::buildStage(parsedStage);
-    const auto mock = DocumentSourceMock::createForTest(getExpCtx());
-    auto source = DocumentSourceMock::createForTest(
+    const auto mock = DocumentSourceMock::createForTest({}, getExpCtx());
+    auto mockedStage = exec::agg::MockStage::createForTest(
         {"{b: 6}", "{b: 5000}", "{b: 50}", "{b: 88}", "{b: 100}"}, getExpCtx());
-    stage->setSource(source.get());
+    stage->setSource(mockedStage.get());
 
     auto next = stage->getNext();
     ASSERT(next.isAdvanced());

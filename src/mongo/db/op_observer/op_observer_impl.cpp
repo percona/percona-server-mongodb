@@ -348,7 +348,7 @@ void OpObserverImpl::onCreateIndex(OperationContext* opCtx,
     oplogEntry.setUuid(uuid);
     oplogEntry.setObject(builder.obj());
     if (replicateLocalCatalogIdentifiers) {
-        oplogEntry.setObject2(BSON("ident" << indexBuildInfo.indexIdent));
+        oplogEntry.setObject2(BSON("indexIdent" << indexBuildInfo.indexIdent));
     }
     oplogEntry.setFromMigrateIfTrue(fromMigrate);
 
@@ -1077,6 +1077,40 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
         sessionTxnRecord.setLastWriteDate(opTime.wallClockTime);
         onWriteOpCompleted(opCtx, std::vector<StmtId>{stmtId}, sessionTxnRecord, nss);
     }
+}
+
+void OpObserverImpl::onContainerInsert(OperationContext* opCtx,
+                                       const NamespaceString& ns,
+                                       const UUID& collUUID,
+                                       StringData ident,
+                                       int64_t key,
+                                       std::span<const char> value) {
+    // TODO (SERVER-109427): Generate an oplog entry.
+}
+
+void OpObserverImpl::onContainerInsert(OperationContext* opCtx,
+                                       const NamespaceString& ns,
+                                       const UUID& collUUID,
+                                       StringData ident,
+                                       std::span<const char> key,
+                                       std::span<const char> value) {
+    // TODO (SERVER-109427): Generate an oplog entry.
+}
+
+void OpObserverImpl::onContainerDelete(OperationContext* opCtx,
+                                       const NamespaceString& ns,
+                                       const UUID& collUUID,
+                                       StringData ident,
+                                       int64_t key) {
+    // TODO (SERVER-109427): Generate an oplog entry.
+}
+
+void OpObserverImpl::onContainerDelete(OperationContext* opCtx,
+                                       const NamespaceString& ns,
+                                       const UUID& collUUID,
+                                       StringData ident,
+                                       std::span<const char> key) {
+    // TODO (SERVER-109427): Generate an oplog entry.
 }
 
 void OpObserverImpl::onInternalOpMessage(

@@ -124,6 +124,33 @@ public:
                   const DocumentKey& documentKey,
                   const OplogDeleteEntryArgs& args,
                   OpStateAccumulator* opAccumulator = nullptr) final;
+
+    void onContainerInsert(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           int64_t key,
+                           std::span<const char> value) final;
+
+    void onContainerInsert(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           std::span<const char> key,
+                           std::span<const char> value) final;
+
+    void onContainerDelete(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           int64_t key) final;
+
+    void onContainerDelete(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           std::span<const char> key) final;
+
     void onInternalOpMessage(OperationContext* opCtx,
                              const NamespaceString& nss,
                              const boost::optional<UUID>& uuid,
@@ -246,12 +273,6 @@ public:
     void onCreateDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) final {}
 
     void onDropDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) final {}
-
-    void onBeginPromotionToShardedCluster(OperationContext* opCtx,
-                                          const repl::OplogEntry& op) final {}
-
-    void onCompletePromotionToShardedCluster(OperationContext* opCtx,
-                                             const repl::OplogEntry& op) final {}
 
 private:
     std::unique_ptr<OperationLogger> _operationLogger;

@@ -29,35 +29,32 @@
 
 #pragma once
 
-#include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator.h"
-#include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator_service.h"
-#include "mongo/db/topology/complete_promotion_to_sharded_cluster_coordinator_document_gen.h"
+#include "mongo/db/storage/container.h"
 
 namespace mongo {
-class CompletePromotionToShardedClusterCoordinator final
-    : public RecoverableShardingDDLCoordinator<
-          CompletePromotionToShardedClusterCoordinatorDocument,
-          CompletePromotionToShardedClusterCoordinatorPhaseEnum> {
+
+class IntegerKeyedContainerBase : public IntegerKeyedContainer {
 public:
-    using StateDoc = CompletePromotionToShardedClusterCoordinatorDocument;
-    using Phase = CompletePromotionToShardedClusterCoordinatorPhaseEnum;
+    explicit IntegerKeyedContainerBase(std::shared_ptr<Ident> ident);
 
-    CompletePromotionToShardedClusterCoordinator(ShardingDDLCoordinatorService* service,
-                                                 const BSONObj& initialState)
-        : RecoverableShardingDDLCoordinator(
-              service, "CompletePromotionToShardedClusterCoordinator", initialState) {}
+    std::shared_ptr<Ident> ident() const final;
 
-    ~CompletePromotionToShardedClusterCoordinator() override = default;
-
-    void checkIfOptionsConflict(const BSONObj& stateDoc) const override {}
+    void setIdent(std::shared_ptr<Ident> ident) final;
 
 private:
-    StringData serializePhase(const Phase& phase) const override {
-        return CompletePromotionToShardedClusterCoordinatorPhase_serializer(phase);
-    }
+    std::shared_ptr<Ident> _ident;
+};
 
-    ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
-                                  const CancellationToken& token) noexcept override;
+class StringKeyedContainerBase : public StringKeyedContainer {
+public:
+    explicit StringKeyedContainerBase(std::shared_ptr<Ident> ident);
+
+    std::shared_ptr<Ident> ident() const final;
+
+    void setIdent(std::shared_ptr<Ident> ident) final;
+
+private:
+    std::shared_ptr<Ident> _ident;
 };
 
 }  // namespace mongo

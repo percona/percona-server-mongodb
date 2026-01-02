@@ -34,9 +34,11 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/ordering.h"
 #include "mongo/db/record_id.h"
+#include "mongo/db/storage/container_base.h"
 #include "mongo/db/storage/damage_vector.h"
 #include "mongo/db/storage/devnull/ephemeral_catalog_record_store.h"
 #include "mongo/db/storage/duplicate_key_error_info.h"
+#include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/key_string/key_string.h"
 #include "mongo/db/storage/record_data.h"
 #include "mongo/db/storage/record_store.h"
@@ -58,6 +60,32 @@
 #include <boost/optional/optional.hpp>
 
 namespace mongo {
+
+class DevNullIntegerKeyedContainer : public IntegerKeyedContainerBase {
+public:
+    DevNullIntegerKeyedContainer() : IntegerKeyedContainerBase(nullptr) {}
+
+    Status insert(RecoveryUnit& ru, int64_t key, std::span<const char> value) final {
+        return Status::OK();
+    }
+
+    Status remove(RecoveryUnit& ru, int64_t key) final {
+        return Status::OK();
+    }
+};
+
+class DevNullStringKeyedContainer : public StringKeyedContainerBase {
+public:
+    DevNullStringKeyedContainer() : StringKeyedContainerBase(nullptr) {}
+
+    Status insert(RecoveryUnit& ru, std::span<const char> key, std::span<const char> value) final {
+        return Status::OK();
+    }
+
+    Status remove(RecoveryUnit& ru, std::span<const char> key) final {
+        return Status::OK();
+    }
+};
 
 class EmptyRecordCursor final : public SeekableRecordCursor {
 public:
@@ -316,10 +344,8 @@ public:
 class DevNullSortedDataInterface : public SortedDataInterface {
 public:
     DevNullSortedDataInterface(StringData identName)
-        : SortedDataInterface(identName,
-                              key_string::Version::kLatestVersion,
-                              Ordering::make(BSONObj()),
-                              KeyFormat::Long) {}
+        : SortedDataInterface(
+              key_string::Version::kLatestVersion, Ordering::make(BSONObj()), KeyFormat::Long) {}
 
     ~DevNullSortedDataInterface() override {}
 
@@ -401,6 +427,17 @@ public:
     Status truncate(OperationContext* opCtx, RecoveryUnit& ru) override {
         return Status::OK();
     }
+
+    StringKeyedContainer& getContainer() override {
+        return _container;
+    }
+
+    const StringKeyedContainer& getContainer() const override {
+        return _container;
+    }
+
+private:
+    DevNullStringKeyedContainer _container;
 };
 
 DevNullKVEngine::DevNullKVEngine() : _engineDbPath(storageGlobalParams.dbpath) {
@@ -419,7 +456,7 @@ std::unique_ptr<RecordStore> DevNullKVEngine::getRecordStore(OperationContext* o
                                                              StringData ident,
                                                              const RecordStore::Options& options,
                                                              boost::optional<UUID> uuid) {
-    if (ident == "_mdb_catalog") {
+    if (ident == ident::kMbdCatalog) {
         return std::make_unique<EphemeralForTestRecordStore>(uuid, ident, &_catalogInfo);
     } else if (options.isOplog) {
         return std::make_unique<DevNullRecordStore::Oplog>(*uuid, ident, options.oplogMaxSize);

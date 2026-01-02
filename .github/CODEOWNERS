@@ -82,6 +82,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/idl/**/idl_compatibility_errors.py @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/idl/**/test_compatibility.py @10gen/query-optimization @svc-auto-approve-bot
 
+# The following patterns are parsed from ./buildscripts/monitor_build_status/OWNERS.yml
+/buildscripts/monitor_build_status/ @10gen/devprod-correctness @svc-auto-approve-bot
+
 # The following patterns are parsed from ./buildscripts/resmoke_proxy/OWNERS.yml
 /buildscripts/resmoke_proxy/ @10gen/devprod-correctness @svc-auto-approve-bot
 
@@ -1450,7 +1453,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/OWNERS.yml
 /jstests/sharding/**/auto_split_vector_basic.js @10gen/server-cluster-scalability @svc-auto-approve-bot
-/jstests/sharding/**/drop_indexes_participant.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/jstests/sharding/**/drop_indexes_participant* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/*fsync_lock* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/*chunk_migration* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/*migration_coordinator* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -1598,10 +1601,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/with_mongot/**/* @10gen/query-integration-search @svc-auto-approve-bot
 
 # The following patterns are parsed from ./modules_poc/OWNERS.yml
-/modules_poc/**/OWNERS.yml @10gen/server-programmability @svc-auto-approve-bot
-/modules_poc/**/*.py @10gen/server-programmability @svc-auto-approve-bot
-/modules_poc/**/*.jq @10gen/server-programmability @svc-auto-approve-bot
-/modules_poc/**/*.sh @10gen/server-programmability @svc-auto-approve-bot
+/modules_poc/**/* @10gen/server-programmability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./rpm/OWNERS.yml
 /rpm/**/* @10gen/devprod-build @svc-auto-approve-bot
@@ -1848,6 +1848,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/OWNERS.yml @10gen/query-execution-staff-leads @10gen/query-integration-staff-leads @10gen/query-optimization-staff-leads @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/current_op_stage* @10gen/query-integration-observability @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/densify_stage* @10gen/query-integration-extensions @svc-auto-approve-bot
+/src/mongo/db/exec/agg/**/internal_set_window_fields_stage* @10gen/query-integration-extensions @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/exec/express/OWNERS.yml
 /src/mongo/db/exec/express/**/* @10gen/query-execution-classic @svc-auto-approve-bot
@@ -3104,3 +3105,4 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following lines are added from .github/ALLOWED_UNOWNED_FILES.yml
 /.github/CODEOWNERS
+/modules_poc/modules.yaml

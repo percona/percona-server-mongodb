@@ -264,6 +264,52 @@ public:
             o->onDelete(opCtx, coll, stmtId, doc, documentKey, args, &opStateAccumulator);
     }
 
+    void onContainerInsert(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           int64_t key,
+                           std::span<const char> value) override {
+        ReservedTimes times{opCtx};
+        for (auto&& observer : _observers) {
+            observer->onContainerInsert(opCtx, ns, collUUID, ident, key, value);
+        }
+    }
+
+    void onContainerInsert(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           std::span<const char> key,
+                           std::span<const char> value) override {
+        ReservedTimes times{opCtx};
+        for (auto&& observer : _observers) {
+            observer->onContainerInsert(opCtx, ns, collUUID, ident, key, value);
+        }
+    }
+
+    void onContainerDelete(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           int64_t key) override {
+        ReservedTimes times{opCtx};
+        for (auto&& observer : _observers) {
+            observer->onContainerDelete(opCtx, ns, collUUID, ident, key);
+        }
+    }
+
+    void onContainerDelete(OperationContext* opCtx,
+                           const NamespaceString& ns,
+                           const UUID& collUUID,
+                           StringData ident,
+                           std::span<const char> key) override {
+        ReservedTimes times{opCtx};
+        for (auto&& observer : _observers) {
+            observer->onContainerDelete(opCtx, ns, collUUID, ident, key);
+        }
+    }
+
     void onInternalOpMessage(OperationContext* const opCtx,
                              const NamespaceString& nss,
                              const boost::optional<UUID>& uuid,
@@ -563,18 +609,6 @@ public:
     void onDropDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) override {
         for (auto& o : _observers)
             o->onDropDatabaseMetadata(opCtx, op);
-    }
-
-    void onBeginPromotionToShardedCluster(OperationContext* opCtx,
-                                          const repl::OplogEntry& op) override {
-        for (auto& o : _observers)
-            o->onBeginPromotionToShardedCluster(opCtx, op);
-    }
-
-    void onCompletePromotionToShardedCluster(OperationContext* opCtx,
-                                             const repl::OplogEntry& op) override {
-        for (auto& o : _observers)
-            o->onCompletePromotionToShardedCluster(opCtx, op);
     }
 
 private:

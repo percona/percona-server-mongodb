@@ -110,6 +110,7 @@
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/stats/server_write_concern_metrics.h"
+#include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/record_data.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_engine.h"
@@ -208,23 +209,36 @@ StringData getInvalidatingReason(const OplogApplication::Mode mode, const bool i
 
 boost::optional<CreateCollCatalogIdentifier> extractReplicatedCatalogIdentifier(
     OperationContext* opCtx, const OplogEntry& oplogEntry) {
-    if (auto& o2 = oplogEntry.getObject2(); o2.has_value() &&
-        shouldReplicateLocalCatalogIdentifers(VersionContext::getDecoration(opCtx))) {
-        // TODO SERVER-106459: Utilize IDL parsing and input validation.
-        boost::optional<std::string> idIndexIdent;
-        if (auto idIdentElem = o2->getField("idIndexIdent"); idIdentElem) {
-            idIndexIdent = idIdentElem.String();
-        }
-        auto catalogIdElem = o2->getField("catalogId");
-        uassert(
-            ErrorCodes::InvalidOptions, "Missing 'catalogId' field from 'o2' entry", catalogIdElem);
-        return CreateCollCatalogIdentifier{.catalogId = RecordId::deserializeToken(catalogIdElem),
-                                           .ident = std::string(o2->getStringField("ident")),
-                                           .idIndexIdent = idIndexIdent};
+    auto& o2 = oplogEntry.getObject2();
+    if (!o2 || !shouldReplicateLocalCatalogIdentifers(VersionContext::getDecoration(opCtx))) {
+        // Either no catalog identifier information was provided, or replicated local catalog
+        // identifiers are not supported.
+        return boost::none;
     }
-    // Either no catalog identifier information was provided, or replicated local catalog
-    // identifiers are not supported.
-    return boost::none;
+
+    // TODO SERVER-106459: Utilize IDL parsing and input validation.
+    boost::optional<std::string> idIndexIdent;
+    if (auto idIdentElem = o2->getField("idIndexIdent"); idIdentElem) {
+        uassert(ErrorCodes::InvalidOptions,
+                fmt::format(
+                    "'idIndexIdent' field must be a string containing a valid ident but got '{}'",
+                    idIdentElem.toString()),
+                idIdentElem.type() == BSONType::string &&
+                    ident::isValidIdent(idIdentElem.valueStringData()));
+        idIndexIdent = idIdentElem.str();
+    }
+
+    auto catalogIdElem = o2->getField("catalogId");
+    uassert(ErrorCodes::InvalidOptions, "Missing 'catalogId' field from 'o2' entry", catalogIdElem);
+
+    auto ident = o2->getStringField("ident");
+    uassert(ErrorCodes::InvalidOptions,
+            fmt::format("'ident' field must contain a valid ident but got '{}'", ident),
+            ident::isValidIdent(ident));
+
+    return CreateCollCatalogIdentifier{.catalogId = RecordId::deserializeToken(catalogIdElem),
+                                       .ident = std::string(ident),
+                                       .idIndexIdent = std::move(idIndexIdent)};
 }
 }  // namespace
 
@@ -284,10 +298,20 @@ void createIndexForApplyOps(OperationContext* opCtx,
                             OplogApplication::Mode mode) {
     // Uncommitted collections support creating indexes using relaxed locking if they are part of a
     // multi-document transaction.
-    invariant(shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(indexNss, MODE_X) ||
-              (UncommittedCatalogUpdates::get(opCtx).isCreatedCollection(opCtx, indexNss) &&
-               shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(indexNss, MODE_IX) &&
-               opCtx->inMultiDocumentTransaction()));
+    invariant(
+        shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(indexNss, MODE_X) ||
+            (UncommittedCatalogUpdates::get(opCtx).isCreatedCollection(opCtx, indexNss) &&
+             shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(indexNss, MODE_IX) &&
+             opCtx->inMultiDocumentTransaction()),
+        str::stream() << "isCollectionLockedForModeX: "
+                      << shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(indexNss,
+                                                                                         MODE_X)
+                      << ", isCreatedCollection: "
+                      << UncommittedCatalogUpdates::get(opCtx).isCreatedCollection(opCtx, indexNss)
+                      << ", isCollectionLockedForModeIX: "
+                      << shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(indexNss,
+                                                                                         MODE_IX)
+                      << ", inMultiDocumentTransaction: " << opCtx->inMultiDocumentTransaction());
 
     // Check if collection exists.
     auto databaseHolder = DatabaseHolder::get(opCtx);
@@ -345,16 +369,17 @@ void createIndexForApplyOps(OperationContext* opCtx,
             return IndexBuildInfo(indexSpec, *storageEngine, indexCollection->ns().dbName());
         }
 
-        auto identField = indexMetadata->getField("ident");
+        auto indexIdentField = indexMetadata->getField("indexIdent");
         uassert(ErrorCodes::BadValue,
-                "Failed to create index because metadata o2 was present but missing ident: " +
+                "Failed to create index because metadata o2 was present but missing indexIdent: " +
                     indexMetadata->toString(),
-                !identField.eoo());
+                !indexIdentField.eoo());
         uassert(ErrorCodes::BadValue,
-                "Failed to create index because ident field in metadata o2 was invalid: " +
+                "Failed to create index because indexIdent field in metadata o2 was invalid: " +
                     indexMetadata->toString(),
-                identField.type() == BSONType::string && !identField.valueStringData().empty());
-        IndexBuildInfo indexBuildInfo(indexSpec, identField.String());
+                indexIdentField.type() == BSONType::string &&
+                    ident::isValidIdent(indexIdentField.valueStringData()));
+        IndexBuildInfo indexBuildInfo(indexSpec, indexIdentField.str());
         indexBuildInfo.setInternalIdents(*storageEngine);
         return indexBuildInfo;
     }();
@@ -1170,19 +1195,6 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
          opCtx->getServiceContext()->getOpObserver()->onDropDatabaseMetadata(opCtx, *op);
          return Status::OK();
      }}},
-    {"beginPromotionToShardedCluster",
-     {[](OperationContext* opCtx, const ApplierOperation& op, OplogApplication::Mode mode)
-          -> Status {
-         opCtx->getServiceContext()->getOpObserver()->onBeginPromotionToShardedCluster(opCtx, *op);
-         return Status::OK();
-     }}},
-    {"completePromotionToShardedCluster",
-     {[](OperationContext* opCtx, const ApplierOperation& op, OplogApplication::Mode mode)
-          -> Status {
-         opCtx->getServiceContext()->getOpObserver()->onCompletePromotionToShardedCluster(opCtx,
-                                                                                          *op);
-         return Status::OK();
-     }}},
 };
 
 // Writes a change stream pre-image 'preImage' associated with oplog entry 'oplogEntry' and a write
@@ -1292,6 +1304,11 @@ void OplogApplication::checkOnOplogFailureForRecovery(OperationContext* opCtx,
                       "error"_attr = errorMsg);
     }
 }
+
+NamespaceString OplogApplication::extractNsFromCmd(DatabaseName dbName, const BSONObj& cmdObj) {
+    return extractNs(dbName, cmdObj);
+}
+
 
 // Logger for oplog constraint violations.
 OplogConstraintViolationLogger* oplogConstraintViolationLogger;

@@ -94,24 +94,6 @@ namespace {
 
 using unittest::assertGet;
 
-void createTestCollection(OperationContext* opCtx, const NamespaceString& nss) {
-    OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-        opCtx);
-    uassertStatusOK(createCollection(opCtx, nss.dbName(), BSON("create" << nss.coll())));
-}
-
-void createTestView(OperationContext* opCtx,
-                    const NamespaceString& nss,
-                    const NamespaceString& viewOn,
-                    const std::vector<BSONObj>& pipeline) {
-    OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-        opCtx);
-    uassertStatusOK(createCollection(
-        opCtx,
-        nss.dbName(),
-        BSON("create" << nss.coll() << "viewOn" << viewOn.coll() << "pipeline" << pipeline)));
-}
-
 UUID getCollectionUUID(OperationContext* opCtx, const NamespaceString& nss) {
     const auto optUuid = CollectionCatalog::get(opCtx)->lookupUUIDByNSS(opCtx, nss);
     ASSERT(optUuid);
@@ -1185,7 +1167,7 @@ TEST_F(ShardRoleTest, AcquireCollectionByUUIDInCommitPendingCollection) {
 
         // Create the collection
         OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-            newOpCtx.get());
+            newOpCtx.get(), nss);
         CollectionOptions collectionOptions;
         collectionOptions.uuid = uuid;
         auto db = DatabaseHolder::get(newOpCtx.get())->openDb(newOpCtx.get(), nss.dbName());
@@ -1268,7 +1250,7 @@ TEST_F(ShardRoleTest, AcquireCollectionByUUIDInCommitPendingCollectionAfterDurab
 
         // Create the collection
         OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-            newOpCtx.get());
+            newOpCtx.get(), nss);
         CollectionOptions collectionOptions;
         collectionOptions.uuid = uuid;
         auto db = DatabaseHolder::get(newOpCtx.get())->openDb(newOpCtx.get(), nss.dbName());
@@ -1555,7 +1537,7 @@ TEST_F(ShardRoleTest, YieldAndRestoreViewAcquisitionWithLocks) {
     {
         DBDirectClient client(opCtx);
         client.dropCollection(nss);
-        createTestView(opCtx,
+        createTestView(operationContext(),
                        nssView,
                        nssUnshardedCollection1,
                        {BSON("$match" << BSON("somethingDifferent" << 1))});
@@ -1608,7 +1590,7 @@ TEST_F(ShardRoleTest, YieldAndRestoreViewAcquisitionWithoutLocks) {
     {
         DBDirectClient client(opCtx);
         client.dropCollection(nss);
-        createTestView(opCtx,
+        createTestView(operationContext(),
                        nssView,
                        nssUnshardedCollection1,
                        {BSON("$match" << BSON("somethingDifferent" << 1))});
@@ -2199,6 +2181,98 @@ TEST_F(ShardRoleTest, ReadSourceDoesNotChangeOnSecondary) {
         shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
 }
 
+TEST_F(ShardRoleTest, WriteAcquisitionsDontChangeReadSourceToLastApplied) {
+    const auto nss = nssUnshardedCollection1;
+
+    // Set up secondary read state.
+    ASSERT_OK(repl::ReplicationCoordinator::get(getServiceContext())
+                  ->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    // Initially we start with kNoTimestamp as our ReadSource.
+    ASSERT_EQUALS(
+        RecoveryUnit::ReadSource::kNoTimestamp,
+        shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
+
+    [[maybe_unused]] const auto acquisitions =
+        acquireCollection(operationContext(),
+                          {
+                              nssUnshardedCollection1,
+                              PlacementConcern{dbVersionTestDb, ShardVersion::UNSHARDED()},
+                              repl::ReadConcernArgs(),
+                              AcquisitionPrerequisites::kUnreplicatedWrite,
+                          },
+                          MODE_IX);
+
+    // Our read source should be kNoTimestamp
+    ASSERT_EQUALS(
+        RecoveryUnit::ReadSource::kNoTimestamp,
+        shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
+
+    // Yield the resources
+    auto yieldedTransactionResources =
+        yieldTransactionResourcesFromOperationContext(operationContext());
+
+    // Restore the resources
+    restoreTransactionResourcesToOperationContext(operationContext(),
+                                                  std::move(yieldedTransactionResources));
+
+    // Our read source should still be kNoTimestamp.
+    ASSERT_EQUALS(
+        RecoveryUnit::ReadSource::kNoTimestamp,
+        shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
+}
+
+TEST_F(ShardRoleTest, ReadAcquisitionsChangeReadSourceToLastApplied) {
+    for (bool lockFreeAcquisition : {true, false}) {
+        const auto nss = nssUnshardedCollection1;
+
+        // Set up secondary read state.
+        ASSERT_OK(repl::ReplicationCoordinator::get(getServiceContext())
+                      ->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+        // Initially we start with kNoTimestamp as our ReadSource.
+        ASSERT_EQUALS(
+            RecoveryUnit::ReadSource::kNoTimestamp,
+            shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
+
+        [[maybe_unused]] const auto acquisitions = !lockFreeAcquisition
+            ? acquireCollection(operationContext(),
+                                {
+                                    nssUnshardedCollection1,
+                                    PlacementConcern{dbVersionTestDb, ShardVersion::UNSHARDED()},
+                                    repl::ReadConcernArgs(),
+                                    AcquisitionPrerequisites::kRead,
+                                },
+                                MODE_IX)
+            : acquireCollectionMaybeLockFree(
+                  operationContext(),
+                  {
+                      nssUnshardedCollection1,
+                      PlacementConcern{dbVersionTestDb, ShardVersion::UNSHARDED()},
+                      repl::ReadConcernArgs(),
+                      AcquisitionPrerequisites::kRead,
+                  });
+
+        // Our read source should be kLastApplied
+        ASSERT_EQUALS(
+            RecoveryUnit::ReadSource::kLastApplied,
+            shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
+
+        // Yield the resources
+        auto yieldedTransactionResources =
+            yieldTransactionResourcesFromOperationContext(operationContext());
+
+        // Restore the resources
+        restoreTransactionResourcesToOperationContext(operationContext(),
+                                                      std::move(yieldedTransactionResources));
+
+        // Our read source should still be kLastApplied.
+        ASSERT_EQUALS(
+            RecoveryUnit::ReadSource::kLastApplied,
+            shard_role_details::getRecoveryUnit(operationContext())->getTimestampReadSource());
+    }
+}
+
 TEST_F(ShardRoleTest, RestoreChangesReadSourceAfterStepUp) {
     const auto nss = nssShardedCollection1;
 
@@ -2576,7 +2650,7 @@ TEST_F(ShardRoleTest, ScopedLocalCatalogWriteFenceWUOWRollbackAfterANotherClient
     // rollback.
     {
         OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-            operationContext());
+            operationContext(), nss);
 
         WriteUnitOfWork wuow(operationContext());
         ScopedLocalCatalogWriteFence localCatalogWriteFence(operationContext(), &acquisition);

@@ -118,9 +118,7 @@ public:
         AutoGetDb autoDb(opCtx, nss.dbName(), LockMode::MODE_X);
         autoDb.ensureDbExists(opCtx);
 
-        OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-            opCtx);
-        uassertStatusOK(createCollection(opCtx, nss.dbName(), BSON("create" << nss.coll())));
+        createTestCollection(opCtx, nss);
 
         DBDirectClient client(opCtx);
         for (int i = minDocValue; i <= maxDocValue; i++) {
@@ -147,12 +145,8 @@ public:
 
         BSONObj timeseriesOptions = BSON("timeField" << "timestamp");
 
-        OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-            opCtx);
-        uassertStatusOK(
-            createCollection(opCtx,
-                             nss.dbName(),
-                             BSON("create" << nss.coll() << "timeseries" << timeseriesOptions)));
+        createTestCollection(
+            opCtx, nss, BSON("create" << nss.coll() << "timeseries" << timeseriesOptions));
 
         DBDirectClient client(opCtx);
         for (int i = minDocValue; i <= maxDocValue; i++) {
@@ -433,6 +427,17 @@ protected:
     };
 };
 
+class TestReshardingChangeStreamsMonitorNoKill : public ReshardingChangeStreamsMonitor {
+public:
+    using ReshardingChangeStreamsMonitor::ReshardingChangeStreamsMonitor;
+
+protected:
+    Status killCursors(OperationContext* opCtx) override {
+        LOGV2(10960500, "Skipping killCursors for test");
+        return Status::OK();
+    }
+};
+
 TEST_F(ReshardingChangeStreamsMonitorTest, SuccessfullyInitializeMonitorWithStartAtTime) {
     createCollectionAndInsertDocuments(tempNss, 0 /*minDocValue*/, 9 /*maxDocValue*/);
     Timestamp startAtTime = replicationCoordinator()->getMyLastAppliedOpTime().getTimestamp();
@@ -527,13 +532,8 @@ TEST_F(ReshardingChangeStreamsMonitorTest, KillCursorFromPreviousTry) {
     createCollectionAndInsertDocuments(tempNss, 0 /*minDocValue*/, 9 /*maxDocValue*/);
     Timestamp startAtTime = replicationCoordinator()->getMyLastAppliedOpTime().getTimestamp();
 
-    // Hang monitor0 after creating its cursor to simulate a leftover cursor.
-    auto hangFp =
-        globalFailPointRegistry().find("hangReshardingChangeStreamsMonitorAfterCreatingCursor");
-    auto timesEntered = hangFp->setMode(FailPoint::nTimes, 1);
-
     // Start a monitor.
-    auto monitor0 = std::make_shared<ReshardingChangeStreamsMonitor>(
+    auto monitor0 = std::make_shared<TestReshardingChangeStreamsMonitorNoKill>(
         reshardingUUID, tempNss, startAtTime, boost::none /* startAfterResumeToken */, callback);
     auto awaitCompletion0 =
         monitor0->startMonitoring(executor, cleanupExecutor, cancelSource.token(), *factory);
@@ -542,8 +542,6 @@ TEST_F(ReshardingChangeStreamsMonitorTest, KillCursorFromPreviousTry) {
     resharding_test_util::assertSoon(opCtx, [&] {
         return hasOpenCursor(tempNss, monitor0->makeAggregateComment(reshardingUUID));
     });
-
-    hangFp->waitForTimesEntered(timesEntered + 1);
 
     // Start another monitor and make it run to completion successfully.
     auto executor1 = makeTaskExecutor("New");
@@ -858,10 +856,7 @@ TEST_F(ReshardingChangeStreamsMonitorTest, EnsurePromiseFulfilledOnReachingRecip
 TEST_F(ReshardingChangeStreamsMonitorTest, EnsurePromiseFulfilledOnReachingDonorFinalEvent) {
     AutoGetDb autoDb(opCtx, sourceNss.dbName(), LockMode::MODE_X);
     autoDb.ensureDbExists(opCtx);
-    OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-        opCtx);
-    uassertStatusOK(
-        createCollection(opCtx, sourceNss.dbName(), BSON("create" << sourceNss.coll())));
+    createTestCollection(opCtx, sourceNss);
     Timestamp startAtTime = replicationCoordinator()->getMyLastAppliedOpTime().getTimestamp();
 
     insertDonorFinalEventNoopOplogEntry(sourceNss);

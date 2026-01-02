@@ -650,14 +650,7 @@ Status renameCollectionAcrossDatabases(OperationContext* opCtx,
         targetDBLock.emplace(opCtx, target.dbName(), MODE_X);
     }
 
-    {
-        const auto scopedSs = ShardingState::ScopedTransitionalShardingState::acquireShared(opCtx);
-        if (scopedSs.isInTransitionalPhase(opCtx)) {
-            scopedSs.checkDbVersionOrThrow(opCtx, source.dbName());
-        } else {
-            DatabaseShardingState::acquire(opCtx, source.dbName())->checkDbVersionOrThrow(opCtx);
-        }
-    }
+    DatabaseShardingState::acquire(opCtx, source.dbName())->checkDbVersionOrThrow(opCtx);
 
     DisableDocumentValidation validationDisabler(opCtx);
 
@@ -762,6 +755,8 @@ Status renameCollectionAcrossDatabases(OperationContext* opCtx,
                                       options.newTargetCollectionUuid.get_value_or(UUID::gen())};
 
     {
+        OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
+            opCtx, tmpName);
         auto collectionOptions = sourceColl->getCollectionOptions();
         collectionOptions.uuid = tmpCollUUID.uuid();
 
@@ -1091,8 +1086,6 @@ void validateAndRunRenameCollection(OperationContext* opCtx,
 
     validateNamespacesForRenameCollection(opCtx, source, target, options);
 
-    OperationShardingState::ScopedAllowImplicitCollectionCreate_UNSAFE unsafeCreateCollection(
-        opCtx);
     uassertStatusOK(renameCollection(opCtx, source, target, options));
 }
 
