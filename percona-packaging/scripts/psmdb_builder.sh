@@ -173,11 +173,6 @@ get_sources(){
     export GOPATH=$PWD/../
     export PATH="/usr/local/go/bin:$PATH:$GOPATH"
     export GOBINPATH="/usr/local/go/bin"
-    go mod edit \
-           -replace golang.org/x/crypto@v0.32.0=golang.org/x/crypto@v0.35.0 \
-           -replace github.com/golang-jwt/jwt/v5@v5.2.1=github.com/golang-jwt/jwt/v5@v5.2.2
-    go mod tidy
-    go mod vendor
 
     # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
     # Use rhel93 selector for all builds, no fix by this time(20.01.2025)
@@ -243,7 +238,7 @@ install_golang() {
         return 1
     fi
 
-    GO_VERSION="1.23.8"
+    GO_VERSION="1.25.5"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
@@ -1173,7 +1168,7 @@ build_tarball(){
     cd mongo-tools
     . ./set_tools_revision.sh
     sed -i '14d' buildscript/build.go
-    sed -i '199,207d' buildscript/build.go
+    sed -i '226,234d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
