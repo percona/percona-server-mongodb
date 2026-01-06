@@ -1851,6 +1851,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/* @10gen/query-execution-classic @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/OWNERS.yml @10gen/query-execution-staff-leads @10gen/query-integration-staff-leads @10gen/query-optimization-staff-leads @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/current_op_stage* @10gen/query-integration-observability @svc-auto-approve-bot
+/src/mongo/db/exec/agg/**/query_stats_stage* @10gen/query-integration-observability @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/densify_stage* @10gen/query-integration-extensions @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/internal_set_window_fields_stage* @10gen/query-integration-extensions @svc-auto-approve-bot
 
@@ -2576,10 +2577,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/s/OWNERS.yml
 /src/mongo/db/s/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
-/src/mongo/db/s/**/*coordinator* @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
 /src/mongo/db/s/**/*transaction* @10gen/server-transactions @svc-auto-approve-bot
 /src/mongo/db/s/**/*txn* @10gen/server-transactions @svc-auto-approve-bot
-/src/mongo/db/s/**/README_timeseries.md @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 /src/mongo/db/s/**/shardsvr_resolve_view_command_test.cpp @10gen/query-integration-search @svc-auto-approve-bot
 /src/mongo/db/s/**/document_source_visitor_docs_needed_bounds.cpp @10gen/query-integration-search @svc-auto-approve-bot
 /src/mongo/db/s/**/forwardable_operation_metadata* @10gen/server-programmability @svc-auto-approve-bot
@@ -2821,8 +2820,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/s/**/async_rpc_shard* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/s/**/load_balancer_support* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/s/**/balancer_feature_flag* @10gen/server-cluster-scalability @svc-auto-approve-bot
-/src/mongo/s/**/list_shards.idl @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
-/src/mongo/s/**/README_router_role_api.md @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/s/change_streams/OWNERS.yml
 /src/mongo/s/change_streams/**/* @10gen/query-execution-change-streams @10gen/server-catalog-and-routing @svc-auto-approve-bot
@@ -2859,7 +2856,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/s/commands/**/cluster_rwc_defaults_commands.cpp @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /src/mongo/s/commands/**/cluster_set_feature_compatibility_version_cmd.cpp @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /src/mongo/s/commands/**/*read_write_concern_defaults* @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
-/src/mongo/s/commands/**/cluster_commit_shard_removal_cmd.cpp @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/s/commands/commit_quorum/OWNERS.yml
 /src/mongo/s/commands/commit_quorum/**/* @10gen/server-index-builds @svc-auto-approve-bot

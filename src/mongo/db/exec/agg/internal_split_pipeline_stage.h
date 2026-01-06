@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2023-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,31 +27,19 @@
  *    it in the license file.
  */
 
-/**
- * This file is included multiple times into `database_name.h`, in order to
- * define DatabaseName constexpr values. The `DBNAME_CONSTANT` macro callback
- * will be defined differently at each include. Lines here are of the form:
- *
- *     DBNAME_CONSTANT(id, db)
- *
- * - `id` is the `ConstantProxy` data member of `DatabaseName` being defined.
- * - `db` : must be a constexpr StringData expression.
- */
+#pragma once
 
-DBNAME_CONSTANT(kAdmin, "admin"_sd)
+#include "mongo/db/exec/agg/stage.h"
 
-DBNAME_CONSTANT(kLocal, "local"_sd)
+namespace mongo::exec::agg {
 
-DBNAME_CONSTANT(kConfig, "config"_sd)
+class InternalSplitPipelineStage final : public Stage {
+public:
+    InternalSplitPipelineStage(StringData stageName,
+                               const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
-DBNAME_CONSTANT(kSystem, "system"_sd)
+private:
+    GetNextResult doGetNext() final;
+};
 
-DBNAME_CONSTANT(kExternal, "$external"_sd)
-
-DBNAME_CONSTANT(kEmpty, ""_sd)
-
-DBNAME_CONSTANT(kMdbTesting, "mdb_testing"_sd)
-
-DBNAME_CONSTANT(kGlobal, "global"_sd)
-
-DBNAME_CONSTANT(kMdbCatalog, "_mdb_catalog"_sd)
+}  // namespace mongo::exec::agg

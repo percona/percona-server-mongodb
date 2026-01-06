@@ -57,12 +57,14 @@ const string AVRO_SNAPPY_CODEC = "snappy";
 const size_t minSyncInterval = 32;
 const size_t maxSyncInterval = 1u << 30;
 
+#ifdef ZLIB_AVAILABLE
 boost::iostreams::zlib_params get_zlib_params() {
     boost::iostreams::zlib_params ret;
     ret.method = boost::iostreams::zlib::deflated;
     ret.noheader = true;
     return ret;
 }
+#endif
 } // namespace
 
 DataFileWriterBase::DataFileWriterBase(const char *filename, const ValidSchema &schema, size_t syncInterval,

@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2020-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,36 +29,17 @@
 
 #pragma once
 
-#include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator.h"
-#include "mongo/db/s/initialize_placement_history_coordinator_document_gen.h"
+#include "mongo/db/exec/agg/stage.h"
 
-namespace mongo {
+namespace mongo::exec::agg {
 
-class InitializePlacementHistoryCoordinator final
-    : public RecoverableShardingDDLCoordinator<InitializePlacementHistoryCoordinatorDocument,
-                                               InitializePlacementHistoryPhaseEnum> {
+class InternalInhibitOptimizationStage final : public Stage {
 public:
-    using Phase = InitializePlacementHistoryPhaseEnum;
-
-    InitializePlacementHistoryCoordinator(ShardingDDLCoordinatorService* service,
-                                          const BSONObj& initialState)
-        : RecoverableShardingDDLCoordinator(
-              service, "InitializePlacementHistoryCoordinator", initialState) {}
-
-    ~InitializePlacementHistoryCoordinator() override = default;
-
-    void checkIfOptionsConflict(const BSONObj& doc) const final {}
+    InternalInhibitOptimizationStage(StringData stageName,
+                                     const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
 private:
-    StringData serializePhase(const Phase& phase) const override {
-        return InitializePlacementHistoryPhase_serializer(phase);
-    }
-
-    bool _mustAlwaysMakeProgress() override {
-        return _doc.getPhase() > Phase::kUnset;
-    }
-
-    ExecutorFuture<void> _runImpl(std::shared_ptr<executor::ScopedTaskExecutor> executor,
-                                  const CancellationToken& token) noexcept override;
+    GetNextResult doGetNext() final;
 };
-}  // namespace mongo
+
+}  // namespace mongo::exec::agg
