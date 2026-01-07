@@ -59,18 +59,22 @@ Result WriteBatchResponseProcessor::_onWriteBatchResponse(
     Result result;
     for (const auto& [shardId, shardResponse] : response) {
         auto shardResult = onShardResponse(opCtx, routingCtx, shardId, shardResponse);
-        if (shardResult.errorType == ErrorType::kStopProcessing) {
-            return shardResult;
-        }
-        if (shardResult.errorType == ErrorType::kUnrecoverable) {
-            result.errorType = ErrorType::kUnrecoverable;
-        }
         result.opsToRetry.insert(result.opsToRetry.end(),
                                  std::make_move_iterator(shardResult.opsToRetry.begin()),
                                  std::make_move_iterator(shardResult.opsToRetry.end()));
         for (auto& [nss, info] : shardResult.collsToCreate) {
             if (auto it = result.collsToCreate.find(nss); it == result.collsToCreate.cend()) {
                 result.collsToCreate.emplace(nss, std::move(info));
+            }
+        }
+
+        if (shardResult.errorType != ErrorType::kNone) {
+            result.errorType = shardResult.errorType;
+
+            // If 'errorType' is kStopProcessing, stop processing immediately and return a Result
+            // for what we've processed so far.
+            if (shardResult.errorType == ErrorType::kStopProcessing) {
+                break;
             }
         }
     }
@@ -95,8 +99,8 @@ Result WriteBatchResponseProcessor::_onWriteBatchResponse(
     BulkWriteReplyItem replyItem = [&] {
         if (swRes.isOK() && !swRes.getValue().getResponse().isEmpty()) {
             auto parsedReply = BulkWriteCommandReply::parse(
-                IDLParserContext("BulkWriteCommandReply_UnifiedWriteExec"),
-                swRes.getValue().getResponse());
+                swRes.getValue().getResponse(),
+                IDLParserContext("BulkWriteCommandReply_UnifiedWriteExec"));
 
             // Update the counters.
             _nInserted += parsedReply.getNInserted();
@@ -206,13 +210,18 @@ Result WriteBatchResponseProcessor::onShardResponse(OperationContext* opCtx,
     // Handle any top level errors.
     auto shardResponseStatus = getStatusFromCommandResult(shardResponse.data);
     if (!shardResponseStatus.isOK()) {
-        // If we are in a transaction, we stop processing and return the first error.
         auto status = shardResponseStatus.withContext(
             str::stream() << "cluster write results unavailable from " << shardResponse.target);
 
+        // Processing stale error returned as a top-level error.
+        if (status == ErrorCodes::StaleDbVersion || ErrorCodes::isStaleShardVersionError(status)) {
+            routingCtx.onStaleError(status);
+        }
+
+        // If we are in a transaction, we stop processing and return the first error.
         const bool inTransaction = static_cast<bool>(TransactionRouter::get(opCtx));
         if (inTransaction) {
-            auto errorReply = ErrorReply::parse(IDLParserContext("ErrorReply"), shardResponse.data);
+            auto errorReply = ErrorReply::parse(shardResponse.data, IDLParserContext("ErrorReply"));
             // Transient transaction errors should be returned directly as top level errors to allow
             // the client to retry.
             if (hasTransientTransactionErrorLabel(errorReply)) {
@@ -245,7 +254,7 @@ Result WriteBatchResponseProcessor::onShardResponse(OperationContext* opCtx,
 
     // Parse and handle inner ok and error responses.
     auto parsedReply = BulkWriteCommandReply::parse(
-        IDLParserContext("BulkWriteCommandReply_UnifiedWriteExec"), shardResponse.data);
+        shardResponse.data, IDLParserContext("BulkWriteCommandReply_UnifiedWriteExec"));
 
     // Process write concern error
     auto wcError = parsedReply.getWriteConcernError();
@@ -314,7 +323,7 @@ Result WriteBatchResponseProcessor::processOpsInReplyItems(
                 LOGV2_DEBUG(
                     10346900, 4, "Noting stale config response", "status"_attr = item.getStatus());
             }
-            routingCtx.onStaleError(op.getNss(), item.getStatus());
+            routingCtx.onStaleError(item.getStatus(), op.getNss());
             toRetry.push_back(op);
         } else if (itemCode == ErrorCodes::ShardCannotRefreshDueToLocksHeld) {
             LOGV2_DEBUG(10413104,

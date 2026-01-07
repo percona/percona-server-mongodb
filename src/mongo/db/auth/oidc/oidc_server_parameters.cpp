@@ -220,7 +220,7 @@ void paramDeserialize(OidcIdentityProvidersServerParameter& param, const BSONArr
     for (std::size_t i{0u}; const BSONElement& elem : arr) {
         IDLParserContext ctx{str::stream() << kParameterName << "[" << i++ << "]"};
         ctx.checkAndAssertType(elem, mongo::BSONType::object);
-        auto config{OidcIdentityProviderConfig::parse(ctx, elem.Obj())};
+        auto config{OidcIdentityProviderConfig::parse(elem.Obj(), ctx)};
 
         // The default value for array fields is not supported by IDL,
         // so the default value is set here manually.

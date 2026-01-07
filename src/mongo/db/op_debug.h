@@ -266,7 +266,9 @@ public:
                                                                          bool needWholeDocument);
     static void appendUserInfo(const CurOp&, BSONObjBuilder&, AuthorizationSession*);
 
-    static void appendDelinquentInfo(OperationContext* opCtx, BSONObjBuilder&);
+    static void appendDelinquentInfo(OperationContext* opCtx,
+                                     BSONObjBuilder&,
+                                     bool reportAcquisitions = true);
 
     /**
      * Moves relevant plan summary metrics to this OpDebug instance.
@@ -495,6 +497,9 @@ public:
 
     // Stores storage statistics.
     std::unique_ptr<StorageStats> storageStats;
+
+    // Stores storage statistics from the spill engine.
+    std::unique_ptr<StorageStats> spillStorageStats;
 
     bool waitingForFlowControl{false};
 

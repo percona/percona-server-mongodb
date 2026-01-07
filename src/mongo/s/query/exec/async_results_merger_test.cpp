@@ -74,7 +74,7 @@ using AsyncResultsMergerTest = ResultsMergerTestFixture;
 namespace {
 
 LogicalSessionId parseSessionIdFromCmd(BSONObj cmdObj) {
-    return LogicalSessionId::parse(IDLParserContext("lsid"), cmdObj["lsid"].Obj());
+    return LogicalSessionId::parse(cmdObj["lsid"].Obj(), IDLParserContext("lsid"));
 }
 
 BSONObj makeResumeToken(Timestamp clusterTime, UUID uuid, BSONObj docKey) {
@@ -1962,8 +1962,8 @@ TEST_F(AsyncResultsMergerTest, GetMoreBatchSizes) {
 
     BSONObj scheduledCmd = getNthPendingRequest(0).cmdObj;
     auto cmd = GetMoreCommandRequest::parse(
-        IDLParserContext{"getMore"},
-        scheduledCmd.addField(BSON("$db" << "anydbname").firstElement()));
+        scheduledCmd.addField(BSON("$db" << "anydbname").firstElement()),
+        IDLParserContext{"getMore"});
     ASSERT_EQ(*cmd.getBatchSize(), 3LL);
     ASSERT_EQ(cmd.getCommandParameter(), 1LL);
     scheduleNetworkResponses(std::move(responses));
@@ -3369,7 +3369,7 @@ TEST_F(AsyncResultsMergerTest, CanAccessParams) {
     ASSERT_TRUE(arm->remotesExhausted());
 }
 
-TEST(AsyncResultsMergerTest, CheckHighWaterMarkTokensAreMonotonicallyIncreasing) {
+TEST(SimpleAsyncResultsMergerTest, CheckHighWaterMarkTokensAreMonotonicallyIncreasing) {
     // Compare high water mark tokens against each other.
     ASSERT_FALSE(isMonotonicallyIncreasing(Timestamp(42, 1), Timestamp(42, 0)));
     ASSERT_FALSE(isMonotonicallyIncreasing(Timestamp(42, 1), Timestamp(41, 0)));
@@ -3389,7 +3389,7 @@ TEST(AsyncResultsMergerTest, CheckHighWaterMarkTokensAreMonotonicallyIncreasing)
     ASSERT_TRUE(isMonotonicallyIncreasing(Timestamp(42, 100), Timestamp(99, 0)));
 }
 
-TEST(AsyncResultsMergerTest, CheckHigResumeTokensAreMonotonicallyIncreasing) {
+TEST(SimpleAsyncResultsMergerTest, CheckHigResumeTokensAreMonotonicallyIncreasing) {
     // Compare resume tokens against high water mark tokens.
     UUID uuid = UUID::gen();
 

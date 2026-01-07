@@ -132,6 +132,7 @@
 #include "mongo/util/fail_point.h"
 #include "mongo/util/functional.h"
 #include "mongo/util/net/cidr.h"
+#include "mongo/util/observable_mutex_registry.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 #include "mongo/util/synchronized_value.h"
@@ -490,7 +491,7 @@ ReplicationCoordinatorImpl::ReplicationCoordinatorImpl(
       _splitSessionManager(InternalSessionPool::get(service)),
       _intentRegistry(rss::consensus::IntentRegistry::get(service)),
       _primaryMajorityReadsAvailability(PrimaryMajorityReadsAvailability()) {
-    // TODO SERVER-108397: Add mutex to the registry
+    ObservableMutexRegistry::get().add("ReplicationCoordinatorImpl::_mutex", _mutex);
 
     _termShadow.store(OpTime::kUninitializedTerm);
     _electionIdTermShadow.store(_topCoord->getElectionIdTerm());
@@ -4914,8 +4915,8 @@ ReadPreference ReplicationCoordinatorImpl::_getSyncSourceReadPreference(WithLock
         if (!initialSyncSourceReadPreference.empty()) {
             try {
                 readPreference =
-                    ReadPreference_parse(IDLParserContext("initialSyncSourceReadPreference"),
-                                         initialSyncSourceReadPreference);
+                    ReadPreference_parse(initialSyncSourceReadPreference,
+                                         IDLParserContext("initialSyncSourceReadPreference"));
                 parsedSyncSourceFromInitialSync = true;
             } catch (const DBException& e) {
                 fassertFailedWithStatus(3873100, e.toStatus());
@@ -5941,7 +5942,7 @@ boost::optional<UUID> ReplicationCoordinatorImpl::getInitialSyncId(OperationCont
     BSONObj initialSyncId = _replicationProcess->getConsistencyMarkers()->getInitialSyncId(opCtx);
     if (initialSyncId.hasField(InitialSyncIdDocument::k_idFieldName)) {
         InitialSyncIdDocument initialSyncIdDoc =
-            InitialSyncIdDocument::parse(IDLParserContext("initialSyncId"), initialSyncId);
+            InitialSyncIdDocument::parse(initialSyncId, IDLParserContext("initialSyncId"));
         return initialSyncIdDoc.get_id();
     }
     return boost::none;

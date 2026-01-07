@@ -1689,8 +1689,8 @@ TEST(QueryRequestHelperTest, ParsedCursorRemainsValidAfterBSONDestroyed) {
                                        << "firstBatch"
                                        << BSON_ARRAY(BSON("_id" << 1) << BSON("_id" << 2))));
         cir = CursorInitialReply::parseOwned(
-            IDLParserContext("QueryRequestHelperTest::ParsedCursorRemainsValidAFterBSONDestroyed"),
-            std::move(cursorObj));
+            std::move(cursorObj),
+            IDLParserContext("QueryRequestHelperTest::ParsedCursorRemainsValidAFterBSONDestroyed"));
         cursorObj = BSONObj();
     }
     ASSERT_EQ(cir.getCursor()->getFirstBatch().size(), batch.size());
@@ -1699,9 +1699,9 @@ TEST(QueryRequestHelperTest, ParsedCursorRemainsValidAfterBSONDestroyed) {
     }
 }
 
-class QueryRequestTest : public ServiceContextTest {};
+class ServiceQueryRequestTest : public ServiceContextTest {};
 
-TEST_F(QueryRequestTest, ParseFromUUID) {
+TEST_F(ServiceQueryRequestTest, ParseFromUUID) {
     const UUID uuid = UUID::gen();
     NamespaceStringOrUUID nssOrUUID(DatabaseName::createDatabaseName_forTest(boost::none, "test"),
                                     uuid);

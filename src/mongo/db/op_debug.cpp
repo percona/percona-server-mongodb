@@ -76,7 +76,14 @@ void addSingleSpillingStats(PlanSummaryStats::SpillingStage stage,
             appendCallback("bucketAutoSpilledDataStorageSize",
                            static_cast<long long>(stats.getSpilledDataStorageSize()));
             return;
-
+        case PlanSummaryStats::SpillingStage::GEO_NEAR:
+            appendCallback("geoNearSpills", static_cast<long long>(stats.getSpills()));
+            appendCallback("geoNearSpilledBytes", static_cast<long long>(stats.getSpilledBytes()));
+            appendCallback("geoNearSpilledRecords",
+                           static_cast<long long>(stats.getSpilledRecords()));
+            appendCallback("geoNearSpilledDataStorageSize",
+                           static_cast<long long>(stats.getSpilledDataStorageSize()));
+            return;
         case PlanSummaryStats::SpillingStage::GRAPH_LOOKUP:
             appendCallback("graphLookupSpills", static_cast<long long>(stats.getSpills()));
             appendCallback("graphLookupSpilledBytes",
@@ -426,6 +433,10 @@ void OpDebug::report(OperationContext* opCtx,
         pAttrs->add("storage", storageStats->toBSON());
     }
 
+    if (spillStorageStats) {
+        pAttrs->add("spillStorage", spillStorageStats->toBSON());
+    }
+
     // Always report cpuNanos in rare cases that it is zero to facilitate testing that expects this
     // field to always exist.
     if (cpuTime >= Nanoseconds::zero()) {
@@ -450,11 +461,22 @@ void OpDebug::report(OperationContext* opCtx,
         pAttrs->add("remoteOpWaitMillis", durationCount<Milliseconds>(*remoteOpWaitTime));
     }
 
-    const auto& admCtx = ExecutionAdmissionContext::get(opCtx);
-    if (admCtx.getDelinquentAcquisitions() > 0 && !opCtx->inMultiDocumentTransaction()) {
-        BSONObjBuilder sub;
-        appendDelinquentInfo(opCtx, sub);
-        pAttrs->add("delinquencyInfo", sub.obj());
+    if (!curop.parent()) {
+        pAttrs->add("numInterruptChecks", opCtx->numInterruptChecks());
+
+        const auto& admCtx = ExecutionAdmissionContext::get(opCtx);
+        // Note that we don't record delinquency stats around ticketing when in a
+        // multi-document transaction, since operations within multi-document transactions hold
+        // tickets for a long time by design and reporting them as delinquent will just create
+        // noise in the data.
+        const bool reportAcquisitions = !opCtx->inMultiDocumentTransaction();
+        const auto* stats = opCtx->overdueInterruptCheckStats();
+        if ((reportAcquisitions && admCtx.getDelinquentAcquisitions() > 0) ||
+            (stats && stats->overdueInterruptChecks.loadRelaxed() > 0)) {
+            BSONObjBuilder sub;
+            appendDelinquentInfo(opCtx, sub, reportAcquisitions);
+            pAttrs->add("delinquencyInfo", sub.obj());
+        }
     }
 
     // Extract admission and execution control queueing stats from AdmissionContext stored on opCtx
@@ -669,6 +691,10 @@ void OpDebug::append(OperationContext* opCtx,
         b.append("storage", storageStats->toBSON());
     }
 
+    if (spillStorageStats) {
+        b.append("spillStorage", spillStorageStats->toBSON());
+    }
+
     if (!errInfo.isOK()) {
         b.appendNumber("ok", 0.0);
         if (!errInfo.reason().empty()) {
@@ -751,11 +777,23 @@ void OpDebug::appendUserInfo(const CurOp& c,
     builder.append("user", name ? name->getDisplayName() : "");
 }
 
-void OpDebug::appendDelinquentInfo(OperationContext* opCtx, BSONObjBuilder& bob) {
+void OpDebug::appendDelinquentInfo(OperationContext* opCtx,
+                                   BSONObjBuilder& bob,
+                                   bool reportAcquisitions) {
     const auto& admCtx = ExecutionAdmissionContext::get(opCtx);
-    bob.append("totalDelinquentAcquisitions", admCtx.getDelinquentAcquisitions());
-    bob.append("totalAcquisitionDelinquencyMillis", admCtx.getTotalAcquisitionDelinquencyMillis());
-    bob.append("maxAcquisitionDelinquencyMillis", admCtx.getMaxAcquisitionDelinquencyMillis());
+    if (reportAcquisitions && admCtx.getDelinquentAcquisitions() > 0) {
+        bob.append("totalDelinquentAcquisitions", admCtx.getDelinquentAcquisitions());
+        bob.append("totalAcquisitionDelinquencyMillis",
+                   admCtx.getTotalAcquisitionDelinquencyMillis());
+        bob.append("maxAcquisitionDelinquencyMillis", admCtx.getMaxAcquisitionDelinquencyMillis());
+    }
+
+    if (auto* stats = opCtx->overdueInterruptCheckStats();
+        stats && stats->overdueInterruptChecks.loadRelaxed() > 0) {
+        bob.append("overdueInterruptChecks", stats->overdueInterruptChecks.loadRelaxed());
+        bob.append("overdueInterruptTotalMillis", stats->overdueAccumulator.loadRelaxed().count());
+        bob.append("overdueInterruptApproxMaxMillis", stats->overdueMaxTime.loadRelaxed().count());
+    }
 }
 
 std::function<BSONObj(ProfileFilter::Args)> OpDebug::appendStaged(StringSet requestedFields,
@@ -1018,6 +1056,12 @@ std::function<BSONObj(ProfileFilter::Args)> OpDebug::appendStaged(StringSet requ
     addIfNeeded("storage", [](auto field, auto args, auto& b) {
         if (args.op.storageStats) {
             b.append(field, args.op.storageStats->toBSON());
+        }
+    });
+
+    addIfNeeded("spillStorage", [](auto field, auto args, auto& b) {
+        if (args.op.spillStorageStats) {
+            b.append(field, args.op.spillStorageStats->toBSON());
         }
     });
 

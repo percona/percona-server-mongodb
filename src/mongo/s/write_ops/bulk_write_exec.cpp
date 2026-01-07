@@ -255,9 +255,8 @@ BulkWriteReplyInfo processFLEResponse(OperationContext* opCtx,
             }
         }
         if (response.isWriteConcernErrorSet()) {
-            auto bwWce = BulkWriteWriteConcernError::parseOwned(
-                IDLParserContext("BulkWriteWriteConcernError"),
-                response.getWriteConcernError()->toBSON());
+            auto bwWce =
+                BulkWriteWriteConcernError::parseOwned(response.getWriteConcernError()->toBSON());
             replyInfo.wcErrors = bwWce;
         }
     } else {
@@ -645,8 +644,8 @@ void executeWriteWithoutShardKey(
         } else {
             try {
                 bulkWriteResponse = BulkWriteCommandReply::parse(
-                    IDLParserContext("BulkWriteCommandReplyForWriteWithoutShardKey"),
-                    swRes.getValue().getResponse());
+                    swRes.getValue().getResponse(),
+                    IDLParserContext("BulkWriteCommandReplyForWriteWithoutShardKey"));
             } catch (const DBException& ex) {
                 responseStatus = ex.toStatus().withContext(
                     "Failed to parse response from writes without shard key");
@@ -772,24 +771,31 @@ BulkWriteReplyInfo execute(OperationContext* opCtx,
             refreshedTargeter = true;
         } else {
             stdx::unordered_map<NamespaceString, TrackedErrors> errorsPerNamespace;
-            if (targetStatus.getValue() == WriteType::TimeseriesRetryableUpdate) {
-                executeRetryableTimeseriesUpdate(opCtx, childBatches, bulkWriteOp);
-            } else if (targetStatus.getValue() == WriteType::WithoutShardKeyOrId) {
-                executeWriteWithoutShardKey(
-                    opCtx, targeters, childBatches, bulkWriteOp, errorsPerNamespace);
-            } else if (targetStatus.getValue() == WriteType::WithoutShardKeyWithId) {
-                executeNonTargetedWriteWithoutShardKeyWithId(
-                    opCtx, targeters, childBatches, bulkWriteOp, errorsPerNamespace);
-            } else if (targetStatus.getValue() == WriteType::MultiWriteBlockingMigrations) {
-                coordinateMultiUpdate(opCtx, childBatches, bulkWriteOp);
-            } else {
-                // Send the child batches and wait for responses.
-                executeChildBatches(opCtx,
-                                    targeters,
-                                    childBatches,
-                                    bulkWriteOp,
-                                    errorsPerNamespace,
-                                    /*allowShardKeyUpdatesWithoutFullShardKeyInQuery=*/boost::none);
+
+            try {
+                if (targetStatus.getValue() == WriteType::TimeseriesRetryableUpdate) {
+                    executeRetryableTimeseriesUpdate(opCtx, childBatches, bulkWriteOp);
+                } else if (targetStatus.getValue() == WriteType::WithoutShardKeyOrId) {
+                    executeWriteWithoutShardKey(
+                        opCtx, targeters, childBatches, bulkWriteOp, errorsPerNamespace);
+                } else if (targetStatus.getValue() == WriteType::WithoutShardKeyWithId) {
+                    executeNonTargetedWriteWithoutShardKeyWithId(
+                        opCtx, targeters, childBatches, bulkWriteOp, errorsPerNamespace);
+                } else if (targetStatus.getValue() == WriteType::MultiWriteBlockingMigrations) {
+                    coordinateMultiUpdate(opCtx, childBatches, bulkWriteOp);
+                } else {
+                    // Send the child batches and wait for responses.
+                    executeChildBatches(
+                        opCtx,
+                        targeters,
+                        childBatches,
+                        bulkWriteOp,
+                        errorsPerNamespace,
+                        /*allowShardKeyUpdatesWithoutFullShardKeyInQuery=*/boost::none);
+                }
+            } catch (const DBException&) {
+                bulkWriteOp.noteStaleResponses(targeters, errorsPerNamespace);
+                throw;
             }
 
             // If we saw any staleness errors, tell the targeters to invalidate their cache
@@ -1302,8 +1308,8 @@ std::vector<BulkWriteReplyItem> exhaustCursorForReplyItems(
                 id = 0;
             } else {
                 auto getMoreReply =
-                    CursorGetMoreReply::parse(IDLParserContext("BulkWriteCommandGetMoreReply"),
-                                              response.swResponse.getValue().data);
+                    CursorGetMoreReply::parse(response.swResponse.getValue().data,
+                                              IDLParserContext("BulkWriteCommandGetMoreReply"));
 
                 id = getMoreReply.getCursor().getCursorId();
                 collection = getMoreReply.getCursor().getNs().coll();
@@ -1333,8 +1339,7 @@ void BulkWriteOp::processChildBatchResponseFromRemote(
 
     auto childBatchStatus = getStatusFromCommandResult(childBatchResponse.data);
     if (childBatchStatus.isOK()) {
-        auto bwReply = BulkWriteCommandReply::parse(IDLParserContext("BulkWriteCommandReply"),
-                                                    childBatchResponse.data);
+        auto bwReply = BulkWriteCommandReply::parse(childBatchResponse.data);
         if (bwReply.getWriteConcernError()) {
             saveWriteConcernError(
                 response.shardId, bwReply.getWriteConcernError().value(), writeBatch);
@@ -1344,7 +1349,7 @@ void BulkWriteOp::processChildBatchResponseFromRemote(
         // they may be re-targeted if needed.
         noteChildBatchResponse(writeBatch, bwReply, errorsPerNamespace);
     } else {
-        noteChildBatchError(writeBatch, childBatchStatus);
+        noteChildBatchError(writeBatch, childBatchStatus, errorsPerNamespace);
 
         // If we are in a transaction, we must abort execution on any error, excluding
         // WouldChangeOwningShard. We do not abort on WouldChangeOwningShard because the error is
@@ -1355,8 +1360,7 @@ void BulkWriteOp::processChildBatchResponseFromRemote(
             childBatchStatus != ErrorCodes::WouldChangeOwningShard) {
             _aborted = true;
 
-            auto errorReply =
-                ErrorReply::parse(IDLParserContext("ErrorReply"), childBatchResponse.data);
+            auto errorReply = ErrorReply::parse(childBatchResponse.data);
 
             // Transient transaction errors should be returned directly as top level errors to allow
             // the client to retry.
@@ -1651,7 +1655,7 @@ void BulkWriteOp::processLocalChildBatchError(const TargetedWriteBatch& batch,
                                                     : "from failing to target a host in the shard ")
                       << shardInfo);
 
-    noteChildBatchError(batch, status);
+    noteChildBatchError(batch, status, boost::none);
 
     LOGV2_DEBUG(8048100,
                 4,
@@ -1662,8 +1666,10 @@ void BulkWriteOp::processLocalChildBatchError(const TargetedWriteBatch& batch,
     abortIfNeeded(responseStatus);
 }
 
-void BulkWriteOp::noteChildBatchError(const TargetedWriteBatch& targetedBatch,
-                                      const Status& status) {
+void BulkWriteOp::noteChildBatchError(
+    const TargetedWriteBatch& targetedBatch,
+    const Status& status,
+    boost::optional<stdx::unordered_map<NamespaceString, TrackedErrors>&> errorsPerNamespace) {
     // Treat an error to get a batch response as failures of the contained write(s).
     const int numErrors =
         (_clientRequest.getOrdered() || _inTransaction) ? 1 : targetedBatch.getWrites().size();
@@ -1671,9 +1677,7 @@ void BulkWriteOp::noteChildBatchError(const TargetedWriteBatch& targetedBatch,
         createEmulatedErrorReply(status, numErrors, _clientRequest.getDbName().tenantId());
 
     // This error isn't actually specific to any namespaces and so we do not want to track it.
-    noteChildBatchResponse(targetedBatch,
-                           emulatedReply,
-                           /* errorsPerNamespace*/ boost::none);
+    noteChildBatchResponse(targetedBatch, emulatedReply, errorsPerNamespace);
 }
 
 void BulkWriteOp::noteWriteOpFinalResponse(

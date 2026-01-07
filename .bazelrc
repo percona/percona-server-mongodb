@@ -55,7 +55,7 @@ common --nolegacy_external_runfiles
 common --remote_download_outputs=all
 
 # Files we always want to download for debugging and error checking
-common --remote_download_regex=.*\.(dwo|h|cpp)$
+common --remote_download_regex=.*\.(dwo|h|cpp|test.xml)$
 
 # Disable caching of test results by default since many of our tests are non-deterministic.
 common --cache_test_results=no
@@ -398,6 +398,7 @@ common:remote_test --strategy=TestRunner=remote
 common:remote_test --features=-thin_archive
 common:remote_test --remote_download_outputs=minimal
 common:remote_test --test_output=summary
+common:remote_test --modify_execution_info=^(CppLink|CppArchive|SolibSymlink|ExtractDebuginfo|StripDebuginfo|CcGenerateIntermediateDwp|CcGenerateDwp)$=-no-remote-cache
 test:remote_test --test_timeout=600
 test:remote_test --test_tag_filters=-incompatible_with_bazel_remote_test
 
@@ -477,6 +478,7 @@ common --remote_upload_local_results=False
 # Settings specific for clang-tidy
 --config=clang-tidy
 common:clang-tidy --config=dbg
+common:clang-tidy --build_atlas
 common:clang-tidy --remote_download_outputs=all
 common:clang-tidy --build_tag_filters=-third_party,-mongo-tidy-tests,-third_party_debug,-mongo-tidy-tests_debug
 common:clang-tidy --//bazel/config:compiler_type=clang
@@ -487,6 +489,7 @@ common:clang-tidy --jobs=300
 
 --config=mod-scanner
 common:mod-scanner --config=dbg
+common:mod-scanner --build_atlas
 common:mod-scanner --build_tag_filters=-third_party,-mongo-tidy-tests,-third_party_debug,-mongo-tidy-tests_debug
 common:mod-scanner --//bazel/config:compiler_type=clang
 common:mod-scanner --//bazel/config:mongo_toolchain_version=v5

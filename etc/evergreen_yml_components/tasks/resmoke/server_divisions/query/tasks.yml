@@ -1397,6 +1397,8 @@ tasks:
       - func: "do setup"
       - func: "get mongot version"
       - func: "run tests"
+        vars:
+          resmoke_jobs_max: 1
 
   - <<: *task_template
     name: search_ssl
@@ -1768,6 +1770,36 @@ tasks:
 
   - <<: *gen_task_template
     name: unified_write_executor_sharded_causally_consistent_read_concern_snapshot_passthrough_gen
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
+    name: unified_write_executor_concurrency_sharded_replication_gen
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
+    name: unified_write_executor_concurrency_sharded_replication_with_balancer_gen
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
+    name: unified_write_executor_sharded_collections_jscore_passthrough_gen
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
+    name: unified_write_executor_sharding_jscore_passthrough_gen
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
+    name: unified_write_executor_sharding_jscore_passthrough_with_balancer_gen
     tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
     commands:
       - func: "generate resmoke tasks"
@@ -2163,6 +2195,7 @@ tasks:
         "incompatible_tsan",
         "incompatible_aubsan",
         "incompatible_debug_mode",
+        "requires_all_feature_flags",
       ]
     commands:
       - func: "do setup"
@@ -2191,6 +2224,7 @@ tasks:
         "incompatible_tsan",
         "incompatible_aubsan",
         "incompatible_debug_mode",
+        "requires_all_feature_flags",
       ]
     commands:
       - func: "do setup"
@@ -2219,6 +2253,7 @@ tasks:
         "incompatible_tsan",
         "incompatible_aubsan",
         "incompatible_debug_mode",
+        "requires_all_feature_flags",
       ]
     commands:
       - func: "do setup"
@@ -2247,6 +2282,7 @@ tasks:
         "incompatible_tsan",
         "incompatible_aubsan",
         "incompatible_debug_mode",
+        "requires_all_feature_flags",
       ]
     commands:
       - func: "do setup"
@@ -2275,6 +2311,7 @@ tasks:
         "incompatible_tsan",
         "incompatible_aubsan",
         "incompatible_debug_mode",
+        "requires_all_feature_flags",
       ]
     commands:
       - func: "do setup"
@@ -2362,6 +2399,9 @@ tasks:
 
   - <<: *task_template
     name: query_cbr_histogram_jscore_passthrough
+    # Currently disabled due to an OOM in SERVER-109720
+    # To be re-enabled in SERVER-109881 Re-enable the cbr_histogram passthroughs
+    activate: false
     tags: [
         "assigned_to_jira_team_server_query_optimization",
         "experimental",
@@ -2375,6 +2415,9 @@ tasks:
 
   - <<: *task_template
     name: query_cbr_histogram_aggregation_passthrough
+    # Currently disabled due to an OOM in SERVER-109720
+    # To be re-enabled in SERVER-109881 Re-enable the cbr_histogram passthroughs
+    activate: false
     tags: [
         "assigned_to_jira_team_server_query_optimization",
         "experimental",
@@ -2388,6 +2431,9 @@ tasks:
 
   - <<: *task_template
     name: query_golden_cbr_histogram
+    # Currently disabled due to plan flips due to SERVER-108077
+    # To be re-enabled in SERVER-109881 Re-enable the cbr_histogram passthroughs
+    activate: false
     tags: [
         "assigned_to_jira_team_server_query_optimization",
         "experimental",

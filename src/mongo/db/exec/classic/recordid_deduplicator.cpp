@@ -30,6 +30,7 @@
 #include "mongo/db/exec/classic/recordid_deduplicator.h"
 
 #include "mongo/db/commands/server_status_metric.h"
+#include "mongo/db/curop.h"
 #include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/db/pipeline/spilling/spill_table_batch_writer.h"
 #include "mongo/db/query/util/spill_util.h"
@@ -153,15 +154,22 @@ void RecordIdDeduplicator::spill(SpillingStats& stats, uint64_t maximumMemoryUsa
     if (_diskStorageLong) {
         currentSpilledDataStorageSize += _diskStorageLong->storageSize(
             *shard_role_details::getRecoveryUnit(_expCtx->getOperationContext()));
+        CurOp::get(_expCtx->getOperationContext())
+            ->updateSpillStorageStats(_diskStorageLong->computeOperationStatisticsSinceLastCall());
     };
 
     if (_diskStorageString) {
         currentSpilledDataStorageSize += _diskStorageString->storageSize(
             *shard_role_details::getRecoveryUnit(_expCtx->getOperationContext()));
+        CurOp::get(_expCtx->getOperationContext())
+            ->updateSpillStorageStats(
+                _diskStorageString->computeOperationStatisticsSinceLastCall());
     };
 
-    stats.updateSpillingStats(
-        1, additionalSpilledBytes, additionalSpilledRecords, currentSpilledDataStorageSize);
+    if (additionalSpilledBytes > 0) {
+        stats.updateSpillingStats(
+            1, additionalSpilledBytes, additionalSpilledRecords, currentSpilledDataStorageSize);
+    }
 }
 
 }  // namespace mongo

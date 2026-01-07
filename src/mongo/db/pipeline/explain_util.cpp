@@ -56,7 +56,7 @@ std::vector<Value> mergeExplains(const std::vector<Value>& lhs, const std::vecto
                 rhs[i].getType() == BSONType::object);
         Document d1 = lhs[i].getDocument();
         Document d2 = rhs[i].getDocument();
-        result.emplace_back(Document::merge(d1, d2));
+        result.emplace_back(Document::deepMerge(d1, d2));
     }
 
     return result;

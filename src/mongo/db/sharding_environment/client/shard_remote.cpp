@@ -119,7 +119,7 @@ ShardRemote::ShardRemote(const ShardId& id,
 
 ShardRemote::~ShardRemote() = default;
 
-bool ShardRemote::isRetriableError(ErrorCodes::Error code, RetryPolicy options) {
+bool ShardRemote::isRetriableError(ErrorCodes::Error code, RetryPolicy options) const {
     return remoteIsRetriableError(code, options);
 }
 
@@ -315,9 +315,7 @@ Milliseconds getExhaustiveFindOnConfigMaxTimeMS(OperationContext* opCtx,
     }
 
     return std::min(opCtx->getRemainingMaxTimeMillis(),
-                    nss == NamespaceString::kConfigsvrChunksNamespace
-                        ? Milliseconds(gFindChunksOnConfigTimeoutMS.load())
-                        : Milliseconds(defaultConfigCommandTimeoutMS.load()));
+                    Shard::getConfiguredTimeoutForOperationOnNamespace(nss));
 }
 
 StatusWith<Shard::QueryResponse> ShardRemote::_exhaustiveFindOnConfig(

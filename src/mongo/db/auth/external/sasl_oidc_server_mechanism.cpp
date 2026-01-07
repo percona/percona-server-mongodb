@@ -86,7 +86,7 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(Oper
     try {
         return step2(
             opCtx->getServiceContext(),
-            auth::OIDCMechanismClientStep2::parse(IDLParserContext("OIDCStep2Request"), inputBson));
+            auth::OIDCMechanismClientStep2::parse(inputBson, IDLParserContext("OIDCStep2Request")));
     } catch (const DBException& e) {
         // Failed to parse the input as a step 2 request. Suppress the exception
         // if it still can be a step 1 request. Otherwise, return an error.
@@ -98,7 +98,7 @@ StatusWith<std::tuple<bool, std::string>> SaslOidcServerMechanism::stepImpl(Oper
     try {
         return step1(
             opCtx->getServiceContext(),
-            auth::OIDCMechanismClientStep1::parse(IDLParserContext("OIDCStep1Request"), inputBson));
+            auth::OIDCMechanismClientStep1::parse(inputBson, IDLParserContext("OIDCStep1Request")));
     } catch (const DBException& e) {
         return e.toStatus();
     }

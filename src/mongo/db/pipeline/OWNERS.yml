@@ -287,6 +287,9 @@ filters:
   - "tee_buffer*":
     approvers:
       - 10gen/query-execution-classic
+  - "timeseries_index_conversion_options.h":
+    approvers:
+      - 10gen/query-integration-timeseries
   - "value.idl":
     approvers:
       - 10gen/query-execution-classic
@@ -308,3 +311,6 @@ filters:
   - "*sharded_data_distribution*":
     approvers:
       - 10gen/server-catalog-and-routing
+  - "document_source_list_catalog*":
+    approvers:
+      - 10gen/server-catalog-and-routing-shard-catalog

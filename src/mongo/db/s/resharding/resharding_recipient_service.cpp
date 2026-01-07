@@ -80,6 +80,7 @@
 #include "mongo/db/server_options.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/storage/recovery_unit.h"
+#include "mongo/db/storage/storage_parameters_gen.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/topology/sharding_state.h"
 #include "mongo/db/user_write_block/write_block_bypass.h"
@@ -293,7 +294,7 @@ std::shared_ptr<repl::PrimaryOnlyService::Instance> ReshardingRecipientService::
     BSONObj initialState) {
     return std::make_shared<RecipientStateMachine>(
         this,
-        ReshardingRecipientDocument::parse(IDLParserContext{"RecipientStateMachine"}, initialState),
+        ReshardingRecipientDocument::parse(initialState, IDLParserContext{"RecipientStateMachine"}),
         std::make_unique<RecipientStateMachineExternalStateImpl>(),
         _serviceContext);
 }
@@ -1199,7 +1200,15 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                            auto opCtx = factory.makeOperationContext(&cc());
 
                            auto buildUUID = UUID::gen();
+                           const auto fcvSnapshot =
+                               serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
                            IndexBuildsCoordinator::IndexBuildOptions indexBuildOptions{
+                               .indexBuildMethod =
+                                   ((fcvSnapshot.isVersionInitialized() &&
+                                     feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds.isEnabled(
+                                         VersionContext::getDecoration(opCtx.get()), fcvSnapshot))
+                                        ? IndexBuildMethodEnum::kPrimaryDriven
+                                        : IndexBuildMethodEnum::kHybrid),
                                .commitQuorum =
                                    CommitQuorumOptions(CommitQuorumOptions::kVotingMembers)};
 
@@ -1437,8 +1446,8 @@ void ReshardingRecipientService::RecipientStateMachine::_transitionState(
 
     reshardingRecipientFailInPhase.execute([&](const BSONObj& data) {
         auto targetPhase =
-            RecipientState_parse(IDLParserContext{"reshardingRecipientFailInPhase failpoint"},
-                                 data.getStringField("phase"));
+            RecipientState_parse(data.getStringField("phase"),
+                                 IDLParserContext{"reshardingRecipientFailInPhase failpoint"});
         if (oldState != targetPhase) {
             return;
         }
@@ -1860,8 +1869,8 @@ void ReshardingRecipientService::RecipientStateMachine::_restoreMetrics(
 
                 if (!result.isEmpty()) {
                     auto fetcherProgressDoc = ReshardingOplogFetcherProgress::parse(
-                        IDLParserContext("resharding-recipient-service-fetcher-progress-doc"),
-                        result);
+                        result,
+                        IDLParserContext("resharding-recipient-service-fetcher-progress-doc"));
                     setOrAdd(externalMetrics.oplogEntriesFetched,
                              fetcherProgressDoc.getNumEntriesFetched());
                 }
@@ -1904,8 +1913,8 @@ void ReshardingRecipientService::RecipientStateMachine::_restoreMetrics(
                     auto [it, success] = shardApplierProgress.emplace(
                         donor.getShardId(),
                         ReshardingOplogApplierProgress::parse(
-                            IDLParserContext("resharding-recipient-service-applier-progress-doc"),
-                            result));
+                            result,
+                            IDLParserContext("resharding-recipient-service-applier-progress-doc")));
                     tassert(10795500, "Duplicate shardIds across donor shards", success);
                     setOrAdd(externalMetrics.oplogEntriesApplied,
                              it->second.getNumEntriesApplied());
@@ -2087,7 +2096,7 @@ ReshardingRecipientService::RecipientStateMachine::_tryFetchCloningMetrics(
         }
 
         auto parsedDoc =
-            ReshardingRecipientResumeData::parse(IDLParserContext("RecipientStateMachine"), doc);
+            ReshardingRecipientResumeData::parse(doc, IDLParserContext("RecipientStateMachine"));
         uassert(
             9849002,
             str::stream() << "Expected the collection cloner resume data document for the donor "
