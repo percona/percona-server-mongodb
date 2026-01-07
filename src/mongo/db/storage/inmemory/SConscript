@@ -13,8 +13,9 @@ env.Library(
         'inmemory_options_init.cpp',
         'inmemory_global_options.idl',
         ],
-    LIBDEPS=[
-        '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger_core',
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/storage/storage_engine_common',
+        '$BUILD_DIR/mongo/db/storage/wiredtiger/storage_wiredtiger',
         ],
     )
 

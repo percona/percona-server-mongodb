@@ -332,6 +332,7 @@ env.Library(
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/idl/server_parameter',
+        '$BUILD_DIR/mongo/util/options_parser/options_parser',
     ],
 )
 

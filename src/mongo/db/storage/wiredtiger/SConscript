@@ -15,6 +15,7 @@ env.Library(
     ],
     LIBDEPS=[
         '$BUILD_DIR/mongo/base',
+        '$BUILD_DIR/mongo/db/encryption/encryption_options',
         '$BUILD_DIR/mongo/db/service_context'
     ],
 )
@@ -59,6 +60,7 @@ wtEnv.Library(
         '$BUILD_DIR/mongo/db/catalog/collection',
         '$BUILD_DIR/mongo/db/catalog/collection_options',
         '$BUILD_DIR/mongo/db/concurrency/lock_manager',
+        '$BUILD_DIR/mongo/db/dbhelpers',
         '$BUILD_DIR/mongo/db/encryption/key_management',
         '$BUILD_DIR/mongo/db/global_settings',
         '$BUILD_DIR/mongo/db/index/index_access_method',

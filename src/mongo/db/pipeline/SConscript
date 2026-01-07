@@ -269,7 +269,9 @@ env.Library(
         'document_source_backup_cursor.cpp',
         'document_source_backup_cursor_extend.cpp',
     ],
-    LIBDEPS=[],
+    LIBDEPS=[
+        'pipeline',
+    ],
 )
 
 pipelineEnv = env.Clone()
