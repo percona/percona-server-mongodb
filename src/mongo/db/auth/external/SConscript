@@ -1,5 +1,6 @@
 # -*- mode: python -*-
 Import("env")
+Import("get_option")
 
 env = env.Clone()
 
@@ -14,8 +15,17 @@ env.Library(
     LIBDEPS=[
         '$BUILD_DIR/mongo/db/auth/saslauth',
     ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/bson/bson_validate',
+        '$BUILD_DIR/mongo/client/sasl_aws_common' if get_option('ssl') == 'on' else [],
+        '$BUILD_DIR/mongo/db/ldap/ldapmanager',
+        '$BUILD_DIR/mongo/db/ldap_options',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/util/net/http_client',
+    ],
     SYSLIBDEPS=[
         'gssapi_krb5',
+        'ldap',
         'sasl2',
     ],
 )

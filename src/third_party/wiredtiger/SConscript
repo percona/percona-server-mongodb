@@ -185,9 +185,6 @@ with open(File(filelistfile).srcnode().abspath) as filelist:
 with open(File(filelistfile).srcnode().abspath) as filelist:
     cssources = list(filtered_filelist(filelist, True))
 
-# unconditionally add Percona encryption extension
-wtsources.append("ext/encryptors/percona/encryption_extension.c")
-
 if useZlib:
     env.Append(CPPDEFINES=['HAVE_BUILTIN_EXTENSION_ZLIB'])
     wtsources.append("ext/compressors/zlib/zlib_compress.c")

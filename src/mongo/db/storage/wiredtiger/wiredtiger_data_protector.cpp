@@ -36,10 +36,10 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <openssl/err.h>
 
 #include "mongo/base/status.h"
+#include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_data_protector.h"
 #include "mongo/logv2/log.h"
 
-#include <third_party/wiredtiger/ext/encryptors/percona/encryption_keydb_c_api.h>
 
 namespace mongo {
 

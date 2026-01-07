@@ -9,6 +9,11 @@ env.Library(
         'ldap_manager.cpp',
         'ldap_manager_impl.cpp',
         ],
+    LIBDEPS_PRIVATE=[
+        '$BUILD_DIR/mongo/db/ldap_options',
+        '$BUILD_DIR/mongo/db/service_context',
+        '$BUILD_DIR/mongo/util/background_job',
+    ],    
     SYSLIBDEPS=[
         'ldap',
         'lber',

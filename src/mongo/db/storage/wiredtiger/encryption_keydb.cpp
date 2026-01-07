@@ -35,12 +35,11 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 
 #include <cstring>  // memcpy
 
+#include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/debug_util.h"
-
-#include <third_party/wiredtiger/ext/encryptors/percona/encryption_keydb_c_api.h>
 
 
 namespace mongo {

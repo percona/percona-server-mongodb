@@ -459,6 +459,7 @@ env.Library(
         # NOTE: If you need to add a static or mongo initializer to mongos startup,
         # please add that library here, as a private library dependency.
         '$BUILD_DIR/mongo/db/audit',
+        '$BUILD_DIR/mongo/db/audit_commands',
         '$BUILD_DIR/mongo/db/auth/authmongos',
         '$BUILD_DIR/mongo/db/commands/server_status',
         '$BUILD_DIR/mongo/db/commands/server_status_core',
@@ -533,6 +534,7 @@ env.Library(
         '$BUILD_DIR/mongo/db/change_stream_options_manager',
         '$BUILD_DIR/mongo/db/commands/rwc_defaults_commands',
         '$BUILD_DIR/mongo/db/ftdc/ftdc_mongos',
+        '$BUILD_DIR/mongo/db/ldap/ldapmanager',
         '$BUILD_DIR/mongo/db/process_health/fault_manager',
         '$BUILD_DIR/mongo/db/read_write_concern_defaults',
         '$BUILD_DIR/mongo/db/serverinit',

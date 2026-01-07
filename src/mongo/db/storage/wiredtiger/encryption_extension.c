@@ -43,7 +43,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 
-#include "encryption_keydb_c_api.h"
+#include "mongo/db/storage/wiredtiger/encryption_keydb_c_api.h"
 
 #define KEY_LEN 32
 #define GCM_TAG_LEN 16

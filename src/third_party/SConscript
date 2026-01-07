@@ -598,11 +598,12 @@ if wiredtiger:
             ])
     else:
         wiredtigerEnv = wiredtigerEnv.Clone()
-        wiredtigerEnv.InjectThirdParty(libraries=['wiredtiger'])
+        wiredtigerEnv.InjectThirdParty(libraries=['wiredtiger', 'wiredtiger_checksum'])
         wiredtigerEnv.SConscript('wiredtiger/SConscript', exports={ 'env' : wiredtigerEnv })
         wiredtigerEnv = wiredtigerEnv.Clone(
             LIBDEPS_INTERFACE=[
-                 'wiredtiger/wiredtiger',
+                'wiredtiger/wiredtiger',
+                'wiredtiger/wiredtiger_checksum',
             ])
 
     wiredtigerEnv.ShimLibrary(name="wiredtiger")
