@@ -1040,6 +1040,7 @@ Status WiredTigerKVEngineBase::reconfigureLogging() {
 }
 
 int WiredTigerKVEngineBase::reconfigure(const char* str) {
+    LOGV2_DEBUG(10724800, 1, "Reconfiguring", "params"_attr = str);
     return _conn->reconfigure(_conn, str);
 }
 
@@ -3819,8 +3820,8 @@ void WiredTigerKVEngine::setJournalListener(JournalListener* jl) {
 }
 
 void WiredTigerKVEngine::setLastMaterializedLsn(uint64_t lsn) {
-    auto lastMaterializedLsnConfig = fmt::format("disaggregated=(last_materialized_lsn={})", lsn);
-    invariantWTOK(_conn->reconfigure(_conn, lastMaterializedLsnConfig.c_str()), nullptr);
+    invariantWTOK(_conn->set_context_uint(_conn, WT_CONTEXT_TYPE_LAST_MATERIALIZED_LSN, lsn),
+                  nullptr);
 }
 
 void WiredTigerKVEngine::setRecoveryCheckpointMetadata(StringData checkpointMetadata) {
@@ -4747,6 +4748,8 @@ WiredTigerKVEngineBase::WiredTigerConfig getWiredTigerConfigFromStartupOptions(
     wtConfig.liveRestoreThreadsMax = wiredTigerGlobalOptions.liveRestoreThreads;
     wtConfig.liveRestoreReadSizeMB = wiredTigerGlobalOptions.liveRestoreReadSizeMB;
     wtConfig.statisticsLogWaitSecs = wiredTigerGlobalOptions.statisticsLogDelaySecs;
+    wtConfig.evictionThreadsMax = gWiredTigerEvictionThreadsMax.load();
+    wtConfig.evictionThreadsMin = gWiredTigerEvictionThreadsMin.load();
     wtConfig.providerSupportsUnstableCheckpoints = provider.supportsUnstableCheckpoints();
     wtConfig.safeToTakeDuplicateCheckpoints = !provider.shouldAvoidDuplicateCheckpoints();
     wtConfig.flattenLeafPageDelta = wiredTigerGlobalOptions.flattenLeafPageDelta;
@@ -4760,6 +4763,38 @@ WiredTigerKVEngineBase::WiredTigerConfig getWiredTigerConfigFromStartupOptions(
     }
 
     return wtConfig;
+}
+
+Status WiredTigerKVEngine::updateEvictionThreadsMax(const int32_t& threadsMax) {
+    if (hasGlobalServiceContext()) {
+        ServiceContext* serviceContext = getGlobalServiceContext();
+
+        WiredTigerKVEngine* kvEngine =
+            static_cast<WiredTigerKVEngine*>(serviceContext->getStorageEngine()->getEngine());
+        kvEngine->_wtConfig.evictionThreadsMax = threadsMax;
+
+        std::stringstream ss;
+        ss << "eviction=(threads_max=" << threadsMax << ")";
+        uassertStatusOK(wtRCToStatus(kvEngine->reconfigure(ss.str().c_str()), nullptr));
+    }
+
+    return Status::OK();
+}
+
+Status WiredTigerKVEngine::updateEvictionThreadsMin(const int32_t& threadsMin) {
+    if (hasGlobalServiceContext()) {
+        ServiceContext* serviceContext = getGlobalServiceContext();
+
+        WiredTigerKVEngine* kvEngine =
+            static_cast<WiredTigerKVEngine*>(serviceContext->getStorageEngine()->getEngine());
+        kvEngine->_wtConfig.evictionThreadsMin = threadsMin;
+
+        std::stringstream ss;
+        ss << "eviction=(threads_min=" << threadsMin << ")";
+        uassertStatusOK(wtRCToStatus(kvEngine->reconfigure(ss.str().c_str()), nullptr));
+    }
+
+    return Status::OK();
 }
 
 }  // namespace mongo

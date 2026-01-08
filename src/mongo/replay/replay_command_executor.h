@@ -64,7 +64,7 @@ public:
      * Given a well formed binary protocol bson command encapsulated inside a replay command. This
      * method runs the command against the server (if connection is established).
      */
-    BSONObj runCommand(const ReplayCommand&) const;
+    BSONObj runCommand(const ReplayCommand& command) const;
 
 private:
     std::unique_ptr<DBClientBase> _dbConnection = nullptr;

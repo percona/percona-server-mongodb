@@ -334,6 +334,9 @@ public:
         if (!collection.exists()) {
             return query_shape::CollectionType::kNonExistent;
         }
+        if (collection.getCollectionPtr()->isNewTimeseriesWithoutView()) {
+            return query_shape::CollectionType::kTimeseries;
+        }
         return query_shape::CollectionType::kCollection;
     }
 
@@ -559,7 +562,8 @@ struct StashedTransactionResources {
     void dispose();
 
     std::unique_ptr<shard_role_details::TransactionResources> _yieldedResources;
-    shard_role_details::TransactionResources::State _originalState;
+    shard_role_details::TransactionResources::State _originalState =
+        shard_role_details::TransactionResources::State::EMPTY;
 };
 
 /**

@@ -1449,6 +1449,10 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
             auto altOpCtx = CancelableOperationContext(
                 cc().makeOperationContext(), outerOpCtx->getCancellationToken(), executor);
 
+            if (AuthorizationManager::get(altOpCtx->getService())->isAuthEnabled()) {
+                AuthorizationSession::get(altOpCtx->getClient())->grantInternalAuthorization();
+            }
+
             // Enable write blocking bypass to allow migrations to create the collection and indexes
             // even when user writes are blocked.
             WriteBlockBypass::get(altOpCtx.get()).set(true);
@@ -1559,11 +1563,12 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
 
             auto fetchBatchFn = [&](OperationContext* opCtx, BSONObj* nextBatch) {
                 auto commandResponse = uassertStatusOKWithContext(
-                    fromShard->runCommand(opCtx,
-                                          ReadPreferenceSetting(ReadPreference::PrimaryOnly),
-                                          DatabaseName::kAdmin,
-                                          xferModsRequest,
-                                          Shard::RetryPolicy::kNoRetry),
+                    fromShard->runCommandWithIndefiniteRetries(
+                        opCtx,
+                        ReadPreferenceSetting(ReadPreference::PrimaryOnly),
+                        DatabaseName::kAdmin,
+                        xferModsRequest,
+                        Shard::RetryPolicy::kNoRetry),
                     "_transferMods failed: ");
 
                 uassertStatusOKWithContext(
@@ -1684,11 +1689,12 @@ void MigrationDestinationManager::_migrateDriver(OperationContext* outerOpCtx,
                 }
 
                 auto res = uassertStatusOKWithContext(
-                    fromShard->runCommand(opCtx,
-                                          ReadPreferenceSetting(ReadPreference::PrimaryOnly),
-                                          DatabaseName::kAdmin,
-                                          xferModsRequest,
-                                          Shard::RetryPolicy::kNoRetry),
+                    fromShard->runCommandWithIndefiniteRetries(
+                        opCtx,
+                        ReadPreferenceSetting(ReadPreference::PrimaryOnly),
+                        DatabaseName::kAdmin,
+                        xferModsRequest,
+                        Shard::RetryPolicy::kNoRetry),
                     "_transferMods failed in STEADY STATE: ");
 
                 uassertStatusOKWithContext(Shard::CommandResponse::getEffectiveStatus(res),
