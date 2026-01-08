@@ -34,7 +34,6 @@
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/expression_context.h"
-#include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/stage_constraints.h"
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/compiler/dependency_analysis/dependencies.h"
@@ -54,7 +53,7 @@ namespace mongo {
  * transaction, this will be {clusterTime: <transaction commit timestamp>, ts: <applyOps
  * optime.ts>}. For all other documents, this will be {clusterTime: <optime.ts>, ts: <optime.ts>}.
  */
-class DocumentSourceReshardingAddResumeId : public DocumentSource, public exec::agg::Stage {
+class DocumentSourceReshardingAddResumeId : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$_addReshardingResumeId"_sd;
 
@@ -87,9 +86,6 @@ public:
     Id getId() const override {
         return id;
     }
-
-protected:
-    DocumentSource::GetNextResult doGetNext() override;
 
 private:
     DocumentSourceReshardingAddResumeId(const boost::intrusive_ptr<ExpressionContext>& expCtx);

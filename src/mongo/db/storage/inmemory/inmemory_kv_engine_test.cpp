@@ -34,6 +34,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/repl/repl_set_member_in_standalone_mode.h"
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/kv/kv_engine_test_harness.h"
 #include "mongo/db/storage/storage_engine_impl.h"
@@ -59,6 +60,7 @@ public:
         auto isReplSet = true;
         auto shouldRecoverFromOplogAsStandalone = false;
         auto replSetMemberInStandaloneMode = false;
+        auto& provider = rss::ReplicatedStorageService::get(_svcCtx).getPersistenceProvider();
         WiredTigerKVEngine::WiredTigerConfig wtConfig;
         wtConfig.cacheSizeMB = 100;
         wtConfig.inMemory = true;
@@ -73,6 +75,7 @@ public:
                                                        _cs.get(),
                                                        std::move(wtConfig),
                                                        WiredTigerExtensions::get(svcCtx),
+                                                       provider,
                                                        false,
                                                        isReplSet,
                                                        shouldRecoverFromOplogAsStandalone,

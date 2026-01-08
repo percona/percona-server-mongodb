@@ -52,6 +52,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/auth:authmocks",
         "//src/mongo/db/repl:repl_coordinator_interface",
         "//src/mongo/db/repl:replmocks",
+        "//src/mongo/db/rss:persistence_provider_impl",
         "//src/mongo/db/storage/kv:kv_engine_test_harness",
         "//src/mongo/db/storage/wiredtiger:storage_wiredtiger_core",
     ],

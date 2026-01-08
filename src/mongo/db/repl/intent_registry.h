@@ -163,7 +163,8 @@ public:
      * boost::none otherwise.
      */
     boost::optional<OperationContext*> replicationStateTransitionInterruptionCtx() {
-        if (activeStateTransition()) {
+        stdx::unique_lock lock(_stateMutex);
+        if (_interruptionCtx != nullptr) {
             return _interruptionCtx;
         } else {
             return boost::none;

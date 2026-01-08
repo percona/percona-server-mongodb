@@ -1,4 +1,7 @@
 // Confirms that change streams only see committed operations for sharded transactions.
+// TODO SERVER-109890: The test 'change_stream_transaction_sharded_commit_timestamp.js'
+// is a clone of this file with additional testing for the 'commitTimestamp' field.
+// Once v9.0 becomes last LTS we can remove this file in favor of the other.
 // @tags: [
 //   requires_sharding,
 //   uses_change_streams,
@@ -50,11 +53,6 @@ assert.commandWorked(
 const db = mongosConn.getDB(dbName);
 const coll = db.getCollection(collName);
 
-const fcvDoc = db.adminCommand({getParameter: 1, featureCompatibilityVersion: 1});
-// The 'commitTimestamp' field is exposed by default from v8.2 onwards.
-const alwaysExpectCommitTimestamp =
-    MongoRunner.compareBinVersions(fcvDoc.featureCompatibilityVersion.version, "8.2") >= 0;
-
 let changeListShard1 = [],
     changeListShard2 = [];
 
@@ -93,36 +91,12 @@ session2.startTransaction({readConcern: {level: "majority"}});
         expectedChangesShard2,
         changeCaptureListShard1,
         changeCaptureListShard2,
-        expectCommitTimestamp = false,
     ) {
         function assertChangeEqualWithCapture(changeDoc, expectedChange, changeCaptureList) {
             assert.eq(expectedChange.operationType, changeDoc.operationType);
             assert.eq(expectedChange._id, changeDoc.documentKey._id);
             changeCaptureList.push(changeDoc);
         }
-
-        // Verify that all commit timestamps are identical.
-        let commitTimestamp = null;
-        const assertCommitTimestamp = (changeDoc) => {
-            if (expectCommitTimestamp) {
-                assert(changeDoc.hasOwnProperty("commitTimestamp"), "expecting doc to have a 'commitTimestamp' field", {
-                    changeDoc,
-                });
-                assert(
-                    isTimestamp(changeDoc["commitTimestamp"]),
-                    "expecting 'commitTimestamp' field to be a timestamp",
-                    {changeDoc},
-                );
-                if (commitTimestamp === null) {
-                    commitTimestamp = changeDoc["commitTimestamp"];
-                } else {
-                    assert.eq(commitTimestamp, changeDoc["commitTimestamp"], "expecting equal commitTimestamps", {
-                        commitTimestamp,
-                        changeDoc,
-                    });
-                }
-            }
-        };
 
         // Cross-shard transaction, and "endOfTransaction" events are enabled.
         const expectEndOfTransaction =
@@ -136,25 +110,14 @@ session2.startTransaction({readConcern: {level: "majority"}});
 
             if (changeDoc.documentKey.shard === 1) {
                 assert(expectedChangesShard1.length);
-                assertChangeEqualWithCapture(
-                    changeDoc,
-                    expectedChangesShard1[0],
-                    changeCaptureListShard1,
-                    expectCommitTimestamp,
-                );
+                assertChangeEqualWithCapture(changeDoc, expectedChangesShard1[0], changeCaptureListShard1);
                 expectedChangesShard1.shift();
             } else {
                 assert.eq(2, changeDoc.documentKey.shard);
                 assert(expectedChangesShard2.length);
-                assertChangeEqualWithCapture(
-                    changeDoc,
-                    expectedChangesShard2[0],
-                    changeCaptureListShard2,
-                    expectCommitTimestamp,
-                );
+                assertChangeEqualWithCapture(changeDoc, expectedChangesShard2[0], changeCaptureListShard2);
                 expectedChangesShard2.shift();
             }
-            assertCommitTimestamp(changeDoc);
         }
 
         if (expectEndOfTransaction) {
@@ -166,7 +129,6 @@ session2.startTransaction({readConcern: {level: "majority"}});
         assertNoChanges(cursor);
     }
 
-    // Open a change stream on the test collection.
     const changeStreamCursor = coll.watch([], {showExpandedEvents: true});
 
     // Insert a document and confirm that the change stream has it.
@@ -240,7 +202,6 @@ session2.startTransaction({readConcern: {level: "majority"}});
         ],
         changeListShard1,
         changeListShard2,
-        alwaysExpectCommitTimestamp,
     );
 
     // Perform a write outside of the transaction.
@@ -287,6 +248,10 @@ session2.startTransaction({readConcern: {level: "majority"}});
         assert(changeListIndex < shardChangeList.length);
 
         const expectedChangeDoc = shardChangeList[changeListIndex];
+        // Remove 'commitTimestamp' field from expected and actual events, as this field is only exposed by default in v8.2.0. Versions before v8.2.0 do not expose this field, and versions after v8.2.0 only expose this field when the internal flag 'showCommitTimestamp' is set when opening the change stream.
+        delete expectedChangeDoc.commitTimestamp;
+        delete changeDoc.commitTimestamp;
+
         assert.eq(changeDoc, expectedChangeDoc);
         assert.eq(
             expectedChangeDoc.documentKey,

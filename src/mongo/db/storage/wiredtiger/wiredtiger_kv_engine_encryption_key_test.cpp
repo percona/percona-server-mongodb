@@ -40,6 +40,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/encryption/master_key_provider.h"
 #include "mongo/db/global_settings.h"
 #include "mongo/db/repl/repl_set_member_in_standalone_mode.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/wiredtiger/encryption_keydb.h"
@@ -441,12 +442,15 @@ protected:
         wtConfig.extraOpenOptions = "log=(file_max=1m,prealloc=false)";
         wtConfig.cacheSizeMB = 1;
 
+        auto& provider =
+            rss::ReplicatedStorageService::get(getServiceContext()).getPersistenceProvider();
         auto engine = std::make_unique<WiredTigerKVEngine>(
             "wiredTiger",
             _tempDir->path(),
             _clockSource.get(),
             std::move(wtConfig),
             WiredTigerExtensions::get(getServiceContext()),
+            provider,
             false,
             getGlobalReplSettings().isReplSet(),
             repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),

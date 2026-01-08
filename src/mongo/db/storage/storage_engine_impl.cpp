@@ -38,6 +38,7 @@
 #include "mongo/db/local_catalog/catalog_raii.h"
 #include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/storage/backup_cursor_hooks.h"
 #include "mongo/db/storage/deferred_drop_record_store.h"
 #include "mongo/db/storage/disk_space_monitor.h"
@@ -147,6 +148,15 @@ StorageEngineImpl::StorageEngineImpl(OperationContext* opCtx,
     invariant(prevRecoveryUnit->isNoop());
     shard_role_details::setRecoveryUnit(
         opCtx, _engine->newRecoveryUnit(), WriteUnitOfWork::RecoveryUnitState::kNotInUnitOfWork);
+
+    auto& rss = rss::ReplicatedStorageService::get(opCtx->getServiceContext());
+    if (rss.getPersistenceProvider().shouldDelayDataAccessDuringStartup()) {
+        LOGV2(10985326,
+              "Skip loading catalog on startup; it will be handled later when WT loads the "
+              "checkpoint");
+        return;
+    }
+
     // If we throw in this constructor, make sure to destroy the RecoveryUnit instance created above
     // before '_engine' is destroyed.
     ScopeGuard recoveryUnitResetGuard([&] {
@@ -198,8 +208,9 @@ void StorageEngineImpl::loadMDBCatalog(OperationContext* opCtx,
     if (!catalogExists) {
         WriteUnitOfWork uow(opCtx);
 
+        auto& provider = rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider();
         auto status = _engine->createRecordStore(
-            kCatalogInfoNamespace, ident::kMbdCatalog, catalogRecordStoreOpts);
+            provider, kCatalogInfoNamespace, ident::kMbdCatalog, catalogRecordStoreOpts);
 
         // BadValue is usually caused by invalid configuration string.
         // We still fassert() but without a stack trace.
@@ -439,8 +450,9 @@ Status StorageEngineImpl::_recoverOrphanedCollection(OperationContext* opCtx,
     WriteUnitOfWork wuow(opCtx);
     const auto recordStoreOptions =
         _catalog->getParsedRecordStoreOptions(opCtx, catalogId, collectionName);
-    Status status =
-        _engine->recoverOrphanedIdent(collectionName, collectionIdent, recordStoreOptions);
+    auto& provider = rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider();
+    Status status = _engine->recoverOrphanedIdent(
+        provider, collectionName, collectionIdent, recordStoreOptions);
 
     bool dataModified = status.code() == ErrorCodes::DataModifiedByRepair;
     if (!status.isOK() && !dataModified) {
@@ -663,7 +675,8 @@ std::unique_ptr<SpillTable> StorageEngineImpl::makeSpillTable(OperationContext* 
 }
 
 void StorageEngineImpl::dropSpillTable(RecoveryUnit& ru, StringData ident) {
-    // TODO (SERVER-107058): Remove this retry loop.
+    // Dropping the spill table may transiently return ObjectIsBusy if another spill engine user has
+    // a storage snapshot from before an earlier write to this table. Retry until the drop succeeds.
     for (size_t retries = 0;; ++retries) {
         auto status = _spillEngine->dropIdent(ru,
                                               ident,
@@ -720,6 +733,18 @@ std::unique_ptr<TemporaryRecordStore> StorageEngineImpl::makeTemporaryRecordStor
 
 void StorageEngineImpl::setJournalListener(JournalListener* jl) {
     _engine->setJournalListener(jl);
+}
+
+void StorageEngineImpl::setLastMaterializedLsn(uint64_t lsn) {
+    _engine->setLastMaterializedLsn(lsn);
+}
+
+void StorageEngineImpl::setRecoveryCheckpointMetadata(StringData checkpointMetadata) {
+    _engine->setRecoveryCheckpointMetadata(checkpointMetadata);
+}
+
+void StorageEngineImpl::promoteToLeader() {
+    _engine->promoteToLeader();
 }
 
 void StorageEngineImpl::setStableTimestamp(Timestamp stableTimestamp, bool force) {

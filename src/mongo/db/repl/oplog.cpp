@@ -93,6 +93,7 @@
 #include "mongo/db/query/write_ops/update_result.h"
 #include "mongo/db/query/write_ops/write_ops_parsers.h"
 #include "mongo/db/repl/apply_ops.h"
+#include "mongo/db/repl/create_oplog_entry_gen.h"
 #include "mongo/db/repl/dbcheck/dbcheck.h"
 #include "mongo/db/repl/image_collection_entry_gen.h"
 #include "mongo/db/repl/oplog_entry_gen.h"
@@ -104,6 +105,7 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/timestamp_block.h"
 #include "mongo/db/repl/transaction_oplog_application.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_id_gen.h"
 #include "mongo/db/sharding_environment/shard_id.h"
@@ -210,35 +212,37 @@ StringData getInvalidatingReason(const OplogApplication::Mode mode, const bool i
 boost::optional<CreateCollCatalogIdentifier> extractReplicatedCatalogIdentifier(
     OperationContext* opCtx, const OplogEntry& oplogEntry) {
     auto& o2 = oplogEntry.getObject2();
-    if (!o2 || !shouldReplicateLocalCatalogIdentifers(VersionContext::getDecoration(opCtx))) {
+    if (!o2 ||
+        !shouldReplicateLocalCatalogIdentifers(
+            rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider(),
+            VersionContext::getDecoration(opCtx))) {
         // Either no catalog identifier information was provided, or replicated local catalog
         // identifiers are not supported.
         return boost::none;
     }
 
-    // TODO SERVER-106459: Utilize IDL parsing and input validation.
-    boost::optional<std::string> idIndexIdent;
-    if (auto idIdentElem = o2->getField("idIndexIdent"); idIdentElem) {
-        uassert(ErrorCodes::InvalidOptions,
-                fmt::format(
-                    "'idIndexIdent' field must be a string containing a valid ident but got '{}'",
-                    idIdentElem.toString()),
-                idIdentElem.type() == BSONType::string &&
-                    ident::isValidIdent(idIdentElem.valueStringData()));
-        idIndexIdent = idIdentElem.str();
-    }
+    auto parsedO2 = repl::CreateOplogEntryO2::parse(*o2, IDLParserContext("createOplogEntryO2"));
+    const auto& catalogId = parsedO2.getCatalogId();
+    auto ident = parsedO2.getIdent();
+    auto idIndexIdent = parsedO2.getIdIndexIdent();
+    auto directoryPerDB = parsedO2.getDirectoryPerDB();
+    auto directoryForIndexes = parsedO2.getDirectoryForIndexes();
 
-    auto catalogIdElem = o2->getField("catalogId");
-    uassert(ErrorCodes::InvalidOptions, "Missing 'catalogId' field from 'o2' entry", catalogIdElem);
-
-    auto ident = o2->getStringField("ident");
     uassert(ErrorCodes::InvalidOptions,
             fmt::format("'ident' field must contain a valid ident but got '{}'", ident),
             ident::isValidIdent(ident));
 
-    return CreateCollCatalogIdentifier{.catalogId = RecordId::deserializeToken(catalogIdElem),
-                                       .ident = std::string(ident),
-                                       .idIndexIdent = std::move(idIndexIdent)};
+    uassert(
+        ErrorCodes::InvalidOptions,
+        fmt::format("'idIndexIdent' field must contain a valid ident but got '{}'", *idIndexIdent),
+        !idIndexIdent || ident::isValidIdent(*idIndexIdent));
+
+    return CreateCollCatalogIdentifier{
+        .catalogId = catalogId,
+        .ident = std::string{ident},
+        .idIndexIdent = idIndexIdent ? boost::optional<std::string>(*idIndexIdent) : boost::none,
+        .directoryPerDB = directoryPerDB,
+        .directoryForIndexes = directoryForIndexes};
 }
 }  // namespace
 
@@ -365,21 +369,21 @@ void createIndexForApplyOps(OperationContext* opCtx,
     IndexBuildInfo indexBuildInfo = [&] {
         auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
         if (!indexMetadata ||
-            !shouldReplicateLocalCatalogIdentifers(VersionContext::getDecoration(opCtx))) {
+            !shouldReplicateLocalCatalogIdentifers(
+                rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider(),
+                VersionContext::getDecoration(opCtx))) {
             return IndexBuildInfo(indexSpec, *storageEngine, indexCollection->ns().dbName());
         }
 
-        auto indexIdentField = indexMetadata->getField("indexIdent");
-        uassert(ErrorCodes::BadValue,
-                "Failed to create index because metadata o2 was present but missing indexIdent: " +
-                    indexMetadata->toString(),
-                !indexIdentField.eoo());
+        auto parsedIndexMetadata = repl::CreateIndexesOplogEntryO2::parse(
+            *indexMetadata, IDLParserContext("createIndexesOplogEntryO2"));
+        auto indexIdent = parsedIndexMetadata.getIndexIdent();
+
         uassert(ErrorCodes::BadValue,
                 "Failed to create index because indexIdent field in metadata o2 was invalid: " +
                     indexMetadata->toString(),
-                indexIdentField.type() == BSONType::string &&
-                    ident::isValidIdent(indexIdentField.valueStringData()));
-        IndexBuildInfo indexBuildInfo(indexSpec, indexIdentField.str());
+                ident::isValidIdent(indexIdent));
+        IndexBuildInfo indexBuildInfo(indexSpec, std::string{indexIdent});
         indexBuildInfo.setInternalIdents(*storageEngine);
         return indexBuildInfo;
     }();
@@ -735,8 +739,13 @@ void createOplog(OperationContext* opCtx,
         uow.commit();
     });
 
-    /* sync here so we don't get any surprising lag later when we try to sync */
-    service->getStorageEngine()->flushAllFiles(opCtx, /*callerHoldsReadLock*/ false);
+    // We cannot guarantee that we have a stable timestamp at this point, but if the persistence
+    // provider supports unstable checkpoints, we can take a checkpoint now to avoid any surprising
+    // lag later when we try to sync.
+    auto& rss = rss::ReplicatedStorageService::get(service);
+    if (rss.getPersistenceProvider().supportsUnstableCheckpoints()) {
+        service->getStorageEngine()->flushAllFiles(opCtx, /*callerHoldsReadLock*/ false);
+    }
 }
 
 void createOplog(OperationContext* opCtx) {
@@ -963,7 +972,9 @@ const StringMap<ApplyOpMetadata> kOpsMap = {
           auto swOplogEntry = IndexBuildOplogEntry::parse(
               opCtx,
               entry,
-              shouldReplicateLocalCatalogIdentifers(VersionContext::getDecoration(opCtx)));
+              shouldReplicateLocalCatalogIdentifers(
+                  rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider(),
+                  VersionContext::getDecoration(opCtx)));
           if (!swOplogEntry.isOK()) {
               return swOplogEntry.getStatus().withContext(
                   "Error parsing 'startIndexBuild' oplog entry");

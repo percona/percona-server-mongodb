@@ -550,7 +550,7 @@ Mongo.prototype.waitForClusterTime = function waitForClusterTime(maxRetries = 10
  * stream stage specification and the options for the aggregate command, respectively.
  */
 Mongo.prototype._extractChangeStreamOptions = function (options) {
-    options = options || {};
+    options ||= {};
     assert(options instanceof Object, "'options' argument must be an object");
 
     let changeStreamOptions = {fullDocument: options.fullDocument || "default"};
@@ -606,6 +606,11 @@ Mongo.prototype._extractChangeStreamOptions = function (options) {
         delete options.showRawUpdateDescription;
     }
 
+    if (options.hasOwnProperty("showCommitTimestamp")) {
+        changeStreamOptions.showCommitTimestamp = options.showCommitTimestamp;
+        delete options.showCommitTimestamp;
+    }
+
     // If no maxAwaitTimeMS is set in the options, we set a high wait timeout, so that there won't
     // be any issues with no data being available on the server side due to limited processing
     // resources during testing.
@@ -617,7 +622,7 @@ Mongo.prototype._extractChangeStreamOptions = function (options) {
 };
 
 Mongo.prototype.watch = function (pipeline, options) {
-    pipeline = pipeline || [];
+    pipeline ||= [];
     assert(pipeline instanceof Array, "'pipeline' argument must be an array");
 
     const [changeStreamStage, aggOptions] = this._extractChangeStreamOptions(options);

@@ -37,6 +37,7 @@
 #include "mongo/util/database_name_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/namespace_string_util.h"
+#include "mongo/util/str.h"
 
 #include <memory>
 #include <utility>
@@ -86,7 +87,32 @@ ServiceContext::ConstructorActionRegisterer setWiredTigerCustomizationHooks{
 
 const auto getCustomizationHooks =
     ServiceContext::declareDecoration<std::unique_ptr<WiredTigerCustomizationHooks>>();
+
+const auto getWiredTigerCustomizationHooksRegistry =
+    ServiceContext::declareDecoration<WiredTigerCustomizationHooksRegistry>();
+
 }  // namespace
+
+
+WiredTigerCustomizationHooksRegistry& WiredTigerCustomizationHooksRegistry::get(
+    ServiceContext* service) {
+    return getWiredTigerCustomizationHooksRegistry(service);
+}
+
+
+void WiredTigerCustomizationHooksRegistry::addHook(
+    std::unique_ptr<WiredTigerCustomizationHooks> custHook) {
+    invariant(custHook);
+    _hooks.push_back(std::move(custHook));
+}
+
+std::string WiredTigerCustomizationHooksRegistry::getTableCreateConfig(StringData tableName) const {
+    str::stream config;
+    for (const auto& h : _hooks) {
+        config << h->getTableCreateConfig(tableName);
+    }
+    return config;
+}
 
 void WiredTigerCustomizationHooks::set(ServiceContext* service,
                                        std::unique_ptr<WiredTigerCustomizationHooks> customHooks) {

@@ -274,16 +274,16 @@ public:
                                              UUID uuid,
                                              const BSONObj& docToInsert,
                                              const BSONObj& docKey,
-                                             boost::optional<bool> isViewlessTimeseries = false);
+                                             boost::optional<bool> isTimeseries = false);
     static ReplOperation makeUpdateOperation(NamespaceString nss,
                                              UUID uuid,
                                              const BSONObj& update,
                                              const BSONObj& criteria,
-                                             boost::optional<bool> isViewlessTimeseries = false);
+                                             boost::optional<bool> isTimeseries = false);
     static ReplOperation makeDeleteOperation(const NamespaceString& nss,
                                              UUID uuid,
                                              const BSONObj& docToDelete,
-                                             boost::optional<bool> isViewlessTimeseries = false);
+                                             boost::optional<bool> isTimeseries = false);
 
     /**
      * Generates the 'o' field of a 'create' OplogEntry.
@@ -297,7 +297,9 @@ public:
      */
     static BSONObj makeCreateCollObject2(const RecordId& catalogId,
                                          StringData ident,
-                                         const boost::optional<std::string>& idIndexIdent);
+                                         const boost::optional<std::string>& idIndexIdent,
+                                         bool directoryPerDB,
+                                         bool directoryForIndexes);
 
     static StatusWith<MutableOplogEntry> parse(const BSONObj& object);
 
@@ -341,8 +343,8 @@ public:
         getDurableReplOperation().setObject2(std::move(value));
     }
 
-    void setIsViewlessTimeseries() & {
-        getDurableReplOperation().setIsViewlessTimeseries(true);
+    void setIsTimeseries() & {
+        getDurableReplOperation().setIsTimeseries(true);
     }
 
     void setRecordId(RecordId rid) & {
@@ -479,7 +481,7 @@ public:
     using MutableOplogEntry::kDestinedRecipientFieldName;
     using MutableOplogEntry::kDurableReplOperationFieldName;
     using MutableOplogEntry::kFromMigrateFieldName;
-    using MutableOplogEntry::kIsViewlessTimeseriesFieldName;
+    using MutableOplogEntry::kIsTimeseriesFieldName;
     using MutableOplogEntry::kMultiOpTypeFieldName;
     using MutableOplogEntry::kNssFieldName;
     using MutableOplogEntry::kObject2FieldName;
@@ -509,7 +511,7 @@ public:
     using MutableOplogEntry::getDestinedRecipient;
     using MutableOplogEntry::getDurableReplOperation;
     using MutableOplogEntry::getFromMigrate;
-    using MutableOplogEntry::getIsViewlessTimeseries;
+    using MutableOplogEntry::getIsTimeseries;
     using MutableOplogEntry::getMultiOpType;
     using MutableOplogEntry::getNeedsRetryImage;
     using MutableOplogEntry::getNss;
@@ -774,8 +776,7 @@ public:
     static constexpr auto kNssFieldName = DurableOplogEntry::kNssFieldName;
     static constexpr auto kObject2FieldName = DurableOplogEntry::kObject2FieldName;
     static constexpr auto kObjectFieldName = DurableOplogEntry::kObjectFieldName;
-    static constexpr auto kIsViewlessTimeseriesFieldName =
-        DurableOplogEntry::kIsViewlessTimeseriesFieldName;
+    static constexpr auto kIsTimeseriesFieldName = DurableOplogEntry::kIsTimeseriesFieldName;
     static constexpr auto kOperationSessionInfoFieldName =
         DurableOplogEntry::kOperationSessionInfoFieldName;
     static constexpr auto kOplogVersion = DurableOplogEntry::kOplogVersion;
@@ -834,7 +835,7 @@ public:
     const boost::optional<mongo::UUID>& getUuid() const;
     const mongo::BSONObj& getObject() const;
     const boost::optional<mongo::BSONObj>& getObject2() const;
-    boost::optional<bool> getIsViewlessTimeseries() const;
+    boost::optional<bool> getIsTimeseries() const;
     boost::optional<bool> getUpsert() const;
     const boost::optional<mongo::repl::OpTime>& getPreImageOpTime() const;
     const boost::optional<mongo::ShardId>& getDestinedRecipient() const;

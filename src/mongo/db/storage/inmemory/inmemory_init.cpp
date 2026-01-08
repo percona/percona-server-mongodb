@@ -31,8 +31,8 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/base/init.h"
-#include "mongo/db/local_catalog/collection_options.h"
+#include "mongo/base/init.h"  // IWYU pragma: keep
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/inmemory/inmemory_global_options.h"
 #include "mongo/db/storage/storage_engine_impl.h"
@@ -48,7 +48,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_server_status.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_util.h"
-#include "mongo/platform/basic.h"
 
 #if __has_feature(address_sanitizer)
 #include <sanitizer/lsan_interface.h>
@@ -85,7 +84,9 @@ public:
             }
         }
 
-        WiredTigerKVEngine::WiredTigerConfig wtConfig = getWiredTigerConfigFromStartupOptions();
+        auto& provider = rss::ReplicatedStorageService::get(opCtx).getPersistenceProvider();
+        WiredTigerKVEngine::WiredTigerConfig wtConfig =
+            getWiredTigerConfigFromStartupOptions(provider);
         wtConfig.cacheSizeMB = cacheMB;
         wtConfig.inMemory = true;
         wtConfig.logEnabled = false;
@@ -96,6 +97,7 @@ public:
             &opCtx->fastClockSource(),
             std::move(wtConfig),
             WiredTigerExtensions::get(opCtx->getServiceContext()),
+            provider,
             params.repair,
             isReplSet,
             shouldRecoverFromOplogAsStandalone,

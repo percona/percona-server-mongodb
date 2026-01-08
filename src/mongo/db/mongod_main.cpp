@@ -69,6 +69,7 @@
 #include "mongo/db/commands/feature_compatibility_version.h"
 #include "mongo/db/commands/feature_compatibility_version_gen.h"
 #include "mongo/db/commands/fsync.h"
+#include "mongo/db/commands/server_status.h"
 #include "mongo/db/commands/shutdown.h"
 #include "mongo/db/commands/test_commands.h"
 #include "mongo/db/commands/test_commands_enabled.h"
@@ -158,17 +159,14 @@
 #include "mongo/db/repl/repl_settings.h"
 #include "mongo/db/repl/replication_consistency_markers_impl.h"
 #include "mongo/db/repl/replication_coordinator.h"
-#include "mongo/db/repl/replication_coordinator_external_state_impl.h"
-#include "mongo/db/repl/replication_coordinator_impl.h"
 #include "mongo/db/repl/replication_coordinator_impl_gen.h"
 #include "mongo/db/repl/replication_process.h"
 #include "mongo/db/repl/replication_recovery.h"
-#include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/storage_interface_impl.h"
-#include "mongo/db/repl/topology_coordinator.h"
 #include "mongo/db/repl/wait_for_majority_service.h"
 #include "mongo/db/replication_state_transition_lock_guard.h"
 #include "mongo/db/request_execution_context.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/s/migration_blocking_operation/multi_update_coordinator.h"
 #include "mongo/db/s/migration_chunk_cloner_source_op_observer.h"
 #include "mongo/db/s/query_analysis_op_observer_configsvr.h"
@@ -328,6 +326,9 @@ MONGO_FAIL_POINT_DEFINE(hangBeforeShutdown);
 const ntservice::NtServiceDefaultStrings defaultServiceStrings = {
     L"MongoDB", L"MongoDB", L"MongoDB Server"};
 #endif
+
+auto& startupInfoSection =
+    *ServerStatusSectionBuilder<BSONObjectStatusSection>("startupInfo").forShard().forRouter();
 
 auto makeTransportLayer(ServiceContext* svcCtx) {
     boost::optional<int> proxyPort;
@@ -609,9 +610,9 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         ec != ExitCode::clean)
         return ec;
 
-    FlowControl::set(serviceContext,
-                     std::make_unique<FlowControl>(
-                         serviceContext, repl::ReplicationCoordinator::get(serviceContext)));
+    auto& rss = rss::ReplicatedStorageService::get(serviceContext);
+    auto& serviceLifecycle = rss.getServiceLifecycle();
+    serviceLifecycle.initializeFlowControl(serviceContext);
 
     // If a crash occurred during file-copy based initial sync, we may need to finish or clean up.
     {
@@ -623,15 +624,20 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
 
     admission::initializeExecutionControl(serviceContext);
 
-    // Creating the operation context before initializing the storage engine allows the storage
-    // engine initialization to make use of the lock manager. As the storage engine is not yet
-    // initialized, a noop recovery unit is used until the initialization is complete.
-    auto lastShutdownState = [&] {
+    serviceLifecycle.initializeStorageEngineExtensions(serviceContext);
+
+    auto lastShutdownState = [&]() {
         try {
-            auto lastShutdownState = catalog::startUpStorageEngineAndCollectionCatalog(
-                serviceContext, &cc(), StorageEngineInitFlags{}, &startupTimeElapsedBuilder);
-            StorageControl::startStorageControls(serviceContext);
-            return lastShutdownState;
+            if (rss.getPersistenceProvider().shouldDelayDataAccessDuringStartup()) {
+                // If data isn't ready yet, we shouldn't try to read it.
+                auto initializeStorageEngineOpCtx = serviceContext->makeOperationContext(&cc());
+                return catalog::startUpStorageEngine(initializeStorageEngineOpCtx.get(),
+                                                     StorageEngineInitFlags{},
+                                                     &startupTimeElapsedBuilder);
+            } else {
+                return catalog::startUpStorageEngineAndCollectionCatalog(
+                    serviceContext, &cc(), StorageEngineInitFlags{}, &startupTimeElapsedBuilder);
+            }
         } catch (const MasterKeyRotationCompleted&) {
             exitCleanly(ExitCode::clean);
         } catch (const encryption::Error& e) {
@@ -644,16 +650,17 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         }
         throw;  // suppress the `control reaches end of non-void function` warning
     }();
-
+    StorageControl::startStorageControls(serviceContext);
 
     auto logStartupStats = std::make_unique<ScopeGuard<std::function<void()>>>([&] {
         initAndListenTotalTimer = {};
         startupInfoBuilder.append("Startup from clean shutdown?",
                                   lastShutdownState == StorageEngine::LastShutdownState::kClean);
         startupInfoBuilder.append("Statistics", startupTimeElapsedBuilder.obj());
-        LOGV2_INFO(8423403,
-                   "mongod startup complete",
-                   "Summary of time elapsed"_attr = startupInfoBuilder.obj());
+        BSONObj startupInfoObj = startupInfoBuilder.obj();
+        LOGV2_INFO(
+            8423403, "mongod startup complete", "Summary of time elapsed"_attr = startupInfoObj);
+        startupInfoSection.setObject(startupInfoObj);
     });
 
 #ifdef MONGO_CONFIG_WIREDTIGER_ENABLED
@@ -933,7 +940,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
                                        &startupTimeElapsedBuilder);
         replCoord->startup(startupOpCtx.get(), lastShutdownState);
     } else {
-        if (storageEngine->supportsCappedCollections()) {
+        if (rss.getPersistenceProvider().supportsLocalCollections() &&
+            storageEngine->supportsCappedCollections()) {
             logStartup(startupOpCtx.get());
         }
 
@@ -1427,30 +1435,16 @@ auto makeReplicaSetNodeExecutor(ServiceContext* serviceContext) {
             "ReplNodeDbWorkerNetwork", nullptr, makeShardingEgressHooksList(serviceContext)));
 }
 
-auto makeReplicationExecutor(ServiceContext* serviceContext) {
-    ThreadPool::Options tpOptions;
-    tpOptions.threadNamePrefix = "ReplCoord-";
-    tpOptions.poolName = "ReplCoordThreadPool";
-    tpOptions.maxThreads = 50;
-    tpOptions.onCreateThread = [serviceContext](const std::string& threadName) {
-        Client::initThread(threadName,
-                           serviceContext->getService(ClusterRole::ShardServer),
-                           Client::noSession(),
-                           ClientOperationKillableByStepdown{false});
-    };
-    auto hookList = std::make_unique<rpc::EgressMetadataHookList>();
-    hookList->addHook(std::make_unique<rpc::VectorClockMetadataHook>(serviceContext));
-    return executor::ThreadPoolTaskExecutor::create(
-        std::make_unique<ThreadPool>(tpOptions),
-        executor::makeNetworkInterface("ReplNetwork", nullptr, std::move(hookList)));
-}
-
 void setUpReplicaSetDDLHooks(ServiceContext* serviceContext) {
     ReplicaSetDDLTracker::create(serviceContext);
     DirectConnectionDDLHook::create(serviceContext);
 }
 
 void setUpReplication(ServiceContext* serviceContext) {
+    auto& serviceLifecycle =
+        rss::ReplicatedStorageService::get(serviceContext).getServiceLifecycle();
+    serviceLifecycle.initializeStateRequiredForStorageAccess(serviceContext);
+
     repl::StorageInterface::set(serviceContext, std::make_unique<repl::StorageInterfaceImpl>());
     auto storageInterface = repl::StorageInterface::get(serviceContext);
 
@@ -1462,22 +1456,10 @@ void setUpReplication(ServiceContext* serviceContext) {
         serviceContext,
         std::make_unique<repl::ReplicationProcess>(
             storageInterface, std::move(consistencyMarkers), std::move(recovery)));
-    auto replicationProcess = repl::ReplicationProcess::get(serviceContext);
 
-    repl::TopologyCoordinator::Options topoCoordOptions;
-    topoCoordOptions.maxSyncSourceLagSecs = Seconds(repl::maxSyncSourceLagSecs);
-    topoCoordOptions.clusterRole = serverGlobalParams.clusterRole;
+    std::unique_ptr<repl::ReplicationCoordinator> replCoord =
+        serviceLifecycle.initializeReplicationCoordinator(serviceContext);
 
-    auto replCoord = std::make_unique<repl::ReplicationCoordinatorImpl>(
-        serviceContext,
-        getGlobalReplSettings(),
-        std::make_unique<repl::ReplicationCoordinatorExternalStateImpl>(
-            serviceContext, storageInterface, replicationProcess),
-        makeReplicationExecutor(serviceContext),
-        std::make_unique<repl::TopologyCoordinator>(topoCoordOptions),
-        replicationProcess,
-        storageInterface,
-        SecureRandom().nextInt64());
     // Only create a ReplicaSetNodeExecutor if sharding is disabled and replication is enabled.
     // Note that sharding sets up its own executors for scheduling work to remote nodes.
     if (serverGlobalParams.clusterRole.has(ClusterRole::None) &&
@@ -1902,8 +1884,12 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
             SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
                                            TimedSectionId::killAllOperations,
                                            &shutdownTimeElapsedBuilder);
-            serviceContext->setKillAllOperations(
-                [](const StringData t) { return t == kFTDCThreadName; });
+            auto& serviceLifecycle =
+                rss::ReplicatedStorageService::get(serviceContext).getServiceLifecycle();
+            serviceContext->setKillAllOperations([&serviceLifecycle](const StringData t) {
+                return t == kFTDCThreadName ||
+                    serviceLifecycle.shouldKeepThreadAliveUntilStorageEngineHasShutDown(t);
+            });
 
             if (MONGO_unlikely(pauseWhileKillingOperationsAtShutdown.shouldFail())) {
                 LOGV2_OPTIONS(4701700,
@@ -2048,6 +2034,13 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         catalog::shutDownCollectionCatalogAndGlobalStorageEngineCleanly(serviceContext,
                                                                         true /* memLeakAllowed */);
     }
+
+    // Depending on the underlying implementation, there may be some state that needs to be shut
+    // down after the replication subsystem and the storage engine.
+    auto& serviceLifecycle =
+        rss::ReplicatedStorageService::get(serviceContext).getServiceLifecycle();
+    serviceLifecycle.shutdownStateRequiredForStorageAccess(serviceContext,
+                                                           &shutdownTimeElapsedBuilder);
 
     // We drop the scope cache because leak sanitizer can't see across the
     // thread we use for proxying MozJS requests. Dropping the cache cleans up
