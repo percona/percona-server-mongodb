@@ -32,65 +32,19 @@
 #include "mongo/base/string_data.h"
 #include "mongo/db/exec/agg/stage.h"
 #include "mongo/db/pipeline/expression_context.h"
-#include "mongo/db/pipeline/window_function/partition_iterator.h"
-#include "mongo/db/pipeline/window_function/window_function_exec.h"
 
 namespace mongo::exec::agg {
 
-class InternalSetWindowFieldsStage final : public Stage {
+/**
+ * A Stage implementation for an extension aggregation stage. ExtensionStage is a facade around
+ * handles to extension API objects.
+ */
+class ExtensionStage final : public Stage {
 public:
-    InternalSetWindowFieldsStage(
-        StringData stageName,
-        const boost::intrusive_ptr<ExpressionContext>& expCtx,
-        const boost::optional<boost::intrusive_ptr<Expression>>& partitionBy,
-        const boost::optional<SortPattern>& sortBy,
-        const std::vector<WindowFunctionStatement>& outputFields);
-
-    void setSource(Stage* source) final {
-        pSource = source;
-        _iterator.setSource(source);
-    }
-
-    bool usedDisk() const final {
-        return _iterator.usedDisk();
-    };
-
-    const SpecificStats* getSpecificStats() const final {
-        return &_stats;
-    }
-
-    Document getExplainOutput() const final;
+    ExtensionStage(StringData name, const boost::intrusive_ptr<ExpressionContext>& pExpCtx);
 
 private:
-    void initialize();
-
     GetNextResult doGetNext() final;
-
-    void doDispose() final;
-
-    void doForceSpill() final {
-        _iterator.spillToDisk();
-    }
-
-    // Memory tracker is not updated directly by this class, but it is passed down to
-    // PartitionIterator and WindowFunctionExec's that update their memory consumption.
-    MemoryUsageTracker _memoryTracker;
-
-    PartitionIterator _iterator;
-
-    DocumentSourceSetWindowFieldsStats _stats;
-
-    // std::map is necessary to guarantee iteration order - see SERVER-88080 for details.
-    std::map<std::string, std::unique_ptr<WindowFunctionExec>> _executableOutputs;
-
-    bool _eof{false};
-
-    // Used by the failpoint to determine when to spill to disk.
-    int32_t _numDocsProcessed{0};
-
-    boost::optional<SortPattern> _sortBy;
-    std::vector<WindowFunctionStatement> _outputFields;
 };
-
 
 }  // namespace mongo::exec::agg

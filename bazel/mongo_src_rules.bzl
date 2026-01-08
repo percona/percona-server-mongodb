@@ -646,6 +646,7 @@ def mongo_cc_library(
         skip_archive = SKIP_ARCHIVE_ENABLED,
         visibility = visibility,
         deps = deps + cc_deps + [name + HEADER_DEP_SUFFIX],
+        exec_properties = exec_properties,
     )
 
 def write_sources_impl(ctx):
@@ -808,6 +809,7 @@ def _mongo_cc_binary_and_test(
         "exec_properties": exec_properties | select({
             "//bazel/config:remote_link_enabled": {},
             "//bazel/config:dtlto_enabled": {},
+            "@platforms//os:windows": {"cpp_link.coefficient": "1.0"},
             "//conditions:default": {"cpp_link.coefficient": "18.0"},
         }) | select({
             "//bazel/config:thin_lto_enabled": {"cpp_link.cpus": str(NUM_CPUS)},
@@ -834,6 +836,7 @@ def _mongo_cc_binary_and_test(
             enable_pdb = PDB_GENERATION_ENABLED,
             deps = all_deps,
             visibility = visibility,
+            exec_properties = exec_properties,
         )
     else:
         native.cc_test(**args)
@@ -846,6 +849,7 @@ def _mongo_cc_binary_and_test(
             enable_pdb = PDB_GENERATION_ENABLED,
             deps = all_deps,
             visibility = visibility,
+            exec_properties = exec_properties,
         )
 
 def mongo_cc_binary(
@@ -946,6 +950,7 @@ def mongo_cc_test(
         exec_properties = {},
         skip_global_deps = [],
         env = {},
+        minimum_test_resources = {},
         **kwargs):
     """Wrapper around cc_test.
 
@@ -976,7 +981,23 @@ def mongo_cc_test(
         dependency (options: "libunwind", "allocator").
       env: environment variables to pass to the binary when running through
         bazel.
+      minimum_test_resources: a dict of key/value pairs defining execution
+        requirements for the test. The only currently supported key is "cpu_cores".
     """
+    if "cpu_cores" in minimum_test_resources:
+        if minimum_test_resources["cpu_cores"] == 2:
+            exec_properties = exec_properties | select({
+                "@platforms//cpu:x86_64": {
+                    "test.Pool": "large_mem_2core_x86_64",
+                },
+                "@platforms//cpu:aarch64": {
+                    "test.Pool": "large_memory_2core_arm64",
+                },
+                "//conditions:default": {},
+            })
+        elif minimum_test_resources["cpu_cores"] > 2:
+            fail("minimum_test_resources[\"cpu_cores\"] > 2 is not supported")
+
     _mongo_cc_binary_and_test(
         name,
         srcs,

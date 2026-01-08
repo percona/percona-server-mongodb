@@ -27,47 +27,40 @@
  *    it in the license file.
  */
 
-#include "mongo/db/exec/agg/tee_consumer_stage.h"
+#include "mongo/db/extension/host/extension_stage.h"
 
 #include "mongo/db/exec/agg/document_source_to_stage_registry.h"
-#include "mongo/db/pipeline/document_source_tee_consumer.h"
+#include "mongo/db/extension/host/document_source_extension.h"
 
 namespace mongo {
 
-boost::intrusive_ptr<exec::agg::Stage> documentSourceTeeConsumerToStageFn(
+using namespace extension::host;
+
+boost::intrusive_ptr<exec::agg::Stage> documentSourceExtensionToStageFn(
     const boost::intrusive_ptr<DocumentSource>& source) {
-    auto documentSource = dynamic_cast<DocumentSourceTeeConsumer*>(source.get());
+    auto* documentSource = dynamic_cast<DocumentSourceExtension*>(source.get());
 
-    tassert(10537003, "expected 'DocumentSourceTeeConsumer' type", documentSource);
+    tassert(10980400, "expected 'DocumentSourceExtension' type", documentSource);
 
-    return make_intrusive<exec::agg::TeeConsumerStage>(
-        documentSource->getExpCtx(), documentSource->_facetId, documentSource->_stageName);
+    return make_intrusive<exec::agg::ExtensionStage>(documentSource->getSourceName(),
+                                                     documentSource->getExpCtx());
 }
 
 namespace exec::agg {
 
-REGISTER_AGG_STAGE_MAPPING(teeConsumerStage,
-                           DocumentSourceTeeConsumer::id,
-                           documentSourceTeeConsumerToStageFn);
+REGISTER_AGG_STAGE_MAPPING(extensionStage,
+                           DocumentSourceExtension::id,
+                           documentSourceExtensionToStageFn);
 
-TeeConsumerStage::TeeConsumerStage(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                                   size_t facetId,
-                                   StringData stageName)
-    : Stage(stageName, expCtx), _facetId(facetId) {}
+ExtensionStage::ExtensionStage(StringData name,
+                               const boost::intrusive_ptr<ExpressionContext>& pExpCtx)
+    : Stage(name, pExpCtx) {}
 
-void TeeConsumerStage::setTeeBuffer(const boost::intrusive_ptr<TeeBuffer>& bufferSource) {
-    _bufferSource = std::move(bufferSource);
-}
-
-GetNextResult TeeConsumerStage::doGetNext() {
-    tassert(10537004, "TeeBuffer not set", _bufferSource);
-    return _bufferSource->getNext(_facetId);
-}
-
-void TeeConsumerStage::doDispose() {
-    if (_bufferSource) {
-        _bufferSource->dispose(_facetId);
+GetNextResult ExtensionStage::doGetNext() {
+    if (pSource) {
+        return pSource->getNext();
     }
+    return GetNextResult::makeEOF();
 }
 }  // namespace exec::agg
 }  // namespace mongo
