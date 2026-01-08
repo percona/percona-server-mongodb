@@ -15,7 +15,7 @@ import {
 import {getAggPlanStages, getPlanStage, getWinningPlanFromExplain} from "jstests/libs/query/analyze_plan.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 
-const conn = MongoRunner.runMongod();
+const conn = MongoRunner.runMongod({setParameter: {featureFlagExtendedAutoSpilling: true}});
 const testDB = conn.getDB("profile_agg");
 const collName = jsTestName();
 const coll = testDB.getCollection(collName);
@@ -24,14 +24,14 @@ testDB.setProfilingLevel(2);
 
 function resetCollection() {
     coll.drop();
-    for (var i = 0; i < 10; ++i) {
+    for (let i = 0; i < 10; ++i) {
         assert.commandWorked(coll.insert({a: i}));
     }
 }
 function resetForeignCollection() {
     testDB.foreign.drop();
     const forColl = testDB.getCollection("foreign");
-    for (var i = 4; i < 18; i += 2) assert.commandWorked(forColl.insert({b: i}));
+    for (let i = 4; i < 18; i += 2) assert.commandWorked(forColl.insert({b: i}));
 }
 //
 // Confirm hasSortStage with in-memory sort.
@@ -41,7 +41,7 @@ resetCollection();
 // Confirm 'usedDisk' is not set if 'allowDiskUse' is set but no stages need to use disk.
 //
 coll.aggregate([{$match: {a: {$gte: 2}}}], {allowDiskUse: true});
-var profileObj = getLatestProfilerEntry(testDB);
+let profileObj = getLatestProfilerEntry(testDB);
 assert(!profileObj.hasOwnProperty("usedDisk"), tojson(profileObj));
 
 resetCollection();
@@ -126,7 +126,9 @@ assert.gt(profileObj.textOrSpilledBytes, 0, tojson(profileObj));
 assert.gt(profileObj.textOrSpilledRecords, 0, tojson(profileObj));
 assert.gt(profileObj.textOrSpilledDataStorageSize, 0, tojson(profileObj));
 
-coll.aggregate([{$match: {$text: {$search: "black tea"}}}, {$sort: {_: {$meta: "textScore"}}}], {allowDiskUse: true});
+coll.aggregate([{$match: {$text: {$search: "black tea"}}}, {$sort: {_: {$meta: "textScore"}}}], {
+    allowDiskUse: true,
+});
 profileObj = getLatestProfilerEntry(testDB);
 assert.eq(profileObj.usedDisk, true, tojson(profileObj));
 assert.gt(profileObj.textOrSpills, 0, tojson(profileObj));

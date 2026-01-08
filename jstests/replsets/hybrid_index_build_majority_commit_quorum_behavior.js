@@ -1,13 +1,17 @@
 /*
  * Test to verify when majority commit quorum is enabled for index build, the primary index builder
  * should not commit the index until majority of nodes finishes building their index.
+ * @tags: [
+ *   # TODO(SERVER-109702): Evaluate if a primary-driven index build compatible test should be created.
+ *   requires_commit_quorum,
+ * ]
  */
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {funWithArgs} from "jstests/libs/parallel_shell_helpers.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {IndexBuildTest} from "jstests/noPassthrough/libs/index_builds/index_build.js";
 
-var rst = new ReplSetTest({nodes: [{}, {rsConfig: {priority: 0}}]});
+let rst = new ReplSetTest({nodes: [{}, {rsConfig: {priority: 0}}]});
 rst.startSet();
 rst.initiate();
 
@@ -34,7 +38,7 @@ rst.awaitReplication();
 function isIndexBuildInProgress(conn, indexName) {
     jsTestLog("Running collection stats on " + conn.host);
     const coll = conn.getDB(dbName)[collName];
-    var stats = assert.commandWorked(coll.stats());
+    let stats = assert.commandWorked(coll.stats());
     return Array.contains(stats["indexBuilds"], indexName);
 }
 

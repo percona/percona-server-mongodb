@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,17 +29,24 @@
 
 #pragma once
 
-#include "mongo/crypto/fle_crypto.h"
+#include "mongo/base/string_data.h"
+#include "mongo/db/exec/agg/stage.h"
+#include "mongo/db/pipeline/expression_context.h"
 
-namespace mongo {
-// Testing-only helpers for decrypting IEVs.
-class IndexedEqualityEncryptedValueV2Helpers {
+#include <boost/smart_ptr/intrusive_ptr.hpp>
+
+namespace mongo::exec::agg {
+
+class InternalShardServerInfoStage final : public Stage {
 public:
-    static StatusWith<std::vector<uint8_t>> parseAndDecryptCiphertext(
-        ServerDataEncryptionLevel1Token serverEncryptionToken,
-        ConstDataRange serializedServerValue);
+    InternalShardServerInfoStage(StringData stageName,
+                                 const boost::intrusive_ptr<ExpressionContext>& pExpCtx)
+        : Stage(stageName, pExpCtx) {}
 
-    static StatusWith<FLE2TagAndEncryptedMetadataBlock> parseAndDecryptMetadataBlock(
-        ServerDerivedFromDataToken serverDataDerivedToken, ConstDataRange serializedServerValue);
+private:
+    GetNextResult doGetNext() final;
+
+    bool _didEmit = false;
 };
-}  // namespace mongo
+
+}  // namespace mongo::exec::agg

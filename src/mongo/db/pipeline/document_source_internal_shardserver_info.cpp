@@ -33,10 +33,15 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/exec/document_value/document.h"
-#include "mongo/db/pipeline/process_interface/mongo_process_interface.h"
+#include "mongo/db/exec/document_value/value.h"
+#include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/query/allowed_contexts.h"
+#include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
+
+#include <initializer_list>
 
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
@@ -56,19 +61,6 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceInternalShardServerInfo::crea
             elem.type() == BSONType::object && elem.Obj().isEmpty());
 
     return new DocumentSourceInternalShardServerInfo(expCtx);
-}
-
-DocumentSource::GetNextResult DocumentSourceInternalShardServerInfo::doGetNext() {
-    if (!_didEmit) {
-        auto shardName =
-            pExpCtx->getMongoProcessInterface()->getShardName(pExpCtx->getOperationContext());
-        auto hostAndPort =
-            pExpCtx->getMongoProcessInterface()->getHostAndPort(pExpCtx->getOperationContext());
-        _didEmit = true;
-        return DocumentSource::GetNextResult(DOC("shard" << shardName << "host" << hostAndPort));
-    }
-
-    return DocumentSource::GetNextResult::makeEOF();
 }
 
 Value DocumentSourceInternalShardServerInfo::serialize(const SerializationOptions& opts) const {
