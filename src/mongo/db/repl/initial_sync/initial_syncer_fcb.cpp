@@ -474,18 +474,6 @@ bool InitialSyncerFCB::_isShuttingDown(WithLock lk) const {
     return State::kShuttingDown == _state;
 }
 
-std::string InitialSyncerFCB::getDiagnosticString() const {
-    LockGuard lk(_mutex);
-    str::stream out;
-    out << "InitialSyncerFCB -" << " active: " << _isActive(lk)
-        << " shutting down: " << _isShuttingDown(lk);
-    if (_initialSyncState) {
-        out << " opsAppied: " << _initialSyncState->appliedOps;
-    }
-
-    return out;
-}
-
 BSONObj InitialSyncerFCB::getInitialSyncProgress() const {
     LockGuard lk(_mutex);
 
@@ -2531,10 +2519,6 @@ void InitialSyncerFCB::_finalizeAndCompleteCallback(
 }
 
 
-std::string InitialSyncerFCB::Stats::toString() const {
-    return toBSON().toString();
-}
-
 BSONObj InitialSyncerFCB::Stats::toBSON() const {
     BSONObjBuilder bob;
     append(&bob);
@@ -2565,10 +2549,6 @@ void InitialSyncerFCB::Stats::append(BSONObjBuilder* builder) const {
         arrBuilder.append(attemptInfo.toBSON());
     }
     arrBuilder.doneFast();
-}
-
-std::string InitialSyncerFCB::InitialSyncAttemptInfo::toString() const {
-    return toBSON().toString();
 }
 
 BSONObj InitialSyncerFCB::InitialSyncAttemptInfo::toBSON() const {

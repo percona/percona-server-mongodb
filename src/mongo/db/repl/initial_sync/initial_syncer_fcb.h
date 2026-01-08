@@ -109,7 +109,6 @@ public:
         int operationsRetried;
         int totalTimeUnreachableMillis;
 
-        std::string toString() const;
         BSONObj toBSON() const;
         void append(BSONObjBuilder* builder) const;
     };
@@ -122,7 +121,6 @@ public:
         std::vector<InitialSyncerFCB::InitialSyncAttemptInfo> initialSyncAttemptInfos;
         std::weak_ptr<executor::TaskExecutor> exec;
 
-        std::string toString() const;
         BSONObj toBSON() const;
         void append(BSONObjBuilder* builder) const;
     };
@@ -152,11 +150,6 @@ public:
     Status shutdown() final;
 
     void join() final;
-
-    /**
-     * Returns internal state in a loggable format.
-     */
-    std::string getDiagnosticString() const;
 
     BSONObj getInitialSyncProgress() const final;
 
