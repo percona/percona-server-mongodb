@@ -465,22 +465,22 @@ install_deps() {
 
     else
       apt-get -y update
-      DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https software-properties-common
+      DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https software-properties-common gnupg2
       export DEBIAN=$(lsb_release -sc)
       export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
       wget https://repo.percona.com/prel/apt/pool/main/p/percona-release/percona-release_1.0-32.generic_all.deb && dpkg -i percona-release_1.0-32.generic_all.deb
       if [ x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" -o x"${DEBIAN}" = "xnoble" ]; then
         add-apt-repository -y ppa:deadsnakes/ppa
-      elif [ x"${DEBIAN}" = "xbuster" ]; then
+      elif [ x"${DEBIAN}" = "xbuster" -o x"${DEBIAN}" = "xbullseye" ]; then
         wget https://people.debian.org/~paravoid/python-all/unofficial-python-all.asc
         mv unofficial-python-all.asc /etc/apt/trusted.gpg.d/
-        echo "deb http://people.debian.org/~paravoid/python-all ${DEBIAN} main" | tee /etc/apt/sources.list.d/python-all.list
+        echo "deb [trusted=yes] http://people.debian.org/~paravoid/python-all ${DEBIAN} main" | tee /etc/apt/sources.list.d/python-all.list
       fi
       percona-release enable tools testing
       apt-get update
-      if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xjammy" ]; then
+      if [ x"${DEBIAN}" = "xjammy" ]; then
         INSTALL_LIST="python3 python3-dev python3-pip"
-      elif [ x"${DEBIAN}" = "xnoble" ]; then
+      elif [ x"${DEBIAN}" = "xnoble" -o x"${DEBIAN}" = "xbullseye" ]; then
         INSTALL_LIST="python3.11 python3.11-dev"
       else
         INSTALL_LIST="python3.7 python3.7-dev dh-systemd"
@@ -503,7 +503,9 @@ install_deps() {
       install_gcc_8_deb
       wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
       if [ x"${DEBIAN}" = "xbullseye" ]; then
-        update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1
+        update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+        ln -sf /usr/bin/python3.11 /usr/bin/python3
+        rm /usr/lib/python3.11/EXTERNALLY-MANAGED
       elif [ x"${DEBIAN}" = "xjammy" ]; then
         update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
       elif [ x"${DEBIAN}" = "xnoble" ]; then
@@ -982,7 +984,7 @@ build_tarball(){
         pip install --upgrade pip
 
         # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
-        pip install pyyaml==5.4.1 --no-build-isolation
+        #pip install pyyaml==5.4.1 --no-build-isolation
 
         pip install --user -r etc/pip/dev-requirements.txt
         pip install --user -r etc/pip/evgtest-requirements.txt
