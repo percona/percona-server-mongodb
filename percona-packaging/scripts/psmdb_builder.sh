@@ -521,6 +521,8 @@ install_deps() {
       pip install setuptools
     fi
     aws_sdk_build
+    #keep symbol table in the binary
+    sed -i 's:$strip, "--remove-section=.comment":$strip, "--strip-debug", "--remove-section=.comment":g' /usr/bin/dh_strip
     return;
 }
 
