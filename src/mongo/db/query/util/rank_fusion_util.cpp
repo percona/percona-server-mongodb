@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2024-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,27 +27,15 @@
  *    it in the license file.
  */
 
-#include "mongo/db/repl/read_concern_idl.h"
+#include "mongo/db/query/util/rank_fusion_util.h"
 
-#include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/bson/bsontypes.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
+#include "mongo/db/query/query_knobs_gen.h"
 
 namespace mongo {
-
-LogicalTime deserializeReadConcernLogicalTime(BSONElement e) {
-    uassert(ErrorCodes::TypeMismatch,
-            fmt::format("\"{}\" had the wrong type. Expected {}, found {}",
-                        e.fieldNameStringData(),
-                        BSONType::timestamp,
-                        typeName(e.type())),
-            e.type() == BSONType::timestamp);
-
-    return LogicalTime(Timestamp(e.timestampValue()));
-}
-
-void serializeReadConcernLogicalTime(const LogicalTime& w,
-                                     StringData fieldName,
-                                     BSONObjBuilder* builder) {
-    builder->append(fieldName, w.asTimestamp());
+bool isRankFusionFullEnabled() {
+    return bypassRankFusionFCVGate ||
+        feature_flags::gFeatureFlagRankFusionFull.isEnabledUseLastLTSFCVWhenUninitialized(
+            serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
 }
 }  // namespace mongo

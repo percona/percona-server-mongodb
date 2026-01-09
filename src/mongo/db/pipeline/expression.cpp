@@ -72,10 +72,12 @@
 #include "mongo/db/pipeline/variable_validation.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/db/query/util/make_data_structure.h"
+#include "mongo/db/query/util/rank_fusion_util.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/platform/atomic_word.h"
+#include "mongo/stdx/unordered_set.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/str.h"
 #include "mongo/util/string_map.h"
@@ -87,6 +89,29 @@ using boost::intrusive_ptr;
 using std::pair;
 using std::string;
 using std::vector;
+
+Expression::ExpressionVector Expression::cloneChildren() const {
+    if (_children.empty()) {
+        return {};
+    }
+
+    ExpressionVector copy;
+
+    copy.resize(_children.size());
+    for (size_t childIdx = 0; childIdx < _children.size(); ++childIdx) {
+        copy[childIdx] = cloneChild(childIdx);
+    }
+
+    return copy;
+}
+
+boost::intrusive_ptr<Expression> Expression::cloneChild(size_t childIdx) const {
+    tassert(
+        3100300,
+        fmt::format("Child index is out of bounds: idx={}, size={}", childIdx, _children.size()),
+        childIdx < _children.size());
+    return _children[childIdx] ? _children[childIdx]->clone() : nullptr;
+}
 
 Value ExpressionConstant::serializeConstant(const SerializationOptions& opts,
                                             Value val,
@@ -170,6 +195,28 @@ void Expression::registerExpression(string key,
 
 void Expression::registerDisabledExpressionName(string key, ExpressionDisabledReason reason) {
     disabledExpressionNames[key] = reason;
+}
+
+stdx::unordered_set<std::string> Expression::listRegisteredExpressions() {
+    stdx::unordered_set<std::string> expressions;
+
+    expressions.reserve(parserMap.size());
+    for (auto&& [exprName, _] : parserMap) {
+        expressions.insert(exprName);
+    }
+
+    return expressions;
+}
+
+stdx::unordered_set<std::string> Expression::listDisabledExpressions() {
+    stdx::unordered_set<std::string> expressions;
+
+    expressions.reserve(disabledExpressionNames.size());
+    for (auto&& [exprName, _] : disabledExpressionNames) {
+        expressions.insert(exprName);
+    }
+
+    return expressions;
 }
 
 std::string Expression::getErrorMessage(const StringData key) {
@@ -2052,9 +2099,8 @@ void ExpressionMeta::_assertMetaFieldCompatibleWithHybridScoringFeatureFlag(
     static const std::set<MetaType> kHybridScoringProtectedFields = {MetaType::kScore,
                                                                      MetaType::kScoreDetails};
     const bool usesHybridScoringProtectedField = kHybridScoringProtectedFields.contains(type);
-    const bool hybridScoringFeatureFlagEnabled = expCtx->shouldParserIgnoreFeatureFlagCheck() ||
-        feature_flags::gFeatureFlagRankFusionFull.isEnabledUseLastLTSFCVWhenUninitialized(
-            serverGlobalParams.featureCompatibility.acquireFCVSnapshot());
+    const bool hybridScoringFeatureFlagEnabled =
+        expCtx->shouldParserIgnoreFeatureFlagCheck() || isRankFusionFullEnabled();
     uassert(ErrorCodes::FailedToParse,
             "'featureFlagRankFusionFull' must be enabled to use "
             "'score' or 'scoreDetails' meta field",
@@ -3141,6 +3187,8 @@ intrusive_ptr<Expression> ExpressionSigmoid::parseExpressionSigmoid(
     return make_intrusive<ExpressionDivide>(expCtx, std::move(divideChildren));
 }
 
+// Note: we do not bypass FCV-gating with 'bypassRankFusionFCVGate' here because this expression was
+// not backported to 8.0.
 REGISTER_EXPRESSION_WITH_FEATURE_FLAG(sigmoid,
                                       ExpressionSigmoid::parseExpressionSigmoid,
                                       AllowedWithApiStrict::kNeverInVersion1,

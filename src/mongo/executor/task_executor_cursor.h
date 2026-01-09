@@ -65,6 +65,7 @@
 namespace MONGO_MOD_PUB mongo {
 
 namespace executor {
+class PinnedExecutorRegistryToken;
 
 /**
  * A synchronous cursor API for managing a remote cursor that uses an async task executor to run all
@@ -191,12 +192,6 @@ public:
         _options.yieldPolicy = std::move(yieldPolicy);
     }
 
-    void setYieldable(const Yieldable* yieldable) {
-        if (_options.yieldPolicy && !_options.yieldPolicy->usesCollectionAcquisitions()) {
-            _options.yieldPolicy->setYieldable(yieldable);
-        }
-    }
-
     PlanYieldPolicy* getYieldPolicy() {
         return _options.yieldPolicy.get();
     }
@@ -238,6 +233,9 @@ private:
     // non-pinning, normal executor, so that we can shut down the pinned executor
     // out-of-line.
     std::shared_ptr<executor::TaskExecutor> _underlyingExecutor;
+
+    // RAII-style token for the (pinned, underlying) executor pair.
+    std::unique_ptr<PinnedExecutorRegistryToken> _pcteToken;
 
     // Used as a scratch pad for the successive scheduleRemoteCommand calls
     RemoteCommandRequest _rcr;

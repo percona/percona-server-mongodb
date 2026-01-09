@@ -214,6 +214,22 @@ structs:
 
     ##################################################################################################
     #
+    # Structs to test serialization and parsing of basic types
+    #
+    ##################################################################################################
+
+    TimestampStruct:
+        description: UnitTest for parsing and serialization of timestamp
+        fields:
+            timestamp: timestamp
+
+    LogicalTimeStruct:
+        description: UnitTest for parsing and serialization of logicalTime
+        fields:
+            logicalTime: logicalTime
+
+    ##################################################################################################
+    #
     # Struct to test non view basic types
     #
     ##################################################################################################
@@ -247,21 +263,20 @@ structs:
             field24: milliseconds
             field25: seconds
             field26: logicalTime
-            field27: logicalTime
-            field28: timestamp
-            field29: namespacestring
-            field30: base64string
-            field31: base64urlstring
-            field32: connection_string
-            field33: fcv_string
-            field34: IDLAnyTypeOwned
-            field35:
+            field27: timestamp
+            field28: namespacestring
+            field29: base64string
+            field30: base64urlstring
+            field31: connection_string
+            field32: fcv_string
+            field33: IDLAnyTypeOwned
+            field34:
                 type: tenant_id
                 optional: true
-            field36:
+            field35:
                 type: tenant_id_hex
                 optional: true
-            field37: database_name
+            field36: database_name
 
     ##################################################################################################
     #
@@ -446,6 +461,61 @@ structs:
         description: UnitTest for a single safeInt64
         fields:
             value: safeInt64
+
+    ##################################################################################################
+    #
+    # Test structs with tested chaining
+    #
+    ##################################################################################################
+    NestedChainedBase:
+        description: "Base struct for testing nested chains"
+        fields:
+            base_field: int
+
+    NestedChainedBottom:
+        description: "Bottom struct for nested chaining"
+        chained_structs:
+            NestedChainedBase: NestedChainedBase
+        fields:
+            bottom_field: int
+
+    NestedChainedMiddle:
+        description: "Middle struct for nested chaining"
+        chained_structs:
+            NestedChainedBottom: NestedChainedBottom
+        fields:
+            middle_field: string
+
+    NestedChainedTop:
+        description: "Top struct for nested chaining"
+        chained_structs:
+            NestedChainedMiddle: NestedChainedMiddle
+        fields:
+            top_field: bool
+
+    NestedChainedNoInlineBase:
+        description: "Base struct for testing nested chains without inline"
+        strict: false
+        fields:
+            base_field: int
+
+    NestedChainedNoInlineBottom:
+        description: "Top struct for nested chaining without inline"
+        inline_chained_structs: false
+        strict: false
+        chained_structs:
+            NestedChainedNoInlineBase: NestedChainedNoInlineBase
+        fields:
+            bottom_field: string
+
+    NestedChainedNoInlineTop:
+        description: "Top struct for nested chaining without inline"
+        strict: false
+        inline_chained_structs: false
+        chained_structs:
+            NestedChainedNoInlineBottom: NestedChainedNoInlineBottom
+        fields:
+            top_field: bool
 
     ##################################################################################################
     #

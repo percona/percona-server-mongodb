@@ -718,10 +718,8 @@ StatusWith<std::vector<BSONObj>> _findOrDeleteDocuments(
             }
             // Use collection scan.
             planExecutor = isFind
-                ? InternalPlanner::collectionScan(opCtx,
-                                                  &collection.getCollectionPtr(),
-                                                  PlanYieldPolicy::YieldPolicy::INTERRUPT_ONLY,
-                                                  direction)
+                ? InternalPlanner::collectionScan(
+                      opCtx, collection, PlanYieldPolicy::YieldPolicy::INTERRUPT_ONLY, direction)
                 : InternalPlanner::deleteWithCollectionScan(
                       opCtx,
                       collection,
@@ -772,7 +770,7 @@ StatusWith<std::vector<BSONObj>> _findOrDeleteDocuments(
 
             planExecutor = isFind
                 ? InternalPlanner::collectionScan(opCtx,
-                                                  &collection.getCollectionPtr(),
+                                                  collection,
                                                   PlanYieldPolicy::YieldPolicy::INTERRUPT_ONLY,
                                                   direction,
                                                   boost::none /* resumeAfterId */,
@@ -820,7 +818,7 @@ StatusWith<std::vector<BSONObj>> _findOrDeleteDocuments(
             }
             planExecutor = isFind
                 ? InternalPlanner::indexScan(opCtx,
-                                             &collection.getCollectionPtr(),
+                                             collection,
                                              indexDescriptor,
                                              bounds.first,
                                              bounds.second,
@@ -1510,18 +1508,6 @@ bool StorageInterfaceImpl::supportsRecoverToStableTimestamp(ServiceContext* serv
 
 bool StorageInterfaceImpl::supportsRecoveryTimestamp(ServiceContext* serviceCtx) const {
     return serviceCtx->getStorageEngine()->supportsRecoveryTimestamp();
-}
-
-void StorageInterfaceImpl::initializeStorageControlsForReplication(
-    ServiceContext* serviceCtx) const {
-    // The storage engine may support the use of OplogTruncateMarkers to more finely control
-    // oplog history deletion, in which case we need to start the thread to
-    // periodically execute deletion via oplog truncate markers. OplogTruncateMarkers are a
-    // replacement for capped collection deletion of the oplog collection history.
-    if (!ReplSettings::shouldSkipOplogSampling()) {
-        auto maintainerThread = OplogCapMaintainerThread::get(serviceCtx);
-        maintainerThread->start();
-    }
 }
 
 boost::optional<Timestamp> StorageInterfaceImpl::getRecoveryTimestamp(

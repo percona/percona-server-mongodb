@@ -651,6 +651,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         }
         throw;  // suppress the `control reaches end of non-void function` warning
     }();
+
     StorageControl::startStorageControls(serviceContext);
 
     auto logStartupStats = std::make_unique<ScopeGuard<std::function<void()>>>([&] {
@@ -2012,18 +2013,10 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         shutdownChangeCollectionExpiredDocumentsRemover(serviceContext);
     }
 
-    {
-        SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
-                                       TimedSectionId::shutDownOplogCapMaintainer,
-                                       &shutdownTimeElapsedBuilder);
-        OplogCapMaintainerThread::get(serviceContext)->shutdown();
-    }
-
     // We should always be able to acquire the global lock at shutdown.
     //
     // For a Windows service, dbexit does not call exit(), so we must leak the lock outside
     // of this function to prevent any operations from running that need a lock.
-    //
     LOGV2(4784929, "Acquiring the global lock for shutdown");
     shard_role_details::getLocker(opCtx)->lockGlobal(opCtx, MODE_X);
 

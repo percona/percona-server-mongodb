@@ -26,22 +26,39 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-
 #pragma once
 
-#include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
-#include "mongo/bson/bsonelement.h"
-#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/service_context.h"
+#include "mongo/executor/task_executor.h"
 
-namespace mongo::idl {
+#include <list>
+#include <memory>
 
-// Serializes an error status. OK statuses will throw.
-void serializeErrorStatus(const Status& status, StringData fieldName, BSONObjBuilder* builder);
+namespace mongo::executor {
 
-// Deserializes an error status from the BSONElement which must hold an object.
-// OK status codes will throw. The BSON object may include fields "code" and "errmsg", which
-// are parsed into the returned Status.
-Status deserializeErrorStatus(const BSONElement& bsonElem);
+struct ExecutorPair {
+    std::weak_ptr<TaskExecutor> pinned;
+    std::weak_ptr<TaskExecutor> underlying;
+};
 
-}  // namespace mongo::idl
+/**
+ * Registers a (pinned, underlying) ExecutorPair in the Registry on construction and unregisters the
+ * same pair on destruction.
+ */
+class PinnedExecutorRegistryToken {
+public:
+    PinnedExecutorRegistryToken(ServiceContext* svc,
+                                std::shared_ptr<TaskExecutor> pinned,
+                                std::shared_ptr<TaskExecutor> underlying);
+    ~PinnedExecutorRegistryToken();
+
+private:
+    ServiceContext* _svc;
+    // Iterator to this token's registry entry.
+    std::list<ExecutorPair>::iterator _it;
+};
+
+// Shutdown and join all pinned executors that were built on top of 'underlying'.
+void shutdownPinnedExecutors(ServiceContext* svc, const std::shared_ptr<TaskExecutor>& underlying);
+
+}  // namespace mongo::executor
