@@ -510,8 +510,10 @@ CreateIndexesReply runCreateIndexesWithCoordinator(
     CreateIndexesReply reply;
 
     auto specs = parseAndValidateIndexSpecs(opCtx, cmd, ns);
-    auto indexes = toIndexBuildInfoVec(
-        specs, *opCtx->getServiceContext()->getStorageEngine(), cmd.getDbName());
+    auto indexes = toIndexBuildInfoVec(specs,
+                                       *opCtx->getServiceContext()->getStorageEngine(),
+                                       cmd.getDbName(),
+                                       VersionContext::getDecoration(opCtx));
     auto replCoord = repl::ReplicationCoordinator::get(opCtx);
     auto indexBuildsCoord = IndexBuildsCoordinator::get(opCtx);
     auto protocol = determineProtocol(opCtx, ns);
@@ -904,8 +906,9 @@ public:
                 boost::in_place_init, opCtx, ns()};
 
             uassert(ErrorCodes::Error(8293400),
-                    str::stream() << "Cannot create index on special internal config collection "
-                                  << NamespaceString::kPreImagesCollectionName,
+                    str::stream()
+                        << "Cannot create index on special internal config collection "
+                        << NamespaceString::kChangeStreamPreImagesNamespace.toStringForErrorMsg(),
                     !ns().isChangeStreamPreImagesCollection());
 
             const auto& cmd = [&] {

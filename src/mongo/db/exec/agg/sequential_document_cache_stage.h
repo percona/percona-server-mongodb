@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,14 +27,33 @@
  *    it in the license file.
  */
 
-#include "mongo/util/concurrency/thread_pool_test_fixture.h"
+#pragma once
 
-namespace mongo {
+#include "mongo/base/string_data.h"
+#include "mongo/db/exec/agg/stage.h"
+#include "mongo/db/pipeline/expression_context.h"
+#include "mongo/db/pipeline/sequential_document_cache.h"
 
-void ThreadPoolTest::setUp() {
-    _threadPool = makeThreadPool();
-}
+#include <memory>
 
-void ThreadPoolTest::tearDown() {}
+#include <boost/smart_ptr/intrusive_ptr.hpp>
 
-}  // namespace mongo
+namespace mongo::exec::agg {
+class SequentialDocumentCacheStage final : public Stage {
+public:
+    using SequentialDocumentCachePtr = std::shared_ptr<SequentialDocumentCache>;
+    SequentialDocumentCacheStage(StringData stageName,
+                                 const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
+                                 SequentialDocumentCachePtr cache);
+
+protected:
+    GetNextResult doGetNext() final;
+
+private:
+    SequentialDocumentCachePtr _cache;
+
+    // This flag is set to prevent the cache stage from immediately serving from the cache after it
+    // has exhausted input from its source for the first time.
+    bool _cacheIsEOF = false;
+};
+}  // namespace mongo::exec::agg

@@ -284,9 +284,15 @@ Status applyOperation_inlock(OperationContext* opCtx,
                              bool isDataConsistent,
                              IncrementOpsAppliedStatsFn incrementOpsAppliedStats = {});
 
-Status applyContainerOperation(OperationContext* opCtx,
-                               const ApplierOperation& op,
-                               OplogApplication::Mode oplogApplicationMode);
+/**
+ * Apply a container insert or delete operation. The caller must hold a MODE_IX lock on the
+ * namespace the container belongs to. Only container ops are allowed.
+ *
+ * Returns OK on success, or the the failure status reported by the storage engine.
+ */
+Status applyContainerOperation_inlock(OperationContext* opCtx,
+                                      const ApplierOperation& op,
+                                      OplogApplication::Mode oplogApplicationMode);
 
 /**
  * Take a command op and apply it locally
@@ -349,9 +355,14 @@ template <typename F>
 auto writeConflictRetryWithLimit(OperationContext* opCtx,
                                  StringData opStr,
                                  const NamespaceStringOrUUID& nssOrUUID,
-                                 F&& f) {
-    return writeConflictRetry(
-        opCtx, opStr, nssOrUUID, f, repl::writeConflictRetryLimit.loadRelaxed());
+                                 F&& f,
+                                 bool dump = false) {
+    return writeConflictRetry(opCtx,
+                              opStr,
+                              nssOrUUID,
+                              f,
+                              repl::writeConflictRetryLimit.loadRelaxed(),
+                              dump ? repl::writeConflictRetryCountForDumpState.loadRelaxed() : 0);
 }
 
 }  // namespace MONGO_MOD_OPEN repl

@@ -63,6 +63,13 @@ std::unique_ptr<QuerySolution> makeIndexScanFetchPlan(
     std::unique_ptr<MatchExpression> indexFilter = nullptr,
     std::unique_ptr<MatchExpression> fetchFilter = nullptr);
 
+std::unique_ptr<QuerySolution> makeMultiKeyIndexScanFetchPlan(
+    IndexBounds bounds,
+    std::vector<std::string> indexFields,
+    std::string multikeyField,
+    std::unique_ptr<MatchExpression> indexFilter = nullptr,
+    std::unique_ptr<MatchExpression> fetchFilter = nullptr);
+
 std::unique_ptr<QuerySolution> makeCollScanPlan(std::unique_ptr<MatchExpression> filter);
 
 std::unique_ptr<QuerySolution> makeVirtualCollScanPlan(size_t size,
@@ -87,8 +94,7 @@ CardinalityEstimate getPlanHistogramCE(const QuerySolution& plan, const Collecti
 
 CardinalityEstimate getPlanSamplingCE(const QuerySolution& plan,
                                       double collCard,
-                                      ce::SamplingEstimator* samplingEstimator,
-                                      bool useIndexBounds);
+                                      ce::SamplingEstimator* samplingEstimator);
 
 std::unique_ptr<stats::CollectionStatistics> makeCollStats(double collCard);
 std::unique_ptr<stats::CollectionStatistics> makeCollStatsWithHistograms(

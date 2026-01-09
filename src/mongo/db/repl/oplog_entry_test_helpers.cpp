@@ -112,6 +112,21 @@ OplogEntry makeUpdateDocumentOplogEntry(OpTime opTime,
 OplogEntry makeContainerInsertOplogEntry(OpTime opTime,
                                          const NamespaceString& nss,
                                          StringData containerIdent,
+                                         int64_t key,
+                                         BSONBinData value) {
+    return {DurableOplogEntry{DurableOplogEntryParams{
+        .opTime = opTime,
+        .opType = OpTypeEnum::kContainerInsert,
+        .nss = nss,
+        .container = containerIdent,
+        .oField = BSON("k" << key << "v" << value),
+        .wallClockTime = Date_t::now(),
+    }}};
+}
+
+OplogEntry makeContainerInsertOplogEntry(OpTime opTime,
+                                         const NamespaceString& nss,
+                                         StringData containerIdent,
                                          BSONBinData key,
                                          BSONBinData value) {
     return {DurableOplogEntry{DurableOplogEntryParams{
@@ -119,8 +134,21 @@ OplogEntry makeContainerInsertOplogEntry(OpTime opTime,
         .opType = OpTypeEnum::kContainerInsert,
         .nss = nss,
         .container = containerIdent,
-        .oField = BSON("k" << BSONBinData(key.data, key.length, key.type) << "v"
-                           << BSONBinData(value.data, value.length, value.type)),
+        .oField = BSON("k" << key << "v" << value),
+        .wallClockTime = Date_t::now(),
+    }}};
+}
+
+OplogEntry makeContainerDeleteOplogEntry(OpTime opTime,
+                                         const NamespaceString& nss,
+                                         StringData containerIdent,
+                                         int64_t key) {
+    return {DurableOplogEntry{DurableOplogEntryParams{
+        .opTime = opTime,
+        .opType = OpTypeEnum::kContainerDelete,
+        .nss = nss,
+        .container = containerIdent,
+        .oField = BSON("k" << key),
         .wallClockTime = Date_t::now(),
     }}};
 }
@@ -134,7 +162,7 @@ OplogEntry makeContainerDeleteOplogEntry(OpTime opTime,
         .opType = OpTypeEnum::kContainerDelete,
         .nss = nss,
         .container = containerIdent,
-        .oField = BSON("k" << BSONBinData(key.data, key.length, key.type)),
+        .oField = BSON("k" << key),
         .wallClockTime = Date_t::now(),
     }}};
 }
@@ -153,27 +181,24 @@ OplogEntry makeCreateIndexOplogEntry(OpTime opTime,
     spec.append("name", indexName);
     spec.appendElementsUnique(options);
 
-    BSONObj indexInfo;
     boost::optional<BSONObj> o2;
     if (feature_flags::gFeatureFlagReplicateLocalCatalogIdentifiers.isEnabledAndIgnoreFCVUnsafe()) {
-        indexInfo = BSON("createIndexes" << nss.coll() << "spec" << spec.obj());
         o2 = BSON("indexIdent" << ident::generateNewIndexIdent(
                                       nss.dbName(), directoryPerDB, directoryForIndexes)
                                << "directoryPerDB" << directoryPerDB << "directoryForIndexes"
                                << directoryForIndexes);
-    } else {
-        BSONObjBuilder builder;
-        builder.append("createIndexes", nss.coll());
-        builder.appendElements(spec.obj());
-        indexInfo = builder.obj();
     }
+
+    BSONObjBuilder oBuilder;
+    oBuilder.append("createIndexes", nss.coll());
+    oBuilder.appendElements(spec.obj());
 
     return {DurableOplogEntry{DurableOplogEntryParams{
         .opTime = opTime,
         .opType = OpTypeEnum::kCommand,
         .nss = nss.getCommandNS(),
         .uuid = uuid,
-        .oField = indexInfo,
+        .oField = oBuilder.obj(),
         .o2Field = o2,
         .wallClockTime = Date_t::now(),
     }}};

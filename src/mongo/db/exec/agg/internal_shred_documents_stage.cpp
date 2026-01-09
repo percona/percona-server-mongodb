@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,22 +27,38 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/exec/agg/internal_shred_documents_stage.h"
 
-#include <functional>
-#include <memory>
-#include <string>
+#include "mongo/db/exec/agg/document_source_to_stage_registry.h"
+#include "mongo/db/pipeline/document_source_internal_shred_documents.h"
 
 namespace mongo {
 
-class ThreadPoolInterface;
+boost::intrusive_ptr<exec::agg::Stage> internalShredDocumentsStageToStageFn(
+    const boost::intrusive_ptr<DocumentSource>& documentSourceInternalShredDocuments) {
+    auto* shredDocumentsDS = dynamic_cast<DocumentSourceInternalShredDocuments*>(
+        documentSourceInternalShredDocuments.get());
+    tassert(10980100, "expected 'DocumentSourceInternalShredDocuments' type", shredDocumentsDS);
+    return make_intrusive<exec::agg::InternalShredDocumentsStage>(shredDocumentsDS->kStageName,
+                                                                  shredDocumentsDS->getExpCtx());
+}
 
-/**
- * Sets up a unit test suite named "suiteName" that runs a battery of unit
- * tests against thread pools returned by "makeThreadPool".  These tests should
- * work against any implementation of ThreadPoolInterface.
- */
-void addTestsForThreadPool(const std::string& suiteName,
-                           std::function<std::unique_ptr<ThreadPoolInterface>()> makeThreadPool);
+namespace exec::agg {
+REGISTER_AGG_STAGE_MAPPING(internalShredDocumentsStage,
+                           DocumentSourceInternalShredDocuments::id,
+                           internalShredDocumentsStageToStageFn);
 
+InternalShredDocumentsStage::InternalShredDocumentsStage(
+    StringData stageName, const boost::intrusive_ptr<ExpressionContext>& pExpCtx)
+    : Stage(stageName, pExpCtx) {}
+
+GetNextResult InternalShredDocumentsStage::doGetNext() {
+    auto next = pSource->getNext();
+    if (next.isAdvanced()) {
+        return GetNextResult(next.getDocument().shred());
+    }
+    return next;
+}
+
+}  // namespace exec::agg
 }  // namespace mongo

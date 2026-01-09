@@ -116,9 +116,7 @@
 #include <utility>
 
 #include <boost/cstdint.hpp>
-#include <boost/none.hpp>
 #include <boost/optional.hpp>
-#include <boost/optional/optional.hpp>
 #include <fmt/format.h>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
@@ -304,7 +302,7 @@ protected:
         reset(opCtx, NamespaceString::kRsOplogNamespace);
         reset(opCtx, NamespaceString::kSessionTransactionsTableNamespace);
         reset(opCtx, NamespaceString::kConfigImagesNamespace);
-        reset(opCtx, NamespaceString::makePreImageCollectionNSS(boost::none));
+        reset(opCtx, NamespaceString::kChangeStreamPreImagesNamespace);
     }
 
     // Assert that the oplog has the expected number of entries, and return them
@@ -438,7 +436,7 @@ protected:
                                                  BSONObj* container) {
         auto preImagesCollection = acquireCollection(
             opCtx,
-            CollectionAcquisitionRequest(NamespaceString::makePreImageCollectionNSS(boost::none),
+            CollectionAcquisitionRequest(NamespaceString::kChangeStreamPreImagesNamespace,
                                          PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
                                          repl::ReadConcernArgs::get(opCtx),
                                          AcquisitionPrerequisites::kRead),
@@ -463,7 +461,7 @@ protected:
             IndexBuildInfo indexBuildInfo(
                 BSON("v" << 2 << "key" << BSON(keyName << 1) << "name" << (keyName + "_1")),
                 fmt::format("index-{}", i + 1));
-            indexBuildInfo.setInternalIdents(*storageEngine);
+            indexBuildInfo.setInternalIdents(*storageEngine, VersionContext::getDecoration(opCtx));
             indexes.push_back(std::move(indexBuildInfo));
         }
         return indexes;
@@ -5369,13 +5367,17 @@ TEST_F(OpObserverTest, OnCreateIndexReplicateLocalCatalogIdentifiers) {
     auto disabledEntry = assertGet(OplogEntry::parse(oplogEntries[0]));
     auto enabledEntry = assertGet(OplogEntry::parse(oplogEntries[1]));
 
-    ASSERT_BSONOBJ_EQ(disabledEntry.getObject(),
-                      BSON("createIndexes" << "coll"
-                                           << "v" << 2 << "key" << BSON("a" << 1) << "name"
-                                           << "a_1"));
-    ASSERT_BSONOBJ_EQ(enabledEntry.getObject(),
-                      BSON("createIndexes" << "coll"
-                                           << "spec" << indexes[0].spec));
+    auto expectedO = BSON("createIndexes" << "coll"
+                                          << "v" << 2 << "key" << BSON("a" << 1) << "name"
+                                          << "a_1");
+    ASSERT_BSONOBJ_EQ(disabledEntry.getObject(), expectedO);
+    ASSERT_BSONOBJ_EQ(enabledEntry.getObject(), expectedO);
+    ASSERT_FALSE(disabledEntry.getObject2());
+    auto enabledO2 = enabledEntry.getObject2();
+    ASSERT(enabledO2);
+    ASSERT_BSONOBJ_EQ(*enabledO2,
+                      BSON("indexIdent" << "index-1" << "directoryPerDB" << false
+                                        << "directoryForIndexes" << false));
 }
 
 TEST_F(OpObserverTest, OnCreateIndexTimeseriesFlag) {

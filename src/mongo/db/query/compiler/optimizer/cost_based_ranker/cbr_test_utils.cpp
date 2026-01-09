@@ -125,6 +125,19 @@ std::unique_ptr<IndexScanNode> makeIndexScan(IndexBounds bounds,
     return indexScan;
 }
 
+std::unique_ptr<IndexScanNode> makeMultiKeyIndexScan(IndexBounds bounds,
+                                                     std::vector<std::string> indexFields,
+                                                     std::string multikeyField,
+                                                     std::unique_ptr<MatchExpression> filter) {
+    auto indexScan =
+        std::make_unique<IndexScanNode>(buildMultikeyIndexEntry(indexFields, multikeyField));
+    indexScan->bounds = std::move(bounds);
+    if (filter) {
+        indexScan->filter = std::move(filter);
+    }
+    return indexScan;
+}
+
 std::unique_ptr<QuerySolution> makeIndexScanFetchPlan(
     IndexBounds bounds,
     std::vector<std::string> indexFields,
@@ -133,6 +146,24 @@ std::unique_ptr<QuerySolution> makeIndexScanFetchPlan(
 
     auto fetch =
         std::make_unique<FetchNode>(makeIndexScan(bounds, indexFields, std::move(indexFilter)));
+    if (fetchFilter) {
+        fetch->filter = std::move(fetchFilter);
+    }
+
+    auto solution = std::make_unique<QuerySolution>();
+    solution->setRoot(std::move(fetch));
+    return solution;
+}
+
+std::unique_ptr<QuerySolution> makeMultiKeyIndexScanFetchPlan(
+    IndexBounds bounds,
+    std::vector<std::string> indexFields,
+    std::string multikeyField,
+    std::unique_ptr<MatchExpression> indexFilter,
+    std::unique_ptr<MatchExpression> fetchFilter) {
+
+    auto fetch = std::make_unique<FetchNode>(
+        makeMultiKeyIndexScan(bounds, indexFields, multikeyField, std::move(indexFilter)));
     if (fetchFilter) {
         fetch->filter = std::move(fetchFilter);
     }
@@ -218,20 +249,15 @@ CardinalityEstimate getPlanHistogramCE(const QuerySolution& plan, const Collecti
 
 CardinalityEstimate getPlanSamplingCE(const QuerySolution& plan,
                                       double collCard,
-                                      ce::SamplingEstimator* samplingEstimator,
-                                      bool useIndexBounds) {
+                                      ce::SamplingEstimator* samplingEstimator) {
     EstimateMap qsnEstimates;
     auto collInfo = buildCollectionInfo({}, makeCollStatsWithHistograms({}, collCard));
-    CardinalityEstimator estimator{collInfo,
-                                   samplingEstimator,
-                                   qsnEstimates,
-                                   QueryPlanRankerModeEnum::kSamplingCE,
-                                   useIndexBounds};
+    CardinalityEstimator estimator{
+        collInfo, samplingEstimator, qsnEstimates, QueryPlanRankerModeEnum::kSamplingCE};
     const auto ceRes = estimator.estimatePlan(plan);
     ASSERT(ceRes.isOK());
     return ceRes.getValue();
 }
-
 
 std::unique_ptr<stats::CollectionStatistics> makeCollStats(double collCard) {
     return makeCollStatsWithHistograms({}, collCard);

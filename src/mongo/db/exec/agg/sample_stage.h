@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,44 +29,28 @@
 
 #pragma once
 
-#include "mongo/unittest/unittest.h"
-#include "mongo/util/concurrency/thread_pool_interface.h"
+#include "mongo/base/string_data.h"
+#include "mongo/db/exec/agg/sort_stage.h"
+#include "mongo/db/exec/agg/stage.h"
+#include "mongo/db/pipeline/expression_context.h"
+#include "mongo/db/pipeline/variables.h"
 
-#include <memory>
+#include <boost/smart_ptr/intrusive_ptr.hpp>
 
-namespace mongo {
-
-/**
- * Test fixture for tests that require a ThreadPool backed by a NetworkInterfaceMock.
- */
-class ThreadPoolTest : public unittest::Test {
-protected:
-    ~ThreadPoolTest() override = default;
-
-    ThreadPoolInterface& getThreadPool() {
-        return *_threadPool;
-    }
-
-    void deleteThreadPool() {
-        _threadPool.reset();
-    }
-
-    /**
-     * Initializes both the NetworkInterfaceMock and ThreadPool but does not start the threadPool.
-     */
-    void setUp() override;
-
-    /**
-     * Destroys the replication threadPool.
-     *
-     * Shuts down and joins the running threadPool.
-     */
-    void tearDown() override;
+namespace mongo::exec::agg {
+class SampleStage final : public Stage {
+public:
+    SampleStage(StringData stageName,
+                const boost::intrusive_ptr<ExpressionContext>& pExpCtx,
+                long long size);
 
 private:
-    virtual std::unique_ptr<ThreadPoolInterface> makeThreadPool() = 0;
+    GetNextResult doGetNext() final;
 
-    std::unique_ptr<ThreadPoolInterface> _threadPool;
+    // Uses a $sort stage to randomly sort the documents.
+    boost::intrusive_ptr<SortStage> _sortStage;
+
+    // Then number of documents to sample.
+    const long long _size;
 };
-
-}  // namespace mongo
+}  // namespace mongo::exec::agg

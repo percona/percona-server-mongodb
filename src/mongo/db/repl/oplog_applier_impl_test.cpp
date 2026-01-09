@@ -103,6 +103,7 @@
 #include "mongo/db/session/session_txn_record_gen.h"
 #include "mongo/db/sharding_environment/shard_id.h"
 #include "mongo/db/stats/counters.h"
+#include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/db/timeseries/timeseries_gen.h"
@@ -336,7 +337,7 @@ TEST_F(OplogApplierImplTestEnableSteadyStateConstraints,
 TEST_F(OplogApplierImplTest, applyOplogEntryOrGroupedInsertsDeleteDocumentCollectionAndDocExist) {
     // Setup the pre-images collection.
     ChangeStreamPreImagesCollectionManager::get(_opCtx.get())
-        .createPreImagesCollection(_opCtx.get(), boost::none /* tenantId */);
+        .createPreImagesCollection(_opCtx.get());
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest("test.t");
     createCollection(
         _opCtx.get(), nss, createRecordChangeStreamPreAndPostImagesCollectionOptions());
@@ -459,7 +460,7 @@ TEST_F(OplogApplierImplTestEnableSteadyStateConstraints,
 TEST_F(OplogApplierImplTest, applyOplogEntryOrGroupedInsertsDeleteDocumentCollectionLockedByUUID) {
     // Setup the pre-images collection.
     ChangeStreamPreImagesCollectionManager::get(_opCtx.get())
-        .createPreImagesCollection(_opCtx.get(), boost::none /* tenantId */);
+        .createPreImagesCollection(_opCtx.get());
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest("test.t");
     CollectionOptions options = createRecordChangeStreamPreAndPostImagesCollectionOptions();
     options.uuid = kUuid;
@@ -478,7 +479,7 @@ TEST_F(OplogApplierImplTest, applyOplogEntryOrGroupedInsertsDeleteDocumentCollec
 TEST_F(OplogApplierImplTest, applyOplogEntryToRecordChangeStreamPreImages) {
     // Setup the pre-images collection.
     ChangeStreamPreImagesCollectionManager::get(_opCtx.get())
-        .createPreImagesCollection(_opCtx.get(), boost::none /* tenantId */);
+        .createPreImagesCollection(_opCtx.get());
 
     // Create the collection.
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest("test.t");
@@ -549,10 +550,10 @@ TEST_F(OplogApplierImplTest, applyOplogEntryToRecordChangeStreamPreImages) {
         WriteUnitOfWork wuow{_opCtx.get()};
         ChangeStreamPreImageId preImageId{*(options.uuid), op.getOpTime().getTimestamp(), 0};
         BSONObj preImageDocumentKey = BSON("_id" << preImageId.toBSON());
-        auto preImageLoadResult = getStorageInterface()->deleteById(
-            _opCtx.get(),
-            NamespaceString::makePreImageCollectionNSS(boost::none),
-            preImageDocumentKey.firstElement());
+        auto preImageLoadResult =
+            getStorageInterface()->deleteById(_opCtx.get(),
+                                              NamespaceString::kChangeStreamPreImagesNamespace,
+                                              preImageDocumentKey.firstElement());
         repl::getNextOpTime(_opCtx.get());
         wuow.commit();
 
@@ -1402,20 +1403,13 @@ TEST_F(OplogApplierImplTest, applyOplogEntryOrGroupedInsertsInsertDocumentIncorr
 }
 
 TEST_F(OplogApplierImplTest, applyOplogEntryOrGroupedInsertsDeleteDocumentIncludesTenantId) {
-    // Setup the pre-images collection.
     const TenantId tid(OID::gen());
-    ChangeStreamPreImagesCollectionManager::get(_opCtx.get())
-        .createPreImagesCollection(_opCtx.get(), tid);
     setServerParameter("multitenancySupport", true);
     setServerParameter("featureFlagRequireTenantID", true);
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest(tid, "test.t");
     BSONObj doc = BSON("_id" << 0);
 
-    // this allows us to set deleteArgs.deletedDoc needed by the onDeleteFn validation function in
-    // _testApplyOplogEntryOrGroupedInsertsCrudOperation below
-    CollectionOptions options = createRecordChangeStreamPreAndPostImagesCollectionOptions();
-
-    repl::createCollection(_opCtx.get(), nss, options);
+    repl::createCollection(_opCtx.get(), nss, CollectionOptions{});
     ASSERT_OK(getStorageInterface()->insertDocument(_opCtx.get(), nss, {doc}, 0));
 
     auto op = makeOplogEntry(OpTypeEnum::kDelete, nss, boost::none);
@@ -2022,20 +2016,28 @@ TEST_F(OplogApplierImplTest, ApplyApplyOpsSessionDeleteAfterLaterRetryableUpdate
     ASSERT_BSONOBJ_EQ(updatedDoc, unittest::assertGet(collectionReader.next()));
 }
 
+// TODO (SERVER-109556): Adjustments to suites coming from this ticket might result in a better
+// candidate for this test's fixture.
 TEST_F(OplogApplierImplTest, ApplyApplyOpsContainerOperations) {
-    NamespaceString nss = NamespaceString::createNamespaceString_forTest("test.t");
-    const char k1[] = "K";
-    const char v1[] = "V";
+    // TODO (SERVER-103670): Remove.
+    RAIIServerParameterControllerForTest ff("featureFlagPrimaryDrivenIndexBuilds", true);
 
-    BSONArray innerOps =
-        BSON_ARRAY(BSON("op" << "ci"
-                             << "ns" << nss.ns_forTest() << "container" << "t_ident"
-                             << "o"
-                             << BSON("k" << BSONBinData(k1, 1, BinDataGeneral) << "v"
-                                         << BSONBinData(v1, 1, BinDataGeneral)))
-                   << BSON("op" << "cd"
-                                << "ns" << nss.ns_forTest() << "container" << "t_ident"
-                                << "o" << BSON("k" << BSONBinData(k1, 1, BinDataGeneral))));
+    NamespaceString nss = NamespaceString::createNamespaceString_forTest("test.t");
+
+    auto storageEngine = serviceContext->getStorageEngine();
+    auto ident = storageEngine->generateNewInternalIdent();
+    auto ru = storageEngine->newRecoveryUnit();
+    auto trs = storageEngine->getEngine()->makeTemporaryRecordStore(*ru, ident, KeyFormat::String);
+
+    auto k = BSONBinData("K", 1, BinDataGeneral);
+    auto v = BSONBinData("V", 1, BinDataGeneral);
+
+    BSONArray innerOps = BSON_ARRAY(BSON("op" << "ci"
+                                              << "ns" << nss.ns_forTest() << "container" << ident
+                                              << "o" << BSON("k" << k << "v" << v))
+                                    << BSON("op" << "cd"
+                                                 << "ns" << nss.ns_forTest() << "container" << ident
+                                                 << "o" << BSON("k" << k)));
 
     BSONObj applyOpsCmd = BSON("applyOps" << innerOps);
     auto entry = makeCommandOplogEntry(nextOpTime(), nss, applyOpsCmd, boost::none, boost::none);
@@ -2044,13 +2046,23 @@ TEST_F(OplogApplierImplTest, ApplyApplyOpsContainerOperations) {
         _opCtx.get(), ApplierOperation{&entry}, OplogApplication::Mode::kSecondary));
 }
 
+// TODO (SERVER-109556): Adjustments to suites coming from this ticket might result in a better
+// candidate for this test's fixture.
 TEST_F(OplogApplierImplTest, ApplyContainerOperations) {
-    auto nss = NamespaceString::createNamespaceString_forTest("test");
-    StringData containerIdent = "test";
+    // TODO (SERVER-103670): Remove.
+    RAIIServerParameterControllerForTest ff("featureFlagPrimaryDrivenIndexBuilds", true);
+
+    auto nss = NamespaceString::createNamespaceString_forTest("test.t");
+
+    auto storageEngine = serviceContext->getStorageEngine();
+    auto ident = storageEngine->generateNewInternalIdent();
+    auto ru = storageEngine->newRecoveryUnit();
+    auto trs = storageEngine->getEngine()->makeTemporaryRecordStore(*ru, ident, KeyFormat::String);
+
     auto k = BSONBinData("K", 1, BinDataGeneral);
     auto v = BSONBinData("V", 1, BinDataGeneral);
-    auto insertEntry = makeContainerInsertOplogEntry(nextOpTime(), nss, containerIdent, k, v);
-    auto deleteEntry = makeContainerDeleteOplogEntry(nextOpTime(), nss, containerIdent, k);
+    auto insertEntry = makeContainerInsertOplogEntry(nextOpTime(), nss, ident, k, v);
+    auto deleteEntry = makeContainerDeleteOplogEntry(nextOpTime(), nss, ident, k);
 
     ASSERT_OK(_applyOplogEntryOrGroupedInsertsWrapper(
         _opCtx.get(), ApplierOperation{&insertEntry}, OplogApplication::Mode::kSecondary));
