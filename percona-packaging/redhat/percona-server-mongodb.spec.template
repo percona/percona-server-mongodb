@@ -203,7 +203,7 @@ rm -fr resmoke.ini
 popd
 
 #dirty hack for centos:7 + rpm 4.11(rpmlib absence of (LargeFiles)
-%if 0%{?amzn} == 2023 || 0%{?rhel} == 7
+%if 0%{?rhel} == 7
 eu-strip build/install/bin/mongod
 %endif
 
