@@ -29,7 +29,7 @@
 
 #include "mongo/db/extension/host/load_extension.h"
 
-#include "mongo/db/extension/host/extension_handle.h"
+#include "mongo/db/extension/host_adapter/extension_handle.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/extension_status.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
@@ -50,6 +50,9 @@
 
 namespace mongo::extension::host {
 namespace {
+// TODO SERVER-110326: Check if we are in a test environment. If so, use /tmp/mongo/extensions.
+static const std::filesystem::path kExtensionConfDir{"/etc/mongo/extensions"};
+
 void assertVersionCompatibility(const ::MongoExtensionAPIVersionVector* hostVersions,
                                 const ::MongoExtensionAPIVersion& extensionVersion) {
     bool foundCompatibleMajor = false;
@@ -81,7 +84,8 @@ void assertVersionCompatibility(const ::MongoExtensionAPIVersionVector* hostVers
             foundCompatibleMinor);
 }
 
-ExtensionHandle getMongoExtension(SharedLibrary& extensionLib, const std::string& extensionPath) {
+host_adapter::ExtensionHandle getMongoExtension(SharedLibrary& extensionLib,
+                                                const std::string& extensionPath) {
     StatusWith<get_mongo_extension_t> swGetExtensionFunction =
         extensionLib.getFunctionAs<get_mongo_extension_t>(GET_MONGODB_EXTENSION_SYMBOL);
     uassert(10615501,
@@ -99,7 +103,7 @@ ExtensionHandle getMongoExtension(SharedLibrary& extensionLib, const std::string
                           << "': get_mongodb_extension failed to set an extension",
             extension != nullptr);
 
-    return ExtensionHandle{extension};
+    return host_adapter::ExtensionHandle{extension};
 }
 }  // namespace
 
@@ -118,25 +122,75 @@ bool loadExtensions(const std::vector<std::string>& extensionPaths) {
     }
 
     for (const auto& extension : extensionPaths) {
+        // TODO SERVER-110317: Change 'filePath' to 'extensionName'.
         LOGV2(10668501, "Loading extension", "filePath"_attr = extension);
 
         try {
-            ExtensionLoader::load(extension);
+            const ExtensionConfig config = ExtensionLoader::loadExtensionConfig(extension);
+            ExtensionLoader::load(config);
         } catch (...) {
             LOGV2_ERROR(10668502,
                         "Error loading extension",
+                        // TODO SERVER-110317: Change 'filePath' to 'extensionName'.
                         "filePath"_attr = extension,
                         "status"_attr = exceptionToStatus());
             return false;
         }
 
+        // TODO SERVER-110317: Change 'filePath' to 'extensionName'.
         LOGV2(10668503, "Successfully loaded extension", "filePath"_attr = extension);
     }
 
     return true;
 }
 
-void ExtensionLoader::load(const std::string& extensionPath) {
+ExtensionConfig ExtensionLoader::loadExtensionConfig(const std::string& extensionPath) {
+    // TODO SERVER-110317: 'extensionPath' shouldn't represent a path anymore. We can omit the
+    // truncation.
+    const auto confPath = kExtensionConfDir /
+        std::filesystem::path(extensionPath).filename().replace_extension(".conf");
+    // TODO SERVER-110326: Remove this once we have proper loading for tests.
+    if (!std::filesystem::exists(confPath)) {
+        return ExtensionConfig{.sharedLibraryPath = extensionPath,
+                               .extOptions = YAML::Node(YAML::NodeType::Map)};
+    }
+    uassert(11042900,
+            str::stream() << "Loading extension '" << extensionPath
+                          << "' failed: Expected configuration file not found at '"
+                          << confPath.string() << "'",
+            std::filesystem::exists(confPath));
+
+    const auto root = [&] {
+        try {
+            return YAML::LoadFile(confPath.string());
+        } catch (const YAML::Exception& e) {
+            uasserted(11042901,
+                      str::stream() << "Unexpected error while loading extension config file '"
+                                    << confPath.string() << "': " << e.what());
+        }
+        return YAML::Node();
+    }();
+    uassert(11042902,
+            str::stream() << "Invalid extension config file '" << confPath.string()
+                          << "': missing required field 'sharedLibraryPath'",
+            root[kSharedLibraryPath]);
+
+    ExtensionConfig config;
+    config.sharedLibraryPath = root[kSharedLibraryPath].as<std::string>();
+    config.extOptions =
+        root[kExtensionOptions] ? root[kExtensionOptions] : YAML::Node(YAML::NodeType::Map);
+
+    LOGV2(11042903,
+          "Successfully loaded config file",
+          "sharedLibraryPath"_attr = config.sharedLibraryPath,
+          // TODO SERVER-110474: Remove or modify 'extensionOptions' logging.
+          "extensionOptions"_attr = YAML::Dump(config.extOptions));
+
+    return config;
+}
+
+void ExtensionLoader::load(const ExtensionConfig& config) {
+    const auto& extensionPath = config.sharedLibraryPath;
     uassert(10845400,
             str::stream() << "Loading extension '" << extensionPath << "' failed: "
                           << "Extension has already been loaded",
@@ -154,7 +208,7 @@ void ExtensionLoader::load(const std::string& extensionPath) {
     loadedExtensions.emplace(extensionPath, std::move(swExtensionLib.getValue()));
     auto& extensionLib = loadedExtensions[extensionPath];
 
-    ExtensionHandle extHandle = getMongoExtension(*extensionLib, extensionPath);
+    host_adapter::ExtensionHandle extHandle = getMongoExtension(*extensionLib, extensionPath);
     // Validate that the major and minor versions from the extension implementation are compatible
     // with the host API version.
     assertVersionCompatibility(&MONGO_EXTENSION_API_VERSIONS_SUPPORTED, extHandle.getVersion());
@@ -166,7 +220,7 @@ void ExtensionLoader::load(const std::string& extensionPath) {
                .getIncomingInternalClient()
                .maxWireVersion);
 
-    HostPortal portal{extHandle.getVersion(), maxWireVersion};
+    HostPortal portal{extHandle.getVersion(), maxWireVersion, YAML::Dump(config.extOptions)};
     extHandle.initialize(portal);
 }
 }  // namespace mongo::extension::host

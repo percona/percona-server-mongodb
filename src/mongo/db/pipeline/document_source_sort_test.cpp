@@ -79,6 +79,12 @@ using std::vector;
 static const BSONObj metaTextScore = BSON("$meta" << "textScore");
 
 class DocumentSourceSortTest : public AggregationContextFixture {
+public:
+    // Enable the feature flag so sort's memory tracking stats are reported to CurOp.
+    DocumentSourceSortTest()
+        : _featureFlagController("featureFlagQueryMemoryTracking", true),
+          _curopWriteThreshold("internalQueryMaxWriteToCurOpMemoryUsageBytes", 50) {}
+
 protected:
     void createSort(const BSONObj& sortKey = BSON("a" << 1)) {
         BSONObj spec = BSON("$sort" << sortKey);
@@ -121,6 +127,9 @@ private:
         ASSERT_BSONOBJ_EQ(spec, generatedSpec);
     }
     intrusive_ptr<DocumentSource> _sort;
+
+    RAIIServerParameterControllerForTest _featureFlagController;
+    RAIIServerParameterControllerForTest _curopWriteThreshold;
 };
 
 
@@ -298,18 +307,32 @@ class DocumentSourceSortExecutionTest : public DocumentSourceSortTest {
 public:
     void checkResults(deque<DocumentSource::GetNextResult> inputDocs,
                       DocumentSourceSort* sort,
-                      string expectedResultSetString,
-                      bool expectMemUse = true) {
+                      string expectedResultSetString) {
         auto mockStage = exec::agg::MockStage::createForTest(std::move(inputDocs), getExpCtx());
         createSortStage();
         _sortStage->setSource(mockStage.get());
 
         // Load the results from the DocumentSourceUnwind.
         vector<Document> resultSet;
+        auto* curop = CurOp::get(*getOpCtx());
+
         for (auto output = _sortStage->getNext(); output.isAdvanced();
              output = _sortStage->getNext()) {
             // Get the current result.
             resultSet.push_back(output.releaseDocument());
+
+            int64_t actualUsage = _sortStage->getMemoryTracker_forTest().inUseTrackedMemoryBytes();
+            ASSERT_GT(actualUsage, 0);
+            ASSERT_GT(_sortStage->getMemoryTracker_forTest().peakTrackedMemoryBytes(), 0);
+
+            // To avoid perf regressions, sort chunks its writes to CurOp. CurOp's reported value <=
+            // actual usage < reported value + chunksize.
+            int64_t curopUsage = curop->getInUseTrackedMemoryBytes();
+            ASSERT_EQ(curopUsage % chunkSize, 0);
+            ASSERT_LTE(curopUsage, actualUsage);
+            ASSERT_LT(actualUsage, curopUsage + chunkSize)
+                << "Actual usage (" << actualUsage << ") should be < reported (" << curopUsage
+                << ") + chunk size (" << chunkSize << ")";
         }
         // Verify the DocumentSourceUnwind is exhausted.
         assertEOF();
@@ -321,10 +344,6 @@ public:
             bsonResultSet << result;
         }
 
-        if (expectMemUse) {
-            ASSERT_EQ(_sortStage->getMemoryTracker_forTest().inUseTrackedMemoryBytes(), 0);
-            ASSERT_GT(_sortStage->getMemoryTracker_forTest().peakTrackedMemoryBytes(), 0);
-        }
         // Check the result set.
         ASSERT_BSONOBJ_EQ(expectedResultSet(expectedResultSetString), bsonResultSet.arr());
     }
@@ -336,11 +355,13 @@ protected:
             fromjson(string("{'':") + expectedResultSetString + "}");
         return wrappedResult[""].embeddedObject().getOwned();
     }
+
+    int64_t chunkSize = internalQueryMaxWriteToCurOpMemoryUsageBytes.loadRelaxed();
 };
 
 TEST_F(DocumentSourceSortExecutionTest, ShouldGiveNoOutputIfGivenNoInputs) {
     createSort(BSON("a" << 1));
-    checkResults({}, sort(), "[]", false);
+    checkResults({}, sort(), "[]");
 }
 
 TEST_F(DocumentSourceSortExecutionTest, ShouldGiveOneOutputIfGivenOneInput) {
@@ -457,6 +478,93 @@ TEST_F(DocumentSourceSortExecutionTest, RandMeta) {
 
     createSort(BSON("$computed0" << BSON("$meta" << "randVal")));
     checkResults({first.freeze(), second.freeze()}, sort(), "[{_id:1},{_id:0}]");
+}
+
+template <int64_t ChunkSize>
+class DocumentSourceSortExecutionChunkTest : public DocumentSourceSortTest {
+public:
+    DocumentSourceSortExecutionChunkTest()
+        : DocumentSourceSortTest(),
+          _chunkController("internalQueryMaxWriteToCurOpMemoryUsageBytes", ChunkSize) {}
+
+private:
+    RAIIServerParameterControllerForTest _chunkController;
+};
+
+using DocumentSourceSortExecutionLargeChunkTest = DocumentSourceSortExecutionChunkTest<1000000>;
+using DocumentSourceSortExecutionZeroChunkTest = DocumentSourceSortExecutionChunkTest<0>;
+
+/**
+ * If the sort's memory usage stays within the same chunk, CurOp is only updated once.
+ */
+TEST_F(DocumentSourceSortExecutionLargeChunkTest, CurOpStatsAreNotUpdatedIfWithinSameChunk) {
+    // Create a sort with multiple documents to ensure memory usage changes.
+    createSort(BSON("a" << 1));
+    auto mockStage = exec::agg::MockStage::createForTest({Document{{"_id", 0}, {"a", 1}},
+                                                          Document{{"_id", 1}, {"a", 2}},
+                                                          Document{{"_id", 2}, {"a", 3}}},
+                                                         getExpCtx());
+    createSortStage();
+    _sortStage->setSource(mockStage.get());
+
+    // The chunk size is set very large, so CurOp should only be updated once.
+    int64_t chunkSize = internalQueryMaxWriteToCurOpMemoryUsageBytes.loadRelaxed();
+    auto* curop = CurOp::get(*getOpCtx());
+
+    for (auto output = _sortStage->getNext(); output.isAdvanced(); output = _sortStage->getNext()) {
+        int64_t actualUsage = _sortStage->getMemoryTracker_forTest().inUseTrackedMemoryBytes();
+
+        ASSERT_GT(actualUsage, 0);
+        ASSERT_GT(_sortStage->getMemoryTracker_forTest().peakTrackedMemoryBytes(), 0);
+
+        int64_t curopUsage = curop->getInUseTrackedMemoryBytes();
+
+        // CurOp's memory usage should stay within the first chunk.
+        ASSERT_EQ(curopUsage, 0);
+        ASSERT_LT(curopUsage, actualUsage);
+        ASSERT_LT(actualUsage, curopUsage + chunkSize)
+            << "Actual usage (" << actualUsage << ") should be < reported (" << curopUsage
+            << ") + chunk size (" << chunkSize << ")";
+    }
+}
+
+
+/**
+ * When chunk size is 0, CurOp should report exact memory usage (no chunking).
+ */
+TEST_F(DocumentSourceSortExecutionZeroChunkTest, CurOpStatsDoNotChunk) {
+    // Create a sort with multiple documents to ensure memory usage changes.
+    createSort(BSON("a" << 1));
+    auto mockStage = exec::agg::MockStage::createForTest({Document{{"_id", 0}, {"a", 1}},
+                                                          Document{{"_id", 1}, {"a", 2}},
+                                                          Document{{"_id", 2}, {"a", 3}}},
+                                                         getExpCtx());
+    createSortStage();
+    _sortStage->setSource(mockStage.get());
+
+    int64_t chunkSize = internalQueryMaxWriteToCurOpMemoryUsageBytes.loadRelaxed();
+    ASSERT_EQ(chunkSize, 0);
+
+    auto* curop = CurOp::get(*getOpCtx());
+    std::vector<int64_t> curopReadings;
+    std::vector<int64_t> actualReadings;
+
+    for (auto output = _sortStage->getNext(); output.isAdvanced(); output = _sortStage->getNext()) {
+        int64_t actualUsage = _sortStage->getMemoryTracker_forTest().inUseTrackedMemoryBytes();
+        int64_t curopUsage = curop->getInUseTrackedMemoryBytes();
+
+        curopReadings.push_back(curopUsage);
+        actualReadings.push_back(actualUsage);
+
+        ASSERT_GT(actualUsage, 0);
+        ASSERT_GTE(_sortStage->getMemoryTracker_forTest().peakTrackedMemoryBytes(), 0);
+
+        // When chunk size is 0, CurOp should report exact usage (no chunking)
+        ASSERT_EQ(curopUsage, actualUsage);
+    }
+
+    ASSERT_GT(actualReadings.size(), 1);
+    ASSERT_GT(curopReadings.size(), 1);
 }
 
 /**
@@ -591,13 +699,11 @@ std::tuple<boost::intrusive_ptr<exec::agg::MockStage>,
            intrusive_ptr<exec::agg::SortStage>>
 initSpillingTest(boost::intrusive_ptr<ExpressionContext> expCtx,
                  const unittest::TempDir& tempDir,
-                 size_t maxMemoryUsageBytes,
                  size_t largeStrSize) {
     // Allow the $sort stage to spill to disk.
     expCtx->setTempDir(tempDir.path());
     expCtx->setAllowDiskUse(true);
-    auto sort = DocumentSourceSort::create(
-        expCtx, {BSON("_id" << -1), expCtx}, {.maxMemoryUsageBytes = maxMemoryUsageBytes});
+    auto sort = DocumentSourceSort::create(expCtx, {BSON("_id" << -1), expCtx});
 
     string largeStr(largeStrSize, 'x');
     auto mock =
@@ -635,7 +741,6 @@ std::tuple<boost::intrusive_ptr<exec::agg::MockStage>,
            intrusive_ptr<exec::agg::SortStage>>
 initSpillingTestForBoundedSort(boost::intrusive_ptr<ExpressionContext> expCtx,
                                const unittest::TempDir& tempDir,
-                               size_t maxMemoryUsageBytes,
                                size_t largeStrSize) {
     // Allow the $sort stage to spill to disk.
     expCtx->setTempDir(tempDir.path());
@@ -665,7 +770,9 @@ initSpillingTestForBoundedSort(boost::intrusive_ptr<ExpressionContext> expCtx,
 
 TEST_F(DocumentSourceSortExecutionTest, ShouldBeAbleToPauseLoadingWhileSpilled) {
     unittest::TempDir tempDir("DocumentSourceSortTest");
-    auto [mock, sort, sortStage] = initSpillingTest(getExpCtx(), tempDir, 1000000, 1000000);
+    RAIIServerParameterControllerForTest sortMemoryLimit{
+        "internalQueryMaxBlockingSortMemoryUsageBytes", 1000000};
+    auto [mock, sort, sortStage] = initSpillingTest(getExpCtx(), tempDir, 1000000);
 
     // There were 2 pauses, so we should expect 2 paused results before any results can be
     // returned.
@@ -687,7 +794,9 @@ TEST_F(DocumentSourceSortExecutionTest, ShouldBeAbleToPauseLoadingWhileSpilled) 
 
 TEST_F(DocumentSourceSortExecutionTest, ShouldBeAbleToManuallySpillBeforeReturningFirstDocument) {
     unittest::TempDir tempDir("DocumentSourceSortTest");
-    auto [mock, sort, sortStage] = initSpillingTest(getExpCtx(), tempDir, 1000000, 10);
+    RAIIServerParameterControllerForTest sortMemoryLimit{
+        "internalQueryMaxBlockingSortMemoryUsageBytes", 1000000};
+    auto [mock, sort, sortStage] = initSpillingTest(getExpCtx(), tempDir, 10);
 
     ASSERT_TRUE(sortStage->getNext().isPaused());
     ASSERT_TRUE(sortStage->getNext().isPaused());
@@ -708,7 +817,9 @@ TEST_F(DocumentSourceSortExecutionTest, ShouldBeAbleToManuallySpillBeforeReturni
 
 TEST_F(DocumentSourceSortExecutionTest, ShouldBeAbleToManuallySpillAfterReturningFirstDocument) {
     unittest::TempDir tempDir("DocumentSourceSortTest");
-    auto [mock, sort, sortStage] = initSpillingTest(getExpCtx(), tempDir, 1000000, 10);
+    RAIIServerParameterControllerForTest sortMemoryLimit{
+        "internalQueryMaxBlockingSortMemoryUsageBytes", 1000000};
+    auto [mock, sort, sortStage] = initSpillingTest(getExpCtx(), tempDir, 10);
 
     ASSERT_TRUE(sortStage->getNext().isPaused());
     ASSERT_TRUE(sortStage->getNext().isPaused());
@@ -743,8 +854,7 @@ TEST_F(DocumentSourceSortExecutionTest, ShouldBeAbleToManuallySpillAfterReturnin
 TEST_F(DocumentSourceSortExecutionTest,
        ShouldBeAbleToForceSpillOnBoundedSortBeforeReturningFirstDocument) {
     unittest::TempDir tempDir("DocumentSourceSortTest");
-    auto [mock, sort, sortStage] =
-        initSpillingTestForBoundedSort(getExpCtx(), tempDir, 1000000, 16777215);
+    auto [mock, sort, sortStage] = initSpillingTestForBoundedSort(getExpCtx(), tempDir, 16777215);
 
     sortStage->forceSpill();
     auto next = sortStage->getNext();
@@ -768,8 +878,7 @@ TEST_F(DocumentSourceSortExecutionTest,
 TEST_F(DocumentSourceSortExecutionTest,
        ShouldBeAbleToForceSpillOnBoundedSortAfterReturningFirstDocument) {
     unittest::TempDir tempDir("DocumentSourceSortTest");
-    auto [mock, sort, sortStage] =
-        initSpillingTestForBoundedSort(getExpCtx(), tempDir, 1000000, 10);
+    auto [mock, sort, sortStage] = initSpillingTestForBoundedSort(getExpCtx(), tempDir, 10);
 
     auto next = sortStage->getNext();
     ASSERT_TRUE(next.isAdvanced());
@@ -920,9 +1029,10 @@ TEST_F(DocumentSourceSortExecutionTest,
     auto expCtx = getExpCtx();
     expCtx->setAllowDiskUse(false);
     const size_t maxMemoryUsageBytes = 1000;
+    RAIIServerParameterControllerForTest sortMemoryLimit{
+        "internalQueryMaxBlockingSortMemoryUsageBytes", int(maxMemoryUsageBytes)};
 
-    auto sort = DocumentSourceSort::create(
-        expCtx, {BSON("_id" << -1), expCtx}, {.maxMemoryUsageBytes = maxMemoryUsageBytes});
+    auto sort = DocumentSourceSort::create(expCtx, {BSON("_id" << -1), expCtx});
 
     string largeStr(maxMemoryUsageBytes, 'x');
     auto mock = exec::agg::MockStage::createForTest({Document{{"_id", 0}, {"largeStr", largeStr}},
@@ -940,9 +1050,10 @@ TEST_F(DocumentSourceSortExecutionTest, ShouldCorrectlyTrackMemoryUsageBetweenPa
     auto expCtx = getExpCtx();
     expCtx->setAllowDiskUse(false);
     const size_t maxMemoryUsageBytes = 1000;
+    RAIIServerParameterControllerForTest sortMemoryLimit{
+        "internalQueryMaxBlockingSortMemoryUsageBytes", int(maxMemoryUsageBytes)};
 
-    auto sort = DocumentSourceSort::create(
-        expCtx, {BSON("_id" << -1), expCtx}, {.maxMemoryUsageBytes = maxMemoryUsageBytes});
+    auto sort = DocumentSourceSort::create(expCtx, {BSON("_id" << -1), expCtx});
 
     string largeStr(maxMemoryUsageBytes / 5, 'x');
     auto mock =
@@ -967,6 +1078,8 @@ TEST_F(DocumentSourceSortExecutionTest, ShouldCorrectlyTrackMemoryUsageBetweenPa
 }
 
 TEST_F(DocumentSourceSortTest, RedactionWithoutMemoryTracking) {
+    RAIIServerParameterControllerForTest featureFlagController{"featureFlagQueryMemoryTracking",
+                                                               false};
     createSort(BSON("a" << 1));
     auto boundedSort = DocumentSourceSort::createBoundedSort(
         sort()->getSortKeyPattern(), DocumentSourceSort::kMin, 1337, 10, false, getExpCtx());
@@ -1047,6 +1160,8 @@ TEST_F(DocumentSourceSortTest, RedactionWithoutMemoryTracking) {
 }
 
 TEST_F(DocumentSourceSortTest, RedactionWithSortKeyMetadata) {
+    RAIIServerParameterControllerForTest featureFlagController{"featureFlagQueryMemoryTracking",
+                                                               false};
     createSort(BSON("a" << 1));
     auto boundedSort = DocumentSourceSort::createBoundedSort(
         sort()->getSortKeyPattern(), DocumentSourceSort::kMin, 1337, 10, true, getExpCtx());
@@ -1130,6 +1245,7 @@ TEST_F(DocumentSourceSortTest, RedactionWithMemoryTracking) {
     RAIIServerParameterControllerForTest featureFlagController("featureFlagQueryMemoryTracking",
                                                                true);
     createSort(BSON("a" << 1));
+    createSortStage();
     auto boundedSort = DocumentSourceSort::createBoundedSort(
         sort()->getSortKeyPattern(), DocumentSourceSort::kMin, 1337, 10, false, getExpCtx());
 
@@ -1182,10 +1298,16 @@ TEST_F(DocumentSourceSortTest, RedactionWithMemoryTracking) {
             "spills": "?number",
             "spilledBytes": "?number",
             "spilledRecords": "?number",
-            "spilledDataStorageSize": "?number",
-            "peakTrackedMemBytes": "?number"
+            "spilledDataStorageSize": "?number"
         })",
         redact(*sort(), true, ExplainOptions::Verbosity::kExecStats));
+
+    ASSERT_BSONOBJ_EQ_AUTO(  //
+        R"({
+            nReturned: 0,
+            peakTrackedMemBytes: 0
+        })",
+        _sortStage->getExplainOutput().toBson());
 
     ASSERT_BSONOBJ_EQ_AUTO(  // NOLINT
         R"({
@@ -1204,10 +1326,17 @@ TEST_F(DocumentSourceSortTest, RedactionWithMemoryTracking) {
             "spills": "?number",
             "spilledBytes": "?number",
             "spilledRecords": "?number",
-            "spilledDataStorageSize": "?number",
-            "peakTrackedMemBytes": "?number"
+            "spilledDataStorageSize": "?number"
         })",
         redact(*boundedSort, true, ExplainOptions::Verbosity::kExecStats));
+
+    auto boundedSortStage = exec::agg::buildStage(boundedSort);
+    ASSERT_BSONOBJ_EQ_AUTO(  //
+        R"({
+            nReturned: 0,
+            peakTrackedMemBytes: 0
+        })",
+        boundedSortStage->getExplainOutput().toBson());
 }
 
 void assertProducesSortKeyMetadata(auto expCtx, auto sort) {

@@ -46,6 +46,7 @@
 #include "mongo/db/session/logical_session_id_gen.h"
 #include "mongo/db/transaction/transaction_operations.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
 
@@ -60,7 +61,7 @@
 #include <boost/move/utility_core.hpp>
 #include <boost/optional/optional.hpp>
 
-namespace mongo {
+namespace MONGO_MOD_PUB mongo {
 
 struct IndexBuildInfo;
 
@@ -79,7 +80,7 @@ public:
     OpObserverRegistry();
     ~OpObserverRegistry() override;
 
-    // This implementaton is unused, but needs to be implemented to conform to the OpObserver
+    // This implementation is unused, but needs to be implemented to conform to the OpObserver
     // interface.
     NamespaceFilters getNamespaceFilters() const override {
         return {NamespaceFilter::kAll, NamespaceFilter::kAll};
@@ -624,6 +625,20 @@ public:
             o->onDropDatabaseMetadata(opCtx, op);
     }
 
+    void onTruncateRange(OperationContext* opCtx,
+                         const CollectionPtr& coll,
+                         const RecordId& minRecordId,
+                         const RecordId& maxRecordId,
+                         int64_t bytesDeleted,
+                         int64_t docsDeleted,
+                         repl::OpTime& opTime) override {
+        ReservedTimes times{opCtx};
+        for (auto& observer : this->_observers) {
+            observer->onTruncateRange(
+                opCtx, coll, minRecordId, maxRecordId, bytesDeleted, docsDeleted, opTime);
+        }
+    }
+
 private:
     static repl::OpTime _getOpTimeToReturn(const std::vector<repl::OpTime>& times) {
         if (times.empty()) {
@@ -655,4 +670,4 @@ private:
     std::vector<OpObserver*> _onDeleteUserObservers;    // not config nor system
                                                       // Will impact writes to all user collections.
 };
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUB mongo

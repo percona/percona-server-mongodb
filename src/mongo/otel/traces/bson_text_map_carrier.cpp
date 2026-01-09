@@ -26,42 +26,53 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
-#pragma once
-#include "mongo/db/extension/host/handle.h"
-#include "mongo/db/extension/host/host_portal.h"
-#include "mongo/db/extension/public/api.h"
-#include "mongo/db/extension/sdk/extension_status.h"
 
-namespace mongo::extension::host {
+#include "mongo/otel/traces/bson_text_map_carrier.h"
 
-/**
- * Wrapper for ::MongoExtension providing safe access to its public API via the vtable.
- * This is an unowned handle, meaning extensions remain fully owned by themselves, and ownership
- * is never transferred to the host.
- */
-class ExtensionHandle : public UnownedHandle<const ::MongoExtension> {
+#include "mongo/bson/bsonobjbuilder.h"
 
-public:
-    ExtensionHandle(const ::MongoExtension* ext) : UnownedHandle<const ::MongoExtension>(ext) {
-        _assertValidVTable();
+namespace mongo {
+namespace otel {
+namespace traces {
+
+BSONTextMapCarrier::BSONTextMapCarrier(const BSONObj& bson) {
+    for (const auto& field : bson) {
+        if (field.type() != BSONType::string) {
+            continue;
+        }
+        _values[field.fieldName()] = field.String();
     }
+}
 
-    void initialize(const HostPortal& portal) const {
-        sdk::enterC([&] {
-            assertValid();
-            return vtable().initialize(get(), &portal);
-        });
+OtelStringView BSONTextMapCarrier::Get(OtelStringView key) const noexcept {
+    auto it = _values.find(key);
+    if (it == _values.end()) {
+        return {};
     }
+    return it->second;
+}
 
-    ::MongoExtensionAPIVersion getVersion() const {
-        assertValid();
-        return get()->version;
+void BSONTextMapCarrier::Set(OtelStringView key, OtelStringView value) noexcept {
+    _values[key] = value;
+}
+
+bool BSONTextMapCarrier::Keys(function_ref<bool(OtelStringView)> callback) const noexcept {
+    for (const auto& [key, _] : _values) {
+        if (!callback(key)) {
+            return false;
+        }
     }
+    return true;
+}
 
-protected:
-    void _assertVTableConstraints(const VTable_t& vtable) const override {
-        tassert(10930101, "Extension 'initialize' is null", vtable.initialize != nullptr);
-    };
-};
+BSONObj BSONTextMapCarrier::toBSON() const {
+    BSONObjBuilder bob;
+    for (const auto& [key, value] : _values) {
+        bob.append(key, value);
+    }
+    return bob.obj();
+}
 
-}  // namespace mongo::extension::host
+}  // namespace traces
+}  // namespace otel
+}  // namespace mongo

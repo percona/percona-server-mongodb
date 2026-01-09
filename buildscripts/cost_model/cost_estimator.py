@@ -29,8 +29,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable
+from dataclasses import dataclass, field
+from typing import Any, Callable, Optional
 
 import numpy as np
 from sklearn.metrics import explained_variance_score, mean_squared_error, r2_score
@@ -45,6 +45,8 @@ class ExecutionStats:
     execution_time: int
     n_returned: int
     n_processed: int
+    n_input_stages: int
+    seeks: Optional[int]
 
 
 @dataclass
@@ -65,7 +67,7 @@ class LinearModel:
     r2: float  # Coefficient of determination
     evs: float  # Explained Variance Score
     corrcoef: Any  # Correlation Coefficients
-    predict: Callable[[Any], Any] = None  # the actual linear function
+    predict: Callable[[Any], Any] = field(default=None, repr=False)  # the actual linear function
 
 
 def estimate(

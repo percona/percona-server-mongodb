@@ -29,7 +29,6 @@
 
 #include "mongo/db/rss/attached_storage/attached_persistence_provider.h"
 
-#include "mongo/base/string_data.h"
 #include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/service_context.h"
 
@@ -66,6 +65,10 @@ bool AttachedPersistenceProvider::shouldUseReplicatedRecordIds() const {
     return false;
 }
 
+bool AttachedPersistenceProvider::shouldUseReplicatedTruncates() const {
+    return false;
+}
+
 bool AttachedPersistenceProvider::shouldUseOplogWritesForFlowControlSampling() const {
     return true;
 }
@@ -94,7 +97,7 @@ bool AttachedPersistenceProvider::supportsTableLogging() const {
     return true;
 }
 
-bool AttachedPersistenceProvider::supportsMultiDocumentTransactions() const {
+bool AttachedPersistenceProvider::supportsCrossShardTransactions() const {
     return true;
 }
 

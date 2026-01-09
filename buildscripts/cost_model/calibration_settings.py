@@ -31,6 +31,7 @@ import random
 from typing import Any
 
 import config
+import numpy as np
 import pandas as pd
 from random_generator import ArrayRandomDistribution, DataType, RandomDistribution, RangeGenerator
 
@@ -163,6 +164,14 @@ def create_index_scan_collection_template(name: str, cardinality: int) -> config
         name=name,
         fields=[
             config.FieldTemplate(
+                name="int_uniform",
+                data_type=config.DataType.INTEGER,
+                distribution=RandomDistribution.uniform(
+                    RangeGenerator(DataType.INTEGER, 0, cardinality)
+                ),
+                indexed=True,
+            ),
+            config.FieldTemplate(
                 name="choice", data_type=config.DataType.STRING, distribution=distr, indexed=True
             ),
             config.FieldTemplate(
@@ -196,7 +205,7 @@ def create_index_scan_collection_template(name: str, cardinality: int) -> config
 
 
 def create_coll_scan_collection_template(
-    name: str, payload_size: int = 0
+    name: str, cardinalities: list[int], payload_size: int = 0
 ) -> config.CollectionTemplate:
     template = config.CollectionTemplate(
         name=name,
@@ -233,7 +242,7 @@ def create_coll_scan_collection_template(
             ),
         ],
         compound_indexes=[],
-        cardinalities=[1000, 5000, 10000],
+        cardinalities=cardinalities,
     )
 
     if payload_size > 0:
@@ -247,6 +256,40 @@ def create_coll_scan_collection_template(
             )
         )
     return template
+
+
+def create_merge_sort_collection_template(
+    name: str, cardinalities: list[int], num_merge_fields: int = 10
+) -> config.CollectionTemplate:
+    # Generate fields "a", "b", ... "j" (if num_merge_fields is 10)
+    field_names = [chr(ord("a") + i) for i in range(num_merge_fields)]
+    fields = [
+        config.FieldTemplate(
+            name=field_name,
+            data_type=config.DataType.INTEGER,
+            distribution=RandomDistribution.uniform(
+                RangeGenerator(DataType.INTEGER, 1, num_merge_fields + 1)
+            ),
+            indexed=False,
+        )
+        for field_name in field_names
+    ]
+    fields.append(
+        config.FieldTemplate(
+            name="sort_field",
+            data_type=config.DataType.STRING,
+            distribution=random_strings_distr(10, 1000),
+            indexed=False,
+        )
+    )
+    compound_indexes = [{field_name: 1, "sort_field": 1} for field_name in field_names]
+
+    return config.CollectionTemplate(
+        name=name,
+        fields=fields,
+        compound_indexes=compound_indexes,
+        cardinalities=cardinalities,
+    )
 
 
 collection_caridinalities = list(range(10000, 50001, 10000))
@@ -304,15 +347,33 @@ c_arr_01 = config.CollectionTemplate(
 )
 
 index_scan = create_index_scan_collection_template("index_scan", 1000000)
-
-coll_scan = create_coll_scan_collection_template("coll_scan", 2000)
+coll_scan = create_coll_scan_collection_template(
+    "coll_scan", cardinalities=[1000, 5000, 10000], payload_size=2000
+)
+sort_collections = create_coll_scan_collection_template(
+    "sort",
+    cardinalities=[5, 10, 50, 75, 100, 150, 300, 400, 500, 750, 1000],
+    payload_size=10,
+)
+merge_sort_collections = create_merge_sort_collection_template(
+    "merge_sort",
+    cardinalities=[5, 10, 50, 75, 100, 150, 300, 400, 500, 750, 1000],
+    num_merge_fields=10,
+)
 
 # Data Generator settings
 data_generator = config.DataGeneratorConfig(
     enabled=True,
     create_indexes=True,
     batch_size=10000,
-    collection_templates=[index_scan, coll_scan, c_int_05, c_arr_01],
+    collection_templates=[
+        index_scan,
+        coll_scan,
+        sort_collections,
+        merge_sort_collections,
+        c_int_05,
+        c_arr_01,
+    ],
     write_mode=config.WriteMode.REPLACE,
     collection_name_with_card=True,
 )
@@ -322,7 +383,7 @@ workload_execution = config.WorkloadExecutionConfig(
     enabled=True,
     output_collection_name="calibrationData",
     write_mode=config.WriteMode.REPLACE,
-    warmup_runs=5,
+    warmup_runs=10,
     runs=100,
 )
 
@@ -338,14 +399,67 @@ qsn_nodes = [
     config.QsNodeCalibrationConfig(type="SUBPLAN"),
     config.QsNodeCalibrationConfig(name="COLLSCAN_FORWARD", type="COLLSCAN"),
     config.QsNodeCalibrationConfig(name="COLLSCAN_BACKWARD", type="COLLSCAN"),
-    config.QsNodeCalibrationConfig(type="IXSCAN"),
+    config.QsNodeCalibrationConfig(
+        name="IXSCAN_FORWARD",
+        type="IXSCAN",
+        variables_override=lambda df: pd.concat(
+            [df["n_processed"].rename("Keys Examined"), df["seeks"].rename("Number of seeks")],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        name="IXSCAN_BACKWARD",
+        type="IXSCAN",
+        variables_override=lambda df: pd.concat(
+            [df["n_processed"].rename("Keys Examined"), df["seeks"].rename("Number of seeks")],
+            axis=1,
+        ),
+    ),
     config.QsNodeCalibrationConfig(type="FETCH"),
     config.QsNodeCalibrationConfig(type="AND_HASH"),
     config.QsNodeCalibrationConfig(type="AND_SORTED"),
     config.QsNodeCalibrationConfig(type="OR"),
-    config.QsNodeCalibrationConfig(type="MERGE_SORT"),
-    config.QsNodeCalibrationConfig(type="SORT_MERGE"),
-    config.QsNodeCalibrationConfig(type="SORT"),
+    config.QsNodeCalibrationConfig(
+        type="SORT_MERGE",
+        # Note: n_returned = n_processed - (amount of duplicates dropped)
+        variables_override=lambda df: pd.concat(
+            [
+                (df["n_returned"] * np.log2(df["n_input_stages"])).rename(
+                    "n_returned * log2(n_input_stages)"
+                ),
+                df["n_processed"],
+            ],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        name="SORT_DEFAULT",
+        type="SORT",
+        # Calibration involves a combination of a linearithmic and linear factor
+        variables_override=lambda df: pd.concat(
+            [
+                (df["n_processed"] * np.log2(df["n_processed"])).rename(
+                    "n_processed * log2(n_processed)"
+                ),
+                df["n_processed"],
+            ],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        name="SORT_SIMPLE",
+        type="SORT",
+        # Calibration involves a combination of a linearithmic and linear factor
+        variables_override=lambda df: pd.concat(
+            [
+                (df["n_processed"] * np.log2(df["n_processed"])).rename(
+                    "n_processed * log2(n_processed)"
+                ),
+                df["n_processed"],
+            ],
+            axis=1,
+        ),
+    ),
     config.QsNodeCalibrationConfig(type="LIMIT"),
     config.QsNodeCalibrationConfig(
         type="SKIP",

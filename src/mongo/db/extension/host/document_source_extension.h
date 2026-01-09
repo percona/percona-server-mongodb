@@ -30,7 +30,7 @@
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
-#include "mongo/db/extension/host/aggregation_stage.h"
+#include "mongo/db/extension/host_adapter/aggregation_stage.h"
 #include "mongo/db/pipeline/document_source.h"
 
 namespace mongo {
@@ -90,8 +90,8 @@ public:
     /**
      * A LiteParsedDocumentSource implementation for desugar extension stages. A derived class
      * should implement a parse() function that passes into the LiteParsedDesugar constructor a
-     * function of type signature DesugaredPipelineInitializerType that returns the desugared BSON
-     * pipeline representation of the stage.
+     * function of type signature DesugaredPipelineInitializerType that returns the desugared
+     * LiteParsedDocumentSource pipeline representation of the stage.
      *
      * See the following example:
      *
@@ -103,14 +103,16 @@ public:
      *                                          Deferred<DesugaredPipelineInitializerType>{[](BSONObj
      * spec) {
      *                                              // Create desugared pipeline from spec.
-     *                                                  return std::list<BSONObj>();
+     *                                                  return
+     * std::list<LiteParsedDocSrcPtr>();
      *                                              }});
      *   }
      * };
      */
     class LiteParsedDesugar : public LiteParsed {
     public:
-        using DesugaredPipelineInitializerType = std::function<std::list<BSONObj>(BSONObj)>;
+        using LiteParsedDocSrcPtr = std::unique_ptr<LiteParsedDocumentSource>;
+        using DesugaredPipelineInitializerType = std::function<std::list<LiteParsedDocSrcPtr>()>;
 
         LiteParsedDesugar(std::string stageName,
                           BSONObj ownedSpec,
@@ -118,8 +120,8 @@ public:
             : LiteParsed(std::move(stageName), std::move(ownedSpec)),
               _desugaredPipeline(std::move(init)) {}
 
-        const std::list<BSONObj>& getDesugaredPipeline() const {
-            return _desugaredPipeline.get(_ownedSpec);
+        const std::list<LiteParsedDocSrcPtr>& getDesugaredPipeline() const {
+            return _desugaredPipeline.get();
         }
 
     private:
@@ -141,13 +143,13 @@ public:
     Value serialize(const SerializationOptions& opts) const override;
 
     // This method is invoked by extensions to register descriptor.
-    static void registerStage(ExtensionAggregationStageDescriptorHandle descriptor);
+    static void registerStage(host_adapter::ExtensionAggregationStageDescriptorHandle descriptor);
 
 private:
     static void registerStage(
         const std::string& name,
         DocumentSource::Id id,
-        extension::host::ExtensionAggregationStageDescriptorHandle descriptor);
+        extension::host_adapter::ExtensionAggregationStageDescriptorHandle descriptor);
 
     /**
      * Give access to DocumentSourceExtensionTest to unregister parser.
@@ -163,7 +165,7 @@ private:
         boost::intrusive_ptr<ExpressionContext> exprCtx,
         Id id,
         BSONObj rawStage,
-        mongo::extension::host::ExtensionAggregationStageDescriptorHandle descriptor);
+        mongo::extension::host_adapter::ExtensionAggregationStageDescriptorHandle descriptor);
 
     // Do not support copy or move.
     DocumentSourceExtension(const DocumentSourceExtension&) = delete;
@@ -181,8 +183,9 @@ private:
     const std::string _stageName;
     const Id _id;
     BSONObj _raw_stage;
-    const mongo::extension::host::ExtensionAggregationStageDescriptorHandle _staticDescriptor;
-    mongo::extension::host::ExtensionLogicalAggregationStageHandle _logicalStage;
+    const mongo::extension::host_adapter::ExtensionAggregationStageDescriptorHandle
+        _staticDescriptor;
+    mongo::extension::host_adapter::ExtensionLogicalAggregationStageHandle _logicalStage;
 };
 }  // namespace extension::host
 }  // namespace mongo

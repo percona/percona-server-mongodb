@@ -37,14 +37,12 @@
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/change_stream_options_gen.h"
 #include "mongo/db/change_stream_options_manager.h"
-#include "mongo/db/change_stream_serverless_helpers.h"
-#include "mongo/db/local_catalog/lock_manager/exception_util.h"
+#include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/db/query/internal_plans.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/record_id_helpers.h"
-#include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/service_context.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
@@ -55,14 +53,9 @@
 
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <string>
 #include <utility>
 #include <variant>
-
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
@@ -73,11 +66,9 @@ MONGO_FAIL_POINT_DEFINE(changeStreamPreImageRemoverCurrentTime);
 namespace change_stream_pre_image_util {
 
 namespace {
-
-// Get the 'expireAfterSeconds' for a single-tenant environment from the 'ChangeStreamOptions' if
-// not 'off', boost::none otherwise.
+// Get the 'expireAfterSeconds' from the 'ChangeStreamOptions' if not 'off', boost::none otherwise.
 boost::optional<std::int64_t> getExpireAfterSecondsFromChangeStreamOptions(
-    ChangeStreamOptions& changeStreamOptions) {
+    const ChangeStreamOptions& changeStreamOptions) {
     const std::variant<std::string, std::int64_t>& expireAfterSeconds =
         changeStreamOptions.getPreAndPostImages().getExpireAfterSeconds();
 
@@ -89,27 +80,16 @@ boost::optional<std::int64_t> getExpireAfterSecondsFromChangeStreamOptions(
 }
 }  // namespace
 
-boost::optional<Seconds> getExpireAfterSeconds(OperationContext* opCtx,
-                                               boost::optional<TenantId> tenantId) {
-    if (tenantId) {
-        return Seconds{change_stream_serverless_helpers::getExpireAfterSeconds(tenantId.get())};
-    }
-
-    // Get the expiration time directly from the change stream manager for a single-tenant
-    // environment.
-    auto changeStreamOptions = ChangeStreamOptionsManager::get(opCtx).getOptions(opCtx);
-    auto expireAfterSeconds = getExpireAfterSecondsFromChangeStreamOptions(changeStreamOptions);
+boost::optional<Seconds> getExpireAfterSeconds(OperationContext* opCtx) {
+    const auto changeStreamOptions = ChangeStreamOptionsManager::get(opCtx).getOptions(opCtx);
+    const auto expireAfterSeconds =
+        getExpireAfterSecondsFromChangeStreamOptions(changeStreamOptions);
     return expireAfterSeconds ? boost::optional<Seconds>(*expireAfterSeconds) : boost::none;
 }
 
 boost::optional<Date_t> getPreImageOpTimeExpirationDate(OperationContext* opCtx,
-                                                        boost::optional<TenantId> tenantId,
                                                         Date_t currentTime) {
-    auto expireAfterSeconds = getExpireAfterSeconds(opCtx, tenantId);
-
-    // In a serverless environment, 'expireAfterSeconds' must always be specified.
-    invariant((tenantId && expireAfterSeconds) || !tenantId);
-
+    auto expireAfterSeconds = getExpireAfterSeconds(opCtx);
     if (expireAfterSeconds) {
         return currentTime - *expireAfterSeconds;
     }
@@ -149,24 +129,6 @@ RecordIdBound getAbsoluteMaxPreImageRecordIdBoundForNs(const UUID& nsUUID) {
         ChangeStreamPreImageId(nsUUID, Timestamp::max(), std::numeric_limits<int64_t>::max())));
 }
 
-void truncateRange(OperationContext* opCtx,
-                   const CollectionPtr& preImagesColl,
-                   const RecordId& minRecordId,
-                   const RecordId& maxRecordId,
-                   int64_t bytesDeleted,
-                   int64_t docsDeleted) {
-    WriteUnitOfWork wuow(opCtx);
-    auto rs = preImagesColl->getRecordStore();
-    auto status = rs->rangeTruncate(opCtx,
-                                    *shard_role_details::getRecoveryUnit(opCtx),
-                                    minRecordId,
-                                    maxRecordId,
-                                    -bytesDeleted,
-                                    -docsDeleted);
-    invariantStatusOK(status);
-    wuow.commit();
-}
-
 void truncatePreImagesByTimestampExpirationApproximation(
     OperationContext* opCtx,
     const CollectionAcquisition& preImagesCollection,
@@ -188,12 +150,15 @@ void truncatePreImagesByTimestampExpirationApproximation(
         // Truncation is based on Timestamp expiration approximation -
         // meaning there isn't a good estimate of the number of bytes and
         // documents to be truncated, so default to 0.
-        truncateRange(opCtx,
-                      preImagesCollection.getCollectionPtr(),
-                      minRecordId,
-                      maxRecordIdApproximation,
-                      0,
-                      0);
+        repl::UnreplicatedWritesBlock uwb(opCtx);
+        WriteUnitOfWork wuow(opCtx);
+        collection_internal::truncateRange(opCtx,
+                                           preImagesCollection.getCollectionPtr(),
+                                           minRecordId,
+                                           maxRecordIdApproximation,
+                                           0,
+                                           0);
+        wuow.commit();
     }
 }
 

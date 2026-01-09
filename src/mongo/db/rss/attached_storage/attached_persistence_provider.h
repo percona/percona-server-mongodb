@@ -60,6 +60,11 @@ public:
     bool shouldUseReplicatedRecordIds() const override;
 
     /**
+     * Attached storage uses unreplicated truncates.
+     */
+    bool shouldUseReplicatedTruncates() const override;
+
+    /**
      * Flow control is based on the rate of generation of oplog data and the ability of the
      * secondaries to keep the majority commit point relatively up-to-date.
      */
@@ -97,9 +102,9 @@ public:
     bool supportsTableLogging() const override;
 
     /**
-     * We can support multi-document transactions.
+     * We can support cross-shard transactions.
      */
-    bool supportsMultiDocumentTransactions() const override;
+    bool supportsCrossShardTransactions() const override;
 };
 
 }  // namespace mongo::rss

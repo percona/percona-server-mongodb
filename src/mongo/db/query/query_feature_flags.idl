@@ -268,7 +268,8 @@ feature_flags:
     featureFlagMqlJsEngineGap:
         description: "Feature flag to enable MQL features that cover common use cases for server side Javascript"
         cpp_varname: gFeatureFlagMqlJsEngineGap
-        default: false
+        default: true
+        version: 8.3
         fcv_gated: true
 
     featureFlagExtendedAutoSpilling:
@@ -276,3 +277,9 @@ feature_flags:
         cpp_varname: gFeatureFlagExtendedAutoSpilling
         default: false
         fcv_gated: false
+
+    featureFlagQueryStatsWriteCommand:
+        description: "Feature flag to enable query stats for the write commands."
+        cpp_varname: gFeatureFlagQueryStatsWriteCommand
+        default: false
+        fcv_gated: true

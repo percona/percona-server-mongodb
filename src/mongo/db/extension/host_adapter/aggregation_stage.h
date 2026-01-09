@@ -30,14 +30,14 @@
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
-#include "mongo/db/extension/host/extension_status.h"
-#include "mongo/db/extension/host/handle.h"
+#include "mongo/db/extension/host_adapter/extension_status.h"
+#include "mongo/db/extension/host_adapter/handle.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/byte_buf_utils.h"
 
 #include <absl/base/nullability.h>
 
-namespace mongo::extension::host {
+namespace mongo::extension::host_adapter {
 
 /**
  * ExtensionLogicalAggregationStageHandle is an owned handle wrapper around a
@@ -84,6 +84,11 @@ public:
     }
 
     /**
+     * Return the expanded pipeline BSON vector for this stage.
+     */
+    std::vector<BSONObj> getExpandedPipelineVec() const;
+
+    /**
      * Parse the user provided stage definition for this stage descriptor.
      *
      * stageBson contains a BSON document with a single (stageName, stageDefinition) element
@@ -93,15 +98,7 @@ public:
      * On failure, the error triggers an assertion.
      *
      */
-    ExtensionLogicalAggregationStageHandle parse(BSONObj stageBson) const {
-        ::MongoExtensionLogicalAggregationStage* logicalStagePtr;
-        const auto& vtbl = vtable();
-        auto* ptr = get();
-        // The API's contract mandates that logicalStagePtr will only be allocated if status is OK.
-        sdk::enterC(
-            [&]() { return vtbl.parse(ptr, sdk::objAsByteView(stageBson), &logicalStagePtr); });
-        return ExtensionLogicalAggregationStageHandle(logicalStagePtr);
-    }
+    ExtensionLogicalAggregationStageHandle parse(BSONObj stageBson) const;
 
 protected:
     void _assertVTableConstraints(const VTable_t& vtable) const override {
@@ -116,4 +113,4 @@ protected:
                 vtable.parse != nullptr);
     }
 };
-}  // namespace mongo::extension::host
+}  // namespace mongo::extension::host_adapter

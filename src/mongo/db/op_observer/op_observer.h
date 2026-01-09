@@ -64,7 +64,7 @@
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 
-namespace MONGO_MOD_OPEN mongo {
+namespace MONGO_MOD_PUB mongo {
 
 class DocumentKey;
 struct IndexBuildInfo;
@@ -170,7 +170,7 @@ struct IndexCollModInfo {
  * to perform the operation being observed are still held. These rules should apply for all observer
  * methods unless otherwise specified.
  */
-class OpObserver {
+class MONGO_MOD_OPEN OpObserver {
 public:
     using ApplyOpsOplogSlotAndOperationAssignment = TransactionOperations::ApplyOpsInfo;
 
@@ -732,6 +732,18 @@ public:
      */
     virtual void onDropDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) = 0;
 
+    /**
+     * Called when 'truncateRange' is called on a collection.
+     * Out parameter 'opTime' is updated to the optime of the oplog entry logged.
+     */
+    virtual void onTruncateRange(OperationContext* opCtx,
+                                 const CollectionPtr& coll,
+                                 const RecordId& minRecordId,
+                                 const RecordId& maxRecordId,
+                                 int64_t bytesDeleted,
+                                 int64_t docsDeleted,
+                                 repl::OpTime& opTime) = 0;
+
     struct Times;
 
 protected:
@@ -778,4 +790,4 @@ private:
     Times& _times;
 };
 
-}  // namespace MONGO_MOD_OPEN mongo
+}  // namespace MONGO_MOD_PUB mongo

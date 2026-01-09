@@ -42,6 +42,7 @@
 #include "mongo/bson/util/builder.h"
 #include "mongo/client/dbclient_cursor.h"
 #include "mongo/db/client.h"
+#include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/local_catalog/catalog_raii.h"
@@ -84,6 +85,7 @@
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/repl/storage_interface_impl.h"
+#include "mongo/db/repl/truncate_range_oplog_entry_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/session/session.h"
@@ -291,6 +293,9 @@ protected:
                 if (uuid) {
                     opts.uuid = uuid;
                 }
+                if (nss == clusteredNss) {
+                    opts.clusteredIndex = clustered_util::makeDefaultClusteredIdIndex();
+                }
                 invariant(db->createCollection(opCtx, nss, opts));
             }
             wunit.commit();
@@ -479,6 +484,8 @@ protected:
     const NamespaceString nss3 =
         NamespaceString::createNamespaceString_forTest(boost::none, "testDB3", "testColl3");
     const UUID uuid3{UUID::gen()};
+    const NamespaceString clusteredNss = NamespaceString::createNamespaceString_forTest(
+        TenantId(OID::gen()), "testDB", "clusteredColl");
 
     const TenantId kTenantId = TenantId(OID::gen());
     const NamespaceString kNssUnderTenantId = NamespaceString::createNamespaceString_forTest(
@@ -503,7 +510,8 @@ class OpObserverOnCreateCollectionTest : public OpObserverTest {
 protected:
     // Validates that local catalog identifier information is replicated in the 'o2' field of an
     // 'create' oplog entry iff the server supports replicating local catalog identifiers.
-    void validateReplicatedCatalogIdentifier(const OplogEntry& oplogEntry,
+    void validateReplicatedCatalogIdentifier(OperationContext* opCtx,
+                                             const OplogEntry& oplogEntry,
                                              const CreateCollCatalogIdentifier& catalogIdentifier,
                                              bool catalogReplicationEnabled) {
         ASSERT_EQ(repl::CommandTypeEnum::kCreate, oplogEntry.getCommandType());
@@ -515,24 +523,31 @@ protected:
             return;
         }
 
+        auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
         ASSERT_EQ(catalogIdentifier.catalogId,
                   RecordId::deserializeToken(o2->getField("catalogId")));
-        ASSERT_EQ(catalogIdentifier.ident, o2->getStringField("ident"));
+        auto identUniqueTag = storageEngine->getCollectionIdentUniqueTag(
+            catalogIdentifier.ident, oplogEntry.getNss().dbName());
+        ASSERT_EQ(identUniqueTag, o2->getStringField("ident"));
 
         bool expectIdIndexIdent = catalogIdentifier.idIndexIdent.has_value();
         ASSERT_EQ(expectIdIndexIdent, o2->hasField("idIndexIdent"));
         if (expectIdIndexIdent) {
-            ASSERT_EQ(*catalogIdentifier.idIndexIdent, o2->getStringField("idIndexIdent"));
+            auto idIndexIdentUniqueTag = storageEngine->getIndexIdentUniqueTag(
+                *catalogIdentifier.idIndexIdent, oplogEntry.getNss().dbName());
+            ASSERT_EQ(idIndexIdentUniqueTag, o2->getStringField("idIndexIdent"));
         }
     }
 
-    CreateCollCatalogIdentifier newCatalogIdentifier(const DatabaseName& dbName,
+    CreateCollCatalogIdentifier newCatalogIdentifier(OperationContext* opCtx,
+                                                     const DatabaseName& dbName,
                                                      bool includeIdIndexIdent) {
         CreateCollCatalogIdentifier catalogIdentifier;
         catalogIdentifier.catalogId = RecordId(100);
-        catalogIdentifier.ident = ident::generateNewCollectionIdent(dbName, true, true);
+        auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+        catalogIdentifier.ident = storageEngine->generateNewCollectionIdent(dbName);
         if (includeIdIndexIdent) {
-            catalogIdentifier.idIndexIdent = ident::generateNewIndexIdent(dbName, true, true);
+            catalogIdentifier.idIndexIdent = storageEngine->generateNewIndexIdent(dbName);
         }
         return catalogIdentifier;
     }
@@ -543,13 +558,15 @@ protected:
         RAIIServerParameterControllerForTest replicateLocalCatalogInfoController(
             "featureFlagReplicateLocalCatalogIdentifiers", catalogReplicationEnabled);
 
-        // Simulate catalog information for a normal collection with a standard '_id_' index.
-        ASSERT_TRUE(nss.isReplicated());
-        auto catalogIdentifier = newCatalogIdentifier(nss.dbName(), true /* includeIdIndexIdent */);
-        CollectionOptions options{.uuid = uuid};
-
         auto opCtxWrapper = cc().makeOperationContext();
         auto opCtx = opCtxWrapper.get();
+
+        // Simulate catalog information for a normal collection with a standard '_id_' index.
+        ASSERT_TRUE(nss.isReplicated());
+        auto catalogIdentifier =
+            newCatalogIdentifier(opCtx, nss.dbName(), true /* includeIdIndexIdent */);
+        CollectionOptions options{.uuid = uuid};
+
         OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
         {
             // Generate the create oplog entry.
@@ -570,7 +587,7 @@ protected:
         const auto oplogEntryBSON = getSingleOplogEntry(opCtx);
         const auto oplogEntry = assertGet(OplogEntry::parse(oplogEntryBSON));
         validateReplicatedCatalogIdentifier(
-            oplogEntry, catalogIdentifier, catalogReplicationEnabled);
+            opCtx, oplogEntry, catalogIdentifier, catalogReplicationEnabled);
         bool isTimeseries = oplogEntryBSON.getBoolField("isTimeseries");
         ASSERT_EQ(viewless, isTimeseries);
     }
@@ -579,6 +596,9 @@ protected:
         RAIIServerParameterControllerForTest replicateLocalCatalogInfoController(
             "featureFlagReplicateLocalCatalogIdentifiers", catalogReplicationEnabled);
 
+        auto opCtxWrapper = cc().makeOperationContext();
+        auto opCtx = opCtxWrapper.get();
+
         CollectionOptions clusteredCollectionOptions{
             .uuid = uuid, .clusteredIndex = clustered_util::makeDefaultClusteredIdIndex()};
 
@@ -586,11 +606,9 @@ protected:
         // an explicit '_id_' index table.
         ASSERT_TRUE(nss.isReplicated());
         auto catalogIdentifier =
-            newCatalogIdentifier(nss.dbName(), false /* includeIdIndexIdent */);
+            newCatalogIdentifier(opCtx, nss.dbName(), false /* includeIdIndexIdent */);
         ASSERT_FALSE(catalogIdentifier.idIndexIdent.has_value());
 
-        auto opCtxWrapper = cc().makeOperationContext();
-        auto opCtx = opCtxWrapper.get();
         OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
         {
             // Generate the create oplog entry.
@@ -609,7 +627,7 @@ protected:
         const auto oplogEntryBSON = getSingleOplogEntry(opCtx);
         const auto oplogEntry = assertGet(OplogEntry::parse(oplogEntryBSON));
         validateReplicatedCatalogIdentifier(
-            oplogEntry, catalogIdentifier, catalogReplicationEnabled);
+            opCtx, oplogEntry, catalogIdentifier, catalogReplicationEnabled);
     }
 
     // Tests that the presences or absence of a 'CreateCollCatalogIdentifier' passed into
@@ -638,8 +656,8 @@ protected:
 
         boost::optional<CreateCollCatalogIdentifier> catalogIdentifier;
         if (isPersistedInLocalCatalog) {
-            catalogIdentifier =
-                newCatalogIdentifier(localNSS.dbName(), false /* includeIdIndexIdent */);
+            catalogIdentifier = newCatalogIdentifier(
+                opCtx.get(), localNSS.dbName(), false /* includeIdIndexIdent */);
         }
 
         {
@@ -839,7 +857,7 @@ TEST_F(OpObserverTest, AbortIndexBuildExpectedOplogEntry) {
     ASSERT_EQUALS(cause, getStatusFromCommandResult(o.getObjectField("cause")));
 }
 
-TEST_F(OpObserverTest, checkisTimeseriesOnReplLogUpdate) {
+TEST_F(OpObserverTest, checkIsTimeseriesOnReplLogUpdate) {
     RAIIServerParameterControllerForTest viewlessController(
         "featureFlagCreateViewlessTimeseriesCollections", true);
 
@@ -1111,7 +1129,7 @@ TEST_F(OpObserverTest, OnDropCollectionReturnsDropOpTime) {
     ASSERT_EQUALS(repl::ReplClientInfo::forClient(&cc()).getLastOp(), dropOpTime);
 }
 
-TEST_F(OpObserverTest, OnDropCollectionInlcudesTenantId) {
+TEST_F(OpObserverTest, OnDropCollectionIncludesTenantId) {
     RAIIServerParameterControllerForTest multitenancyController("multitenancySupport", true);
     RAIIServerParameterControllerForTest featureFlagController("featureFlagRequireTenantID", true);
     OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
@@ -1523,6 +1541,73 @@ TEST_F(OpObserverTest, EntriesIncludeVersionContextDecoration) {
     auto oplogEntry = getSingleOplogEntry(opCtx.get());
     auto vCtxBSON = oplogEntry.getObjectField(repl::OplogEntryBase::kVersionContextFieldName);
     ASSERT_BSONOBJ_EQ(vCtxBSON, expectedVCtx.toBSON());
+}
+
+TEST_F(OpObserverTest, TruncateRangeIsReplicated) {
+    auto opCtxWrapper = cc().makeOperationContext();
+    auto opCtx = opCtxWrapper.get();
+    reset(opCtx, clusteredNss);
+
+    AutoGetCollection autoColl(opCtx, clusteredNss, MODE_IX);
+    const CollectionPtr& coll = autoColl.getCollection();
+
+    opObserverRegistry()->addObserver(
+        std::make_unique<OpObserverImpl>(std::make_unique<OperationLoggerImpl>()));
+
+    {
+        // Tests that truncateRange() does not throw in unreplicated mode
+        repl::UnreplicatedWritesBlock uwb(opCtx);
+        WriteUnitOfWork wuow(opCtx);
+        // featureFlagUseReplicatedTruncatesForDeletions is ignored
+        {
+            RAIIServerParameterControllerForTest featureFlagScope{
+                "featureFlagUseReplicatedTruncatesForDeletions", true};
+            collection_internal::truncateRange(opCtx, coll, RecordId("a"), RecordId("b"), 1, 1);
+        }
+        {
+            RAIIServerParameterControllerForTest featureFlagScope{
+                "featureFlagUseReplicatedTruncatesForDeletions", false};
+            collection_internal::truncateRange(opCtx, coll, RecordId("a"), RecordId("b"), 1, 1);
+        }
+        wuow.commit();
+        // No oplog entry generated.
+        getNOplogEntries(opCtx, 0);
+    }
+
+    {
+        // Tests that with feature flag disabled, the OpObserver would throw
+        RAIIServerParameterControllerForTest featureFlagScope{
+            "featureFlagUseReplicatedTruncatesForDeletions", false};
+        WriteUnitOfWork wuow(opCtx);
+        ASSERT_THROWS_CODE(
+            collection_internal::truncateRange(opCtx, coll, RecordId("a"), RecordId("b"), 1, 1),
+            DBException,
+            ErrorCodes::IllegalOperation);
+        wuow.commit();
+        // No oplog entry generated.
+        getNOplogEntries(opCtx, 0);
+    }
+
+    {
+        RAIIServerParameterControllerForTest featureFlagScope{
+            "featureFlagUseReplicatedTruncatesForDeletions", true};
+        WriteUnitOfWork wuow(opCtx);
+        collection_internal::truncateRange(opCtx, coll, RecordId("a"), RecordId("b"), 1, 1);
+        wuow.commit();
+    }
+
+    const auto oplogEntryBSON = getSingleOplogEntry(opCtx);
+    const auto oplogEntry = assertGet(OplogEntry::parse(oplogEntryBSON));
+
+    ASSERT(oplogEntry.isCommand());
+    ASSERT_EQ(oplogEntry.getNss().db_forTest(), clusteredNss.db_forTest());
+    ASSERT_EQ(oplogEntry.getNss().coll(), "$cmd");
+    ASSERT_EQ(oplogEntry.getUuid(), coll->uuid());
+
+    const auto& o = oplogEntry.getObject();
+    TruncateRangeOplogEntry objectEntry(
+        std::string(coll->ns().coll()), RecordId("a"), RecordId("b"), 1, 1);
+    ASSERT_BSONOBJ_EQ(o, objectEntry.toBSON());
 }
 
 /**
@@ -5375,9 +5460,9 @@ TEST_F(OpObserverTest, OnCreateIndexReplicateLocalCatalogIdentifiers) {
     ASSERT_FALSE(disabledEntry.getObject2());
     auto enabledO2 = enabledEntry.getObject2();
     ASSERT(enabledO2);
-    ASSERT_BSONOBJ_EQ(*enabledO2,
-                      BSON("indexIdent" << "index-1" << "directoryPerDB" << false
-                                        << "directoryForIndexes" << false));
+    ASSERT_BSONOBJ_EQ(
+        *enabledO2,
+        BSON("indexIdent" << "1" << "directoryPerDB" << false << "directoryForIndexes" << false));
 }
 
 TEST_F(OpObserverTest, OnCreateIndexTimeseriesFlag) {
@@ -5423,11 +5508,17 @@ TEST_F(OpObserverTest, OnCreateIndexIncludesIndexIdent) {
     auto entry1 = assertGet(OplogEntry::parse(oplogEntries[0]));
     auto entry2 = assertGet(OplogEntry::parse(oplogEntries[1]));
 
+    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+    auto indexIdentUniqueTag0 =
+        storageEngine->getIndexIdentUniqueTag(indexes[0].indexIdent, nss.dbName());
+    auto indexIdentUniqueTag1 =
+        storageEngine->getIndexIdentUniqueTag(indexes[1].indexIdent, nss.dbName());
+
     ASSERT_BSONOBJ_EQ(*entry1.getObject2(),
-                      BSON("indexIdent" << indexes[0].indexIdent << "directoryPerDB" << false
+                      BSON("indexIdent" << indexIdentUniqueTag0 << "directoryPerDB" << false
                                         << "directoryForIndexes" << false));
     ASSERT_BSONOBJ_EQ(*entry2.getObject2(),
-                      BSON("indexIdent" << indexes[1].indexIdent << "directoryPerDB" << false
+                      BSON("indexIdent" << indexIdentUniqueTag1 << "directoryPerDB" << false
                                         << "directoryForIndexes" << false));
 }
 
@@ -5469,8 +5560,167 @@ TEST_F(OpObserverTest, OnStartIndexBuildIncludesIndexIdent) {
     auto indexesElemVec = indexesElem.Array();
     ASSERT_EQ(indexesElemVec.size(), 1);
     auto indexElemObj = indexesElemVec[0].Obj();
-    ASSERT_EQ(indexElemObj.getField("indexIdent").str(), indexes[0].indexIdent);
+    auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+    auto indexIdentUniqueTag =
+        storageEngine->getIndexIdentUniqueTag(indexes[0].indexIdent, nss.dbName());
+    ASSERT_EQ(indexElemObj.getField("indexIdent").str(), indexIdentUniqueTag);
     ASSERT_FALSE(entry2.getObject2());
+}
+
+TEST_F(OpObserverTest, OnContainerInsert) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock{opCtx.get(), LockMode::MODE_IX};
+
+    auto ident = "ident";
+    int64_t key1 = 100;
+    std::string key2 = "stuff";
+    std::string value1 = "things";
+    std::string value2 = "other things";
+
+    OpObserverImpl opObserver{std::make_unique<OperationLoggerImpl>()};
+    opObserver.onContainerInsert(opCtx.get(), nss, uuid, ident, key1, value1);
+    opObserver.onContainerInsert(opCtx.get(), nss, uuid, ident, key2, value2);
+
+    auto entries = getNOplogEntries(opCtx.get(), 2);
+    auto entry1 = assertGet(OplogEntry::parse(entries[0]));
+    auto entry2 = assertGet(OplogEntry::parse(entries[1]));
+
+    ASSERT_EQ(entry1.getOpType(), repl::OpTypeEnum::kContainerInsert);
+    ASSERT_EQ(entry2.getOpType(), repl::OpTypeEnum::kContainerInsert);
+    ASSERT_EQ(entry1.getEntry().getContainer(), StringData{ident});
+    ASSERT_EQ(entry2.getEntry().getContainer(), StringData{ident});
+
+    auto entry1Object = entry1.getObject();
+    ASSERT_EQ(entry1Object.nFields(), 2);
+    auto entry1Key = entry1Object["k"];
+    ASSERT_EQ(entry1Key.type(), BSONType::numberLong);
+    ASSERT_EQ(entry1Key.numberLong(), key1);
+    auto entry1Value = entry1Object["v"];
+    ASSERT_EQ(entry1Value.type(), BSONType::binData);
+    ASSERT_EQ(entry1Value.binDataType(), BinDataType::BinDataGeneral);
+    int entry1ValueBinDataLength;
+    auto entry1ValueBinData = entry1Value.binData(entry1ValueBinDataLength);
+    ASSERT_EQ(std::string(entry1ValueBinData, entry1ValueBinDataLength), value1);
+
+    auto entry2Object = entry2.getObject();
+    ASSERT_EQ(entry2Object.nFields(), 2);
+    auto entry2Key = entry2Object["k"];
+    ASSERT_EQ(entry2Key.type(), BSONType::binData);
+    int entry2KeyBinDataLength;
+    auto entry2KeyBinData = entry2Key.binData(entry2KeyBinDataLength);
+    ASSERT_EQ(std::string(entry2KeyBinData, entry2KeyBinDataLength), key2);
+    auto entry2Value = entry2Object["v"];
+    ASSERT_EQ(entry2Value.type(), BSONType::binData);
+    ASSERT_EQ(entry2Value.binDataType(), BinDataType::BinDataGeneral);
+    int entry2ValueBinDataLength;
+    auto entry2ValueBinData = entry2Value.binData(entry2ValueBinDataLength);
+    ASSERT_EQ(std::string(entry2ValueBinData, entry2ValueBinDataLength), value2);
+}
+
+TEST_F(OpObserverTest, OnContainerDelete) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock{opCtx.get(), LockMode::MODE_IX};
+
+    auto ident = "ident";
+    int64_t key1 = 100;
+    std::string key2 = "stuff";
+
+    OpObserverImpl opObserver{std::make_unique<OperationLoggerImpl>()};
+    opObserver.onContainerDelete(opCtx.get(), nss, uuid, ident, key1);
+    opObserver.onContainerDelete(opCtx.get(), nss, uuid, ident, key2);
+
+    auto entries = getNOplogEntries(opCtx.get(), 2);
+    auto entry1 = assertGet(OplogEntry::parse(entries[0]));
+    auto entry2 = assertGet(OplogEntry::parse(entries[1]));
+
+    ASSERT_EQ(entry1.getOpType(), repl::OpTypeEnum::kContainerDelete);
+    ASSERT_EQ(entry2.getOpType(), repl::OpTypeEnum::kContainerDelete);
+    ASSERT_EQ(entry1.getEntry().getContainer(), StringData{ident});
+    ASSERT_EQ(entry2.getEntry().getContainer(), StringData{ident});
+
+    auto entry1Object = entry1.getObject();
+    ASSERT_EQ(entry1Object.nFields(), 1);
+    auto entry1Key = entry1Object["k"];
+    ASSERT_EQ(entry1Key.type(), BSONType::numberLong);
+    ASSERT_EQ(entry1Key.numberLong(), key1);
+
+    auto entry2Object = entry2.getObject();
+    ASSERT_EQ(entry2Object.nFields(), 1);
+    auto entry2Key = entry2Object["k"];
+    ASSERT_EQ(entry2Key.type(), BSONType::binData);
+    int entry2KeyBinDataLength;
+    auto entry2KeyBinData = entry2Key.binData(entry2KeyBinDataLength);
+    ASSERT_EQ(std::string(entry2KeyBinData, entry2KeyBinDataLength), key2);
+}
+
+TEST_F(OpObserverTest, OnContainerInsertBatched) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock{opCtx.get(), LockMode::MODE_IX};
+    BatchedWriteContext::get(opCtx.get()).setWritesAreBatched(true);
+
+    auto ident = "ident";
+    int64_t key1 = 100;
+    std::string key2 = "stuff";
+    std::string value1 = "things";
+    std::string value2 = "other things";
+
+    OpObserverImpl opObserver{std::make_unique<OperationLoggerImpl>()};
+    // TODO (SERVER-109748): Unit test batched writes.
+    ASSERT_THROWS_CODE(opObserver.onContainerInsert(opCtx.get(), nss, uuid, ident, key1, value1),
+                       DBException,
+                       10942701);
+    ASSERT_THROWS_CODE(opObserver.onContainerInsert(opCtx.get(), nss, uuid, ident, key2, value2),
+                       DBException,
+                       10942701);
+}
+
+TEST_F(OpObserverTest, OnContainerDeleteBatched) {
+    auto opCtx = cc().makeOperationContext();
+    Lock::GlobalLock lock{opCtx.get(), LockMode::MODE_IX};
+    BatchedWriteContext::get(opCtx.get()).setWritesAreBatched(true);
+
+    auto ident = "ident";
+    int64_t key1 = 100;
+    std::string key2 = "stuff";
+
+    OpObserverImpl opObserver{std::make_unique<OperationLoggerImpl>()};
+    // TODO (SERVER-109748): Unit test batched writes.
+    ASSERT_THROWS_CODE(
+        opObserver.onContainerDelete(opCtx.get(), nss, uuid, ident, key1), DBException, 10942703);
+    ASSERT_THROWS_CODE(
+        opObserver.onContainerDelete(opCtx.get(), nss, uuid, ident, key2), DBException, 10942703);
+}
+
+TEST_F(OpObserverTransactionTest, OnContainerInsert) {
+    TransactionParticipant::get(opCtx()).unstashTransactionResources(opCtx(), "insert");
+
+    auto ident = "ident";
+    int64_t key1 = 100;
+    std::string key2 = "stuff";
+    std::string value1 = "things";
+    std::string value2 = "other things";
+
+    OpObserverImpl opObserver{std::make_unique<OperationLoggerImpl>()};
+    ASSERT_THROWS_CODE(opObserver.onContainerInsert(opCtx(), nss, uuid, ident, key1, value1),
+                       DBException,
+                       10942700);
+    ASSERT_THROWS_CODE(opObserver.onContainerInsert(opCtx(), nss, uuid, ident, key2, value2),
+                       DBException,
+                       10942700);
+}
+
+TEST_F(OpObserverTransactionTest, OnContainerDelete) {
+    TransactionParticipant::get(opCtx()).unstashTransactionResources(opCtx(), "delete");
+
+    auto ident = "ident";
+    int64_t key1 = 100;
+    std::string key2 = "stuff";
+
+    OpObserverImpl opObserver{std::make_unique<OperationLoggerImpl>()};
+    ASSERT_THROWS_CODE(
+        opObserver.onContainerDelete(opCtx(), nss, uuid, ident, key1), DBException, 10942702);
+    ASSERT_THROWS_CODE(
+        opObserver.onContainerDelete(opCtx(), nss, uuid, ident, key2), DBException, 10942702);
 }
 
 class OpObserverServerlessTest : public OpObserverTest {

@@ -57,7 +57,7 @@ public:
     ExpressionContextBuilder& explain(boost::optional<ExplainOptions::Verbosity>);
     ExpressionContextBuilder& runtimeConstants(boost::optional<LegacyRuntimeConstants>);
     ExpressionContextBuilder& letParameters(boost::optional<BSONObj>);
-    ExpressionContextBuilder& tmpDir(std::string);
+    ExpressionContextBuilder& tmpDir(boost::filesystem::path);
     ExpressionContextBuilder& mayDbProfile(bool);
     ExpressionContextBuilder& fromRouter(bool);
     ExpressionContextBuilder& mergeType(MergeType);
@@ -167,6 +167,5 @@ boost::intrusive_ptr<ExpressionContext> makeCopyForSubPipelineFromExpressionCont
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     NamespaceString nss,
     boost::optional<UUID> uuid = boost::none,
-    boost::optional<std::pair<NamespaceString, std::vector<BSONObj>>> view = boost::none,
     boost::optional<NamespaceString> userNs = boost::none);
 }  // namespace mongo

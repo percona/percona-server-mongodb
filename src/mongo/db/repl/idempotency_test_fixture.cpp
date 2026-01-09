@@ -212,7 +212,7 @@ void IdempotencyTest::testOpsAreIdempotent(std::vector<OplogEntry> ops, Sequence
 }
 
 OplogEntry IdempotencyTest::createCollection(UUID uuid) {
-    return makeCreateCollectionOplogEntry(nextOpTime(), _nss, uuid);
+    return makeCreateCollectionOplogEntry(_opCtx.get(), nextOpTime(), _nss, uuid);
 }
 
 OplogEntry IdempotencyTest::insert(const BSONObj& obj) {
@@ -310,11 +310,11 @@ OplogEntry IdempotencyTest::partialTxn(LogicalSessionId lsid,
         prevOpTime);
 }
 
-std::string IdempotencyTest::computeDataHash(const CollectionPtr& collection) {
-    auto desc = collection->getIndexCatalog()->findIdIndex(_opCtx.get());
+std::string IdempotencyTest::computeDataHash(const CollectionAcquisition& collection) {
+    auto desc = collection.getCollectionPtr()->getIndexCatalog()->findIdIndex(_opCtx.get());
     ASSERT_TRUE(desc);
     auto exec = InternalPlanner::indexScan(_opCtx.get(),
-                                           &collection,
+                                           collection,
                                            desc,
                                            BSONObj(),
                                            BSONObj(),
@@ -407,7 +407,7 @@ CollectionState IdempotencyTest::validate(const NamespaceString& nss) {
     auto collection = getCollectionForRead(_opCtx.get(), _nss);
     const auto& collectionPtr = collection.getCollectionPtr();
 
-    std::string dataHash = computeDataHash(collectionPtr);
+    std::string dataHash = computeDataHash(collection);
 
     auto collectionOptions = collectionPtr->getCollectionOptions();
     std::vector<std::string> allIndexes;

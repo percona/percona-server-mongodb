@@ -55,14 +55,34 @@ void assertInsertExisting(RecordIdDeduplicator& recordIdDeduplicator, RecordId r
     ASSERT_TRUE(recordIdDeduplicator.contains(recordId)) << "RecordId " << recordId;
 }
 
+void assertDidNotSpill(const RecordIdDeduplicator& recordIdDeduplicator,
+                       const SpillingStats& stats) {
+    ASSERT_FALSE(recordIdDeduplicator.hasSpilled());
+    ASSERT_EQ(0, stats.getSpills()) << "Spills is " << stats.getSpills();
+    ASSERT_EQ(0, stats.getSpilledBytes()) << "Spilled bytes is " << stats.getSpilledBytes();
+    ASSERT_EQ(0, stats.getSpilledRecords()) << "Spilled records is " << stats.getSpilledRecords();
+}
+
+std::vector<int64_t> createIntRecords() {
+    std::vector<int64_t> recordIds;
+    recordIds.reserve(60 * 50);
+    int64_t number = 1;
+    for (int shiftNum = 0; shiftNum < 60; ++shiftNum) {
+        number <<= 1;
+        for (int64_t idx = 1; idx < 50; ++idx) {
+            number += idx * 3;
+            recordIds.emplace_back(number);
+        }
+    }
+
+    return recordIds;
+}
+
 class RecordIdDeduplicatorTest : public SpillingTestFixture {
 public:
     SpillingStats spillingStats;
 };
 
-//
-// Basic test that we get out valid stats objects.
-//
 TEST_F(RecordIdDeduplicatorTest, basicTest) {
     RecordIdDeduplicator recordIdDeduplicator{_expCtx.get(), 40, 6, 10000};
 
@@ -90,9 +110,9 @@ TEST_F(RecordIdDeduplicatorTest, spillNoDiskUsageTest) {
 
     assertInsertNew(recordIdDeduplicator, longRecordId);
     assertInsertNew(recordIdDeduplicator, stringRecordId);
-    ASSERT_THROWS_CODE(recordIdDeduplicator.spill(spillingStats),
-                       DBException,
-                       ErrorCodes::QueryExceededMemoryLimitNoDiskUseAllowed);
+
+    recordIdDeduplicator.spill(spillingStats);
+    assertDidNotSpill(recordIdDeduplicator, spillingStats);
 }
 
 TEST_F(RecordIdDeduplicatorTest, basicHashSpillTest) {
@@ -104,21 +124,13 @@ TEST_F(RecordIdDeduplicatorTest, basicHashSpillTest) {
     RecordId longRecordId(12345678);
     RecordId nullRecordId;
 
-    uint64_t expectedSpills = 1;
-    uint64_t expectedSpilledBytes = stringRecordId.memUsage() + longRecordId.memUsage();
-    uint64_t expectedSpilledRecords = 2;  // The record with id null is not spilled.
-
     assertInsertNew(recordIdDeduplicator, nullRecordId);
     assertInsertNew(recordIdDeduplicator, longRecordId);
     assertInsertNew(recordIdDeduplicator, stringRecordId);
 
     recordIdDeduplicator.spill(spillingStats);
 
-    // At this point it should have spilled.
-    ASSERT_TRUE(recordIdDeduplicator.hasSpilled());
-    ASSERT_EQ(expectedSpills, spillingStats.getSpills());
-    ASSERT_EQ(expectedSpilledBytes, spillingStats.getSpilledBytes());
-    ASSERT_EQ(expectedSpilledRecords, spillingStats.getSpilledRecords());
+    assertDidNotSpill(recordIdDeduplicator, spillingStats);
 
     // Insert the same records.
     assertInsertExisting(recordIdDeduplicator, stringRecordId);
@@ -133,10 +145,7 @@ TEST_F(RecordIdDeduplicatorTest, basicHashSpillTest) {
     assertInsertExisting(recordIdDeduplicator, longRecordId2);
 
     // The spills should not have changed.
-    ASSERT_TRUE(recordIdDeduplicator.hasSpilled());
-    ASSERT_EQ(expectedSpills, spillingStats.getSpills());
-    ASSERT_EQ(expectedSpilledBytes, spillingStats.getSpilledBytes());
-    ASSERT_EQ(expectedSpilledRecords, spillingStats.getSpilledRecords());
+    assertDidNotSpill(recordIdDeduplicator, spillingStats);
 }
 
 TEST_F(RecordIdDeduplicatorTest, basicBitmapSpillTest) {
@@ -150,37 +159,18 @@ TEST_F(RecordIdDeduplicatorTest, basicBitmapSpillTest) {
     assertInsertNew(recordIdDeduplicator, stringRecordId);
     assertInsertNew(recordIdDeduplicator, nullRecordId);
 
-    uint64_t expectedSpills = 1;
-    uint64_t expectedSpilledBytes = stringRecordId.memUsage();
-    uint64_t expectedSpilledRecords = 1;  // The record with id null is not spilled.
-
     // Create some recordIds.
-    std::vector<int64_t> recordIds;
-    recordIds.reserve(60 * 50);
-    int64_t number = 1;
-    for (int shiftNum = 0; shiftNum < 60; ++shiftNum) {
-        number <<= 1;
-        for (int64_t idx = 1; idx < 50; ++idx) {
-            number += idx * 3;
-            recordIds.emplace_back(number);
-        }
-    }
+    std::vector<int64_t> recordIds = createIntRecords();
 
     // Add more recordIds to cause roaring to switch to bitmap.
     for (const auto& ridInt : recordIds) {
         RecordId rid{ridInt};
         assertInsertNew(recordIdDeduplicator, rid);
-        expectedSpilledBytes += rid.memUsage();
-        ++expectedSpilledRecords;
     }
 
     recordIdDeduplicator.spill(spillingStats);
 
-    // At this point it should have spilled.
-    ASSERT_TRUE(recordIdDeduplicator.hasSpilled());
-    ASSERT_EQ(expectedSpills, spillingStats.getSpills());
-    ASSERT_EQ(expectedSpilledBytes, spillingStats.getSpilledBytes());
-    ASSERT_EQ(expectedSpilledRecords, spillingStats.getSpilledRecords());
+    assertDidNotSpill(recordIdDeduplicator, spillingStats);
 
     // Insert the same records.
     assertInsertExisting(recordIdDeduplicator, stringRecordId);
@@ -223,20 +213,14 @@ TEST_F(RecordIdDeduplicatorTest, freeMemoryRemovesOnlyInMemoryElements) {
         assertInsertNew(recordIdDeduplicator, recordId);
     }
 
-    SpillingStats stats;
-    recordIdDeduplicator.spill(stats);
-    ASSERT_TRUE(recordIdDeduplicator.hasSpilled());
+    recordIdDeduplicator.spill(spillingStats);
+    assertDidNotSpill(recordIdDeduplicator, spillingStats);
 
+    // Since RecordIdDeduplicator does not spill all records are in memory and are released when
+    // freeMemory is called.
     for (const auto& recordId : recordIds) {
         recordIdDeduplicator.freeMemory(recordId);
-        if (!recordId.isNull()) {
-            // Because we have spilled, old recordIds are not in memory, so they are not affected by
-            // freeMemory call.
-            assertInsertExisting(recordIdDeduplicator, recordId);
-        } else {
-            // Null record is one bool, so it is never spilled.
-            assertInsertNew(recordIdDeduplicator, recordId);
-        }
+        assertInsertNew(recordIdDeduplicator, recordId);
     }
 
     RecordId newRecordId{static_cast<int64_t>(2)};
@@ -244,6 +228,82 @@ TEST_F(RecordIdDeduplicatorTest, freeMemoryRemovesOnlyInMemoryElements) {
     assertInsertNew(recordIdDeduplicator, newRecordId);
     recordIdDeduplicator.freeMemory(newRecordId);
     assertInsertNew(recordIdDeduplicator, newRecordId);
+}
+
+TEST_F(RecordIdDeduplicatorTest, memoryConsumptionTest) {
+    _expCtx->setAllowDiskUse(true);
+    RecordIdDeduplicator recordIdDeduplicator{_expCtx.get(), 40, 6, 1'000'000};
+
+    // Insert a few recordIds.
+    std::vector<RecordId> stringRecordIds = {
+        RecordId{std::span("ABCDE", 5)},
+        RecordId{std::span("ABCDEFGHIJ", 10)},
+        RecordId{std::span("ABCDEFGHIJABCDEFGHIJ", 20)},
+        RecordId{std::span("ABCDEFGHIJABCDEFGHIJABCDEFGHIJKLMN", 34)},
+        RecordId{std::span("ABCDEFGHIJKLMOPQRSTUABCDEFGHIJABCDEFGHIJKLMOPQRSTU", 50)}};
+    RecordId longRecordId(12);
+    RecordId nullRecordId;
+
+    // HashRoaringSet occupies a small amount of memory even when it is empty (~200B)
+    auto memUsage = recordIdDeduplicator.getApproximateSize();
+
+    for (const auto& stringRecordId : stringRecordIds) {
+        recordIdDeduplicator.insert(stringRecordId);
+        memUsage += stringRecordId.memUsage();
+    }
+    // We cannot compute the exact memory usage of the hashset because it keeps some empty slots.
+    ASSERT_GREATER_THAN_OR_EQUALS(recordIdDeduplicator.getApproximateSize(), memUsage);
+
+    // A long recordId is stored in the HashRoaringSet and consumes sizeof(uint64_t) bytes if it has
+    // not been transferred to the bitmap.
+    memUsage = recordIdDeduplicator.getApproximateSize() + sizeof(uint64_t);
+    recordIdDeduplicator.insert(longRecordId);
+    ASSERT_EQ(recordIdDeduplicator.getApproximateSize(), memUsage);
+
+    // A null recordId does not affect the memory usage.
+    recordIdDeduplicator.insert(nullRecordId);
+    ASSERT_EQ(recordIdDeduplicator.getApproximateSize(), memUsage);
+
+    // Insert the same records.
+    recordIdDeduplicator.insert(stringRecordIds[0]);
+    recordIdDeduplicator.insert(longRecordId);
+    recordIdDeduplicator.insert(nullRecordId);
+    // The memory usage should not change.
+    ASSERT_EQ(recordIdDeduplicator.getApproximateSize(), memUsage);
+
+    // Remove some records.
+    recordIdDeduplicator.freeMemory(stringRecordIds[0]);
+    recordIdDeduplicator.freeMemory(stringRecordIds[stringRecordIds.size() - 1]);
+
+    // The data is removed but the slot is not freed.
+    memUsage -= (stringRecordIds[0].memUsage() +
+                 stringRecordIds[stringRecordIds.size() - 1].memUsage() - 2 * sizeof(RecordId));
+    ASSERT_EQ(recordIdDeduplicator.getApproximateSize(), memUsage);
+
+    recordIdDeduplicator.freeMemory(longRecordId);
+    memUsage -= sizeof(uint64_t);
+    ASSERT_EQ(recordIdDeduplicator.getApproximateSize(), memUsage);
+
+    recordIdDeduplicator.freeMemory(nullRecordId);
+    ASSERT_EQ(recordIdDeduplicator.getApproximateSize(), memUsage);
+
+    // Create some recordIds.
+    std::vector<int64_t> recordIds = createIntRecords();
+
+    bool hasDecreased = false;
+    bool hasIncreased = false;
+    // Add more recordIds to cause roaring to switch to bitmap.
+    for (const auto& ridInt : recordIds) {
+        recordIdDeduplicator.insert(RecordId{ridInt});
+        // After swithing to bitmap the memory consumption should decrease.
+        hasDecreased = hasDecreased | (memUsage > recordIdDeduplicator.getApproximateSize());
+        // The memory consumption should start increasing again when all records have been
+        // transferred to bitmap and more are added.
+        hasIncreased = hasDecreased && (memUsage < recordIdDeduplicator.getApproximateSize());
+        memUsage = recordIdDeduplicator.getApproximateSize();
+    }
+
+    ASSERT(hasDecreased && hasIncreased);
 }
 
 /**
@@ -303,6 +363,7 @@ TEST_F(RecordIdDeduplicatorCatalogTest, canSpillWithAcquiredCollection) {
 
     SpillingStats stats;
     recordIdDeduplicator.spill(stats);
+    assertDidNotSpill(recordIdDeduplicator, stats);
 
     assertInsertExisting(recordIdDeduplicator, nullRecordId);
     assertInsertExisting(recordIdDeduplicator, longRecordId);

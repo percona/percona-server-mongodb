@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2025-present MongoDB, Inc.
+ *    Copyright (C) 2022-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -26,33 +26,15 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+
 #pragma once
-#include "mongo/base/string_data.h"
-#include "mongo/db/extension/host/handle.h"
-#include "mongo/db/extension/public/api.h"
-#include "mongo/db/extension/sdk/byte_buf_utils.h"
 
-
-namespace mongo::extension::host {
+namespace mongo {
+class DocumentSourceListSearchIndexesSpec;
 /**
- * ExtensionByteBufHandle is an owned handle wrapper around a
- * MongoExtensionByteBuf.
+ * Function used by the IDL parser to validate that only one field (either name or id) is specified
+ * at a time. Note that it is okay for neither field to be specified.
  */
-class ExtensionByteBufHandle : public OwnedHandle<::MongoExtensionByteBuf> {
-public:
-    ExtensionByteBufHandle(::MongoExtensionByteBuf* byteBufPtr)
-        : OwnedHandle<::MongoExtensionByteBuf>(byteBufPtr) {}
+void validateListSearchIndexesSpec(const DocumentSourceListSearchIndexesSpec* spec);
 
-    /**
-     * Get a read-only view of the contents of MongoExtensionByteBuf.
-     */
-    StringData getView() const {
-        if (!isValid()) {
-            return StringData();
-        }
-
-        auto stringView = sdk::byteViewAsStringView(vtable().get_view(get()));
-        return StringData{stringView.data(), stringView.size()};
-    }
-};
-}  // namespace mongo::extension::host
+}  // namespace mongo

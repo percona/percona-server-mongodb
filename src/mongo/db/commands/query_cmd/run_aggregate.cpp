@@ -606,7 +606,7 @@ std::vector<std::unique_ptr<Pipeline>> createExchangePipelinesIfNeeded(
                          .mongoProcessInterface(MongoProcessInterface::create(opCtx))
                          .mayDbProfile(CurOp::get(aggExState.getOpCtx())->dbProfileLevel() > 0)
                          .resolvedNamespace(uassertStatusOK(aggExState.resolveInvolvedNamespaces()))
-                         .tmpDir(storageGlobalParams.dbpath + "/_tmp")
+                         .tmpDir(boost::filesystem::path(storageGlobalParams.dbpath) / "_tmp")
                          .collationMatchesDefault(expCtx->getCollationMatchesDefault())
                          .canBeRejected(query_settings::canPipelineBeRejected(
                              aggExState.getRequest().getPipeline()))
@@ -940,18 +940,19 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
         }
     }
 
-    // If we're operating over a view, we first parse just the original user-given request
+    // The query shape captured in query stats should reflect the original user request as close as
+    // possible. If we're operating over a view, we first parse just the original user-given request
     // for the sake of registering query stats. Then, we'll parse the view pipeline and stitch
     // the two pipelines together below.
-    auto requestForQueryStats = aggExState.getOriginalRequest();
+    auto userRequest = aggExState.getOriginalRequest();
     expCtx->startExpressionCounters();
-    auto pipeline = Pipeline::parse(requestForQueryStats.getPipeline(), expCtx);
+    auto pipeline = Pipeline::parse(userRequest.getPipeline(), expCtx);
     expCtx->stopExpressionCounters();
 
     // Compute QueryShapeHash and record it in CurOp.
     query_shape::DeferredQueryShape deferredShape{[&]() {
         return shape_helpers::tryMakeShape<query_shape::AggCmdShape>(
-            requestForQueryStats,
+            userRequest,
             aggExState.getOriginalNss(),
             aggExState.getInvolvedNamespaces(),
             *pipeline,
@@ -959,15 +960,12 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     }};
     auto queryShapeHash =
         shape_helpers::computeQueryShapeHash(expCtx, deferredShape, aggExState.getOriginalNss());
-    CurOp::get(opCtx)->setQueryShapeHashIfNotPresent(queryShapeHash);
+    CurOp::get(opCtx)->debug().setQueryShapeHashIfNotPresent(opCtx, queryShapeHash);
 
     // Perform the query settings lookup and attach it to 'expCtx'.
     auto& querySettingsService = query_settings::QuerySettingsService::get(opCtx);
     auto querySettings = querySettingsService.lookupQuerySettingsWithRejectionCheck(
-        expCtx,
-        queryShapeHash,
-        aggExState.getOriginalNss(),
-        requestForQueryStats.getQuerySettings());
+        expCtx, queryShapeHash, aggExState.getOriginalNss(), userRequest.getQuerySettings());
     expCtx->setQuerySettingsIfNotPresent(std::move(querySettings));
 
     // Register query stats with the pre-optimized pipeline. Exclude queries with encrypted fields
@@ -986,7 +984,7 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
                 uassertStatusOKWithContext(deferredShape->getStatus(),
                                            "Failed to compute query shape");
                 return std::make_unique<query_stats::AggKey>(expCtx,
-                                                             requestForQueryStats,
+                                                             userRequest,
                                                              std::move(deferredShape->getValue()),
                                                              std::move(pipelineInvolvedNamespaces),
                                                              collectionType);
@@ -1002,7 +1000,7 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
         expCtx->startExpressionCounters();
         // Knowing that the aggregation is a view, overwrite the pipeline.
         pipeline =
-            aggExState.handleViewHelper(expCtx, std::move(pipeline), aggCatalogState.getUUID());
+            aggExState.applyViewToPipeline(expCtx, std::move(pipeline), aggCatalogState.getUUID());
         expCtx->stopExpressionCounters();
     }
 

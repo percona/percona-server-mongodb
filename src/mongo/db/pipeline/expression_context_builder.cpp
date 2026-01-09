@@ -97,7 +97,7 @@ ExpressionContextBuilder& ExpressionContextBuilder::serializationContext(
     return *this;
 }
 
-ExpressionContextBuilder& ExpressionContextBuilder::tmpDir(std::string tmpDir) {
+ExpressionContextBuilder& ExpressionContextBuilder::tmpDir(boost::filesystem::path tmpDir) {
     params.tmpDir = std::move(tmpDir);
     return *this;
 }
@@ -603,7 +603,6 @@ boost::intrusive_ptr<ExpressionContext> makeCopyForSubPipelineFromExpressionCont
     const boost::intrusive_ptr<ExpressionContext>& other,
     NamespaceString nss,
     boost::optional<UUID> uuid,
-    boost::optional<std::pair<NamespaceString, std::vector<BSONObj>>> view,
     boost::optional<NamespaceString> userNs) {
     uassert(ErrorCodes::MaxSubPipelineDepthExceeded,
             str::stream() << "Maximum number of nested sub-pipelines exceeded. Limit is "
@@ -612,8 +611,8 @@ boost::intrusive_ptr<ExpressionContext> makeCopyForSubPipelineFromExpressionCont
     // Initialize any referenced system variables now so that the subpipeline has the same
     // values for these variables.
     other->initializeReferencedSystemVariables();
-    auto newCopy =
-        makeCopyFromExpressionContext(other, std::move(nss), uuid, boost::none, view, userNs);
+    auto newCopy = makeCopyFromExpressionContext(
+        other, std::move(nss), uuid, boost::none, boost::none, userNs);
     newCopy->setSubPipelineDepth(newCopy->getSubPipelineDepth() + 1);
     // The original expCtx might have been attached to an aggregation pipeline running on the
     // shards. We must reset 'needsMerge' in order to get fully merged results for the

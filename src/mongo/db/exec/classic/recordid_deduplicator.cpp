@@ -37,6 +37,8 @@
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
 
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
+
 namespace mongo {
 
 Counter64& roaringMetric =
@@ -82,7 +84,10 @@ bool RecordIdDeduplicator::insert(const RecordId& recordId) {
 
     recordId.withFormat([&](RecordId::Null _) { hasNullRecordId = true; },
                         [&](int64_t rid) { _roaring.addChecked(rid); },
-                        [&](const char* str, int size) { _hashset.insert(recordId); });
+                        [&](const char* str, int size) {
+                            _hashSetMemUsage += recordId.memUsage();
+                            _hashset.insert(recordId);
+                        });
 
     return true;
 }
@@ -90,86 +95,21 @@ bool RecordIdDeduplicator::insert(const RecordId& recordId) {
 void RecordIdDeduplicator::freeMemory(const RecordId& recordId) {
     recordId.withFormat([&](RecordId::Null _) { hasNullRecordId = false; },
                         [&](int64_t rid) { _roaring.erase(rid); },
-                        [&](const char* str, int size) { _hashset.erase(recordId); });
+                        [&](const char* str, int size) {
+                            if (_hashset.erase(recordId)) {
+                                uassert(10762700,
+                                        str::stream()
+                                            << "Trying to remove a recordId of size "
+                                            << recordId.memUsage()
+                                            << " from a hashset of total size " << _hashSetMemUsage,
+                                        _hashSetMemUsage >= recordId.memUsage());
+                                _hashSetMemUsage -= recordId.memUsage();
+                            }
+                        });
 }
 
 void RecordIdDeduplicator::spill(SpillingStats& stats, uint64_t maximumMemoryUsageBytes) {
-    uassert(ErrorCodes::QueryExceededMemoryLimitNoDiskUseAllowed,
-            str::stream() << "Exceeded memory limit of " << maximumMemoryUsageBytes
-                          << ", but didn't allow external sort."
-                             " Pass allowDiskUse:true to opt in.",
-            _expCtx->getAllowDiskUse());
-
-    if (!feature_flags::gFeatureFlagCreateSpillKVEngine.isEnabled()) {
-        uassertStatusOK(ensureSufficientDiskSpaceForSpilling(
-            storageGlobalParams.dbpath,
-            _expCtx->getQueryKnobConfiguration()
-                .getInternalQuerySpillingMinAvailableDiskSpaceBytes()));
-    }
-
-    uint64_t additionalSpilledBytes{0};
-    uint64_t additionalSpilledRecords{0};
-    uint64_t currentSpilledDataStorageSize{0};
-
-    if (!_hashset.empty()) {
-        // For string recordId.
-        if (!_diskStorageString) {
-            _diskStorageString =
-                _expCtx->getMongoProcessInterface()->createSpillTable(_expCtx, KeyFormat::String);
-        }
-
-        SpillTableBatchWriter writer{_expCtx, *_diskStorageString};
-        for (auto it = _hashset.begin(); it != _hashset.end(); ++it) {
-            writer.write(*it, RecordData{});
-        }
-
-        // Flush the remaining records.
-        writer.flush();
-        additionalSpilledBytes += writer.writtenBytes();
-        additionalSpilledRecords += writer.writtenRecords();
-
-        _hashset.clear();
-    }
-
-    if (!_roaring.empty()) {
-        // For long recordId.
-        if (!_diskStorageLong) {
-            _diskStorageLong =
-                _expCtx->getMongoProcessInterface()->createSpillTable(_expCtx, KeyFormat::Long);
-        }
-
-        SpillTableBatchWriter writer{_expCtx, *_diskStorageLong};
-        for (auto it = _roaring.begin(); it != _roaring.end(); ++it) {
-            writer.write(RecordId(*it), RecordData{});
-        }
-
-        // Flush the remaining records.
-        writer.flush();
-        additionalSpilledBytes += writer.writtenBytes();
-        additionalSpilledRecords += writer.writtenRecords();
-
-        _roaring.clear();
-    }
-
-    if (_diskStorageLong) {
-        currentSpilledDataStorageSize += _diskStorageLong->storageSize(
-            *shard_role_details::getRecoveryUnit(_expCtx->getOperationContext()));
-        CurOp::get(_expCtx->getOperationContext())
-            ->updateSpillStorageStats(_diskStorageLong->computeOperationStatisticsSinceLastCall());
-    };
-
-    if (_diskStorageString) {
-        currentSpilledDataStorageSize += _diskStorageString->storageSize(
-            *shard_role_details::getRecoveryUnit(_expCtx->getOperationContext()));
-        CurOp::get(_expCtx->getOperationContext())
-            ->updateSpillStorageStats(
-                _diskStorageString->computeOperationStatisticsSinceLastCall());
-    };
-
-    if (additionalSpilledBytes > 0) {
-        stats.updateSpillingStats(
-            1, additionalSpilledBytes, additionalSpilledRecords, currentSpilledDataStorageSize);
-    }
+    LOGV2_DEBUG(11001900, 2, "RecordIdDeduplicator does not spill.");
 }
 
 }  // namespace mongo

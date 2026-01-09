@@ -1826,7 +1826,7 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
                                      Fetcher::NextAction* nextAction,
                                      BSONObjBuilder* getMoreBob) noexcept {
         try {
-            uassertStatusOK(dataStatus);
+            uassertStatusOK(dataStatus.getStatus());
 
             const auto& data = dataStatus.getValue();
             for (const BSONObj& doc : data.documents) {

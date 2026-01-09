@@ -46,6 +46,7 @@
 #include "mongo/db/session/logical_session_id.h"
 #include "mongo/db/session/logical_session_id_gen.h"
 #include "mongo/db/transaction/transaction_operations.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
 
@@ -57,7 +58,7 @@
 
 #include <boost/optional/optional.hpp>
 
-namespace mongo {
+namespace MONGO_MOD_PUB mongo {
 namespace repl {
 
 class ReplOperation;
@@ -285,8 +286,16 @@ public:
 
     void onDropDatabaseMetadata(OperationContext* opCtx, const repl::OplogEntry& op) final {}
 
+    void onTruncateRange(OperationContext* opCtx,
+                         const CollectionPtr& coll,
+                         const RecordId& minRecordId,
+                         const RecordId& maxRecordId,
+                         int64_t bytesDeleted,
+                         int64_t docsDeleted,
+                         repl::OpTime& opTime) final;
+
 private:
     std::unique_ptr<OperationLogger> _operationLogger;
 };
 
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUB mongo

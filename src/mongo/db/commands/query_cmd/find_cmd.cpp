@@ -191,7 +191,7 @@ std::unique_ptr<CanonicalQuery> parseQueryAndBeginOperation(
     const auto* collator = collection ? collection->getDefaultCollator() : nullptr;
     auto expCtx = ExpressionContextBuilder{}
                       .fromRequest(opCtx, *findCommand, collator, allowDiskUseByDefault.load())
-                      .tmpDir(storageGlobalParams.dbpath + "/_tmp")
+                      .tmpDir(boost::filesystem::path(storageGlobalParams.dbpath) / "_tmp")
                       .build();
     expCtx->startExpressionCounters();
     auto parsedRequest = uassertStatusOK(parsed_find_command::parse(
@@ -210,7 +210,7 @@ std::unique_ptr<CanonicalQuery> parseQueryAndBeginOperation(
         return shape_helpers::tryMakeShape<query_shape::FindCmdShape>(*parsedRequest, expCtx);
     }};
     auto queryShapeHash = shape_helpers::computeQueryShapeHash(expCtx, deferredShape, nss);
-    CurOp::get(opCtx)->setQueryShapeHashIfNotPresent(queryShapeHash);
+    CurOp::get(opCtx)->debug().setQueryShapeHashIfNotPresent(opCtx, queryShapeHash);
 
     // Perform the query settings lookup and attach it to 'expCtx'.
     auto& querySettingsService = query_settings::QuerySettingsService::get(opCtx);
@@ -504,7 +504,7 @@ public:
                 ExpressionContextBuilder{}
                     .fromRequest(opCtx, *_cmdRequest, collator, allowDiskUseByDefault.load())
                     .explain(verbosity)
-                    .tmpDir(storageGlobalParams.dbpath + "/_tmp")
+                    .tmpDir(boost::filesystem::path(storageGlobalParams.dbpath) / "_tmp")
                     .build();
             expCtx->startExpressionCounters();
 
@@ -530,7 +530,7 @@ public:
                                                                               expCtx);
             }};
             auto queryShapeHash = shape_helpers::computeQueryShapeHash(expCtx, deferredShape, ns);
-            CurOp::get(opCtx)->setQueryShapeHashIfNotPresent(queryShapeHash);
+            CurOp::get(opCtx)->debug().setQueryShapeHashIfNotPresent(opCtx, queryShapeHash);
 
             // Perform the query settings lookup and attach it to 'expCtx'.
             auto& querySettingsService = query_settings::QuerySettingsService::get(opCtx);

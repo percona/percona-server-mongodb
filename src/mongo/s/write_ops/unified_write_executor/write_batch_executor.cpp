@@ -69,6 +69,7 @@ BSONObj WriteBatchExecutor::buildBulkWriteRequest(
         auto& nss = op.getNss();
 
         NamespaceInfoEntry nsInfo(nss);
+        nsInfo.setCollectionUUID(op.getCollectionUUID());
         if (!versionByNss.empty()) {
             auto versionIt = versionByNss.find(nss);
             tassert(10346801,
@@ -131,6 +132,12 @@ BSONObj WriteBatchExecutor::buildBulkWriteRequest(
     }
 
     return builder.obj();
+}
+
+WriteBatchResponse WriteBatchExecutor::_execute(OperationContext* opCtx,
+                                                RoutingContext& routingCtx,
+                                                const EmptyBatch& batch) {
+    return EmptyBatchResponse{};
 }
 
 WriteBatchResponse WriteBatchExecutor::_execute(OperationContext* opCtx,

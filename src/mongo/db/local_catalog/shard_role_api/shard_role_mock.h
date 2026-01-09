@@ -26,33 +26,44 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+
 #pragma once
-#include "mongo/db/extension/sdk/handle.h"
 
-namespace mongo::extension::host {
-/**
- * OwnedHandle is a move-only wrapper around a raw pointer allocated by the extension, whose
- * ownership has been transferred to the host. OwnedHandle acts as a wrapper that
- * abstracts the vtable and underlying pointer, and makes sure to destroy the associated pointer
- * when it goes out of scope.
- *
- * Note, for the time being, we are building and linking the C++ SDK into the host API to minimize
- * code duplication. Once we are ready to decouple the C++ SDK from the server, we will need to
- * provide a copy of the implementation of these classes within the host API.
- */
-template <typename T>
-using OwnedHandle = sdk::OwnedHandle<T>;
+#include "mongo/db/local_catalog/collection.h"
+#include "mongo/db/local_catalog/shard_role_api/shard_role.h"
+#include "mongo/db/namespace_string.h"
+#include "mongo/db/operation_context.h"
+
+#include <memory>
+
+#include <absl/container/flat_hash_map.h>
+#include <absl/container/inlined_vector.h>
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+
+namespace mongo {
 
 /**
- * UnownedHandle is a wrapper around a raw pointer allocated by the extension, whose
- * ownership has not been transferred to the host. UnownedHandle acts as a wrapper that
- * abstracts the vtable and underlying pointer, but does not destroy the pointer when it goes out of
- * scope.
- *
- * Note, for the time being, we are building and linking the C++ SDK into the host API to minimize
- * code duplication. Once we are ready to decouple the C++ SDK from the server, we will need to
- * provide a copy of the implementation of these classes within the host API.
+ * Anything under the shard_role_mock is meant to be used in testing.
  */
-template <typename T>
-using UnownedHandle = sdk::UnownedHandle<T>;
-}  // namespace mongo::extension::host
+namespace shard_role_mock {
+
+/**
+ * Given an already acquired Collection instance from the catalog, register the collection as
+ * acquisition within the shard role api and return the related handler. The returned acquisition
+ * won't have any collection descriptions nor collection filter. It won't also provide any
+ * versioning check nor change the read source. This is useful for testing, where acquisitions are
+ * needed either on mocked collection or as placehoder, but we don't need both replication and
+ * sharding.
+ */
+CollectionAcquisition acquireCollectionMocked(OperationContext* opCtx,
+                                              const NamespaceString& nss,
+                                              CollectionPtr collptr);
+
+CollectionAcquisition acquireCollectionMocked(OperationContext* opCtx,
+                                              const NamespaceString& nss,
+                                              ConsistentCollection collection);
+}  // namespace shard_role_mock
+
+}  // namespace mongo

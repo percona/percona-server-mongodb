@@ -28,8 +28,8 @@
  */
 #include "mongo/db/extension/host/host_portal.h"
 
-#include "mongo/db/extension/host/aggregation_stage.h"
 #include "mongo/db/extension/host/document_source_extension.h"
+#include "mongo/db/extension/host_adapter/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_status.h"
 
 namespace mongo::extension::host {
@@ -37,13 +37,19 @@ namespace mongo::extension::host {
 void registerStageDescriptor(const ::MongoExtensionAggregationStageDescriptor* descriptor) {
     tassert(
         10596400, "Got null stage descriptor during extension registration", descriptor != nullptr);
-    DocumentSourceExtension::registerStage(ExtensionAggregationStageDescriptorHandle(descriptor));
+    DocumentSourceExtension::registerStage(
+        host_adapter::ExtensionAggregationStageDescriptorHandle(descriptor));
 }
 
 
 ::MongoExtensionStatus* HostPortal::_extRegisterStageDescriptor(
     const MongoExtensionAggregationStageDescriptor* stageDesc) noexcept {
     return sdk::enterCXX([&]() { return registerStageDescriptor(stageDesc); });
+}
+
+::MongoExtensionByteView HostPortal::_extGetOptions(
+    const ::MongoExtensionHostPortal* portal) noexcept {
+    return sdk::stringViewAsByteView(static_cast<const HostPortal*>(portal)->_extensionOpts);
 }
 
 }  // namespace mongo::extension::host
