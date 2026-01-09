@@ -23,11 +23,11 @@ const variants = [
     },
     {
         faults: {jwt_invalid_key: true},
-        expectedError: "InvalidSignature: Invalid JWT :: caused by :: OpenSSL: Signature is invalid",
+        expectedError: "InvalidSignature: Invalid JWT :: caused by :: OpenSSL: RSA Signature is invalid",
     },
     {
         faults: {jwt_other_valid_key: true},
-        expectedError: "InvalidSignature: Invalid JWT :: caused by :: OpenSSL: Signature is invalid",
+        expectedError: "InvalidSignature: Invalid JWT :: caused by :: OpenSSL: RSA Signature is invalid",
     },
     {
         faults: {jwt_invalid_format: true},
