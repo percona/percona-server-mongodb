@@ -1,13 +1,21 @@
-#
+%global __brp_strip_args --strip-debug
+%global __find_debuginfo /usr/lib/rpm/find-debuginfo.sh -g
+
+# Disable the addition of mini debuginfo and gdb index options
+%global _include_minidebuginfo %{nil}
+%global _include_gdb_index %{nil}
+
+# Optionally disable source extraction to avoid empty debugsourcefiles.list errors
+%global __find_debugsource %{nil}
+
 %define         mongo_home /var/lib/mongo
 %define         psmdb_telemetry /usr/local/percona/telemetry/psmdb
 %define         psmdbs_telemetry /usr/local/percona/telemetry/psmdbs
 
 %if 0%{?amzn} == 2023 || 0%{?rhel} >= 9
 %undefine _debugsource_packages
-# Disable dwz optimization and addition of gdb index options
+# Disable dwz optimization
 %global _find_debuginfo_dwz_opts %{nil}
-%undefine _include_gdb_index
 %endif
 
 #
