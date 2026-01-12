@@ -48,7 +48,7 @@
 #include "mongo/db/client.h"
 #include "mongo/db/commands.h"
 #include "mongo/db/commands/query_cmd/run_aggregate.h"
-#include "mongo/db/commands/server_status_metric.h"
+#include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/exec/classic/projection.h"
@@ -209,8 +209,8 @@ std::unique_ptr<CanonicalQuery> parseQueryAndBeginOperation(
     query_shape::DeferredQueryShape deferredShape{[&]() {
         return shape_helpers::tryMakeShape<query_shape::FindCmdShape>(*parsedRequest, expCtx);
     }};
-    auto queryShapeHash = shape_helpers::computeQueryShapeHash(expCtx, deferredShape, nss);
-    CurOp::get(opCtx)->debug().setQueryShapeHashIfNotPresent(opCtx, queryShapeHash);
+    auto queryShapeHash = CurOp::get(opCtx)->debug().ensureQueryShapeHash(
+        opCtx, [&]() { return shape_helpers::computeQueryShapeHash(expCtx, deferredShape, nss); });
 
     // Perform the query settings lookup and attach it to 'expCtx'.
     auto& querySettingsService = query_settings::QuerySettingsService::get(opCtx);
@@ -529,8 +529,9 @@ public:
                 return shape_helpers::tryMakeShape<query_shape::FindCmdShape>(*parsedRequest,
                                                                               expCtx);
             }};
-            auto queryShapeHash = shape_helpers::computeQueryShapeHash(expCtx, deferredShape, ns);
-            CurOp::get(opCtx)->debug().setQueryShapeHashIfNotPresent(opCtx, queryShapeHash);
+            auto queryShapeHash = CurOp::get(opCtx)->debug().ensureQueryShapeHash(opCtx, [&]() {
+                return shape_helpers::computeQueryShapeHash(expCtx, deferredShape, ns);
+            });
 
             // Perform the query settings lookup and attach it to 'expCtx'.
             auto& querySettingsService = query_settings::QuerySettingsService::get(opCtx);

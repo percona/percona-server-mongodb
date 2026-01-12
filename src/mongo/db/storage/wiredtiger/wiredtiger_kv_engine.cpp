@@ -37,7 +37,7 @@
 #include "mongo/bson/dotted_path/dotted_path_support.h"
 #include "mongo/db/audit/audit.h"
 #include "mongo/db/client.h"
-#include "mongo/db/commands/server_status_metric.h"
+#include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/error.h"
@@ -927,8 +927,7 @@ std::string generateWTOpenConfigString(const WiredTigerKVEngineBase::WiredTigerC
     if (wtConfig.restoreEnabled && !wtConfig.liveRestorePath.empty() && !wtConfig.inMemory) {
         ss << "live_restore=(enabled=true,path=\"" << wtConfig.liveRestorePath
            << "\",threads_max=" << wtConfig.liveRestoreThreadsMax
-           << ",read_size=" << wtConfig.liveRestoreReadSizeMB << "MB"
-           << "),";
+           << ",read_size=" << wtConfig.liveRestoreReadSizeMB << "MB" << "),";
     }
 
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())

@@ -642,10 +642,8 @@ public:
         return _params.forPerShardCursor;
     }
 
-    std::string getTempDir() const {
-        // TODO SERVER-109634: Return boost::filesystem::path directly when it is supported by
-        // SortOptions.
-        return _params.tmpDir.string();
+    boost::filesystem::path getTempDir() const {
+        return _params.tmpDir;
     }
 
     void setTempDir(boost::filesystem::path tempDir) {
@@ -908,15 +906,6 @@ public:
     // Sets or clears the flag indicating whether we've received a TemporarilyUnavailableException.
     void setTemporarilyUnavailableException(bool v) {
         _gotTemporarilyUnavailableException = v;
-    }
-
-    // Sets a flag which tells DocumentSource parsers whether the pipeline contains an exchange
-    // stage.
-    void setIncompatibleWithMemoryTracking(bool v) {
-        _isIncompatibleWithMemoryTracking = v;
-    }
-    bool isIncompatibleWithMemoryTracking() const {
-        return _isIncompatibleWithMemoryTracking;
     }
 
     // TODO SERVER-108400: reconsider API for accessing QuerySettings instance.
@@ -1272,8 +1261,6 @@ private:
     bool _gotTemporarilyUnavailableException = false;
 
     bool _isCappedDelete = false;
-
-    bool _isIncompatibleWithMemoryTracking = false;
 
     InterruptChecker _interruptChecker;
 

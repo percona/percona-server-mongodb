@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,16 +27,40 @@
  *    it in the license file.
  */
 
+#pragma once
 
-#include "mongo/base/init.h"
+#include "mongo/db/client.h"
+#include "mongo/db/operation_context.h"
+#include "mongo/otel/telemetry_context.h"
+
+#include <memory>
 
 namespace mongo {
-namespace {
+namespace otel {
 
-// This initializer provides a no-op definition of the LoadICUData MONGO_INITIALIZER, for use when
-// the system version of ICU is used instead of the vendored version.
-MONGO_INITIALIZER_GENERAL(LoadICUData, (), ("BeginStartupOptionHandling"))
-(InitializerContext*) {}
+/**
+ * TelemetryContextHolder is a decoration on OperationContext that holds the current
+ * TelemetryContext. TelemetryContext is a wrapper for OpenTelemetry's Context that is used to
+ * propagate parent / child relationships between Spans as well as hold metadata to correlate
+ * various telemetry data.
+ */
+class TelemetryContextHolder {
+public:
+    static TelemetryContextHolder& get(OperationContext* opCtx);
 
-}  // namespace
+    const std::shared_ptr<TelemetryContext>& get() {
+        return _current;
+    }
+    void set(std::shared_ptr<TelemetryContext> context) {
+        _current = std::move(context);
+    }
+    void clear() {
+        _current.reset();
+    }
+
+private:
+    std::shared_ptr<TelemetryContext> _current;
+};
+
+}  // namespace otel
 }  // namespace mongo

@@ -661,6 +661,7 @@ observability:
     - src/mongo/executor/split_timer*
     - src/mongo/util/observable_mutex*
     - src/mongo/watchdog/
+    - src/mongo/otel/
 
 observability.logging:
   meta:
@@ -907,6 +908,7 @@ validate:
     - src/mongo/db/commands/validate.cpp
     - src/mongo/db/validate
     - src/mongo/dbtests/validate_tests.cpp
+    - src/mongo/dbtests/extended_validate_tests.cpp
     - src/mongo/s/commands/cluster_validate_cmd.cpp
 
 dbhash:
@@ -1067,7 +1069,7 @@ replication.server_rw_concerns:
     slack: server-replication
     jira: Replication
   files:
-    - src/mongo/db/commands/read_write_concern_defaults_server_status.cpp
+    - src/mongo/db/commands/server_status/read_write_concern_defaults_server_status.cpp
     - src/mongo/db/*read_concern*
     - src/mongo/db/read_write_concern*
     - src/mongo/db/repl/*read_concern*

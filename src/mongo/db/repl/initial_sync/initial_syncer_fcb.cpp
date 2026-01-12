@@ -45,7 +45,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/client/read_preference.h"
 #include "mongo/client/remote_command_retry_scheduler.h"
 #include "mongo/db/client.h"
-#include "mongo/db/commands/server_status_metric.h"
+#include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"

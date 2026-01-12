@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,44 +27,36 @@
  *    it in the license file.
  */
 
-#include "mongo/bson/bsonelement.h"
-#include "mongo/bson/bsonobj.h"
-#include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/commands/server_status.h"
-#include "mongo/db/operation_context.h"
-#include "mongo/db/session/logical_session_cache.h"
-#include "mongo/db/session/logical_session_cache_stats_gen.h"
-#include "mongo/db/session/session_catalog.h"
+#include "mongo/otel/traces/span/span_telemetry_context_impl.h"
 
-#include <cstdint>
-#include <memory>
+#include "mongo/otel/traces/tracing_utils.h"
+
+#include <opentelemetry/baggage/baggage_context.h>
+#include <opentelemetry/trace/span_context.h>
 
 namespace mongo {
-namespace {
+namespace otel {
+namespace traces {
 
-class LogicalSessionServerStatusSection : public ServerStatusSection {
-public:
-    using ServerStatusSection::ServerStatusSection;
+void SpanTelemetryContextImpl::keepSpan(bool keepSpan) {
+    auto baggage = opentelemetry::baggage::GetBaggage(_ctx);
 
-    bool includeByDefault() const override {
-        return true;
-    }
+    // Baggage is not a set and we do not want duplicate keys, so we must remove the existing key if
+    // it exists.
+    baggage = baggage->Delete(keepSpanKey);
 
-    BSONObj generateSection(OperationContext* opCtx,
-                            const BSONElement& configElement) const override {
-        const auto logicalSessionCache = LogicalSessionCache::get(opCtx);
-        const auto sessionCatalog = SessionCatalog::get(opCtx);
+    auto value = keepSpan ? trueValue : falseValue;
+    baggage = baggage->Set(keepSpanKey, value);
+    _ctx = opentelemetry::baggage::SetBaggage(_ctx, baggage);
+}
 
-        BSONObjBuilder statsBuilder(logicalSessionCache ? logicalSessionCache->getStats().toBSON()
-                                                        : BSONObj());
-        statsBuilder.append("sessionCatalogSize", int32_t(sessionCatalog->size()));
+bool SpanTelemetryContextImpl::shouldKeepSpan() const {
+    auto baggage = opentelemetry::baggage::GetBaggage(_ctx);
+    std::string value;
+    auto exists = baggage->GetValue(keepSpanKey, value);
+    return exists && (value == trueValue);
+}
 
-        return statsBuilder.obj();
-    }
-};
-
-auto& logicalSessionServerStatusSection =
-    *ServerStatusSectionBuilder<LogicalSessionServerStatusSection>("logicalSessionRecordCache");
-
-}  // namespace
+}  // namespace traces
+}  // namespace otel
 }  // namespace mongo

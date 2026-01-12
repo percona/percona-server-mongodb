@@ -183,7 +183,6 @@ ExtensionConfig ExtensionLoader::loadExtensionConfig(const std::string& extensio
     LOGV2(11042903,
           "Successfully loaded config file",
           "sharedLibraryPath"_attr = config.sharedLibraryPath,
-          // TODO SERVER-110474: Remove or modify 'extensionOptions' logging.
           "extensionOptions"_attr = YAML::Dump(config.extOptions));
 
     return config;
@@ -222,5 +221,16 @@ void ExtensionLoader::load(const ExtensionConfig& config) {
 
     HostPortal portal{extHandle.getVersion(), maxWireVersion, YAML::Dump(config.extOptions)};
     extHandle.initialize(portal);
+}
+
+std::vector<std::string> ExtensionLoader::getLoadedExtensions() {
+    std::vector<std::string> result;
+    result.reserve(loadedExtensions.size());
+
+    for (const auto& [name, _] : loadedExtensions) {
+        result.push_back(name);
+    }
+
+    return result;
 }
 }  // namespace mongo::extension::host

@@ -353,6 +353,7 @@ mongo_cc_library(
         "access_checks_gen",
         "action_type_gen",
         "auth_types_gen",
+        "authorization_contract_guard.h",
         "parsed_privilege_gen",
         "//src/mongo/db:basic_types_gen",
         "//src/mongo/db/auth:privilege_format.h",
@@ -405,7 +406,7 @@ mongo_cc_library(
         "//src/mongo/util/options_parser:value.h",
     ],
     header_deps = [
-        "//src/mongo/db/commands:server_status_core",
+        "//src/mongo/db/commands/server_status:server_status_core",
     ],
     deps = [
         "//src/mongo/db:server_base",

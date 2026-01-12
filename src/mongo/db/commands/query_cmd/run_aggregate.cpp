@@ -588,8 +588,10 @@ std::vector<std::unique_ptr<Pipeline>> createExchangePipelinesIfNeeded(
         // opCtx for the ExpressionContextBuilder call below, store the pointer ahead of the
         // Exchange() call.
         auto* opCtx = aggExState.getOpCtx();
-        auto exchange = make_intrusive<exec::agg::Exchange>(
-            aggExState.getRequest().getExchange().value(), std::move(pipeline));
+        auto exchange =
+            make_intrusive<exec::agg::Exchange>(aggExState.getOpCtx(),
+                                                aggExState.getRequest().getExchange().value(),
+                                                std::move(pipeline));
 
         for (size_t idx = 0; idx < exchange->getConsumers(); ++idx) {
             // For every new pipeline we have create a new ExpressionContext as the context
@@ -958,9 +960,10 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
             *pipeline,
             expCtx);
     }};
-    auto queryShapeHash =
-        shape_helpers::computeQueryShapeHash(expCtx, deferredShape, aggExState.getOriginalNss());
-    CurOp::get(opCtx)->debug().setQueryShapeHashIfNotPresent(opCtx, queryShapeHash);
+    auto queryShapeHash = CurOp::get(opCtx)->debug().ensureQueryShapeHash(opCtx, [&]() {
+        return shape_helpers::computeQueryShapeHash(
+            expCtx, deferredShape, aggExState.getOriginalNss());
+    });
 
     // Perform the query settings lookup and attach it to 'expCtx'.
     auto& querySettingsService = query_settings::QuerySettingsService::get(opCtx);

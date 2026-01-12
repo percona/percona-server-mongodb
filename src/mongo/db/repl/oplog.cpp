@@ -115,7 +115,6 @@
 #include "mongo/db/stats/server_write_concern_metrics.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/kv/kv_engine.h"
-#include "mongo/db/storage/oplog_truncate_marker_parameters_gen.h"
 #include "mongo/db/storage/record_data.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_engine.h"
@@ -230,8 +229,6 @@ boost::optional<CreateCollCatalogIdentifier> extractReplicatedCatalogIdentifier(
     const auto& catalogId = parsedO2.getCatalogId();
     auto replicatedIdent = parsedO2.getIdent();
     auto replicatedIdIndexIdent = parsedO2.getIdIndexIdent();
-    auto directoryPerDB = parsedO2.getDirectoryPerDB();
-    auto directoryForIndexes = parsedO2.getDirectoryForIndexes();
 
     uassert(
         ErrorCodes::InvalidOptions,
@@ -249,11 +246,8 @@ boost::optional<CreateCollCatalogIdentifier> extractReplicatedCatalogIdentifier(
               oplogEntry.getNss().dbName(), replicatedIdIndexIdent))
         : boost::none;
 
-    return CreateCollCatalogIdentifier{.catalogId = catalogId,
-                                       .ident = ident,
-                                       .idIndexIdent = idIndexIdent,
-                                       .directoryPerDB = directoryPerDB,
-                                       .directoryForIndexes = directoryForIndexes};
+    return CreateCollCatalogIdentifier{
+        .catalogId = catalogId, .ident = ident, .idIndexIdent = idIndexIdent};
 }
 }  // namespace
 
@@ -289,13 +283,8 @@ Status insertDocumentsForOplog(OperationContext* opCtx,
                 return ele.Date();
             }
         }();
-
-        truncateMarkers->updateCurrentMarkerAfterInsertOnCommit(opCtx,
-                                                                totalLength,
-                                                                (*records)[nRecords - 1].id,
-                                                                wall,
-                                                                nRecords,
-                                                                gOplogSamplingAsyncEnabled);
+        truncateMarkers->updateCurrentMarkerAfterInsertOnCommit(
+            opCtx, totalLength, (*records)[nRecords - 1].id, wall, nRecords);
     }
 
     // We do not need to notify capped waiters, as we have not yet updated oplog visibility, so

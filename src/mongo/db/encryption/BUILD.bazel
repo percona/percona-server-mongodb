@@ -129,7 +129,7 @@ mongo_cc_library(
         ":encryption_options",
         ":key_management",
         "//src/mongo:base",
-        "//src/mongo/db/commands:server_status_core",
+        "//src/mongo/db/commands/server_status:server_status_core",
     ],
 )
 
@@ -164,7 +164,7 @@ mongo_cc_unit_test(
     deps = [
         ":encryption_status",
         "//src/mongo/db:service_context",
-        "//src/mongo/db/commands:server_status_core",
+        "//src/mongo/db/commands/server_status:server_status_core",
     ],
 )
 

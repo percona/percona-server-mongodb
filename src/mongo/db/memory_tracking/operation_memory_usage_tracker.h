@@ -82,6 +82,9 @@ public:
         const ExpressionContext& expCtx,
         int64_t maxMemoryUsageBytes = std::numeric_limits<int64_t>::max());
 
+    static SimpleMemoryUsageTracker createChunkedSimpleMemoryUsageTrackerForSBE(
+        OperationContext* opCtx, int64_t maxMemoryUsageBytes = std::numeric_limits<int64_t>::max());
+
     /**
      * When constructing a stage containing a MemoryUsageTracker, use this method to ensure that we
      * aggregate operation-wide memory stats.
@@ -90,6 +93,11 @@ public:
         const ExpressionContext& expCtx,
         bool allowDiskUse = false,
         int64_t maxMemoryUsageBytes = std::numeric_limits<int64_t>::max());
+
+    void propagateStatsToCurOp() const {
+        CurOp::get(_opCtx)->setMemoryTrackingStats(inUseTrackedMemoryBytes(),
+                                                   peakTrackedMemoryBytes());
+    }
 
     /**
      * Move the memory tracker out from the operation context, if there is one there. The caller
@@ -111,6 +119,10 @@ private:
     friend class ClusterAggregateMemoryTrackingTest;
 
     static OperationMemoryUsageTracker* getOperationMemoryUsageTracker(OperationContext* opCtx);
+
+    static SimpleMemoryUsageTracker createSimpleMemoryUsageTrackerImpl(OperationContext* opCtx,
+                                                                       int64_t maxMemoryUsageBytes,
+                                                                       int64_t chunkSize = 0);
 
     OperationContext* _opCtx;
 };

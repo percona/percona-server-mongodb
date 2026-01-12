@@ -2583,6 +2583,7 @@ export const authCommandsLib = {
                     runOnDb: adminDbName,
                     roles: roles_hostManager,
                     privileges: [{resource: {cluster: true}, actions: ["compact"]}],
+                    expectFail: true,
                 },
             ],
         },
@@ -8968,6 +8969,23 @@ export const authCommandsLib = {
             ],
         },
         {
+            testname: "aggregate_$listExtensions",
+            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagExtensionsAPI"),
+            command: {
+                aggregate: 1,
+                pipeline: [{$listExtensions: {}}],
+                cursor: {},
+            },
+            testcases: [
+                // TODO(SERVER-110415): Check if the roles and privileges fields must be updated.
+                {
+                    runOnDb: adminDbName,
+                    roles: roles_all,
+                    privileges: [],
+                },
+            ],
+        },
+        {
             testname: "raw_data",
             command: {
                 count: "raw_data",
@@ -9036,7 +9054,7 @@ export const authCommandsLib = {
      *  An array of strings. Each string in the array reports
      *  a particular test error.
      */
-    runOneTest: function (conn, t, impls, options) {
+    runOneTest: function (conn, t, impls, options, sideChannelConn) {
         options = options || {};
 
         const isMongos = !!options.isMongos || this.isMongos(conn);
@@ -9044,7 +9062,7 @@ export const authCommandsLib = {
             shard0name = options.shard0Name;
         }
 
-        if (t.skipTest && t.skipTest(conn)) {
+        if (t.skipTest && t.skipTest(sideChannelConn)) {
             jsTest.log("Skipping test: " + t.testname);
             return [];
         }
@@ -9122,7 +9140,7 @@ export const authCommandsLib = {
         let failures = [];
 
         for (let i = 0; i < this.tests.length; i++) {
-            const res = this.runOneTest(conn, this.tests[i], impls, options);
+            const res = this.runOneTest(conn, this.tests[i], impls, options, setupConn);
             failures = failures.concat(res);
         }
 
@@ -9142,8 +9160,10 @@ function isStandalone(conn) {
 
 function isFeatureEnabled(conn, ...features) {
     const adminDb = conn.getDB(adminDbName);
+    assert(adminDb.auth("admin", "password"));
     const request = Object.fromEntries(features.map((k) => [k, 1]));
-    const res = adminDb.runCommand({getParameter: 1, ...request});
+    const res = assert.commandWorked(adminDb.runCommand({getParameter: 1, ...request}));
+    adminDb.logout();
     return features.every((key) => res[key]?.value);
 }
 

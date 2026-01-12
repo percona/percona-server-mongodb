@@ -66,7 +66,8 @@ void write(OperationContext* opCtx,
 bulk_write_exec::BulkWriteReplyInfo bulkWrite(
     OperationContext* opCtx,
     const BulkWriteCommandRequest& request,
-    const std::vector<std::unique_ptr<NSTargeter>>& targeters);
+    const std::vector<std::unique_ptr<NSTargeter>>& targeters,
+    bulk_write_exec::BulkWriteExecStats& execStats);
 
 }  // namespace cluster
 }  // namespace mongo

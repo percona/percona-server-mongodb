@@ -1,4 +1,4 @@
-load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_library")
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library")
 load("//bazel/config:generate_config_header.bzl", "generate_config_header")
 
 package(default_visibility = ["//visibility:public"])
@@ -573,7 +573,7 @@ filegroup(
         "//src/mongo/db/commands:feature_compatibility_version.h",
         "//src/mongo/db/commands:fle2_cleanup_gen",
         "//src/mongo/db/local_catalog/ddl:list_databases_gen",
-        "//src/mongo/db/commands:server_status_metric.h",
+        "//src/mongo/db/commands/server_status:server_status_metric.h",
         "//src/mongo/db/commands:set_feature_compatibility_version_gen",
         "//src/mongo/db/commands:test_commands_enabled.h",
         "//src/mongo/db/local_catalog:index_descriptor.h",
@@ -686,6 +686,7 @@ filegroup(
         "//src/mongo/db/query/client_cursor:generic_cursor_gen",
         "//src/mongo/db/query/collation:collation_spec.h",
         "//src/mongo/db/query/collation:collator_factory_interface.h",
+        "//src/mongo/db/query/compiler/optimizer/join:join_predicate.h",
         "//src/mongo/db/query/plan_cache:sbe_plan_cache_on_parameter_change.h",
         "//src/mongo/db/query/query_settings:index_hints_serialization.h",
         "//src/mongo/db/query/query_settings:query_framework_serialization.h",

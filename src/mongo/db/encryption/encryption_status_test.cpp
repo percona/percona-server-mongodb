@@ -29,7 +29,7 @@ Copyright (C) 2025-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "mongo/db/commands/server_status.h"
+#include "mongo/db/commands/server_status/server_status.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/unittest/assert.h"
