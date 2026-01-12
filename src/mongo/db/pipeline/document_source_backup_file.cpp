@@ -35,8 +35,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/data_range.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
-#include "mongo/bson/bsonmisc.h"
-#include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/exec/document_value/document.h"
 #include "mongo/db/namespace_string.h"
@@ -88,27 +86,6 @@ Value DocumentSourceBackupFile::serialize(const SerializationOptions& opts) cons
                                     {kByteOffset, Value(_byteOffset)}}}}};
 }
 
-DocumentSource::GetNextResult DocumentSourceBackupFile::doGetNext() {
-    if (_file.eof()) {
-        return GetNextResult::makeEOF();
-    }
-
-    auto byteOffset = _file.tellg();
-    _file.read(_dataBuf.data(), kBlockSize);
-    uassert(ErrorCodes::FileStreamFailed,
-            str::stream() << "Error reading file " << _filePath << " at offset " << byteOffset,
-            !_file.bad());
-    auto bytesRead = _file.gcount();
-    auto eof = _file.eof();
-
-    Document doc;
-    doc = Document{{"byteOffset"_sd, static_cast<long long>(byteOffset)},
-                   {"data"_sd, BSONBinData(_dataBuf.data(), bytesRead, BinDataGeneral)},
-                   {"endOfFile"_sd, eof}};
-
-    return doc;
-}
-
 intrusive_ptr<DocumentSource> DocumentSourceBackupFile::createFromBson(
     BSONElement spec, const intrusive_ptr<ExpressionContext>& pExpCtx) {
     // This cursor is non-tailable so we don't touch pExpCtx->tailableMode here
@@ -157,36 +134,19 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupFile::createFromBson(
             str::stream() << "'" << kByteOffset << "' parameter cannot be less than zero",
             byteOffset >= 0);
 
-    std::ifstream iFile(filePath, std::ios_base::in | std::ios_base::binary);
-    uassert(ErrorCodes::FileOpenFailed,
-            str::stream() << "Failed to open file " << filePath,
-            iFile.is_open());
-    iFile.seekg(byteOffset);
-    uassert(ErrorCodes::FileOpenFailed,
-            str::stream() << "Failed to set read position " << byteOffset << " in file "
-                          << filePath,
-            !iFile.fail());
-    invariant(byteOffset == iFile.tellg());
-
     return make_intrusive<DocumentSourceBackupFile>(
-        pExpCtx, backupId, std::move(filePath), byteOffset, std::move(iFile));
+        pExpCtx, backupId, std::move(filePath), byteOffset);
 }
 
 DocumentSourceBackupFile::DocumentSourceBackupFile(const intrusive_ptr<ExpressionContext>& expCtx,
                                                    UUID backupId,
                                                    std::string filePath,
-                                                   long long byteOffset,
-                                                   std::ifstream file)
+                                                   long long byteOffset)
     : DocumentSource(kStageName, expCtx),
-      exec::agg::Stage(kStageName, expCtx),
-      _dataBuf(),
       _backupId(backupId),
       _filePath(std::move(filePath)),
-      _byteOffset(byteOffset),
-      _file(std::move(file)) {}
+      _byteOffset(byteOffset) {}
 
-DocumentSourceBackupFile::~DocumentSourceBackupFile() {
-    _file.close();
-}
+DocumentSourceBackupFile::~DocumentSourceBackupFile() = default;
 
 }  // namespace mongo

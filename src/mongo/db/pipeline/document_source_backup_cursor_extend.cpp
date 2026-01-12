@@ -73,17 +73,6 @@ Value DocumentSourceBackupCursorExtend::serialize(const SerializationOptions& op
                   Document{{kBackupId, Value(_backupId)}, {kTimestamp, Value(_extendTo)}}}});
 }
 
-DocumentSource::GetNextResult DocumentSourceBackupCursorExtend::doGetNext() {
-    if (_fileIt != _filenames.end()) {
-        Document doc = {{"filename"_sd, *_fileIt}};
-        ++_fileIt;
-
-        return doc;
-    }
-
-    return GetNextResult::makeEOF();
-}
-
 intrusive_ptr<DocumentSource> DocumentSourceBackupCursorExtend::createFromBson(
     BSONElement spec, const intrusive_ptr<ExpressionContext>& pExpCtx) {
     // This cursor is non-tailable so we don't touch pExpCtx->tailableMode here
@@ -140,14 +129,7 @@ DocumentSourceBackupCursorExtend::DocumentSourceBackupCursorExtend(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     const UUID& backupId,
     const Timestamp& extendTo)
-    : DocumentSource(kStageName, expCtx),
-      exec::agg::Stage(kStageName, expCtx),
-      _backupId(backupId),
-      _extendTo(extendTo),
-      _backupCursorExtendState(pExpCtx->getMongoProcessInterface()->extendBackupCursor(
-          pExpCtx->getOperationContext(), backupId, extendTo)),
-      _filenames(_backupCursorExtendState.filePaths),
-      _fileIt(_filenames.begin()) {}
+    : DocumentSource(kStageName, expCtx), _backupId(backupId), _extendTo(extendTo) {}
 
 DocumentSourceBackupCursorExtend::~DocumentSourceBackupCursorExtend() = default;
 }  // namespace mongo

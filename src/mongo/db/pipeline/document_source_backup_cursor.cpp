@@ -84,47 +84,6 @@ Value DocumentSourceBackupCursor::serialize(const SerializationOptions& opts) co
               _backupOptions.srcBackupName ? Value(*_backupOptions.srcBackupName) : Value()}}}});
 }
 
-DocumentSource::GetNextResult DocumentSourceBackupCursor::doGetNext() {
-    if (_backupCursorState.preamble) {
-        Document doc = _backupCursorState.preamble.get();
-        _backupCursorState.preamble = boost::none;
-
-        return doc;
-    }
-
-    // Streaming cursor may be absent when options.disableIncrementalBackup == true
-    if (!_backupCursorState.streamingCursor) {
-        return GetNextResult::makeEOF();
-    }
-
-    if (_docIt == _kvBackupBlocks.cend()) {
-        constexpr std::size_t batchSize = 100;
-        _kvBackupBlocks =
-            uassertStatusOK(_backupCursorState.streamingCursor->getNextBatch(batchSize));
-        _docIt = _kvBackupBlocks.cbegin();
-        // Empty batch means streaming cursor is exhausted
-        if (_kvBackupBlocks.empty()) {
-            return GetNextResult::makeEOF();
-        }
-    }
-
-    // If length or offset is not 0 then output 4 fields,
-    // otherwise output filename, fileSize only
-    Document doc;
-    if (_docIt->length() != 0 || _docIt->offset() != 0) {
-        doc = Document{{"filename"_sd, _docIt->filePath()},
-                       {"offset"_sd, static_cast<long long>(_docIt->offset())},
-                       {"length"_sd, static_cast<long long>(_docIt->length())},
-                       {"fileSize"_sd, static_cast<long long>(_docIt->fileSize())}};
-    } else {
-        doc = Document{{"filename"_sd, _docIt->filePath()},
-                       {"fileSize"_sd, static_cast<long long>(_docIt->fileSize())}};
-    }
-    ++_docIt;
-
-    return doc;
-}
-
 intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
     BSONElement spec, const intrusive_ptr<ExpressionContext>& pExpCtx) {
     // The anticipated usage of a backup cursor: open the backup cursor, consume the results, copy
@@ -202,21 +161,7 @@ intrusive_ptr<DocumentSource> DocumentSourceBackupCursor::createFromBson(
 
 DocumentSourceBackupCursor::DocumentSourceBackupCursor(
     StorageEngine::BackupOptions&& options, const intrusive_ptr<ExpressionContext>& expCtx)
-    : DocumentSource(kStageName, expCtx),
-      exec::agg::Stage(kStageName, expCtx),
-      _backupOptions(options),
-      _backupCursorState(pExpCtx->getMongoProcessInterface()->openBackupCursor(
-          pExpCtx->getOperationContext(), _backupOptions)),
-      _kvBackupBlocks(std::move(_backupCursorState.otherKVBackupBlocks)),
-      _docIt(_kvBackupBlocks.cbegin()) {}
+    : DocumentSource(kStageName, expCtx), _backupOptions(std::move(options)) {}
 
-DocumentSourceBackupCursor::~DocumentSourceBackupCursor() {
-    try {
-        pExpCtx->getMongoProcessInterface()->closeBackupCursor(pExpCtx->getOperationContext(),
-                                                               _backupCursorState.backupId);
-    } catch (DBException&) {
-        LOGV2_FATAL(
-            29091, "Error closing a backup cursor.", "backupId"_attr = _backupCursorState.backupId);
-    }
-}
+DocumentSourceBackupCursor::~DocumentSourceBackupCursor() = default;
 }  // namespace mongo

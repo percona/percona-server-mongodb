@@ -38,7 +38,7 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-class DocumentSourceBackupCursorExtend : public DocumentSource, public exec::agg::Stage {
+class DocumentSourceBackupCursorExtend : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$backupCursorExtend"_sd;
 
@@ -97,6 +97,8 @@ public:
 
     const char* getSourceName() const override;
 
+    static const Id& id;
+
     Id getId() const override {
         return id;
     }
@@ -125,21 +127,16 @@ public:
     void addVariableRefs(std::set<Variables::Id>* refs) const final {}
 
 protected:
-    GetNextResult doGetNext() override;
     DocumentSourceBackupCursorExtend(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                      const UUID& backupId,
                                      const Timestamp& extendTo);
 
 private:
-    static const Id& id;
+    friend boost::intrusive_ptr<exec::agg::Stage> documentSourceBackupCursorExtendToStageFn(
+        const boost::intrusive_ptr<DocumentSource>& documentSource);
 
     const UUID _backupId;
     const Timestamp _extendTo;
-    BackupCursorExtendState _backupCursorExtendState;
-    // Convenience reference to _backupCursorExtendState.filenames
-    const std::deque<std::string>& _filenames;
-    // Document iterator
-    std::deque<std::string>::const_iterator _fileIt;
 };
 
 }  // namespace mongo

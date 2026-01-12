@@ -39,8 +39,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/uuid.h"
 
-#include <array>
-#include <fstream>
 #include <memory>
 #include <set>
 #include <string>
@@ -49,7 +47,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
-class DocumentSourceBackupFile final : public DocumentSource, public exec::agg::Stage {
+class DocumentSourceBackupFile final : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$_backupFile"_sd;
 
@@ -89,8 +87,7 @@ public:
     DocumentSourceBackupFile(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                              UUID backupId,
                              std::string filePath,
-                             long long byteOffset,
-                             std::ifstream file);
+                             long long byteOffset);
 
     DocumentSourceBackupFile(const DocumentSourceBackupFile&) = delete;
     DocumentSourceBackupFile& operator=(const DocumentSourceBackupFile&) = delete;
@@ -100,6 +97,8 @@ public:
     ~DocumentSourceBackupFile() override;
 
     const char* getSourceName() const override;
+
+    static const Id& id;
 
     Id getId() const override {
         return id;
@@ -128,19 +127,13 @@ public:
 
     void addVariableRefs(std::set<Variables::Id>* refs) const final {}
 
-protected:
-    GetNextResult doGetNext() override;
-
 private:
-    static constexpr std::streamsize kBlockSize = 1 << 20;
+    friend boost::intrusive_ptr<exec::agg::Stage> documentSourceBackupFileToStageFn(
+        const boost::intrusive_ptr<DocumentSource>& documentSource);
 
-    static const Id& id;
-
-    std::array<char, kBlockSize> _dataBuf;
     const UUID _backupId;
     const std::string _filePath;
     const long long _byteOffset;
-    std::ifstream _file;
 };
 
 }  // namespace mongo

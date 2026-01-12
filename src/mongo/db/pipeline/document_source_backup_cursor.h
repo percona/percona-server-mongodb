@@ -34,12 +34,13 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/repl/read_concern_level.h"
+#include "mongo/db/storage/storage_engine.h"
 
 #include <boost/none.hpp>
 
 namespace mongo {
 
-class DocumentSourceBackupCursor : public DocumentSource, public exec::agg::Stage {
+class DocumentSourceBackupCursor : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$backupCursor"_sd;
 
@@ -98,6 +99,8 @@ public:
 
     const char* getSourceName() const override;
 
+    static const Id& id;
+
     Id getId() const override {
         return id;
     }
@@ -125,19 +128,14 @@ public:
 
     void addVariableRefs(std::set<Variables::Id>* refs) const final {}
 
-protected:
-    GetNextResult doGetNext() override;
+private:
+    friend boost::intrusive_ptr<exec::agg::Stage> documentSourceBackupCursorToStageFn(
+        const boost::intrusive_ptr<DocumentSource>& documentSource);
+
     DocumentSourceBackupCursor(StorageEngine::BackupOptions&& options,
                                const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
-private:
-    static const Id& id;
-
-    const StorageEngine::BackupOptions _backupOptions;
-    BackupCursorState _backupCursorState;
-    // Current batch of backup blocks
-    std::deque<KVBackupBlock> _kvBackupBlocks;
-    std::deque<KVBackupBlock>::const_iterator _docIt;
+    StorageEngine::BackupOptions _backupOptions;
 };
 
 }  // namespace mongo
