@@ -53,6 +53,13 @@ class ResmokeShimContext:
         self.links = []
         
     def __enter__(self):
+        # Use the Bazel provided TEST_TMPDIR. Note this must occur after uses of acquire_local_resource
+        # which relies on a shared temporary directory among all test shards.
+        test_tempdir = os.environ.get("TEST_TMPDIR")
+        os.environ["TMPDIR"] = test_tempdir
+        os.environ["TMP"] = test_tempdir
+        os.environ["TEMP"] = test_tempdir
+
         # Bazel will send SIGTERM on a test timeout. If all processes haven't terminated
         # after –-local_termination_grace_seconds (default 15s), Bazel will SIGKILL them instead.
         signal.signal(signal.SIGTERM, self._handle_interrupt)
@@ -119,6 +126,8 @@ if __name__ == "__main__":
 
     lock, base_port = acquire_local_resource("port_block")
     resmoke_args.append(f"--basePort={base_port}")
+
+    resmoke_args.append(f"--archiveDirectory={os.path.join(os.environ.get('TEST_UNDECLARED_OUTPUTS_DIR'), 'data_archives')}")
 
     if (
         os.path.isfile("bazel/resmoke/test_runtimes.json")

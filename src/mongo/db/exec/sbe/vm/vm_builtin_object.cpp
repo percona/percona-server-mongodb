@@ -221,7 +221,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinMergeObjects(Ari
         std::tie(tagAgg, valAgg) = value::makeNewObject();
     }
 
-    invariant(tagAgg == value::TypeTags::Object);
+    tassert(11086807, "Unexpected type of Agg parameter", tagAgg == value::TypeTags::Object);
 
     // If our field is nothing or null or it's not an object, return the accumulator state.
     if (tagField == value::TypeTags::Nothing || tagField == value::TypeTags::Null ||
@@ -286,7 +286,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinBsonSize(ArityTy
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinObjectToArray(ArityType arity) {
-    invariant(arity == 1);
+    tassert(11080026, "Unexpected arity value", arity == 1);
 
     auto [objOwned, objTag, objVal] = getFromStack(0);
 

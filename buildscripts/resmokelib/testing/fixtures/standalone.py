@@ -12,6 +12,10 @@ import pymongo.errors
 import yaml
 
 from buildscripts.resmokelib import logging
+from buildscripts.resmokelib.extensions import (
+    delete_extension_configs,
+    find_and_generate_extension_configs,
+)
 from buildscripts.resmokelib.testing.fixtures import interface
 from buildscripts.resmokelib.testing.fixtures.fixturelib import FixtureLib
 from buildscripts.resmokelib.utils.history import HistoryDict
@@ -47,6 +51,7 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             preserve_dbpath (bool, optional): preserve_dbpath. Defaults to False.
             port (Optional[int], optional): Port to use for mongod. Defaults to None.
             launch_mongot (bool, optional): Should mongot be launched as well. Defaults to False.
+            load_all_extensions (bool, optional): Whether to load all test extensions upon startup. Defaults to False.
 
         Raises
             ValueError: _description_
@@ -56,8 +61,13 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             self.fixturelib.default_if_none(mongod_options, {})
         )
 
-        if load_all_extensions:
-            self.fixturelib.load_all_extensions(self.config.EVERGREEN_TASK_ID, self.mongod_options, self.logger)
+        self.load_all_extensions = load_all_extensions
+        if self.load_all_extensions:
+            self.loaded_extensions = find_and_generate_extension_configs(
+                is_evergreen=self.config.EVERGREEN_TASK_ID,
+                logger=self.logger,
+                mongod_options=self.mongod_options,
+            )
 
         if "set_parameters" not in self.mongod_options:
             self.mongod_options["set_parameters"] = {}
@@ -144,7 +154,7 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
         self.mongot = mongot
         self.mongot.await_ready()
 
-    def setup(self):
+    def setup(self, temporary_flags={}):
         """Set up the mongod."""
         if not self.preserve_dbpath and os.path.lexists(self._dbpath):
             shutil.rmtree(self._dbpath, ignore_errors=False)
@@ -152,6 +162,10 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
         os.makedirs(self._dbpath, exist_ok=True)
 
         launcher = MongodLauncher(self.fixturelib)
+
+        mongod_options = self.mongod_options.copy()
+        mongod_options.update(temporary_flags)
+
         # Second return val is the port, which we ignore because we explicitly created the port above.
         # The port is used to set other mongod_option's here:
         # https://github.com/mongodb/mongo/blob/532a6a8ae7b8e7ab5939e900759c00794862963d/buildscripts/resmokelib/testing/fixtures/replicaset.py#L136
@@ -159,7 +173,7 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
             self.logger,
             self.job_num,
             executable=self.mongod_executable,
-            mongod_options=self.mongod_options,
+            mongod_options = mongod_options,
         )
 
         try:
@@ -263,6 +277,9 @@ class MongoDFixture(interface.Fixture, interface._DockerComposeInterface):
         self.logger.info("Successfully contacted the mongod on port %d.", self.port)
 
     def _do_teardown(self, mode=None):
+        if self.load_all_extensions and self.loaded_extensions:
+            delete_extension_configs(self.loaded_extensions, self.logger)
+
         if self.config.NOOP_MONGO_D_S_PROCESSES:
             self.logger.info(
                 "This is running against an External System Under Test setup with `docker-compose.yml` -- skipping teardown."

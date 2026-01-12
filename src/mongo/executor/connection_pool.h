@@ -111,6 +111,8 @@ public:
     static constexpr Milliseconds kDefaultRefreshRequirement = Minutes(1);
     static constexpr Milliseconds kDefaultRefreshTimeout = Seconds(20);
     static constexpr Milliseconds kHostRetryTimeout = Seconds(1);
+    static constexpr Milliseconds kDefaultBaseEstablishmentBackoffMS = Milliseconds(50);
+    static constexpr Milliseconds kDefaultMaxEstablishmentBackoffMS = Seconds(10);
 
     /**
      * Default value for limiting the size of a connection requests queue.
@@ -164,6 +166,16 @@ public:
          * out connections or new requests
          */
         Milliseconds hostTimeout = kDefaultHostTimeout;
+
+        /**
+         * The base backoff delay for connection establishment retries for each specific pool.
+         */
+        Milliseconds baseEstablishmentBackoffMS = kDefaultBaseEstablishmentBackoffMS;
+
+        /**
+         * The maximum backoff delay for connection establishment retries for each specific pool.
+         */
+        Milliseconds maxEstablishmentBackoffMS = kDefaultMaxEstablishmentBackoffMS;
 
         /**
          * An egress tag closer manager which will provide global access to this connection pool.
@@ -227,6 +239,12 @@ public:
          * It is set by triggerShutdown() or updateController(). It is never unset.
          */
         kShutdown,
+        /**
+         * The pool has received an overload failure during a connection setup.
+         * New connection spawns will happen with a backoff-with-jitter delay until the next
+         * returned connection gets refreshed or a setup succeeds.
+         */
+        kThrottle,
     };
 
     /**
@@ -420,7 +438,14 @@ class ConnectionPool::ConnectionInterface : public TimerInterface {
     friend class ConnectionPool;
 
 public:
-    explicit ConnectionInterface(size_t generation) : _generation(generation) {}
+    /**
+     * Unique id of the connection within its SpecificPool.
+     * The type is wide enough to handle a long lifetime without overflow.
+     */
+    using PoolConnectionId = uint64_t;
+
+    explicit ConnectionInterface(PoolConnectionId id, size_t generation)
+        : _id{id}, _generation(generation) {}
 
     ~ConnectionInterface() override = default;
 
@@ -520,6 +545,8 @@ protected:
      */
     virtual void refresh(Milliseconds timeout, RefreshCallback cb) = 0;
 
+    PoolConnectionId _id;
+
 private:
     size_t _generation;
     Date_t _lastUsed;
@@ -583,6 +610,9 @@ public:
     virtual size_t connectionRequestsMaxQueueDepth() const = 0;
     virtual size_t maxConnections() const = 0;
 
+    virtual Milliseconds baseEstablishmentBackoffMS() const = 0;
+    virtual Milliseconds maxEstablishmentBackoffMS() const = 0;
+
     /**
      * Get the name for this controller
      *
@@ -615,6 +645,8 @@ class ConnectionPool::DependentTypeFactoryInterface {
     DependentTypeFactoryInterface& operator=(const DependentTypeFactoryInterface&) = delete;
 
 public:
+    using PoolConnectionId = ConnectionInterface::PoolConnectionId;
+
     DependentTypeFactoryInterface() = default;
 
     virtual ~DependentTypeFactoryInterface() = default;
@@ -624,6 +656,7 @@ public:
      */
     virtual std::shared_ptr<ConnectionInterface> makeConnection(const HostAndPort& hostAndPort,
                                                                 transport::ConnectSSLMode sslMode,
+                                                                PoolConnectionId,
                                                                 size_t generation) = 0;
 
     /**

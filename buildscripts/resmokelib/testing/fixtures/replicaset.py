@@ -11,6 +11,10 @@ import pymongo
 import pymongo.errors
 import pymongo.write_concern
 
+from buildscripts.resmokelib.extensions import (
+    delete_extension_configs,
+    find_and_generate_extension_configs,
+)
 from buildscripts.resmokelib.testing.fixtures import interface
 
 
@@ -86,10 +90,15 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         self.mongod_options = self.fixturelib.make_historic(
             self.fixturelib.default_if_none(mongod_options, {})
         )
-        
-        if load_all_extensions:
-            self.fixturelib.load_all_extensions(self.config.EVERGREEN_TASK_ID, self.mongod_options, self.logger)
-        
+
+        self.load_all_extensions = load_all_extensions
+        if self.load_all_extensions:
+            self.loaded_extensions = find_and_generate_extension_configs(
+                is_evergreen=self.config.EVERGREEN_TASK_ID,
+                logger=self.logger,
+                mongod_options=self.mongod_options,
+            )
+
         self.preserve_dbpath = preserve_dbpath
         self.start_initial_sync_node = start_initial_sync_node
         self.electable_initial_sync_node = electable_initial_sync_node
@@ -465,14 +474,12 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         primary = self.nodes[0]
         client = primary.mongo_client()
         while True:
-            self.logger.info(
-                "Waiting for primary on port %d to be elected.", primary.port)
+            self.logger.info("Waiting for primary on port %d to be elected.", primary.port)
             cmd_result = client.admin.command("isMaster")
             if cmd_result["ismaster"]:
                 break
             time.sleep(0.1)  # Wait a little bit before trying again.
-        self.logger.info(
-            "Primary on port %d successfully elected.", primary.port)
+        self.logger.info("Primary on port %d successfully elected.", primary.port)
 
     def _await_secondaries(self):
         # Wait for the secondaries to become available.
@@ -681,6 +688,9 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
 
     def _do_teardown(self, mode=None):
         self.logger.info("Stopping all members of the replica set '%s'...", self.replset_name)
+
+        if self.load_all_extensions and self.loaded_extensions:
+            delete_extension_configs(self.loaded_extensions, self.logger)
 
         running_at_start = self.is_running()
         if not running_at_start:
@@ -991,27 +1001,11 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         # original preserve_dbpath to restore after restarting the mongod.
         original_preserve_dbpath = chosen.preserve_dbpath
         chosen.preserve_dbpath = True
-        original_flags = chosen.mongod_options.copy()
         try:
-            for key, value in temporary_flags.items():
-                chosen.mongod_options[key] = value
-            chosen.setup()
+            chosen.setup(temporary_flags = temporary_flags)
             self.logger.info(interface.create_fixture_table(self))
             chosen.await_ready()
         finally:
-            # If the temporary_flags key does not exist in the mongod_options, then somebody must
-            # had removed it after the startup, so we don't want to reset it.
-            # Otherwise if the value in the mongod_options is the same as in the temporary_flags,
-            # then we want to reset. If the key shows up in the original mongod_options, then use
-            # that value, otherwise just remove.
-            for key, value in temporary_flags.items():
-                if key in chosen.mongod_options:
-                    if chosen.mongod_options[key] == value:
-                        if key in original_flags:
-                            chosen.mongod_options[key] = original_flags[key]
-                        else:
-                            chosen.mongod_options.pop(key)
-
             chosen.preserve_dbpath = original_preserve_dbpath
 
     def get_secondaries(self):

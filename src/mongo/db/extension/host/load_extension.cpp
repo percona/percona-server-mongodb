@@ -29,6 +29,8 @@
 
 #include "mongo/db/extension/host/load_extension.h"
 
+#include "mongo/db/commands/test_commands_enabled.h"
+#include "mongo/db/extension/host/host_services.h"
 #include "mongo/db/extension/host_adapter/extension_handle.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/extension_status.h"
@@ -50,8 +52,15 @@
 
 namespace mongo::extension::host {
 namespace {
-// TODO SERVER-110326: Check if we are in a test environment. If so, use /tmp/mongo/extensions.
-static const std::filesystem::path kExtensionConfDir{"/etc/mongo/extensions"};
+
+const std::filesystem::path& getExtensionConfDir() {
+    // Use /tmp/mongo/extensions in test environments, otherwise use /etc/mongo/extensions.
+    static const std::filesystem::path kExtensionConfDir = getTestCommandsEnabled()
+        ? std::filesystem::temp_directory_path() / "mongo" / "extensions"
+        : std::filesystem::path{"/etc/mongo/extensions"};
+
+    return kExtensionConfDir;
+}
 
 void assertVersionCompatibility(const ::MongoExtensionAPIVersionVector* hostVersions,
                                 const ::MongoExtensionAPIVersion& extensionVersion) {
@@ -109,8 +118,8 @@ host_adapter::ExtensionHandle getMongoExtension(SharedLibrary& extensionLib,
 
 stdx::unordered_map<std::string, std::unique_ptr<SharedLibrary>> ExtensionLoader::loadedExtensions;
 
-bool loadExtensions(const std::vector<std::string>& extensionPaths) {
-    if (extensionPaths.empty()) {
+bool loadExtensions(const std::vector<std::string>& extensionNames) {
+    if (extensionNames.empty()) {
         return true;
     }
 
@@ -121,41 +130,37 @@ bool loadExtensions(const std::vector<std::string>& extensionPaths) {
         return false;
     }
 
-    for (const auto& extension : extensionPaths) {
-        // TODO SERVER-110317: Change 'filePath' to 'extensionName'.
-        LOGV2(10668501, "Loading extension", "filePath"_attr = extension);
+    for (const auto& extension : extensionNames) {
+        LOGV2(10668501, "Loading extension", "extensionName"_attr = extension);
 
         try {
             const ExtensionConfig config = ExtensionLoader::loadExtensionConfig(extension);
-            ExtensionLoader::load(config);
+            ExtensionLoader::load(extension, config);
         } catch (...) {
             LOGV2_ERROR(10668502,
                         "Error loading extension",
-                        // TODO SERVER-110317: Change 'filePath' to 'extensionName'.
-                        "filePath"_attr = extension,
+                        "extensionName"_attr = extension,
                         "status"_attr = exceptionToStatus());
             return false;
         }
 
-        // TODO SERVER-110317: Change 'filePath' to 'extensionName'.
-        LOGV2(10668503, "Successfully loaded extension", "filePath"_attr = extension);
+        LOGV2(10668503, "Successfully loaded extension", "extensionName"_attr = extension);
     }
 
     return true;
 }
 
-ExtensionConfig ExtensionLoader::loadExtensionConfig(const std::string& extensionPath) {
-    // TODO SERVER-110317: 'extensionPath' shouldn't represent a path anymore. We can omit the
-    // truncation.
-    const auto confPath = kExtensionConfDir /
-        std::filesystem::path(extensionPath).filename().replace_extension(".conf");
-    // TODO SERVER-110326: Remove this once we have proper loading for tests.
-    if (!std::filesystem::exists(confPath)) {
-        return ExtensionConfig{.sharedLibraryPath = extensionPath,
-                               .extOptions = YAML::Node(YAML::NodeType::Map)};
-    }
+ExtensionConfig ExtensionLoader::loadExtensionConfig(const std::string& extensionName) {
+    uassert(11031700,
+            str::stream() << "Loading extension '" << extensionName
+                          << "' failed: Extension name cannot be empty nor contain path separators",
+            !extensionName.empty() && extensionName.find('/') == std::string::npos &&
+                extensionName.find('\\') == std::string::npos);
+
+    const auto confPath = getExtensionConfDir() / std::string(extensionName + ".conf");
+
     uassert(11042900,
-            str::stream() << "Loading extension '" << extensionPath
+            str::stream() << "Loading extension '" << extensionName
                           << "' failed: Expected configuration file not found at '"
                           << confPath.string() << "'",
             std::filesystem::exists(confPath));
@@ -188,24 +193,25 @@ ExtensionConfig ExtensionLoader::loadExtensionConfig(const std::string& extensio
     return config;
 }
 
-void ExtensionLoader::load(const ExtensionConfig& config) {
-    const auto& extensionPath = config.sharedLibraryPath;
+void ExtensionLoader::load(const std::string& name, const ExtensionConfig& config) {
     uassert(10845400,
-            str::stream() << "Loading extension '" << extensionPath << "' failed: "
+            str::stream() << "Loading extension '" << name << "' failed: "
                           << "Extension has already been loaded",
-            !loadedExtensions.contains(extensionPath));
+            !loadedExtensions.contains(name));
+
+    const auto& extensionPath = config.sharedLibraryPath;
 
     StatusWith<std::unique_ptr<SharedLibrary>> swExtensionLib =
         SharedLibrary::create(extensionPath);
     uassert(10615500,
-            str::stream() << "Loading extension '" << extensionPath
+            str::stream() << "Loading extension '" << name
                           << "' failed: " << swExtensionLib.getStatus().reason(),
             swExtensionLib.isOK());
 
     // Add the 'SharedLibrary' pointer to our loaded extensions array to keep it alive for the
     // lifetime of the server.
-    loadedExtensions.emplace(extensionPath, std::move(swExtensionLib.getValue()));
-    auto& extensionLib = loadedExtensions[extensionPath];
+    loadedExtensions.emplace(name, std::move(swExtensionLib.getValue()));
+    auto& extensionLib = loadedExtensions[name];
 
     host_adapter::ExtensionHandle extHandle = getMongoExtension(*extensionLib, extensionPath);
     // Validate that the major and minor versions from the extension implementation are compatible
@@ -220,7 +226,7 @@ void ExtensionLoader::load(const ExtensionConfig& config) {
                .maxWireVersion);
 
     HostPortal portal{extHandle.getVersion(), maxWireVersion, YAML::Dump(config.extOptions)};
-    extHandle.initialize(portal);
+    extHandle.initialize(portal, HostServices::get());
 }
 
 std::vector<std::string> ExtensionLoader::getLoadedExtensions() {

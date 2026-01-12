@@ -34,7 +34,7 @@ namespace mongo {
 namespace sbe {
 namespace vm {
 std::pair<SortSpec*, CollatorInterface*> ByteCode::generateSortKeyHelper(ArityType arity) {
-    invariant(arity == 2 || arity == 3);
+    tassert(11080009, "Unexpected arity value", arity == 2 || arity == 3);
 
     auto [ssOwned, ssTag, ssVal] = getFromStack(0);
     auto [objOwned, objTag, objVal] = getFromStack(1);
@@ -97,7 +97,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinGenerateSortKey(
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinSortKeyComponentVectorGetElement(
     ArityType arity) {
-    invariant(arity == 2);
+    tassert(11080008, "Unexpected arity value", arity == 2);
 
     auto [sortVecOwned, sortVecTag, sortVecVal] = getFromStack(0);
     auto [idxOwned, idxTag, idxVal] = getFromStack(1);
@@ -109,14 +109,16 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinSortKeyComponent
     auto* sortObj = value::getSortKeyComponentVectorView(sortVecVal);
     const auto idxInt32 = value::bitcastTo<int32_t>(idxVal);
 
-    invariant(idxInt32 >= 0 && static_cast<size_t>(idxInt32) < sortObj->elts.size());
+    tassert(11086803,
+            "Unexpected idx parameter value",
+            idxInt32 >= 0 && static_cast<size_t>(idxInt32) < sortObj->elts.size());
     auto [outTag, outVal] = sortObj->elts[idxInt32];
     return {false, outTag, outVal};
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinSortKeyComponentVectorToArray(
     ArityType arity) {
-    invariant(arity == 1);
+    tassert(11080007, "Unexpected arity value", arity == 1);
 
     auto [sortVecOwned, sortVecTag, sortVecVal] = getFromStack(0);
     if (sortVecTag != value::TypeTags::sortKeyComponentVector) {
@@ -200,7 +202,7 @@ std::pair<value::TypeTags, value::Value> builtinGetSortKeyImpl(value::TypeTags i
 
 template <bool IsAscending, bool IsLeaf>
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinGetSortKey(ArityType arity) {
-    invariant(arity == 1 || arity == 2);
+    tassert(11080006, "Unexpected arity value", arity == 1 || arity == 2);
 
     CollatorInterface* collator = nullptr;
     if (arity == 2) {

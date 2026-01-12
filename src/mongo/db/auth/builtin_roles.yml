@@ -257,6 +257,7 @@ roles:
           - hostInfo
           - listClusterCatalog
           - listDatabases
+          - listExtensions # clusterManager gets this also
           - listSampledQueries
           - listSessions # clusterManager gets this also
           - listShards # clusterManager gets this also
@@ -356,6 +357,7 @@ roles:
           - resync # hostManager gets this also
           - addShard
           - removeShard
+          - listExtensions # clusterMonitor gets this also
           - listSessions # clusterMonitor gets this also
           - listShards # clusterMonitor gets this also
           - flushRouterConfig # hostManager gets this also

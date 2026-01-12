@@ -72,7 +72,7 @@ bool emptyPositionInfo(const std::vector<int32_t>& positionInfo) {
  * non-Nothing (true) or Nothing (false).
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockExists(ArityType arity) {
-    invariant(arity == 1);
+    tassert(11079924, "Unexpected arity value", arity == 1);
     auto [inputOwned, inputTag, inputVal] = getFromStack(0);
 
     tassert(8625700,
@@ -93,7 +93,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockExists
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockTypeMatch(
     ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079923, "Unexpected arity value", arity == 2);
 
     auto [inputOwned, inputTag, inputVal] = getFromStack(0);
     tassert(8300800,
@@ -152,7 +152,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockTypeMa
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockIsTimezone(
     ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079922, "Unexpected arity value", arity == 2);
 
     auto [inputOwned, inputTag, inputVal] = getFromStack(1);
     tassert(8300801,
@@ -194,7 +194,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockIsTime
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockFillEmpty(
     ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079921, "Unexpected arity value", arity == 2);
     auto [fillOwned, fillTag, fillVal] = getFromStack(1);
     if (fillTag == value::TypeTags::Nothing) {
         return moveFromStack(0);
@@ -223,7 +223,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockFillEm
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockFillEmptyBlock(
     ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079920, "Unexpected arity value", arity == 2);
     auto [fillOwned, fillTag, fillVal] = getFromStack(1);
     if (fillTag == value::TypeTags::Nothing) {
         return moveFromStack(0);
@@ -272,7 +272,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockFillEm
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockFillType(
     ArityType arity) {
-    invariant(arity == 3);
+    tassert(11079919, "Unexpected arity value", arity == 3);
     auto [fillOwned, fillTag, fillVal] = getFromStack(2);
 
     auto [typeMaskOwned, typeMaskTag, typeMaskVal] = getFromStack(1);
@@ -436,7 +436,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::valueBlockAggMinMaxImpl
  * This function will return a non-Nothing value if the block contains any non-Nothing values.
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggMin(ArityType arity) {
-    invariant(arity == 3);
+    tassert(11079918, "Unexpected arity value", arity == 3);
 
     auto [_, inputTag, inputVal] = getFromStack(2);
     auto [__, bitsetTag, bitsetVal] = getFromStack(1);
@@ -455,7 +455,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggMin
  * This function will return a non-Nothing value if the block contains any non-Nothing values.
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggMax(ArityType arity) {
-    invariant(arity == 3);
+    tassert(11079917, "Unexpected arity value", arity == 3);
 
     auto [_, inputTag, inputVal] = getFromStack(2);
     auto [__, bitsetTag, bitsetVal] = getFromStack(1);
@@ -474,7 +474,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggMax
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggCount(
     ArityType arity) {
     // TODO SERVER-83450 add monoblock fast path.
-    invariant(arity == 2);
+    tassert(11079916, "Unexpected arity value", arity == 2);
 
     // Move the incoming accumulator state from the stack. We now own and have exclusive access
     // to the accumulator state and can make in-place modifications if desired.
@@ -511,7 +511,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggCou
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggSum(ArityType arity) {
     // TODO SERVER-83450 add monoblock fast path.
-    invariant(arity == 3);
+    tassert(11079915, "Unexpected arity value", arity == 3);
 
     // Move the incoming accumulator state from the stack. We now own and have exclusive access
     // to the accumulator state and can make in-place modifications if desired.
@@ -589,7 +589,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggSum
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggDoubleDoubleSum(
     ArityType arity) {
-    invariant(arity == 3);
+    tassert(11079914, "Unexpected arity value", arity == 3);
 
     // Input: next block to accumulate.
     auto [blockOwned, blockTag, blockVal] = getFromStack(2);
@@ -1022,12 +1022,14 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::blockNativeAggTopBottom
     SortSpec* sortSpec,
     size_t numKeysBlocks,
     size_t numValuesBlocks) {
+
+    static_assert(!ValueIsDecomposedArray);
+
     using Less =
         std::conditional_t<Sense == TopBottomSense::kTop, SortPatternLess, SortPatternGreater>;
 
-    invariant(!ValueIsDecomposedArray);
-    invariant(numKeysBlocks == 1);
-    invariant(numValuesBlocks == 1);
+    tassert(11086818, "Expecting number of keys blocks to be 1", numKeysBlocks == 1);
+    tassert(11086814, "Expecting number of values blocks to be 1", numValuesBlocks == 1);
 
     value::ValueGuard stateGuard{stateTag, stateVal};
 
@@ -1280,10 +1282,12 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockAggTop
     auto* bitsetBlock = value::bitcastTo<value::ValueBlock*>(bitsetVal);
     auto ss = value::getSortSpecView(sortSpecVal);
 
-    if (!keyIsDecomposed && !ValueIsDecomposedArray) {
-        stateGuard.reset();
-        return blockNativeAggTopBottomNImpl<Sense, ValueIsDecomposedArray>(
-            stateTag, stateVal, bitsetBlock, ss, numKeysBlocks, numValuesBlocks);
+    if constexpr (!ValueIsDecomposedArray) {
+        if (!keyIsDecomposed) {
+            stateGuard.reset();
+            return blockNativeAggTopBottomNImpl<Sense, ValueIsDecomposedArray>(
+                stateTag, stateVal, bitsetBlock, ss, numKeysBlocks, numValuesBlocks);
+        }
     }
 
     auto [state, array, startIdx, maxSize, memUsage, memLimit, isGroupAccum] =
@@ -1667,7 +1671,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockArithm
 
     static_assert(op >= 0 && op <= 3, "op should be between 0 and 3 inclusive");
 
-    invariant(arity == 3);
+    tassert(11079913, "Unexpected arity value", arity == 3);
 
     auto [bitsetOwned, bitsetTag, bitsetVal] = getFromStack(0);
     auto [lOwned, lTag, lVal] = getFromStack(1);
@@ -1860,7 +1864,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockDiv(Ar
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::blockRoundTrunc(
     std::string funcName, Decimal128::RoundingMode roundingMode, ArityType arity) {
-    invariant(arity == 1 || arity == 2);
+    tassert(11079912, "Unexpected arity value", arity == 1 || arity == 2);
     auto [inputOwned, inputTag, inputVal] = getFromStack(0);
     tassert(8333100,
             "First argument of " + funcName + " must be block of values.",
@@ -1991,7 +1995,7 @@ FastTuple<bool, value::TypeTags, value::Value> blockCompareGeneric(value::ValueB
 template <class Cmp, ColumnOpType::Flags AddFlags>
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockCmpScalar(
     ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079911, "Unexpected arity value", arity == 2);
     auto [blockOwned, blockTag, blockVal] = getFromStack(0);
     tassert(8625709,
             "Expected argument to be of valueBlock type",
@@ -2054,7 +2058,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockLteSca
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockCmp3wScalar(
     ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079910, "Unexpected arity value", arity == 2);
     auto [blockOwned, blockTag, blockVal] = getFromStack(0);
     tassert(8625711,
             "Expected argument to be of valueBlock type",
@@ -2080,7 +2084,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockCmp3wS
  * when the matching entry in the mask is False.
  */
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockCombine(ArityType arity) {
-    invariant(arity == 3);
+    tassert(11079909, "Unexpected arity value", arity == 3);
 
     auto [bitmapOwned, bitmapTag, bitmapVal] = getFromStack(2);
     tassert(8141609,
@@ -2227,7 +2231,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockLogica
     ArityType arity) {
     static_assert(op >= 0 && op <= 1, "op should be either 0 or 1");
 
-    invariant(arity == 2);
+    tassert(11079908, "Unexpected arity value", arity == 2);
     auto [leftOwned, leftInputTag, leftInputVal] = getFromStack(0);
     tassert(8625714,
             "Expected 'left' argument to be of valueBlock type",
@@ -2306,7 +2310,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockLogica
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockNewFill(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079907, "Unexpected arity value", arity == 2);
 
     auto [rightOwned, rightTag, rightVal] = getFromStack(1);
     auto [countOwned, countTag, countVal] =
@@ -2325,7 +2329,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockNewFil
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockSize(ArityType arity) {
-    invariant(arity == 1);
+    tassert(11079906, "Unexpected arity value", arity == 1);
 
     auto [_, blockTag, blockVal] = getFromStack(0);
     tassert(8141603,
@@ -2339,7 +2343,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockSize(A
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockNone(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079905, "Unexpected arity value", arity == 2);
 
     auto [blockOwned, blockTag, blockVal] = getFromStack(0);
     tassert(8141605,
@@ -2362,7 +2366,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockNone(A
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockLogicalNot(
     ArityType arity) {
-    invariant(arity == 1);
+    tassert(11079904, "Unexpected arity value", arity == 1);
 
     auto [bitmapOwned, bitmapTag, bitmapVal] = getFromStack(0);
     tassert(8141607,
@@ -2480,7 +2484,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinCellFoldValues_P
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinCellBlockGetFlatValuesBlock(
     ArityType arity) {
-    invariant(arity == 1);
+    tassert(11079903, "Unexpected arity value", arity == 1);
     auto [cellOwn, cellTag, cellVal] = getFromStack(0);
 
     if (cellTag != value::TypeTags::cellBlock) {
@@ -2572,7 +2576,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockCoerce
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockMod(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079902, "Unexpected arity value", arity == 2);
     auto [inputOwned, inputTag, inputVal] = getFromStack(0);
 
     tassert(8332900,
@@ -2602,7 +2606,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockMod(Ar
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockConvert(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11079901, "Unexpected arity value", arity == 2);
     auto [inputOwned, inputTag, inputVal] = getFromStack(0);
 
     tassert(8332901,
@@ -2632,7 +2636,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockConver
 template <bool IsAscending>
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinValueBlockGetSortKey(
     ArityType arity) {
-    invariant(arity == 1 || arity == 2);
+    tassert(11079900, "Unexpected arity value", arity == 1 || arity == 2);
 
     CollatorInterface* collator = nullptr;
     if (arity == 2) {

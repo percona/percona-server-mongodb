@@ -27,7 +27,7 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_PAGE_LOG *page_log;
+    WT_PAGE_LOG *page_log = NULL;
     char *page_log_name;
 
     conn = S2C(session);
@@ -52,6 +52,8 @@ __layered_get_disagg_checkpoint(WT_SESSION_IMPL *session, const char **cfg,
       complete_checkpoint_lsn, NULL, complete_checkpoint_timestamp, complete_checkpoint_metadata));
 
 err:
+    if (page_log != NULL)
+        WT_TRET(page_log->terminate(page_log, &session->iface)); /* dereference */
     __wt_free(session, page_log_name);
     return (ret);
 }
@@ -1582,7 +1584,11 @@ __layered_copy_ingest_table(WT_SESSION_IMPL *session, WT_LAYERED_TABLE_MANAGER_E
         WT_ERR(version_cursor->get_key(version_cursor, tmp_key));
         WT_ERR(__wt_compare(session, CUR2BT(cbt)->collator, key, tmp_key, &cmp));
         if (cmp != 0) {
-            WT_ASSERT(session, cmp <= 0);
+            /*
+             * Ensure keys returned are in correctly sorted order. Only perform this check when key
+             * has been initialized.
+             */
+            WT_ASSERT(session, key->size == 0 || cmp <= 0);
 
             if (upds != NULL) {
                 WT_WITH_DHANDLE(

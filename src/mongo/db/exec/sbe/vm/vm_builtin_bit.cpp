@@ -34,7 +34,7 @@ namespace mongo {
 namespace sbe {
 namespace vm {
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinBitTestPosition(ArityType arity) {
-    invariant(arity == 3);
+    tassert(11080056, "Unexpected arity value", arity == 3);
 
     auto [ownedMask, maskTag, maskValue] = getFromStack(0);
     auto [ownedInput, valueTag, value] = getFromStack(1);
@@ -43,7 +43,9 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinBitTestPosition(
     // behavior is used to determine if we need to bail out of the bit position comparison early in
     // the depending if a bit is found to be set or unset.
     auto [_, tagBitTestBehavior, valueBitTestBehavior] = getFromStack(2);
-    invariant(tagBitTestBehavior == value::TypeTags::NumberInt32);
+    tassert(11086808,
+            "Unexpected BitTestBehavior type",
+            tagBitTestBehavior == value::TypeTags::NumberInt32);
 
     if (!value::isArray(maskTag) || !value::isBinData(valueTag)) {
         return {false, value::TypeTags::Nothing, 0};
@@ -96,7 +98,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinBitTestPosition(
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinBitTestZero(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11080055, "Unexpected arity value", arity == 2);
     auto [maskOwned, maskTag, maskValue] = getFromStack(0);
     auto [inputOwned, inputTag, inputValue] = getFromStack(1);
 
@@ -112,7 +114,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinBitTestZero(Arit
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinBitTestMask(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11080054, "Unexpected arity value", arity == 2);
     auto [maskOwned, maskTag, maskValue] = getFromStack(0);
     auto [inputOwned, inputTag, inputValue] = getFromStack(1);
 

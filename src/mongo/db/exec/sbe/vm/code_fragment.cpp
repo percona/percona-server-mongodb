@@ -358,6 +358,7 @@ void CodeFragment::appendConstVal(value::TypeTags tag, value::Value val) {
 
 void CodeFragment::appendAccessVal(value::SlotAccessor* accessor) {
     Instruction i;
+    // Keep this code in sync with the code below which reads the tag
     i.tag = [](value::SlotAccessor* accessor) {
         if (accessor->is<value::OwnedValueAccessor>()) {
             return Instruction::pushOwnedAccessorVal;
@@ -370,7 +371,19 @@ void CodeFragment::appendAccessVal(value::SlotAccessor* accessor) {
     auto offset = allocateSpace(sizeof(Instruction) + sizeof(accessor));
 
     offset += writeToMemory(offset, i);
-    offset += writeToMemory(offset, accessor);
+    // Keep this code in sync with the tag generation block above
+    switch (i.tag) {
+        // Cast to the concrete class when known to avoid potential issues with pointer offset
+        // See SERVER-86896 for details
+        case Instruction::pushEnvAccessorVal:
+            offset += writeToMemory(offset, accessor->as<RuntimeEnvironment::Accessor>());
+            break;
+        case Instruction::pushOwnedAccessorVal:
+            offset += writeToMemory(offset, accessor->as<value::OwnedValueAccessor>());
+            break;
+        default:
+            offset += writeToMemory(offset, accessor);
+    };
 
     adjustStackSimple(i);
 }
@@ -594,7 +607,7 @@ void CodeFragment::appendGetField(Instruction::Parameter lhs, Instruction::Param
 
 void CodeFragment::appendGetField(Instruction::Parameter input, StringData fieldName) {
     auto size = fieldName.size();
-    invariant(size < Instruction::kMaxInlineStringSize);
+    tassert(11086817, "Field name is too long", size < Instruction::kMaxInlineStringSize);
 
     Instruction i;
     i.tag = Instruction::getFieldImm;

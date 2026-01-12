@@ -433,8 +433,8 @@ extensions_with_config(
     name = "dist_test_extensions",
     srcs = [
         # Any extension that we intend to load in extensions passthrough tests and in the
-        # extension-enabled variant MUST have the "_mongo_extension" suffix for the
-        # find_extensions.sh script to recognize it.
+        # extension-enabled variant MUST have the "_mongo_extension" suffix for the resmoke
+        # scripts to recognize it.
 
         # TODO SERVER-109838: Remove the comment below once extension stages are no longer
         # listed by $listMqlEntities.
@@ -446,9 +446,8 @@ extensions_with_config(
         # TODO SERVER-109108: Remove this entry when the bar extension is no longer needed.
         "//src/mongo/db/extension/test_examples:bar_mongo_extension",
         "//src/mongo/db/extension/test_examples:foo_mongo_extension",
-        # TODO SERVER-110326: Add these tests when possible.
-        # "//src/mongo/db/extension/test_examples:test_options_mongo_extension",
-        # "//src/mongo/db/extension/test_examples:parse_options_mongo_extension",
+        "//src/mongo/db/extension/test_examples:test_options_mongo_extension",
+        "//src/mongo/db/extension/test_examples:parse_options_mongo_extension",
 
         # Any extension that is just loaded in a no-passthrough test MUST NOT have the
         # "_mongo_extension" suffix.

@@ -27,10 +27,12 @@
  *    it in the license file.
  */
 #pragma once
+
 #include "mongo/db/extension/host/host_portal.h"
+#include "mongo/db/extension/host/host_services.h"
+#include "mongo/db/extension/host_adapter/extension_status.h"
 #include "mongo/db/extension/host_adapter/handle.h"
 #include "mongo/db/extension/public/api.h"
-#include "mongo/db/extension/sdk/extension_status.h"
 
 namespace mongo::extension::host_adapter {
 
@@ -46,10 +48,19 @@ public:
         _assertValidVTable();
     }
 
-    void initialize(const extension::host::HostPortal& portal) const {
+    /**
+     * Initialize the extension by providing it with a HostPortal and HostServices.
+     *
+     * Note that the HostServices is passed as a pointer since its lifetime extends beyond
+     * the call to initialize() and will be saved by the extension. The HostPortal, on the other
+     * hand, will go out of scope immediately after the call to initialize() so it is passed by
+     * reference.
+     */
+    void initialize(const extension::host::HostPortal& portal,
+                    const extension::host::HostServices* hostServices) const {
         sdk::enterC([&] {
             assertValid();
-            return vtable().initialize(get(), &portal);
+            return vtable().initialize(get(), &portal, hostServices);
         });
     }
 

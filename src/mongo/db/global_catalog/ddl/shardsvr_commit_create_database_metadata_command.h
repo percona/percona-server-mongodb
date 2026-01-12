@@ -35,6 +35,8 @@
 namespace mongo {
 
 // TODO (SERVER-98118): add this function to the unnamed namespace once 9.0 becomes last LTS.
-void commitCreateDatabaseMetadataLocally(OperationContext* opCtx, const DatabaseType& dbMetadata);
+void commitCreateDatabaseMetadataLocally(OperationContext* opCtx,
+                                         const DatabaseType& dbMetadata,
+                                         bool fromClone = false);
 
 }  // namespace mongo

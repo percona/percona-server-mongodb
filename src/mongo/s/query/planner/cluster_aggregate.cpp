@@ -444,7 +444,7 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     // the shard role.
     if (request.getIsHybridSearch() && cri && cri->hasRoutingTable()) {
         uassert(10557300,
-                "$rankFusion is unsupported on timeseries collections",
+                "$rankFusion and $scoreFusion are unsupported on timeseries collections",
                 !(cri->getChunkManager().isTimeseriesCollection()));
     }
 
@@ -519,6 +519,10 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
         pipeline->validateWithCollectionMetadata(cri.get());
     }
 
+    if (request.getTranslatedForViewlessTimeseries()) {
+        pipeline->setTranslated();
+    }
+
     // Compute QueryShapeHash and record it in CurOp.
     query_shape::DeferredQueryShape deferredShape{[&]() {
         return shape_helpers::tryMakeShape<query_shape::AggCmdShape>(
@@ -553,18 +557,6 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
             hasChangeStream);
     }
     return pipeline;
-}
-
-// TODO SERVER-106876 remove the following function
-void resetRawDataFromRequest(OperationContext* const opCtx, AggregateCommandRequest& request) {
-    // After rewriting the pipeline for timeseries collections we explicitely set rawData = true in
-    // order to signal shards that they should not attempt to rewrite the pipeline again.
-    //
-    // In case the operation fails and get retried on the router, the same operation context
-    // will be re-used. Thus we need to reset the rawData flag attached to the operation
-    // context to the value of the rawData flag on the incoming request before retrying the
-    // operation.
-    isRawDataOperation(opCtx) = request.getRawData().value_or(false);
 }
 
 Status _parseQueryStatsAndReturnEmptyResult(
@@ -984,9 +976,6 @@ Status runAggregateImpl(OperationContext* opCtx,
         req = request;
     }
 
-    // TODO SERVER-106876 stop manipualting rawData in this function
-    resetRawDataFromRequest(opCtx, request);
-
     return status;
 }
 
@@ -1163,7 +1152,7 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
     nsStruct.executionNss = resolvedView.getNamespace();
 
     uassert(ErrorCodes::OptionNotSupportedOnView,
-            "$rankFusion is unsupported on timeseries collections",
+            "$rankFusion and $scoreFusion are unsupported on timeseries collections",
             !(resolvedView.timeseries() && request.getIsHybridSearch()));
 
     sharding::router::CollectionRouter router(opCtx->getServiceContext(), nsStruct.executionNss);

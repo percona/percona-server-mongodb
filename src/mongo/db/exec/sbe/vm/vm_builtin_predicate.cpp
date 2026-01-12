@@ -38,7 +38,7 @@ namespace mongo {
 namespace sbe {
 namespace vm {
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinFtsMatch(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11080025, "Unexpected arity value", arity == 2);
 
     auto [matcherOwn, matcherTag, matcherVal] = getFromStack(0);
     auto [inputOwn, inputTag, inputVal] = getFromStack(1);
@@ -52,7 +52,8 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinFtsMatch(ArityTy
             return BSONObj{value::bitcastTo<const char*>(inputVal)};
         }
 
-        invariant(inputTag == value::TypeTags::Object);
+        tassert(
+            11086806, "Unexpected type of input parameter", inputTag == value::TypeTags::Object);
         BSONObjBuilder builder;
         bson::convertToBsonObj(builder, value::getObjectView(inputVal));
         return builder.obj();
@@ -63,7 +64,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinFtsMatch(ArityTy
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinRunJsPredicate(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11080024, "Unexpected arity value", arity == 2);
 
     auto [predicateOwned, predicateType, predicateValue] = getFromStack(0);
     auto [inputOwned, inputType, inputValue] = getFromStack(1);
@@ -89,7 +90,7 @@ FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinRunJsPredicate(A
 }
 
 FastTuple<bool, value::TypeTags, value::Value> ByteCode::builtinShardFilter(ArityType arity) {
-    invariant(arity == 2);
+    tassert(11080023, "Unexpected arity value", arity == 2);
 
     auto [ownedFilter, filterTag, filterValue] = getFromStack(0);
     auto [ownedShardKey, shardKeyTag, shardKeyValue] = getFromStack(1);

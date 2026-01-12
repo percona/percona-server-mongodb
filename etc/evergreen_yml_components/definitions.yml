@@ -382,20 +382,23 @@ functions:
         - "--change-dir=${extraction_change_dir}"
         - "--move-output=dist-test/:bazel-bin/install"
 
-  "find all extensions": &find_all_extensions
+  "find and generate extension configs": &find_and_generate_extension_configs
     command: subprocess.exec
-    display_name: "find all extensions"
+    display_name: "find and generate extension configs"
     params:
       binary: bash
       args:
-        - "src/evergreen/functions/find_extensions.sh"
+        - "src/evergreen/run_python_script.sh"
+        - "buildscripts/resmokelib/extensions/find_and_generate_extension_configs.py"
+        - "--expansions-file=../extension_names.yml"
+        - "--skip=${skip_extensions|false}"
 
   "apply extensions expansions": &apply_extensions_expansions
     command: expansions.update
     display_name: "apply extensions expansions"
     params:
       ignore_missing_file: false
-      file: extension_paths.yml
+      file: extension_names.yml
 
   "get version expansions": &get_version_expansions
     command: s3.get
@@ -813,7 +816,7 @@ functions:
     - *verify_jstestshell_sha
     - *extract_binaries
     - *extract_jstestshell
-    - *find_all_extensions
+    - *find_and_generate_extension_configs
     - *apply_extensions_expansions
     - *f_expansions_write
     - *get_buildnumber
@@ -1809,19 +1812,7 @@ functions:
           - key: targets
             value: ${suite}
     - *f_expansions_write
-    - command: expansions.update
-      params:
-        updates:
-          - key: aws_key_remote
-            value: ${mongodatafiles_aws_key}
-          - key: aws_profile_remote
-            value: mongodata_aws
-          - key: aws_secret_remote
-            value: ${mongodatafiles_aws_secret}
-    - *f_expansions_write
     - *set_code_coverage_expansion
-    - *f_expansions_write
-    - *set_up_remote_credentials
     - *f_expansions_write
     - *configure_evergreen_api_credentials
     - *determine_task_timeout
@@ -1837,19 +1828,7 @@ functions:
     - *retrieve_generated_test_configuration
     - *extract_generated_test_configuration
     - *f_expansions_write
-    - command: expansions.update
-      params:
-        updates:
-          - key: aws_key_remote
-            value: ${mongodatafiles_aws_key}
-          - key: aws_profile_remote
-            value: mongodata_aws
-          - key: aws_secret_remote
-            value: ${mongodatafiles_aws_secret}
-    - *f_expansions_write
     - *set_code_coverage_expansion
-    - *f_expansions_write
-    - *set_up_remote_credentials
     - *f_expansions_write
     - *configure_evergreen_api_credentials
     - *determine_task_timeout
@@ -3057,6 +3036,20 @@ functions:
       ignore_artifacts_for_spawn: false
       files:
         - ${archive_file|src/archive.json}
+
+  "upload mongodatafiles":
+    command: s3.put
+    params:
+      aws_key: ${mongodatafiles_aws_key}
+      aws_secret: ${mongodatafiles_aws_secret}
+      bucket: mongodatafiles
+      permissions: private
+      visibility: signed
+      content_type: application/gzip
+      local_files_include_filter:
+        - data_archives/*.tgz
+      remote_file: ${project}/${build_variant}/${revision}/datafiles/${task_id}-
+      display_name: "Data files "
 
   "attach wiki page":
     - *f_expansions_write

@@ -2032,7 +2032,7 @@ void HashJoinEmbeddingNode::appendToString(str::stream* ss, int indent) const {
 
 std::unique_ptr<QuerySolutionNode> HashJoinEmbeddingNode::clone() const {
     return std::make_unique<HashJoinEmbeddingNode>(children[0]->clone(),
-                                                   children[0]->clone(),
+                                                   children[1]->clone(),
                                                    joinPredicates,
                                                    leftEmbeddingField,
                                                    rightEmbeddingField);
@@ -2045,10 +2045,36 @@ void NestedLoopJoinEmbeddingNode::appendToString(str::stream* ss, int indent) co
 
 std::unique_ptr<QuerySolutionNode> NestedLoopJoinEmbeddingNode::clone() const {
     return std::make_unique<NestedLoopJoinEmbeddingNode>(children[0]->clone(),
-                                                         children[0]->clone(),
+                                                         children[1]->clone(),
                                                          joinPredicates,
                                                          leftEmbeddingField,
                                                          rightEmbeddingField);
+}
+
+void IndexedNestedLoopJoinEmbeddingNode::appendToString(str::stream* ss, int indent) const {
+    *ss << "INDEXED_NESTED_LOOP_JOIN\n";
+    BinaryJoinEmbeddingNode::appendToString(ss, indent);
+}
+
+std::unique_ptr<QuerySolutionNode> IndexedNestedLoopJoinEmbeddingNode::clone() const {
+    return std::make_unique<IndexedNestedLoopJoinEmbeddingNode>(children[0]->clone(),
+                                                                children[1]->clone(),
+                                                                joinPredicates,
+                                                                leftEmbeddingField,
+                                                                rightEmbeddingField);
+}
+
+IndexProbeNode::IndexProbeNode(NamespaceString nssArg, IndexEntry indexArg)
+    : nss(nssArg), index(indexArg) {}
+
+void IndexProbeNode::appendToString(str::stream* ss, int indent) const {
+    *ss << "INDEX_PROBE\n";
+    addIndent(ss, indent + 1);
+    *ss << "Namespace: " << toStringForLogging(nss) << " Index: " << index.identifier.toString();
+}
+
+std::unique_ptr<QuerySolutionNode> IndexProbeNode::clone() const {
+    return std::make_unique<IndexProbeNode>(nss, index);
 }
 
 }  // namespace mongo
