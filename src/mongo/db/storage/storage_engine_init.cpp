@@ -72,12 +72,6 @@
 
 namespace mongo {
 namespace {
-/**
- * Creates the lock file used to prevent concurrent processes from accessing the data files,
- * as appropriate.
- */
-void createLockFile(ServiceContext* service);
-
 template <typename Fn>
 void writeMetadata(std::unique_ptr<StorageEngineMetadata> metadata,
                    const StorageEngine::Factory* factory,
@@ -124,13 +118,6 @@ StorageEngine::LastShutdownState initializeStorageEngine(
     // This should be set once.
     if ((initFlags & StorageEngineInitFlags::kForRestart) == StorageEngineInitFlags{})
         invariant(!service->getStorageEngine());
-
-    if ((initFlags & StorageEngineInitFlags::kAllowNoLockFile) == StorageEngineInitFlags{}) {
-        SectionScopedTimer scopedTimer(service->getFastClockSource(),
-                                       TimedSectionId::createLockFile,
-                                       startupTimeElapsedBuilder);
-        createLockFile(service);
-    }
 
     const std::string dbpath = storageGlobalParams.dbpath;
 
@@ -220,12 +207,6 @@ StorageEngine::LastShutdownState initializeStorageEngine(
         encryption::WtKeyIds::instance().configured = keyId->clone();
     }
 
-    ScopeGuard guard([&] {
-        auto& lockFile = StorageEngineLockFile::get(service);
-        if (lockFile) {
-            lockFile->close();
-        }
-    });
     auto& lockFile = StorageEngineLockFile::get(service);
     auto createScopedTimer = [service, startupTimeElapsedBuilder]() {
         return SectionScopedTimer(service->getFastClockSource(),
@@ -275,12 +256,6 @@ StorageEngine::LastShutdownState initializeStorageEngine(
         throw;
     }
 
-    if (lockFile) {
-        SectionScopedTimer scopedTimer(
-            service->getFastClockSource(), TimedSectionId::writePID, startupTimeElapsedBuilder);
-        uassertStatusOK(lockFile->writePid());
-    }
-
     // Write a new metadata file if it is not present.
     writeMetadata(std::move(metadata),
                   factory,
@@ -288,8 +263,6 @@ StorageEngine::LastShutdownState initializeStorageEngine(
                   encryption::WtKeyIds::instance().futureConfigured.get(),
                   initFlags,
                   createScopedTimer);
-
-    guard.dismiss();
 
     if (lockFile && lockFile->createdByUncleanShutdown()) {
         return StorageEngine::LastShutdownState::kUnclean;
@@ -302,11 +275,6 @@ void shutdownGlobalStorageEngineCleanly(ServiceContext* service, bool memLeakAll
     auto storageEngine = service->getStorageEngine();
     invariant(storageEngine);
     storageEngine->cleanShutdown(service, memLeakAllowed);
-    auto& lockFile = StorageEngineLockFile::get(service);
-    if (lockFile) {
-        lockFile->clearPidAndUnlock();
-        lockFile = boost::none;
-    }
 }
 
 StorageEngine::LastShutdownState reinitializeStorageEngine(
@@ -335,31 +303,6 @@ StorageEngine::LastShutdownState reinitializeStorageEngine(
 }
 
 namespace {
-
-void createLockFile(ServiceContext* service) {
-    auto& lockFile = StorageEngineLockFile::get(service);
-    try {
-        lockFile.emplace(storageGlobalParams.dbpath);
-    } catch (const std::exception& ex) {
-        uassert(28596,
-                str::stream() << "Unable to determine status of lock file in the data directory "
-                              << storageGlobalParams.dbpath << ": " << ex.what(),
-                false);
-    }
-    const bool wasUnclean = lockFile->createdByUncleanShutdown();
-    const auto openStatus = lockFile->open();
-    if (openStatus == ErrorCodes::IllegalOperation) {
-        lockFile = boost::none;
-    } else {
-        uassertStatusOK(openStatus);
-    }
-
-    if (wasUnclean) {
-        LOGV2_WARNING(22271,
-                      "Detected unclean shutdown - Lock file is not empty",
-                      "lockFile"_attr = lockFile->getFilespec());
-    }
-}
 
 using FactoryMap = std::map<std::string, std::unique_ptr<StorageEngine::Factory>>;
 

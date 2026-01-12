@@ -66,11 +66,11 @@ protected:
     void installUnshardedCollectionMetadata(OperationContext* opCtx,
                                             const NamespaceString& nss,
                                             bool requiresExtendedRangeSupport = false) {
-        AutoGetCollection coll(
-            opCtx,
-            NamespaceStringOrUUID(nss),
-            MODE_IX,
-            AutoGetCollection::Options{}.viewMode(auto_get_collection::ViewMode::kViewsPermitted));
+        AutoGetCollection coll(opCtx,
+                               NamespaceStringOrUUID(nss),
+                               MODE_IX,
+                               auto_get_collection::Options{}.viewMode(
+                                   auto_get_collection::ViewMode::kViewsPermitted));
 
         if (requiresExtendedRangeSupport) {
             coll->setRequiresTimeseriesExtendedRangeSupport(opCtx);
@@ -99,7 +99,7 @@ protected:
 
         const auto uuid = [&] {
             AutoGetCollection autoColl(opCtx, NamespaceStringOrUUID(nss), MODE_IX);
-            return autoColl.getCollection()->uuid();
+            return autoColl->uuid();
         }();
 
         const auto chunk = ChunkType(uuid,

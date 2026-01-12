@@ -31,6 +31,7 @@
 
 #include "mongo/db/exec/agg/stage.h"
 #include "mongo/s/query/exec/blocking_results_merger.h"
+#include "mongo/s/query/exec/shard_tag.h"
 #include "mongo/stdx/unordered_set.h"
 
 #include <cstddef>
@@ -69,9 +70,23 @@ public:
         return _stats.planSummaryStats;
     }
 
-    void addNewShardCursors(std::vector<RemoteCursor>&& newCursors);
+    /**
+     * Adds the specified, already opened cursors for remote shards or the config server.
+     */
+    void addNewShardCursors(std::vector<RemoteCursor>&& newCursors,
+                            const ShardTag& tag = ShardTag::kDefault);
 
-    void closeShardCursors(const stdx::unordered_set<ShardId>& shardIds);
+    /**
+     * Close the set of specified open cursors on remote shards and/or the config server.
+     * This is used by v2 change stream readers.
+     */
+    void closeShardCursors(const stdx::unordered_set<ShardId>& shardIds, const ShardTag& tag);
+
+    /**
+     * Make the underlying results merger recognize change stream control events.
+     * This is used by v2 change stream readers.
+     */
+    void recognizeControlEvents();
 
     void setInitialHighWaterMark(const BSONObj& highWaterMark);
 

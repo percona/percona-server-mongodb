@@ -78,14 +78,16 @@ public:
     const ShardEndpoint nss1Shard0 = ShardEndpoint(shardId0, shardVersionNss1Shard0, boost::none);
     const ShardEndpoint nss1Shard1 = ShardEndpoint(shardId1, shardVersionNss1Shard1, boost::none);
 
-    void assertMultiShardSimpleWriteBatch(const WriteBatch& batch,
-                                          WriteOpId expectedOpId,
-                                          std::vector<ShardEndpoint> expectedShards) {
+    void assertMultiShardSimpleWriteBatch(
+        const WriteBatch& batch,
+        WriteOpId expectedOpId,
+        std::vector<ShardEndpoint> expectedShardVersions,
+        boost::optional<analyze_shard_key::TargetedSampleId> expectedSampleId = boost::none) {
         ASSERT_TRUE(std::holds_alternative<SimpleWriteBatch>(batch.data));
         auto& simpleBatch = std::get<SimpleWriteBatch>(batch.data);
 
-        ASSERT_EQ(expectedShards.size(), simpleBatch.requestByShardId.size());
-        for (auto& expectedShard : expectedShards) {
+        ASSERT_EQ(expectedShardVersions.size(), simpleBatch.requestByShardId.size());
+        for (auto& expectedShard : expectedShardVersions) {
             auto shardRequestIt = simpleBatch.requestByShardId.find(expectedShard.shardName);
             ASSERT_NOT_EQUALS(shardRequestIt, simpleBatch.requestByShardId.end());
             auto& shardRequest = shardRequestIt->second;
@@ -93,6 +95,19 @@ public:
             ASSERT_EQ(shardRequest.ops.front().getId(), expectedOpId);
             ASSERT_EQ(shardRequest.versionByNss.size(), 1);
             ASSERT_EQ(shardRequest.versionByNss.begin()->second, expectedShard);
+
+            if (expectedSampleId) {
+                if (expectedSampleId->isFor(expectedShard.shardName)) {
+                    ASSERT_EQ(shardRequest.sampleIds.size(), 1);
+                    auto it = shardRequest.sampleIds.find(expectedOpId);
+                    ASSERT_TRUE(it != shardRequest.sampleIds.end());
+                    ASSERT_EQ(it->second, expectedSampleId->getId());
+                } else {
+                    ASSERT_EQ(shardRequest.sampleIds.size(), 0);
+                }
+            } else {
+                ASSERT_EQ(shardRequest.sampleIds.size(), 0);
+            }
         }
     }
 
@@ -110,17 +125,34 @@ public:
         }
     }
 
-    void assertNonTargetedWriteBatch(const WriteBatch& batch, WriteOpId expectedOpId) {
+    void assertNonTargetedWriteBatch(const WriteBatch& batch,
+                                     WriteOpId expectedOpId,
+                                     boost::optional<UUID> expectedSampleId = boost::none) {
         ASSERT_TRUE(std::holds_alternative<NonTargetedWriteBatch>(batch.data));
         auto& nonTargetedWriteBatch = std::get<NonTargetedWriteBatch>(batch.data);
         const auto& op = nonTargetedWriteBatch.op;
         ASSERT_EQ(op.getId(), expectedOpId);
+        ASSERT_EQ(nonTargetedWriteBatch.sampleId, expectedSampleId);
     }
-    void assertInternalTransactionBatch(const WriteBatch& batch, WriteOpId expectedOpId) {
+
+    void assertInternalTransactionBatch(const WriteBatch& batch,
+                                        WriteOpId expectedOpId,
+                                        boost::optional<UUID> expectedSampleId = boost::none) {
         ASSERT_TRUE(std::holds_alternative<InternalTransactionBatch>(batch.data));
-        auto& nonTargetedWriteBatch = std::get<InternalTransactionBatch>(batch.data);
-        const auto& op = nonTargetedWriteBatch.op;
+        auto& internalTransactionBatch = std::get<InternalTransactionBatch>(batch.data);
+        const auto& op = internalTransactionBatch.op;
         ASSERT_EQ(op.getId(), expectedOpId);
+        ASSERT_EQ(internalTransactionBatch.sampleId, expectedSampleId);
+    }
+
+    void assertSampleIds(const std::map<WriteOpId, UUID>& sampleIds,
+                         const std::map<WriteOpId, UUID>& expectedSampleIds) {
+        ASSERT_EQ(sampleIds.size(), expectedSampleIds.size());
+        for (auto& [opId, sampleId] : expectedSampleIds) {
+            auto it = sampleIds.find(opId);
+            ASSERT_TRUE(it != sampleIds.end());
+            ASSERT_EQ(it->second, sampleId);
+        }
     }
 };
 
@@ -128,22 +160,25 @@ class OrderedUnifiedWriteExecutorBatcherTest : public UnifiedWriteExecutorBatche
 public:
     void assertSingleShardSimpleWriteBatch(const WriteBatch& batch,
                                            std::vector<WriteOpId> expectedOpIds,
-                                           std::vector<ShardEndpoint> expectedShards) {
+                                           std::vector<ShardEndpoint> expectedShardVersions,
+                                           std::map<WriteOpId, UUID> expectedSampleIds = {}) {
         ASSERT_TRUE(std::holds_alternative<SimpleWriteBatch>(batch.data));
         auto& simpleBatch = std::get<SimpleWriteBatch>(batch.data);
         ASSERT_EQ(1, simpleBatch.requestByShardId.size());
         const auto& shardRequest = simpleBatch.requestByShardId.begin()->second;
         ASSERT_EQ(shardRequest.ops.size(), expectedOpIds.size());
-        ASSERT_EQ(shardRequest.ops.size(), expectedShards.size());
+        ASSERT_EQ(shardRequest.ops.size(), expectedShardVersions.size());
         for (size_t i = 0; i < shardRequest.ops.size(); i++) {
             const auto& op = shardRequest.ops[i];
             ASSERT_EQ(op.getId(), expectedOpIds[i]);
             auto opShard = shardRequest.versionByNss.find(op.getNss());
             ASSERT_TRUE(opShard != shardRequest.versionByNss.end());
-            ASSERT_EQ(expectedShards[i], opShard->second);
+            ASSERT_EQ(expectedShardVersions[i], opShard->second);
         }
+        assertSampleIds(shardRequest.sampleIds, expectedSampleIds);
     }
 };
+
 class UnorderedUnifiedWriteExecutorBatcherTest : public UnifiedWriteExecutorBatcherTest {
 public:
     const ShardVersion shardVersionNss0Shard0VersionIgnored =
@@ -151,8 +186,8 @@ public:
     const ShardEndpoint nss0Shard0VersionIgnored =
         ShardEndpoint(shardId0, shardVersionNss0Shard0VersionIgnored, boost::none);
 
-    void assertUnorderedSingleShardSimpleWriteBatch(const WriteBatch& batch,
-                                                    const SimpleWriteBatch& expectedBatch) {
+    void assertUnorderedSimpleWriteBatch(const WriteBatch& batch,
+                                         const SimpleWriteBatch& expectedBatch) {
         ASSERT_TRUE(std::holds_alternative<SimpleWriteBatch>(batch.data));
         auto& simpleBatch = std::get<SimpleWriteBatch>(batch.data);
         ASSERT_EQ(expectedBatch.requestByShardId.size(), simpleBatch.requestByShardId.size());
@@ -174,10 +209,11 @@ public:
                 ASSERT_EQ(expectedBatch.requestByShardId.at(shardId).versionByNss.at(op.getNss()),
                           opShard->second);
             }
+
+            assertSampleIds(shardRequest.sampleIds, expectedShardRequest.sampleIds);
         }
     }
 };
-
 
 TEST_F(OrderedUnifiedWriteExecutorBatcherTest,
        OrderedBatcherBatchesSingleShardOpByShardIdGeneratingSingleOpBatches) {
@@ -197,19 +233,19 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest,
     auto batcher = OrderedWriteOpBatcher(producer, analyzer);
 
     // Output batches: [0], [1], [2]
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch1, {0}, {nss0Shard0});
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch2, {1}, {nss0Shard1});
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch3.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch3, {2}, {nss0Shard0});
 
-    auto batch4 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch4, errors4] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch4.isEmptyBatch());
 }
 
@@ -233,15 +269,15 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest,
     auto batcher = OrderedWriteOpBatcher(producer, analyzer);
 
     // Output batches: [0, 1], [2, 3]
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch1, {0, 1}, {nss0Shard0, nss1Shard0});
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch2, {2, 3}, {nss0Shard1, nss1Shard1});
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch3.isEmptyBatch());
 }
 
@@ -266,19 +302,19 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest, OrderedBatcherBatchesSingleShardO
     auto batcher = OrderedWriteOpBatcher(producer, analyzer);
 
     // Output batches: [0, 1], [2], [3, 4]
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch1, {0, 1}, {nss0Shard0, nss1Shard0});
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
     assertMultiShardSimpleWriteBatch(batch2, 2, {nss0Shard0, nss0Shard1});
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch3.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch3, {3, 4}, {nss1Shard1, nss0Shard1});
 
-    auto batch4 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch4, errors4] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch4.isEmptyBatch());
 }
 
@@ -297,15 +333,15 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest, OrderedBatcherBatchesMultiShardOp
     auto batcher = OrderedWriteOpBatcher(producer, analyzer);
 
     // Output batches: [0], [1]
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
     assertMultiShardSimpleWriteBatch(batch1, 0, {nss0Shard0, nss0Shard1});
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
     assertMultiShardSimpleWriteBatch(batch2, 1, {nss0Shard0, nss0Shard1});
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch3.isEmptyBatch());
 }
 
@@ -338,23 +374,23 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest, OrderedBatcherBatchesQuaruntineOp
     auto batcher = OrderedWriteOpBatcher(producer, analyzer);
 
     // Output batches: [0], [1], [2], [3]
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /* opCtx */, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch1, {0}, {nss0Shard0});
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
     assertNonTargetedWriteBatch(batch2, 1);
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /* opCtx */, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch3.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch3, {2}, {nss0Shard0});
 
-    auto batch4 = uassertStatusOK(batcher.getNextBatch(nullptr /* opCtx */, *routingCtx));
+    auto [batch4, errors4] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch4.isEmptyBatch());
     assertInternalTransactionBatch(batch4, 3);
 
-    auto batch5 = uassertStatusOK(batcher.getNextBatch(nullptr /* opCtx */, *routingCtx));
+    auto [batch5, errors5] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch5.isEmptyBatch());
 }
 
@@ -377,21 +413,21 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest, OrderedBatcherReprocessesWriteOps
     auto batcher = OrderedWriteOpBatcher(producer, analyzer);
 
     // Output batches: [0, 1], [1(reprocess)], [2, 3]
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch1, {0, 1}, {nss0Shard0, nss1Shard0});
 
     reprocessWriteOp(batcher, batch1, {1});
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch2, {1}, {nss1Shard0});
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch3.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch3, {2, 3}, {nss0Shard1, nss1Shard1});
 
-    auto batch4 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch4, errors4] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch4.isEmptyBatch());
 }
 
@@ -413,7 +449,7 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest,
     auto batcher = OrderedWriteOpBatcher(producer, analyzer);
 
     // Output batches: [0, 1], [1(reprocess), 2]
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch1, {0, 1}, {nss0Shard0, nss1Shard0});
 
@@ -424,11 +460,11 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest,
         {2, Analysis{kSingleShard, {nss0Shard1}}},
     });
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch2, {1, 2}, {nss1Shard1, nss0Shard1});
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch3.isEmptyBatch());
 }
 
@@ -447,14 +483,84 @@ TEST_F(OrderedUnifiedWriteExecutorBatcherTest, OrderedBatcherStopsOnWriteError) 
     auto batcher = OrderedWriteOpBatcher(producer, analyzer);
 
     // Output batches: [0], <stop>
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
     assertSingleShardSimpleWriteBatch(batch1, {0}, {nss0Shard0});
 
-    batcher.markUnrecoverableError();
+    batcher.stopMakingBatches();
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch2.isEmptyBatch());
+}
+
+TEST_F(OrderedUnifiedWriteExecutorBatcherTest, OrderedBatcherAttachesSampleIdToBatches) {
+    BulkWriteCommandRequest request(
+        {BulkWriteUpdateOp(
+             0, BSON("x" << -1), write_ops::UpdateModification(BSON("$set" << BSON("a" << 1)))),
+         BulkWriteUpdateOp(
+             0, BSON("x" << -1), write_ops::UpdateModification(BSON("$set" << BSON("a" << 1)))),
+         BulkWriteUpdateOp(
+             0, BSON("x" << -1), write_ops::UpdateModification(BSON("$set" << BSON("a" << 1)))),
+         BulkWriteUpdateOp(
+             0, BSON("x" << -1), write_ops::UpdateModification(BSON("$set" << BSON("a" << 1))))},
+        {NamespaceInfoEntry(nss0)});
+    WriteOpProducer producer(request);
+
+    auto sampleId0 = UUID::gen();
+    auto sampleId2 = UUID::gen();
+    WriteOpAnalyzerMock analyzer({
+        {0,
+         Analysis{
+             kSingleShard,
+             {nss0Shard0},
+             analyze_shard_key::TargetedSampleId(sampleId0, shardId0),
+         }},
+        {1,
+         Analysis{
+             kMultiShard,
+             {nss0Shard0, nss0Shard1},
+         }},
+        {2,
+         Analysis{
+             kNonTargetedWrite,
+             {nss0Shard0, nss0Shard1},
+             analyze_shard_key::TargetedSampleId(sampleId2, shardId0),
+         }},
+        {3,
+         Analysis{
+             kInternalTransaction,
+             {nss0Shard0, nss0Shard1},
+         }},
+    });
+
+    auto routingCtx = RoutingContext::createSynthetic({});
+    auto batcher = OrderedWriteOpBatcher(producer, analyzer);
+
+    // Output batches: [0], [1], [2], [3], <stop>
+    size_t expectedOpId = 0;
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_FALSE(batch1.isEmptyBatch());
+    assertSingleShardSimpleWriteBatch(
+        batch1, {expectedOpId}, {nss0Shard0}, {{expectedOpId, sampleId0}});
+    expectedOpId++;
+
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_FALSE(batch2.isEmptyBatch());
+    assertMultiShardSimpleWriteBatch(batch2, expectedOpId, {nss0Shard0, nss0Shard1});
+    expectedOpId++;
+
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_FALSE(batch3.isEmptyBatch());
+    assertNonTargetedWriteBatch(batch3, expectedOpId, sampleId2);
+    expectedOpId++;
+
+    auto [batch4, errors4] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_FALSE(batch4.isEmptyBatch());
+    assertInternalTransactionBatch(batch4, expectedOpId);
+    expectedOpId++;
+
+    auto [batch5, errors5] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_TRUE(batch5.isEmptyBatch());
 }
 
 TEST_F(UnorderedUnifiedWriteExecutorBatcherTest,
@@ -474,21 +580,19 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest,
     auto routingCtx = RoutingContext::createSynthetic({});
     auto batcher = UnorderedWriteOpBatcher(producer, analyzer);
 
-
     SimpleWriteBatch::ShardRequest shardRequest1{{{nss0, nss0Shard0}},
                                                  {WriteOp(request, 0), WriteOp(request, 1)}};
     SimpleWriteBatch::ShardRequest shardRequest2{{{nss1, nss1Shard1}}, {WriteOp(request, 2)}};
     SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}, {shardId1, shardRequest2}}};
 
     // Output batch: [0, 1, 2]
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch2.isEmptyBatch());
 }
-
 
 TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherBatchesMultiShardOpsInOwnBatch) {
     BulkWriteCommandRequest request(
@@ -525,11 +629,11 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherBatchesMultiSha
         {{nss0, nss0Shard1}, {nss1, nss1Shard1}},
         {WriteOp(request, 0), WriteOp(request, 2), WriteOp(request, 3), WriteOp(request, 5)}};
     SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}, {shardId1, shardRequest2}}};
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch2.isEmptyBatch());
 }
 
@@ -576,31 +680,31 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherBatchesQuarunti
     SimpleWriteBatch::ShardRequest shardRequest3{{{nss0, nss0Shard0}}, {WriteOp(request, 2)}};
     SimpleWriteBatch expectedBatch3{{{shardId0, shardRequest3}}};
 
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
     assertNonTargetedWriteBatch(batch2, 1);
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch3.isEmptyBatch());
     assertNonTargetedWriteBatch(batch3, 3);
 
-    auto batch4 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch4, errors4] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch4.isEmptyBatch());
     assertNonTargetedWriteBatch(batch4, 4);
 
-    auto batch5 = uassertStatusOK(batcher.getNextBatch(nullptr /* opCtx */, *routingCtx));
+    auto [batch5, errors5] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch5.isEmptyBatch());
     assertInternalTransactionBatch(batch5, 6);
 
-    auto batch6 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch6, errors6] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch6.isEmptyBatch());
 }
 
-TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherTargetErrorWithoutHandler) {
+TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherTargetErrorsTransient) {
     BulkWriteCommandRequest request(
         {
             BulkWriteUpdateOp(
@@ -626,9 +730,13 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherTargetErrorWith
     auto routingCtx = RoutingContext::createSynthetic({});
     auto batcher = UnorderedWriteOpBatcher(producer, analyzer);
 
-    auto swBatch1 = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_TRUE(batcher.getRetryOnTargetError());
 
-    ASSERT_FALSE(swBatch1.isOK());
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+
+    ASSERT_TRUE(batch1.isEmptyBatch());
+    ASSERT_TRUE(errors1.empty());
+    ASSERT_FALSE(batcher.getRetryOnTargetError());
 
     analyzer.setOpAnalysis({
         {0, Analysis{kSingleShard, {nss0Shard0}}},
@@ -642,12 +750,13 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherTargetErrorWith
         {WriteOp(request, 0), WriteOp(request, 1), WriteOp(request, 2), WriteOp(request, 3)}};
     SimpleWriteBatch expectedBatch2{{{shardId0, shardRequest2}}};
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
 
-    assertUnorderedSingleShardSimpleWriteBatch(batch2, expectedBatch2);
+    assertUnorderedSimpleWriteBatch(batch2, expectedBatch2);
+    ASSERT_TRUE(errors2.empty());
 }
 
-TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherTargetErrorWithHandler) {
+TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherTargetErrorsNonTransient) {
     BulkWriteCommandRequest request(
         {
             BulkWriteUpdateOp(
@@ -673,25 +782,26 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherTargetErrorWith
     auto routingCtx = RoutingContext::createSynthetic({});
     auto batcher = UnorderedWriteOpBatcher(producer, analyzer);
 
-    SimpleWriteBatch::ShardRequest shardRequest1{{{nss0, nss0Shard0}},
+    ASSERT_TRUE(batcher.getRetryOnTargetError());
+
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+
+    ASSERT_TRUE(batch1.isEmptyBatch());
+    ASSERT_TRUE(errors1.empty());
+    ASSERT_FALSE(batcher.getRetryOnTargetError());
+
+    SimpleWriteBatch::ShardRequest shardRequest2{{{nss0, nss0Shard0}},
                                                  {WriteOp(request, 0), WriteOp(request, 3)}};
-    SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}}};
+    SimpleWriteBatch expectedBatch2{{{shardId0, shardRequest2}}};
 
-    std::vector<std::pair<WriteOp, Status>> opsWithErrors;
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
 
-    auto eh = [&](const WriteOp& op, const Status& status, bool errorIsOutOfOrder) {
-        opsWithErrors.emplace_back(op, status);
-        return WriteOpBatcher::kConsumeErrorAndResume;
-    };
+    ASSERT_FALSE(batch2.isEmptyBatch());
+    assertUnorderedSimpleWriteBatch(batch2, expectedBatch2);
 
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx, eh));
-
-    ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
-
-    ASSERT_TRUE(opsWithErrors.size() == 2);
-    ASSERT_TRUE(opsWithErrors[0].first.getId() == 1);
-    ASSERT_TRUE(opsWithErrors[1].first.getId() == 2);
+    ASSERT_TRUE(errors2.size() == 2);
+    ASSERT_TRUE(errors2[0].first.getId() == 1);
+    ASSERT_TRUE(errors2[1].first.getId() == 2);
 }
 
 TEST_F(UnorderedUnifiedWriteExecutorBatcherTest,
@@ -717,18 +827,18 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest,
     SimpleWriteBatch::ShardRequest shardRequest1{{{nss0, nss0Shard0}, {nss1, nss1Shard0}},
                                                  {WriteOp(request, 0), WriteOp(request, 1)}};
     SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}}};
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
 
     shardRequest1 =
         SimpleWriteBatch::ShardRequest{{{nss0, nss0Shard0VersionIgnored}}, {WriteOp(request, 2)}};
     SimpleWriteBatch expectedBatch2{{{shardId0, shardRequest1}}};
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch2, expectedBatch2);
+    assertUnorderedSimpleWriteBatch(batch2, expectedBatch2);
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch3.isEmptyBatch());
 }
 
@@ -759,9 +869,9 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherReprocessesWrit
         {{nss0, nss0Shard1}, {nss1, nss1Shard1}},
         {WriteOp(request, 0), WriteOp(request, 3), WriteOp(request, 4)}};
     SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}, {shardId1, shardRequest2}}};
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
 
     reprocessWriteOp(batcher, batch1, {0});
     reprocessWriteOp(batcher, batch1, {3});
@@ -770,11 +880,11 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherReprocessesWrit
     shardRequest2 = SimpleWriteBatch::ShardRequest{{{nss0, nss0Shard1}, {nss1, nss1Shard1}},
                                                    {WriteOp(request, 0), WriteOp(request, 3)}};
     SimpleWriteBatch expectedBatch2{{{shardId0, shardRequest1}, {shardId1, shardRequest2}}};
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch2, expectedBatch2);
+    assertUnorderedSimpleWriteBatch(batch2, expectedBatch2);
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch3.isEmptyBatch());
 }
 
@@ -801,9 +911,9 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest,
         {WriteOp(request, 0), WriteOp(request, 1), WriteOp(request, 2)}};
     SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}}};
 
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
 
     reprocessWriteOp(batcher, batch1, {1});
     analyzer.setOpAnalysis({
@@ -814,11 +924,11 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest,
 
     shardRequest1 = SimpleWriteBatch::ShardRequest{{{nss1, nss1Shard1}}, {WriteOp(request, 1)}};
     SimpleWriteBatch expectedBatch2{{{shardId1, shardRequest1}}};
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch2, expectedBatch2);
+    assertUnorderedSimpleWriteBatch(batch2, expectedBatch2);
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch3.isEmptyBatch());
 }
 
@@ -844,17 +954,17 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherReprocessBatch)
         {WriteOp(request, 0), WriteOp(request, 1), WriteOp(request, 2)}};
     SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}}};
 
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
 
     batcher.markBatchReprocess(batch1);
 
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch2, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch2, expectedBatch1);
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch3.isEmptyBatch());
 }
 
@@ -881,21 +991,85 @@ TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherDoesNotStopOnWr
     SimpleWriteBatch::ShardRequest shardRequest1{{{nss0, nss0Shard0}, {nss1, nss1Shard0}},
                                                  {WriteOp(request, 0), WriteOp(request, 1)}};
     SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}}};
-    auto batch1 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch1.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch1, expectedBatch1);
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
 
     shardRequest1 =
         SimpleWriteBatch::ShardRequest{{{nss0, nss0Shard0VersionIgnored}}, {WriteOp(request, 2)}};
     SimpleWriteBatch expectedBatch2{{{shardId0, shardRequest1}}};
-    auto batch2 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_FALSE(batch2.isEmptyBatch());
-    assertUnorderedSingleShardSimpleWriteBatch(batch2, expectedBatch2);
+    assertUnorderedSimpleWriteBatch(batch2, expectedBatch2);
 
-    auto batch3 = uassertStatusOK(batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx));
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
     ASSERT_TRUE(batch3.isEmptyBatch());
 }
 
+TEST_F(UnorderedUnifiedWriteExecutorBatcherTest, UnorderedBatcherAttachesSampleIdToBatches) {
+    BulkWriteCommandRequest request(
+        {BulkWriteUpdateOp(
+             0, BSON("x" << -1), write_ops::UpdateModification(BSON("$set" << BSON("a" << 1)))),
+         BulkWriteUpdateOp(
+             0, BSON("x" << -1), write_ops::UpdateModification(BSON("$set" << BSON("a" << 1)))),
+         BulkWriteUpdateOp(
+             0, BSON("x" << -1), write_ops::UpdateModification(BSON("$set" << BSON("a" << 1)))),
+         BulkWriteUpdateOp(
+             0, BSON("x" << -1), write_ops::UpdateModification(BSON("$set" << BSON("a" << 1))))},
+        {NamespaceInfoEntry(nss0)});
+    WriteOpProducer producer(request);
+
+    auto sampleId0 = UUID::gen();
+    auto sampleId2 = UUID::gen();
+    WriteOpAnalyzerMock analyzer({
+        {0,
+         Analysis{
+             kSingleShard,
+             {nss0Shard0},
+             analyze_shard_key::TargetedSampleId(sampleId0, shardId0),
+         }},
+        {1,
+         Analysis{
+             kMultiShard,
+             {nss0Shard0, nss0Shard1},
+         }},
+        {2,
+         Analysis{
+             kNonTargetedWrite,
+             {nss0Shard0, nss0Shard1},
+             analyze_shard_key::TargetedSampleId(sampleId2, shardId0),
+         }},
+        {3,
+         Analysis{
+             kInternalTransaction,
+             {nss0Shard0, nss0Shard1},
+         }},
+    });
+
+    auto routingCtx = RoutingContext::createSynthetic({});
+    auto batcher = UnorderedWriteOpBatcher(producer, analyzer);
+
+    // Output batches: [0, 1], [2], [3], <stop>
+    auto [batch1, errors1] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_FALSE(batch1.isEmptyBatch());
+    auto shardRequest1 = SimpleWriteBatch::ShardRequest{
+        {{nss0, nss0Shard0}}, {WriteOp(request, 0), WriteOp(request, 1)}, {{0, sampleId0}}};
+    auto shardRequest2 =
+        SimpleWriteBatch::ShardRequest{{{nss0, nss0Shard1}}, {WriteOp(request, 1)}};
+    SimpleWriteBatch expectedBatch1{{{shardId0, shardRequest1}, {shardId1, shardRequest2}}};
+    assertUnorderedSimpleWriteBatch(batch1, expectedBatch1);
+
+    auto [batch2, errors2] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_FALSE(batch2.isEmptyBatch());
+    assertNonTargetedWriteBatch(batch2, 2, sampleId2);
+
+    auto [batch3, errors3] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_FALSE(batch3.isEmptyBatch());
+    assertInternalTransactionBatch(batch3, 3);
+
+    auto [batch4, errors4] = batcher.getNextBatch(nullptr /*opCtx*/, *routingCtx);
+    ASSERT_TRUE(batch4.isEmptyBatch());
+}
 }  // namespace
 }  // namespace unified_write_executor
 }  // namespace mongo

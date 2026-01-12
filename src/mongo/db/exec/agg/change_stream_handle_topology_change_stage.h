@@ -66,20 +66,6 @@ private:
      */
     std::vector<RemoteCursor> establishShardCursorsOnNewShards(const Document& newShardDetectedObj);
 
-    /**
-     * Updates the $changeStream stage in the '_originalAggregateCommand' to reflect the start time
-     * for the newly-added shard(s), then generates the final command object to be run on those
-     * shards.
-     */
-    BSONObj createUpdatedCommandForNewShard(Timestamp shardAddedTime);
-
-    /**
-     * Given the '_originalAggregateCommand' and a resume token, returns a new BSON object with the
-     * same command except with the addition of a resumeAfter option containing the resume token.
-     * If there was a previous resumeAfter option, it will be removed.
-     */
-    BSONObj replaceResumeTokenInCommand(Document resumeToken);
-
     boost::intrusive_ptr<MergeCursorsStage> _mergeCursors;
     BSONObj _originalAggregateCommand;
 };

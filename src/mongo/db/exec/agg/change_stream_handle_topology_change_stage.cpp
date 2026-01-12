@@ -29,11 +29,15 @@
 
 #include "mongo/db/exec/agg/change_stream_handle_topology_change_stage.h"
 
+#include "mongo/bson/timestamp.h"
 #include "mongo/db/exec/agg/document_source_to_stage_registry.h"
+#include "mongo/db/logical_time.h"
 #include "mongo/db/pipeline/change_stream_topology_change_info.h"
+#include "mongo/db/pipeline/change_stream_topology_helpers.h"
 #include "mongo/db/pipeline/document_source_change_stream_handle_topology_change.h"
 #include "mongo/db/pipeline/sharded_agg_helpers.h"
 #include "mongo/db/sharding_environment/grid.h"
+#include "mongo/s/query/exec/shard_tag.h"
 
 namespace mongo {
 
@@ -78,7 +82,7 @@ bool isShardConfigEvent(const Document& eventDoc) {
     }
 
     if (opType.getStringData() == DocumentSourceChangeStream::kNewShardDetectedOpType) {
-        // If the failpoint is enabled, throw the 'ChangeStreamToplogyChange' exception to the
+        // If the failpoint is enabled, throw the 'ChangeStreamTopologyChange' exception to the
         // client. This is used in testing to confirm that the swallowed 'kNewShardDetected' event
         // has reached the mongoS.
         // TODO SERVER-30784: remove this failpoint when the 'kNewShardDetected' event is the only
@@ -154,7 +158,11 @@ GetNextResult ChangeStreamHandleTopologyChangeStage::doGetNext() {
 
 void ChangeStreamHandleTopologyChangeStage::addNewShardCursors(
     const Document& newShardDetectedObj) {
-    _mergeCursors->addNewShardCursors(establishShardCursorsOnNewShards(newShardDetectedObj));
+    // This stage is only used by v1 change stream readers, which does not close any existing remote
+    // cursors. Because cursors are never closed, we can always go with the default shard tag for
+    // all cursors.
+    _mergeCursors->addNewShardCursors(establishShardCursorsOnNewShards(newShardDetectedObj),
+                                      ShardTag::kDefault);
 }
 
 std::vector<RemoteCursor> ChangeStreamHandleTopologyChangeStage::establishShardCursorsOnNewShards(
@@ -172,8 +180,15 @@ std::vector<RemoteCursor> ChangeStreamHandleTopologyChangeStage::establishShardC
         return {};
     }
 
-    auto cmdObj = createUpdatedCommandForNewShard(
-        newShardDetectedObj[DocumentSourceChangeStream::kClusterTimeField].getTimestamp());
+    // We must start the new cursor from the moment at which the shard became visible.
+    const LogicalTime shardAddedTime = LogicalTime{
+        newShardDetectedObj[DocumentSourceChangeStream::kClusterTimeField].getTimestamp()};
+
+    auto cmdObj = change_stream::topology_helpers::createUpdatedCommandForNewShard(
+        pExpCtx,
+        shardAddedTime.addTicks(1).asTimestamp(),
+        _originalAggregateCommand,
+        boost::none /* changeStreamVersion */);
 
     const bool allowPartialResults = false;  // partial results are not allowed
     return establishCursors(opCtx,
@@ -182,63 +197,6 @@ std::vector<RemoteCursor> ChangeStreamHandleTopologyChangeStage::establishShardC
                             ReadPreferenceSetting::get(opCtx),
                             {{newShard.getName(), cmdObj}},
                             allowPartialResults);
-}
-
-
-BSONObj ChangeStreamHandleTopologyChangeStage::createUpdatedCommandForNewShard(
-    Timestamp shardAddedTime) {
-    // We must start the new cursor from the moment at which the shard became visible.
-    const auto newShardAddedTime = LogicalTime{shardAddedTime};
-    auto resumeTokenForNewShard = ResumeToken::makeHighWaterMarkToken(
-        newShardAddedTime.addTicks(1).asTimestamp(), pExpCtx->getChangeStreamTokenVersion());
-
-    // Create a new shard command object containing the new resume token.
-    auto shardCommand = replaceResumeTokenInCommand(resumeTokenForNewShard.toDocument());
-
-    tassert(7663502,
-            str::stream() << "SerializationContext on the expCtx should not be empty, with ns: "
-                          << pExpCtx->getNamespaceString().toStringForErrorMsg(),
-            pExpCtx->getSerializationContext() != SerializationContext::stateDefault());
-
-    // Parse and optimize the pipeline.
-    auto pipeline = Pipeline::parseFromArray(
-        shardCommand[AggregateCommandRequest::kPipelineFieldName], pExpCtx);
-    pipeline->optimizePipeline();
-
-    // Split the full pipeline to get the shard pipeline.
-    auto splitPipelines = sharded_agg_helpers::SplitPipeline::split(std::move(pipeline));
-
-    // Create the new command that will run on the shard.
-    return sharded_agg_helpers::createCommandForTargetedShards(pExpCtx,
-                                                               Document{shardCommand},
-                                                               splitPipelines,
-                                                               boost::none, /* exhangeSpec */
-                                                               true /* needsMerge */,
-                                                               boost::none /* explain */);
-}
-
-BSONObj ChangeStreamHandleTopologyChangeStage::replaceResumeTokenInCommand(Document resumeToken) {
-    Document originalCmd(_originalAggregateCommand);
-    auto pipeline = originalCmd[AggregateCommandRequest::kPipelineFieldName].getArray();
-
-    // A $changeStream must be the first element of the pipeline in order to be able
-    // to replace (or add) a resume token.
-    tassert(5549102,
-            "Invalid $changeStream command object",
-            !pipeline[0][DocumentSourceChangeStream::kStageName].missing());
-
-    MutableDocument changeStreamStage(
-        pipeline[0][DocumentSourceChangeStream::kStageName].getDocument());
-    changeStreamStage[DocumentSourceChangeStreamSpec::kResumeAfterFieldName] = Value(resumeToken);
-
-    // If the command was initially specified with a startAtOperationTime, we need to remove it to
-    // use the new resume token.
-    changeStreamStage[DocumentSourceChangeStreamSpec::kStartAtOperationTimeFieldName] = Value();
-    pipeline[0] =
-        Value(Document{{DocumentSourceChangeStream::kStageName, changeStreamStage.freeze()}});
-    MutableDocument newCmd(std::move(originalCmd));
-    newCmd[AggregateCommandRequest::kPipelineFieldName] = Value(std::move(pipeline));
-    return newCmd.freeze().toBson();
 }
 
 }  // namespace exec::agg

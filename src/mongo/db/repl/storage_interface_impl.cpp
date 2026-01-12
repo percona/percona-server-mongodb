@@ -320,7 +320,7 @@ template <typename AutoGetCollectionType>
 StatusWith<const CollectionPtr*> getCollection(const AutoGetCollectionType& autoGetCollection,
                                                const NamespaceStringOrUUID& nsOrUUID,
                                                const std::string& message) {
-    const auto& collection = autoGetCollection.getCollection();
+    const auto& collection = *autoGetCollection;
     if (!collection) {
         return {ErrorCodes::NamespaceNotFound,
                 str::stream() << "Collection [" << nsOrUUID.toStringForErrorMsg() << "] not found. "
@@ -617,13 +617,15 @@ Status StorageInterfaceImpl::setIndexIsMultikey(OperationContext* opCtx,
                 opCtx,
                 nsOrUUID,
                 MODE_IX,
-                AutoGetCollection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
+                auto_get_collection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
                     .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite}));
         } catch (ExceptionFor<ErrorCodes::NamespaceNotFound>& ex) {
             return ex.toStatus();
         }
-        auto collectionResult = getCollection(
-            *autoColl, nsOrUUID, "The collection must exist before setting an index to multikey.");
+        auto collectionResult =
+            getCollection(autoColl.get(),
+                          nsOrUUID,
+                          "The collection must exist before setting an index to multikey.");
         if (!collectionResult.isOK()) {
             return collectionResult.getStatus();
         }
@@ -1399,7 +1401,7 @@ Status StorageInterfaceImpl::setCollectionCount(OperationContext* opCtx,
                                                 const NamespaceStringOrUUID& nsOrUUID,
                                                 long long newCount) {
     auto autoGetCollOptions =
-        AutoGetCollection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
+        auto_get_collection::Options{}.globalLockOptions(Lock::GlobalLockOptions{
             .explicitIntent = rss::consensus::IntentRegistry::Intent::LocalWrite});
     AutoGetCollection autoColl(opCtx, nsOrUUID, LockMode::MODE_X, autoGetCollOptions);
 

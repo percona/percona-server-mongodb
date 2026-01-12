@@ -721,7 +721,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                             opCtx,
                             fromNss,
                             MODE_IS,
-                            AutoGetCollection::Options{}
+                            auto_get_collection::Options{}
                                 .viewMode(auto_get_collection::ViewMode::kViewsPermitted)
                                 .expectedUUID(_doc.getExpectedSourceUUID())};
 
@@ -743,7 +743,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                         uassert(ErrorCodes::NamespaceNotFound,
                                 str::stream() << "Collection " << fromNss.toStringForErrorMsg()
                                               << " doesn't exist.",
-                                coll.getCollection());
+                                *coll);
 
                         uassert(ErrorCodes::IllegalOperation,
                                 "Cannot rename an encrypted collection",
@@ -845,7 +845,7 @@ ExecutorFuture<void> RenameCollectionCoordinator::_runImpl(
                             opCtx,
                             toNss,
                             MODE_IS,
-                            AutoGetCollection::Options{}
+                            auto_get_collection::Options{}
                                 .viewMode(auto_get_collection::ViewMode::kViewsPermitted)
                                 .expectedUUID(_doc.getExpectedTargetUUID())};
 

@@ -55,8 +55,12 @@ last-continuous:
       ticket: SERVER-105047
     - test_file: jstests/core/timeseries/ddl/timeseries_bucket_index.js
       ticket: SERVER-87119
+    - test_file: jstests/core/index/not_index_tagging.js
+      ticket: SERVER-110906
     - test_file: jstests/core/timeseries/write/timeseries_closed_update_delete.js
       ticket: SERVER-95726
+    - test_file: jstests/query_golden/distinct_index_eligibility_md.js
+      ticket: SERVER-110423
   suites: null
 last-lts:
   all:
@@ -610,6 +614,10 @@ last-lts:
       ticket: SERVER-105047
     - test_file: jstests/core/timeseries/ddl/timeseries_bucket_index.js
       ticket: SERVER-87119
+    - test_file: jstests/core/index/not_index_tagging.js
+      ticket: SERVER-110906
     - test_file: jstests/core/timeseries/write/timeseries_closed_update_delete.js
       ticket: SERVER-95726
+    - test_file: jstests/query_golden/distinct_index_eligibility_md.js
+      ticket: SERVER-110423
   suites: null
