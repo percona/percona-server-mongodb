@@ -1,18 +1,24 @@
-#
+%global __brp_strip_args --strip-debug
+%global __find_debuginfo /usr/lib/rpm/find-debuginfo.sh -g
+
+# Disable the addition of mini debuginfo and gdb index options
+%global _include_minidebuginfo %{nil}
+%global _include_gdb_index %{nil}
+
+# Optionally disable source extraction to avoid empty debugsourcefiles.list errors
+%global __find_debugsource %{nil}
+
 %define         mongo_home /var/lib/mongo
 %define         psmdb_telemetry /usr/local/percona/telemetry/psmdb
 %define         psmdbs_telemetry /usr/local/percona/telemetry/psmdbs
 
 %if 0%{?amzn} == 2023 || 0%{?rhel} >= 9
 %undefine _debugsource_packages
-# Disable dwz optimization and addition of gdb index options
+# Disable dwz optimization
 %global _find_debuginfo_dwz_opts %{nil}
-%undefine _include_gdb_index
 %endif
 
-# By default a build will be done in normal mode
-%{?enable_fipsmode: %global enable_fipsmode 1}
-
+#
 #
 Name:           percona-server-mongodb
 Version:        @@VERSION@@
@@ -72,6 +78,8 @@ Requires: numactl, openldap, cyrus-sasl-gssapi, curl
 
 Conflicts: Percona-Server-MongoDB < 6.0.0
 Conflicts: Percona-Server-MongoDB-32 Percona-Server-MongoDB-34 Percona-Server-MongoDB-36 mongodb-org
+Conflicts: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
+Obsoletes: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
 
 %description
 This package contains high-performance MongoDB replacement from Percona - Percona Server for MongoDB.
@@ -100,6 +108,8 @@ Requires: percona-telemetry-agent
 %endif
 Conflicts: Percona-Server-MongoDB-mongos < 6.0.0
 Conflicts: Percona-Server-MongoDB-32-mongos Percona-Server-MongoDB-34-mongos Percona-Server-MongoDB-36-mongos mongodb-org-mongos
+Conflicts: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
+Obsoletes: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
 
 %description mongos
 This package contains mongos - the Percona Server for MongoDB sharded cluster query router
@@ -114,6 +124,8 @@ Requires: percona-telemetry-agent
 %endif
 Conflicts: Percona-Server-MongoDB-server < 6.0.0
 Conflicts: Percona-Server-MongoDB-32-server Percona-Server-MongoDB-34-server Percona-Server-MongoDB-36-server mongodb-org-server
+Conflicts: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
+Obsoletes: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
 
 %description server
 This package contains the Percona Server for MongoDB server software, default configuration files and init.d scripts
@@ -124,6 +136,8 @@ Summary:        Percona Server for MongoDB shell client
 Requires:  cyrus-sasl-plain
 Conflicts: Percona-Server-MongoDB-shell < 6.0.0
 Conflicts: Percona-Server-MongoDB-32-shell Percona-Server-MongoDB-34-shell Percona-Server-MongoDB-36-shell mongodb-org-shell
+Conflicts: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
+Obsoletes: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
 
 %description shell
 This package contains the Percona Server for MongoDB shell
@@ -133,6 +147,8 @@ Group:          Applications/Databases
 Summary:        The tools package for Percona Server for MongoDB
 Conflicts: Percona-Server-MongoDB-tools < 6.0.0
 Conflicts: Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
+Conflicts: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
+Obsoletes: Percona-Server-MongoDB-pro Percona-Server-MongoDB-mongos-pro Percona-Server-MongoDB-server-pro Percona-Server-MongoDB-pro-dbg
 
 %description tools
 This package contains various tools from MongoDB project, recompiled for Percona Server for MongoDB
@@ -179,7 +195,6 @@ mv ${INSTALLDIR_AWS}/include/* ${INSTALLDIR}/include/
 mv ${INSTALLDIR_AWS}/lib*/* ${INSTALLDIR}/lib/
 
 # Build PSMDB with SCons
-echo ${enable_fipsmode}
 pushd $RPM_BUILD_DIR/%{src_dir}
 buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on  \
 %{?_smp_mflags} --use-sasl-client CPPPATH=${INSTALLDIR}/include LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" \
@@ -188,7 +203,7 @@ rm -fr resmoke.ini
 popd
 
 #dirty hack for centos:7 + rpm 4.11(rpmlib absence of (LargeFiles)
-%if 0%{?amzn} == 2023 || 0%{?rhel} == 7
+%if 0%{?rhel} == 7
 eu-strip build/install/bin/mongod
 %endif
 
