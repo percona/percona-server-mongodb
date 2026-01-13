@@ -1059,7 +1059,7 @@ void InitialSyncerFCB::_finishInitialSyncAttempt(const StatusWith<OpTimeAndWallT
     stdx::unique_lock<stdx::mutex> lock(_mutex);
 
     auto runTime = _initialSyncState ? _initialSyncState->timer.millis() : 0;
-    int rollBackId = -1;
+    int rollBackId = ReplicationProcess::kUninitializedRollbackId;
     int operationsRetried = 0;
     int totalTimeUnreachableMillis = 0;
     if (_sharedData) {
