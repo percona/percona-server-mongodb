@@ -2,7 +2,7 @@ version: 1.0.0
 filters:
   - "*":
     approvers:
-      - 10gen/server-replication
+      - 10gen/server-replication-reviewers
   - "*capped*":
     approvers:
       - 10gen/server-collection-write-path
@@ -33,3 +33,6 @@ filters:
   - "*fcv*":
     approvers:
       - 10gen/server-fcv
+  - "*record_ids*":
+    approvers:
+      - 10gen/server-collection-write-path

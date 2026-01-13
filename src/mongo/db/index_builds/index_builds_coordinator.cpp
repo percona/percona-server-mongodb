@@ -2314,7 +2314,7 @@ void IndexBuildsCoordinator::createIndexesOnEmptyCollection(OperationContext* op
 
     auto collectionUUID = collection->uuid();
 
-    auto nss = collection->ns();
+    const auto& nss = collection->ns();
     CollectionCatalog::get(opCtx)->invariantHasExclusiveAccessToCollection(opCtx, nss);
 
     auto opObserver = opCtx->getServiceContext()->getOpObserver();
@@ -2637,7 +2637,7 @@ IndexBuildsCoordinator::PostSetupAction IndexBuildsCoordinator::_setUpIndexBuild
         : IndexBuildsManager::IndexConstraints::kEnforce;
     options.protocol = replState->protocol;
     options.method = indexBuildOptions.indexBuildMethod;
-    options.generateTableWrites = replState->getGenerateTableWrites();
+    options.generateTableWrites = true;
 
     try {
         if (replCoord->canAcceptWritesFor(opCtx, collection->ns()) &&
@@ -2664,6 +2664,10 @@ IndexBuildsCoordinator::PostSetupAction IndexBuildsCoordinator::_setUpIndexBuild
                 // case when recovering from the oplog as a standalone. In general, if a timestamp
                 // is provided, it should be used to avoid untimestamped writes.
                 tsBlock.emplace(opCtx, startTimestamp);
+            }
+
+            if (options.method == IndexBuildMethodEnum::kPrimaryDriven) {
+                options.generateTableWrites = false;
             }
 
             uassertStatusOK(_indexBuildsManager.setUpIndexBuild(opCtx,

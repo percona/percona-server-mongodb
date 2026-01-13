@@ -133,21 +133,16 @@ bool executeOperationsAsPartOfShardKeyUpdate(OperationContext* opCtx,
     return true;
 }
 
-/**
- * Creates the delete op that will be used to delete the pre-image document. Will also attach the
- * original document _id retrieved from 'updatePreImage'.
- */
-write_ops::DeleteCommandRequest createShardKeyDeleteOp(const NamespaceString& nss,
-                                                       const BSONObj& updatePreImage) {
-    BSONObjBuilder deleteQuery;
-    BSONArrayBuilder deleteExprQuery;
+BSONObj convertDocumentIntoQuery(const BSONObj& document) {
+    BSONObjBuilder query;
+    BSONArrayBuilder exprQuery;
 
-    for (BSONElement elem : updatePreImage) {
+    for (BSONElement elem : document) {
         const StringData fieldName = elem.fieldNameStringData();
 
         const bool shouldWrapIntoGetField = fieldName.starts_with("$");
         if (MONGO_unlikely(shouldWrapIntoGetField)) {
-            deleteExprQuery.append(
+            exprQuery.append(
                 BSON("$eq" << BSON_ARRAY(
                          BSON("$getField" << BSON("input" << "$$ROOT" << "field"
                                                           << BSON("$literal" << fieldName)))
@@ -156,23 +151,36 @@ write_ops::DeleteCommandRequest createShardKeyDeleteOp(const NamespaceString& ns
             const bool shouldWrapIntoEq = elem.type() == BSONType::object &&
                 elem.Obj().firstElementFieldNameStringData().starts_with("$");
             if (shouldWrapIntoEq) {
-                BSONObjBuilder eqOperator = deleteQuery.subobjStart(fieldName);
+                BSONObjBuilder eqOperator = query.subobjStart(fieldName);
                 eqOperator.appendAs(elem, "$eq");
                 eqOperator.doneFast();
             } else {
-                deleteQuery.append(elem);
+                query.append(elem);
             }
         }
     }
 
-    if (auto exprQueryArray = deleteExprQuery.arr(); !exprQueryArray.isEmpty()) {
-        deleteQuery.append("$expr", BSON("$and" << exprQueryArray));
+    if (auto exprQueryArray = exprQuery.arr(); !exprQueryArray.isEmpty()) {
+        query.append("$expr", BSON("$and" << exprQueryArray));
     }
+
+    return query.obj();
+}
+
+/**
+ * Creates the delete op that will be used to delete the pre-image document. Will also attach the
+ * original document _id retrieved from 'updatePreImage'.
+ */
+write_ops::DeleteCommandRequest createShardKeyDeleteOp(const NamespaceString& nss,
+                                                       const BSONObj& updatePreImageOrPredicate,
+                                                       bool shouldUpsert) {
+    BSONObj query = shouldUpsert ? updatePreImageOrPredicate
+                                 : convertDocumentIntoQuery(updatePreImageOrPredicate);
 
     write_ops::DeleteCommandRequest deleteOp(nss);
     deleteOp.setDeletes({[&] {
         write_ops::DeleteOpEntry entry;
-        entry.setQ(deleteQuery.obj());
+        entry.setQ(query.getOwned());
         entry.setMulti(false);
         return entry;
     }()});
@@ -340,7 +348,8 @@ bool updateShardKeyForDocumentLegacy(OperationContext* opCtx,
         (isTimeseriesViewRequest && nss.isTimeseriesBucketsCollection())
             ? nss.getTimeseriesViewNamespace()
             : nss,
-        updatePreImage);
+        updatePreImage,
+        documentKeyChangeInfo.getShouldUpsert());
     auto insertCmdObj = constructShardKeyInsertCmdObj(nss, updatePostImage, fleCrudProcessed);
 
     return executeOperationsAsPartOfShardKeyUpdate(opCtx,
@@ -369,8 +378,10 @@ BSONObj commitShardKeyUpdateTransaction(OperationContext* opCtx) {
     return txnRouter.commitTransaction(opCtx, boost::none);
 }
 
-BSONObj constructShardKeyDeleteCmdObj(const NamespaceString& nss, const BSONObj& updatePreImage) {
-    auto deleteOp = createShardKeyDeleteOp(nss, updatePreImage);
+BSONObj constructShardKeyDeleteCmdObj(const NamespaceString& nss,
+                                      const BSONObj& updatePreImageOrPredicate,
+                                      bool shouldUpsert) {
+    auto deleteOp = createShardKeyDeleteOp(nss, updatePreImageOrPredicate, shouldUpsert);
     return deleteOp.toBSON();
 }
 
@@ -391,7 +402,8 @@ SemiFuture<bool> updateShardKeyForDocument(const txn_api::TransactionClient& txn
     // a measurement to be deleted and so the delete command should be sent to the timeseries view.
     auto deleteCmdObj = documentShardKeyUpdateUtil::constructShardKeyDeleteCmdObj(
         nss.isTimeseriesBucketsCollection() ? nss.getTimeseriesViewNamespace() : nss,
-        changeInfo.getPreImage().getOwned());
+        changeInfo.getPreImage().getOwned(),
+        changeInfo.getShouldUpsert());
     auto vts = auth::ValidatedTenancyScope::get(opCtx);
     auto deleteOpMsg = OpMsgRequestBuilder::create(
         auth::ValidatedTenancyScope::get(opCtx), nss.dbName(), std::move(deleteCmdObj));

@@ -36,7 +36,7 @@ namespace mongo {
  * The physical representation of a join predicate between two relations. This struct is used by
  * QuerySolutionNodes that implement binary joins to indicate which fields are being joined.
  */
-struct JoinPredicate {
+struct QSNJoinPredicate {
     enum class ComparisonOp {
         Eq,
     };
@@ -49,6 +49,10 @@ struct JoinPredicate {
     // case the field will have a prefix representing the "as" field of a $lookup.
     FieldPath leftField;
     FieldPath rightField;
+
+    std::string toString() const;
 };
+
+std::ostream& operator<<(std::ostream& out, const QSNJoinPredicate& jp);
 
 }  // namespace mongo

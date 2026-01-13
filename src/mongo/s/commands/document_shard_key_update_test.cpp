@@ -56,15 +56,17 @@ TEST_F(DocumentShardKeyUpdateTest, constructShardKeyDeleteCmdObj) {
     static const BSONObj kUpdatePreImage =
         BSON("x" << 4 << "y" << 3 << "z" << BSON("a" << 2 << "b" << 1) << "_id" << 20);
 
-    auto deleteCmdObj = constructShardKeyDeleteCmdObj(nss, kUpdatePreImage);
+    for (auto shouldUpsert : {true, false}) {
+        auto deleteCmdObj = constructShardKeyDeleteCmdObj(nss, kUpdatePreImage, shouldUpsert);
 
-    auto deletesObj = deleteCmdObj["deletes"].Array();
-    ASSERT_EQ(deletesObj.size(), 1U);
+        auto deletesObj = deleteCmdObj["deletes"].Array();
+        ASSERT_EQ(deletesObj.size(), 1U);
 
-    auto predicate = deletesObj[0]["q"].Obj();
-    ASSERT_BSONOBJ_EQ(kUpdatePreImage, predicate);
+        auto predicate = deletesObj[0]["q"].Obj();
+        ASSERT_BSONOBJ_EQ(kUpdatePreImage, predicate);
 
-    ASSERT_EQ(deleteCmdObj["delete"].String(), nss.coll());
+        ASSERT_EQ(deleteCmdObj["delete"].String(), nss.coll());
+    }
 }
 
 TEST_F(DocumentShardKeyUpdateTest, constructShardKeyDeleteCmdObjWithDollarFields) {
@@ -75,38 +77,44 @@ TEST_F(DocumentShardKeyUpdateTest, constructShardKeyDeleteCmdObjWithDollarFields
               << 7 << "$hotel" << BSON("$india" << BSON("$juliett" << 9)) << "obj3"
               << BSON("subobj" << BSON("$kilo" << 10)) << "$mike" << BSON_ARRAY(11 << 12));
 
-    auto deleteCmdObj = constructShardKeyDeleteCmdObj(nss, kUpdatePreImage);
+    for (auto shouldUpsert : {true, false}) {
+        auto deleteCmdObj = constructShardKeyDeleteCmdObj(nss, kUpdatePreImage, shouldUpsert);
 
-    auto deletesObj = deleteCmdObj["deletes"].Array();
-    ASSERT_EQ(deletesObj.size(), 1U);
+        auto deletesObj = deleteCmdObj["deletes"].Array();
+        ASSERT_EQ(deletesObj.size(), 1U);
 
-    static const BSONObj kExpectedPredicate = BSON(
-        "_id" << 1 << "array" << BSON_ARRAY(2 << BSON("$alpha" << 3)) << "obj"
-              << BSON("$eq" << BSON("$beta" << 4)) << "obj2"
-              << BSON("$eq" << BSON("$charlie" << 5 << "$delta" << BSON("$foxtrot" << 6))) << "obj3"
-              << BSON("subobj" << BSON("$kilo" << 10)) << "$expr"
-              << BSON("$and" << BSON_ARRAY(
-                          BSON("$eq" << BSON_ARRAY(
-                                   BSON("$getField"
-                                        << BSON("input" << "$$ROOT"
-                                                        << "field" << BSON("$literal" << "$golf")))
-                                   << BSON("$literal" << 7)))
-                          << BSON("$eq" << BSON_ARRAY(
-                                      BSON("$getField" << BSON(
-                                               "input" << "$$ROOT"
-                                                       << "field" << BSON("$literal" << "$hotel")))
-                                      << BSON("$literal"
-                                              << BSON("$india" << BSON("$juliett" << 9)))))
-                          << BSON("$eq" << BSON_ARRAY(
-                                      BSON("$getField" << BSON(
-                                               "input" << "$$ROOT"
-                                                       << "field" << BSON("$literal" << "$mike")))
-                                      << BSON("$literal" << BSON_ARRAY(11 << 12)))))));
+        static const BSONObj kPredicateFromDocument = BSON(
+            "_id"
+            << 1 << "array" << BSON_ARRAY(2 << BSON("$alpha" << 3)) << "obj"
+            << BSON("$eq" << BSON("$beta" << 4)) << "obj2"
+            << BSON("$eq" << BSON("$charlie" << 5 << "$delta" << BSON("$foxtrot" << 6))) << "obj3"
+            << BSON("subobj" << BSON("$kilo" << 10)) << "$expr"
+            << BSON("$and" << BSON_ARRAY(
+                        BSON("$eq" << BSON_ARRAY(
+                                 BSON("$getField"
+                                      << BSON("input" << "$$ROOT"
+                                                      << "field" << BSON("$literal" << "$golf")))
+                                 << BSON("$literal" << 7)))
+                        << BSON("$eq" << BSON_ARRAY(
+                                    BSON("$getField" << BSON(
+                                             "input" << "$$ROOT"
+                                                     << "field" << BSON("$literal" << "$hotel")))
+                                    << BSON("$literal" << BSON("$india" << BSON("$juliett" << 9)))))
+                        << BSON("$eq" << BSON_ARRAY(
+                                    BSON("$getField"
+                                         << BSON("input" << "$$ROOT"
+                                                         << "field" << BSON("$literal" << "$mike")))
+                                    << BSON("$literal" << BSON_ARRAY(11 << 12)))))));
 
-    auto predicate = deletesObj[0]["q"].Obj();
-    ASSERT_BSONOBJ_EQ(kExpectedPredicate, predicate);
+        auto predicate = deletesObj[0]["q"].Obj();
+        if (shouldUpsert) {
+            ASSERT_BSONOBJ_EQ(kUpdatePreImage, predicate);
+        } else {
+            ASSERT_BSONOBJ_EQ(kPredicateFromDocument, predicate);
+        }
 
-    ASSERT_EQ(deleteCmdObj["delete"].String(), nss.coll());
+        ASSERT_EQ(deleteCmdObj["delete"].String(), nss.coll());
+    }
 }
 
 TEST_F(DocumentShardKeyUpdateTest, constructShardKeyInsertCmdObj) {
