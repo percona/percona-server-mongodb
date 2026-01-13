@@ -353,7 +353,6 @@ buildvariants:
       push_arch: aarch64-amazon2023
       bazel_compile_flags: >-
         --define=MONGO_DISTMOD=amazon2023
-        --subcommands
         --build_enterprise=False
       compile_all_but_not_unittests_flags: >-
         --linkopt=-s
@@ -415,6 +414,8 @@ buildvariants:
       packager_distro: amazon2023
       repo_edition: enterprise
       compile_variant: *enterprise-amazon2023-arm64
+      large_distro_name: amazon2023.3-arm64-large
+      core_analyzer_distro_name: amazon2023.3-arm64-large
     tasks:
       - name: compile_test_and_package_serial_TG
         distros:

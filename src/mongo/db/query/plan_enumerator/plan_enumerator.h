@@ -41,6 +41,7 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/fail_point.h"
+#include "mongo/util/modules.h"
 
 #include <cstddef>
 #include <deque>
@@ -51,7 +52,6 @@
 #include <utility>
 #include <vector>
 
-#include <absl/container/node_hash_map.h>
 #include <boost/optional/optional.hpp>
 
 namespace mongo {

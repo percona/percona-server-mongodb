@@ -115,10 +115,7 @@
 #include <set>
 #include <string>
 
-#include <absl/container/flat_hash_map.h>
-#include <absl/meta/type_traits.h>
 #include <boost/cstdint.hpp>
-#include <boost/move/utility_core.hpp>
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 #include <boost/smart_ptr.hpp>
@@ -1758,7 +1755,7 @@ std::unique_ptr<Pipeline> targetShardsAndAddMergeCursorsWithRoutingCtx(
                                                       std::move(pipelineTargetingInfo),
                                                       pipelineDataSource,
                                                       std::move(shardCursorsSortSpec),
-                                                      std::move(readConcern),
+                                                      readConcern,
                                                       requestQueryStatsFromRemotes);
 }
 
@@ -1857,9 +1854,13 @@ std::unique_ptr<Pipeline> finalizeAndMaybePreparePipelineForExecution(
     bool shouldUseCollectionDefaultCollator) {
     std::unique_ptr<Pipeline> pipeline(ownedPipeline);
 
-    if (firstStageCanExecuteWithoutCursor(*pipeline)) {
-        // There's no need to attach a cursor here or acquire collections for viewless timeseries
-        // translations, so we can just make and optimize the pipeline and return early.
+    // If the pipeline doesn't require any collection acquisition, since it can execute without a
+    // cursor, or attachCursorAfterOptimizing is false we do not need to attach a cursor or perform
+    // viewless timeseries translations, so we can return early. 'attachCursorAfterOptimizing' will
+    // only be false if the pipeline is receiving documents from an in-memory local source, such as
+    // a cache. Viewless timeseries translations should have already occurred so we can get stable
+    // results reading from the cache.
+    if (firstStageCanExecuteWithoutCursor(*pipeline) || !attachCursorAfterOptimizing) {
         if (finalizePipeline) {
             finalizePipeline(pipeline.get(), std::monostate{});
         }
@@ -1896,28 +1897,18 @@ std::unique_ptr<Pipeline> finalizeAndMaybePreparePipelineForExecution(
                         "Preparing pipeline for execution",
                         "pipeline"_attr = pipelineToTarget->serializeForLogging());
 
-            if (attachCursorAfterOptimizing) {
-                const auto& aggRequest = AggregateCommandRequest(
-                    expCtx->getNamespaceString(), pipelineToTarget->serializeToBson());
+            const auto& aggRequest = AggregateCommandRequest(expCtx->getNamespaceString(),
+                                                             pipelineToTarget->serializeToBson());
 
-                return targetShardsAndAddMergeCursorsWithRoutingCtx(
-                    expCtx,
-                    std::move(pipelineToTarget),
-                    aggRequest,
-                    routingCtx,
-                    boost::none /* shardCursorsSortSpec */,
-                    shardTargetingPolicy,
-                    readConcern,
-                    shouldUseCollectionDefaultCollator);
-            } else {
-                // We will not dispatch a command to the shards with this pipeline if
-                // 'attachCursorAfterOptimizing' is false. For this value to be false, this pipeline
-                // will retrieve documents from a in-memory local source. For example, $lookup uses
-                // a cache. It is the caller's responsibility to ensure that a routing operation
-                // will not be run using this pipeline.
-                routingCtx.skipValidation();
-            }
-            return pipelineToTarget;
+            return targetShardsAndAddMergeCursorsWithRoutingCtx(
+                expCtx,
+                std::move(pipelineToTarget),
+                aggRequest,
+                routingCtx,
+                boost::none /* shardCursorsSortSpec */,
+                shardTargetingPolicy,
+                readConcern,
+                shouldUseCollectionDefaultCollator);
         });
 }
 

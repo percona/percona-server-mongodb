@@ -672,6 +672,7 @@ mongo_cc_library(
         "//src/mongo/s/write_ops:batch_write_types",
         "//src/mongo/s/write_ops:fle",
         "//src/mongo/s/write_ops:wc_error",
+        "//src/mongo/s/write_ops:write_op_helper",
         "//src/mongo/s/write_ops/unified_write_executor",
     ],
 )
@@ -762,6 +763,7 @@ mongo_cc_library(
         "//src/mongo/util:ntservice",
         "//src/mongo/util/options_parser",
         "//src/mongo/util/options_parser:options_parser_init",
+        "//src/mongo/util:pin_code_segments",
         "//src/mongo/util:testing_options",
         "//src/mongo/util:version_impl",
         "//src/mongo/s/commands:cluster_commands",
@@ -774,9 +776,6 @@ mongo_cc_library(
         "sharding_initialization",
         "sharding_router_api",
     ] + select({
-        "@platforms//os:linux": ["//src/mongo/util:pin_code_segments"],
-        "//conditions:default": [],
-    }) + select({
         "@platforms//os:windows": ["//src/mongo/db:windows_options"],
         "//conditions:default": [],
     }) + select({

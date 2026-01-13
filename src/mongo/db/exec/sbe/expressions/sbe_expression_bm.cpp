@@ -63,7 +63,6 @@
 #include <vector>
 
 #include <benchmark/benchmark.h>
-#include <boost/optional/optional.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
@@ -128,22 +127,21 @@ public:
         auto stage = sbe::makeS<sbe::BSONScanStage>(
             convertToBson(documents), boost::make_optional(_inputSlotId), kEmptyPlanNodeId);
 
-        stage_builder::StageBuilderState state{
-            opCtx.get(),
-            _env,
-            _planStageData.get(),
-            _variables,
-            nullptr /* yieldPolicy */,
-            &_slotIdGenerator,
-            &_frameIdGenerator,
-            &_spoolIdGenerator,
-            &_inListsMap,
-            &_collatorsMap,
-            &_sortSpecMap,
-            _expCtx,
-            false /* needsMerge */,
-            false /* allowDiskUse */
-        };
+        stage_builder::StageBuilderState state{opCtx.get(),
+                                               _env,
+                                               _planStageData.get(),
+                                               _variables,
+                                               nullptr /* yieldPolicy */,
+                                               &_slotIdGenerator,
+                                               &_frameIdGenerator,
+                                               &_spoolIdGenerator,
+                                               &_inListsMap,
+                                               &_collatorsMap,
+                                               &_sortSpecMap,
+                                               _expCtx,
+                                               false /* needsMerge */,
+                                               false /* allowDiskUse */,
+                                               expCtx->getIfrContext()};
 
         auto rootSlot =
             stage_builder::SbSlot{_inputSlotId, stage_builder::TypeSignature::kAnyScalarType};

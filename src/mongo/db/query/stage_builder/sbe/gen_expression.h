@@ -39,6 +39,7 @@ namespace mongo::stage_builder {
 
 struct StageBuilderState;
 class PlanStageSlots;
+class PlanStageReqs;
 
 /**
  * Translates an input Expression into an SBE SbExpr. 'rootSlot' should either be boost::none or

@@ -31,6 +31,7 @@
 
 #include "mongo/db/matcher/expression.h"
 #include "mongo/db/query/index_tag.h"
+#include "mongo/util/modules.h"
 
 #include <cstddef>
 #include <map>
@@ -40,7 +41,6 @@
 #include <utility>
 #include <vector>
 
-#include <absl/container/node_hash_map.h>
 #include <boost/optional/optional.hpp>
 
 namespace mongo {

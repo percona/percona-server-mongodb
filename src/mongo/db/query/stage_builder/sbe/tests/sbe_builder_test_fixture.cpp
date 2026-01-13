@@ -44,7 +44,6 @@
 #include "mongo/db/query/stage_builder/sbe/builder.h"
 #include "mongo/unittest/unittest.h"
 
-#include <absl/container/inlined_vector.h>
 #include <boost/optional/optional.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
@@ -235,8 +234,8 @@ void GoldenSbeExprBuilderTestFixture::setUp() {
                    &_sortSpecMap,
                    _expCtx,
                    false /* needsMerge */,
-                   false /* allowDiskUse */
-    );
+                   false /* allowDiskUse */,
+                   _expCtx->getIfrContext());
 }
 
 void GoldenSbeExprBuilderTestFixture::runTest(stage_builder::SbExpr sbExpr,

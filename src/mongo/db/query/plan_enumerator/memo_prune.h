@@ -32,10 +32,10 @@
 #include "mongo/db/query/compiler/logical_model/projection/projection.h"
 #include "mongo/db/query/compiler/metadata/index_entry.h"
 #include "mongo/db/query/plan_enumerator/enumerator_memo.h"
+#include "mongo/util/modules.h"
 
 #include <memory>
 
-#include <absl/container/node_hash_map.h>
 #include <boost/optional/optional.hpp>
 
 namespace mongo {

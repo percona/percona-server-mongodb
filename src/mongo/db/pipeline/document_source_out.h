@@ -60,6 +60,7 @@
 #include "mongo/s/write_ops/batched_command_request.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/intrusive_counter.h"
+#include "mongo/util/modules.h"
 
 #include <list>
 #include <memory>
@@ -67,7 +68,6 @@
 #include <string>
 #include <utility>
 
-#include <boost/move/utility_core.hpp>
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>

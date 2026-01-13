@@ -41,13 +41,11 @@
 #include <memory>
 #include <vector>
 
-#include <absl/container/flat_hash_map.h>
 
 namespace mongo::sbe {
 /**
- * Given an input stage `input` with a single slot `inputSlotId` containing a BSON Object
- * (TODO SERVER-110872 input can be any object type) and a set of requested paths `pathReqs`,
- * populate output slots `outputSlotIds` with the value at each path.
+ * Given an input stage `input` with a single slot `inputSlotId` containing an object and a set of
+ * requested paths `pathReqs`, populate output slots `outputSlotIds` with the value at each path.
  *
  * This stage is used to evaluate ExpressionFieldPath's in a single walk over the input object.
  *

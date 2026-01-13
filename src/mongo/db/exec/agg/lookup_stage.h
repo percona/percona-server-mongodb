@@ -48,7 +48,6 @@
 #include <memory>
 #include <vector>
 
-#include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
@@ -134,7 +133,6 @@ private:
         const boost::intrusive_ptr<ExpressionContext>& fromExpCtx,
         const NamespaceString& resolvedNs,
         const std::vector<BSONObj>& viewPipeline,
-        std::vector<BSONObj> currentPipeline,
         bool attachCursorAfterOptimizing,
         ShardTargetingPolicy shardTargetingPolicy,
         std::function<void(mongo::Pipeline* pipeline,
