@@ -34,6 +34,7 @@
 #include "mongo/db/query/parsed_find_command.h"
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
+#include "mongo/util/modules.h"
 
 namespace mongo::query_shape {
 

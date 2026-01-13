@@ -70,6 +70,7 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/id_generator.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/str.h"
 
 #include <iosfwd>
@@ -163,7 +164,7 @@ inline const static ProvidedSortSet kEmptySet;
  * This is an abstract representation of a query plan.  It can be transcribed into a tree of
  * PlanStages, which can then be handed to a PlanRunner for execution.
  */
-struct QuerySolutionNode {
+struct MONGO_MOD_NEEDS_REPLACEMENT QuerySolutionNode {
     QuerySolutionNode() = default;
 
     /**
@@ -439,10 +440,10 @@ public:
 
     std::string summaryString() const;
 
-    const QuerySolutionNode* root() const {
+    MONGO_MOD_NEEDS_REPLACEMENT const QuerySolutionNode* root() const {
         return _root.get();
     }
-    QuerySolutionNode* root() {
+    MONGO_MOD_NEEDS_REPLACEMENT QuerySolutionNode* root() {
         return _root.get();
     }
 
@@ -822,7 +823,7 @@ struct FetchNode : public QuerySolutionNode {
     std::unique_ptr<QuerySolutionNode> clone() const final;
 };
 
-struct IndexScanNode : public QuerySolutionNodeWithSortSet {
+struct MONGO_MOD_NEEDS_REPLACEMENT IndexScanNode : public QuerySolutionNodeWithSortSet {
     IndexScanNode(IndexEntry index);
     ~IndexScanNode() override {}
 
@@ -2236,8 +2237,8 @@ struct BinaryJoinEmbeddingNode : public QuerySolutionNode {
     BinaryJoinEmbeddingNode(std::unique_ptr<QuerySolutionNode> leftChildArg,
                             std::unique_ptr<QuerySolutionNode> rightChildArg,
                             std::vector<JoinPredicate> joinPredicatesArg,
-                            boost::optional<std::string> leftEmbeddingFieldArg,
-                            boost::optional<std::string> rightEmbeddingFieldArg)
+                            boost::optional<FieldPath> leftEmbeddingFieldArg,
+                            boost::optional<FieldPath> rightEmbeddingFieldArg)
         : joinPredicates(std::move(joinPredicatesArg)),
           leftEmbeddingField(std::move(leftEmbeddingFieldArg)),
           rightEmbeddingField(std::move(rightEmbeddingFieldArg)) {
@@ -2278,8 +2279,8 @@ struct BinaryJoinEmbeddingNode : public QuerySolutionNode {
     // is boost::none, then the results from the corresponding child will be embedded in top-level
     // fields. These fields allow us to reorder $lookup-$unwind pairs while maintaining the
     // semantics of the $lookup "as" field.
-    boost::optional<std::string> leftEmbeddingField;
-    boost::optional<std::string> rightEmbeddingField;
+    boost::optional<FieldPath> leftEmbeddingField;
+    boost::optional<FieldPath> rightEmbeddingField;
 };
 
 /**
@@ -2291,8 +2292,8 @@ struct HashJoinEmbeddingNode : public BinaryJoinEmbeddingNode {
     HashJoinEmbeddingNode(std::unique_ptr<QuerySolutionNode> leftChildArg,
                           std::unique_ptr<QuerySolutionNode> rightChildArg,
                           std::vector<JoinPredicate> joinPredicatesArg,
-                          boost::optional<std::string> leftEmbeddingFieldArg,
-                          boost::optional<std::string> rightEmbeddingFieldArg);
+                          boost::optional<FieldPath> leftEmbeddingFieldArg,
+                          boost::optional<FieldPath> rightEmbeddingFieldArg);
 
     StageType getType() const override {
         return STAGE_HASH_JOIN_EMBEDDING_NODE;

@@ -35,7 +35,6 @@ load(
     "lsan",
     "mongo_toolchain_version",
     "msan",
-    "mutex_observation",
     "opt",
     "pgo_profile_generate",
     "pgo_profile_use",
@@ -1333,22 +1332,6 @@ config_setting(
 )
 
 # --------------------------------------
-# build with ObservableMutex options
-# --------------------------------------
-
-mutex_observation(
-    name = "mutex_observation",
-    build_setting_default = False,
-)
-
-config_setting(
-    name = "mutex_observation_enabled",
-    flag_values = {
-        "//bazel/config:mutex_observation": "True",
-    },
-)
-
-# --------------------------------------
 # linkstatic options
 # --------------------------------------
 
@@ -2305,11 +2288,13 @@ config_setting(
 )
 
 selects.config_setting_group(
-    name = "dtlto_linux_clang_enabled_fission_disabled",
+    name = "dtlto_linux_clang_enabled_fission_disabled_linkstatic_enabled",
     match_all = [
         ":linux_clang",
+        ":linkstatic_enabled",
         ":dtlto_enabled",
         ":fission_disabled",
+        ":not_s390x_or_ppc",
     ],
 )
 
@@ -2392,17 +2377,21 @@ config_setting(
 )
 
 selects.config_setting_group(
-    name = "pgo_profile_use_clang_enabled",
+    name = "pgo_profile_use_clang_enabled_linkstatic_enabled",
     match_all = [
         ":linux_clang",
+        ":linkstatic_enabled",
+        ":not_s390x_or_ppc",
         ":pgo_profile_use_enabled",
     ],
 )
 
 selects.config_setting_group(
-    name = "pgo_profile_use_gcc_enabled",
+    name = "pgo_profile_use_gcc_enabled_linkstatic_enabled",
     match_all = [
         ":linux_gcc",
+        ":linkstatic_enabled",
+        ":not_s390x_or_ppc",
         ":pgo_profile_use_enabled",
     ],
 )

@@ -56,6 +56,8 @@
     selector:
       exclude_files: null
       roots:
+        - jstests/sharding/analyze_shard_key/analyze_shard_key_cmd_validation.js
+        - jstests/sharding/balancer_should_return_random_migrations_failpoint.js
         - jstests/sharding/*timeseries*/*.js
         - jstests/sharding/**/*timeseries*.js
 - name: only_validated_sharding_timeseries_tests_selector
@@ -63,7 +65,9 @@
     selector:
       exclude_files: null
       roots:
+        - jstests/sharding/analyze_shard_key/analyze_shard_key_cmd_validation.js
         - jstests/sharding/analyze_shard_key/timeseries.js
+        - jstests/sharding/balancer_should_return_random_migrations_failpoint.js
         - jstests/sharding/libs/timeseries_update_multi_util.js
         - jstests/sharding/query/sample_timeseries.js
         - jstests/sharding/resharding_timeseries/move_timeseries.js
@@ -153,6 +157,8 @@
         - jstests/noPassthrough/index_builds/create_indexes_return_on_start.js
         - jstests/noPassthrough/move_collection_not_tracked.js
         - jstests/noPassthrough/query/change_streams/change_streams_timeseries_shard_collection_event.js
+        - jstests/noPassthrough/query/queryStats/query_stats_collectionType.js
+        - jstests/noPassthrough/query/queryStats/viewless_timeseries.js
         - jstests/noPassthrough/query/server_status/serverstatus_index_stats.js
         - jstests/noPassthrough/query/timeseries/bucket_unpacking_with_sort_granularity_change.js
         - jstests/noPassthrough/query/timeseries/timeseries_validate_mixed_schema_bucket.js

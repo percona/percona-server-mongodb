@@ -251,7 +251,8 @@ tasks:
           local_file: src/bazel-bin/first_half_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/first_half_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: public-read
+          permissions: ${mciuploads_binary_permissions|public-read}
+          visibility: ${mciuploads_binary_visibility|public}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -287,7 +288,8 @@ tasks:
           local_file: src/bazel-bin/second_half_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/second_half_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: public-read
+          permissions: ${mciuploads_binary_permissions|public-read}
+          visibility: ${mciuploads_binary_visibility|public}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -323,7 +325,8 @@ tasks:
           local_file: src/bazel-bin/sep_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/sep_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: public-read
+          permissions: ${mciuploads_binary_permissions|public-read}
+          visibility: ${mciuploads_binary_visibility|public}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -471,48 +474,6 @@ tasks:
         vars:
           suite: libunwind
 
-  - <<: *gen_task_template
-    name: multitenancy_with_atlas_proxy_jscore_passthrough_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_security",
-        "experimental",
-        "incompatible_debug_mode",
-        "serverless",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-        vars:
-          use_large_distro: "true"
-
-  - <<: *gen_task_template
-    name: multitenancy_with_mongoq_jscore_passthrough_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_security",
-        "experimental",
-        "incompatible_debug_mode",
-        "serverless",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-        vars:
-          use_large_distro: "true"
-
-  - <<: *gen_task_template
-    name: multitenancy_with_mongoq_unsigned_token_jscore_passthrough_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_security",
-        "experimental",
-        "incompatible_debug_mode",
-        "serverless",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-        vars:
-          use_large_distro: "true"
-
   - <<: *task_template
     name: search_no_pinned_connections_auth
     tags:
@@ -542,21 +503,6 @@ tasks:
         "incompatible_s390x",
         "incompatible_windows",
         "grpc_misc_js",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "run tests"
-
-    # TODO(SERVER-106634): Remove task
-  - <<: *task_template
-    name: no_passthrough_network_with_mutex_observability
-    tags:
-      [
-        "assigned_to_jira_team_server_networking_and_observability",
-        "experimental",
-        "incompatible_mac",
-        "incompatible_ppc",
-        "incompatible_s390x",
       ]
     commands:
       - func: "do setup"
@@ -610,21 +556,6 @@ tasks:
         vars:
           suite: server_selection_json_test
           install_dir: bazel-bin/install/bin
-
-  - <<: *task_template
-    name: serverless
-    tags:
-      [
-        "assigned_to_jira_team_server_programmability",
-        "experimental",
-        "incompatible_debug_mode",
-        "requires_large_host_debug_mode",
-        "requires_large_host_tsan",
-        "serverless",
-      ]
-    commands:
-      - func: "do setup"
-      - func: "run tests"
 
   - <<: *task_template
     name: session_jscore_passthrough
@@ -1284,7 +1215,8 @@ tasks:
           local_file: src/bazel-bin/sharding_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/sharding_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: public-read
+          permissions: ${mciuploads_binary_permissions|public-read}
+          visibility: ${mciuploads_binary_visibility|public}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -1319,7 +1251,8 @@ tasks:
           local_file: src/bazel-bin/bsoncolumn_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/bsoncolumn_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: public-read
+          permissions: ${mciuploads_binary_permissions|public-read}
+          visibility: ${mciuploads_binary_visibility|public}
           content_type: application/tar
           display_name: Benchmarks
 

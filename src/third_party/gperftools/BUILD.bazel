@@ -78,6 +78,7 @@ mongo_cc_library(
             "-Wno-unused-result",
             "-Wno-deprecated-volatile",
             "-Wno-sign-compare",
+            "-Wno-unused-but-set-variable",
         ],
     }),
     features = select({

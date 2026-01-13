@@ -31,9 +31,10 @@
 
 #include "mongo/db/exec/document_value/value.h"
 #include "mongo/db/query/compiler/ce/ce_common.h"
-#include "mongo/db/query/compiler/stats/rand_utils_new.h"
+#include "mongo/db/query/compiler/stats/rand_utils.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/modules.h"
 
 namespace mongo::ce {
 // Enable this flag to log all estimates, and let all tests pass.

@@ -170,7 +170,7 @@ class ResmokeSymbolizer:
                 unsymbolized_content_dict = {}
                 try:
                     with open(f, "r") as file:
-                        unsymbolized_content = ','.join([line.rstrip('\n') for line in file])
+                        unsymbolized_content = ",".join([line.rstrip("\n") for line in file])
                         unsymbolized_content_dict = ast.literal_eval(unsymbolized_content)
                 except Exception:
                     test.logger.error(f"Failed to parse stacktrace file {f}", exc_info=1)
@@ -274,6 +274,12 @@ class ResmokeSymbolizer:
         if not _config.EVERGREEN_TASK_ID:
             test.logger.info(
                 "Skipping local symbolization instructions because evergreen task id was not provided."
+            )
+            return
+
+        if not os.path.exists(expansions_file):
+            test.logger.info(
+                f"Skipping local symbolization instructions because {expansions_file} does not exist."
             )
             return
 

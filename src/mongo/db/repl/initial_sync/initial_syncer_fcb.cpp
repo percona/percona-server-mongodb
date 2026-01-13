@@ -1559,8 +1559,7 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource(WithLock lk) {
         ReadPreferenceSetting::secondaryPreferredMetadata(),
         RemoteCommandRequest::kNoTimeout,
         RemoteCommandRequest::kNoTimeout,
-        RemoteCommandRetryScheduler::makeRetryPolicy<ErrorCategory::RetriableError>(
-            numInitialSyncOplogFindAttempts.load(), executor::RemoteCommandRequest::kNoTimeout)};
+        std::make_unique<DefaultRetryStrategy>(numInitialSyncOplogFindAttempts.load())};
     if (auto scheduleStatus = fcvFetcher.schedule(); !scheduleStatus.isOK()) {
         return scheduleStatus.withContext(
             str::stream()
@@ -1899,8 +1898,7 @@ void InitialSyncerFCB::_fetchBackupCursorCallback(
         ReadPreferenceSetting(ReadPreference::PrimaryPreferred).toContainingBSON(),
         executor::RemoteCommandRequest::kNoTimeout,
         executor::RemoteCommandRequest::kNoTimeout,
-        RemoteCommandRetryScheduler::makeRetryPolicy<ErrorCategory::RetriableError>(
-            kBackupCursorFileFetcherRetryAttempts, executor::RemoteCommandRequest::kNoTimeout));
+        std::make_unique<DefaultRetryStrategy>(kBackupCursorFileFetcherRetryAttempts));
 
     Status scheduleStatus = _backupCursorFetcher->schedule();
     if (!scheduleStatus.isOK()) {

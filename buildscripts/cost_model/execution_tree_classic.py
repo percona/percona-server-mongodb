@@ -42,9 +42,9 @@ class Node:
     execution_time_nanoseconds: int
     n_returned: int
     n_processed: int
-    n_input_stages: int
     seeks: Optional[int]
     children: list[Node]
+    n_index_fields: Optional[int]
 
     def get_execution_time(self):
         """Execution time of this node without execution time of its children"""
@@ -55,7 +55,7 @@ class Node:
     def print(self, level=0):
         """Pretty print the execution tree"""
         print(
-            f'{"| " * level}{self.stage}, totalExecutionTime: {self.execution_time_nanoseconds:,}ns, seeks: {self.seeks}, nReturned: {self.n_returned}, nProcessed: {self.n_processed}, nInputStages: {self.n_input_stages}'
+            f'{"| " * level}{self.stage}, totalExecutionTime: {self.execution_time_nanoseconds:,}ns, seeks: {self.seeks}, nReturned: {self.n_returned}, nProcessed: {self.n_processed}, nIndexFields: {self.n_index_fields}'
         )
         for child in self.children:
             child.print(level + 1)
@@ -134,8 +134,11 @@ def process_or(stage: dict[str, Any]) -> Node:
 
 def process_intersection(stage: dict[str, Any]) -> Node:
     children = [process_stage(child) for child in stage["inputStages"]]
-    n_processed = sum(child.n_processed for child in children)
-    return Node(**get_common_fields(stage), n_processed=n_processed, children=children)
+    return Node(
+        **get_common_fields(stage),
+        n_processed=sum(child.n_returned for child in children),
+        children=children,
+    )
 
 
 def process_mergesort(stage: dict[str, Any]) -> Node:
@@ -163,8 +166,6 @@ def get_common_fields(json_stage: dict[str, Any]) -> dict[str, Any]:
         "stage": json_stage["stage"],
         "execution_time_nanoseconds": json_stage["executionTimeNanos"],
         "n_returned": json_stage["nReturned"],
-        "n_input_stages": 1
-        if "inputStage" in json_stage
-        else len(json_stage.get("inputStages", [])),
         "seeks": json_stage.get("seeks"),
+        "n_index_fields": len(json_stage.get("keyPattern")) if "keyPattern" in json_stage else None,
     }

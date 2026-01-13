@@ -200,6 +200,14 @@ public:
         _partialHashes = std::move(partialHashes);
     }
 
+    const boost::optional<stdx::unordered_map<std::string, std::vector<BSONObj>>>& getRevealedIds()
+        const {
+        return _revealedIds;
+    }
+    void addRevealedIds(stdx::unordered_map<std::string, std::vector<BSONObj>> unhash) {
+        _revealedIds = std::move(unhash);
+    }
+
     bool getRepaired() const {
         return _repaired;
     }
@@ -328,6 +336,8 @@ private:
     // Hashes computed for extended validate.
     boost::optional<std::string> _collectionHash;
     boost::optional<stdx::unordered_map<std::string, std::pair<std::string, int>>> _partialHashes;
+
+    boost::optional<stdx::unordered_map<std::string, std::vector<BSONObj>>> _revealedIds;
 
     // Timestamps (startTs, startDurable, stopTs, stopDurableTs) related to records
     // with validation errors. See WiredTigerRecordStore::printRecordMetadata().

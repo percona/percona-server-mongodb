@@ -99,12 +99,14 @@ class ParametersBuilderClassic:
                 "stage",
                 "execution_time",
                 "n_processed",
-                "n_input_stages",
+                "n_processed_per_child",
+                "n_children",
                 "seeks",
                 "note",
                 "keys_length_in_bytes",
                 "average_document_size_in_bytes",
                 "number_of_fields",
+                "n_index_fields",
             ],
         )
 
@@ -121,6 +123,7 @@ class ParametersBuilderClassic:
             execution_time=node.execution_time_nanoseconds,
             n_processed=node.n_processed,
             seeks=node.seeks,
+            n_index_fields=node.n_index_fields,
         )
 
     @staticmethod
@@ -130,12 +133,14 @@ class ParametersBuilderClassic:
         execution_time: int = None,
         n_processed: int = None,
         seeks: int = None,
+        n_index_fields=None,
     ):
         return [
             stage,
             execution_time,
             n_processed,
             seeks,
+            n_index_fields,
             params.note,
             params.keys_length_in_bytes,
             params.average_document_size_in_bytes,

@@ -217,11 +217,25 @@ sh_binary(
     srcs = ["mount_drives.sh"],
 )
 
+py_library(
+    name = "parse_test_xml",
+    srcs = [
+        "parse_test_xml.py",
+    ],
+    deps = [
+        dependency(
+            "pyyaml",
+            group = "core",
+        ),
+    ],
+)
+
 py_binary(
     name = "gather_failed_unittests",
     srcs = ["gather_failed_unittests.py"],
     visibility = ["//visibility:public"],
     deps = [
+        ":parse_test_xml",
         "//buildscripts/util",
         dependency(
             "typer",
@@ -348,4 +362,40 @@ py_binary(
 py_binary(
     name = "archive_artifacts",
     srcs = ["archive_artifacts.py"],
+    deps = [
+        dependency(
+            "pyzstd",
+            group = "modules_poc",
+        ),
+        dependency(
+            "cffi",
+            group = "modules_poc",
+        ),
+    ],
+)
+
+py_library(
+    name = "local_rbe_container_url",
+    srcs = ["local_rbe_container_url.py"],
+    data = [
+        "//bazel/platforms:remote_execution_containers.bzl",
+    ],
+)
+
+py_binary(
+    name = "print_local_rbe_container_url",
+    srcs = ["print_local_rbe_container_url.py"],
+    deps = [
+        "local_rbe_container_url",
+    ],
+)
+
+py_binary(
+    name = "create_rbe_sysroot",
+    srcs = [
+        "create_rbe_sysroot.py",
+    ],
+    deps = [
+        "local_rbe_container_url",
+    ],
 )

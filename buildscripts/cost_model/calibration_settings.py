@@ -240,6 +240,14 @@ def create_coll_scan_collection_template(
                 distribution=distributions["string_mixed"],
                 indexed=False,
             ),
+            config.FieldTemplate(
+                name="int_uniform",
+                data_type=config.DataType.INTEGER,
+                distribution=RandomDistribution.uniform(
+                    RangeGenerator(DataType.INTEGER, 0, 100_000)
+                ),
+                indexed=True,
+            ),
         ],
         compound_indexes=[],
         cardinalities=cardinalities,
@@ -289,6 +297,71 @@ def create_merge_sort_collection_template(
         fields=fields,
         compound_indexes=compound_indexes,
         cardinalities=cardinalities,
+    )
+
+
+def create_intersection_collection_template(
+    name: str, cardinalities: list[int], distribution: str, value_range: int = 10
+) -> config.CollectionTemplate:
+    distribution_fn = (
+        RandomDistribution.normal if distribution == "normal" else RandomDistribution.uniform
+    )
+
+    fields = [
+        config.FieldTemplate(
+            name="a",
+            data_type=config.DataType.INTEGER,
+            distribution=distribution_fn(RangeGenerator(DataType.INTEGER, 1, value_range + 1)),
+            indexed=True,
+        ),
+        config.FieldTemplate(
+            name="b",
+            data_type=config.DataType.INTEGER,
+            distribution=distribution_fn(RangeGenerator(DataType.INTEGER, 1, value_range + 1)),
+            indexed=True,
+        ),
+    ]
+
+    return config.CollectionTemplate(
+        name=name,
+        fields=fields,
+        compound_indexes=[],
+        cardinalities=cardinalities,
+    )
+
+
+def create_ixscan_diff_num_fields_template():
+    card = 10000
+    # Generate fields "a", "b", ... "j"
+    field_names = [chr(ord("a") + i) for i in range(10)]
+    fields = [
+        config.FieldTemplate(
+            name=field_name,
+            data_type=config.DataType.INTEGER,
+            distribution=RandomDistribution.uniform(RangeGenerator(DataType.INTEGER, 1, card)),
+            # We only want a single field index on 'a'.
+            indexed=(field_name == "a"),
+        )
+        for field_name in field_names
+    ]
+    compound_indexes = [
+        # Note the single field index is created in the FieldTemplate for 'a' above.
+        ["a", "b"],
+        ["a", "b", "c"],
+        ["a", "b", "c", "d"],
+        ["a", "b", "c", "d", "e"],
+        ["a", "b", "c", "d", "e", "f"],
+        ["a", "b", "c", "d", "e", "f", "g"],
+        ["a", "b", "c", "d", "e", "f", "g", "h"],
+        ["a", "b", "c", "d", "e", "f", "g", "h", "i"],
+        ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"],
+    ]
+
+    return config.CollectionTemplate(
+        name="index_scan_diff_num_fields",
+        fields=fields,
+        compound_indexes=compound_indexes,
+        cardinalities=[card],
     )
 
 
@@ -365,6 +438,20 @@ or_collections = create_merge_sort_collection_template(
     cardinalities=[5, 10, 50, 75, 100, 150, 300, 400, 500, 750] + list(range(1000, 10001, 1000)),
     num_merge_fields=2,
 )
+intersection_sorted_collections = create_intersection_collection_template(
+    "intersection_sorted",
+    distribution="normal",
+    cardinalities=[5, 100, 1000, 5000],
+    value_range=10,
+)
+intersection_hash_collections = create_intersection_collection_template(
+    "intersection_hash",
+    distribution="normal",
+    cardinalities=[1000],
+    value_range=10,
+)
+
+index_scan_diff_num_fields_collections = create_ixscan_diff_num_fields_template()
 
 # Data Generator settings
 data_generator = config.DataGeneratorConfig(
@@ -377,6 +464,9 @@ data_generator = config.DataGeneratorConfig(
         sort_collections,
         merge_sort_collections,
         or_collections,
+        intersection_sorted_collections,
+        intersection_hash_collections,
+        index_scan_diff_num_fields_collections,
         c_int_05,
         c_arr_01,
     ],
@@ -421,17 +511,44 @@ qsn_nodes = [
             axis=1,
         ),
     ),
+    config.QsNodeCalibrationConfig(
+        name="IXSCANS_W_DIFF_NUM_FIELDS",
+        type="IXSCAN",
+        variables_override=lambda df: pd.concat(
+            [df["n_index_fields"].rename("Number of fields in index")],
+            axis=1,
+        ),
+    ),
     config.QsNodeCalibrationConfig(type="FETCH"),
-    config.QsNodeCalibrationConfig(type="AND_HASH"),
-    config.QsNodeCalibrationConfig(type="AND_SORTED"),
+    config.QsNodeCalibrationConfig(
+        type="AND_HASH",
+        variables_override=lambda df: pd.concat(
+            [
+                df["n_processed_per_child"].str[0].rename("Documents from first child"),
+                df["n_processed_per_child"].str[1].rename("Documents from second child"),
+                df["n_returned"],
+            ],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        type="AND_SORTED",
+        variables_override=lambda df: pd.concat(
+            [
+                df["n_processed"],
+                df["n_returned"],
+            ],
+            axis=1,
+        ),
+    ),
     config.QsNodeCalibrationConfig(type="OR"),
     config.QsNodeCalibrationConfig(
         type="SORT_MERGE",
         # Note: n_returned = n_processed - (amount of duplicates dropped)
         variables_override=lambda df: pd.concat(
             [
-                (df["n_returned"] * np.log2(df["n_input_stages"])).rename(
-                    "n_returned * log2(n_input_stages)"
+                (df["n_returned"] * np.log2(df["n_children"])).rename(
+                    "n_returned * log2(n_children)"
                 ),
                 df["n_processed"],
             ],
