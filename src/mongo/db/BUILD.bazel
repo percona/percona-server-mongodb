@@ -866,7 +866,7 @@ mongo_cc_unit_test(
     deps = [
         ":query_exec",
         ":shard_role",
-        "//src/mongo/db/admission:ticketholder_manager",
+        "//src/mongo/db/admission:ticketing_system",
         "//src/mongo/db/collection_crud",
         "//src/mongo/db/local_catalog:catalog_control",
         "//src/mongo/db/local_catalog:catalog_test_fixture",
@@ -893,7 +893,7 @@ mongo_cc_unit_test(
     deps = [
         ":query_exec",
         ":shard_role",
-        "//src/mongo/db/admission:ticketholder_manager",
+        "//src/mongo/db/admission:ticketing_system",
         "//src/mongo/db/collection_crud",
         "//src/mongo/db/local_catalog:catalog_control",
         "//src/mongo/db/local_catalog:catalog_test_fixture",
@@ -1060,7 +1060,7 @@ mongo_cc_library(
         "//src/mongo/db:shard_role_api_stor_ex",
         "//src/mongo/db/admission:execution_admission_context",
         "//src/mongo/db/admission:ingress_admission_context",
-        "//src/mongo/db/admission:ticketholder_manager",
+        "//src/mongo/db/admission:ticketing_system",
         "//src/mongo/db/auth",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/auth:authprivilege",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/auth:user_acquisition_stats",
@@ -1237,6 +1237,7 @@ mongo_cc_library(
         "//src/mongo/db/query/compiler/ce/exact:exact_cardinality_impl.cpp",
         "//src/mongo/db/query/compiler/ce/sampling:sampling_estimator_impl.cpp",
         "//src/mongo/db/query/compiler/optimizer/join:agg_join_model.cpp",
+        "//src/mongo/db/query/compiler/optimizer/join:single_table_access.cpp",
         "//src/mongo/db/query/stage_builder:classic_stage_builder.cpp",
         "//src/mongo/db/query/stage_builder:stage_builder_util.cpp",
     ],
@@ -1334,6 +1335,7 @@ mongo_cc_library(
         "//src/mongo/db/query/compiler/ce/exact:exact_cardinality_impl.h",
         "//src/mongo/db/query/compiler/ce/sampling:sampling_estimator_impl.h",
         "//src/mongo/db/query/compiler/optimizer/join:agg_join_model.h",
+        "//src/mongo/db/query/compiler/optimizer/join:single_table_access.h",
         "//src/mongo/db/query/stage_builder:classic_stage_builder.h",
         "//src/mongo/db/query/stage_builder:stage_builder.h",
         "//src/mongo/db/query/stage_builder:stage_builder_util.h",
@@ -3361,6 +3363,7 @@ mongo_cc_library(
         # please add that library here, as a private library dependency.
         "//src/mongo/executor:async_rpc_error_info",
         "//src/mongo/executor:network_interface_factory",
+        "//src/mongo/logv2/log_metric_initializer",
         "//src/mongo/rpc",
         "//src/mongo/s/commands:cluster_commands",
         "//src/mongo/s/commands:sharded_cluster_commands",
