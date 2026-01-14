@@ -178,16 +178,16 @@ TEST_F(ShardRemoteTest, GridSetRetryBudgetCapacityServerParameter) {
     auto firstShardHostAndPort = kTestShardHosts.front();
 
     auto shard = uassertStatusOK(shardRegistry()->getShard(operationContext(), firstShard));
-    auto retryBudget = shard->getRetryBudget_forTest();
+    auto& retryBudget = shard->getRetryBudget_forTest();
     auto retryStrategy = Shard::RetryStrategy{*shard, Shard::RetryPolicy::kIdempotent};
 
-    auto initialBalance = retryBudget->getBalance_forTest();
+    auto initialBalance = retryBudget.getBalance_forTest();
 
     {
         auto _ = RAIIServerParameterControllerForTest{"shardRetryTokenBucketCapacity",
-                                                      retryBudget->getBalance_forTest() + 1};
+                                                      retryBudget.getBalance_forTest() + 1};
         retryStrategy.recordSuccess(firstShardHostAndPort);
-        ASSERT_GT(retryBudget->getBalance_forTest(), initialBalance);
+        ASSERT_GT(retryBudget.getBalance_forTest(), initialBalance);
     }
 }
 
@@ -196,10 +196,10 @@ TEST_F(ShardRemoteTest, GridSetRetryBudgetReturnRateServerParameter) {
     auto firstShardHostAndPort = kTestShardHosts.front();
 
     auto shard = uassertStatusOK(shardRegistry()->getShard(operationContext(), firstShard));
-    auto retryBudget = shard->getRetryBudget_forTest();
+    auto& retryBudget = shard->getRetryBudget_forTest();
     auto retryStrategy = Shard::RetryStrategy{*shard, Shard::RetryPolicy::kIdempotent};
 
-    auto initialBalance = retryBudget->getBalance_forTest();
+    auto initialBalance = retryBudget.getBalance_forTest();
     auto error = Status(ErrorCodes::PrimarySteppedDown, "Interrupted at shutdown");
 
     constexpr auto kReturnRate = 0.5;
@@ -215,26 +215,52 @@ TEST_F(ShardRemoteTest, GridSetRetryBudgetReturnRateServerParameter) {
         // We test that the return rate was changed by observing how many tokens were returned by
         // recordSuccess.
         retryStrategy.recordSuccess(firstShardHostAndPort);
-        ASSERT_EQ(retryBudget->getBalance_forTest(), initialBalance - 1 + kReturnRate);
+        ASSERT_EQ(retryBudget.getBalance_forTest(), initialBalance - 1 + kReturnRate);
     }
 }
 
 TEST_F(ShardRemoteTest, ShardRetryStrategy) {
+    constexpr auto backoff = Milliseconds{100};
     auto firstShard = kTestShardIds.front();
     auto firstShardHostAndPort = kTestShardHosts.front();
 
+    auto shardState = getShardState(firstShard);
+    auto& [retryBudget, stats] = *shardState;
+
     auto shard = uassertStatusOK(shardRegistry()->getShard(operationContext(), firstShard));
-    auto retryBudget = shard->getRetryBudget_forTest();
     auto retryStrategy = Shard::RetryStrategy{*shard, Shard::RetryPolicy::kIdempotent};
 
-    auto initialBalance = retryBudget->getBalance_forTest();
+    auto initialBalance = retryBudget.getBalance_forTest();
     auto error = Status(ErrorCodes::PrimarySteppedDown, "Interrupted at shutdown");
 
     ASSERT(retryStrategy.recordFailureAndEvaluateShouldRetry(
         error, firstShardHostAndPort, errorLabelsSystemOverloaded));
-    ASSERT_LT(retryBudget->getBalance_forTest(), initialBalance);
+    ASSERT_LT(retryBudget.getBalance_forTest(), initialBalance);
     ASSERT(
         retryStrategy.getTargetingMetadata().deprioritizedServers.contains(firstShardHostAndPort));
+
+    ASSERT_EQ(stats.numOperationsAttempted.loadRelaxed(), 1);
+    ASSERT_EQ(stats.numOperationsRetriedAtLeastOnceDueToOverload.loadRelaxed(), 1);
+    ASSERT_EQ(stats.numOperationsRetriedAtLeastOnceDueToOverloadAndSucceeded.loadRelaxed(), 0);
+    ASSERT_EQ(stats.numOverloadErrorsReceived.loadRelaxed(), 1);
+    ASSERT_EQ(stats.numRetriesDueToOverloadAttempted.loadRelaxed(), 1);
+    ASSERT_EQ(stats.totalBackoffTimeMillis.loadRelaxed(), 0);
+
+    ASSERT(retryStrategy.recordFailureAndEvaluateShouldRetry(
+        error, firstShardHostAndPort, errorLabelsSystemOverloaded));
+
+    ASSERT_EQ(stats.numOverloadErrorsReceived.loadRelaxed(), 2);
+    ASSERT_EQ(stats.numRetriesDueToOverloadAttempted.loadRelaxed(), 2);
+
+    retryStrategy.recordBackoff(backoff);
+    retryStrategy.recordSuccess(firstShardHostAndPort);
+
+    ASSERT_EQ(stats.numOperationsAttempted.loadRelaxed(), 1);
+    ASSERT_EQ(stats.numOperationsRetriedAtLeastOnceDueToOverload.loadRelaxed(), 1);
+    ASSERT_EQ(stats.numOperationsRetriedAtLeastOnceDueToOverloadAndSucceeded.loadRelaxed(), 1);
+    ASSERT_EQ(stats.numOverloadErrorsReceived.loadRelaxed(), 2);
+    ASSERT_EQ(stats.numRetriesDueToOverloadAttempted.loadRelaxed(), 2);
+    ASSERT_EQ(stats.totalBackoffTimeMillis.loadRelaxed(), backoff.count());
 }
 
 TEST_F(ShardRemoteTest, RunCommandResponseErrorOverloaded) {

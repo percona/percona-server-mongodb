@@ -94,7 +94,7 @@ public:
         return std::make_pair(expectedEstimateMin, expectedEstimateMax);
     }
 
-    void assertEstimateInConfidenceInterval(CardinalityEstimate estimate, double expectedCard) {
+    bool assertEstimateInConfidenceInterval(CardinalityEstimate estimate, double expectedCard) {
         auto expectedInterval = confidenceInterval(expectedCard);
         bool estimateInInterval =
             (estimate >= expectedInterval.first && estimate <= expectedInterval.second);
@@ -106,7 +106,25 @@ public:
                       << expectedInterval.first.cardinality().v() << ", "
                       << expectedInterval.second.cardinality().v() << "), Error " << error * 100
                       << "%" << std::endl;
+            return false;
         }
+        return true;
+    }
+};
+
+class SamplingEstimatorAssertingKeysScanned : public SamplingEstimatorForTesting {
+public:
+    using SamplingEstimatorForTesting::SamplingEstimatorForTesting;
+
+    CardinalityEstimate estimateKeysScanned(const IndexBounds& bounds) const override {
+        tassert(11068100, "This query should not invoke estimateKeysScanned", false);
+        return SamplingEstimatorForTesting::estimateKeysScanned(bounds);
+    }
+
+    std::vector<CardinalityEstimate> estimateKeysScanned(
+        const std::vector<const IndexBounds*>& bounds) const override {
+        tassert(11068101, "This query should not invoke estimateKeysScanned", false);
+        return SamplingEstimatorForTesting::estimateKeysScanned(bounds);
     }
 };
 

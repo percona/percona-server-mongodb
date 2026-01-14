@@ -105,33 +105,29 @@ public:
         kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
         kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);
 
-        std::unique_ptr<SpillWiredTigerKVEngine> spillWiredTigerKVEngine;
-        if (feature_flags::gFeatureFlagCreateSpillKVEngine.isEnabled()) {
-            boost::system::error_code ec;
-            boost::filesystem::remove_all(params.getSpillDbPath(), ec);
-            if (ec) {
-                LOGV2_WARNING(29145,
-                              "Failed to clear dbpath of the internal WiredTiger instance",
-                              "error"_attr = ec.message());
-            }
-
-            WiredTigerKVEngineBase::WiredTigerConfig wtConfig =
-                getSpillWiredTigerConfigFromStartupOptions();
-            spillWiredTigerKVEngine = std::make_unique<SpillWiredTigerKVEngine>(
-                std::string{getCanonicalName()},
-                params.getSpillDbPath().string(),
-                &opCtx->fastClockSource(),
-                std::move(wtConfig),
-                SpillWiredTigerExtensions::get(opCtx->getServiceContext()));
+        boost::system::error_code ec;
+        boost::filesystem::remove_all(params.getSpillDbPath(), ec);
+        if (ec) {
+            LOGV2_WARNING(29145,
+                          "Failed to clear dbpath of the internal WiredTiger instance",
+                          "error"_attr = ec.message());
         }
+
+        auto spillWiredTigerKVEngine = std::make_unique<SpillWiredTigerKVEngine>(
+            std::string{getCanonicalName()},
+            params.getSpillDbPath().string(),
+            &opCtx->fastClockSource(),
+            getSpillWiredTigerConfigFromStartupOptions(),
+            SpillWiredTigerExtensions::get(opCtx->getServiceContext()));
 
         // Register the ServerStatusSection for the in-memory storage engine
         // and do that only once.
-        std::call_once(initializeServerStatusSectionFlag, [] {
-            *ServerStatusSectionBuilder<WiredTigerServerStatusSection>(
-                 std::string{kInMemoryEngineName})
-                 .forShard();
-        });
+        std::call_once(
+            initializeServerStatusSectionFlag, [] {
+                *ServerStatusSectionBuilder<WiredTigerServerStatusSection>(
+                     std::string{kInMemoryEngineName})
+                     .forShard();
+            });
 
         StorageEngineOptions options;
         options.directoryPerDB = params.directoryperdb;

@@ -30,7 +30,8 @@
 
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
-#include "mongo/db/extension/sdk/extension_status.h"
+#include "mongo/db/extension/sdk/assert_util.h"
+#include "mongo/db/extension/shared/extension_status.h"
 #include "mongo/util/modules.h"
 
 #include <yaml-cpp/yaml.h>
@@ -46,16 +47,16 @@ namespace mongo::extension::sdk {
  * Note that the host portal pointer is only valid during initialization and should not be retained
  * by the extension.
  */
-class HostPortalHandle : public sdk::UnownedHandle<const ::MongoExtensionHostPortal> {
+class HostPortalHandle : public UnownedHandle<const ::MongoExtensionHostPortal> {
 public:
     HostPortalHandle(const ::MongoExtensionHostPortal* portal)
-        : sdk::UnownedHandle<const ::MongoExtensionHostPortal>(portal) {}
+        : UnownedHandle<const ::MongoExtensionHostPortal>(portal) {}
 
-    void registerStageDescriptor(const sdk::ExtensionAggregationStageDescriptor* stageDesc) const {
-        sdk::enterC([&] {
+    void registerStageDescriptor(const ExtensionAggStageDescriptor* stageDesc) const {
+        invokeCAndConvertStatusToException([&] {
             assertValid();
-            return vtable().registerStageDescriptor(
-                reinterpret_cast<const ::MongoExtensionAggregationStageDescriptor*>(stageDesc));
+            return vtable().register_stage_descriptor(
+                reinterpret_cast<const ::MongoExtensionAggStageDescriptor*>(stageDesc));
         });
     }
 
@@ -71,17 +72,17 @@ public:
 
     YAML::Node getExtensionOptions() const {
         assertValid();
-        return YAML::Load(std::string(byteViewAsStringView(vtable().getExtensionOptions(get()))));
+        return YAML::Load(std::string(byteViewAsStringView(vtable().get_extension_options(get()))));
     }
 
 private:
     void _assertVTableConstraints(const VTable_t& vtable) const override {
-        tassert(10926401,
-                "Extension 'registerStageDescriptor' is null",
-                vtable.registerStageDescriptor != nullptr);
-        tassert(10999108,
-                "Extension 'getExtensionOptions' is null",
-                vtable.getExtensionOptions != nullptr);
+        tripwireAssert(10926401,
+                       "Extension 'register_stage_descriptor' is null",
+                       vtable.register_stage_descriptor != nullptr);
+        tripwireAssert(10999108,
+                       "Extension 'get_extension_options' is null",
+                       vtable.get_extension_options != nullptr);
     };
 };
 

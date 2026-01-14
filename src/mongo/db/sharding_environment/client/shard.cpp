@@ -34,6 +34,8 @@
 #include "mongo/client/retry_strategy_server_parameters_gen.h"
 #include "mongo/db/error_labels.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/service_context.h"
+#include "mongo/db/sharding_environment/shard_shared_state_cache.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/assert_util.h"
@@ -49,9 +51,6 @@
 
 namespace mongo {
 namespace {
-
-Atomic<double>* gRetryBudgetReturnRateServerParameter;
-Atomic<std::int32_t>* gRetryBudgetCapacityServerParameter;
 
 auto makeRetryCriteriaForShard(const Shard& shard, Shard::RetryPolicy retryPolicy) {
     return [retryPolicy, shard = &shard](Status s, std::span<const std::string> errorLabels) {
@@ -111,26 +110,78 @@ StatusWith<Shard::CommandResponse> runCommandWithRetryStrategy(Interruptible* in
 }  // namespace
 
 Shard::RetryStrategy::RetryStrategy(const Shard& shard, Shard::RetryPolicy retryPolicy)
-    : RetryStrategy{
-          shard, retryPolicy, DefaultRetryStrategy::getRetryParametersFromServerParameters()} {}
+    : RetryStrategy{shard,
+                    retryPolicy,
+                    DefaultRetryStrategy::getRetryParametersFromServerParameters(),
+                    *shard._sharedState} {}
 
 Shard::RetryStrategy::RetryStrategy(const Shard& shard,
                                     Shard::RetryPolicy retryPolicy,
                                     std::int32_t maxRetryAttempts)
-    : RetryStrategy{shard, retryPolicy, backoffFromMaxRetryAttempts(maxRetryAttempts)} {}
+    : RetryStrategy{
+          shard, retryPolicy, backoffFromMaxRetryAttempts(maxRetryAttempts), *shard._sharedState} {}
 
 Shard::RetryStrategy::RetryStrategy(const Shard& shard,
                                     Shard::RetryPolicy retryPolicy,
-                                    AdaptiveRetryStrategy::RetryParameters parameters)
-    : _underlyingStrategy{
-          shard._retryBudget, makeRetryCriteriaForShard(shard, retryPolicy), parameters} {}
+                                    AdaptiveRetryStrategy::RetryParameters parameters,
+                                    ShardSharedStateCache::State& sharedState)
+    : _underlyingStrategy{sharedState.retryBudget,
+                          makeRetryCriteriaForShard(shard, retryPolicy),
+                          parameters},
+      _stats{&sharedState.stats} {}
 
-void Shard::initServerParameterPointersToAvoidLinking(Atomic<double>* returnRate,
-                                                      Atomic<std::int32_t>* capacity) {
-    invariant(returnRate);
-    invariant(capacity);
-    gRetryBudgetReturnRateServerParameter = returnRate;
-    gRetryBudgetCapacityServerParameter = capacity;
+bool Shard::RetryStrategy::recordFailureAndEvaluateShouldRetry(
+    Status s,
+    const boost::optional<HostAndPort>& target,
+    std::span<const std::string> errorLabels) {
+    const bool willRetry =
+        _underlyingStrategy.recordFailureAndEvaluateShouldRetry(s, target, errorLabels);
+
+    _recordOperationAttempted();
+
+    if (containsSystemOverloadedLabels(errorLabels)) {
+        _stats->numOverloadErrorsReceived.addAndFetch(1);
+
+        if (willRetry) {
+            _stats->numRetriesDueToOverloadAttempted.addAndFetch(1);
+        }
+
+        if (!_previousAttemptOverloaded) {
+            _stats->numOperationsRetriedAtLeastOnceDueToOverload.addAndFetch(1);
+        }
+
+        _previousAttemptOverloaded = true;
+    } else {
+        _recordOperationNotOverloaded();
+    }
+
+    return willRetry;
+}
+
+void Shard::RetryStrategy::recordSuccess(const boost::optional<HostAndPort>& target) {
+    _underlyingStrategy.recordSuccess(target);
+
+    _recordOperationAttempted();
+    _recordOperationNotOverloaded();
+}
+
+void Shard::RetryStrategy::recordBackoff(Milliseconds backoff) {
+    _underlyingStrategy.recordBackoff(backoff);
+    _stats->totalBackoffTimeMillis.addAndFetch(backoff.count());
+}
+
+void Shard::RetryStrategy::_recordOperationAttempted() {
+    if (!_recordedAttempted) {
+        _recordedAttempted = true;
+        _stats->numOperationsAttempted.addAndFetch(1);
+    }
+}
+
+void Shard::RetryStrategy::_recordOperationNotOverloaded() {
+    if (_previousAttemptOverloaded) {
+        _stats->numOperationsRetriedAtLeastOnceDueToOverloadAndSucceeded.addAndFetch(1);
+        _previousAttemptOverloaded = false;
+    }
 }
 
 Status Shard::CommandResponse::getEffectiveStatus(
@@ -210,20 +261,15 @@ bool Shard::shouldErrorBePropagated(ErrorCodes::Error code) {
     return !isMongosRetriableError(code) && (code != ErrorCodes::NetworkInterfaceExceededTimeLimit);
 }
 
-Shard::Shard(const ShardId& id) : _id(id) {
-    invariant(gRetryBudgetReturnRateServerParameter);
-    invariant(gRetryBudgetCapacityServerParameter);
-    _retryBudget = std::make_shared<AdaptiveRetryStrategy::RetryBudget>(
-        gRetryBudgetReturnRateServerParameter->loadRelaxed(),
-        gRetryBudgetCapacityServerParameter->loadRelaxed());
+Shard::Shard(const ShardId& id, std::shared_ptr<ShardSharedStateCache::State> sharedState)
+    : _id(id), _sharedState{std::move(sharedState)} {}
+
+std::shared_ptr<ShardSharedStateCache::State> Shard::getSharedState() const {
+    return _sharedState;
 }
 
-void Shard::updateRetryBudgetRateParameters(double returnRate, double capacity) {
-    _retryBudget->updateRateParameters(returnRate, capacity);
-}
-
-std::shared_ptr<AdaptiveRetryStrategy::RetryBudget> Shard::getRetryBudget_forTest() const {
-    return _retryBudget;
+AdaptiveRetryStrategy::RetryBudget& Shard::getRetryBudget_forTest() const {
+    return _sharedState->retryBudget;
 }
 
 bool Shard::isConfig() const {

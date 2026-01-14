@@ -3,13 +3,18 @@
  * state.
  *
  * @tags: [
+ *   # TODO(SERVER-110840): Primary-driven index builds don't support draining side writes yet.
+ *   primary_driven_index_builds_incompatible,
  *   requires_replication,
  *   uses_prepare_transaction,
  *   uses_transactions,
+ *   # TODO SERVER-111867: Remove once primary-driven index builds support side writes.
+ *   primary_driven_index_builds_incompatible,
  * ]
  */
 import {PrepareHelpers} from "jstests/core/txns/libs/prepare_helpers.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
+import {extractUUIDFromObject} from "jstests/libs/uuid_util.js";
 import {IndexBuildTest} from "jstests/noPassthrough/libs/index_builds/index_build.js";
 
 const replSetTest = new ReplSetTest({
@@ -95,6 +100,7 @@ let runTest = function (conn) {
 
     awaitBuild();
     IndexBuildTest.waitForIndexBuildToStop(testDB, collName, "i_1");
+    replSetTest.awaitReplication();
 
     assert.eq(numDocs, coll.count());
     assert.eq(numDocs, coll.find().itcount());

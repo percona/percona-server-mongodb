@@ -51,6 +51,7 @@
 #include "mongo/util/namespace_string_util.h"
 #include "mongo/util/str.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <initializer_list>
@@ -155,8 +156,6 @@ repl::OpTypeEnum getOplogOpType(const Document& oplog) {
 }
 
 Value makeChangeStreamNsField(const NamespaceString& nss) {
-    // For certain types, such as dropDatabase, the collection name may be empty and should be
-    // omitted. We never report the NamespaceString's tenantId in change stream events.
     return Value(Document{{"db", nss.dbName().serializeWithoutTenantPrefix_UNSAFE()},
                           {"coll", (nss.coll().empty() ? Value() : Value(nss.coll()))}});
 }
@@ -171,9 +170,9 @@ void setResumeTokenForEvent(const ResumeTokenData& resumeTokenData, MutableDocum
     doc->metadata().setSortKey(resumeToken, isSingleElementKey);
 }
 
-NamespaceString createNamespaceStringFromOplogEntry(Value tid, StringData ns) {
-    auto tenantId = tid.missing() ? boost::none : boost::optional<TenantId>{tid.getOid()};
-    return NamespaceStringUtil::deserialize(tenantId, ns, SerializationContext::stateDefault());
+NamespaceString createNamespaceStringFromOplogEntry(StringData ns) {
+    return NamespaceStringUtil::deserialize(
+        boost::none /* tenantId */, ns, SerializationContext::stateDefault());
 }
 
 void addTransactionIdFieldsIfPresent(const Document& input, MutableDocument& output) {
@@ -290,12 +289,11 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
     // Extract the fields we need.
     Value ts = input[repl::OplogEntry::kTimestampFieldName];
     Value ns = input[repl::OplogEntry::kNssFieldName];
-    Value tenantId = input[repl::OplogEntry::kTidFieldName];
     checkValueType(ns, repl::OplogEntry::kNssFieldName, BSONType::string);
     Value uuid = input[repl::OplogEntry::kUuidFieldName];
     auto opType = getOplogOpType(input);
 
-    NamespaceString nss = createNamespaceStringFromOplogEntry(tenantId, ns.getStringData());
+    NamespaceString nss = createNamespaceStringFromOplogEntry(ns.getStringData());
     Value id = input.getNestedField("o._id");
 
     // Non-replace updates have the _id in field "o2".
@@ -317,6 +315,8 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
     // By default, all events returned from here should populate their UUID field. This requirement
     // can be overriden for specific event types below.
     bool requireUUID = true;
+
+    bool shouldAddOperationDescriptionField = _changeStreamSpec.getShowExpandedEvents();
 
     MutableDocument doc;
 
@@ -348,24 +348,22 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
             // Check that the oplog entry format is as expected:
             // - if there is an '_id' field, it is a replace.
             // - if there is no '_id' field and the '$v' is 2, it is a delta (diff) update.
-            // - if there is no '_id' field and the '$v' is not 2, it is a modifier update.
-            uassert(6741200,
-                    str::stream() << "Expected _id field, or $v field missing, or $v equal to "
-                                  << static_cast<int>(UpdateOplogEntryVersion::kUpdateNodeV1)
-                                  << " (kUpdateNodeV1) or "
-                                  << static_cast<int>(UpdateOplogEntryVersion::kDeltaV2)
-                                  << " (kDeltaV2), but got oplog version $v: "
-                                  << oplogVersion.toString(),
-                    !id.missing() || oplogVersion.missing() ||
-                        oplogVersion.getInt() ==
-                            static_cast<int>(UpdateOplogEntryVersion::kUpdateNodeV1) ||
-                        oplogVersion.getInt() ==
-                            static_cast<int>(UpdateOplogEntryVersion::kDeltaV2));
-
+            // If there is no '_id' field and the '$v' is not 2, it is an old-style modifier
+            // update. This is unsupported.
             // It is important to check for '_id' field first, because a replacement style update
             // can still have a '$v' field in the object.
-            if (id.missing() && !oplogVersion.missing() &&
-                oplogVersion.getInt() == static_cast<int>(UpdateOplogEntryVersion::kDeltaV2)) {
+            const bool isUpdateEntry = id.missing();
+            uassert(
+                6741200,
+                str::stream() << "Expected _id field, or $v field missing, or $v equal to "
+                              << static_cast<int>(UpdateOplogEntryVersion::kDeltaV2)
+                              << " (kDeltaV2), but got oplog version $v: "
+                              << oplogVersion.toString(),
+                !isUpdateEntry ||
+                    (!oplogVersion.missing() && oplogVersion.getType() == BSONType::numberInt &&
+                     oplogVersion.getInt() == static_cast<int>(UpdateOplogEntryVersion::kDeltaV2)));
+
+            if (isUpdateEntry) {
                 // Parsing the delta oplog entry.
                 operationType = DocumentSourceChangeStream::kUpdateOpType;
                 Value diffObj = input[repl::OplogEntry::kObjectFieldName]
@@ -398,6 +396,7 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
                     }
                 }
             } else {
+                // Replace.
                 operationType = DocumentSourceChangeStream::kReplaceOpType;
                 fullDocument = input[repl::OplogEntry::kObjectFieldName];
             }
@@ -421,11 +420,11 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
                 operationType = DocumentSourceChangeStream::kRenameCollectionOpType;
 
                 // The "o.renameCollection" field contains the namespace of the original collection.
-                nss = createNamespaceStringFromOplogEntry(tenantId, nssField.getStringData());
+                nss = createNamespaceStringFromOplogEntry(nssField.getStringData());
 
                 // The "to" field contains the target namespace for the rename.
                 const auto renameTargetNss =
-                    createNamespaceStringFromOplogEntry(tenantId, oField["to"].getStringData());
+                    createNamespaceStringFromOplogEntry(oField["to"].getStringData());
                 const auto renameTarget = makeChangeStreamNsField(renameTargetNss);
 
                 // The 'to' field predates the 'operationDescription' field which was added in 5.3.
@@ -507,10 +506,11 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
             // Check for dynamic events that were specified via the 'supportedEvents' change stream
             // parameter.
             // This also checks for some hard-coded sharding-related events.
-            if (auto result = handleSupportedEvent(o2Field)) {
+            if (const auto& result = handleSupportedEvent(o2Field)) {
                 // Apply returned event name and operationDescription.
-                operationType = result->first;
-                operationDescription = result->second;
+                operationType = result->opType;
+                operationDescription = result->opDescription;
+                shouldAddOperationDescriptionField |= !result->isBuiltInEvent;
 
                 // Check if the 'reshardingUUID' field needs to be added to the event.
                 if (kOpsWithReshardingUUIDs.contains(operationType)) {
@@ -604,7 +604,10 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
     // The event may have a documentKey OR an operationDescription, but not both. We already
     // validated this while creating the resume token.
     doc.addField(DocumentSourceChangeStream::kDocumentKeyField, std::move(documentKey));
-    if (_changeStreamSpec.getShowExpandedEvents() && !operationDescription.missing()) {
+
+    // Control events must be emitted with the corresponding 'operationDescription' field,
+    // regardless of change stream being opened in 'showExpandedEvents' mode or not.
+    if (shouldAddOperationDescriptionField && !operationDescription.missing()) {
         doc.addField(DocumentSourceChangeStream::kOperationDescriptionField,
                      std::move(operationDescription));
     }
@@ -630,13 +633,18 @@ Document ChangeStreamDefaultEventTransformation::applyTransformation(const Docum
     return doc.freeze();
 }
 
-boost::optional<std::pair<StringData, Value>>
+boost::optional<ChangeStreamDefaultEventTransformation::SupportedEventResult>
 ChangeStreamDefaultEventTransformation::handleSupportedEvent(const Document& o2Field) const {
     for (auto&& supportedEvent : _supportedEvents) {
-        if (auto lookup = o2Field[supportedEvent]; !o2Field[supportedEvent].missing()) {
+        if (auto lookup = o2Field[supportedEvent]; !lookup.missing()) {
             // Known event.
-            return std::make_pair(supportedEvent,
-                                  Value{copyDocExceptFields(o2Field, {supportedEvent})});
+            const bool isBuiltInEvent =
+                std::find(kBuiltInNoopEvents.begin(), kBuiltInNoopEvents.end(), supportedEvent) !=
+                kBuiltInNoopEvents.end();
+            return ChangeStreamDefaultEventTransformation::SupportedEventResult{
+                supportedEvent,
+                Value{copyDocExceptFields(o2Field, {supportedEvent})},
+                isBuiltInEvent};
         }
     }
     return boost::none;
@@ -662,7 +670,6 @@ Document ChangeStreamViewDefinitionEventTransformation::applyTransformation(
     const Document& input) const {
     Value ts = input[repl::OplogEntry::kTimestampFieldName];
     auto opType = getOplogOpType(input);
-    Value tenantId = input[repl::OplogEntry::kTidFieldName];
 
     StringData operationType;
     // Used to populate the 'operationDescription' output field and also to build the resumeToken
@@ -681,7 +688,7 @@ Document ChangeStreamViewDefinitionEventTransformation::applyTransformation(
     Document oField = input[repl::OplogEntry::kObjectFieldName].getDocument();
 
     // The 'o._id' is the full namespace string of the view.
-    const auto nss = createNamespaceStringFromOplogEntry(tenantId, oField["_id"].getStringData());
+    const auto nss = createNamespaceStringFromOplogEntry(oField["_id"].getStringData());
 
     // Note: we are intentionally *not* handling any configurable events from the 'supportedEvents'
     // change stream parameter for view-type events here. Handling these events makes no sense here,
@@ -760,11 +767,7 @@ ChangeStreamEventTransformer::ChangeStreamEventTransformer(
 
 ChangeStreamEventTransformation* ChangeStreamEventTransformer::getBuilder(
     const Document& oplog) const {
-    // The nss from the entry is only used here determine which type of transformation to use. This
-    // is not dependent on the tenantId, so it is safe to ignore the tenantId in the oplog entry.
-    // It is useful to avoid extracting the tenantId because we must make this determination for
-    // every change stream event, and the check should therefore be as optimized as possible.
-
+    // The nss from the entry is only used here determine which type of transformation to use.
     if (!_isSingleCollStream &&
         NamespaceString::resolvesToSystemDotViews(
             oplog[repl::OplogEntry::kNssFieldName].getStringData())) {

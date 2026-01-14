@@ -104,6 +104,11 @@ public:
     virtual const TargetingMetadata& getTargetingMetadata() const = 0;
 
     /**
+     * Records an amount of backoff that happened.
+     */
+    virtual void recordBackoff(Milliseconds backoff) = 0;
+
+    /**
      * A type that encapsulates a value or a result with error labels, and also contains information
      * about targeting.
      *
@@ -340,6 +345,7 @@ public:
 };
 
 bool containsRetryableLabels(std::span<const std::string> errorLabels);
+bool containsSystemOverloadedLabels(std::span<const std::string> errorLabels);
 
 /**
  * Implements the basic behavior for retryability of failed requests.
@@ -387,6 +393,10 @@ public:
         // Noop, as there's nothing to cleanup on success.
     }
 
+    void recordBackoff(Milliseconds backoff) override {
+        // Noop, as there are no metrics to update in this context.
+    }
+
     static RetryParameters getRetryParametersFromServerParameters();
 
     Milliseconds getNextRetryDelay() const override {
@@ -427,6 +437,10 @@ public:
 
     void recordSuccess(const boost::optional<HostAndPort>& target) override {
         // Noop, as there's nothing to cleanup on success.
+    }
+
+    void recordBackoff(Milliseconds) override {
+        // Noop, as we won't accumulate metrics on no retry.
     }
 
     Milliseconds getNextRetryDelay() const override {
@@ -509,22 +523,18 @@ public:
         return DefaultRetryStrategy::defaultRetryCriteria(s, errorLabels);
     }
 
-    AdaptiveRetryStrategy(std::shared_ptr<RetryBudget> budget,
-                          std::unique_ptr<RetryStrategy> underlyingStrategy)
-        : _underlyingStrategy{std::move(underlyingStrategy)}, _budget{std::move(budget)} {
-        invariant(_budget);
+    AdaptiveRetryStrategy(RetryBudget& budget, std::unique_ptr<RetryStrategy> underlyingStrategy)
+        : _underlyingStrategy{std::move(underlyingStrategy)}, _budget{&budget} {
         invariant(_underlyingStrategy);
     }
 
     explicit AdaptiveRetryStrategy(
-        std::shared_ptr<RetryBudget> budget,
+        RetryBudget& budget,
         RetryCriteria retryCriteria = defaultRetryCriteria,
         RetryParameters parameters = DefaultRetryStrategy::getRetryParametersFromServerParameters())
         : _underlyingStrategy{std::make_unique<DefaultRetryStrategy>(std::move(retryCriteria),
                                                                      parameters)},
-          _budget{std::move(budget)} {
-        invariant(_budget);
-    }
+          _budget{&budget} {}
 
     /**
      * Determines whether the operation should be retried based on the retry budget.
@@ -546,6 +556,10 @@ public:
      */
     void recordSuccess(const boost::optional<HostAndPort>& target) override;
 
+    void recordBackoff(Milliseconds backoff) override {
+        _underlyingStrategy->recordBackoff(backoff);
+    }
+
     Milliseconds getNextRetryDelay() const override {
         return _underlyingStrategy->getNextRetryDelay();
     }
@@ -556,7 +570,7 @@ public:
 
 private:
     std::unique_ptr<RetryStrategy> _underlyingStrategy;
-    std::shared_ptr<RetryBudget> _budget;
+    RetryBudget* _budget;
     bool _previousAttemptOverloaded = false;
 };
 
@@ -587,6 +601,10 @@ struct RetryStrategyWithFailureRetryHook : RetryStrategy {
 
     void recordSuccess(const boost::optional<HostAndPort>& target) override {
         _underlyingStrategy.recordSuccess(target);
+    }
+
+    void recordBackoff(Milliseconds backoff) override {
+        _underlyingStrategy.recordBackoff(backoff);
     }
 
     Milliseconds getNextRetryDelay() const override {
@@ -660,6 +678,7 @@ StatusWith<T> runWithRetryStrategy(Interruptible* interruptible,
                 interruptible->checkForInterrupt();
             } else {
                 interruptible->sleepFor(delay);
+                strategy.recordBackoff(delay);
             }
         } catch (const DBException& ex) {
             return ex.toStatus();

@@ -27,8 +27,8 @@
 #
 """Calibration configuration."""
 
+import os
 import random
-from typing import Any
 
 import config
 import numpy as np
@@ -126,7 +126,7 @@ distributions["array_small"] = ArrayRandomDistribution(lengths_distr, distributi
 
 # Database settings
 database = config.DatabaseConfig(
-    connection_string="mongodb://localhost",
+    connection_string=os.getenv("MONGODB_URI", "mongodb://localhost"),
     database_name="qsn_calibration",
     dump_path="~/mongo/buildscripts/cost_model",
     restore_from_dump=config.RestoreMode.NEVER,
@@ -341,7 +341,7 @@ projection_collection = config.CollectionTemplate(
 )
 
 doc_scan_collection = create_coll_scan_collection_template(
-    "doc_scan", cardinalities=[100_000], payload_size=2000
+    "doc_scan", cardinalities=[100_000, 200_000], payload_size=2000
 )
 sort_collections = create_coll_scan_collection_template(
     "sort",
@@ -413,14 +413,6 @@ workload_execution = config.WorkloadExecutionConfig(
     warmup_runs=10,
     runs=100,
 )
-
-
-def make_filter_by_note(note_value: Any):
-    def impl(df):
-        return df[df.note == note_value]
-
-    return impl
-
 
 qsn_nodes = [
     config.QsNodeCalibrationConfig(name="COLLSCAN_FORWARD", type="COLLSCAN"),

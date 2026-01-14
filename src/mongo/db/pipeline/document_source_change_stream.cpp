@@ -105,22 +105,16 @@ std::string DocumentSourceChangeStream::getNsRegexForChangeStream(
     switch (ChangeStream::getChangeStreamType(nss)) {
         case ChangeStreamType::kCollection:
             // Match the target namespace exactly.
-            return fmt::format(
-                "^{}$",
-                // Change streams will only be enabled in serverless when multitenancy and
-                // featureFlag are on, therefore we don't have a tenantid prefix.
-                pcre_util::quoteMeta(
-                    NamespaceStringUtil::serialize(nss, expCtx->getSerializationContext())));
+            return fmt::format("^{}$",
+                               pcre_util::quoteMeta(NamespaceStringUtil::serialize(
+                                   nss, expCtx->getSerializationContext())));
         case ChangeStreamType::kDatabase:
             // Match all namespaces that start with db name, followed by ".", then NOT followed by
             // '$' or 'system.' unless 'showSystemEvents' is set.
-            return fmt::format(
-                "^{}\\.{}",
-                // Change streams will only be enabled in serverless when multitenancy and
-                // featureFlag are on, therefore we don't have a tenantid prefix.
-                pcre_util::quoteMeta(
-                    DatabaseNameUtil::serialize(nss.dbName(), expCtx->getSerializationContext())),
-                resolveAllCollectionsRegex(expCtx));
+            return fmt::format("^{}\\.{}",
+                               pcre_util::quoteMeta(DatabaseNameUtil::serialize(
+                                   nss.dbName(), expCtx->getSerializationContext())),
+                               resolveAllCollectionsRegex(expCtx));
         case ChangeStreamType::kAllDatabases:
             // Match all namespaces that start with any db name other than admin, config, or local,
             // followed by ".", then NOT '$' or 'system.' unless 'showSystemEvents' is set.
@@ -390,7 +384,7 @@ void DocumentSourceChangeStream::assertIsLegalSpecification(
     // We can only run on a replica set, or through mongoS. Confirm that this is the case.
     auto replCoord = repl::ReplicationCoordinator::get(expCtx->getOperationContext());
     uassert(40573,
-            "The $changeStream stage is only supported on replica sets",
+            "The $changeStream stage is only supported on replica sets or mongos",
             expCtx->getInRouter() || (replCoord && replCoord->getSettings().isReplSet()));
 
     // We will not validate user specified options when we are not expecting to execute queries,

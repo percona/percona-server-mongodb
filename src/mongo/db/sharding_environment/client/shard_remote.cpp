@@ -114,8 +114,9 @@ BSONObj appendMaxTimeToCmdObj(Milliseconds maxTimeMSOverride, const BSONObj& cmd
 
 ShardRemote::ShardRemote(const ShardId& id,
                          const ConnectionString& connString,
-                         std::unique_ptr<RemoteCommandTargeter> targeter)
-    : Shard(id), _connString(connString), _targeter(std::move(targeter)) {}
+                         std::unique_ptr<RemoteCommandTargeter> targeter,
+                         std::shared_ptr<ShardSharedStateCache::State> sharedState)
+    : Shard(id, std::move(sharedState)), _connString(connString), _targeter(std::move(targeter)) {}
 
 ShardRemote::~ShardRemote() = default;
 
@@ -214,7 +215,7 @@ RetryStrategy::Result<Shard::QueryResponse> ShardRemote::_runExhaustiveCursorCom
     const DatabaseName& dbName,
     Milliseconds maxTimeMSOverride,
     const BSONObj& cmdObj) {
-    const auto host = _targeter->findHost(opCtx, readPref);
+    const auto host = _targeter->findHost(opCtx, readPref, {});
     if (!host.isOK()) {
         return host.getStatus();
     }
@@ -409,7 +410,7 @@ RetryStrategy::Result<std::monostate> ShardRemote::_runAggregation(
             aggRequest.getUnwrappedReadPref().value_or(BSONObj()),
             ReadPreference::SecondaryPreferred));
 
-    auto swHost = _targeter->findHost(opCtx, readPreference);
+    auto swHost = _targeter->findHost(opCtx, readPreference, {});
     if (!swHost.isOK()) {
         return swHost.getStatus();
     }
@@ -539,7 +540,7 @@ StatusWith<ShardRemote::AsyncCmdHandle> ShardRemote::_scheduleCommand(
     const BSONObj& cmdObj,
     const TaskExecutor::RemoteCommandCallbackFn& cb) {
 
-    const auto swHost = _targeter->findHost(opCtx, readPref);
+    const auto swHost = _targeter->findHost(opCtx, readPref, {});
     if (!swHost.isOK()) {
         return swHost.getStatus();
     }

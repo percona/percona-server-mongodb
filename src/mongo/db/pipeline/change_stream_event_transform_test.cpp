@@ -62,10 +62,32 @@ namespace mongo {
 namespace {
 using namespace change_stream_test_helper;
 
-Document applyTransformation(const repl::OplogEntry& oplogEntry, NamespaceString ns = nss) {
+repl::MutableOplogEntry buildMovePrimaryOplogEntry(OperationContext* opCtx,
+                                                   const DatabaseName& dbName,
+                                                   const ShardId& oldPrimary,
+                                                   const ShardId& newPrimary) {
+    repl::MutableOplogEntry oplogEntry;
+    const auto dbNameStr =
+        DatabaseNameUtil::serialize(dbName, SerializationContext::stateDefault());
+
+    oplogEntry.setOpType(repl::OpTypeEnum::kNoop);
+    oplogEntry.setNss(NamespaceString(dbName));
+    oplogEntry.setObject(BSON("msg" << BSON("movePrimary" << dbNameStr)));
+    oplogEntry.setObject2(
+        BSON("movePrimary" << dbNameStr << "from" << oldPrimary << "to" << newPrimary));
+    oplogEntry.setOpTime(repl::OpTime(kDefaultTs, 0));
+    oplogEntry.setWallClockTime(Date_t());
+
+    return oplogEntry;
+}
+
+Document applyTransformation(const repl::OplogEntry& oplogEntry,
+                             NamespaceString ns = nss,
+                             const std::vector<std::string>& supportedEvents = {}) {
     const auto oplogDoc = Document(oplogEntry.getEntry().toBSON());
     DocumentSourceChangeStreamSpec spec;
     spec.setStartAtOperationTime(kDefaultTs);
+    spec.setSupportedEvents(supportedEvents);
     spec.setShowExpandedEvents(true);
 
     ChangeStreamEventTransformer transformer(make_intrusive<ExpressionContextForTest>(ns), spec);
@@ -283,242 +305,67 @@ TEST(ChangeStreamEventTransformTest, TestCreateViewOnSingleCollection) {
     ASSERT_DOCUMENT_EQ(applyTransformation(oplogEntry), expectedDoc);
 }
 
-TEST(ChangeStreamEventTransformTest, TestUpdateTransformWithTenantId) {
-    // Turn on multitenancySupport, but not featureFlagRequireTenantId. We expect the tenantId to be
-    // part of the 'ns' field in the oplog entry, but it should not be a part of the db name in the
-    // change event.
-    RAIIServerParameterControllerForTest multitenancyController("multitenancySupport", true);
+TEST(ChangeStreamEventTransformTest,
+     Given_NoopOplogEntry_When_CallingTransform_Then_FieldsAreNotCopied) {
+    const NamespaceString nss =
+        NamespaceString::createNamespaceString_forTest(boost::none, "testDB.coll.name");
 
-    const auto documentKey = Document{{"x", 1}, {"y", 1}};
-    const auto tenantId = TenantId(OID::gen());
-    NamespaceString nssWithTenant = NamespaceString::createNamespaceString_forTest(
-        tenantId, "unittests.serverless_change_stream");
+    // Create a noop oplog entry that represents a 'shardCollection' event.
+    repl::MutableOplogEntry oplogEntry;
+    oplogEntry.setOpType(repl::OpTypeEnum::kNoop);
+    oplogEntry.setNss(nss);
+    oplogEntry.setObject(BSON("msg" << BSON("shardCollection" << nss.toString_forTest())));
+    oplogEntry.setObject2(BSON("shardCollection" << nss.toString_forTest() << "key"
+                                                 << BSON("x" << 1) << "unique" << false));
+    oplogEntry.setOpTime(repl::OpTime(kDefaultTs, 0));
+    oplogEntry.setWallClockTime(Date_t());
 
-    auto updateField =
-        makeOplogEntry(repl::OpTypeEnum::kUpdate,                                 // op type
-                       nssWithTenant,                                             // namespace
-                       BSON("$v" << 2 << "diff" << BSON("u" << BSON("y" << 2))),  // o
-                       testUuid(),                                                // uuid
-                       boost::none,                                               // fromMigrate
-                       documentKey.toBson()                                       // o2
-        );
+    // Expect fields from the oplog entry to be present in the 'operationDescription' field.
+    Document expectedDoc{
+        {DocumentSourceChangeStream::kIdField,
+         makeResumeToken(kDefaultTs,
+                         Value(),
+                         Document{{"key", Document{{"x", 1}}}, {"unique", false}},
+                         DocumentSourceChangeStream::kShardCollectionOpType)},
+        {DocumentSourceChangeStream::kOperationTypeField,
+         DocumentSourceChangeStream::kShardCollectionOpType},
+        {DocumentSourceChangeStream::kClusterTimeField, kDefaultTs},
+        {DocumentSourceChangeStream::kWallTimeField, Date_t()},
+        {DocumentSourceChangeStream::kNamespaceField,
+         Document{{"db", nss.db_forTest()}, {"coll", nss.coll()}}},
+        {DocumentSourceChangeStream::kOperationDescriptionField,
+         Document{{"key", Document{{"x", 1}}}, {"unique", false}}},
+    };
 
-    Document expectedNamespace =
-        Document{{"db", nssWithTenant.dbName().toString_forTest()}, {"coll", nssWithTenant.coll()}};
-
-    auto changeStreamDoc = applyTransformation(updateField, nssWithTenant);
-    auto outputNs = changeStreamDoc[DocumentSourceChangeStream::kNamespaceField].getDocument();
-
-    ASSERT_DOCUMENT_EQ(outputNs, expectedNamespace);
-
-    // Now set featureFlagRequireTenantId, so we expect the tenantId to be in a separate "tid" field
-    // in the oplog entry. It should still not be a part of the db name in the change event.
-    RAIIServerParameterControllerForTest featureFlagController("featureFlagRequireTenantID", true);
-
-    auto oplogEntry = makeOplogEntry(repl::OpTypeEnum::kUpdate,  // op type
-                                     nssWithTenant,              // namespace
-                                     BSON("$v" << 2 << "diff" << BSON("u" << BSON("y" << 2))),  // o
-                                     testUuid(),           // uuid
-                                     boost::none,          // fromMigrate
-                                     documentKey.toBson()  // o2
-    );
-
-    changeStreamDoc = applyTransformation(oplogEntry, nssWithTenant);
-    outputNs = changeStreamDoc[DocumentSourceChangeStream::kNamespaceField].getDocument();
-
-    ASSERT_DOCUMENT_EQ(outputNs, expectedNamespace);
+    repl::OplogEntry immutableEntry(oplogEntry.toBSON());
+    ASSERT_DOCUMENT_EQ(applyTransformation(immutableEntry, nss), expectedDoc);
 }
 
-TEST(ChangeStreamEventTransformTest, TestRenameTransformWithTenantId) {
-    // Turn on multitenancySupport, but not featureFlagRequireTenantId. We expect the tenantId to be
-    // part of the 'ns' field in the oplog entry, but it should not be a part of the db name in the
-    // change event.
-    RAIIServerParameterControllerForTest multitenancyController("multitenancySupport", true);
-
-    const auto tenantId = TenantId(OID::gen());
-    NamespaceString renameFrom = NamespaceString::createNamespaceString_forTest(
-        tenantId, "unittests.serverless_change_stream");
-    NamespaceString renameTo =
-        NamespaceString::createNamespaceString_forTest(tenantId, "unittests.rename_coll");
-
-    auto renameField =
-        makeOplogEntry(repl::OpTypeEnum::kCommand,  // op type
-                       renameFrom.getCommandNS(),   // namespace
-                       BSON("renameCollection" << renameFrom.toString_forTest() << "to"
-                                               << renameTo.toString_forTest()),  // o
-                       testUuid()                                                // uuid
-        );
+TEST(
+    ChangeStreamEventTransformTest,
+    Given_NoopOplogEntryWhichIsNotBuiltIn_When_CallingTransform_Then_OperationDescriptionIsPresent) {
+    const NamespaceString nss =
+        NamespaceString::createNamespaceString_forTest(boost::none, "testDB.coll.name");
+    auto serviceContext = std::make_unique<QueryTestServiceContext>();
+    auto opCtx = serviceContext->makeOperationContext();
+    auto oplogEntry = buildMovePrimaryOplogEntry(
+        opCtx.get(), nss.dbName(), ShardId("oldPrimary"), ShardId("newPrimary"));
+    auto opDescription = Document{{
+        {"from"_sd, "oldPrimary"_sd},
+        {"to"_sd, "newPrimary"_sd},
+    }};
 
     Document expectedDoc{
-        {DocumentSourceChangeStream::kNamespaceField,
-         Document{{"db", renameFrom.dbName().toString_forTest()}, {"coll", renameFrom.coll()}}},
-        {DocumentSourceChangeStream::kRenameTargetNssField,
-         Document{{"db", renameTo.dbName().toString_forTest()}, {"coll", renameTo.coll()}}},
-        {DocumentSourceChangeStream::kOperationDescriptionField,
-         Document{BSON("to" << BSON("db" << renameTo.dbName().toString_forTest() << "coll"
-                                         << renameTo.coll()))}}};
+        {DocumentSourceChangeStream::kIdField,
+         makeResumeToken(kDefaultTs, Value(), opDescription, "movePrimary")},
+        {DocumentSourceChangeStream::kOperationTypeField, "movePrimary"_sd},
+        {DocumentSourceChangeStream::kClusterTimeField, kDefaultTs},
+        {DocumentSourceChangeStream::kWallTimeField, Date_t()},
+        {DocumentSourceChangeStream::kNamespaceField, Document{{"db", nss.db_forTest()}}},
+        {DocumentSourceChangeStream::kOperationDescriptionField, opDescription}};
 
-    auto changeStreamDoc = applyTransformation(renameField, renameFrom);
-    auto renameDoc = Document{
-        {DocumentSourceChangeStream::kNamespaceField,
-         changeStreamDoc.getField(DocumentSourceChangeStream::kNamespaceField)},
-        {DocumentSourceChangeStream::kRenameTargetNssField,
-         changeStreamDoc.getField(DocumentSourceChangeStream::kRenameTargetNssField)},
-        {DocumentSourceChangeStream::kOperationDescriptionField,
-         changeStreamDoc.getField(DocumentSourceChangeStream::kOperationDescriptionField)}};
-
-    ASSERT_DOCUMENT_EQ(renameDoc, expectedDoc);
-
-    // Now set featureFlagRequireTenantId, so we expect the tenantId to be in a separate "tid" field
-    // in the oplog entry. It should still not be a part of the db name in the change event.
-    RAIIServerParameterControllerForTest featureFlagController("featureFlagRequireTenantID", true);
-
-    auto oplogEntry =
-        makeOplogEntry(repl::OpTypeEnum::kCommand,  // op type
-                       renameFrom.getCommandNS(),   // namespace
-                       BSON("renameCollection" << renameFrom.toString_forTest() << "to"
-                                               << renameTo.toString_forTest()),  // o
-                       testUuid()                                                // uuid
-        );
-
-    changeStreamDoc = applyTransformation(oplogEntry, renameFrom);
-    renameDoc = Document{
-        {DocumentSourceChangeStream::kNamespaceField,
-         changeStreamDoc.getField(DocumentSourceChangeStream::kNamespaceField)},
-        {DocumentSourceChangeStream::kRenameTargetNssField,
-         changeStreamDoc.getField(DocumentSourceChangeStream::kRenameTargetNssField)},
-        {DocumentSourceChangeStream::kOperationDescriptionField,
-         changeStreamDoc.getField(DocumentSourceChangeStream::kOperationDescriptionField)}};
-
-    ASSERT_DOCUMENT_EQ(renameDoc, expectedDoc);
-}
-
-TEST(ChangeStreamEventTransformTest, TestDropDatabaseTransformWithTenantId) {
-    // Turn on multitenancySupport, but not featureFlagRequireTenantId. We expect the tenantId to be
-    // part of the 'ns' field in the oplog entry, but it should not be a part of the db name in the
-    // change event.
-    RAIIServerParameterControllerForTest multitenancyController("multitenancySupport", true);
-
-    const auto tenantId = TenantId(OID::gen());
-    NamespaceString dbToDrop =
-        NamespaceString::createNamespaceString_forTest(tenantId, "unittests");
-
-    auto dropDbField = makeOplogEntry(repl::OpTypeEnum::kCommand,  // op type
-                                      dbToDrop.getCommandNS(),     // namespace
-                                      BSON("dropDatabase" << 1),   // o
-                                      testUuid()                   // uuid
-    );
-
-    Document expectedNamespace = Document{{"db", dbToDrop.dbName().toString_forTest()}};
-
-    auto changeStreamDoc = applyTransformation(dropDbField, dbToDrop);
-    auto outputNs = changeStreamDoc[DocumentSourceChangeStream::kNamespaceField].getDocument();
-
-    ASSERT_DOCUMENT_EQ(outputNs, expectedNamespace);
-
-    // Now set featureFlagRequireTenantId, so we expect the tenantId to be in a separate "tid" field
-    // in the oplog entry. It should still not be a part of the db name in the change event.
-    RAIIServerParameterControllerForTest featureFlagController("featureFlagRequireTenantID", true);
-
-    auto oplogEntry = makeOplogEntry(repl::OpTypeEnum::kCommand,  // op type
-                                     dbToDrop.getCommandNS(),     // namespace
-                                     BSON("dropDatabase" << 1),   // o
-                                     testUuid()                   // uuid
-    );
-
-    changeStreamDoc = applyTransformation(oplogEntry, dbToDrop);
-    outputNs = changeStreamDoc[DocumentSourceChangeStream::kNamespaceField].getDocument();
-
-    ASSERT_DOCUMENT_EQ(outputNs, expectedNamespace);
-}
-
-TEST(ChangeStreamEventTransformTest, TestCreateTransformWithTenantId) {
-    // Turn on multitenancySupport, but not featureFlagRequireTenantId. We expect the tenantId to be
-    // part of the 'ns' field in the oplog entry, but it should not be a part of the db name in the
-    // change event.
-    RAIIServerParameterControllerForTest multitenancyController("multitenancySupport", true);
-
-    const auto tenantId = TenantId(OID::gen());
-    NamespaceString nssWithTenant = NamespaceString::createNamespaceString_forTest(
-        tenantId, "unittests.serverless_change_stream");
-
-    auto createField = makeOplogEntry(repl::OpTypeEnum::kCommand,              // op type
-                                      nssWithTenant.getCommandNS(),            // namespace
-                                      BSON("create" << nssWithTenant.coll()),  // o
-                                      testUuid()                               // uuid
-    );
-
-    Document expectedNamespace =
-        Document{{"db", nssWithTenant.dbName().toString_forTest()}, {"coll", nssWithTenant.coll()}};
-
-    auto changeStreamDoc = applyTransformation(createField, nssWithTenant);
-    auto outputNs = changeStreamDoc[DocumentSourceChangeStream::kNamespaceField].getDocument();
-
-    ASSERT_DOCUMENT_EQ(outputNs, expectedNamespace);
-
-    // Now set featureFlagRequireTenantId, so we expect the tenantId to be in a separate "tid" field
-    // in the oplog entry. It should still not be a part of the db name in the change event.
-    RAIIServerParameterControllerForTest featureFlagController("featureFlagRequireTenantID", true);
-
-    auto oplogEntry = makeOplogEntry(repl::OpTypeEnum::kCommand,              // op type
-                                     nssWithTenant.getCommandNS(),            // namespace
-                                     BSON("create" << nssWithTenant.coll()),  // o
-                                     testUuid()                               // uuid
-    );
-
-    changeStreamDoc = applyTransformation(oplogEntry, nssWithTenant);
-    outputNs = changeStreamDoc[DocumentSourceChangeStream::kNamespaceField].getDocument();
-
-    ASSERT_DOCUMENT_EQ(outputNs, expectedNamespace);
-}
-
-TEST(ChangeStreamEventTransformTest, TestCreateViewTransformWithTenantId) {
-    // Turn on multitenancySupport, but not featureFlagRequireTenantId. We expect the tenantId to be
-    // part of the 'ns' field in the oplog entry, but it should not be a part of the db name in the
-    // change event.
-    RAIIServerParameterControllerForTest multitenancyController("multitenancySupport", true);
-
-    const auto tenantId = TenantId(OID::gen());
-
-    const NamespaceString systemViewNss = NamespaceString::makeSystemDotViewsNamespace(
-        DatabaseName::createDatabaseName_forTest(tenantId, "viewDB"));
-    const NamespaceString viewNss =
-        NamespaceString::createNamespaceString_forTest(tenantId, "viewDB.view.name");
-    const auto viewPipeline =
-        Value(fromjson("[{$match: {field: 'value'}}, {$project: {field: 1}}]"));
-    const auto opDescription = Document{{"viewOn", "baseColl"_sd}, {"pipeline", viewPipeline}};
-    auto createView = makeOplogEntry(repl::OpTypeEnum::kInsert,  // op type
-                                     systemViewNss,              // namespace
-                                     BSON("_id" << viewNss.toString_forTest() << "viewOn"
-                                                << "baseColl"
-                                                << "pipeline" << viewPipeline),  // o
-                                     testUuid());                                // uuid
-
-    Document expectedNamespace =
-        Document{{"db", viewNss.dbName().toString_forTest()}, {"coll", viewNss.coll()}};
-
-    auto changeStreamDoc = applyTransformation(
-        createView, NamespaceString::makeCollectionlessAggregateNSS(viewNss.dbName()));
-    auto outputNs = changeStreamDoc[DocumentSourceChangeStream::kNamespaceField].getDocument();
-
-    ASSERT_DOCUMENT_EQ(outputNs, expectedNamespace);
-
-    // Now set featureFlagRequireTenantId, so we expect the tenantId to be in a separate "tid" field
-    // in the oplog entry. It should still not be a part of the db name in the change event.
-    RAIIServerParameterControllerForTest featureFlagController("featureFlagRequireTenantID", true);
-
-    auto oplogEntry = makeOplogEntry(repl::OpTypeEnum::kInsert,  // op type
-                                     systemViewNss,              // namespace
-                                     BSON("_id" << viewNss.toString_forTest() << "viewOn"
-                                                << "baseColl"
-                                                << "pipeline" << viewPipeline),  // o
-                                     testUuid());
-
-    changeStreamDoc = applyTransformation(
-        oplogEntry, NamespaceString::makeCollectionlessAggregateNSS(viewNss.dbName()));
-    outputNs = changeStreamDoc[DocumentSourceChangeStream::kNamespaceField].getDocument();
-
-    ASSERT_DOCUMENT_EQ(outputNs, expectedNamespace);
+    repl::OplogEntry immutableEntry(oplogEntry.toBSON());
+    ASSERT_DOCUMENT_EQ(applyTransformation(immutableEntry, nss, {"movePrimary"}), expectedDoc);
 }
 
 }  // namespace

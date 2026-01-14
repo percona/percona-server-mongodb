@@ -31,44 +31,41 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_util.h"
 
 namespace sdk = mongo::extension::sdk;
 
-class FooLogicalStage : public mongo::extension::sdk::LogicalAggregationStage {};
+DEFAULT_LOGICAL_AST_PARSE(Foo, "$foo")
 
-class FooStageDescriptor : public mongo::extension::sdk::AggregationStageDescriptor {
+class FooStageDescriptor : public mongo::extension::sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$foo";
+    static inline const std::string kStageName = std::string(FooStageName);
 
     FooStageDescriptor()
-        : mongo::extension::sdk::AggregationStageDescriptor(
-              kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+        : mongo::extension::sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {
+    }
 
-    std::unique_ptr<mongo::extension::sdk::LogicalAggregationStage> parse(
+    std::unique_ptr<mongo::extension::sdk::AggStageParseNode> parse(
         mongo::BSONObj stageBson) const override {
-        uassert(10696400,
-                "Failed to parse " + kStageName + ", expected object",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj());
+        sdk::validateStageDefinition(stageBson, kStageName);
 
-        return std::make_unique<FooLogicalStage>();
+        return std::make_unique<FooParseNode>();
     }
 };
 
-class BarLogicalStage : public mongo::extension::sdk::LogicalAggregationStage {};
+DEFAULT_LOGICAL_AST_PARSE(Bar, "$bar")
 
-class BarStageDescriptor : public sdk::AggregationStageDescriptor {
+class BarStageDescriptor : public sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$bar";
+    static inline const std::string kStageName = std::string(BarStageName);
 
-    BarStageDescriptor()
-        : sdk::AggregationStageDescriptor(kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+    BarStageDescriptor() : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
 
-    std::unique_ptr<sdk::LogicalAggregationStage> parse(mongo::BSONObj stageBson) const override {
-        uassert(10696401,
-                "Failed to parse " + kStageName + ", expected object",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj());
+    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
+        sdk::validateStageDefinition(stageBson, kStageName);
 
-        return std::make_unique<BarLogicalStage>();
+        return std::make_unique<BarParseNode>();
     }
 };
 

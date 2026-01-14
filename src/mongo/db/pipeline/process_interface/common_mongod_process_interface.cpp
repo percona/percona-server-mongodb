@@ -338,15 +338,13 @@ bool requiresCollectionAcquisition(const Pipeline& pipeline) {
 }
 
 std::unique_ptr<Pipeline> attachCursorSourceToPipelineForLocalReadImpl(
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     CollectionOrViewAcquisitionMap& allAcquisitions,
     bool isAnySecondaryCollectionNotLocal,
     boost::optional<const AggregateCommandRequest&> aggRequest,
     bool shouldUseCollectionDefaultCollator,
     ExecShardFilterPolicy shardFilterPolicy) {
-    const boost::intrusive_ptr<ExpressionContext>& expCtx = ownedPipeline->getContext();
-
-    std::unique_ptr<Pipeline> pipeline(ownedPipeline);
+    const boost::intrusive_ptr<ExpressionContext>& expCtx = pipeline->getContext();
 
     if (expCtx->eligibleForSampling()) {
         if (auto sampleId = analyze_shard_key::tryGenerateSampleId(
@@ -410,7 +408,7 @@ std::unique_ptr<Pipeline> attachCursorSourceToPipelineForLocalReadImpl(
                                                           catalogResourceHandle,
                                                           shardFilterPolicy);
 
-    const bool isMongotPipeline = search_helpers::isMongotPipeline(ownedPipeline);
+    const bool isMongotPipeline = search_helpers::isMongotPipeline(pipeline.get());
     if (isMongotPipeline) {
         // For mongot pipelines, we will not have a cursor attached and now must perform
         // $search-specific stage preparation. It's important that we release locks early, before
@@ -758,13 +756,14 @@ query_shape::CollectionType CommonMongodProcessInterface::getCollectionType(
 std::unique_ptr<Pipeline>
 CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     bool attachCursorAfterOptimizing,
-    std::function<void(Pipeline* pipeline, CollectionMetadata collData)> finalizePipeline,
+    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                       Pipeline* pipeline,
+                       CollectionMetadata collData)> finalizePipeline,
     bool shouldUseCollectionDefaultCollator,
     boost::optional<const AggregateCommandRequest&> aggRequest,
     ExecShardFilterPolicy shardFilterPolicy) {
-    std::unique_ptr<Pipeline> pipeline(ownedPipeline);
 
     // TODO: SPM-4050 Remove this.
     boost::optional<BypassCheckAllShardRoleAcquisitionsVersioned>
@@ -781,7 +780,7 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
     // reading from the cache.
     if (!requiresCollectionAcquisition(*pipeline) || !attachCursorAfterOptimizing) {
         if (finalizePipeline) {
-            finalizePipeline(pipeline.get(), std::monostate{});
+            finalizePipeline(expCtx, pipeline.get(), std::monostate{});
         }
         return pipeline;
     }
@@ -797,9 +796,9 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
 
     // After acquiring all of the collections, we can make and optimize the pipeline.
     if (finalizePipeline) {
-        finalizePipeline(pipeline.get(), primaryAcquisition);
+        finalizePipeline(expCtx, pipeline.get(), primaryAcquisition);
     }
-    return attachCursorSourceToPipelineForLocalReadImpl(pipeline.release(),
+    return attachCursorSourceToPipelineForLocalReadImpl(std::move(pipeline),
                                                         allAcquisitions,
                                                         isAnySecondaryCollectionNotLocal,
                                                         aggRequest,
@@ -808,11 +807,10 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
 }
 
 std::unique_ptr<Pipeline> CommonMongodProcessInterface::attachCursorSourceToPipelineForLocalRead(
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     boost::optional<const AggregateCommandRequest&> aggRequest,
     bool shouldUseCollectionDefaultCollator,
     ExecShardFilterPolicy shardFilterPolicy) {
-    std::unique_ptr<Pipeline> pipeline(ownedPipeline);
     const boost::intrusive_ptr<ExpressionContext>& expCtx = pipeline->getContext();
 
     // TODO: SPM-4050 Remove this.
@@ -831,7 +829,7 @@ std::unique_ptr<Pipeline> CommonMongodProcessInterface::attachCursorSourceToPipe
     bool isAnySecondaryCollectionNotLocal =
         acquireCollectionsForPipeline(expCtx, pipeline->serializeToBson(), allAcquisitions);
 
-    return attachCursorSourceToPipelineForLocalReadImpl(pipeline.release(),
+    return attachCursorSourceToPipelineForLocalReadImpl(std::move(pipeline),
                                                         allAcquisitions,
                                                         isAnySecondaryCollectionNotLocal,
                                                         aggRequest,
@@ -1197,20 +1195,6 @@ boost::optional<TimeseriesOptions> CommonMongodProcessInterface::_getTimeseriesO
     return mongo::timeseries::getTimeseriesOptions(opCtx, ns, true /*convertToBucketsNamespace*/);
 }
 
-namespace {
-// TODO SERVER-106716 Remove this
-template <typename SpillTableWriteOperation>
-void withWriteUnitOfWorkIfNeeded(OperationContext* opCtx, SpillTableWriteOperation operation) {
-    if (feature_flags::gFeatureFlagCreateSpillKVEngine.isEnabled()) {
-        operation();
-    } else {
-        WriteUnitOfWork wuow(opCtx);
-        operation();
-        wuow.commit();
-    }
-}
-}  // namespace
-
 void CommonMongodProcessInterface::writeRecordsToSpillTable(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     SpillTable& spillTable,
@@ -1223,12 +1207,10 @@ void CommonMongodProcessInterface::writeRecordsToSpillTable(
         expCtx->getNamespaceString(),
         [&] {
             Lock::GlobalLock lk = acquireLockForSpillTable(expCtx->getOperationContext());
-            withWriteUnitOfWorkIfNeeded(expCtx->getOperationContext(), [&]() {
-                auto writeResult = spillTable.insertRecords(expCtx->getOperationContext(), records);
-                uassert(ErrorCodes::OutOfDiskSpace,
-                        str::stream() << "Failed to write to disk because " << writeResult.reason(),
-                        writeResult.isOK());
-            });
+            auto writeResult = spillTable.insertRecords(expCtx->getOperationContext(), records);
+            uassert(ErrorCodes::OutOfDiskSpace,
+                    str::stream() << "Failed to write to disk because " << writeResult.reason(),
+                    writeResult.isOK());
         }
 
     );
@@ -1238,17 +1220,10 @@ std::unique_ptr<SpillTable> CommonMongodProcessInterface::createSpillTable(
     const boost::intrusive_ptr<ExpressionContext>& expCtx, KeyFormat keyFormat) const {
     assertIgnorePrepareConflictsBehavior(expCtx);
     Lock::GlobalLock lk = acquireLockForSpillTable(expCtx->getOperationContext());
-    if (feature_flags::gFeatureFlagCreateSpillKVEngine.isEnabled()) {
-        return expCtx->getOperationContext()
-            ->getServiceContext()
-            ->getStorageEngine()
-            ->makeSpillTable(expCtx->getOperationContext(),
-                             keyFormat,
-                             internalQuerySpillingMinAvailableDiskSpaceBytes.load());
-    }
-    auto storageEngine = expCtx->getOperationContext()->getServiceContext()->getStorageEngine();
-    return storageEngine->makeTemporaryRecordStore(
-        expCtx->getOperationContext(), storageEngine->generateNewInternalIdent(), keyFormat);
+    return expCtx->getOperationContext()->getServiceContext()->getStorageEngine()->makeSpillTable(
+        expCtx->getOperationContext(),
+        keyFormat,
+        internalQuerySpillingMinAvailableDiskSpaceBytes.load());
 }
 
 Document CommonMongodProcessInterface::readRecordFromSpillTable(
@@ -1283,9 +1258,7 @@ void CommonMongodProcessInterface::deleteRecordFromSpillTable(
                        [&] {
                            Lock::GlobalLock lk =
                                acquireLockForSpillTable(expCtx->getOperationContext());
-                           withWriteUnitOfWorkIfNeeded(expCtx->getOperationContext(), [&]() {
-                               spillTable.deleteRecord(expCtx->getOperationContext(), rID);
-                           });
+                           spillTable.deleteRecord(expCtx->getOperationContext(), rID);
                        });
 }
 
@@ -1298,10 +1271,8 @@ void CommonMongodProcessInterface::truncateSpillTable(
                        [&] {
                            Lock::GlobalLock lk =
                                acquireLockForSpillTable(expCtx->getOperationContext());
-                           withWriteUnitOfWorkIfNeeded(expCtx->getOperationContext(), [&]() {
-                               auto status = spillTable.truncate(expCtx->getOperationContext());
-                               tassert(5643000, "Unable to clear record store", status.isOK());
-                           });
+                           auto status = spillTable.truncate(expCtx->getOperationContext());
+                           tassert(5643000, "Unable to clear record store", status.isOK());
                        });
 }
 

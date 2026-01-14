@@ -28,24 +28,58 @@
  */
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 
+#include "mongo/db/extension/sdk/assert_util.h"
+#include "mongo/util/fail_point.h"
+#include "mongo/util/scopeguard.h"
+
 namespace mongo::extension::sdk {
 
-const ::MongoExtensionAggregationStageDescriptorVTable ExtensionAggregationStageDescriptor::VTABLE =
-    {.get_type = &ExtensionAggregationStageDescriptor::_extGetType,
-     .get_name = &ExtensionAggregationStageDescriptor::_extGetName,
-     .parse = &ExtensionAggregationStageDescriptor::_extParse};
+MONGO_FAIL_POINT_DEFINE(failVariantNodeConversion);
 
-const ::MongoExtensionLogicalAggregationStageVTable ExtensionLogicalAggregationStage::VTABLE = {
-    .destroy = &ExtensionLogicalAggregationStage::_extDestroy};
+::MongoExtensionStatus* ExtensionAggStageParseNode::_extExpand(
+    const ::MongoExtensionAggStageParseNode* parseNode,
+    ::MongoExtensionExpandedArray* expanded) noexcept {
+    return wrapCXXAndConvertExceptionToStatus([&]() {
+        const auto& impl = static_cast<const ExtensionAggStageParseNode*>(parseNode)->getImpl();
+        const auto expandedSize = impl.getExpandedSize();
+        tripwireAssert(11113801,
+                       (str::stream()
+                        << "MongoExtensionExpandedArray.size must equal required size: "
+                        << "got " << expanded->size << ", but required " << expandedSize),
+                       expanded->size == expandedSize);
 
-const ::MongoExtensionAggregationStageParseNodeVTable ExtensionAggregationStageParseNode::VTABLE = {
-    .destroy = &ExtensionAggregationStageParseNode::_extDestroy,
-    .get_query_shape = &ExtensionAggregationStageParseNode::_extGetQueryShape,
-    .get_expanded_size = &ExtensionAggregationStageParseNode::_extGetExpandedSize,
-    .expand = &ExtensionAggregationStageParseNode::_extExpand};
+        auto expandedNodes = impl.expand();
+        tripwireAssert(11113802,
+                       (str::stream() << "AggStageParseNode expand() returned a different "
+                                         "number of elements than getExpandedSize(): returned "
+                                      << expandedNodes.size() << ", but required " << expandedSize),
+                       expandedNodes.size() == expandedSize);
 
-const ::MongoExtensionAggregationStageAstNodeVTable ExtensionAggregationStageAstNode::VTABLE = {
-    .destroy = &ExtensionAggregationStageAstNode::_extDestroy,
-    .bind = &ExtensionAggregationStageAstNode::_extBind};
+        // If we exit early, destroy the ABI nodes and null any raw pointers written to the
+        // caller's buffer.
+        size_t filled = 0;
+        ScopeGuard guard([&]() noexcept {
+            // Destroy elements already written to the expanded array.
+            for (size_t i = 0; i < filled; ++i) {
+                destroyArrayElement(expanded->elements[i]);
+            }
+            // Destroy any ABI nodes not yet written to the expanded array.
+            for (size_t i = filled; i < expandedNodes.size(); ++i) {
+                std::visit([](auto*& ptr) noexcept { destroyAbiNode(ptr); }, expandedNodes[i]);
+            }
+        });
 
+        // Populate the caller's buffer directly with raw pointers to nodes.
+        for (size_t i = 0; i < expandedSize; ++i) {
+            if (MONGO_unlikely(failVariantNodeConversion.shouldFail())) {
+                userAsserted(11197200,
+                             "Injected failure in VariantNode conversion to ExpandedArrayElement");
+            }
+            auto& dst = expanded->elements[i];
+            std::visit(ConsumeVariantNodeToAbi{dst}, expandedNodes[i]);
+            ++filled;
+        }
+        guard.dismiss();
+    });
+}
 }  // namespace mongo::extension::sdk

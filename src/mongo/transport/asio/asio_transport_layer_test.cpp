@@ -276,7 +276,7 @@ public:
 
     auto getDiscardedDueToClientDisconnect() {
         BSONObjBuilder bob;
-        tla().appendStatsForFTDC(bob);
+        tla().appendStatsForServerStatus(&bob);
         return bob.obj()["connsDiscardedDueToClientDisconnect"].Long();
     }
 
@@ -461,7 +461,7 @@ TEST(AsioTransportLayer, TCPCheckQueueDepth) {
 
 
     BSONObjBuilder tlaFTDCBuilder;
-    tf.tla().appendStatsForFTDC(tlaFTDCBuilder);
+    tf.tla().appendStatsForServerStatus(&tlaFTDCBuilder);
     BSONObj tlaFTDCStats = tlaFTDCBuilder.obj();
 
     const auto& queueDepthsArray =
@@ -1121,6 +1121,10 @@ public:
 
         void setAllowMultipleSessions() {
             _allowMultipleSessions = true;
+        }
+
+        std::vector<std::pair<SessionId, std::string>> getOpenSessionIDs() const override {
+            return {};
         }
 
     private:

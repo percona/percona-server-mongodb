@@ -30,10 +30,14 @@
 #pragma once
 
 #include "mongo/db/exec/exec_shard_filter_policy.h"
+#include "mongo/db/pipeline/catalog_resource_handle.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/query/search/search_query_view_spec_gen.h"
+#include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
+
+#include <boost/smart_ptr/intrusive_ptr.hpp>
 
 namespace mongo {
 
@@ -54,9 +58,50 @@ public:
     static boost::intrusive_ptr<DocumentSource> createFromBson(
         BSONElement elem, const boost::intrusive_ptr<ExpressionContext>& expCtx);
 
+    class LiteParsed final : public LiteParsedDocumentSource {
+    public:
+        static std::unique_ptr<LiteParsed> parse(const NamespaceString& nss,
+                                                 const BSONElement& spec,
+                                                 const LiteParserOptions&) {
+            uassert(ErrorCodes::FailedToParse,
+                    "$_internalSearchIdLookup specification must be an object",
+                    spec.type() == BSONType::object);
+            return std::make_unique<LiteParsed>(spec.fieldName(), spec.Obj().getOwned());
+        }
+
+        stdx::unordered_set<NamespaceString> getInvolvedNamespaces() const override {
+            return {};
+        }
+
+        PrivilegeVector requiredPrivileges(bool isMongos,
+                                           bool bypassDocumentValidation) const override {
+            return {};
+        }
+
+        bool requiresAuthzChecks() const override {
+            return false;
+        }
+
+        bool isInitialSource() const override {
+            return false;
+        }
+
+        const BSONObj& getBsonSpec() const {
+            return _ownedSpec;
+        }
+
+        explicit LiteParsed(std::string parseTimeName, BSONObj ownedSpec)
+            : LiteParsedDocumentSource(std::move(parseTimeName)),
+              _ownedSpec(std::move(ownedSpec)) {}
+
+    private:
+        BSONObj _ownedSpec;
+    };
+
     DocumentSourceInternalSearchIdLookUp(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         long long limit = 0,
+        const boost::intrusive_ptr<CatalogResourceHandle>& catalogResourceHandle = {},
         ExecShardFilterPolicy shardFilterPolicy = AutomaticShardFiltering{},
         boost::optional<SearchQueryViewSpec> view = boost::none);
 
@@ -190,6 +235,10 @@ private:
         const boost::intrusive_ptr<DocumentSource>&);
 
     long long _limit = 0;
+
+    // Handle to catalog state.
+    boost::intrusive_ptr<CatalogResourceHandle> _catalogResourceHandle;
+
     // TODO SERVER-109825: Move to InternalSearchIdLookupStage class.
     ExecShardFilterPolicy _shardFilterPolicy = AutomaticShardFiltering{};
 
@@ -198,6 +247,15 @@ private:
 
     // If a search query is run on a view, we store the parsed view pipeline.
     std::unique_ptr<Pipeline> _viewPipeline;
+};
+
+class DSInternalSearchIdLookUpCatalogResourceHandle : public DSCatalogResourceHandleBase {
+public:
+    using DSCatalogResourceHandleBase::DSCatalogResourceHandleBase;
+
+    void checkCanServeReads(OperationContext* opCtx, const PlanExecutor& exec) override {
+        MONGO_UNREACHABLE;
+    }
 };
 
 }  // namespace mongo

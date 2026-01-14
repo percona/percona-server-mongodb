@@ -30,10 +30,11 @@
 
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
-#include "mongo/db/extension/sdk/extension_status.h"
+#include "mongo/db/extension/sdk/assert_util.h"
 #include "mongo/db/extension/sdk/host_portal.h"
 #include "mongo/db/extension/sdk/host_services.h"
 #include "mongo/db/extension/sdk/versioned_extension.h"
+#include "mongo/db/extension/shared/extension_status.h"
 #include "mongo/util/modules.h"
 
 #include <memory>
@@ -54,12 +55,12 @@ protected:
     template <class StageDescriptor>
     void _registerStage(const HostPortalHandle& portal) {
         // Error out if StageDescriptor is already registered to this extension.
-        uassert(10696402,
-                str::stream() << StageDescriptor::kStageName << " is already registered",
-                _stageDescriptors.find(StageDescriptor::kStageName) == _stageDescriptors.end());
+        userAssert(10696402,
+                   (str::stream() << StageDescriptor::kStageName << " is already registered"),
+                   _stageDescriptors.find(StageDescriptor::kStageName) == _stageDescriptors.end());
 
-        auto stageDesc = std::make_unique<ExtensionAggregationStageDescriptor>(
-            std::make_unique<StageDescriptor>());
+        auto stageDesc =
+            std::make_unique<ExtensionAggStageDescriptor>(std::make_unique<StageDescriptor>());
 
         portal.registerStageDescriptor(stageDesc.get());
 
@@ -67,7 +68,7 @@ protected:
     }
 
 private:
-    stdx::unordered_map<std::string, std::unique_ptr<ExtensionAggregationStageDescriptor>>
+    stdx::unordered_map<std::string, std::unique_ptr<ExtensionAggStageDescriptor>>
         _stageDescriptors;
 };
 
@@ -95,7 +96,7 @@ private:
         // during initialization if needed.
         HostServicesHandle::setHostServices(hostServices);
 
-        return enterCXX([&]() {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
             // The host portal will go out of scope on the host side after initialization, so we
             // should not retain it to avoid a dangling pointer
             auto hostPortal = HostPortalHandle(portal);
@@ -135,7 +136,7 @@ private:
     ::MongoExtensionStatus* get_mongodb_extension(                                           \
         const ::MongoExtensionAPIVersionVector* hostVersions,                                \
         const ::MongoExtension** extension) {                                                \
-        return mongo::extension::sdk::enterCXX([&] {                                         \
+        return mongo::extension::wrapCXXAndConvertExceptionToStatus([&] {                    \
             const auto& versionedExtensionContainer =                                        \
                 mongo::extension::sdk::VersionedExtensionContainer::getInstance();           \
             static auto wrapper = std::make_unique<mongo::extension::sdk::ExtensionAdapter>( \

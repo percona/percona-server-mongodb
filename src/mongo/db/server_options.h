@@ -37,6 +37,7 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/process_id.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/net/cidr.h"
 #include "mongo/util/version/releases.h"
 #include "mongo/util/versioned_value.h"
@@ -59,11 +60,11 @@
 
 namespace mongo {
 
-const int DEFAULT_UNIX_PERMS = 0700;
-constexpr int RATE_LIMIT_MAX = 1000;
-constexpr size_t DEFAULT_MAX_CONN = 1000000;
+MONGO_MOD_PUB constexpr inline int DEFAULT_UNIX_PERMS = 0700;
+MONGO_MOD_PUB constexpr inline int RATE_LIMIT_MAX = 1000;
+MONGO_MOD_PUB constexpr inline size_t DEFAULT_MAX_CONN = 1000000;
 
-struct ServerGlobalParams {
+struct MONGO_MOD_PUB ServerGlobalParams {
     std::string binaryName;  // mongod or mongos
     std::string cwd;         // cwd of when process started
 
@@ -336,18 +337,6 @@ struct ServerGlobalParams {
     std::vector<std::string> extensions;
 };
 
-extern ServerGlobalParams serverGlobalParams;
-
-template <typename NameTrait>
-struct TraitNamedDomain {
-    static bool peg() {
-        const auto& dsmd = serverGlobalParams.disabledSecureAllocatorDomains;
-        const auto contains = [&](StringData dt) {
-            return std::find(dsmd.begin(), dsmd.end(), dt) != dsmd.end();
-        };
-        static const bool ret = !(contains("*"_sd) || contains(NameTrait::DomainType));
-        return ret;
-    }
-};
+MONGO_MOD_PUB extern ServerGlobalParams serverGlobalParams;
 
 }  // namespace mongo

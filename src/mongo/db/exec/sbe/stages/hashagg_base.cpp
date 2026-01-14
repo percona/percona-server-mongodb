@@ -70,19 +70,11 @@ void HashAggBaseStage<Derived>::doSaveState() {
     if (_rsCursor) {
         _recordStore->saveCursor(_opCtx, _rsCursor);
     }
-
-    if (_recordStore) {
-        _recordStore->saveState();
-    }
 }
 
 template <class Derived>
 void HashAggBaseStage<Derived>::doRestoreState() {
     invariant(_opCtx);
-    if (_recordStore) {
-        _recordStore->restoreState();
-    }
-
     if (_recordStore && _rsCursor) {
         auto couldRestore = _recordStore->restoreCursor(_opCtx, _rsCursor);
         uassert(6196500, "HashAggStage could not restore cursor", couldRestore);
@@ -272,8 +264,10 @@ void HashAggBaseStage<Derived>::doForceSpill() {
 // spilling.
 template <class Derived>
 void HashAggBaseStage<Derived>::checkMemoryUsageAndSpillIfNecessary(MemoryCheckData& mcd) {
-    // TODO: SERVER-110515 Maybe replace tassert with early exit.
-    tassert(11094725, "Hash table must be non-empty before spill", !_ht->empty());
+    if (_ht->empty()) {
+        // Simply nothing to spill.
+        return;
+    }
 
     mcd.memoryCheckpointCounter++;
     if (mcd.memoryCheckpointCounter < mcd.nextMemoryCheckpoint) {

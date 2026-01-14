@@ -38,7 +38,7 @@ from cindex import (
     RefQualifierKind,
     TranslationUnit,
 )
-from mod_mapping import mod_for_file, normpath_for_file
+from mod_mapping import is_module_fully_marked, mod_for_file, normpath_for_file
 
 
 def perr(*values):
@@ -244,6 +244,19 @@ class GetVisibilityResult:
 def get_visibility(
     c: DecoratedCursor, scanning_parent=False, last_non_ns_parent=None
 ) -> GetVisibilityResult:
+    # For TYPE_ALIAS_TEMPLATE_DECL we need to find the child that is a TYPE_ALIAS_DECL, and
+    # pluck the visibility off of that. This is because unlike with templated classes,
+    # clang does not promote attributes up to the template declaration.
+    if c.kind == CursorKind.TYPE_ALIAS_TEMPLATE_DECL:
+        for child in c.get_children():
+            if child.kind == CursorKind.TYPE_ALIAS_DECL:
+                return get_visibility(
+                    DecoratedCursor(child),
+                    scanning_parent=scanning_parent,
+                    last_non_ns_parent=last_non_ns_parent,
+                )
+        assert False, f"TYPE_ALIAS_TEMPLATE_DECL had no TYPE_ALIAS_DECL child: {c.spelling} {pretty_location(c)}"
+
     if c.kind != CursorKind.NAMESPACE:
         last_non_ns_parent = c
     is_internal_namespace = c.kind == CursorKind.NAMESPACE and DETAIL_REGEX.search(c.spelling)
@@ -845,6 +858,22 @@ def parseTU(args: list[str] | str):
 
     for include in tu.get_includes():
         if "src/mongo" not in include.include.name:
+            continue
+
+        # Treat protobuf generated headers as completely marked. These headers cannot be
+        # modified to include modules.h, and for now they should be assumed to be private
+        # to the module they are a part of since we don't use protobuf for inter-module
+        # communication.
+        if include.include.name.endswith(".pb.h"):
+            complete_headers.add(normpath_for_file(include.include))
+            continue
+
+        # Treat all headers from fully marked modules as complete. This makes newly-added
+        # headers in that module private by default, requiring explicit marking of the public
+        # API.
+        header_mod = mod_for_file(include.include)
+        if is_module_fully_marked(header_mod):
+            complete_headers.add(normpath_for_file(include.include))
             continue
 
         # Note: using bytes to avoid unicode handling overhead since the

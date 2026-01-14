@@ -376,22 +376,6 @@ protected:
         return !imageEntry.isEmpty();
     }
 
-    bool didWriteDeletedDocToPreImagesCollection(OperationContext* opCtx,
-                                                 const ChangeStreamPreImageId preImageId) {
-        auto coll = acquireCollection(
-            opCtx,
-            CollectionAcquisitionRequest(NamespaceString::makeChangeCollectionNSS(boost::none),
-                                         PlacementConcern{boost::none, ShardVersion::UNSHARDED()},
-                                         repl::ReadConcernArgs::get(opCtx),
-                                         AcquisitionPrerequisites::kRead),
-            MODE_IS);
-        const auto preImage = Helpers::findOneForTesting(opCtx,
-                                                         coll,
-                                                         BSON("_id" << preImageId.toBSON()),
-                                                         /*invariantOnError=*/false);
-        return !preImage.isEmpty();
-    }
-
     repl::ImageEntry getImageEntryFromSideCollection(OperationContext* opCtx,
                                                      const LogicalSessionId& sessionId) {
         auto sideCollection = acquireCollection(
@@ -788,7 +772,32 @@ TEST_F(OpObserverTest, CommitIndexBuildExpectedOplogEntry) {
         AutoGetDb autoDb(opCtx.get(), nss.dbName(), MODE_X);
         WriteUnitOfWork wunit(opCtx.get());
         opObserver.onCommitIndexBuild(
-            opCtx.get(), nss, uuid, indexBuildUUID, specs, false /*fromMigrate*/);
+            opCtx.get(), nss, uuid, indexBuildUUID, specs, {}, false /*fromMigrate*/);
+        opObserver.onCommitIndexBuild(opCtx.get(),
+                                      nss,
+                                      uuid,
+                                      indexBuildUUID,
+                                      specs,
+                                      {boost::none, BSON("a" << "value")},
+                                      false /*fromMigrate*/);
+        ASSERT_THROWS_CODE(opObserver.onCommitIndexBuild(opCtx.get(),
+                                                         nss,
+                                                         uuid,
+                                                         indexBuildUUID,
+                                                         specs,
+                                                         {boost::none},
+                                                         false /*fromMigrate*/),
+                           DBException,
+                           11084600);
+        ASSERT_THROWS_CODE(opObserver.onCommitIndexBuild(opCtx.get(),
+                                                         nss,
+                                                         uuid,
+                                                         indexBuildUUID,
+                                                         specs,
+                                                         {boost::none, boost::none, boost::none},
+                                                         false /*fromMigrate*/),
+                           DBException,
+                           11084600);
         wunit.commit();
     }
 
@@ -800,12 +809,17 @@ TEST_F(OpObserverTest, CommitIndexBuildExpectedOplogEntry) {
     indexesArr.append(specX);
     indexesArr.append(specA);
     indexesArr.done();
-    BSONObj commitIndexBuildCmd = commitIndexBuildBuilder.done();
 
     // Ensure the commitIndexBuild fields were correctly set.
-    auto oplogEntry = getSingleOplogEntry(opCtx.get());
-    auto o = oplogEntry.getObjectField("o");
-    ASSERT_BSONOBJ_EQ(commitIndexBuildCmd, o);
+    auto oplogEntries = getNOplogEntries(opCtx.get(), 2);
+    ASSERT_BSONOBJ_EQ(commitIndexBuildBuilder.asTempObj(), oplogEntries[0].getObjectField("o"));
+
+    BSONArrayBuilder multikeyArrBuilder(commitIndexBuildBuilder.subarrayStart("multikey"));
+    multikeyArrBuilder.appendNull();
+    multikeyArrBuilder.append(BSON("a" << "value"));
+    multikeyArrBuilder.done();
+
+    ASSERT_BSONOBJ_EQ(commitIndexBuildBuilder.asTempObj(), oplogEntries[1].getObjectField("o"));
 }
 
 TEST_F(OpObserverTest, AbortIndexBuildExpectedOplogEntry) {
@@ -4365,8 +4379,6 @@ protected:
             ChangeStreamPreImage preImage = getChangeStreamPreImage(opCtx, preImageId, &container);
             ASSERT_BSONOBJ_EQ(_deletedDoc, preImage.getPreImage());
             ASSERT_EQ(deleteOplogEntry.getWallClockTime(), preImage.getOperationTime());
-        } else {
-            ASSERT_FALSE(didWriteDeletedDocToPreImagesCollection(opCtx, preImageId));
         }
     }
 

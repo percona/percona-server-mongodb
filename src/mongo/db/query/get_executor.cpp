@@ -267,14 +267,6 @@ public:
         return _cachedPlanHash;
     }
 
-    void setRecoveredFromPlanCache(bool val) {
-        _fromPlanCache = val;
-    }
-
-    bool isRecoveredFromPlanCache() const {
-        return _fromPlanCache;
-    }
-
     PlanCacheInfo& planCacheInfo() {
         return _cacheInfo;
     }
@@ -289,7 +281,6 @@ private:
     boost::optional<size_t> _decisionWorks;
     bool _needSubplanning{false};
     bool _recoveredPinnedCacheEntry{false};
-    bool _fromPlanCache{false};
     PlanCacheInfo _cacheInfo;
     // If there is a matching cache entry, this is the hash of that plan.
     boost::optional<size_t> _cachedPlanHash;
@@ -1297,10 +1288,10 @@ bool isQuerySbeCompatible(const CollectionPtr& collection, const CanonicalQuery&
         return false;
     }
 
-    // Queries against the oplog or a change collection are not supported. Also queries on the inner
-    // side of a $lookup are not considered for SBE except search queries.
+    // Queries against the oplog are not supported. Also queries on the inner side of a $lookup are
+    // not considered for SBE except search queries.
     if ((expCtx->getInLookup() && !cq.isSearchQuery()) || nss.isOplog() ||
-        nss.isChangeCollection() || !cq.metadataDeps().none()) {
+        !cq.metadataDeps().none()) {
         return false;
     }
 

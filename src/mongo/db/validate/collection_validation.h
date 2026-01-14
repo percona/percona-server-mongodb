@@ -45,6 +45,20 @@ class ValidateResults;
 namespace CollectionValidation {
 
 /**
+ * Checks if 'hashPrefixes' contains valid hash strings. Throws if any is invalid.
+ * When 'equalLength' is true, also checks all hash strings have the same length.
+ */
+void validateHashes(const std::vector<std::string>& hashPrefixes, bool equalLength);
+
+/**
+ * Parses and checks the command object and returns a 'ValidationOptions' object used for collection
+ * validation.
+ */
+ValidationOptions parseValidateOptions(OperationContext* opCtx,
+                                       NamespaceString nss,
+                                       const BSONObj& cmdObj);
+
+/**
  * Expects the caller to hold no locks.
  *
  * @return OK if the validate run successfully

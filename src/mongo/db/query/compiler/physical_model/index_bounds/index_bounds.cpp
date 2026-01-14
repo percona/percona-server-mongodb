@@ -257,6 +257,15 @@ bool OrderedIntervalList::isFullyOpen() const {
     return intervals.size() == 1 && intervals[0].isFullyOpen();
 }
 
+bool OrderedIntervalList::intersectsInterval(const Interval& interval) const {
+    for (size_t i = 0; i < intervals.size(); i++) {
+        if (interval.within(intervals[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool OrderedIntervalList::isPoint() const {
     return intervals.size() == 1 && intervals[0].isPoint();
 }
@@ -906,7 +915,9 @@ IndexBoundsChecker::Location IndexBoundsChecker::findIntervalForField(
 
     // Additional check to determine if interval contains key.
     Location where = intervalCmp(*i, elt, expectedDirection);
-    invariant(BEHIND == where || WITHIN == where);
+    tassert(11051913,
+            "Expect the element to be either behind, or within the interval",
+            BEHIND == where || WITHIN == where);
 
     return where;
 }

@@ -3,6 +3,8 @@
  * that the commitQuorum value remains consistent (set to 0) before and after the restart.
  *
  * @tags: [
+ *   # This test will not work until primary driven index builds don't abort on step-up.
+ *   primary_driven_index_builds_incompatible_due_to_abort_on_step_up,
  *   requires_persistence,
  * ]
  */

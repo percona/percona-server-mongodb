@@ -15,6 +15,14 @@
 #   jira:
 #     Jira "Assigned Team" that should be used when filing tickets for the module.
 #
+#   fully_marked:
+#     If present and true, behaves as if all headers in the module have been fully
+#     marked, meaning that any unmarked APIs will be treated as private, regardless
+#     of whether they have included modules.h. This lets us lock-in the progress of
+#     marking that module so that it stays fully marked even as new files are added.
+#     Unlike other metadata, this is not inherited by submodules so that it is
+#     possible to have a fully_marked parent module before marking all submodules.
+#
 #   If unsure about these, or if multiple teams are involved, please pick a good place
 #   to send questions/tickets to initially, understanding that we can always send them
 #   somewhere else if needed.
@@ -30,8 +38,8 @@ core:
     - src/mongo/stdx/
     - src/mongo/util/
     - src/mongo/db/local_catalog/util/partitioned*
+    - src/mongo/db/crud_bm.cpp
     - src/mongo/db/field_parser[._]*
-    - src/mongo/db/find_one_bm.cpp
     - src/mongo/db/generic_argument_util.*
     - src/mongo/db/nesting_depth_test.cpp
     - src/mongo/db/operation_killer.*
@@ -172,10 +180,8 @@ query:
     - src/mongo/db/commands/top_command*
     - src/mongo/db/exec/
     - src/mongo/db/extension/
-    - src/mongo/db/change_collection*
     - src/mongo/db/change_stream*
     - src/mongo/db/op_observer/change_stream_pre_images_op_observer*
-    - src/mongo/db/set_change_stream*
     - src/mongo/db/curop*
     - src/mongo/db/cursor*
     - src/mongo/db/fts/
@@ -422,10 +428,8 @@ access_control:
     jira: Server Security
   files:
     - src/mongo/db/auth/
-    - src/mongo/db/cluster_auth_mode_option.idl
     - src/mongo/db/commands/authentication*
     - src/mongo/db/commands/user_management*
-    - src/mongo/db/keyfile_option.idl
     - src/mongo/db/modules/enterprise/src/kerberos
     - src/mongo/db/modules/enterprise/src/ldap
     - src/mongo/db/modules/enterprise/src/sasl
@@ -482,7 +486,6 @@ encrypted_storage_engine:
     slack: server-security
     jira: Server Security
   files:
-    - src/mongo/db/modules/atlas/src/disagg_storage/encryption
     - src/mongo/db/modules/enterprise/src/encryptdb
 
 security:
@@ -769,7 +772,6 @@ bsoncolumn: # authoritative: @10gen/server-bsoncolumn
     slack: server-storage-execution
     jira: Storage Execution
   files:
-    - src/mongo/bson/util/bsonobj_traversal.h
     - src/mongo/bson/column
 
 external_sorter: # authoritative: @10gen/server-external-sorter
@@ -809,6 +811,13 @@ disagg_storage:
   files:
     - src/mongo/db/modules/atlas/src/disagg_storage
 
+disagg_storage.encryption:
+  meta:
+    slack: disagg-security-data-encryption
+    jira: Server Security
+  files:
+    - src/mongo/db/modules/atlas/src/disagg_storage/encryption
+
 storage_engine_api:
   meta:
     slack: storage-engines-server-integration
@@ -833,7 +842,7 @@ storage_engine_integration:
     - src/mongo/db/storage # excluding ./key_string, ./wiredtiger, ./devnull, some of ./kv
     - src/mongo/db/record_id*
     - src/mongo/db/server_recovery*
-    - src/mongo/db/mongod_options_storage.idl
+    - src/mongo/db/mongod_options_storage*
     - src/mongo/db/dbhelpers*
     - src/mongo/db/dbcommands.idl
     - src/mongo/db/local_catalog/import*
@@ -927,6 +936,7 @@ atlas_streams:
   meta:
     slack: streams-engine
     jira: Atlas Streams
+    fully_marked: true
   files:
     - src/mongo/db/modules/enterprise/src/streams
 
@@ -935,8 +945,17 @@ server_parameters:
     slack: server-security
     jira: Server Security
   files:
-    - src/mongo/db/server_options*
     - src/mongo/db/server_parameter*
+
+server_options:
+  meta:
+    slack: server-security
+    jira: Server Security
+  files:
+    - src/mongo/db/server_options*
+    - src/mongo/unittest/integration_test_main.cpp
+    - src/mongo/db/cluster_auth_mode_option.idl
+    - src/mongo/db/keyfile_option.idl
 
 # This module doesn't really exist. It's files are only compiled on windows, and we don't
 # run the mod_scanner on a windows build. However, it is needed to ensure that all first-party

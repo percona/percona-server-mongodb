@@ -147,104 +147,147 @@ const int32_t MONGO_EXTENSION_STATUS_RUNTIME_ERROR = -1;
 const int32_t MONGO_EXTENSION_STATUS_OK = 0;
 
 /**
+ * MongoExtensionHostQueryShapeOpts exposes helpers for an extension to serialize certain values
+ * inside of a stage's BSON specification for query shape serialization.
+ *
+ * The pointer is only valid during a single call to serialization and should not be retained by the
+ * extension.
+ */
+typedef struct MongoExtensionHostQueryShapeOpts {
+    const struct MongoExtensionHostQueryShapeOptsVTable* vtable;
+} MongoExtensionHostQueryShapeOpts;
+
+typedef struct MongoExtensionHostQueryShapeOptsVTable {
+    /**
+     * Populates the ByteBuf with the serialized version of the identifier. Ownership is
+     * transferred to the caller.
+     */
+    MongoExtensionStatus* (*serialize_identifier)(const MongoExtensionHostQueryShapeOpts* ctx,
+                                                  const MongoExtensionByteView* ident,
+                                                  MongoExtensionByteBuf** output);
+
+    /**
+     * Populates the ByteBuf with the serialized version of the field path. Ownership is
+     * transferred to the caller.
+     */
+    MongoExtensionStatus* (*serialize_field_path)(const MongoExtensionHostQueryShapeOpts* ctx,
+                                                  const MongoExtensionByteView* fieldPath,
+                                                  MongoExtensionByteBuf** output);
+
+    /**
+     * Populates the ByteBuf with a serialized BSON object containing the serialized version of the
+     * literal. Ownership is transferred to the caller.
+     *
+     * Note that this receives a BSONElement as input because literal serialization requires knowing
+     * the type of the underlying value, and the value may be any valid BSONType - not necessarily
+     * a string. The caller of `serialize_literal` must keep the buffer backing the BSONElement
+     * alive across the call to `serialize_literal`.
+     *
+     * Returned BSON format: {"": <serializedLiteral>}
+     */
+    MongoExtensionStatus* (*serialize_literal)(const MongoExtensionHostQueryShapeOpts* ctx,
+                                               const MongoExtensionByteView* bsonElementPtr,
+                                               MongoExtensionByteBuf** output);
+} MongoExtensionHostQueryShapeOptsVTable;
+
+/**
  * Types of aggregation stages that can be implemented as an extension.
  */
-typedef enum MongoExtensionAggregationStageType : uint32_t {
+typedef enum MongoExtensionAggStageType : uint32_t {
     /**
      * NoOp stage.
      */
     kNoOp = 0,
     kDesugar = 1,
-} MongoExtensionAggregationStageType;
+} MongoExtensionAggStageType;
 
 /**
- * An AggregationStageDescriptor describes features of a stage that are not bound to the stage
+ * An AggStageDescriptor describes features of a stage that are not bound to the stage
  * definition. This object functions as a factory to create logical stage through parsing.
  *
  * These objects are owned by extensions so no method is provided to free them.
  */
-typedef struct MongoExtensionAggregationStageDescriptor {
-    const struct MongoExtensionAggregationStageDescriptorVTable* const vtable;
-} MongoExtensionAggregationStageDescriptor;
+typedef struct MongoExtensionAggStageDescriptor {
+    const struct MongoExtensionAggStageDescriptorVTable* const vtable;
+} MongoExtensionAggStageDescriptor;
 
 /**
- * Virtual function table for MongoExtensionAggregationStageDescriptor.
+ * Virtual function table for MongoExtensionAggStageDescriptor.
  */
-typedef struct MongoExtensionAggregationStageDescriptorVTable {
+typedef struct MongoExtensionAggStageDescriptorVTable {
     /**
      * Return the type for this stage.
      */
-    MongoExtensionAggregationStageType (*get_type)(
-        const MongoExtensionAggregationStageDescriptor* descriptor);
+    MongoExtensionAggStageType (*get_type)(const MongoExtensionAggStageDescriptor* descriptor);
 
     /**
      * Returns a MongoExtensionByteView containing the name of this aggregation stage.
      */
-    MongoExtensionByteView (*get_name)(const MongoExtensionAggregationStageDescriptor* descriptor);
+    MongoExtensionByteView (*get_name)(const MongoExtensionAggStageDescriptor* descriptor);
 
     /**
-     * Parse the user provided stage definition into a logical stage.
+     * Parse the user provided stage definition into a parse node.
      *
      * stageBson contains a BSON document with a single (stageName, stageDefinition) element
-     * tuple. In case of success, *logicalStage is populated with the parsed stage. Both the
-     * returned MongoExtensionStatus and logicalStage is owned by the caller.
+     * tuple. In case of success, `*parseNode` is populated with the parsed stage. Both the
+     * returned MongoExtensionStatus and `parseNode` are owned by the caller.
      */
-    MongoExtensionStatus* (*parse)(const MongoExtensionAggregationStageDescriptor* descriptor,
+    MongoExtensionStatus* (*parse)(const MongoExtensionAggStageDescriptor* descriptor,
                                    MongoExtensionByteView stageBson,
-                                   struct MongoExtensionLogicalAggregationStage** logicalStage);
-} MongoExtensionAggregationStageDescriptorVTable;
+                                   struct MongoExtensionAggStageParseNode** parseNode);
+} MongoExtensionAggStageDescriptorVTable;
 
 /**
- * A MongoExtensionLogicalAggregationStage describes a stage that has been parsed and bound to
+ * A MongoExtensionLogicalAggStage describes a stage that has been parsed and bound to
  * instance specific context -- the stage definition and other context data from the pipeline.
  * These objects are suitable for pipeline optimization. Once optimization is complete they can
  * be used to generate objects for execution.
  */
-typedef struct MongoExtensionLogicalAggregationStage {
-    const struct MongoExtensionLogicalAggregationStageVTable* const vtable;
-} MongoExtensionLogicalAggregationStage;
+typedef struct MongoExtensionLogicalAggStage {
+    const struct MongoExtensionLogicalAggStageVTable* const vtable;
+} MongoExtensionLogicalAggStage;
 
 /**
- * Virtual function table for MongoExtensionLogicalAggregationStage.
+ * Virtual function table for MongoExtensionLogicalAggStage.
  */
-typedef struct MongoExtensionLogicalAggregationStageVTable {
+typedef struct MongoExtensionLogicalAggStageVTable {
     /**
      * Destroy `logicalStage` and free any related resources.
      */
-    void (*destroy)(MongoExtensionLogicalAggregationStage* logicalStage);
-} MongoExtensionLogicalAggregationStageVTable;
+    void (*destroy)(MongoExtensionLogicalAggStage* logicalStage);
+} MongoExtensionLogicalAggStageVTable;
 
 /**
  * Types of nodes that can be in an ExpandedArray.
  */
-typedef enum MongoExtensionAggregationStageNodeType : uint32_t {
+typedef enum MongoExtensionAggStageNodeType : uint32_t {
     kParseNode = 0,
     kAstNode = 1
-} MongoExtensionAggregationStageNodeType;
+} MongoExtensionAggStageNodeType;
 
 /**
- * MongoExtensionAggregationStageParseNode is responsible for validating the user provided syntax,
+ * MongoExtensionAggStageParseNode is responsible for validating the user provided syntax,
  * generating a query shape, and expanding into a resolved list of nodes that can be either AST
  * nodes or other parse nodes (which will eventually resolve to AST nodes through recursive
  * expansion). It can participate in preliminary pipeline validation.
  */
-typedef struct MongoExtensionAggregationStageParseNode {
-    const struct MongoExtensionAggregationStageParseNodeVTable* const vtable;
-} MongoExtensionAggregationStageParseNode;
+typedef struct MongoExtensionAggStageParseNode {
+    const struct MongoExtensionAggStageParseNodeVTable* const vtable;
+} MongoExtensionAggStageParseNode;
 
 /**
- * An AggregationStageAstNode describes an aggregation stage that has been parsed and expanded into
+ * An AggStageAstNode describes an aggregation stage that has been parsed and expanded into
  * a form that can participate in lite-parsed validation.
  */
-typedef struct MongoExtensionAggregationStageAstNode {
-    const struct MongoExtensionAggregationStageAstNodeVTable* const vtable;
-} MongoExtensionAggregationStageAstNode;
+typedef struct MongoExtensionAggStageAstNode {
+    const struct MongoExtensionAggStageAstNodeVTable* const vtable;
+} MongoExtensionAggStageAstNode;
 
 typedef struct MongoExtensionExpandedArrayElement {
-    MongoExtensionAggregationStageNodeType type;
+    MongoExtensionAggStageNodeType type;
     union {
-        MongoExtensionAggregationStageParseNode* parse;
-        MongoExtensionAggregationStageAstNode* ast;
+        MongoExtensionAggStageParseNode* parse;
+        MongoExtensionAggStageAstNode* ast;
     };
 } MongoExtensionExpandedArrayElement;
 
@@ -260,28 +303,33 @@ typedef struct MongoExtensionExpandedArray {
 } MongoExtensionExpandedArray;
 
 /**
- * Virtual function table for MongoExtensionAggregationStageParseNode.
+ * Virtual function table for MongoExtensionAggStageParseNode.
  */
-typedef struct MongoExtensionAggregationStageParseNodeVTable {
+typedef struct MongoExtensionAggStageParseNodeVTable {
     /**
      * Destroys object and frees related resources.
      */
-    void (*destroy)(MongoExtensionAggregationStageParseNode* parseNode);
+    void (*destroy)(MongoExtensionAggStageParseNode* parseNode);
+
+    /**
+     * Returns a MongoExtensionByteView containing the name of the associated aggregation stage.
+     */
+    MongoExtensionByteView (*get_name)(const MongoExtensionAggStageParseNode* parseNode);
 
     /**
      * Populates the ByteBuf with the stage's query shape as serialized BSON. Ownership is
      * transferred to the caller.
      */
-    MongoExtensionStatus* (*get_query_shape)(
-        const MongoExtensionAggregationStageParseNode* parseNode,
-        MongoExtensionByteBuf** queryShape);
+    MongoExtensionStatus* (*get_query_shape)(const MongoExtensionAggStageParseNode* parseNode,
+                                             const MongoExtensionHostQueryShapeOpts* ctx,
+                                             MongoExtensionByteBuf** queryShape);
 
     /**
      * Returns the size (number of nodes) of the ParseNode's expansion. Callers must first get the
      * expansion size before calling expand() so that they can pre-allocate the ExpandedArrayElement
      * array which is then populated by the extension.
      */
-    size_t (*get_expanded_size)(const MongoExtensionAggregationStageParseNode* parseNode);
+    size_t (*get_expanded_size)(const MongoExtensionAggStageParseNode* parseNode);
 
     /**
      * Populates the MongoExtensionExpandedArray with the stage's expansion.
@@ -300,27 +348,32 @@ typedef struct MongoExtensionAggregationStageParseNodeVTable {
      *
      * Ownership of the pointers within the array elements is transferred to the caller.
      */
-    MongoExtensionStatus* (*expand)(const MongoExtensionAggregationStageParseNode* parseNode,
+    MongoExtensionStatus* (*expand)(const MongoExtensionAggStageParseNode* parseNode,
                                     MongoExtensionExpandedArray* expanded);
-} MongoExtensionAggregationStageParseNodeVTable;
+} MongoExtensionAggStageParseNodeVTable;
 
 /**
- * Virtual function table for MongoExtensionAggregationStageAstNode.
+ * Virtual function table for MongoExtensionAggStageAstNode.
  */
-typedef struct MongoExtensionAggregationStageAstNodeVTable {
+typedef struct MongoExtensionAggStageAstNodeVTable {
     /**
      * Destroys `astNode` and free any related resources.
      */
-    void (*destroy)(MongoExtensionAggregationStageAstNode* astNode);
+    void (*destroy)(MongoExtensionAggStageAstNode* astNode);
+
+    /**
+     * Returns a MongoExtensionByteView containing the name of the associated aggregation stage.
+     */
+    MongoExtensionByteView (*get_name)(const MongoExtensionAggStageAstNode* astNode);
 
     /**
      * Populates `logicalStage` with the stage's runtime implementation of the optimization
      * interface, ownership of which is transferred to the caller. This step should be called after
      * validating `astNode` and is used when converting into an optimizable stage.
      */
-    MongoExtensionStatus* (*bind)(const MongoExtensionAggregationStageAstNode* astNode,
-                                  MongoExtensionLogicalAggregationStage** logicalStage);
-} MongoExtensionAggregationStageAstNodeVTable;
+    MongoExtensionStatus* (*bind)(const MongoExtensionAggStageAstNode* astNode,
+                                  MongoExtensionLogicalAggStage** logicalStage);
+} MongoExtensionAggStageAstNodeVTable;
 
 /**
  * MongoExtensionHostPortal serves as the entry point for extensions to integrate with the
@@ -329,7 +382,6 @@ typedef struct MongoExtensionAggregationStageAstNodeVTable {
  */
 typedef struct MongoExtensionHostPortal {
     const struct MongoExtensionHostPortalVTable* vtable;
-
     /**
      * The version of the Extensions API that the host and extension agreed upon when creating
      * the MongoExtension.
@@ -343,18 +395,22 @@ typedef struct MongoExtensionHostPortal {
      */
     int32_t hostMongoDBMaxWireVersion;
 } MongoExtensionHostPortal;
+
+/**
+ * Virtual function table for MongoExtensionHostPortal.
+ */
 typedef struct MongoExtensionHostPortalVTable {
     /**
      * Register an aggregation stage descriptor with the host.
      */
-    MongoExtensionStatus* (*registerStageDescriptor)(
-        const MongoExtensionAggregationStageDescriptor* descriptor);
+    MongoExtensionStatus* (*register_stage_descriptor)(
+        const MongoExtensionAggStageDescriptor* descriptor);
 
     /**
      * Returns a MongoExtensionByteView containing the raw extension options associated with this
      * extension.
      */
-    MongoExtensionByteView (*getExtensionOptions)(const MongoExtensionHostPortal* portal);
+    MongoExtensionByteView (*get_extension_options)(const MongoExtensionHostPortal* portal);
 } MongoExtensionHostPortalVTable;
 
 /**
@@ -362,13 +418,46 @@ typedef struct MongoExtensionHostPortalVTable {
  *
  * Currently, the VTable struct is a placeholder for future services.
  * TODO SERVER-110982 (or whichever ticket adds the first function to this struct): Remove
- * alwaysTrue_TEMPORARY().
+ * alwaysOK_TEMPORARY().
  */
 typedef struct MongoExtensionHostServices {
     const struct MongoExtensionHostServicesVTable* vtable;
 } MongoExtensionHostServices;
+
+/**
+ * Virtual function table for MongoExtensionHostServices.
+ */
 typedef struct MongoExtensionHostServicesVTable {
-    bool (*alwaysTrue_TEMPORARY)();
+    MongoExtensionStatus* (*alwaysOK_TEMPORARY)();
+
+    /**
+     * Logs a message from the extension with severity INFO, WARNING, or ERROR.
+     *
+     * The rawLog parameter is expected to be a BSON document with the structure defined by
+     * the MongoExtensionLog struct in extension_log.idl.
+     */
+    MongoExtensionStatus* (*log)(MongoExtensionByteView rawLog);
+
+    /**
+     * Sends a debug log message to the server, and logs it as long as the 'Extension' log component
+     * in the server has a level greater or equal to the debug log's level.
+     *
+     * The rawLog parameter is expected to be a BSON document with the structure defined by
+     * the MongoExtensionDebugLog struct in extension_log.idl.
+     */
+    MongoExtensionStatus* (*log_debug)(MongoExtensionByteView rawLog);
+
+    /**
+     * Throws a non-fatal exception to end the current operation with an error. This should be
+     * called when the user made an error.
+     */
+    MongoExtensionStatus* (*user_asserted)(MongoExtensionByteView structuredErrorMessage);
+    /**
+     * Like userAssert, but with a deferred-fatality tripwire that gets checked prior to normal
+     * shutdown. Used to ensure that this assertion will both fail the operation and also cause a
+     * test suite failure.
+     */
+    MongoExtensionStatus* (*tripwire_asserted)(MongoExtensionByteView structuredErrorMessage);
 } MongoExtensionHostServicesVTable;
 
 /**
@@ -388,6 +477,9 @@ typedef struct MongoExtension {
     MongoExtensionAPIVersion version;
 } MongoExtension;
 
+/**
+ * Virtual function table for MongoExtension.
+ */
 typedef struct MongoExtensionVTable {
     /**
      * Initialize the extension, passing in a pointer to the host portal.

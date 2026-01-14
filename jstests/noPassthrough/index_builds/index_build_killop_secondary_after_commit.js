@@ -2,6 +2,8 @@
  * Confirms that aborting a background index builds on a secondary does not leave node in an
  * inconsistent state.
  * @tags: [
+ *   # For primary driven index builds, secondaries do not build the index themselves.
+ *   primary_driven_index_builds_incompatible,
  *   requires_replication,
  * ]
  */

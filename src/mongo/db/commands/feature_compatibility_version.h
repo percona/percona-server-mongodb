@@ -113,9 +113,13 @@ public:
      * featureCompatibilityVersion document. If we are not running with --shardsvr, set the version
      * to be the upgrade value. If we are running with --shardsvr, set the version to be the
      * downgrade value.
+     *
+     * If 'term' is provided, writes FCV with a timestamp and replicates it in oplog.
+     * Returns FCV's Timestamp.
      */
-    static void setIfCleanStartup(OperationContext* opCtx,
-                                  repl::StorageInterface* storageInterface);
+    static Timestamp setIfCleanStartup(OperationContext* opCtx,
+                                       repl::StorageInterface* storageInterface,
+                                       long long term = repl::OpTime::kUninitializedTerm);
 
     /**
      * Returns true if the server has no replicated collections.

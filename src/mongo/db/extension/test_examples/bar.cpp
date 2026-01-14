@@ -31,8 +31,12 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_util.h"
 
 namespace sdk = mongo::extension::sdk;
+
+DEFAULT_LOGICAL_AST_PARSE(TestBar, "$testBar")
 
 /**
  * $testBar is a no-op stage.
@@ -40,25 +44,21 @@ namespace sdk = mongo::extension::sdk;
  * The stage definition must NOT be empty or it will fail to parse. The contents of the stage
  * definition can be anything, as long as it is not an empty object.
  */
-class TestBarLogicalStage : public sdk::LogicalAggregationStage {};
-
-class TestBarStageDescriptor : public sdk::AggregationStageDescriptor {
+class TestBarStageDescriptor : public sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$testBar";
+    static inline const std::string kStageName = std::string(TestBarStageName);
 
     TestBarStageDescriptor()
-        : sdk::AggregationStageDescriptor(kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
 
-    std::unique_ptr<sdk::LogicalAggregationStage> parse(mongo::BSONObj stageBson) const override {
-        uassert(10845401,
-                "Failed to parse " + kStageName + ", expected object",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj());
+    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
+        sdk::validateStageDefinition(stageBson, kStageName);
 
-        uassert(10785800,
-                "Failed to parse " + kStageName + ", must have at least one field",
-                !stageBson.getField(kStageName).Obj().isEmpty());
+        userAssert(10785800,
+                   "Failed to parse " + kStageName + ", must have at least one field",
+                   !stageBson.getField(kStageName).Obj().isEmpty());
 
-        return std::make_unique<TestBarLogicalStage>();
+        return std::make_unique<TestBarParseNode>();
     }
 };
 

@@ -52,32 +52,31 @@ namespace mongo {
 std::unique_ptr<Pipeline>
 StubLookupSingleDocumentProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     bool attachCursorAfterOptimizing,
-    std::function<void(Pipeline* pipeline, MongoProcessInterface::CollectionMetadata collData)>
-        finalizePipeline,
+    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                       Pipeline* pipeline,
+                       MongoProcessInterface::CollectionMetadata collData)> finalizePipeline,
     bool shouldUseCollectionDefaultCollator,
     boost::optional<const AggregateCommandRequest&> aggRequest,
     ExecShardFilterPolicy shardFilterPolicy) {
-    std::unique_ptr<Pipeline> pipeline(ownedPipeline);
 
     if (finalizePipeline) {
-        finalizePipeline(pipeline.get(), std::monostate{});
+        finalizePipeline(expCtx, pipeline.get(), std::monostate{});
     }
     if (attachCursorAfterOptimizing) {
         return attachCursorSourceToPipelineForLocalRead(
-            pipeline.release(), aggRequest, shouldUseCollectionDefaultCollator, shardFilterPolicy);
+            std::move(pipeline), aggRequest, shouldUseCollectionDefaultCollator, shardFilterPolicy);
     }
     return pipeline;
 }
 
 std::unique_ptr<Pipeline>
 StubLookupSingleDocumentProcessInterface::attachCursorSourceToPipelineForLocalRead(
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     boost::optional<const AggregateCommandRequest&> aggRequest,
     bool shouldUseCollectionDefaultCollator,
     ExecShardFilterPolicy shardFilterPolicy) {
-    std::unique_ptr<Pipeline> pipeline(ownedPipeline);
     pipeline->addInitialSource(
         DocumentSourceMock::createForTest(_mockResults, pipeline->getContext()));
     return pipeline;
@@ -86,33 +85,35 @@ StubLookupSingleDocumentProcessInterface::attachCursorSourceToPipelineForLocalRe
 std::unique_ptr<Pipeline>
 StubLookupSingleDocumentProcessInterface::finalizeAndMaybePreparePipelineForExecution(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     bool attachCursorAfterOptimizing,
-    std::function<void(Pipeline* pipeline, CollectionMetadata collData)> finalizePipeline,
+    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                       Pipeline* pipeline,
+                       CollectionMetadata collData)> finalizePipeline,
     ShardTargetingPolicy shardTargetingPolicy,
     boost::optional<BSONObj> readConcern,
     bool shouldUseCollectionDefaultCollator) {
     return finalizeAndAttachCursorToPipelineForLocalRead(
-        expCtx, ownedPipeline, attachCursorAfterOptimizing, finalizePipeline);
+        expCtx, std::move(pipeline), attachCursorAfterOptimizing, finalizePipeline);
 }
 
 std::unique_ptr<Pipeline> StubLookupSingleDocumentProcessInterface::preparePipelineForExecution(
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     ShardTargetingPolicy shardTargetingPolicy,
     boost::optional<BSONObj> readConcern) {
-    return attachCursorSourceToPipelineForLocalRead(ownedPipeline);
+    return attachCursorSourceToPipelineForLocalRead(std::move(pipeline));
 }
 
 std::unique_ptr<Pipeline> StubLookupSingleDocumentProcessInterface::preparePipelineForExecution(
     const boost::intrusive_ptr<mongo::ExpressionContext>& expCtx,
     const AggregateCommandRequest& aggRequest,
-    Pipeline* pipeline,
+    std::unique_ptr<Pipeline> pipeline,
     boost::optional<BSONObj> shardCursorsSortSpec,
     ShardTargetingPolicy shardTargetingPolicy,
     boost::optional<BSONObj> readConcern,
     bool shouldUseCollectionDefaultCollator) {
     return attachCursorSourceToPipelineForLocalRead(
-        pipeline, aggRequest, shouldUseCollectionDefaultCollator);
+        std::move(pipeline), aggRequest, shouldUseCollectionDefaultCollator);
 }
 
 boost::optional<Document> StubLookupSingleDocumentProcessInterface::lookupSingleDocument(

@@ -1,6 +1,10 @@
 /*
  * Tests that primary retains commit quorum provided to createIndexes across restarts.
- * @tags: [requires_persistence]
+ * @tags: [
+ *   requires_persistence,
+ *   # This test will fail because primary driven index builds do not restart on failover.
+ *   primary_driven_index_builds_incompatible_due_to_abort_on_step_up,
+ * ]
  */
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {IndexBuildTest} from "jstests/noPassthrough/libs/index_builds/index_build.js";

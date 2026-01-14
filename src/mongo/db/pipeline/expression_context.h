@@ -800,6 +800,14 @@ public:
         _params.changeStreamSpec = std::move(changeStreamSpec);
     }
 
+    bool isChangeStreamV2() const {
+        if (const auto& spec = _params.changeStreamSpec) {
+            return spec->getVersion() == ChangeStreamReaderVersionEnum::kV2;
+        }
+
+        return false;
+    }
+
     const BSONObj& getOriginalAggregateCommand() const {
         return _params.originalAggregateCommand;
     }
@@ -978,9 +986,9 @@ public:
         return _params.canBeRejected;
     }
 
-    bool isBasicRankFusionEnabled() const {
-        return bypassRankFusionFCVGate ||
-            _featureFlagRankFusionBasic.get(VersionContext::getDecoration(getOperationContext()));
+    bool isBasicRankFusionFeatureFlagEnabled() const {
+        return _featureFlagRankFusionBasic.get(
+            VersionContext::getDecoration(getOperationContext()));
     }
 
     bool shouldParserAllowStreams() const {
@@ -1023,6 +1031,16 @@ public:
 protected:
     struct ExpressionContextParams {
         OperationContext* opCtx = nullptr;
+        // The VersionContext is meant to provide a consistent snapshot of the FCV so that feature
+        // flag checks cannot get different/conflicting answers at different points in time and/or
+        // for different flags. For most operations, this is expected to be initialized by acquiring
+        // an FCV snapshot during initialization. There are some cases where a VersionContext is
+        // already present on the OperationContext, but this is limited to distributed DDL
+        // operations until SPM-4227. It is also possible that the FCV has not yet been established
+        // (for example at startup), in which case VersionContext will be uninitialized (see
+        // VersionContext::isInitialized()).
+        // TODO SERVER-111234 We should probably swap this out for an FCVSnapshot until we implement
+        // SPM-4227.
         VersionContext vCtx;
         IncrementalFeatureRolloutContext ifrContext;
         std::unique_ptr<CollatorInterface> collator = nullptr;

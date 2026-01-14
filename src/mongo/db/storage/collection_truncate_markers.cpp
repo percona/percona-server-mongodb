@@ -31,6 +31,7 @@
 
 #include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/storage/collection_truncate_markers_parameters_gen.h"
 #include "mongo/db/storage/record_data.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_parameters_gen.h"
@@ -191,11 +192,14 @@ CollectionTruncateMarkers::InitialSetOfMarkers CollectionTruncateMarkers::create
     OperationContext* opCtx,
     CollectionIterator& collectionIterator,
     int64_t minBytesPerMarker,
-    std::function<RecordIdAndWallTime(const Record&)> getRecordIdAndWallTime) {
+    std::function<RecordIdAndWallTime(const Record&)> getRecordIdAndWallTime,
+    TickSource* tickSource) {
     auto startTime = curTimeMicros64();
+    const int64_t numRecordsTotal = collectionIterator.numRecords();
     LOGV2_INFO(7393212,
                "Scanning collection to determine where to place markers for truncation",
-               "uuid"_attr = collectionIterator.getRecordStore()->uuid());
+               "uuid"_attr = collectionIterator.getRecordStore()->uuid(),
+               "numRecords"_attr = numRecordsTotal);
 
     int64_t numRecords = 0;
     int64_t dataSize = 0;
@@ -203,6 +207,7 @@ CollectionTruncateMarkers::InitialSetOfMarkers CollectionTruncateMarkers::create
     int64_t currentBytes = 0;
 
     std::deque<Marker> markers;
+    Timer lastProgressTimer(tickSource);
 
     while (auto nextRecord = collectionIterator.getNext()) {
         const auto& [rId, doc] = *nextRecord;
@@ -223,6 +228,22 @@ CollectionTruncateMarkers::InitialSetOfMarkers CollectionTruncateMarkers::create
 
         numRecords++;
         dataSize += doc.objsize();
+
+        const int samplingLogIntervalSeconds = gCollectionSamplingLogIntervalSeconds.load();
+        if (samplingLogIntervalSeconds > 0 &&
+            lastProgressTimer.elapsed() >= Seconds(samplingLogIntervalSeconds)) {
+            LOGV2(11212203,
+                  "Collection scanning progress",
+                  "uuid"_attr = collectionIterator.getRecordStore()->uuid(),
+                  "completed"_attr = numRecords,
+                  "total"_attr = numRecordsTotal);
+            lastProgressTimer.reset();
+        }
+
+        // Force a call to next() only every ~ 1 second to simulate slowness.
+        if (MONGO_unlikely(gUseSlowCollectionTruncateMarkerScanning)) {
+            sleepFor(Seconds(1));
+        }
     }
 
     collectionIterator.getRecordStore()->updateStatsAfterRepair(numRecords, dataSize);
@@ -410,6 +431,11 @@ CollectionTruncateMarkers::computeInitialCreationMethod(
         return MarkersCreationMethod::EmptyCollection;
     }
 
+    // Force scanning if the slow collection scanning flag is enabled.
+    if (gUseSlowCollectionTruncateMarkerScanning) {
+        return MarkersCreationMethod::Scanning;
+    }
+
     // Only use sampling to estimate where to place the collection markers if the number of samples
     // drawn is less than 5% of the collection.
     const uint64_t kMinSampleRatioForRandCursor = 20;
@@ -574,6 +600,79 @@ void CollectionTruncateMarkersWithPartialExpiration::updateCurrentMarker(
         newCurrentBytes >= _minBytesPerMarker.load()) {
         createNewMarkerIfNeeded(highestRecordId, highestWallTime, oplogSamplingAsyncEnabled);
     }
+}
+
+YieldableCollectionIterator::YieldableCollectionIterator(OperationContext* opCtx,
+                                                         RecordStore* rs,
+                                                         TickSource* ticks,
+                                                         Milliseconds yieldInterval)
+    : UnyieldableCollectionIterator(opCtx, rs),
+      _opCtx(opCtx),
+      _yieldTimer(ticks),
+      _yieldInterval(yieldInterval),
+      _lastRecordId([&] {
+          auto record =
+              rs->getCursor(opCtx, *shard_role_details::getRecoveryUnit(opCtx), /*forward=*/false)
+                  ->next();
+          if (!record) {
+              // This shouldn't really happen unless the size storer values are far off from
+              // reality. The collection is definitely empty.
+              LOGV2(11211701,
+                    "Collection was empty when creating initial markers",
+                    "uuid"_attr = rs->uuid());
+              // Null recordid is less than all record IDs, so this makes the collection seem empty.
+              return RecordId{};
+          }
+          return record->id;
+      }()) {}
+
+// Note: Since oplog sampling explicitly reads the entire oplog, the effect of yielding will be that
+// the sampling cursor sees the end of the collection moving away from it. To prevent Zeno's paradox
+// from impacting our customers, we explicitly bound the end for the purpose of sampling.
+boost::optional<std::pair<RecordId, BSONObj>> YieldableCollectionIterator::getNext() {
+    _maybeYield();
+    auto ret = UnyieldableCollectionIterator::getNext();
+    if (!ret || ret.value().first > _lastRecordId) {
+        return boost::none;
+    }
+    return ret;
+}
+
+// Note: Random cursors do not support timestamped reads. So the result of yielding will be a
+// reduced probability of sampling in the region between the end of the oplog when sampling starts
+// and the end when sampling stops. This is fine for initial marker generation.
+boost::optional<std::pair<RecordId, BSONObj>> YieldableCollectionIterator::getNextRandom() {
+    _maybeYield();
+    return UnyieldableCollectionIterator::getNextRandom();
+}
+
+void YieldableCollectionIterator::_maybeYield() {
+    if (_yieldTimer.elapsed() < _yieldInterval) {
+        return;
+    }
+
+    auto& ru = *shard_role_details::getRecoveryUnit(_opCtx);
+
+    _directionalCursor->save();
+    _randomCursor->save();
+
+    ru.abandonSnapshot();
+
+    Locker::LockSnapshot lockState;
+    invariant(shard_role_details::getLocker(_opCtx)->canSaveLockState());
+    shard_role_details::getLocker(_opCtx)->saveLockStateAndUnlock(&lockState);
+
+    LOGV2_DEBUG(11211700, 2, "Yielding truncate markers iterator", "rs"_attr = _rs->getIdent());
+
+    _opCtx->checkForInterrupt();
+    shard_role_details::getLocker(_opCtx)->restoreLockState(_opCtx, lockState);
+
+    // Invariant here. Collections using this iterator are being maintained by it, so we should not
+    // be able to get into a situation where a previously saved cursor is not restoreable.
+    invariant(_randomCursor->restore(ru));
+    invariant(_directionalCursor->restore(ru));
+
+    _yieldTimer.reset();
 }
 
 }  // namespace mongo

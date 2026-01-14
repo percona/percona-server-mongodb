@@ -161,6 +161,7 @@ TSAN_DATA = select({
 ANY_SAN_DATA = select({
     "//bazel/config:any_sanitizer_clang": [
         "//:llvm_symbolizer",
+        "//:llvm_symbolizer_libs",
     ],
     "//conditions:default": [],
 })
@@ -1562,7 +1563,7 @@ def mongo_cc_extension_shared_library(
         name = name,
         srcs = srcs,
         deps = deps + [
-            "//src/mongo/db/extension/public:api",
+            "//src/mongo/db/extension/public:extensions_api_public",
             "//src/mongo/db/extension/sdk:sdk_cpp",
         ],
         header_deps = header_deps,

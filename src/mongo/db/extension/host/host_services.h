@@ -28,31 +28,26 @@
  */
 #pragma once
 
-#include "mongo/db/extension/public/api.h"
+#include "mongo/db/extension/public/extension_log_gen.h"
 #include "mongo/util/modules.h"
 
 namespace mongo::extension::host {
+
 /**
- * HostServices is a concrete implementation of ::MongoExtensionHostServices, providing host
- * services to extensions.
- *
- * The HostServices instance is a singleton, and is accessible via HostServices::get(). The pointer
- * to the singleton instance is passed to extensions during initialization, and is expected to be
- * valid for the lifetime of the extension.
+ * HostServices provides the core implementation of host services functionality for extensions.
  */
-class HostServices final : public ::MongoExtensionHostServices {
+class HostServices {
 public:
-    HostServices() : ::MongoExtensionHostServices{&VTABLE} {}
+    static bool alwaysTrue_TEMPORARY();
 
-    static HostServices* get() {
-        return &_hostServices;
-    }
+    /**
+     * Logs a message from the extension with severity INFO, WARNING, or ERROR.
+     */
+    static void log(const mongo::extension::MongoExtensionLog& log);
 
-private:
-    static HostServices _hostServices;
-
-    static bool _extAlwaysTrue_TEMPORARY() noexcept;
-
-    static constexpr ::MongoExtensionHostServicesVTable VTABLE{&_extAlwaysTrue_TEMPORARY};
+    /**
+     * Logs a debug message from the extension with levels [1, 5].
+     */
+    static void logDebug(const mongo::extension::MongoExtensionDebugLog& bsonLog);
 };
 }  // namespace mongo::extension::host

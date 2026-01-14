@@ -184,11 +184,20 @@ void partitionAndAddMergeCursorsSource(Pipeline* pipeline,
                                        bool requestQueryStatsFromRemotes);
 
 /**
- * Targets the shards with an aggregation command built from `ownedPipeline` and explain set to
- * true. Returns a BSONObj of the form {"pipeline": {<pipelineExplainOutput>}}.
+ * Targets the shards with an aggregation command built from `pipeline` and explain set to true.
+ * Returns a BSONObj of the form {"pipeline": {<pipelineExplainOutput>}}.
  */
-BSONObj targetShardsForExplain(Pipeline* ownedPipeline);
+BSONObj targetShardsForExplain(std::unique_ptr<Pipeline> pipeline);
 
+/**
+ * Returns a set of targeted shards responsible for answering the 'shardQuery'.
+ */
+std::set<ShardId> getTargetedShards(boost::intrusive_ptr<ExpressionContext> expCtx,
+                                    PipelineDataSource pipelineDataSource,
+                                    const boost::optional<CollectionRoutingInfo>& cri,
+                                    const BSONObj& shardQuery,
+                                    const BSONObj& collation,
+                                    const boost::optional<ShardId>& mergeShardId);
 
 void mergeExplainOutputFromShards(const std::vector<AsyncRequestsSender::Response>& shardResponses,
                                   BSONObjBuilder* result);
@@ -224,20 +233,22 @@ Shard::RetryPolicy getDesiredRetryPolicy(OperationContext* opCtx);
  * $mergeCursors.
  *
  * Will retry on network errors and also on StaleConfig errors to avoid restarting the entire
- * operation. Returns `ownedPipeline`, but made-ready for execution.
+ * operation. Returns `pipeline`, but made-ready for execution.
  */
 std::unique_ptr<Pipeline> preparePipelineForExecution(
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     ShardTargetingPolicy shardTargetingPolicy = ShardTargetingPolicy::kAllowed,
     boost::optional<BSONObj> readConcern = boost::none);
 
 
 std::unique_ptr<Pipeline> finalizeAndMaybePreparePipelineForExecution(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     bool attachCursorAfterOptimizing,
-    std::function<void(Pipeline* pipeline, MongoProcessInterface::CollectionMetadata collData)>
-        finalizePipeline = nullptr,
+    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                       Pipeline* pipeline,
+                       MongoProcessInterface::CollectionMetadata collData)> finalizePipeline =
+        nullptr,
     ShardTargetingPolicy shardTargetingPolicy = ShardTargetingPolicy::kAllowed,
     boost::optional<BSONObj> readConcern = boost::none,
     bool shouldUseCollectionDefaultCollator = false);
@@ -289,6 +300,17 @@ std::unique_ptr<Pipeline> runPipelineDirectlyOnSingleShard(
     AggregateCommandRequest request,
     ShardId shardId,
     bool requestQueryStatsFromRemotes);
+
+/**
+ * Opens a $changeStream cursor on the 'config.shards' collection to watch for new shards if:
+ * - 'pipelineDataSource' is kChangeStream
+ * - change stream is not of version v2
+ * - change stream is not already running over 'config.shards' collection.
+ */
+boost::optional<RemoteCursor> openChangeStreamCursorOnConfigsvrIfNeeded(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
+    PipelineDataSource pipelineDataSource,
+    Timestamp startMonitoringAtTime);
 
 }  // namespace sharded_agg_helpers
 }  // namespace mongo

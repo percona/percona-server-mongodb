@@ -29,12 +29,11 @@
 
 #include "mongo/db/query/compiler/ce/sampling/sampling_estimator.h"
 #include "mongo/db/query/compiler/optimizer/cost_based_ranker/estimates_storage.h"
-#include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
+#include "mongo/db/query/compiler/optimizer/join/solution_storage.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 
 namespace mongo::optimizer {
 
-using QuerySolutionMap = stdx::unordered_map<CanonicalQuery*, std::unique_ptr<QuerySolution>>;
 using SamplingEstimatorMap =
     stdx::unordered_map<NamespaceString, std::unique_ptr<ce::SamplingEstimator>>;
 
@@ -42,7 +41,7 @@ using SamplingEstimatorMap =
  * Struct containing results from 'singleTableAccessPlans()' function.
  */
 struct SingleTableAccessPlansResult {
-    QuerySolutionMap solns;
+    join_ordering::QuerySolutionMap solns;
     cost_based_ranker::EstimateMap estimate;
 };
 

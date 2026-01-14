@@ -82,20 +82,58 @@ public:
 }  // namespace extension::host
 
 namespace {
-class NoOpLogicalAggregationStage : public mongo::extension::sdk::LogicalAggregationStage {
+static constexpr std::string_view kNoOpName = "$noOp";
+
+class NoOpLogicalAggStage : public extension::sdk::LogicalAggStage {
 public:
-    NoOpLogicalAggregationStage() {}
+    NoOpLogicalAggStage() {}
 };
 
-class NoOpAggregationStageDescriptor : public mongo::extension::sdk::AggregationStageDescriptor {
+class NoOpAggStageAstNode : public extension::sdk::AggStageAstNode {
 public:
-    static inline const std::string kStageName = "$noOpExtension";
+    NoOpAggStageAstNode() : extension::sdk::AggStageAstNode(kNoOpName) {}
 
-    NoOpAggregationStageDescriptor()
-        : mongo::extension::sdk::AggregationStageDescriptor(
-              kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+    std::unique_ptr<extension::sdk::LogicalAggStage> bind() const override {
+        return std::make_unique<NoOpLogicalAggStage>();
+    }
 
-    std::unique_ptr<mongo::extension::sdk::LogicalAggregationStage> parse(
+    static inline std::unique_ptr<extension::sdk::AggStageAstNode> make() {
+        return std::make_unique<NoOpAggStageAstNode>();
+    }
+};
+
+class NoOpAggStageParseNode : public mongo::extension::sdk::AggStageParseNode {
+public:
+    NoOpAggStageParseNode() : extension::sdk::AggStageParseNode(kNoOpName) {}
+
+    static constexpr size_t kExpansionSize = 1;
+
+    size_t getExpandedSize() const override {
+        return kExpansionSize;
+    }
+
+    std::vector<extension::sdk::VariantNode> expand() const override {
+        std::vector<extension::sdk::VariantNode> expanded;
+        expanded.reserve(kExpansionSize);
+        expanded.emplace_back(
+            new extension::sdk::ExtensionAggStageAstNode(std::make_unique<NoOpAggStageAstNode>()));
+        return expanded;
+    }
+
+    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts* ctx) const override {
+        return BSONObj();
+    }
+};
+
+class NoOpAggStageDescriptor : public mongo::extension::sdk::AggStageDescriptor {
+public:
+    static inline const std::string kStageName = std::string(kNoOpName);
+
+    NoOpAggStageDescriptor()
+        : mongo::extension::sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {
+    }
+
+    std::unique_ptr<mongo::extension::sdk::AggStageParseNode> parse(
         BSONObj stageBson) const override {
 
         uassert(10596406,
@@ -105,11 +143,11 @@ public:
         uassert(10596407,
                 "Failed to parse $noOpExtension, missing boolean field \"foo\"",
                 stageDefinition.hasField("foo") && stageDefinition.getField("foo").isBoolean());
-        return std::make_unique<NoOpLogicalAggregationStage>();
+        return std::make_unique<NoOpAggStageParseNode>();
     }
 
-    static inline std::unique_ptr<mongo::extension::sdk::AggregationStageDescriptor> make() {
-        return std::make_unique<NoOpAggregationStageDescriptor>();
+    static inline std::unique_ptr<mongo::extension::sdk::AggStageDescriptor> make() {
+        return std::make_unique<NoOpAggStageDescriptor>();
     }
 };
 }  // namespace
@@ -139,23 +177,21 @@ public:
     }
 
     static void unregisterParsers() {
-        LiteParsedDocumentSource::unregisterParser_forTest(
-            NoOpAggregationStageDescriptor::kStageName);
+        LiteParsedDocumentSource::unregisterParser_forTest(NoOpAggStageDescriptor::kStageName);
         mongo::extension::host::DocumentSourceExtension::unregisterParser_forTest(
-            NoOpAggregationStageDescriptor::kStageName);
+            NoOpAggStageDescriptor::kStageName);
     }
 
 protected:
     NamespaceString _nss = NamespaceString::createNamespaceString_forTest(
         boost::none, "document_source_extension_test");
 
-    mongo::extension::sdk::ExtensionAggregationStageDescriptor _noOpStaticDescriptor{
-        NoOpAggregationStageDescriptor::make()};
+    mongo::extension::sdk::ExtensionAggStageDescriptor _noOpStaticDescriptor{
+        NoOpAggStageDescriptor::make()};
 
     static inline BSONObj kValidSpec =
-        BSON(NoOpAggregationStageDescriptor::kStageName << BSON("foo" << true));
-    static inline BSONObj kInvalidSpec =
-        BSON(NoOpAggregationStageDescriptor::kStageName << BSONObj());
+        BSON(NoOpAggStageDescriptor::kStageName << BSON("foo" << true));
+    static inline BSONObj kInvalidSpec = BSON(NoOpAggStageDescriptor::kStageName << BSONObj());
 };
 
 TEST_F(DocumentSourceExtensionTest, liteParsedDesugarTest) {
@@ -182,16 +218,14 @@ TEST_F(DocumentSourceExtensionTest, parseNoOpSuccess) {
     ASSERT_THROWS_CODE(buildTestPipeline(testPipeline), AssertionException, 16436);
     // Register the extension stage and try to reparse.
     mongo::extension::host::HostPortal::registerStageDescriptor(
-        reinterpret_cast<const ::MongoExtensionAggregationStageDescriptor*>(
-            &_noOpStaticDescriptor));
+        reinterpret_cast<const ::MongoExtensionAggStageDescriptor*>(&_noOpStaticDescriptor));
     auto parsedPipeline = buildTestPipeline(testPipeline);
     ASSERT(parsedPipeline);
 
     ASSERT_EQUALS(parsedPipeline->size(), 1u);
     const auto* stagePtr = parsedPipeline->peekFront();
     ASSERT_TRUE(stagePtr != nullptr);
-    ASSERT_EQUALS(std::string(stagePtr->getSourceName()),
-                  NoOpAggregationStageDescriptor::kStageName);
+    ASSERT_EQUALS(std::string(stagePtr->getSourceName()), NoOpAggStageDescriptor::kStageName);
     auto serializedPipeline = parsedPipeline->serializeToBson();
     ASSERT_EQUALS(serializedPipeline.size(), 1u);
     ASSERT_BSONOBJ_EQ(serializedPipeline[0], kValidSpec);
@@ -215,5 +249,6 @@ TEST_F(DocumentSourceExtensionTest, parseNoOpSuccess) {
         std::vector<BSONObj> testPipeline{kInvalidSpec};
         ASSERT_THROWS_CODE(buildTestPipeline(testPipeline), AssertionException, 10596407);
     }
-}  // namespace
+}
+
 }  // namespace mongo

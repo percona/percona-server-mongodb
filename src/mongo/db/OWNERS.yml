@@ -222,6 +222,9 @@ filters:
   - "version_context*":
     approvers:
       - 10gen/server-catalog-and-routing-routing-and-topology
+  - "README_version_context.md":
+    approvers:
+      - 10gen/server-catalog-and-routing-routing-and-topology
   - "server_lifecycle_monitor*":
     approvers:
       - 10gen/server-programmability
@@ -231,7 +234,7 @@ filters:
   - "mongod_options_replication.*":
     approvers:
       - 10gen/server-replication-reviewers
-  - "mongod_options_storage.idl":
+  - "mongod_options_storage.*":
     approvers:
       - 10gen/server-storage-engine-integration
   - "mongod_options_sharding.*":
@@ -246,9 +249,6 @@ filters:
   - "bulk_write_shard_test.cpp":
     approvers:
       - 10gen/query-execution-write-exec
-  - "change_collection_expired*":
-    approvers:
-      - 10gen/query-execution-change-streams
   - "multi_key_path_tracker*":
     approvers:
       - 10gen/query-execution-write-exec
@@ -294,7 +294,7 @@ filters:
   - "cursor_in_use_info*":
     approvers:
       - 10gen/query-execution
-  - "find_one_bm*":
+  - "crud_bm*":
     approvers:
       - 10gen/performance
   - "tenant_id*":

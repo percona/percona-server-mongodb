@@ -29,27 +29,25 @@
 #include "mongo/db/extension/host/host_portal.h"
 
 #include "mongo/db/extension/host/document_source_extension.h"
-#include "mongo/db/extension/host_adapter/aggregation_stage.h"
-#include "mongo/db/extension/sdk/extension_status.h"
+#include "mongo/db/extension/host_connector/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/db/extension/shared/extension_status.h"
 
 namespace mongo::extension::host {
 
-void HostPortal::registerStageDescriptor(
-    const ::MongoExtensionAggregationStageDescriptor* descriptor) {
+void HostPortal::registerStageDescriptor(const ::MongoExtensionAggStageDescriptor* descriptor) {
     tassert(
         10596400, "Got null stage descriptor during extension registration", descriptor != nullptr);
-    DocumentSourceExtension::registerStage(
-        host_adapter::ExtensionAggregationStageDescriptorHandle(descriptor));
+    DocumentSourceExtension::registerStage(host_connector::AggStageDescriptorHandle(descriptor));
 }
 
 ::MongoExtensionStatus* HostPortal::_extRegisterStageDescriptor(
-    const MongoExtensionAggregationStageDescriptor* stageDesc) noexcept {
-    return sdk::enterCXX([&]() { return registerStageDescriptor(stageDesc); });
+    const MongoExtensionAggStageDescriptor* stageDesc) noexcept {
+    return wrapCXXAndConvertExceptionToStatus([&]() { return registerStageDescriptor(stageDesc); });
 }
 
 ::MongoExtensionByteView HostPortal::_extGetOptions(
     const ::MongoExtensionHostPortal* portal) noexcept {
-    return sdk::stringViewAsByteView(static_cast<const HostPortal*>(portal)->_extensionOpts);
+    return stringViewAsByteView(static_cast<const HostPortal*>(portal)->_extensionOpts);
 }
 
 }  // namespace mongo::extension::host

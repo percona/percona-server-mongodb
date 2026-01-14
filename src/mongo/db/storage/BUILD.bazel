@@ -25,10 +25,16 @@ mongo_cc_library(
     ],
 )
 
+idl_generator(
+    name = "collection_truncate_markers_parameters_gen",
+    src = "collection_truncate_markers_parameters.idl",
+)
+
 mongo_cc_library(
     name = "record_store_base",
     srcs = [
         "collection_truncate_markers.cpp",
+        "collection_truncate_markers_parameters_gen",
         "record_store.cpp",
         "record_store_base.cpp",
     ],
@@ -214,7 +220,7 @@ mongo_cc_library(
         "//src/mongo/bson:bson_validate",
         "//src/mongo/bson/dotted_path:dotted_path_support",
         "//src/mongo/db:server_base",
-        "//src/mongo/db/encryption:key",
+        "//src/mongo/db/encryption:encryption_key",
     ],
 )
 
@@ -462,7 +468,7 @@ mongo_cc_library(
         "//src/mongo/db:service_context",
         "//src/mongo/db:shard_role_api",
         "//src/mongo/db/encryption:encryption_options",
-        "//src/mongo/db/encryption:key",
+        "//src/mongo/db/encryption:encryption_key",
         "//src/mongo/db/exec:scoped_timer",
         "//src/mongo/util/concurrency:spin_lock",
     ],

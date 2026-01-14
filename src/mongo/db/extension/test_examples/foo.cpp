@@ -30,30 +30,29 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_util.h"
 
 namespace sdk = mongo::extension::sdk;
+
+DEFAULT_LOGICAL_AST_PARSE(TestFoo, "$testFoo")
 
 /**
  * $testFoo is a no-op stage.
  *
  * The stage definition must be empty, like {$testFoo: {}}, or it will fail to parse.
  */
-class TestFooLogicalStage : public sdk::LogicalAggregationStage {};
-
-class TestFooStageDescriptor : public sdk::AggregationStageDescriptor {
+class TestFooStageDescriptor : public sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$testFoo";
+    static inline const std::string kStageName = std::string(TestFooStageName);
 
     TestFooStageDescriptor()
-        : sdk::AggregationStageDescriptor(kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
 
-    std::unique_ptr<sdk::LogicalAggregationStage> parse(mongo::BSONObj stageBson) const override {
-        uassert(10624200,
-                "Failed to parse " + kStageName + ", expected object",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj() &&
-                    stageBson.getField(kStageName).Obj().isEmpty());
+    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
+        sdk::validateStageDefinition(stageBson, kStageName, true /* checkEmpty */);
 
-        return std::make_unique<TestFooLogicalStage>();
+        return std::make_unique<TestFooParseNode>();
     }
 };
 

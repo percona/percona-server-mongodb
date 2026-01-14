@@ -60,7 +60,7 @@ public:
         std::vector<std::unique_ptr<CellBlock>> cellBlocks;
     };
 
-    TsBucketPathExtractor(std::vector<CellBlock::PathRequest> reqs, StringData timeField);
+    TsBucketPathExtractor(std::vector<PathRequest> reqs, StringData timeField);
 
     /*
      * Returns one CellBlock per path given in the constructor. A CellBlock represents all of the
@@ -83,7 +83,7 @@ private:
                                    const std::vector<size_t>& nonTopLevelIdxesForCurrentField,
                                    std::vector<std::unique_ptr<CellBlock>>& outCells) const;
 
-    std::vector<CellBlock::PathRequest> _pathReqs;
+    std::vector<PathRequest> _pathReqs;
 
     // Set of indexes in _pathReqs which are paths NOT of the form [Get <field> Id]. This includes
     // paths like [Get <field> Traverse Id] as well as access to nested paths. Paths of the form
@@ -219,8 +219,6 @@ public:
     }
 
 private:
-    TsBlock(bool owned, TypeTags blockTag, Value blockVal);
-
     void ensureDeblocked();
 
     /**
@@ -248,14 +246,14 @@ private:
     const Value _blockVal;
 
     // The number of values in this block.
-    size_t _count;
+    const size_t _count;
 
     // The version of the bucket, which indicates whether the data is compressed and whether the
     // time field is sorted.
-    int _bucketVersion;
+    const int _bucketVersion;
 
     // true if all values in the block are non-nothing. Currently only true for timeField
-    bool _isTimeField;
+    const bool _isTimeField;
 
     // Store the min and max found in the control field of a bucket
     std::pair<TypeTags, Value> _controlMin;

@@ -397,6 +397,7 @@ const allCommands = {
     },
     commitShardRemoval: {skip: requiresMongoS},
     commitTransaction: {skip: "requires modifications to users of number of shards"},
+    commitTransitionToDedicatedConfigServer: {skip: requiresMongoS},
     compact: {
         setUp: function (mongoS) {
             assert.commandWorked(mongoS.getDB(dbName).runCommand({create: collName}));
@@ -669,7 +670,7 @@ const allCommands = {
         command: {getAuditConfig: 1},
         shouldFail: false,
     },
-    getChangeStreamState: {skip: "Only supported on serverless"},
+    getChangeStreamState: {skip: isDeprecated}, // Removed in v8.3
     getClusterParameter: {
         isAdminCommand: true,
         command: {getClusterParameter: "changeStreamOptions"},
@@ -722,6 +723,7 @@ const allCommands = {
         command: {getTrafficRecordingStatus: 1},
         shouldFail: false,
     },
+    getTransitionToDedicatedConfigServerStatus: {skip: requiresMongoS},
     godinsert: {
         setUp: function (mongoS) {
             assert.commandWorked(mongoS.getDB(dbName).runCommand({create: collName}));
@@ -1138,7 +1140,7 @@ const allCommands = {
             assert.commandWorked(conn.getDB("admin").runCommand({setParameter: 1, quiet: 0}));
         },
     },
-    setChangeStreamState: {skip: "requires serverless"},
+    setChangeStreamState: {skip: isDeprecated}, // Removed in v8.3
     setClusterParameter: {skip: requiresMongoS},
     setQuerySettings: {skip: requiresMongoS},
     removeQuerySettings: {skip: requiresMongoS},
@@ -1158,6 +1160,7 @@ const allCommands = {
         // Skipping command because it requires an actual file path for recording traffic to.
         skip: "requires an actual file path to record traffic to",
     },
+    startTransitionToDedicatedConfigServer: {skip: requiresMongoS},
     startSession: {
         fullScenario: function (mongoS, withDirectConnections, withoutDirectConnections) {
             const res = withoutDirectConnections.adminCommand({startSession: 1});
@@ -1170,6 +1173,7 @@ const allCommands = {
         // Skipping command because it requires an actual file path for recording traffic to.
         skip: "requires an actual file path to record traffic to",
     },
+    stopTransitionToDedicatedConfigServer: {skip: requiresMongoS},
     sysprofile: {skip: isAnInternalCommand},
     testCommandFeatureFlaggedOnLatestFCV83: {skip: isAnInternalCommand},
     testDeprecation: {skip: isAnInternalCommand},

@@ -6,11 +6,13 @@
  *
  * @tags: [
  *   requires_replication,
+ *   # TODO SERVER-111867: Remove once primary-driven index builds support side writes.
+ *   primary_driven_index_builds_incompatible,
  * ]
  */
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
-import {funWithArgs} from "jstests/libs/parallel_shell_helpers.js";
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
+import {funWithArgs} from "jstests/libs/parallel_shell_helpers.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 
 const replTest = new ReplSetTest({
@@ -92,7 +94,7 @@ const awaitCreateIndex = startParallelShell(
 );
 fpSecondaryDrain.wait();
 
-// TODO(SERVER-107055): Re-enable this check again.
+// Secondaries do not build indexes, so they do not drain side writes.
 if (!FeatureFlagUtil.isPresentAndEnabled(primaryDB, "PrimaryDrivenIndexBuilds")) {
     // Two documents are scanned but only one key is inserted.
     checkLog.containsJson(secondary, 20391, {namespace: coll.getFullName(), totalRecords: 2});
@@ -113,7 +115,7 @@ fpSecondaryDrain.off();
 fpPrimarySetup.off();
 awaitCreateIndex();
 
-// TODO(SERVER-107055): Re-enable this check again.
+// TODO(SERVER-110846): Possibly re-enable this check.
 if (!FeatureFlagUtil.isPresentAndEnabled(primaryDB, "PrimaryDrivenIndexBuilds")) {
     // The skipped document is resolved, and causes the index to flip to multikey.
     // "Index set to multi key ..."

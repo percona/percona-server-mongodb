@@ -119,6 +119,11 @@ public:
         return Status::OK();
     }
 
+    bool requiresAuthzChecks() const override {
+        return false;
+    }
+
+
     std::string help() const override {
         return "internal. for testing only.";
     }
@@ -202,6 +207,10 @@ public:
                                  const DatabaseName&,
                                  const BSONObj&) const override {
         return Status::OK();
+    }
+
+    bool requiresAuthzChecks() const override {
+        return false;
     }
 
     std::string help() const override {
@@ -293,6 +302,10 @@ public:
         return Status::OK();
     }
 
+    bool requiresAuthzChecks() const override {
+        return false;
+    }
+
     std::string help() const override {
         return "return the value of timeseriesCatalogBucketParamsChanged";
     }
@@ -341,6 +354,10 @@ public:
                                  const DatabaseName&,
                                  const BSONObj&) const override {
         return Status::OK();
+    }
+
+    bool requiresAuthzChecks() const override {
+        return false;
     }
 
     std::string help() const override {

@@ -1,0 +1,46 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library", "mongo_cc_unit_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Like the C++ SDK, we should do our best to minimize the dependencies of this connector layer so
+# that it can be mostly self-contained.
+mongo_cc_library(
+    name = "extensions_host_connector",
+    srcs = [
+        "query_shape_opts_adapter.cpp",
+    ],
+    hdrs = [
+        "extension_handle.h",
+        "host_services_adapter.h",
+        "query_shape_opts_adapter.h",
+        "//src/mongo/db/extension/host:host_portal.h",
+    ],
+    deps = [
+        "//src/mongo/db/extension/public:extensions_api_public",
+        # Note, for the time being we are linking in the C++ SDK here to reduce code duplication.
+        # Eventually, we may decouple the C++ SDK from the server and remove this dependency.
+        "//src/mongo/db/extension/sdk:sdk_cpp",
+        "//src/mongo/db/pipeline:aggregation_request_helper",
+        "//src/mongo:base",
+    ],
+)
+
+# Unlike the "extensions_host_connector" target above that provides adapters and handles to manage
+# extension-provided data structures, the host services adapter has many server dependencies since
+# it is responsible for exposing certain server functionality through the API.
+mongo_cc_library(
+    name = "host_services_adapter",
+    srcs = [
+        "host_services_adapter.cpp",
+    ],
+    hdrs = [
+        "host_services_adapter.h",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo:core_headers_library",
+        "//src/mongo/db/extension/host:host_services",
+        "//src/mongo/db/extension/public:api",
+        "//src/mongo/db/extension/sdk:sdk_cpp",
+    ],
+)

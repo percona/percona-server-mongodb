@@ -636,14 +636,21 @@ StatusWith<std::string> ShardingCatalogManager::addShard(
 
     {
         // Execute the transaction with a local write concern to make sure `stopMonitorGuard` is
-        // dimissed only when the transaction really fails.
+        // dismissed only when the transaction really fails.
         const auto originalWC = opCtx->getWriteConcern();
         ScopeGuard resetWCGuard([&] { opCtx->setWriteConcern(originalWC); });
         opCtx->setWriteConcern(ShardingCatalogClient::writeConcernLocalHavingUpstreamWaiter());
 
         auto& executor = Grid::get(opCtx)->getExecutorPool()->getFixedExecutor();
-        topology_change_helpers::addShardInTransaction(
-            opCtx, shardType, std::move(dbNamesStatus.getValue()), executor);
+        // Unconditionally skip the initialization of config.placementHistory (this action is bound
+        // to featureFlagChangeStreamPreciseShardTargeting, which is always false when the legacy
+        // addShard path is running).
+        const auto insertPlacementHistoryInitMetadata = false;
+        topology_change_helpers::addShardInTransaction(opCtx,
+                                                       shardType,
+                                                       std::move(dbNamesStatus.getValue()),
+                                                       insertPlacementHistoryInitMetadata,
+                                                       executor);
     }
     // Once the transaction has committed, we must immediately dismiss the guard to avoid
     // incorrectly removing the RSM after persisting the shard addition.
@@ -735,7 +742,7 @@ boost::optional<RemoveShardProgress> ShardingCatalogManager::checkPreconditionsA
     // failed addShard/removeShard operation.
     topology_change_helpers::resetDDLBlockingForTopologyChangeIfNeeded(opCtx);
 
-    const auto shardName = shardId.toString();
+    const auto& shardName = shardId.toString();
     audit::logRemoveShard(opCtx->getClient(), shardName);
 
     // Take the cluster cardinality parameter lock and the shard membership lock in exclusive mode
@@ -819,7 +826,7 @@ void ShardingCatalogManager::stopDrain(OperationContext* opCtx, const ShardId& s
     // failed addShard/removeShard operation.
     topology_change_helpers::resetDDLBlockingForTopologyChangeIfNeeded(opCtx);
 
-    const auto shardName = shardId.toString();
+    const auto& shardName = shardId.toString();
 
     // Take the cluster cardinality parameter lock and the shard membership lock in exclusive mode
     // so that no add/remove shard operation and its set cluster cardinality parameter operation can
@@ -892,13 +899,24 @@ RemoveShardProgress ShardingCatalogManager::checkDrainingProgress(OperationConte
         progress.setRemaining(drainingProgress.removeShardCounts);
         return progress;
     }
+
+    if (shardId == ShardId::kConfigServerId) {
+        // Wait for range deletions to complete
+        auto pendingRangeDeletions = topology_change_helpers::getRangeDeletionCount(opCtx);
+        if (pendingRangeDeletions > 0) {
+            RemoveShardProgress progress(ShardDrainingStateEnum::kPendingDataCleanup);
+            progress.setPendingRangeDeletions(pendingRangeDeletions);
+            return progress;
+        }
+    }
+
     RemoveShardProgress progress(ShardDrainingStateEnum::kDrainingComplete);
     return progress;
 }
 
 bool ShardingCatalogManager::isShardCurrentlyDraining(OperationContext* opCtx,
                                                       const ShardId& shardId) {
-    const auto shardName = shardId.toString();
+    const auto& shardName = shardId.toString();
     return topology_change_helpers::runCountCommandOnConfig(
                opCtx,
                _localConfigShard,
@@ -925,7 +943,7 @@ RemoveShardProgress ShardingCatalogManager::removeShard(OperationContext* opCtx,
     const auto shard = *optShard;
     const auto replicaSetName =
         uassertStatusOK(ConnectionString::parse(shard.getHost())).getReplicaSetName();
-    const auto shardName = shardId.toString();
+    const auto& shardName = shardId.toString();
 
     if (shardId == ShardId::kConfigServerId) {
         topology_change_helpers::joinMigrations(opCtx);

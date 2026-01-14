@@ -30,13 +30,18 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_util.h"
 
 namespace sdk = mongo::extension::sdk;
+
+DEFAULT_LOGICAL_AST_PARSE(CheckNum, "$checkNum")
 
 struct ExtensionOptions {
     inline static bool checkMax = false;
     inline static double max = -1;
 };
+
 
 /**
  * $checkNum is a no-op stage.
@@ -45,32 +50,29 @@ struct ExtensionOptions {
  * fail to parse. If 'checkMax' is true and the supplied num is greater than 'max', it will fail to
  * parse.
  */
-class CheckNumLogicalStage : public sdk::LogicalAggregationStage {};
-class CheckNumStageDescriptor : public sdk::AggregationStageDescriptor {
+class CheckNumStageDescriptor : public sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$checkNum";
+    static inline const std::string kStageName = std::string(CheckNumStageName);
     CheckNumStageDescriptor()
-        : sdk::AggregationStageDescriptor(kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
 
-    std::unique_ptr<sdk::LogicalAggregationStage> parse(mongo::BSONObj stageBson) const override {
-        uassert(10999104,
-                "Failed to parse " + kStageName + ", expected an object for $checkNum",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj());
+    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
+        sdk::validateStageDefinition(stageBson, kStageName);
 
         const auto obj = stageBson.getField(kStageName).Obj();
-        uassert(10999105,
-                "Failed to parse " + kStageName + ", expected {" + kStageName +
-                    ": {num: <double>}}",
-                obj.hasField("num") && obj.getField("num").isNumber());
+        userAssert(10999105,
+                   "Failed to parse " + kStageName + ", expected {" + kStageName +
+                       ": {num: <double>}}",
+                   obj.hasField("num") && obj.getField("num").isNumber());
 
         if (ExtensionOptions::checkMax) {
-            uassert(10999106,
-                    "Failed to parse " + kStageName + ", provided num is higher than max " +
-                        std::to_string(ExtensionOptions::max),
-                    obj.getField("num").numberDouble() <= ExtensionOptions::max);
+            userAssert(10999106,
+                       "Failed to parse " + kStageName + ", provided num is higher than max " +
+                           std::to_string(ExtensionOptions::max),
+                       obj.getField("num").numberDouble() <= ExtensionOptions::max);
         }
 
-        return std::make_unique<CheckNumLogicalStage>();
+        return std::make_unique<CheckNumParseNode>();
     }
 };
 
@@ -78,10 +80,10 @@ class MyExtension : public sdk::Extension {
 public:
     void initialize(const sdk::HostPortalHandle& portal) override {
         YAML::Node node = portal.getExtensionOptions();
-        uassert(10999107, "Extension options must include 'checkMax'", node["checkMax"]);
+        userAssert(10999107, "Extension options must include 'checkMax'", node["checkMax"]);
         ExtensionOptions::checkMax = node["checkMax"].as<bool>();
         if (ExtensionOptions::checkMax) {
-            uassert(10999103, "Extension options must include 'max'", node["max"]);
+            userAssert(10999103, "Extension options must include 'max'", node["max"]);
             ExtensionOptions::max = node["max"].as<double>();
         }
         _registerStage<CheckNumStageDescriptor>(portal);

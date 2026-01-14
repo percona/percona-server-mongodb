@@ -30,12 +30,6 @@ global:
     cpp_namespace: "mongo::feature_flags"
 
 feature_flags:
-    featureFlagServerlessChangeStreams:
-        description: "Feature flag to enable reading change events from the change collection rather than the oplog"
-        cpp_varname: gFeatureFlagServerlessChangeStreams
-        default: false
-        fcv_gated: true
-
     featureFlagChangeStreamPreciseShardTargeting:
         description: "Feature flag to enable improved handling of cluster topology changes in change streams"
         cpp_varname: gFeatureFlagChangeStreamPreciseShardTargeting
@@ -229,13 +223,13 @@ feature_flags:
         description: "Feature flag to enable MultiPlan rate limiter."
         cpp_varname: gfeatureFlagMultiPlanLimiter
         fcv_gated: false
-        incremental_rollout_phase: in_development
+        incremental_rollout_phase: rollout
 
     featureFlagSbeUpgradeBinaryTrees:
         description: "Feature flag to enable N-ary ABT nodes"
         cpp_varname: gFeatureFlagSbeUpgradeBinaryTrees
         fcv_gated: false
-        incremental_rollout_phase: in_development
+        incremental_rollout_phase: rollout
 
     featureFlagUUIDExpression:
         description: "Feature flag to enable $createUUID expression"
@@ -253,7 +247,8 @@ feature_flags:
     featureFlagConvertBinDataVectors:
         description: "Feature flag to enable converting to and from BinDataVectors and BSON Arrays"
         cpp_varname: gFeatureFlagConvertBinDataVectors
-        default: false
+        default: true
+        version: 8.3
         fcv_gated: true
 
     featureFlagVectorSimilarityExpressions:
@@ -284,11 +279,17 @@ feature_flags:
         default: true
         fcv_gated: false
 
-    featureFlagQueryStatsWriteCommand:
+    featureFlagQueryStatsUpdateCommand:
         description: "Feature flag to enable query stats for the write commands."
-        cpp_varname: gFeatureFlagQueryStatsWriteCommand
+        cpp_varname: gFeatureFlagQueryStatsUpdateCommand
         default: false
         fcv_gated: true
+
+    featureFlagQueryStatsMetricsSubsections:
+        description: "Feature flag to enable query stats metrics being reorganized into subsections, rather than a flat structure."
+        cpp_varname: gFeatureFlagQueryStatsMetricsSubsections
+        default: false
+        fcv_gated: false
 
     featureFlagExtractFieldPathsSbeStage:
         description: "Feature flag to enable extract_field_paths SBE stage."

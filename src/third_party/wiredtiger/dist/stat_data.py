@@ -1195,7 +1195,8 @@ conn_dsrc_stats = [
     CacheStat('cache_scrub_restore', 'reconciled pages scrubbed and added back to the cache clean'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
-    CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
+    CacheStat('cache_write_restore_invisible', 'pages written requiring in-memory restoration due to invisible updates'),
+    CacheStat('cache_write_restore_scrub', 'pages written requiring in-memory restoration due to scrub eviction'),
 
     ##########################################
     # Checkpoint statistics
@@ -1374,6 +1375,8 @@ conn_dsrc_stats = [
     TxnStat('txn_read_overflow_remove', 'number of times overflow removed value is read'),
     TxnStat('txn_read_race_prepare_commit', 'a reader raced with a prepared transaction commit and skipped an update or updates'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
+    TxnStat('txn_rts_btrees_applied', 'rollback to stable applied btrees'),
+    TxnStat('txn_rts_btrees_skipped', 'rollback to stable skipped btrees'),
     TxnStat('txn_rts_delete_rle_skipped', 'rollback to stable skipping delete rle'),
     TxnStat('txn_rts_hs_removed', 'rollback to stable updates removed from history store'),
     TxnStat('txn_rts_hs_removed_dryrun', 'rollback to stable updates that would have been removed from history store in non-dryrun mode'),

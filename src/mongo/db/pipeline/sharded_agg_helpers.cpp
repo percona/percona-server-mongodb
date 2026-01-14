@@ -168,38 +168,6 @@ Document wrapAggAsExplain(Document aggregateCommand, ExplainOptions::Verbosity v
     return explainCommandBuilder.freeze();
 }
 
-/**
- * Open a $changeStream cursor on the 'config.shards' collection to watch for new shards.
- */
-RemoteCursor openChangeStreamNewShardMonitor(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                                             Timestamp startMonitoringAtTime) {
-    const auto& configShard =
-        Grid::get(expCtx->getOperationContext())->shardRegistry()->getConfigShard();
-    // Pipeline: {$changeStream: {startAtOperationTime: [now], allowToRunOnConfigDB: true}}
-    AggregateCommandRequest aggReq(
-        NamespaceString::kConfigsvrShardsNamespace,
-        {BSON(DocumentSourceChangeStream::kStageName
-              << BSON(DocumentSourceChangeStreamSpec::kStartAtOperationTimeFieldName
-                      << startMonitoringAtTime
-                      << DocumentSourceChangeStreamSpec::kAllowToRunOnConfigDBFieldName << true))});
-    aggregation_request_helper::setFromRouter(
-        VersionContext::getDecoration(expCtx->getOperationContext()), aggReq, true);
-    aggReq.setNeedsMerge(true);
-
-    SimpleCursorOptions cursor;
-    cursor.setBatchSize(0);
-    aggReq.setCursor(cursor);
-    setReadWriteConcern(expCtx->getOperationContext(), aggReq, true, !expCtx->getExplain());
-    auto configCursor = establishCursors(expCtx->getOperationContext(),
-                                         expCtx->getMongoProcessInterface()->taskExecutor,
-                                         aggReq.getNamespace(),
-                                         ReadPreferenceSetting{ReadPreference::SecondaryPreferred},
-                                         {{configShard->getId(), aggReq.toBSON()}},
-                                         false);
-    invariant(configCursor.size() == 1);
-    return std::move(*configCursor.begin());
-}
-
 BSONObj genericTransformForShards(MutableDocument&& cmdForShards,
                                   const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                   boost::optional<ExplainOptions::Verbosity> explainVerbosity,
@@ -328,38 +296,6 @@ std::vector<RemoteCursor> establishShardCursors(
                                 {} /* providedOpKeys */,
                                 std::move(designatedHostsMap));
     }
-}
-
-std::set<ShardId> getTargetedShards(boost::intrusive_ptr<ExpressionContext> expCtx,
-                                    PipelineDataSource pipelineDataSource,
-                                    bool mustRunOnAllShards,
-                                    const boost::optional<CollectionRoutingInfo>& cri,
-                                    const BSONObj shardQuery,
-                                    const BSONObj collation,
-                                    const boost::optional<ShardId>& mergeShardId) {
-    if (mustRunOnAllShards) {
-        // The pipeline begins with a stage which must be run on all shards.
-        auto shardIds = Grid::get(expCtx->getOperationContext())
-                            ->shardRegistry()
-                            ->getAllShardIds(expCtx->getOperationContext());
-        return {std::make_move_iterator(shardIds.begin()), std::make_move_iterator(shardIds.end())};
-    } else if (pipelineDataSource == PipelineDataSource::kGeneratesOwnDataOnce) {
-        if (mergeShardId) {
-            return {*mergeShardId};
-        }
-
-        // The output collection is nonexistent or sharded, so we cannot determine a single
-        // mergeShardId. Designate the dbPrimary shard to run the shards part.
-        const auto dbInfo =
-            uassertStatusOK(Grid::get(expCtx->getOperationContext())
-                                ->catalogCache()
-                                ->getDatabase(expCtx->getOperationContext(),
-                                              expCtx->getNamespaceString().dbName()));
-        return {dbInfo->getPrimary()};
-    }
-
-    tassert(8361100, "Need CollectionRoutingInfo to target sharded query", cri);
-    return getTargetedShardsForQuery(expCtx, *cri, shardQuery, collation);
 }
 
 bool stageCanRunInParallel(const boost::intrusive_ptr<DocumentSource>& stage,
@@ -602,13 +538,18 @@ bool canUseLocalReadAsCursorSource(OperationContext* opCtx,
  */
 std::unique_ptr<Pipeline> tryAttachCursorSourceForLocalRead(
     OperationContext* opCtx,
-    const ExpressionContext& expCtx,
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
     RoutingContext& routingCtx,
     std::unique_ptr<Pipeline>& pipelineToTarget,
     const AggregateCommandRequest& aggRequest,
     bool useCollectionDefaultCollator,
-    const ShardId& localShardId) {
-    const auto& nss = expCtx.getNamespaceString();
+    const ShardId& localShardId,
+    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                       Pipeline* pipeline,
+                       MongoProcessInterface::CollectionMetadata collData)> finalizePipeline =
+        nullptr,
+    std::unique_ptr<Pipeline> preFinalizedPipeline = nullptr) {
+    const auto& nss = expCtx->getNamespaceString();
     const auto& targetingCri = routingCtx.getCollectionRoutingInfo(nss);
 
     try {
@@ -639,16 +580,27 @@ std::unique_ptr<Pipeline> tryAttachCursorSourceForLocalRead(
         // shard role but does not refresh the shard if the shard has stale metadata.
         // Proceeding to do normal shard targeting, which will go through the
         // service_entry_point and refresh the shard if needed.
-        auto pipelineWithCursor =
-            expCtx.getMongoProcessInterface()->attachCursorSourceToPipelineForLocalRead(
-                pipelineToTarget.release(), aggRequest, useCollectionDefaultCollator);
+
+        // Pass in the 'preFinalizedPipeline', since 'finalizeAndAttachCursorToPipelineForLocalRead'
+        // will acquire new collection acquisition and perform 'finalizePipeline' on the new
+        // collection metadata.
+        auto pipelineWithCursor = finalizePipeline
+            ? expCtx->getMongoProcessInterface()->finalizeAndAttachCursorToPipelineForLocalRead(
+                  expCtx,
+                  std::move(preFinalizedPipeline),
+                  true /* attachCursorAfterOptimizing */,
+                  finalizePipeline,
+                  useCollectionDefaultCollator,
+                  aggRequest)
+            : expCtx->getMongoProcessInterface()->attachCursorSourceToPipelineForLocalRead(
+                  std::move(pipelineToTarget), aggRequest, useCollectionDefaultCollator);
 
         LOGV2_DEBUG(5837600,
                     3,
                     "Performing local read",
-                    logAttrs(expCtx.getNamespaceString()),
+                    logAttrs(expCtx->getNamespaceString()),
                     "pipeline"_attr = pipelineWithCursor->serializeForLogging(),
-                    "comment"_attr = expCtx.getOperationContext()->getComment());
+                    "comment"_attr = expCtx->getOperationContext()->getComment());
 
         return pipelineWithCursor;
     } catch (ExceptionFor<ErrorCodes::StaleDbVersion>&) {
@@ -668,7 +620,62 @@ std::unique_ptr<Pipeline> tryAttachCursorSourceForLocalRead(
     }
     return nullptr;
 }
+
+std::set<ShardId> getTargetedShardsForAllShardsRequest(OperationContext* opCtx) {
+    auto shardIds = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
+    return {std::make_move_iterator(shardIds.begin()), std::make_move_iterator(shardIds.end())};
+}
+
+std::set<ShardId> getTargetedShardsForPipelineGeteratingOwnDataOnce(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx, boost::optional<ShardId> mergeShardId) {
+    if (mergeShardId) {
+        return std::set<ShardId>{*mergeShardId};
+    }
+
+    // The output collection is nonexistent or sharded, so we cannot determine a
+    // single mergeShardId. Designate the dbPrimary shard to run the shards part.
+    auto* opCtx = expCtx->getOperationContext();
+    const auto dbInfo = uassertStatusOK(Grid::get(opCtx)->catalogCache()->getDatabase(
+        opCtx, expCtx->getNamespaceString().dbName()));
+    return std::set<ShardId>{dbInfo->getPrimary()};
+}
+
+std::set<ShardId> getTargetedShardsForChangeStream(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx) {
+    // If we are running change stream of version v2, the shard targeting will be determined via the
+    // ChangeStreamHandleTopologyChangeV2, therefore we return an empty shard set.
+    if (expCtx->isChangeStreamV2()) {
+        return {};
+    }
+
+    return getTargetedShardsForAllShardsRequest(expCtx->getOperationContext());
+}
 }  // namespace
+
+std::set<ShardId> getTargetedShards(boost::intrusive_ptr<ExpressionContext> expCtx,
+                                    PipelineDataSource pipelineDataSource,
+                                    const boost::optional<CollectionRoutingInfo>& cri,
+                                    const BSONObj& shardQuery,
+                                    const BSONObj& collation,
+                                    const boost::optional<ShardId>& mergeShardId) {
+    switch (pipelineDataSource) {
+        case PipelineDataSource::kGeneratesOwnDataOnce:
+            return getTargetedShardsForPipelineGeteratingOwnDataOnce(expCtx, mergeShardId);
+
+        case PipelineDataSource::kChangeStream:
+            return getTargetedShardsForChangeStream(expCtx);
+
+        case PipelineDataSource::kNormal:
+            if (expCtx->getNamespaceString().isCollectionlessAggregateNS()) {
+                return getTargetedShardsForAllShardsRequest(expCtx->getOperationContext());
+            }
+
+            tassert(8361100, "Need CollectionRoutingInfo to target sharded query", cri);
+            return getTargetedShardsForQuery(expCtx, *cri, shardQuery, collation);
+    }
+
+    MONGO_UNREACHABLE_TASSERT(10744200);
+}
 
 std::unique_ptr<Pipeline> runPipelineDirectlyOnSingleShard(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
@@ -922,18 +929,13 @@ TargetingResults targetPipeline(const boost::intrusive_ptr<ExpressionContext>& e
     boost::optional<ShardId> mergeShardId = pipeline->needsSpecificShardMerger();
     const bool mustRunOnAllShards =
         checkIfMustRunOnAllShards(expCtx->getNamespaceString(), pipelineDataSource);
-    std::set<ShardId> shardIds = getTargetedShards(expCtx,
-                                                   pipelineDataSource,
-                                                   mustRunOnAllShards,
-                                                   cri,
-                                                   shardQuery,
-                                                   shardTargetingCollation,
-                                                   mergeShardId);
+    std::set<ShardId> shardIds = getTargetedShards(
+        expCtx, pipelineDataSource, cri, shardQuery, shardTargetingCollation, mergeShardId);
 
-    bool targetAllHosts = pipeline->needsAllShardHosts();
     // Don't need to split the pipeline if we are only targeting a single shard, unless:
     // - The pipeline contains one or more stages which must always merge on router.
     // - The pipeline requires the merge to be performed on a specific shard that is not targeted.
+    const bool targetAllHosts = pipeline->needsAllShardHosts();
     const bool needsSplit = (shardIds.size() > 1u) || needsRouterMerge || targetAllHosts ||
         (mergeShardId && *(shardIds.begin()) != mergeShardId);
 
@@ -959,14 +961,10 @@ TargetingResults targetPipeline(const boost::intrusive_ptr<ExpressionContext>& e
         Grid::get(expCtx->getOperationContext())
             ->shardRegistry()
             ->reload(expCtx->getOperationContext());
+
         // Rebuild the set of shards as the shard registry might have changed.
-        shardIds = getTargetedShards(expCtx,
-                                     pipelineDataSource,
-                                     mustRunOnAllShards,
-                                     cri,
-                                     shardQuery,
-                                     shardTargetingCollation,
-                                     mergeShardId);
+        shardIds = getTargetedShards(
+            expCtx, pipelineDataSource, cri, shardQuery, shardTargetingCollation, mergeShardId);
 
         // Check that no shard has been removed since the change stream open time to detect a
         // possible event loss. It is important to execute it after retrieving the most recent list
@@ -1164,6 +1162,25 @@ DispatchShardPipelineResults dispatchTargetedShardPipeline(
                                                            std::move(readConcern),
                                                            boost::none,
                                                            requestQueryStatsFromRemotes));
+
+    // Shard targeting for change streams v2 is performed in ChangeStreamHandleTopologyChangeV2
+    // stage. Here we early exit with empty DispatchShardPipelineResults.
+    if (expCtx->isChangeStreamV2()) {
+        tassert(10744202,
+                "set of targeted shards should be empty, as shard targeting is handled in "
+                "ChangeStreamHandleTopologyChangeV2 stage",
+                shardCount == 0);
+
+        return DispatchShardPipelineResults{std::move(mergeShardId),
+                                            {},
+                                            {},
+                                            std::move(splitPipelines),
+                                            std::move(pipeline),
+                                            targetedCommand,
+                                            shardCount,
+                                            exchangeSpec};
+    }
+
     // If there were no shards when we began execution, we wouldn't have run this aggregation in the
     // first place. Here, we double-check that the shards have not been removed mid-operation.
     uassert(ErrorCodes::ShardNotFound,
@@ -1218,11 +1235,11 @@ DispatchShardPipelineResults dispatchTargetedShardPipeline(
                               << ") and we were not targeting each mongod in each shard",
                 targetAllHosts || cursors.size() % shardCount == 0);
 
-        // For $changeStream, we must open an extra cursor on the 'config.shards' collection, so
+        // For $changeStream v1, we must open an extra cursor on the 'config.shards' collection, so
         // that we can monitor for the addition of new shards inline with real events.
-        if (pipelineDataSource == PipelineDataSource::kChangeStream &&
-            !expCtx->getNamespaceString().isEqualDb(NamespaceString::kConfigsvrShardsNamespace)) {
-            cursors.emplace_back(openChangeStreamNewShardMonitor(expCtx, shardRegistryReloadTime));
+        if (auto&& cursor = openChangeStreamCursorOnConfigsvrIfNeeded(
+                expCtx, pipelineDataSource, shardRegistryReloadTime)) {
+            cursors.emplace_back(std::move(*cursor));
         }
     }
 
@@ -1275,8 +1292,11 @@ DispatchShardPipelineResults dispatchShardPipeline(
         shardIds.erase(shard);
     }
 
-    // Return if we don't need to establish any cursors.
-    if (shardIds.empty()) {
+    // Early exit if we don't need to establish any cursors, unless it's change stream v2.
+    // Shard targeting for change stream v2 is not determined here, but by
+    // ChangeStreamHandleTopologyChangeV2 stage. In order to ensure this we need to dispatch
+    // the merge pipeline on mongos with $mergeCursors stage.
+    if (shardIds.empty() && !expCtx->isChangeStreamV2()) {
         tassert(7958303,
                 "Expected no merge shard id when shardIds are empty",
                 !targeting.mergeShardId.has_value());
@@ -1557,9 +1577,9 @@ Status appendExplainResults(DispatchShardPipelineResults&& dispatchResults,
     return Status::OK();
 }
 
-BSONObj targetShardsForExplain(Pipeline* ownedPipeline) {
-    auto expCtx = ownedPipeline->getContext();
-    std::unique_ptr<Pipeline> pipeline(ownedPipeline);
+BSONObj targetShardsForExplain(std::unique_ptr<Pipeline> pipeline) {
+    auto expCtx = pipeline->getContext();
+
     // The pipeline is going to be explained on the shards, and we don't want to send a
     // mergeCursors stage.
     invariant(pipeline->empty() ||
@@ -1704,7 +1724,12 @@ std::unique_ptr<Pipeline> targetShardsAndAddMergeCursorsWithRoutingCtx(
     boost::optional<BSONObj> shardCursorsSortSpec,
     ShardTargetingPolicy shardTargetingPolicy,
     boost::optional<BSONObj> readConcern,
-    bool useCollectionDefaultCollator) {
+    bool useCollectionDefaultCollator,
+    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                       Pipeline* pipeline,
+                       MongoProcessInterface::CollectionMetadata collData)> finalizePipeline =
+        nullptr,
+    std::unique_ptr<Pipeline> preFinalizedPipeline = nullptr) {
 
     tassert(9597602,
             "Pipeline should not start with $mergeCursors",
@@ -1729,12 +1754,14 @@ std::unique_ptr<Pipeline> targetShardsAndAddMergeCursorsWithRoutingCtx(
             expCtx->getOperationContext(), pipelineTargetingInfo, *localShardId, readConcern)) {
         if (auto pipelineWithCursor =
                 tryAttachCursorSourceForLocalRead(expCtx->getOperationContext(),
-                                                  *expCtx,
+                                                  expCtx,
                                                   routingCtx,
                                                   pipelineToTarget,
                                                   aggRequest,
                                                   useCollectionDefaultCollator,
-                                                  *localShardId)) {
+                                                  *localShardId,
+                                                  finalizePipeline,
+                                                  std::move(preFinalizedPipeline))) {
             return pipelineWithCursor;
         }
 
@@ -1807,7 +1834,7 @@ std::unique_ptr<Pipeline> targetShardsAndAddMergeCursors(
                 "Only shard role operations can perform local reads.",
                 expCtx->getOperationContext()->getService()->role().has(ClusterRole::ShardServer));
         return expCtx->getMongoProcessInterface()->attachCursorSourceToPipelineForLocalRead(
-            pipeline.release(), aggRequest, useCollectionDefaultCollator);
+            std::move(pipeline), aggRequest, useCollectionDefaultCollator);
     }
 
     // We're not required to read locally, and we need a cursor source. We need to perform routing
@@ -1831,11 +1858,10 @@ std::unique_ptr<Pipeline> targetShardsAndAddMergeCursors(
         });
 }
 
-std::unique_ptr<Pipeline> preparePipelineForExecution(Pipeline* ownedPipeline,
+std::unique_ptr<Pipeline> preparePipelineForExecution(std::unique_ptr<Pipeline> pipeline,
                                                       ShardTargetingPolicy shardTargetingPolicy,
                                                       boost::optional<BSONObj> readConcern) {
-    auto expCtx = ownedPipeline->getContext();
-    std::unique_ptr<Pipeline> pipeline(ownedPipeline);
+    auto expCtx = pipeline->getContext();
     return targetShardsAndAddMergeCursors(expCtx,
                                           std::move(pipeline),
                                           boost::none /* shardCursorsSortSpec */,
@@ -1845,14 +1871,14 @@ std::unique_ptr<Pipeline> preparePipelineForExecution(Pipeline* ownedPipeline,
 
 std::unique_ptr<Pipeline> finalizeAndMaybePreparePipelineForExecution(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
-    Pipeline* ownedPipeline,
+    std::unique_ptr<Pipeline> pipeline,
     bool attachCursorAfterOptimizing,
-    std::function<void(Pipeline* pipeline, MongoProcessInterface::CollectionMetadata collData)>
-        finalizePipeline,
+    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                       Pipeline* pipeline,
+                       MongoProcessInterface::CollectionMetadata collData)> finalizePipeline,
     ShardTargetingPolicy shardTargetingPolicy,
     boost::optional<BSONObj> readConcern,
     bool shouldUseCollectionDefaultCollator) {
-    std::unique_ptr<Pipeline> pipeline(ownedPipeline);
 
     // If the pipeline doesn't require any collection acquisition, since it can execute without a
     // cursor, or attachCursorAfterOptimizing is false we do not need to attach a cursor or perform
@@ -1862,7 +1888,7 @@ std::unique_ptr<Pipeline> finalizeAndMaybePreparePipelineForExecution(
     // results reading from the cache.
     if (firstStageCanExecuteWithoutCursor(*pipeline) || !attachCursorAfterOptimizing) {
         if (finalizePipeline) {
-            finalizePipeline(pipeline.get(), std::monostate{});
+            finalizePipeline(expCtx, pipeline.get(), std::monostate{});
         }
         return pipeline;
     }
@@ -1872,7 +1898,7 @@ std::unique_ptr<Pipeline> finalizeAndMaybePreparePipelineForExecution(
                 "Only shard role operations can perform local reads.",
                 expCtx->getOperationContext()->getService()->role().has(ClusterRole::ShardServer));
         return expCtx->getMongoProcessInterface()->finalizeAndAttachCursorToPipelineForLocalRead(
-            expCtx, pipeline.release(), attachCursorAfterOptimizing, finalizePipeline);
+            expCtx, std::move(pipeline), attachCursorAfterOptimizing, finalizePipeline);
     }
 
     sharding::router::CollectionRouter router(expCtx->getOperationContext()->getServiceContext(),
@@ -1889,7 +1915,7 @@ std::unique_ptr<Pipeline> finalizeAndMaybePreparePipelineForExecution(
                 routingCtx.getCollectionRoutingInfo(expCtx->getNamespaceString());
 
             if (finalizePipeline) {
-                finalizePipeline(pipelineToTarget.get(), cri);
+                finalizePipeline(expCtx, pipelineToTarget.get(), cri);
             }
 
             LOGV2_DEBUG(11028102,
@@ -1908,8 +1934,59 @@ std::unique_ptr<Pipeline> finalizeAndMaybePreparePipelineForExecution(
                 boost::none /* shardCursorsSortSpec */,
                 shardTargetingPolicy,
                 readConcern,
-                shouldUseCollectionDefaultCollator);
+                shouldUseCollectionDefaultCollator,
+                finalizePipeline,
+                pipeline->clone());
         });
+}
+
+boost::optional<RemoteCursor> openChangeStreamCursorOnConfigsvrIfNeeded(
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
+    PipelineDataSource pipelineDataSource,
+    Timestamp startMonitoringAtTime) {
+    // Do not open change stream cursors on configsvr for non change stream pipelines.
+    if (pipelineDataSource != PipelineDataSource::kChangeStream) {
+        return {};
+    }
+
+    // Do not open change stream on configsvr for v2 change streams as shard targeting will be
+    // determined via the ChangeStreamHandleTopologyChangeV2 stage.
+    if (expCtx->isChangeStreamV2()) {
+        return {};
+    }
+
+    // Do not open change stream on configsvr if we are running a change stream on configsvr already
+    // over 'config.shards' collection.
+    if (expCtx->getNamespaceString().isEqualDb(NamespaceString::kConfigsvrShardsNamespace)) {
+        return {};
+    }
+
+    const auto& configShard =
+        Grid::get(expCtx->getOperationContext())->shardRegistry()->getConfigShard();
+
+    // Pipeline: {$changeStream: {startAtOperationTime: [now], allowToRunOnConfigDB: true}}
+    AggregateCommandRequest aggReq(
+        NamespaceString::kConfigsvrShardsNamespace,
+        {BSON(DocumentSourceChangeStream::kStageName
+              << BSON(DocumentSourceChangeStreamSpec::kStartAtOperationTimeFieldName
+                      << startMonitoringAtTime
+                      << DocumentSourceChangeStreamSpec::kAllowToRunOnConfigDBFieldName << true))});
+    aggregation_request_helper::setFromRouter(
+        VersionContext::getDecoration(expCtx->getOperationContext()), aggReq, true);
+    aggReq.setNeedsMerge(true);
+
+    SimpleCursorOptions cursor;
+    cursor.setBatchSize(0);
+    aggReq.setCursor(cursor);
+    setReadWriteConcern(expCtx->getOperationContext(), aggReq, true, !expCtx->getExplain());
+    auto configCursor = establishCursors(expCtx->getOperationContext(),
+                                         expCtx->getMongoProcessInterface()->taskExecutor,
+                                         aggReq.getNamespace(),
+                                         ReadPreferenceSetting{ReadPreference::SecondaryPreferred},
+                                         {{configShard->getId(), aggReq.toBSON()}},
+                                         false);
+    tassert(10744201, "A single cursor over configsvr should be opened", configCursor.size() == 1);
+    return std::move(*configCursor.begin());
 }
 
 }  // namespace sharded_agg_helpers

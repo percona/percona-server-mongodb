@@ -29,11 +29,10 @@
 #pragma once
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/public/api.h"
-#include "mongo/db/extension/sdk/byte_buf.h"
-#include "mongo/db/extension/sdk/extension_status.h"
-#include "mongo/util/assert_util.h"
+#include "mongo/db/extension/sdk/assert_util.h"
+#include "mongo/db/extension/shared/byte_buf.h"
+#include "mongo/db/extension/shared/extension_status.h"
 #include "mongo/util/modules.h"
-#include "mongo/util/scopeguard.h"
 
 #include <memory>
 #include <string>
@@ -42,350 +41,399 @@
 namespace mongo::extension::sdk {
 
 /**
- * LogicalAggregationStage is the base class for implementing the
- * ::MongoExtensionLogicalAggregationStage interface by an extension.
+ * LogicalAggStage is the base class for implementing the
+ * ::MongoExtensionLogicalAggStage interface by an extension.
  *
  * An extension must provide a specialization of this base class, and
- * expose it to the host as a ExtensionLogicalAggregationStage.
+ * expose it to the host as a ExtensionLogicalAggStage.
  */
-class LogicalAggregationStage {
+class LogicalAggStage {
 public:
-    LogicalAggregationStage() = default;
-    virtual ~LogicalAggregationStage() = default;
+    LogicalAggStage() = default;
+    virtual ~LogicalAggStage() = default;
 };
 
 /**
- * ExtensionLogicalAggregationStage is a boundary object representation of a
- * ::MongoExtensionLogicalAggregationStage. It is meant to abstract away the C++ implementation
- * by the extension, and provides the interface at the API boundary which will be called upon by the
+ * ExtensionLogicalAggStage is a boundary object representation of a
+ * ::MongoExtensionLogicalAggStage. It is meant to abstract away the C++ implementation
+ * by the extension and provides the interface at the API boundary which will be called upon by the
  * host. The static VTABLE member points to static methods which ensure the correct conversion from
  * C++ context to the C API context.
  *
  * This abstraction is required to ensure we maintain the public
- * ::MongoExtensionLogicalAggregationStage interface and layout as dictacted by the public API.
+ * ::MongoExtensionLogicalAggStage interface and layout as dictacted by the public API.
  * Any polymorphic bevahiour must be deferred to and implemented by the underlying
- * LogicalAggregationStage.
+ * LogicalAggStage.
  */
-class ExtensionLogicalAggregationStage final : public ::MongoExtensionLogicalAggregationStage {
+class ExtensionLogicalAggStage final : public ::MongoExtensionLogicalAggStage {
 public:
-    ExtensionLogicalAggregationStage(std::unique_ptr<LogicalAggregationStage> logicalStage)
-        : ::MongoExtensionLogicalAggregationStage{&VTABLE}, _stage(std::move(logicalStage)) {}
-    ~ExtensionLogicalAggregationStage() = default;
+    ExtensionLogicalAggStage(std::unique_ptr<LogicalAggStage> logicalStage)
+        : ::MongoExtensionLogicalAggStage{&VTABLE}, _stage(std::move(logicalStage)) {}
+    ~ExtensionLogicalAggStage() = default;
 
 private:
-    static void _extDestroy(::MongoExtensionLogicalAggregationStage* extlogicalStage) noexcept {
-        delete static_cast<ExtensionLogicalAggregationStage*>(extlogicalStage);
+    static void _extDestroy(::MongoExtensionLogicalAggStage* extlogicalStage) noexcept {
+        delete static_cast<ExtensionLogicalAggStage*>(extlogicalStage);
     }
 
-    static const ::MongoExtensionLogicalAggregationStageVTable VTABLE;
-    std::unique_ptr<LogicalAggregationStage> _stage;
+    static constexpr ::MongoExtensionLogicalAggStageVTable VTABLE = {.destroy = &_extDestroy};
+    std::unique_ptr<LogicalAggStage> _stage;
 };
 
 /**
- * AggregationStageDescriptor is the base class for implementing the
- * ::MongoExtensionAggregationStageDescriptor interface by an extension.
+ * AggStageAstNode is the base class for implementing the
+ * ::MongoExtensionAggStageAstNode interface by an extension.
  *
- * An extension aggregation stage descriptor must provide a specialization of this base class, and
- * expose it to the host as a ExtensionAggregationStageDescriptor.
+ * An extension must provide a specialization of this base class, and
+ * expose it to the host as a ExtensionAggStageAstNode.
  */
-class AggregationStageDescriptor {
+class AggStageAstNode {
 public:
-    virtual ~AggregationStageDescriptor() = default;
+    AggStageAstNode() = default;
+    virtual ~AggStageAstNode() = default;
+
 
     std::string_view getName() const {
-        return std::string_view(_name);
+        return _name;
     }
 
-    ::MongoExtensionAggregationStageType getType() const {
-        return _type;
-    }
-
-    virtual std::unique_ptr<class LogicalAggregationStage> parse(BSONObj stageBson) const = 0;
+    virtual std::unique_ptr<LogicalAggStage> bind() const = 0;
 
 protected:
-    AggregationStageDescriptor(std::string name, ::MongoExtensionAggregationStageType type)
-        : _name(std::move(name)), _type(type) {}
+    AggStageAstNode(std::string_view name) : _name(name) {}
 
-    std::string _name;
-    ::MongoExtensionAggregationStageType _type;
+private:
+    const std::string_view _name;
 };
 
 /**
- * ExtensionAggregationStageDescriptor is a boundary object representation of a
- * ::MongoExtensionAggregationStageDescriptor. It is meant to abstract away the C++ implementation
- * by the extension, and provides the interface at the API boundary which will be called upon by the
+ * ExtensionAggStageAstNode is a boundary object representation of a
+ * ::MongoExtensionAggStageAstNode. It is meant to abstract away the C++ implementation
+ * by the extension and provides the interface at the API boundary which will be called upon by the
  * host. The static VTABLE member points to static methods which ensure the correct conversion from
  * C++ context to the C API context.
  *
  * This abstraction is required to ensure we maintain the public
- * ::MongoExtensionAggregationStageDescriptor interface and layout as dictated by the public API.
- * Any polymorphic behavior must be deferred to and implemented by the AggregationStageDescriptor.
+ * ::MongoExtensionAggStageAstNode interface and layout as dictated by the public API.
+ * Any polymorphic behavior must be deferred to and implemented by the underlying
+ * AggStageAstNode.
  */
-class ExtensionAggregationStageDescriptor final
-    : public ::MongoExtensionAggregationStageDescriptor {
+class ExtensionAggStageAstNode final : public ::MongoExtensionAggStageAstNode {
 public:
-    ExtensionAggregationStageDescriptor(std::unique_ptr<AggregationStageDescriptor> descriptor)
-        : ::MongoExtensionAggregationStageDescriptor(&VTABLE), _descriptor(std::move(descriptor)) {}
-
-    ~ExtensionAggregationStageDescriptor() = default;
+    ExtensionAggStageAstNode(std::unique_ptr<AggStageAstNode> astNode)
+        : ::MongoExtensionAggStageAstNode{&VTABLE}, _astNode(std::move(astNode)) {}
+    ~ExtensionAggStageAstNode() = default;
 
 private:
-    const AggregationStageDescriptor& getImpl() const noexcept {
-        return *_descriptor;
+    const AggStageAstNode& getImpl() const noexcept {
+        return *_astNode;
     }
 
-    AggregationStageDescriptor& getImpl() noexcept {
-        return *_descriptor;
+    AggStageAstNode& getImpl() noexcept {
+        return *_astNode;
+    }
+
+    static void _extDestroy(::MongoExtensionAggStageAstNode* extAstNode) noexcept {
+        delete static_cast<ExtensionAggStageAstNode*>(extAstNode);
     }
 
     static ::MongoExtensionByteView _extGetName(
-        const ::MongoExtensionAggregationStageDescriptor* descriptor) noexcept {
+        const ::MongoExtensionAggStageAstNode* astNode) noexcept {
         return stringViewAsByteView(
-            static_cast<const ExtensionAggregationStageDescriptor*>(descriptor)
-                ->getImpl()
-                .getName());
-    }
-
-    static ::MongoExtensionAggregationStageType _extGetType(
-        const ::MongoExtensionAggregationStageDescriptor* descriptor) noexcept {
-        return static_cast<const ExtensionAggregationStageDescriptor*>(descriptor)
-            ->getImpl()
-            .getType();
-    }
-
-    static ::MongoExtensionStatus* _extParse(
-        const ::MongoExtensionAggregationStageDescriptor* descriptor,
-        ::MongoExtensionByteView stageBson,
-        ::MongoExtensionLogicalAggregationStage** logicalStage) noexcept {
-        return enterCXX([&]() {
-            auto logicalStagePtr =
-                static_cast<const ExtensionAggregationStageDescriptor*>(descriptor)
-                    ->getImpl()
-                    .parse(bsonObjFromByteView(stageBson));
-
-            *logicalStage =
-                std::make_unique<ExtensionLogicalAggregationStage>(std::move(logicalStagePtr))
-                    .release();
-        });
-    }
-
-    static const ::MongoExtensionAggregationStageDescriptorVTable VTABLE;
-    std::unique_ptr<AggregationStageDescriptor> _descriptor;
-};
-
-/**
- * AggregationStageAstNode is the base class for implementing the
- * ::MongoExtensionAggregationStageAstNode interface by an extension.
- *
- * An extension must provide a specialization of this base class, and
- * expose it to the host as a ExtensionAggregationStageAstNode.
- */
-class AggregationStageAstNode {
-public:
-    AggregationStageAstNode() = default;
-    virtual ~AggregationStageAstNode() = default;
-
-    virtual std::unique_ptr<LogicalAggregationStage> bind() const = 0;
-};
-
-/**
- * ExtensionAggregationStageAstNode is a boundary object representation of a
- * ::MongoExtensionAggregationStageAstNode. It is meant to abstract away the C++ implementation
- * by the extension, and provides the interface at the API boundary which will be called upon by the
- * host. The static VTABLE member points to static methods which ensure the correct conversion from
- * C++ context to the C API context.
- *
- * This abstraction is required to ensure we maintain the public
- * ::MongoExtensionAggregationStageAstNode interface and layout as dictated by the public API.
- * Any polymorphic behavior must be deferred to and implemented by the underlying
- * AggregationStageAstNode.
- */
-class ExtensionAggregationStageAstNode final : public ::MongoExtensionAggregationStageAstNode {
-public:
-    ExtensionAggregationStageAstNode(std::unique_ptr<AggregationStageAstNode> astNode)
-        : ::MongoExtensionAggregationStageAstNode{&VTABLE}, _astNode(std::move(astNode)) {}
-    ~ExtensionAggregationStageAstNode() = default;
-
-private:
-    const AggregationStageAstNode& getImpl() const noexcept {
-        return *_astNode;
-    }
-
-    AggregationStageAstNode& getImpl() noexcept {
-        return *_astNode;
-    }
-
-    static void _extDestroy(::MongoExtensionAggregationStageAstNode* extAstNode) noexcept {
-        delete static_cast<ExtensionAggregationStageAstNode*>(extAstNode);
+            static_cast<const ExtensionAggStageAstNode*>(astNode)->getImpl().getName());
     }
 
     static ::MongoExtensionStatus* _extBind(
-        const ::MongoExtensionAggregationStageAstNode* astNode,
-        ::MongoExtensionLogicalAggregationStage** logicalStage) noexcept {
-        return enterCXX([&]() {
+        const ::MongoExtensionAggStageAstNode* astNode,
+        ::MongoExtensionLogicalAggStage** logicalStage) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
             auto logicalStagePtr =
-                static_cast<const ExtensionAggregationStageAstNode*>(astNode)->getImpl().bind();
+                static_cast<const ExtensionAggStageAstNode*>(astNode)->getImpl().bind();
 
-            *logicalStage =
-                std::make_unique<ExtensionLogicalAggregationStage>(std::move(logicalStagePtr))
-                    .release();
+            *logicalStage = new ExtensionLogicalAggStage(std::move(logicalStagePtr));
         });
     }
 
-    static const MongoExtensionAggregationStageAstNodeVTable VTABLE;
-    std::unique_ptr<AggregationStageAstNode> _astNode;
+    static constexpr ::MongoExtensionAggStageAstNodeVTable VTABLE = {
+        .destroy = &_extDestroy, .get_name = &_extGetName, .bind = &_extBind};
+    std::unique_ptr<AggStageAstNode> _astNode;
 };
 
-class AggregationStageParseNode;
-using VariantNode = std::variant<std::unique_ptr<AggregationStageParseNode>,
-                                 std::unique_ptr<AggregationStageAstNode>>;
+/**
+ * Represents the possible types of nodes created during expansion.
+ *
+ * Expansion can result in four types of nodes:
+ * 1. Host-defined parse node
+ * 2. Extension-defined parse node
+ * 3. Host-defined AST node
+ * 4. Extension-defined AST node
+ *
+ * This variant allows extension developers to return both host- and extension-defined nodes in
+ * AggStageParseNode::expand() without knowing the underlying implementation of host-defined
+ * nodes.
+ *
+ * The host is responsible for differentiating between host- and extension-defined nodes later on.
+ */
+using VariantNode =
+    std::variant<::MongoExtensionAggStageParseNode*, ::MongoExtensionAggStageAstNode*>;
 
 /**
- * AggregationStageParseNode is the base class for implementing the
- * ::MongoExtensionAggregationStageParseNode interface by an extension.
+ * AggStageParseNode is the base class for implementing the
+ * ::MongoExtensionAggStageParseNode interface by an extension.
  *
  * An extension aggregation stage parse node must provide a specialization of this base class and
- * expose it to the host as an ExtensionAggregationStageParseNode.
+ * expose it to the host as an ExtensionAggStageParseNode.
  */
-class AggregationStageParseNode {
+class AggStageParseNode {
 public:
-    virtual ~AggregationStageParseNode() = default;
+    virtual ~AggStageParseNode() = default;
 
-    // TODO(SERVER-111368): Add getQueryShape().
+    std::string_view getName() const {
+        return _name;
+    }
+
+    virtual BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts* ctx) const = 0;
 
     virtual size_t getExpandedSize() const = 0;
 
     virtual std::vector<VariantNode> expand() const = 0;
+
+protected:
+    AggStageParseNode(std::string_view name) : _name(name) {}
+
+private:
+    const std::string_view _name;
 };
 
 /**
- * ExtensionAggregationStageParseNode is a boundary object representation of a
- * ::MongoExtensionAggregationStageParseNode. It is meant to abstract away the C++ implementation by
- * the extension, and provides the interface at the API boundary which will be called upon by the
+ * ExtensionAggStageParseNode is a boundary object representation of a
+ * ::MongoExtensionAggStageParseNode. It is meant to abstract away the C++ implementation by
+ * the extension and provides the interface at the API boundary which will be called upon by the
  * host. The static VTABLE member points to static methods which ensure the correct conversion from
  * C++ context to the C API context.
  *
  * This abstraction is required to ensure we maintain the public
- * ::MongoExtensionAggregationStageParseNode interface and layout as dictated by the public API.
- * Any polymorphic behavior must be deferred to and implemented by the AggregationStageParseNode.
+ * ::MongoExtensionAggStageParseNode interface and layout as dictated by the public API.
+ * Any polymorphic behavior must be deferred to and implemented by the AggStageParseNode.
  */
-class ExtensionAggregationStageParseNode final : public ::MongoExtensionAggregationStageParseNode {
+class ExtensionAggStageParseNode final : public ::MongoExtensionAggStageParseNode {
 public:
-    ExtensionAggregationStageParseNode(std::unique_ptr<AggregationStageParseNode> parseNode)
-        : ::MongoExtensionAggregationStageParseNode(&VTABLE), _parseNode(std::move(parseNode)) {}
+    ExtensionAggStageParseNode(std::unique_ptr<AggStageParseNode> parseNode)
+        : ::MongoExtensionAggStageParseNode(&VTABLE), _parseNode(std::move(parseNode)) {}
 
-    ~ExtensionAggregationStageParseNode() = default;
+    ~ExtensionAggStageParseNode() = default;
 
 private:
-    const AggregationStageParseNode& getImpl() const noexcept {
+    const AggStageParseNode& getImpl() const noexcept {
         return *_parseNode;
     }
 
-    AggregationStageParseNode& getImpl() noexcept {
+    AggStageParseNode& getImpl() noexcept {
         return *_parseNode;
     }
 
-    static void _extDestroy(::MongoExtensionAggregationStageParseNode* parseNode) noexcept {
-        delete static_cast<ExtensionAggregationStageParseNode*>(parseNode);
+    static void _extDestroy(::MongoExtensionAggStageParseNode* parseNode) noexcept {
+        delete static_cast<ExtensionAggStageParseNode*>(parseNode);
+    }
+
+    static ::MongoExtensionByteView _extGetName(
+        const ::MongoExtensionAggStageParseNode* parseNode) noexcept {
+        return stringViewAsByteView(
+            static_cast<const ExtensionAggStageParseNode*>(parseNode)->getImpl().getName());
     }
 
     static ::MongoExtensionStatus* _extGetQueryShape(
-        const ::MongoExtensionAggregationStageParseNode* parseNode,
+        const ::MongoExtensionAggStageParseNode* parseNode,
+        const ::MongoExtensionHostQueryShapeOpts* ctx,
         ::MongoExtensionByteBuf** queryShape) noexcept {
-        // TODO(SERVER-111368): Implement.
-        MONGO_UNIMPLEMENTED;
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            *queryShape = nullptr;
+
+            const auto& impl = static_cast<const ExtensionAggStageParseNode*>(parseNode)->getImpl();
+
+            // Allocate a buffer on the heap. Ownership is transferred to the caller.
+            *queryShape = new VecByteBuf(impl.getQueryShape(ctx));
+        });
     };
 
-    static size_t _extGetExpandedSize(
-        const ::MongoExtensionAggregationStageParseNode* parseNode) noexcept {
-        return static_cast<const ExtensionAggregationStageParseNode*>(parseNode)
+    static size_t _extGetExpandedSize(const ::MongoExtensionAggStageParseNode* parseNode) noexcept {
+        return static_cast<const ExtensionAggStageParseNode*>(parseNode)
             ->getImpl()
             .getExpandedSize();
     }
 
     /**
-     * Converts an SDK VariantNode into ABI objects and writes the raw pointers into the
-     * host-allocated ExpandedArray element. Ownership stays in the RAII holder vectors until we
-     * explicitly release() them.
+     * Converts an SDK VariantNode into a tagged union of ABI objects and writes the raw pointers
+     * into the host-allocated ExpandedArray element.
      */
     struct ConsumeVariantNodeToAbi {
         ::MongoExtensionExpandedArrayElement& dst;
-        std::vector<std::unique_ptr<ExtensionAggregationStageParseNode>>& parseNodes;
-        std::vector<std::unique_ptr<ExtensionAggregationStageAstNode>>& astNodes;
 
-        void operator()(std::unique_ptr<AggregationStageParseNode>&& parseNode) const {
-            parseNodes.push_back(
-                std::make_unique<ExtensionAggregationStageParseNode>(std::move(parseNode)));
+        void operator()(::MongoExtensionAggStageParseNode* parseNode) const {
             dst.type = kParseNode;
-            dst.parse = parseNodes.back().get();
+            dst.parse = parseNode;
         }
 
-        void operator()(std::unique_ptr<AggregationStageAstNode>&& astNode) const {
-            astNodes.push_back(
-                std::make_unique<ExtensionAggregationStageAstNode>(std::move(astNode)));
+        void operator()(::MongoExtensionAggStageAstNode* astNode) const {
             dst.type = kAstNode;
-            dst.ast = astNodes.back().get();
+            dst.ast = astNode;
         }
     };
 
-    static ::MongoExtensionStatus* _extExpand(
-        const ::MongoExtensionAggregationStageParseNode* parseNode,
-        ::MongoExtensionExpandedArray* expanded) noexcept {
-        return enterCXX([&]() {
-            const auto& impl =
-                static_cast<const ExtensionAggregationStageParseNode*>(parseNode)->getImpl();
-            const auto expandedSize = impl.getExpandedSize();
-            tassert(11113801,
-                    str::stream() << "MongoExtensionExpandedArray.size must equal required size: "
-                                  << "got " << expanded->size << ", but required " << expandedSize,
-                    expanded->size == expandedSize);
+    /*
+     * Invokes the destructor for a ::MongoExtensionAggStageParseNode and sets the element
+     * to null.
+     */
+    static void destroyAbiNode(::MongoExtensionAggStageParseNode*& node) noexcept {
+        if (node && node->vtable && node->vtable->destroy) {
+            node->vtable->destroy(node);
+        }
+        node = nullptr;
+    }
 
-            auto expandedNodes = impl.expand();
-            tassert(11113802,
-                    str::stream() << "AggregationStageParseNode expand() returned a different "
-                                     "number of elements than getExpandedSize(): returned "
-                                  << expandedNodes.size() << ", but required " << expandedSize,
-                    expandedNodes.size() == expandedSize);
+    /*
+     * Invokes the destructor for a ::MongoExtensionAggStageAstNode and sets the element
+     * to null.
+     */
+    static void destroyAbiNode(::MongoExtensionAggStageAstNode*& node) noexcept {
+        if (node && node->vtable && node->vtable->destroy) {
+            node->vtable->destroy(node);
+        }
+        node = nullptr;
+    }
 
-            // RAII containers for the ABI wrappers, which are owned until we explicitly release().
-            std::vector<std::unique_ptr<ExtensionAggregationStageParseNode>> parseNodes;
-            std::vector<std::unique_ptr<ExtensionAggregationStageAstNode>> astNodes;
-            parseNodes.reserve(expandedSize);
-            astNodes.reserve(expandedSize);
-
-            // If we exit early, null any raw pointers written to the caller's buffer. The RAII
-            // containers will destroy the ABI wrappers automatically.
-            size_t filled = 0;
-            ScopeGuard guard([&]() {
-                for (size_t i = 0; i < filled; ++i) {
-                    auto& el = expanded->elements[i];
-                    el.parse = nullptr;
-                }
-            });
-
-            // Populate the caller's buffer directly with raw pointers to nodes.
-            for (size_t i = 0; i < expandedSize; ++i) {
-                auto& dst = expanded->elements[i];
-                std::visit(ConsumeVariantNodeToAbi{dst, parseNodes, astNodes},
-                           std::move(expandedNodes[i]));
-                ++filled;
+    /*
+     * Invokes the destructor for a MongoExtensionExpandedArrayElement and sets the element to null.
+     */
+    static void destroyArrayElement(MongoExtensionExpandedArrayElement& node) noexcept {
+        switch (node.type) {
+            case kParseNode: {
+                destroyAbiNode(node.parse);
+                break;
             }
-            guard.dismiss();
+            case kAstNode: {
+                destroyAbiNode(node.ast);
+                break;
+            }
+            default: {
+                // Memory is leaked if the type tag is invalid, but this only happens if the
+                // extension violates the API contract.
+                break;
+            }
+        }
+    }
 
-            // Transfer ownership to the caller by releasing nodes from the RAII containers.
-            ([&]() noexcept {
-                for (auto& node : parseNodes) {
-                    [[maybe_unused]] auto* releasedPtr = node.release();
-                }
-                for (auto& node : astNodes) {
-                    [[maybe_unused]] auto* releasedPtr = node.release();
-                }
-            })();
+    /**
+     * Expands the provided parse node into one or more AST or parse nodes.
+     *
+     * The resultant expanded array is allocated by the caller and populated by this function. If
+     * populating the expanded array fails for any reason, the expanded array is cleared.
+     *
+     * The caller is responsible for freeing any memory used by the extension during `expand()`.
+     */
+    static ::MongoExtensionStatus* _extExpand(const ::MongoExtensionAggStageParseNode* parseNode,
+                                              ::MongoExtensionExpandedArray* expanded) noexcept;
+
+    static constexpr ::MongoExtensionAggStageParseNodeVTable VTABLE = {
+        .destroy = &_extDestroy,
+        .get_name = &_extGetName,
+        .get_query_shape = &_extGetQueryShape,
+        .get_expanded_size = &_extGetExpandedSize,
+        .expand = &_extExpand};
+    std::unique_ptr<AggStageParseNode> _parseNode;
+};
+
+/**
+ * AggStageDescriptor is the base class for implementing the
+ * ::MongoExtensionAggStageDescriptor interface by an extension.
+ *
+ * An extension aggregation stage descriptor must provide a specialization of this base class, and
+ * expose it to the host as an ExtensionAggStageDescriptor.
+ */
+class AggStageDescriptor {
+public:
+    virtual ~AggStageDescriptor() = default;
+
+    std::string_view getName() const {
+        return std::string_view(_name);
+    }
+
+    ::MongoExtensionAggStageType getType() const {
+        return _type;
+    }
+
+    virtual std::unique_ptr<class AggStageParseNode> parse(BSONObj stageBson) const = 0;
+
+protected:
+    AggStageDescriptor(std::string name, ::MongoExtensionAggStageType type)
+        : _name(std::move(name)), _type(type) {}
+
+    const std::string _name;
+    ::MongoExtensionAggStageType _type;
+};
+
+/**
+ * ExtensionAggStageDescriptor is a boundary object representation of a
+ * ::MongoExtensionAggStageDescriptor. It is meant to abstract away the C++ implementation
+ * by the extension and provides the interface at the API boundary which will be called upon by the
+ * host. The static VTABLE member points to static methods which ensure the correct conversion from
+ * C++ context to the C API context.
+ *
+ * This abstraction is required to ensure we maintain the public
+ * ::MongoExtensionAggStageDescriptor interface and layout as dictated by the public API.
+ * Any polymorphic behavior must be deferred to and implemented by the AggStageDescriptor.
+ */
+class ExtensionAggStageDescriptor final : public ::MongoExtensionAggStageDescriptor {
+public:
+    ExtensionAggStageDescriptor(std::unique_ptr<AggStageDescriptor> descriptor)
+        : ::MongoExtensionAggStageDescriptor(&VTABLE), _descriptor(std::move(descriptor)) {}
+
+    ~ExtensionAggStageDescriptor() = default;
+
+private:
+    const AggStageDescriptor& getImpl() const noexcept {
+        return *_descriptor;
+    }
+
+    AggStageDescriptor& getImpl() noexcept {
+        return *_descriptor;
+    }
+
+    static ::MongoExtensionByteView _extGetName(
+        const ::MongoExtensionAggStageDescriptor* descriptor) noexcept {
+        return stringViewAsByteView(
+            static_cast<const ExtensionAggStageDescriptor*>(descriptor)->getImpl().getName());
+    }
+
+    static ::MongoExtensionAggStageType _extGetType(
+        const ::MongoExtensionAggStageDescriptor* descriptor) noexcept {
+        return static_cast<const ExtensionAggStageDescriptor*>(descriptor)->getImpl().getType();
+    }
+
+    static ::MongoExtensionStatus* _extParse(
+        const ::MongoExtensionAggStageDescriptor* descriptor,
+        ::MongoExtensionByteView stageBson,
+        ::MongoExtensionAggStageParseNode** parseNode) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            const auto& impl =
+                static_cast<const ExtensionAggStageDescriptor*>(descriptor)->getImpl();
+            auto parseNodePtr = impl.parse(bsonObjFromByteView(stageBson));
+
+            tripwireAssert(11217602,
+                           (str::stream()
+                            << "Descriptor and parse node stage names differ: descriptor='"
+                            << std::string(impl.getName()) << "' parseNode='"
+                            << std::string(parseNodePtr->getName()) << "'."),
+                           impl.getName() == parseNodePtr->getName());
+
+            *parseNode = new ExtensionAggStageParseNode(std::move(parseNodePtr));
         });
     }
 
-    static const ::MongoExtensionAggregationStageParseNodeVTable VTABLE;
-    std::unique_ptr<AggregationStageParseNode> _parseNode;
+    static constexpr ::MongoExtensionAggStageDescriptorVTable VTABLE = {
+        .get_type = &_extGetType, .get_name = &_extGetName, .parse = &_extParse};
+
+    std::unique_ptr<AggStageDescriptor> _descriptor;
 };
 
 }  // namespace mongo::extension::sdk

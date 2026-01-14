@@ -36,7 +36,7 @@
 namespace mongo::sbe {
 ExtractFieldPathsStage::ExtractFieldPathsStage(std::unique_ptr<PlanStage> input,
                                                value::SlotId inputSlotId,
-                                               std::vector<value::CellBlock::Path> pathReqs,
+                                               std::vector<value::Path> pathReqs,
                                                value::SlotVector outputSlotIds,
                                                PlanNodeId planNodeId,
                                                bool participateInTrialRunTracking)
@@ -67,7 +67,7 @@ std::unique_ptr<PlanStage> ExtractFieldPathsStage::clone() const {
 }
 
 void ExtractFieldPathsStage::constructRoot() {
-    _root = std::make_unique<value::BsonWalkNode<value::ScalarProjectionPositionInfoRecorder>>();
+    _root = std::make_unique<value::ObjectWalkNode<value::ScalarProjectionPositionInfoRecorder>>();
 
     _recorders.reserve(_pathReqs.size());
     for (size_t i = 0; i < _pathReqs.size(); ++i) {
@@ -129,7 +129,7 @@ PlanState ExtractFieldPathsStage::getNext() {
         inputTag,
         inputVal,
         value::bitcastTo<const char*>(inputVal),
-        [](value::BsonWalkNode<value::ScalarProjectionPositionInfoRecorder>* node,
+        [](value::ObjectWalkNode<value::ScalarProjectionPositionInfoRecorder>* node,
            value::TypeTags eltTag,
            value::Value eltVal,
            const char* bsonPtr) {

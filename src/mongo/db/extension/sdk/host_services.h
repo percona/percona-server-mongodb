@@ -29,10 +29,14 @@
 #pragma once
 
 #include "mongo/db/extension/public/api.h"
-#include "mongo/db/extension/sdk/handle.h"
+#include "mongo/db/extension/public/extension_log_gen.h"
+#include "mongo/db/extension/shared/byte_buf.h"
+#include "mongo/db/extension/shared/extension_status.h"
+#include "mongo/db/extension/shared/handle/handle.h"
 #include "mongo/util/modules.h"
 
 namespace mongo::extension::sdk {
+
 /**
  * Wrapper for ::MongoExtensionHostServices, providing safe access to its public API through the
  * underlying vtable.
@@ -43,18 +47,54 @@ namespace mongo::extension::sdk {
  * This is an unowned handle, meaning the host services remain fully owned by the host, and
  * ownership is never transferred to the extension.
  */
-class HostServicesHandle : public sdk::UnownedHandle<const ::MongoExtensionHostServices> {
+class HostServicesHandle : public UnownedHandle<const ::MongoExtensionHostServices> {
 public:
     HostServicesHandle(const ::MongoExtensionHostServices* services)
-        : sdk::UnownedHandle<const ::MongoExtensionHostServices>(services) {}
+        : UnownedHandle<const ::MongoExtensionHostServices>(services) {}
 
     bool alwaysTrue_TEMPORARY() const {
         assertValid();
-        return vtable().alwaysTrue_TEMPORARY();
+        invokeCAndConvertStatusToException([&]() { return vtable().alwaysOK_TEMPORARY(); });
+        return true;
+    }
+
+    static BSONObj createExtensionLogMessage(
+        std::string message,
+        std::int32_t code,
+        mongo::extension::MongoExtensionLogSeverityEnum severity);
+
+    static BSONObj createExtensionDebugLogMessage(std::string message,
+                                                  std::int32_t code,
+                                                  std::int32_t level);
+
+    ::MongoExtensionStatus* userAsserted(::MongoExtensionByteView structuredErrorMessage) {
+        assertValid();
+        return vtable().user_asserted(structuredErrorMessage);
+    }
+    ::MongoExtensionStatus* tripwireAsserted(::MongoExtensionByteView structuredErrorMessage) {
+        assertValid();
+        return vtable().tripwire_asserted(structuredErrorMessage);
     }
 
     static HostServicesHandle* getHostServices() {
         return &_hostServices;
+    }
+
+    void log(std::string message,
+             std::int32_t code,
+             mongo::extension::MongoExtensionLogSeverityEnum severity =
+                 mongo::extension::MongoExtensionLogSeverityEnum::kInfo) const {
+        assertValid();
+
+        BSONObj obj = createExtensionLogMessage(std::move(message), code, severity);
+        invokeCAndConvertStatusToException([&]() { return vtable().log(objAsByteView(obj)); });
+    }
+
+    void logDebug(std::string message, std::int32_t code, std::int32_t level = 1) const {
+        assertValid();
+        BSONObj debugLogBsonObj = createExtensionDebugLogMessage(message, code, level);
+        invokeCAndConvertStatusToException(
+            [&]() { return vtable().log_debug(objAsByteView(debugLogBsonObj)); });
     }
 
     /**
@@ -68,11 +108,7 @@ public:
 private:
     static HostServicesHandle _hostServices;
 
-    void _assertVTableConstraints(const VTable_t& vtable) const override {
-        tassert(11097600,
-                "Host services' 'alwaysTrue_TEMPORARY' is null",
-                vtable.alwaysTrue_TEMPORARY != nullptr);
-    };
+    void _assertVTableConstraints(const VTable_t& vtable) const override;
 };
 
 }  // namespace mongo::extension::sdk

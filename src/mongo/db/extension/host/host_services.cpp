@@ -28,13 +28,62 @@
  */
 #include "mongo/db/extension/host/host_services.h"
 
+#include "mongo/db/extension/public/extension_log_gen.h"
+#include "mongo/logv2/attribute_storage.h"
+#include "mongo/logv2/log_detail.h"
+#include "mongo/logv2/log_options.h"
+#include "mongo/util/assert_util.h"
+
+#include <string>
+
 namespace mongo::extension::host {
 
-// Initialize the static instance of HostServices.
-HostServices HostServices::_hostServices;
-
-bool HostServices::_extAlwaysTrue_TEMPORARY() noexcept {
+bool HostServices::alwaysTrue_TEMPORARY() {
     return true;
+}
+
+void HostServices::log(const mongo::extension::MongoExtensionLog& log) {
+    // For now we always log extension messages under the EXTENSION-MONGOT component. Someday we'd
+    // like to dynamically create EXTENSION sub-components per extension.
+    logv2::LogOptions options(logv2::LogComponent::kExtensionMongot);
+
+    logv2::LogSeverity severity = [&]() {
+        switch (log.getSeverity()) {
+            case mongo::extension::MongoExtensionLogSeverityEnum::kWarning:
+                return logv2::LogSeverity::Warning();
+            case mongo::extension::MongoExtensionLogSeverityEnum::kError:
+                return logv2::LogSeverity::Error();
+            default:
+                return logv2::LogSeverity::Info();
+        }
+    }();
+
+    // TODO SERVER-111339 Populate attributes.
+    logv2::TypeErasedAttributeStorage attrs;
+
+    // We must go through logv2::detail::doLogImpl since the LOGV2 macros expect a static string
+    // literal for the message, but we have to log the message received at runtime from the
+    // extension.
+    logv2::detail::doLogImpl(log.getCode(), severity, options, log.getMessage(), attrs);
+}
+
+void HostServices::logDebug(const mongo::extension::MongoExtensionDebugLog& debugLog) {
+    // For now we always log extension messages under the EXTENSION-MONGOT component. Someday we'd
+    // like to dynamically create EXTENSION sub-components per extension.
+    logv2::LogOptions options(logv2::LogComponent::kExtensionMongot);
+
+    // We're trimming the debug levels to the range [1, 5] since we want to make sure that the log
+    // line is using one of the server's logv2 debug severities.
+    logv2::LogSeverity level =
+        logv2::LogSeverity::Debug(std::min(5, std::max(1, debugLog.getLevel())));
+
+    std::int32_t code = debugLog.getCode();
+    StringData message = debugLog.getMessage();
+
+    // TODO SERVER-111339 Populate attributes.
+    logv2::TypeErasedAttributeStorage attrs;
+
+    logv2::detail::doLogImpl(code, level, options, message, attrs);
 }
 
 }  // namespace mongo::extension::host

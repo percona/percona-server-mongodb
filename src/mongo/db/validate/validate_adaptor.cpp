@@ -83,6 +83,7 @@
 #include "mongo/util/time_support.h"
 
 #include <climits>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -716,6 +717,22 @@ Status _validateTimeSeriesBucketRecord(OperationContext* opCtx,
 
     return Status::OK();
 }
+
+// Computes the hash of 'md' field by XORing the hash of subfields with 'metadataHash'. For
+// 'indexes' subfield, uses the hash of each entries without the array index.
+void computeMDHash(const BSONObj& mdField, SHA256Block& metadataHash) {
+    for (const auto& field : mdField) {
+        if (field.fieldNameStringData() == "indexes") {
+            for (const auto& indexField : field.Obj()) {
+                metadataHash.xorInline(SHA256Block::computeHash(
+                    {ConstDataRange(indexField.value(), indexField.valuesize())}));
+            }
+        } else {
+            metadataHash.xorInline(
+                SHA256Block::computeHash({ConstDataRange(field.rawdata(), field.size())}));
+        }
+    }
+}
 }  // namespace
 
 Status ValidateAdaptor::validateRecord(OperationContext* opCtx,
@@ -774,14 +791,69 @@ Status ValidateAdaptor::validateRecord(OperationContext* opCtx,
     return Status::OK();
 }
 
+size_t CollectionValidation::getNumberOfAdditionalCharactersForHashDrillDown(
+    size_t numHashPrefixes, size_t hashPrefixLength) {
+    // The maximum number of output buckets we can produce is determined by
+    // the maximum BSON object size (16 MB) minus some buffer (50 KB) divided
+    // by the size of a bucket entry.
+    //
+    // To calculate the size of a bucket entry in the output response, we
+    // just construct an example entry BSON and then ask for its size.
+    // {
+    //     bucket: {'hash': <hash>, 'count': <int>}
+    // }
+    auto someHash = SHA256Block().toHexString();
+
+    // Having numHashPrefixes == 0 or hashPrefixLength >= hash size is guaranteed
+    // to hang / crash, so we terminate right away if they are violated.
+    invariant(numHashPrefixes);
+    invariant(hashPrefixLength <= someHash.size());
+
+    // The length of a bucket is at least four characters long.
+    auto bucketKeyLength = std::min(hashPrefixLength + 4, someHash.size());
+    auto bucketKey = std::string(bucketKeyLength, 'a');
+    auto singleBucketEntryDocument = BSON(bucketKey << BSON("hash" << someHash << "count" << 1));
+    // We don't want to include the BSON metadata overhead that includes the size field and a
+    // trailing '\0' in a full object, so we instead capture just the size of the bucket BSON
+    // element.
+    auto singleBucketSize = singleBucketEntryDocument.firstElement().size();
+
+    // Reserving 50 KB of buffer room for everything else in the response.
+    auto maxNumberOfBuckets =
+        (static_cast<size_t>(BSONObjMaxUserSize - 50 * 1024)) / singleBucketSize;
+
+    // With each additional hex character that we attach to a hashPrefix, we
+    // end up spawning 16 child buckets.
+    int numChars = 0;
+    size_t currNumBuckets = numHashPrefixes;
+    while (currNumBuckets < maxNumberOfBuckets) {
+        numChars++;
+        currNumBuckets = currNumBuckets * 16;
+    }
+
+    return numChars - 1;
+}
+
 void ValidateAdaptor::computeMetadataHash(OperationContext* opCtx,
                                           const CollectionPtr& coll,
                                           ValidateResults* results) {
     const auto& catalogEntry =
         MDBCatalog::get(opCtx)->getRawCatalogEntry(opCtx, coll->getCatalogId());
-    auto catalogEntryNoIdents = catalogEntry.removeFields(StringDataSet{"ident", "idxIdent"});
-    SHA256Block metadataHash = SHA256Block::computeHash(
-        {ConstDataRange(catalogEntryNoIdents.objdata(), catalogEntryNoIdents.objsize())});
+    // Zero out the initial hash.
+    SHA256Block metadataHash;
+    metadataHash.xorInline(metadataHash);
+    for (const auto& field : catalogEntry) {
+        auto fieldName = field.fieldNameStringData();
+        if (fieldName == "ident" || fieldName == "idxIdent") {
+            continue;
+        }
+        if (fieldName == "md") {
+            computeMDHash(field.Obj(), metadataHash);
+        } else {
+            metadataHash.xorInline(
+                SHA256Block::computeHash({ConstDataRange(field.rawdata(), field.size())}));
+        }
+    }
     results->setMetadataHash(metadataHash.toHexString());
 }
 
@@ -791,6 +863,7 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults* re
         return;
     }
 
+    _numRecords = 0;
     ON_BLOCK_EXIT([&]() {
         results->setNumRecords(_numRecords);
         {
@@ -812,22 +885,24 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults* re
     const std::unique_ptr<SeekableRecordThrottleCursor>& traverseRecordStoreCursor =
         _validateState->getTraverseRecordStoreCursor();
 
+    // Convert the vector of hashPrefixes provided to a set for easy lookup.
+    const stdx::unordered_set<std::string> hashPrefixes(_validateState->getHashPrefixes()->begin(),
+                                                        _validateState->getHashPrefixes()->end());
+    auto prefixLength = _validateState->getHashPrefixes().get()[0].size();
+    const size_t N = CollectionValidation::getNumberOfAdditionalCharactersForHashDrillDown(
+        _validateState->getHashPrefixes()->size(), prefixLength);
+    uassert(ErrorCodes::BadValue, "Too many hash prefixes provided.", N);
     // Searches through the list of hash prefixes for a prefix of the provided 'hash', which
     // is the hash of the _id field. If a matching prefix has been found, returns
     // <prefix> + N more characters. For example, given an _id hash "abcd", if a prefix
     // "ab" is found, and N=1, will return "abc".
     auto getPartialHashBucketKey = [&](const std::string& hash) -> boost::optional<std::string> {
-        // TODO (SERVER-109944): Currently we're iterating through the passed hashPrefixes
-        // for each record we look at, which may be inefficient.
-        for (const auto& prefix : _validateState->getHashPrefixes().get()) {
-            if (hash.starts_with(prefix)) {
-                // If the hash is the same size as the prefix, then we just return the hash
-                // itself. Otherwise return hash[:prefixLen + 1].
-                if (hash.length() == prefix.length()) {
-                    return hash;
-                }
-                return hash.substr(0, prefix.length() + 1);
-            }
+        // All hash prefixes are assumed to be the same length.
+        const auto idHashPrefix = hash.substr(0, prefixLength);
+        if (hashPrefixes.contains(idHashPrefix)) {
+            // Return the hash with up to N more characters. Calling this
+            // with a value greater than the length of hash is safe.
+            return hash.substr(0, prefixLength + N);
         }
         return boost::none;
     };
@@ -911,6 +986,12 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
     {
         stdx::unique_lock<Client> lk(*opCtx->getClient());
         _progress.set(lk, CurOp::get(opCtx)->setProgress(lk, curopMessage, totalRecords), opCtx);
+    }
+
+    // Place an empty hash in the results to override later. This result will only be used
+    // for empty collections.
+    if (_validateState->isCollHashValidation()) {
+        results->setCollectionHash(SHA256Block::computeHash({}).toHexString());
     }
 
     if (_validateState->getFirstRecordId().isNull()) {

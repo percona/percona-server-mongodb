@@ -30,9 +30,37 @@
 #include "mongo/db/admission/multiple_pools_ticketing_system.h"
 
 #include "mongo/db/admission/execution_admission_context.h"
+#include "mongo/db/admission/execution_control_parameters_gen.h"
 
 namespace mongo {
 namespace admission {
+
+namespace {
+
+bool isOperationDegradedAsLowPriority(OperationContext* opCtx, ExecutionAdmissionContext* admCtx) {
+    if (!gStorageEngineHeuristicDeprioritizationEnabled.load()) {
+        // If the heuristic is not enabled, we do not de-prioritize based on the number of yields.
+        return false;
+    }
+
+    if (admCtx->getPriority() == AdmissionContext::Priority::kExempt) {
+        // It is illegal to demote a high-priority (exempt) operation to a low-priority operation.
+        return false;
+    }
+
+    if (admCtx->getPriority() == AdmissionContext::Priority::kLow) {
+        // Fast exit for those operations that are manually marked as low-priority.
+        return false;
+    }
+
+    if (admCtx->getAdmissions() >= gStorageEngineHeuristicNumYieldsDeprioritizeThreshold.load()) {
+        return true;
+    }
+
+    return false;
+}
+
+}  // namespace
 
 bool MultiplePoolsTicketingSystem::isRuntimeResizable() const {
     return true;
@@ -60,6 +88,9 @@ void MultiplePoolsTicketingSystem::setConcurrentTransactions(OperationContext* o
 }
 
 void MultiplePoolsTicketingSystem::appendStats(BSONObjBuilder& b) const {
+    boost::optional<BSONObjBuilder> readStats;
+    boost::optional<BSONObjBuilder> writeStats;
+
     for (size_t i = 0; i < _holders.size(); ++i) {
         const auto priority = static_cast<AdmissionContext::Priority>(i);
 
@@ -70,21 +101,35 @@ void MultiplePoolsTicketingSystem::appendStats(BSONObjBuilder& b) const {
 
         const auto& rw = _holders[i];
 
-        const char* priorityName =
-            (priority == AdmissionContext::Priority::kNormal) ? "normal" : "low";
-
-        BSONObjBuilder sub(b.subobjStart(priorityName));
+        const auto& fieldName = priority == AdmissionContext::Priority::kNormal
+            ? kNormalPriorityName
+            : kLowPriorityName;
         if (rw.read) {
-            BSONObjBuilder readStats(sub.subobjStart("read"));
-            rw.read->appendStats(readStats);
-            readStats.done();
+            if (!readStats.is_initialized()) {
+                readStats.emplace();
+            }
+            rw.read->appendHolderdStats(readStats.value(), fieldName);
+            if (priority == AdmissionContext::Priority::kNormal) {
+                rw.read->appendExemptStats(readStats.value(), kExemptPriorityName);
+            }
         }
         if (rw.write) {
-            BSONObjBuilder writeStats(sub.subobjStart("write"));
-            rw.write->appendStats(writeStats);
-            writeStats.done();
+            if (!writeStats.is_initialized()) {
+                writeStats.emplace();
+            }
+            rw.write->appendHolderdStats(writeStats.value(), fieldName);
+            if (priority == AdmissionContext::Priority::kNormal) {
+                rw.write->appendExemptStats(writeStats.value(), kExemptPriorityName);
+            }
         }
-        sub.done();
+    }
+    if (readStats.is_initialized()) {
+        readStats->done();
+        b.append("read", readStats->obj());
+    }
+    if (writeStats.is_initialized()) {
+        writeStats->done();
+        b.append("write", writeStats->obj());
     }
 }
 
@@ -127,6 +172,11 @@ boost::optional<Ticket> MultiplePoolsTicketingSystem::waitForTicketUntil(Operati
                                                                          Operation o,
                                                                          Date_t until) const {
     ExecutionAdmissionContext* admCtx = &ExecutionAdmissionContext::get(opCtx);
+
+    boost::optional<ScopedAdmissionPriority<ExecutionAdmissionContext>> executionPriority;
+    if (isOperationDegradedAsLowPriority(opCtx, admCtx)) {
+        executionPriority.emplace(opCtx, AdmissionContext::Priority::kLow);
+    }
 
     auto* holder = _getHolder(admCtx->getPriority(), o);
     invariant(holder);

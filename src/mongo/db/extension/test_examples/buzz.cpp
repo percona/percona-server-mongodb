@@ -32,24 +32,24 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_util.h"
 
 namespace sdk = mongo::extension::sdk;
 
-class TestBuzzLogicalStage : public sdk::LogicalAggregationStage {};
+DEFAULT_LOGICAL_AST_PARSE(TestBuzz, "$testBuzz")
 
-class TestBuzzStageDescriptor : public sdk::AggregationStageDescriptor {
+class TestBuzzStageDescriptor : public sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$testBuzz";
+    static inline const std::string kStageName = std::string(TestBuzzStageName);
 
     TestBuzzStageDescriptor()
-        : sdk::AggregationStageDescriptor(kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
 
-    std::unique_ptr<sdk::LogicalAggregationStage> parse(mongo::BSONObj stageBson) const override {
-        uassert(10845402,
-                "Failed to parse " + kStageName + ", expected object",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj());
+    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
+        sdk::validateStageDefinition(stageBson, kStageName);
 
-        return std::make_unique<TestBuzzLogicalStage>();
+        return std::make_unique<TestBuzzParseNode>();
     }
 };
 

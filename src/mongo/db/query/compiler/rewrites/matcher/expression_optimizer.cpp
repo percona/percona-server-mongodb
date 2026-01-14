@@ -523,6 +523,13 @@ std::unique_ptr<MatchExpression> notOptimizer(std::unique_ptr<MatchExpression> e
                                                      /* enableSimplification */ false)
                                  .release());
 
+    if (notExpression.getChild(0)->isTriviallyFalse()) {
+        return std::make_unique<AndMatchExpression>();
+    }
+    if (notExpression.getChild(0)->isTriviallyTrue()) {
+        return std::make_unique<AlwaysFalseMatchExpression>();
+    }
+
     return expression;
 }
 
@@ -677,7 +684,7 @@ std::unique_ptr<MatchExpression> inOptimizer(std::unique_ptr<MatchExpression> ex
     if (regexes.size() == 1 && ime.equalitiesIsEmpty()) {
         // Simplify IN of exactly one regex to be a regex match.
         auto& childRe = regexes.front();
-        invariant(!childRe->getTag());
+        tassert(11051908, "Expect RegexMatchExpression to be untagged", !childRe->getTag());
 
         auto simplifiedExpression = std::make_unique<RegexMatchExpression>(
             expression->path(), childRe->getString(), childRe->getFlags());

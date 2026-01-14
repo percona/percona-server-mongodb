@@ -28,8 +28,8 @@
  */
 
 #include "mongo/bson/json.h"
-#include "mongo/db/exec/sbe/values/bson_block.h"
 #include "mongo/db/exec/sbe/values/cell_interface.h"
+#include "mongo/db/exec/sbe/values/object_walk_node.h"
 #include "mongo/db/exec/sbe/values/value.h"
 #include "mongo/db/query/stage_builder/sbe/gen_helpers.h"
 
@@ -39,7 +39,7 @@
 namespace mongo::sbe {
 
 struct PathTestCase {
-    value::CellBlock::Path path;
+    value::Path path;
     BSONObj projectValue;
 };
 
@@ -51,11 +51,11 @@ public:
                      int numPathsToProject = -1);
 };
 
-using Get = value::CellBlock::Get;
-using Traverse = value::CellBlock::Traverse;
-using Id = value::CellBlock::Id;
+using Get = value::Get;
+using Traverse = value::Traverse;
+using Id = value::Id;
 
-void callback(value::BsonWalkNode<value::ScalarProjectionPositionInfoRecorder>* node,
+void callback(value::ObjectWalkNode<value::ScalarProjectionPositionInfoRecorder>* node,
               value::TypeTags eltTag,
               value::Value eltVal,
               const char* bson) {
@@ -70,8 +70,8 @@ void ExtractFieldPathsFixture::perfectTree(benchmark::State& state,
                                            int numPathsToProject /*=-1*/) {
     BSONObjBuilder bob;
     int curIdx = 0;
-    std::vector<value::CellBlock::Path> paths;
-    value::CellBlock::Path curPath;
+    std::vector<value::Path> paths;
+    value::Path curPath;
     std::function<void(BSONObjBuilder&, int)> rec = [&](BSONObjBuilder& curBob, int curDepth) {
         if (curDepth == depth) {
             curPath.push_back(Id{});
@@ -108,7 +108,7 @@ void ExtractFieldPathsFixture::perfectTree(benchmark::State& state,
         i++;
     }
 
-    value::BsonWalkNode<value::ScalarProjectionPositionInfoRecorder> tree;
+    value::ObjectWalkNode<value::ScalarProjectionPositionInfoRecorder> tree;
     // Construct extractor.
     std::vector<value::ScalarProjectionPositionInfoRecorder> recorders;
     recorders.reserve(tests.size());

@@ -3,8 +3,9 @@
  * timestamp before the commit timestamp of an index build.
  *
  * @tags: [
- *     requires_persistence,
- *     requires_replication,
+ *   primary_driven_index_builds_incompatible_due_to_abort_on_step_up,
+ *   requires_persistence,
+ *   requires_replication,
  * ]
  */
 import {IndexBuildTest} from "jstests/noPassthrough/libs/index_builds/index_build.js";

@@ -29,10 +29,40 @@
 
 #include "mongo/db/extension/sdk/host_services.h"
 
+#include "mongo/db/extension/sdk/assert_util.h"
+#include "mongo/db/extension/shared/byte_buf_utils.h"
+
 namespace mongo::extension::sdk {
 
 // The static instance of HostServicesHandle is initially set to nullptr. It will be set "for real"
 // at the very start of extension initialization, before any extension should attempt to access it.
 HostServicesHandle HostServicesHandle::_hostServices(nullptr);
+
+BSONObj HostServicesHandle::createExtensionLogMessage(
+    std::string message,
+    std::int32_t code,
+    mongo::extension::MongoExtensionLogSeverityEnum severity) {
+    mongo::extension::MongoExtensionLog log(std::move(message), code, severity);
+    return log.toBSON();
+}
+
+BSONObj HostServicesHandle::createExtensionDebugLogMessage(std::string message,
+                                                           std::int32_t code,
+                                                           std::int32_t level) {
+    mongo::extension::MongoExtensionDebugLog debugLog(std::move(message), code, level);
+    return debugLog.toBSON();
+}
+
+void HostServicesHandle::_assertVTableConstraints(const VTable_t& vtable) const {
+    tripwireAssert(11097600,
+                   "Host services' 'alwaysOK_TEMPORARY' is null",
+                   vtable.alwaysOK_TEMPORARY != nullptr);
+    tripwireAssert(
+        11097801, "Host services' 'user_asserted' is null", vtable.user_asserted != nullptr);
+    tripwireAssert(11188200, "Host services' 'log' is null", vtable.log != nullptr);
+    tripwireAssert(11188201, "Host services' 'log_debug' is null", vtable.log_debug != nullptr);
+    // Note that we intentionally do not validate tripwire_asserted here. If it wasn't valid, the
+    // tripwire assert would fire and we would dereference the nullptr anyway.
+}
 
 }  // namespace mongo::extension::sdk

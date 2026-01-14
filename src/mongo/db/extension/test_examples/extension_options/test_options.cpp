@@ -30,9 +30,13 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_util.h"
 
 namespace sdk = mongo::extension::sdk;
 
+DEFAULT_LOGICAL_AST_PARSE(OptionA, "$optionA")
+DEFAULT_LOGICAL_AST_PARSE(OptionB, "$optionB")
 struct ExtensionOptions {
     inline static bool optionA = false;
 };
@@ -42,22 +46,17 @@ struct ExtensionOptions {
  *
  * The stage definition must be empty, like {$optionA: {}}, or it will fail to parse.
  */
-class OptionALogicalStage : public sdk::LogicalAggregationStage {};
-
-class OptionAStageDescriptor : public sdk::AggregationStageDescriptor {
+class OptionAStageDescriptor : public sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$optionA";
+    static inline const std::string kStageName = std::string(OptionAStageName);
 
     OptionAStageDescriptor()
-        : sdk::AggregationStageDescriptor(kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
 
-    std::unique_ptr<sdk::LogicalAggregationStage> parse(mongo::BSONObj stageBson) const override {
-        uassert(10999101,
-                "Failed to parse " + kStageName + ", expected object",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj() &&
-                    stageBson.getField(kStageName).Obj().isEmpty());
+    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
+        sdk::validateStageDefinition(stageBson, kStageName, true /* checkEmpty */);
 
-        return std::make_unique<OptionALogicalStage>();
+        return std::make_unique<OptionAParseNode>();
     }
 };
 
@@ -66,22 +65,17 @@ public:
  *
  * The stage definition must be empty, like {$optionB: {}}, or it will fail to parse.
  */
-class OptionBLogicalStage : public sdk::LogicalAggregationStage {};
-
-class OptionBStageDescriptor : public sdk::AggregationStageDescriptor {
+class OptionBStageDescriptor : public sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$optionB";
+    static inline const std::string kStageName = std::string(OptionBStageName);
 
     OptionBStageDescriptor()
-        : sdk::AggregationStageDescriptor(kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
 
-    std::unique_ptr<sdk::LogicalAggregationStage> parse(mongo::BSONObj stageBson) const override {
-        uassert(10999102,
-                "Failed to parse " + kStageName + ", expected object",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj() &&
-                    stageBson.getField(kStageName).Obj().isEmpty());
+    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
+        sdk::validateStageDefinition(stageBson, kStageName, true /* checkEmpty */);
 
-        return std::make_unique<OptionBLogicalStage>();
+        return std::make_unique<OptionBParseNode>();
     }
 };
 
@@ -89,7 +83,7 @@ class MyExtension : public sdk::Extension {
 public:
     void initialize(const sdk::HostPortalHandle& portal) override {
         YAML::Node node = portal.getExtensionOptions();
-        uassert(10999100, "Extension options must include 'optionA'", node["optionA"]);
+        userAssert(10999100, "Extension options must include 'optionA'", node["optionA"]);
         ExtensionOptions::optionA = node["optionA"].as<bool>();
 
         if (ExtensionOptions::optionA) {

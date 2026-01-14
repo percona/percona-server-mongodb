@@ -30,6 +30,7 @@
 #include "mongo/db/extension/host/document_source_extension.h"
 
 #include "mongo/base/init.h"  // IWYU pragma: keep
+#include "mongo/db/extension/host_connector/handle/aggregation_stage/stage_descriptor.h"
 
 namespace mongo::extension::host {
 
@@ -47,14 +48,13 @@ PrivilegeVector DocumentSourceExtension::LiteParsed::requiredPrivileges(
 }
 
 // static
-void DocumentSourceExtension::registerStage(
-    host_adapter::ExtensionAggregationStageDescriptorHandle descriptor) {
+void DocumentSourceExtension::registerStage(host_connector::AggStageDescriptorHandle descriptor) {
     auto nameStringData = descriptor.getName();
     auto id = DocumentSource::allocateId(nameStringData);
     auto nameAsString = std::string(nameStringData);
 
     switch (descriptor.getType()) {
-        case MongoExtensionAggregationStageType::kNoOp:
+        case MongoExtensionAggStageType::kNoOp:
             registerStage(nameAsString, id, descriptor);
             break;
         default:
@@ -75,10 +75,9 @@ void DocumentSourceExtension::registerStage(
 }
 
 // static
-void DocumentSourceExtension::registerStage(
-    const std::string& name,
-    DocumentSource::Id id,
-    extension::host_adapter::ExtensionAggregationStageDescriptorHandle descriptor) {
+void DocumentSourceExtension::registerStage(const std::string& name,
+                                            DocumentSource::Id id,
+                                            host_connector::AggStageDescriptorHandle descriptor) {
     DocumentSource::registerParser(
         name,
         [id, descriptor](BSONElement specElem,
@@ -98,13 +97,13 @@ DocumentSourceExtension::DocumentSourceExtension(
     boost::intrusive_ptr<ExpressionContext> exprCtx,
     Id id,
     BSONObj rawStage,
-    extension::host_adapter::ExtensionAggregationStageDescriptorHandle staticDescriptor)
+    host_connector::AggStageDescriptorHandle staticDescriptor)
     : DocumentSource(name, exprCtx),
       _stageName(std::string(name)),
       _id(id),
       _raw_stage(rawStage.getOwned()),
       _staticDescriptor(staticDescriptor),
-      _logicalStage(staticDescriptor.parse(_raw_stage)) {}
+      _parseNode(staticDescriptor.parse(_raw_stage)) {}
 
 const char* DocumentSourceExtension::getSourceName() const {
     return _stageName.c_str();

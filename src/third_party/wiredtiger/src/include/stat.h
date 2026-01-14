@@ -695,7 +695,8 @@ struct __wt_connection_stats {
     int64_t eviction_fail_checkpoint_no_ts;
     int64_t eviction_walk;
     int64_t cache_write;
-    int64_t cache_write_restore;
+    int64_t cache_write_restore_invisible;
+    int64_t cache_write_restore_scrub;
     int64_t cache_overhead;
     int64_t cache_eviction_blocked_precise_checkpoint;
     int64_t cache_evict_split_failed_lock;
@@ -1288,6 +1289,7 @@ struct __wt_connection_stats {
     int64_t txn_prepare_rollback;
     int64_t txn_query_ts;
     int64_t txn_read_race_prepare_update;
+    int64_t txn_rts_btrees_applied;
     int64_t txn_rts;
     int64_t txn_rts_sweep_hs_keys_dryrun;
     int64_t txn_rts_hs_stop_older_than_newer_start;
@@ -1299,6 +1301,7 @@ struct __wt_connection_stats {
     int64_t txn_rts_pages_visited;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
+    int64_t txn_rts_btrees_skipped;
     int64_t txn_rts_delete_rle_skipped;
     int64_t txn_rts_stable_rle_skipped;
     int64_t txn_rts_sweep_hs_keys;
@@ -1473,7 +1476,8 @@ struct __wt_dsrc_stats {
     int64_t cache_pages_requested_leaf;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
-    int64_t cache_write_restore;
+    int64_t cache_write_restore_invisible;
+    int64_t cache_write_restore_scrub;
     int64_t cache_eviction_blocked_precise_checkpoint;
     int64_t cache_evict_split_failed_lock;
     int64_t cache_eviction_blocked_recently_modified;
@@ -1701,6 +1705,7 @@ struct __wt_dsrc_stats {
     int64_t txn_read_race_prepare_commit;
     int64_t txn_read_overflow_remove;
     int64_t txn_read_race_prepare_update;
+    int64_t txn_rts_btrees_applied;
     int64_t txn_rts_sweep_hs_keys_dryrun;
     int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_inconsistent_ckpt;
@@ -1710,6 +1715,7 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_keys_restored_dryrun;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
+    int64_t txn_rts_btrees_skipped;
     int64_t txn_rts_delete_rle_skipped;
     int64_t txn_rts_stable_rle_skipped;
     int64_t txn_rts_sweep_hs_keys;

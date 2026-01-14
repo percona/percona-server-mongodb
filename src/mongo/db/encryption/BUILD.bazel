@@ -10,7 +10,7 @@ exports_files(
 )
 
 mongo_cc_library(
-    name = "key",
+    name = "encryption_key",
     srcs = [
         "key.cpp",
         "key_id.cpp",
@@ -88,7 +88,7 @@ mongo_cc_library(
         "kmip_session.h",
     ],
     deps = [
-        ":key",
+        ":encryption_key",
         "//src/mongo:base",
         "//src/mongo/base:secure_allocator",
         "//src/third_party/libkmip-0ecda33:kmippp",
@@ -111,7 +111,7 @@ mongo_cc_library(
     ],
     deps = [
         ":encryption_options",
-        ":key",
+        ":encryption_key",
         ":kmip_client",
         ":read_file_to_secure_string",
         ":vault_client",
@@ -140,7 +140,7 @@ mongo_cc_unit_test(
     ],
     tags = ["mongo_unittest_second_group"],
     deps = [
-        ":key",
+        ":encryption_key",
     ],
 )
 

@@ -36,16 +36,34 @@
 
 namespace mongo::stage_builder {
 
-bool eligibleForExtractFieldPathsStage(PlanStageSlots& childStageOutputs) {
-    return !childStageOutputs.hasBlockOutput() && childStageOutputs.hasResultObj();
+bool eligibleForExtractFieldPathsStage(const PlanStageSlots& childStageOutputs) {
+    if (childStageOutputs.hasBlockOutput()) {
+        LOGV2_DEBUG(11087206,
+                    3,
+                    "Child stage outputs rejected for ExtractFieldPathsStage",
+                    "reason"_attr = "has block output");
+        return false;
+    }
+    if (!childStageOutputs.hasResultObj()) {
+        LOGV2_DEBUG(11087207,
+                    3,
+                    "Child stage outputs rejected for ExtractFieldPathsStage",
+                    "reason"_attr = "does not include result object");
+        return false;
+    }
+    return true;
 }
 
 boost::optional<PlanStageReqs> makeExtractFieldPathsPlanStageReqs(
     StageBuilderState& state,
     const std::vector<const Expression*>& expressions,
-    PlanStageSlots& childStageOutputs) {
+    const PlanStageSlots& childStageOutputs) {
     PlanStageReqs extractFieldPathsReqs;
     if (!state.ifrContext.getSavedFlagValue(feature_flags::gFeatureFlagExtractFieldPathsSbeStage)) {
+        LOGV2_DEBUG(11087205,
+                    3,
+                    "ExpressionFieldPath rejected for ExtractFieldPathsStage",
+                    "reason"_attr = "feature flag is disabled");
         return boost::none;
     }
     if (!eligibleForExtractFieldPathsStage(childStageOutputs)) {
@@ -114,9 +132,10 @@ boost::optional<PlanStageReqs> makeExtractFieldPathsPlanStageReqs(
 std::pair<SbStage, PlanStageSlots> buildExtractFieldPaths(SbStage stage,
                                                           StageBuilderState& state,
                                                           const PlanStageSlots& childStageOutputs,
-                                                          PlanStageReqs& extractFieldPathsReqs) {
+                                                          PlanStageReqs& extractFieldPathsReqs,
+                                                          const PlanNodeId nodeId) {
     sbe::value::SlotVector outSlots;
-    std::vector<sbe::value::CellBlock::Path> pathReqs;
+    std::vector<sbe::value::Path> pathReqs;
     PlanStageSlots extractionOutputs;
     for (const std::string& fullPath : extractFieldPathsReqs.getPathExprs()) {
         FieldPath fieldPath{fullPath};
@@ -124,16 +143,15 @@ std::pair<SbStage, PlanStageSlots> buildExtractFieldPaths(SbStage stage,
                 "extract_field_paths does not extract toplevel fields that already have slots",
                 !childStageOutputs.has({PlanStageSlots::kField, fullPath}));
         // Create path.
-        sbe::value::CellBlock::Path path;
+        sbe::value::Path path;
         for (size_t i = 0; i < fieldPath.getPathLength() - 1; ++i) {
-            path.emplace_back(
-                sbe::value::CellBlock::Get{.field = std::string(fieldPath.getFieldName(i))});
-            path.emplace_back(sbe::value::CellBlock::Traverse{});
+            path.emplace_back(sbe::value::Get{.field = std::string(fieldPath.getFieldName(i))});
+            path.emplace_back(sbe::value::Traverse{});
         }
         // Omit the Traverse for the last path component.
-        path.emplace_back(sbe::value::CellBlock::Get{
+        path.emplace_back(sbe::value::Get{
             .field = std::string(fieldPath.getFieldName(fieldPath.getPathLength() - 1))});
-        path.emplace_back(sbe::value::CellBlock::Id{});
+        path.emplace_back(sbe::value::Id{});
         pathReqs.push_back(std::move(path));
 
         // Create slot id for path.
@@ -143,8 +161,6 @@ std::pair<SbStage, PlanStageSlots> buildExtractFieldPaths(SbStage stage,
     }
     tassert(10757507, "expected nonempty outSlots", !outSlots.empty());
     auto childResultSlot = childStageOutputs.getResultObj();
-
-    const PlanNodeId nodeId = stage->getCommonStats()->nodeId;
     return {sbe::makeS<sbe::ExtractFieldPathsStage>(std::move(stage),
                                                     childResultSlot.getId(),
                                                     pathReqs,  // TODO this is by value

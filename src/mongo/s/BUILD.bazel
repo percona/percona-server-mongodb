@@ -168,6 +168,21 @@ idl_generator(
     src = "sharding_task_executor_pool.idl",
 )
 
+mongo_cc_library(
+    name = "shard_shared_state_cache",
+    srcs = [
+        "//src/mongo/db/sharding_environment:shard_retry_server_parameters_gen",
+        "//src/mongo/db/sharding_environment:shard_shared_state_cache.cpp",
+    ],
+    hdrs = [
+        "//src/mongo/db/sharding_environment:shard_shared_state_cache.h",
+    ],
+    deps = [
+        "//src/mongo/client:retry_strategy",
+        "//src/mongo/db:server_base",
+    ],
+)
+
 # This library contains sharding functionality used by both mongod and mongos
 mongo_cc_library(
     name = "grid",
@@ -181,7 +196,6 @@ mongo_cc_library(
         "//src/mongo/db/sharding_environment:cluster_identity_loader.cpp",
         "//src/mongo/db/sharding_environment:grid.cpp",
         "//src/mongo/db/sharding_environment:router_uptime_reporter.cpp",
-        "//src/mongo/db/sharding_environment:shard_retry_server_parameters_gen",
         "//src/mongo/db/sharding_environment/client:config_shard_wrapper.cpp",
         "//src/mongo/db/sharding_environment/client:shard_factory.cpp",
         "//src/mongo/db/topology:shard_registry.cpp",
@@ -338,7 +352,6 @@ mongo_cc_library(
         "//src/mongo/db/global_catalog:type_remove_shard_event_gen",
         "//src/mongo/db/global_catalog:type_shard.cpp",
         "//src/mongo/db/global_catalog:type_tags.cpp",
-        "//src/mongo/db/cluster_parameters:migration_blocking_operation_cluster_parameters_gen",
         "//src/mongo/s/migration_blocking_operation:migration_blocking_operation_feature_flags_gen",
         "//src/mongo/s/request_types:abort_reshard_collection_gen",
         "//src/mongo/db/global_catalog/ddl:add_shard_to_zone_gen",
@@ -440,6 +453,7 @@ mongo_cc_library(
         "//src/mongo/db/global_catalog/catalog_cache:catalog_cache_loader.h",
         "//src/mongo/db/global_catalog/catalog_cache:config_server_catalog_cache_loader.h",
         "//src/mongo/db/sharding_environment:grid.h",
+        "//src/mongo/db/sharding_environment:shard_shared_state_cache.h",
         "//src/mongo/s:transaction_router.h",
         "//src/mongo/db/stats:single_transaction_stats.h",
         "//src/mongo/util/concurrency:ticketholder_queue_stats.h",
@@ -631,12 +645,6 @@ mongo_cc_library(
     name = "sharding_api",
     srcs = [
         "cluster_write.cpp",
-        "//src/mongo/s/write_ops:batch_write_exec.cpp",
-        "//src/mongo/s/write_ops:batch_write_op.cpp",
-        "//src/mongo/s/write_ops:bulk_write_exec.cpp",
-        "//src/mongo/s/write_ops:coordinate_multi_update_util.cpp",
-        "//src/mongo/s/write_ops:pause_migrations_during_multi_updates_enablement.cpp",
-        "//src/mongo/s/write_ops:write_op.cpp",
     ],
     hdrs = [
         "cluster_write.h",
@@ -645,14 +653,15 @@ mongo_cc_library(
         "//src/mongo/s/write_ops:bulk_write_exec.h",
         "//src/mongo/s/write_ops:bulk_write_reply_info.h",
         "//src/mongo/s/write_ops:coordinate_multi_update_util.h",
+        "//src/mongo/s/write_ops:fle.h",
         "//src/mongo/s/write_ops:pause_migrations_during_multi_updates_enablement.h",
+        "//src/mongo/s/write_ops:wc_error.h",
         "//src/mongo/s/write_ops:write_op.h",
         "//src/mongo/s/write_ops/unified_write_executor:unified_write_executor.h",
     ],
     no_undefined_ref_DO_NOT_USE = False,
     deps = [
         ":sharding_router_api",
-        ":sharding_write_without_shard_key_api",
         "//src/mongo/db:internal_transactions_feature_flag",
         "//src/mongo/db:not_primary_error_tracker",
         "//src/mongo/db/commands/query_cmd:bulk_write_common",
@@ -664,14 +673,9 @@ mongo_cc_library(
         "//src/mongo/db/timeseries:timeseries_conversion_util",
         "//src/mongo/db/timeseries:timeseries_metadata",
         "//src/mongo/db/timeseries:timeseries_options",
-        "//src/mongo/db/timeseries/write_ops:timeseries_write_ops_utils",
         "//src/mongo/db/transaction:transaction_api",
         "//src/mongo/executor:inline_executor",
         "//src/mongo/s/query/planner:cluster_find",
-        "//src/mongo/s/write_ops:batch_write_types",
-        "//src/mongo/s/write_ops:fle",
-        "//src/mongo/s/write_ops:wc_error",
-        "//src/mongo/s/write_ops:write_op_helper",
         "//src/mongo/s/write_ops/unified_write_executor",
     ],
 )
@@ -856,7 +860,6 @@ mongo_cc_library(
         "//src/mongo/db/auth:authserver",
         "//src/mongo/db/auth/oidc",
         "//src/mongo/db:change_stream_options_manager",
-        "//src/mongo/db:change_streams_cluster_parameter",
         "//src/mongo/db/commands:profile_common",
         "//src/mongo/db/commands:rwc_defaults_commands",
         "//src/mongo/db/exec:scoped_timer",

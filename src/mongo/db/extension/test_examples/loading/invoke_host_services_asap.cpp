@@ -30,29 +30,29 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_factory.h"
+#include "mongo/db/extension/sdk/test_extension_util.h"
 
 namespace sdk = mongo::extension::sdk;
 
-class TestFooForHostServicesAsapLogicalStage : public sdk::LogicalAggregationStage {};
+DEFAULT_LOGICAL_AST_PARSE(TestFooForHostServicesAsapStage, "$testFooForHostServicesAsap")
 
-class TestFooForHostServicesAsapStageDescriptor : public sdk::AggregationStageDescriptor {
+class TestFooForHostServicesAsapStageDescriptor : public sdk::AggStageDescriptor {
 public:
-    static inline const std::string kStageName = "$testFooForHostServicesAsap";
+    static inline const std::string kStageName =
+        std::string(TestFooForHostServicesAsapStageStageName);
 
     TestFooForHostServicesAsapStageDescriptor()
-        : sdk::AggregationStageDescriptor(kStageName, MongoExtensionAggregationStageType::kNoOp) {}
+        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
 
-    std::unique_ptr<sdk::LogicalAggregationStage> parse(mongo::BSONObj stageBson) const override {
-        uassert(11097602,
-                "Failed to parse " + kStageName + ", expected object",
-                stageBson.hasField(kStageName) && stageBson.getField(kStageName).isABSONObj() &&
-                    stageBson.getField(kStageName).Obj().isEmpty());
+    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
+        sdk::validateStageDefinition(stageBson, kStageName, true /* checkEmpty */);
 
-        uassert(11097603,
-                "Dummy assertion to test usage of the host services",
-                sdk::HostServicesHandle::getHostServices()->alwaysTrue_TEMPORARY());
+        userAssert(11097603,
+                   "Dummy assertion to test usage of the host services",
+                   sdk::HostServicesHandle::getHostServices()->alwaysTrue_TEMPORARY());
 
-        return std::make_unique<TestFooForHostServicesAsapLogicalStage>();
+        return std::make_unique<TestFooForHostServicesAsapStageParseNode>();
     }
 };
 
@@ -62,9 +62,9 @@ public:
         // We test that the host services are accessible as soon as the initialization function is
         // invoked. This is the first entrypoint where extensions are allowed to call into the host
         // services.
-        uassert(11097601,
-                "Dummy assertion to test usage of the host services",
-                sdk::HostServicesHandle::getHostServices()->alwaysTrue_TEMPORARY());
+        userAssert(11097601,
+                   "Dummy assertion to test usage of the host services",
+                   sdk::HostServicesHandle::getHostServices()->alwaysTrue_TEMPORARY());
 
         _registerStage<TestFooForHostServicesAsapStageDescriptor>(portal);
     }

@@ -1,0 +1,21 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+mongo_cc_library(
+    name = "shared",
+    srcs = [
+        "byte_buf.cpp",
+        "extension_status.cpp",
+    ],
+    hdrs = [
+        "byte_buf.h",
+        "byte_buf_utils.h",
+        "extension_status.h",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db/extension/public:api",
+        "//src/mongo/db/extension/shared/handle",
+    ],
+)

@@ -914,8 +914,9 @@ SlotBasedStageBuilder::SlotBasedStageBuilder(OperationContext* opCtx,
     auto [node, ct] = solution.getFirstNodeByType(STAGE_COLLSCAN);
     auto [_1, orCt] = solution.getFirstNodeByType(STAGE_OR);
     auto [_2, nljCt] = solution.getFirstNodeByType(STAGE_NESTED_LOOP_JOIN_EMBEDDING_NODE);
+    auto [_3, hjCt] = solution.getFirstNodeByType(STAGE_HASH_JOIN_EMBEDDING_NODE);
     const unsigned long numCollscanStages = ct;
-    const unsigned long numMultiScanNodes = orCt + nljCt;
+    const unsigned long numMultiScanNodes = orCt + nljCt + hjCt;
     tassert(7182000,
             str::stream()
                 << "Found " << numCollscanStages
@@ -2970,6 +2971,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildProjectionImpl(
 
     // Collect required paths.
     std::vector<const Expression*> expressions;
+    expressions.reserve(exprPaths.size());
     for (const auto& exprPath : exprPaths) {
         expressions.push_back(plan->pathExprMap[exprPath]);
     }
@@ -2977,8 +2979,8 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildProjectionImpl(
         makeExtractFieldPathsPlanStageReqs(_state, expressions, outputs);
     // Build extract field paths stage.
     if (extractFieldPathsReqs.has_value()) {
-        auto [outStage, extractionOutputs] =
-            buildExtractFieldPaths(std::move(stage), _state, outputs, *extractFieldPathsReqs);
+        auto [outStage, extractionOutputs] = buildExtractFieldPaths(
+            std::move(stage), _state, outputs, *extractFieldPathsReqs, b.getNodeId());
         stage = std::move(outStage);
         // Extend outputs with all slots from field path extraction stage.
         for (auto& p : extractionOutputs.getSlotNameToIdMap()) {
@@ -5084,6 +5086,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::build(const QuerySolut
         {STAGE_UNPACK_TS_BUCKET, &SlotBasedStageBuilder::buildUnpackTsBucket},
         {STAGE_NESTED_LOOP_JOIN_EMBEDDING_NODE,
          &SlotBasedStageBuilder::buildNestedLoopJoinEmbeddingNode},
+        {STAGE_HASH_JOIN_EMBEDDING_NODE, &SlotBasedStageBuilder::buildHashJoinEmbeddingNode},
     };
 
     tassert(4822884,

@@ -97,9 +97,9 @@ std::vector<EdgeId> JoinGraph::getJoinEdges(NodeSet left, NodeSet right) const {
 NodeSet JoinGraph::getNeighbors(NodeId nodeIndex) const {
     NodeSet neighbors;
     for (const JoinEdge& edge : _edges) {
-        if (edge.left == nodeIndex) {
+        if (edge.left.test(nodeIndex)) {
             neighbors |= edge.right;
-        } else if (edge.right == nodeIndex) {
+        } else if (edge.right.test(nodeIndex)) {
             neighbors |= edge.left;
         }
     }
@@ -114,6 +114,13 @@ NodeId JoinGraph::addNode(NamespaceString collectionName,
 }
 
 EdgeId JoinGraph::addEdge(NodeSet left, NodeSet right, JoinEdge::PredicateList predicates) {
+    // Self-edges are not permitted; when joining a collection to itself, we should use a different
+    // node for each instance of the collection.
+    if (const auto common = (left & right); common.any()) {
+        tasserted(11180001,
+                  "Self edges are not permitted, but both sides contain " + common.to_string());
+    }
+
     _edges.emplace_back(std::move(predicates), left, right);
     return static_cast<EdgeId>(_edges.size()) - 1;
 }

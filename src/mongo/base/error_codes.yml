@@ -946,8 +946,27 @@ error_codes:
       name: ShardRemovedError,
       categories: [NonResumableChangeStreamError],
     }
-
   - {code: 465, name: PlacementHistoryInitializationInProgress}
+  - {
+      code: 466,
+      name: SchemaRegistryNonRetryableError,
+      categories: [StreamProcessorUserError],
+    }
+  - {
+      code: 467,
+      name: StreamProcessorRetryableIcebergError,
+      categories: [StreamProcessorUserError, StreamProcessorRetryableError],
+    }
+  - {
+      code: 468,
+      name: StreamProcessorStartupRetryableError,
+      categories: [StreamProcessorRetryableError],
+    }
+  - {
+      code: 469,
+      name: SchemaRegistryConnectionError,
+      categories: [StreamProcessorUserError, StreamProcessorRetryableError],
+    }
 
   # Error codes 4000-8999 are reserved.
 
@@ -1031,6 +1050,7 @@ error_codes:
       name: IDLUnknownFieldPossibleMongocryptd,
       categories: [IDLParseError],
     }
+  - {code: 6371402, name: EncryptedFindAndModifyNewNotSupported}
 
   # The following is for rewriting errors returned by a remote server while running a retriable
   # command so that the error is not passed through to other servers in a cluster. See SERVER-91331

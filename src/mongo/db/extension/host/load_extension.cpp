@@ -32,9 +32,10 @@
 #include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/db/extension/host/host_services.h"
 #include "mongo/db/extension/host/load_stub_parsers.h"
-#include "mongo/db/extension/host_adapter/extension_handle.h"
+#include "mongo/db/extension/host_connector/extension_handle.h"
+#include "mongo/db/extension/host_connector/host_services_adapter.h"
 #include "mongo/db/extension/public/api.h"
-#include "mongo/db/extension/sdk/extension_status.h"
+#include "mongo/db/extension/shared/extension_status.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
@@ -94,8 +95,8 @@ void assertVersionCompatibility(const ::MongoExtensionAPIVersionVector* hostVers
             foundCompatibleMinor);
 }
 
-host_adapter::ExtensionHandle getMongoExtension(SharedLibrary& extensionLib,
-                                                const std::string& extensionPath) {
+host_connector::ExtensionHandle getMongoExtension(SharedLibrary& extensionLib,
+                                                  const std::string& extensionPath) {
     StatusWith<get_mongo_extension_t> swGetExtensionFunction =
         extensionLib.getFunctionAs<get_mongo_extension_t>(GET_MONGODB_EXTENSION_SYMBOL);
     uassert(10615501,
@@ -104,7 +105,7 @@ host_adapter::ExtensionHandle getMongoExtension(SharedLibrary& extensionLib,
             swGetExtensionFunction.isOK());
 
     const ::MongoExtension* extension = nullptr;
-    sdk::enterC([&]() {
+    invokeCAndConvertStatusToException([&]() {
         return swGetExtensionFunction.getValue()(&MONGO_EXTENSION_API_VERSIONS_SUPPORTED,
                                                  &extension);
     });
@@ -113,7 +114,7 @@ host_adapter::ExtensionHandle getMongoExtension(SharedLibrary& extensionLib,
                           << "': get_mongodb_extension failed to set an extension",
             extension != nullptr);
 
-    return host_adapter::ExtensionHandle{extension};
+    return host_connector::ExtensionHandle{extension};
 }
 }  // namespace
 
@@ -223,7 +224,7 @@ void ExtensionLoader::load(const std::string& name, const ExtensionConfig& confi
     loadedExtensions.emplace(name, LoadedExtension{std::move(swExtensionLib.getValue()), config});
     auto& extensionLib = loadedExtensions[name].library;
 
-    host_adapter::ExtensionHandle extHandle = getMongoExtension(*extensionLib, extensionPath);
+    host_connector::ExtensionHandle extHandle = getMongoExtension(*extensionLib, extensionPath);
     // Validate that the major and minor versions from the extension implementation are compatible
     // with the host API version.
     assertVersionCompatibility(&MONGO_EXTENSION_API_VERSIONS_SUPPORTED, extHandle.getVersion());
@@ -236,7 +237,7 @@ void ExtensionLoader::load(const std::string& name, const ExtensionConfig& confi
                .maxWireVersion);
 
     HostPortal portal{extHandle.getVersion(), maxWireVersion, YAML::Dump(config.extOptions)};
-    extHandle.initialize(portal, HostServices::get());
+    extHandle.initialize(portal, host_connector::HostServicesAdapter::get());
 }
 
 stdx::unordered_map<std::string, ExtensionConfig> ExtensionLoader::getLoadedExtensions() {
