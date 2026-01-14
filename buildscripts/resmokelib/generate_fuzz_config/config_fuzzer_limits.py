@@ -56,11 +56,6 @@ config_fuzzer_params = {
             "period": 60,
             "fuzz_at": ["startup", "runtime"],
         },
-        "enableTemporarilyUnavailableExceptions": {
-            "choices": [True, False],
-            "period": 5,
-            "fuzz_at": ["startup", "runtime"],
-        },
         "indexBuildMinAvailableDiskSpaceMB": {
             "min": 250,
             "max": 750,
@@ -145,7 +140,7 @@ config_fuzzer_params = {
         "oplogFetcherUsesExhaust": {"choices": [True, False], "fuzz_at": ["startup"]},
         # Default value False; we are enabling more data integrity checks during timeseries compression.
         "performTimeseriesCompressionIntermediateDataIntegrityCheckOnInsert": {
-            "choices": [0, 100],
+            "choices": [True, False],
             "period": 5,
             "fuzz_at": ["startup", "runtime"],
         },

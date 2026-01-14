@@ -1497,6 +1497,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/*fsync_lock* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/*chunk_migration* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/*migration_coordinator* @10gen/server-cluster-scalability @svc-auto-approve-bot
+/jstests/sharding/**/migration_fails_with_spurious_documents.js @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/move_primary_clone.js @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/OWNERS.yml @10gen/server-catalog-and-routing @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/proxy_protocol_connect.js @10gen/server-security @svc-auto-approve-bot
@@ -1526,6 +1527,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/direct_shard_connection_ddls_on_replicaset.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/direct_shard_connection_ddls_during_promotion_to_*.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/incompatible_shard_key_indexes.js @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
+/jstests/sharding/**/sharding_ready.js @10gen/server-cluster-scalability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/analyze_shard_key/OWNERS.yml
 /jstests/sharding/analyze_shard_key/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -2758,6 +2760,10 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/db/test_output/query/canonical_query_encoder_test/OWNERS.yml
 /src/mongo/db/test_output/query/canonical_query_encoder_test/**/* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/test_output/query/canonical_query_encoder_test/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/test_output/query/compiler/OWNERS.yml
+/src/mongo/db/test_output/query/compiler/**/* @10gen/query-optimization @svc-auto-approve-bot
+/src/mongo/db/test_output/query/compiler/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/test_output/query/stage_builder/sbe/OWNERS.yml
 /src/mongo/db/test_output/query/stage_builder/sbe/**/* @10gen/query-execution @svc-auto-approve-bot
