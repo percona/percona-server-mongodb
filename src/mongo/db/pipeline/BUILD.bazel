@@ -1585,6 +1585,7 @@ mongo_cc_unit_test(
         "expression_function_test.cpp",
         "expression_hasher_test.cpp",
         "expression_let_test.cpp",
+        "expression_map_reduce_filter_test.cpp",
         "expression_nary_test.cpp",
         "expression_object_test.cpp",
         "expression_or_test.cpp",
@@ -1622,6 +1623,7 @@ mongo_cc_unit_test(
         ],
     }) + [
         "//src/mongo/db/exec/agg:document_source_to_stage_registry_test.cpp",
+        "//src/mongo/db/extension/host:document_source_extension_optimizable_test.cpp",
         "//src/mongo/db/extension/host:document_source_extension_test.cpp",
         "//src/mongo/db/pipeline:document_source_coll_stats_test.cpp",
         "//src/mongo/db/pipeline:document_source_internal_all_collection_stats_test.cpp",
@@ -1727,6 +1729,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/exec/document_value:document_value_test_util",
         "//src/mongo/db/extension/host:extension_loader",
         "//src/mongo/db/extension/sdk:sdk_cpp",
+        "//src/mongo/db/extension/sdk/tests:shared_test_stages",
         "//src/mongo/db/op_observer",
         "//src/mongo/db/op_observer:op_observer_impl",
         "//src/mongo/db/op_observer:operation_logger_impl",

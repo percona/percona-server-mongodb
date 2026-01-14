@@ -26,34 +26,21 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+
 #pragma once
+
 #include "mongo/base/string_data.h"
-#include "mongo/db/extension/public/api.h"
-#include "mongo/db/extension/shared/byte_buf_utils.h"
-#include "mongo/db/extension/shared/handle/handle.h"
-#include "mongo/util/modules.h"
 
+namespace mongo::logv2 {
 
-namespace mongo::extension::host_connector {
 /**
- * ExtensionByteBufHandle is an owned handle wrapper around a
- * MongoExtensionByteBuf.
+ * This is used for dev stacktraces which bypass structured logging. LOGV2 sinks
+ * are by default configured to use the JSONFormatter. We need use PlainFormatter
+ * to output the message.
+ *
+ * This function is only expected to be used when the bazel flag `dev_stacktrace`
+ * is enabled.
  */
-class ExtensionByteBufHandle : public OwnedHandle<::MongoExtensionByteBuf> {
-public:
-    ExtensionByteBufHandle(::MongoExtensionByteBuf* byteBufPtr)
-        : OwnedHandle<::MongoExtensionByteBuf>(byteBufPtr) {}
+void plainLogBypass(StringData message);
 
-    /**
-     * Get a read-only view of the contents of MongoExtensionByteBuf.
-     */
-    StringData getView() const {
-        if (!isValid()) {
-            return StringData();
-        }
-
-        auto stringView = byteViewAsStringView(vtable().get_view(get()));
-        return StringData{stringView.data(), stringView.size()};
-    }
-};
-}  // namespace mongo::extension::host_connector
+}  // namespace mongo::logv2

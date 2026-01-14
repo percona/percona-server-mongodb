@@ -35,11 +35,11 @@
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/util/modules.h"
 
-namespace mongo {
+namespace mongo::extension {
 
 class DocumentSourceExtensionTest;
 
-namespace extension::host {
+namespace host {
 
 /**
  * A DocumentSource implementation for an extension aggregation stage. DocumentSourceExtension is a
@@ -167,10 +167,13 @@ public:
 
     StageConstraints constraints(PipelineSplitState pipeState) const override;
 
-    Value serialize(const SerializationOptions& opts) const override;
+    Value serialize(const SerializationOptions& opts) const override = 0;
 
     // This method is invoked by extensions to register descriptor.
     static void registerStage(host_connector::AggStageDescriptorHandle descriptor);
+
+    // Declare DocumentSourceExtension to be pure virtual.
+    ~DocumentSourceExtension() override = 0;
 
 private:
     static void registerStage(const std::string& name,
@@ -183,20 +186,28 @@ private:
      * tests. This is because the parserMap is not thread safe, so modifying it at runtime is
      * unsafe.
      */
-    friend class mongo::DocumentSourceExtensionTest;
+    friend class mongo::extension::DocumentSourceExtensionTest;
     static void unregisterParser_forTest(const std::string& name);
 
+protected:
     DocumentSourceExtension(StringData name,
-                            boost::intrusive_ptr<ExpressionContext> exprCtx,
+                            const boost::intrusive_ptr<ExpressionContext>& exprCtx,
                             Id id,
                             BSONObj rawStage,
                             mongo::extension::host_connector::AggStageDescriptorHandle descriptor);
 
-    // Do not support copy or move.
-    DocumentSourceExtension(const DocumentSourceExtension&) = delete;
-    DocumentSourceExtension(DocumentSourceExtension&&) = delete;
-    DocumentSourceExtension& operator=(const DocumentSourceExtension&) = delete;
-    DocumentSourceExtension& operator=(DocumentSourceExtension&&) = delete;
+    // Struct that simplifies DocumentSourceExtension construction for sub-classes.
+    struct ExtensionBase {
+        std::string name;
+        boost::intrusive_ptr<ExpressionContext> exprCtx;
+        Id id;
+        BSONObj rawStage;
+        host_connector::AggStageDescriptorHandle descriptor;
+    };
+
+    explicit DocumentSourceExtension(const ExtensionBase& extensionBase);
+
+    ExtensionBase extensionBase() const;
 
     /**
      * NB : Here we keep a copy of the stage name to service getSourceName().
@@ -209,7 +220,16 @@ private:
     const Id _id;
     BSONObj _raw_stage;
     const mongo::extension::host_connector::AggStageDescriptorHandle _staticDescriptor;
-    mongo::extension::host_connector::AggStageParseNodeHandle _parseNode;
+    const mongo::extension::host_connector::AggStageParseNodeHandle _parseNode;
+
+private:
+    // Do not support copy or move.
+    DocumentSourceExtension(const DocumentSourceExtension&) = delete;
+    DocumentSourceExtension(DocumentSourceExtension&&) = delete;
+    DocumentSourceExtension& operator=(const DocumentSourceExtension&) = delete;
+    DocumentSourceExtension& operator=(DocumentSourceExtension&&) = delete;
 };
-}  // namespace extension::host
-}  // namespace mongo
+
+}  // namespace host
+
+}  // namespace mongo::extension

@@ -643,9 +643,14 @@ struct __wt_connection_stats {
     int64_t cache_eviction_split_leaf;
     int64_t cache_eviction_random_sample_inmem_root;
     int64_t cache_bytes_max;
-    int64_t eviction_maximum_gen_gap;
+    int64_t eviction_maximum_unvisited_gen_gap;
+    int64_t eviction_maximum_unvisited_gen_gap_per_checkpoint;
+    int64_t eviction_maximum_visited_gen_gap;
+    int64_t eviction_maximum_visited_gen_gap_per_checkpoint;
     int64_t eviction_maximum_milliseconds;
+    int64_t eviction_maximum_milliseconds_per_checkpoint;
     int64_t eviction_maximum_page_size;
+    int64_t eviction_maximum_page_size_per_checkpoint;
     int64_t eviction_app_dirty_attempt;
     int64_t eviction_app_dirty_fail;
     int64_t cache_eviction_dirty;
@@ -951,8 +956,6 @@ struct __wt_connection_stats {
     int64_t layered_table_manager_logops_skipped;
     int64_t layered_table_manager_skip_lsn;
     int64_t layered_table_manager_tables;
-    int64_t layered_table_manager_running;
-    int64_t layered_table_manager_active;
     int64_t live_restore_bytes_copied;
     int64_t live_restore_work_remaining;
     int64_t live_restore_source_read_count;
