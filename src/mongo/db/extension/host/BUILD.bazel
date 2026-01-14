@@ -4,8 +4,13 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files([
     "document_source_extension_test.cpp",
-    "host_portal.h",
 ])
+
+exports_files(
+    glob([
+        "*.h",
+    ]),
+)
 
 mongo_cc_library(
     name = "extension_host",
@@ -21,6 +26,7 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo:base",
+        "//src/mongo/db/extension/host/aggregation_stage",
         "//src/mongo/db/extension/host_connector:extensions_host_connector",
         "//src/mongo/db/extension/host_connector:host_services_adapter",
         "//src/mongo/db/extension/host_connector/handle/aggregation_stage",

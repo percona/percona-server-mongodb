@@ -188,6 +188,7 @@ common --flag_alias=create_dwp=//bazel/config:create_dwp
 common --flag_alias=win_min_version=//bazel/config:win_min_version
 common --flag_alias=build_atlas=//bazel/config:build_atlas
 common --flag_alias=dtlto=//bazel/config:dtlto
+common --flag_alias=all_headers=//bazel/config:all_headers
 
 #############################################################################################################################
 # BUILD 'PROFILES' - this is the area to set up configurations of flags to be used by developers.
@@ -420,7 +421,7 @@ common:remote_test --remote_download_outputs=minimal
 common:remote_test --test_output=summary
 common:remote_test --modify_execution_info=^(CppLink|CppArchive|SolibSymlink|ExtractDebuginfo|StripDebuginfo|CcGenerateIntermediateDwp|CcGenerateDwp)$=-no-remote-cache
 common:remote_test --remote_download_regex=.*(TestLogs.*|report.*\.json$|\.core$|data_archives.*\.tgz$) # Resmoke TestLogs directory, report, core dumps, and data directory archives.
-test:remote_test --test_timeout=600
+test:remote_test --test_timeout=660 # Allow extra 60s for coredump on abort
 test:remote_test --test_tag_filters=-incompatible_with_bazel_remote_test
 
 # Coverage
