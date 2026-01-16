@@ -47,6 +47,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/db/traffic_recorder.h"
 #include "mongo/db/traffic_recorder_gen.h"
+#include "mongo/db/traffic_recorder_session_utils.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/util/assert_util.h"
@@ -73,30 +74,6 @@
 
 namespace mongo {
 
-namespace {
-
-bool shouldAlwaysRecordTraffic = false;
-
-MONGO_INITIALIZER(ShouldAlwaysRecordTraffic)(InitializerContext*) {
-    if (!gAlwaysRecordTraffic.size()) {
-        return;
-    }
-
-    if (gTrafficRecordingDirectory.empty()) {
-        if (serverGlobalParams.logpath.empty()) {
-            uasserted(ErrorCodes::BadValue,
-                      "invalid to set AlwaysRecordTraffic without a logpath or "
-                      "trafficRecordingDirectory");
-        } else {
-            gTrafficRecordingDirectory = serverGlobalParams.logpath;
-        }
-    }
-
-    shouldAlwaysRecordTraffic = true;
-}
-
-}  // namespace
-
 void appendPacketHeader(DataBuilder& db, const TrafficRecordingPacket& packet) {
     db.clear();
     Message toWrite = packet.message;
@@ -119,9 +96,6 @@ TrafficRecorder::Recording::Recording(const StartTrafficRecording& options, Tick
 
     MultiProducerSingleConsumerQueue<TrafficRecordingPacket, CostFunction>::Options queueOptions;
     queueOptions.maxQueueDepth = options.getMaxMemUsage();
-    if (!shouldAlwaysRecordTraffic) {
-        queueOptions.maxProducerQueueDepth = 0;
-    }
     _pcqPipe =
         MultiProducerSingleConsumerQueue<TrafficRecordingPacket, CostFunction>::Pipe(queueOptions);
 
@@ -244,8 +218,6 @@ bool TrafficRecorder::Recording::pushRecord(const uint64_t id,
         _pcqPipe.producer.push({eventType, id, session, offset, order, message});
         return true;
     } catch (const ExceptionFor<ErrorCodes::ProducerConsumerQueueProducerQueueDepthExceeded>&) {
-        invariant(!shouldAlwaysRecordTraffic);
-
         // If we couldn't push our packet begin the process of failing the recording
         _pcqPipe.producer.close();
 
@@ -311,25 +283,16 @@ TrafficRecorder& TrafficRecorder::get(ServiceContext* svc) {
     return getTrafficRecorder(svc);
 }
 
-TrafficRecorder::TrafficRecorder() : _shouldRecord(shouldAlwaysRecordTraffic) {}
+TrafficRecorder::TrafficRecorder() = default;
 
-TrafficRecorder::~TrafficRecorder() {
-    if (shouldAlwaysRecordTraffic) {
-        (**_recording)->shutdown().ignore();
-    }
-}
+TrafficRecorder::~TrafficRecorder() {}
 
 std::shared_ptr<TrafficRecorder::Recording> TrafficRecorder::_makeRecording(
     const StartTrafficRecording& options, TickSource* tickSource) const {
     return std::make_shared<Recording>(options, tickSource);
 }
 
-void TrafficRecorder::start(
-    const StartTrafficRecording& options,
-    ServiceContext* svcCtx,
-    const std::vector<std::pair<transport::SessionId, std::string>>& sessions) {
-    invariant(!shouldAlwaysRecordTraffic);
-
+void TrafficRecorder::start(const StartTrafficRecording& options, ServiceContext* svcCtx) {
     uassert(ErrorCodes::BadValue,
             "Traffic recording directory not set",
             !gTrafficRecordingDirectory.empty());
@@ -341,19 +304,21 @@ void TrafficRecorder::start(
 
         (*rec)->run();
     }
-    _shouldRecord.store(true);
     {
+        // TODO SERVER-111903: Ensure all session starts are observed exactly once. A session
+        // starting just after this getActiveSessions call, but before _shouldRecord is updated
+        // will not report session started.
+        auto sessions = getActiveSessions(svcCtx);
         // Record SessionStart events if exists any active session.
         for (const auto& [id, session] : sessions) {
             observe(id, session, Message(), svcCtx, EventType::kSessionStart);
         }
     }
+    _shouldRecord.store(true);
 }
 
-void TrafficRecorder::stop(
-    ServiceContext* svcCtx,
-    const std::vector<std::pair<transport::SessionId, std::string>>& sessions) {
-    invariant(!shouldAlwaysRecordTraffic);
+void TrafficRecorder::stop(ServiceContext* svcCtx) {
+    auto sessions = getActiveSessions(svcCtx);
     // Record SessionEnd events if exists any active session.
     for (const auto& [id, session] : sessions) {
         observe(id, session, Message(), svcCtx, EventType::kSessionEnd);
@@ -383,28 +348,6 @@ void TrafficRecorder::observe(uint64_t id,
                               const Message& message,
                               ServiceContext* svcCtx,
                               EventType eventType) {
-    auto* tickSource = svcCtx->getTickSource();
-    if (shouldAlwaysRecordTraffic) {
-        auto rec = _recording.synchronize();
-
-        if (!*rec) {
-            StartTrafficRecording options;
-            options.setDestination(gAlwaysRecordTraffic);
-            options.setMaxFileSize({double(std::numeric_limits<int64_t>::max())});
-
-            *rec = _makeRecording(options, tickSource);
-            (*rec)->run();
-        }
-
-        invariant((*rec)->pushRecord(id,
-                                     session,
-                                     tickSource->ticksTo<Microseconds>(tickSource->getTicks()) -
-                                         (*rec)->startTime.load(),
-                                     (*rec)->order.addAndFetch(1),
-                                     message,
-                                     eventType));
-        return;
-    }
     if (!_shouldRecord.load()) {
         return;
     }
@@ -416,6 +359,7 @@ void TrafficRecorder::observe(uint64_t id,
         return;
     }
 
+    auto* tickSource = svcCtx->getTickSource();
     // Try to record the message
     if (recording->pushRecord(id,
                               session,

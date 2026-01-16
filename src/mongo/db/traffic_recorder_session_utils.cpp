@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2023-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,33 +27,32 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/operation_context.h"
+#include "mongo/db/service_context.h"
+#include "mongo/transport/session.h"
+#include "mongo/transport/session_manager.h"
+#include "mongo/transport/transport_layer_manager.h"
 
-#include "mongo/base/error_codes.h"
-#include "mongo/base/status.h"
+#include <string>
+
+#include <boost/optional.hpp>
 
 namespace mongo {
-namespace notify_sharding_event {
 
-// List of supported ShardingEvent notification types
-// TODO SERVER-100729 Remove any reference to the deprecated kDatabasesAdded event type
-// once 9.0 becomes LTS.
-static constexpr char kDatabasesAdded[] = "databasesAdded";
-static constexpr char kCollectionSharded[] = "collectionSharded";
-static constexpr char kCollectionResharded[] = "collectionResharded";
-static constexpr char kNamespacePlacementChanged[] = "namespacePlacementChanged";
-static constexpr char kPlacementHistoryMetadataChanged[] = "placementHistoryMetadataChanged";
-
-inline Status validateEventType(const std::string& eventType) {
-    if (eventType == kCollectionResharded || eventType == kNamespacePlacementChanged ||
-        eventType == kDatabasesAdded || eventType == kCollectionSharded ||
-        eventType == kPlacementHistoryMetadataChanged) {
-        return Status::OK();
+std::vector<std::pair<transport::SessionId, std::string>> getActiveSessions(
+    ServiceContext* svcCtx) {
+    transport::TransportLayerManager* tlManager = svcCtx->getTransportLayerManager();
+    std::vector<std::pair<transport::SessionId, std::string>> openSessions;
+    if (tlManager) {
+        tlManager->forEach([&openSessions](transport::TransportLayer* tl) {
+            auto sessionManager = tl->getSessionManager();
+            if (sessionManager) {
+                auto sessionIds = sessionManager->getOpenSessionIDs();
+                openSessions.insert(openSessions.end(), sessionIds.begin(), sessionIds.end());
+            }
+        });
     }
-
-    return {ErrorCodes::UnsupportedShardingEventNotification,
-            "Unrecognized EventType: " + eventType};
+    return openSessions;
 }
 
-}  // namespace notify_sharding_event
 }  // namespace mongo

@@ -38,4 +38,9 @@ std::unique_ptr<DatabaseShardingState> DatabaseShardingStateFactoryMock::make(
     return std::make_unique<DatabaseShardingStateMock>(dbName);
 }
 
+const StaleShardDatabaseMetadataHandler&
+DatabaseShardingStateFactoryMock::getStaleShardExceptionHandler() const {
+    MONGO_UNIMPLEMENTED;
+}
+
 }  // namespace mongo
