@@ -32,7 +32,7 @@
 #include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/util/modules.h"
 
-namespace mongo::extension::host {
+namespace mongo::extension::host_connector {
 /**
  * QueryShapeOptsAdapter is an adapter to ::MongoExtensionHostQueryShapeOpts,
  * providing host serialization options to extensions.
@@ -66,4 +66,4 @@ private:
 
     const SerializationOptions* _opts;
 };
-}  // namespace mongo::extension::host
+}  // namespace mongo::extension::host_connector

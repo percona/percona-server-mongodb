@@ -40,7 +40,7 @@ namespace mongo {
 namespace MONGO_MOD_PUB repl {
 
 /**
- * Writes oplog entries to the oplog and/or the change collection.
+ * Writes oplog entries to the oplog.
  */
 class MONGO_MOD_PUB OplogWriter {
     OplogWriter(const OplogWriter&) = delete;
@@ -58,9 +58,6 @@ public:
 
         const bool skipWritesToOplogColl;
     };
-
-    // Used to report oplog write progress.
-    class MONGO_MOD_PRIVATE Observer;
 
     /**
      * Constructs this OplogWriter with specific options.
@@ -105,7 +102,7 @@ public:
                  const OplogBuffer::Cost& cost);
 
     /**
-     * Writes a batch of oplog entries to the oplog and/or the change collections.
+     * Writes a batch of oplog entries to the oplog.
      *
      * Returns false if nothing is written, true otherwise.
      *
@@ -115,9 +112,8 @@ public:
     virtual bool writeOplogBatch(OperationContext* opCtx, const std::vector<BSONObj>& ops) = 0;
 
     /**
-     * Schedules the writes of the oplog batch to the oplog and/or the change collections
-     * using the thread pool. Use waitForScheduledWrites() after calling this function to
-     * wait for the writes to complete.
+     * Schedules the writes of the oplog batch to the oplog using the thread pool. Use
+     * waitForScheduledWrites() after calling this function to wait for the writes to complete.
      *
      * Returns false if no write is scheduled, true otherwise.
      *
@@ -166,28 +162,5 @@ private:
     // Configures this OplogWriter.
     const Options _options;
 };
-
-/**
- * The OplogWriter reports its progress using the Observer interface.
- */
-class MONGO_MOD_PRIVATE OplogWriter::Observer {
-public:
-    virtual ~Observer() = default;
-
-    virtual void onWriteOplogCollection(std::vector<InsertStatement>::const_iterator begin,
-                                        std::vector<InsertStatement>::const_iterator end) = 0;
-};
-
-/**
- * An Observer implementation that does nothing.
- */
-class MONGO_MOD_PRIVATE NoopOplogWriterObserver : public OplogWriter::Observer {
-public:
-    void onWriteOplogCollection(std::vector<InsertStatement>::const_iterator begin,
-                                std::vector<InsertStatement>::const_iterator end) final {}
-};
-
-extern NoopOplogWriterObserver noopOplogWriterObserver;
-
 }  // namespace MONGO_MOD_PUB repl
 }  // namespace mongo

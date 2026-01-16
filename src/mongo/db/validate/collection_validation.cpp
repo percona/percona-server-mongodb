@@ -66,6 +66,7 @@
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/ctype.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/scopeguard.h"
@@ -77,6 +78,7 @@
 #include <utility>
 
 #include <absl/container/node_hash_map.h>
+#include <boost/algorithm/string/case_conv.hpp>
 #include <boost/container/flat_set.hpp>
 #include <boost/container/vector.hpp>
 #include <boost/move/utility_core.hpp>
@@ -159,10 +161,16 @@ void _validateIndexes(OperationContext* opCtx,
                                           ->findIndexByIdent(opCtx, indexIdent)
                                           ->indexName();
 
+        const IndexType indexType = validateState->getCollection()
+                                        ->getIndexCatalog()
+                                        ->findIndexByIdent(opCtx, indexIdent)
+                                        ->getIndexType();
+
         LOGV2_PROD_ONLY_OPTIONS(20296,
                                 {LogComponent::kIndex},
                                 "Validating index consistency",
-                                "index"_attr = indexName,
+                                "indexName"_attr = indexName,
+                                "indexType"_attr = indexType,
                                 logAttrs(validateState->nss()));
 
         int64_t numTraversedKeys;
@@ -531,7 +539,6 @@ void validateHashes(const std::vector<std::string>& hashPrefixes, bool equalLeng
 
     const size_t kHashStringMaxLen = SHA256Block().toHexString().size();
     auto hashPrefixLength = hashPrefixes[0].length();
-    std::vector<std::string> normalizedHashPrefixes;
     for (const auto& hashPrefix : hashPrefixes) {
         uassert(ErrorCodes::InvalidOptions,
                 "Hash prefixes should not be empty strings.",
@@ -545,21 +552,20 @@ void validateHashes(const std::vector<std::string>& hashPrefixes, bool equalLeng
                 "Hash prefixes should not have different lengths.",
                 !equalLength || hashPrefix.length() == hashPrefixLength);
 
-        std::string normalizedHashPrefix;
         for (char c : hashPrefix) {
             uassert(ErrorCodes::InvalidOptions,
-                    fmt::format("Hash prefixes should only contain hex strings. Received: {}.",
-                                hashPrefix),
-                    ctype::isXdigit(c));
-            normalizedHashPrefix.push_back(ctype::toLower(c));
+                    fmt::format(
+                        "Hash prefixes should only contain upper case hex strings. Received: {}.",
+                        hashPrefix),
+                    ctype::isXdigit(c) && (ctype::isUpper(c) || ctype::isDigit(c)));
         }
-        normalizedHashPrefixes.push_back(std::move(normalizedHashPrefix));
     }
 
-    std::sort(normalizedHashPrefixes.begin(), normalizedHashPrefixes.end());
-    for (size_t i = 0; i < normalizedHashPrefixes.size() - 1; ++i) {
-        const auto& currentHashPrefix = normalizedHashPrefixes[i];
-        const auto& nextHashPrefix = normalizedHashPrefixes[i + 1];
+    std::vector<std::string> sortedHashPrefixes = hashPrefixes;
+    std::sort(sortedHashPrefixes.begin(), sortedHashPrefixes.end());
+    for (size_t i = 0; i < sortedHashPrefixes.size() - 1; ++i) {
+        const auto& currentHashPrefix = sortedHashPrefixes[i];
+        const auto& nextHashPrefix = sortedHashPrefixes[i + 1];
 
         if (currentHashPrefix.length() <= nextHashPrefix.length()) {
             uassert(ErrorCodes::InvalidOptions,
@@ -574,8 +580,8 @@ void validateHashes(const std::vector<std::string>& hashPrefixes, bool equalLeng
 ValidationOptions parseValidateOptions(OperationContext* opCtx,
                                        NamespaceString nss,
                                        const BSONObj& cmdObj) {
-    bool background = cmdObj["background"].trueValue();
-    bool logDiagnostics = cmdObj["logDiagnostics"].trueValue();
+    const bool background = cmdObj["background"].trueValue();
+    const bool logDiagnostics = cmdObj["logDiagnostics"].trueValue();
 
     const bool fullValidate = cmdObj["full"].trueValue();
     if (background && fullValidate) {
@@ -591,13 +597,7 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
                                 << " and { enforceFastCount: true } is not supported.");
     }
 
-    const auto rawCheckBSONConformance = cmdObj["checkBSONConformance"];
-    const bool checkBSONConformance = rawCheckBSONConformance.trueValue();
-    if (rawCheckBSONConformance && !checkBSONConformance && (fullValidate || enforceFastCount)) {
-        uasserted(ErrorCodes::InvalidOptions,
-                  str::stream() << "Cannot explicitly set 'checkBSONConformance: false' with "
-                                   "full validation set.");
-    }
+    const bool checkBSONConformance = cmdObj["checkBSONConformance"].trueValue();
 
     const bool repair = cmdObj["repair"].trueValue();
     if (opCtx->readOnly() && repair) {
@@ -685,7 +685,7 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
     if (rawHashPrefixes) {
         hashPrefixes = std::vector<std::string>();
         for (const auto& e : rawHashPrefixes.Array()) {
-            hashPrefixes->push_back(e.String());
+            hashPrefixes->push_back(boost::algorithm::to_upper_copy(e.String()));
         }
         CollectionValidation::validateHashes(*hashPrefixes, /*equalLength=*/true);
         if (!hashPrefixes->size()) {
@@ -734,12 +734,12 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
         }
         revealHashedIds = std::vector<std::string>();
         for (const auto& e : rawRevealHashedIdsArr) {
-            revealHashedIds->push_back(e.String());
+            revealHashedIds->push_back(boost::algorithm::to_upper_copy(e.String()));
         }
         CollectionValidation::validateHashes(*revealHashedIds, /*equalLength=*/false);
     }
 
-    auto validateMode = [&] {
+    const auto validateMode = [&] {
         if (metadata) {
             return CollectionValidation::ValidateMode::kMetadata;
         }
@@ -750,16 +750,16 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
             return CollectionValidation::ValidateMode::kCollectionHash;
         }
         if (background) {
-            if (checkBSONConformance) {
-                return CollectionValidation::ValidateMode::kBackgroundCheckBSON;
-            }
-            return CollectionValidation::ValidateMode::kBackground;
+            return checkBSONConformance ? CollectionValidation::ValidateMode::kBackgroundCheckBSON
+                                        : CollectionValidation::ValidateMode::kBackground;
         }
         if (enforceFastCount) {
             return CollectionValidation::ValidateMode::kForegroundFullEnforceFastCount;
         }
         if (fullValidate) {
-            return CollectionValidation::ValidateMode::kForegroundFull;
+            return checkBSONConformance
+                ? CollectionValidation::ValidateMode::kForegroundFullCheckBSON
+                : CollectionValidation::ValidateMode::kForegroundFull;
         }
         if (checkBSONConformance) {
             return CollectionValidation::ValidateMode::kForegroundCheckBSON;
@@ -767,7 +767,7 @@ ValidationOptions parseValidateOptions(OperationContext* opCtx,
         return CollectionValidation::ValidateMode::kForeground;
     }();
 
-    auto repairMode = [&] {
+    const auto repairMode = [&] {
         if (opCtx->readOnly()) {
             // On read-only mode we can't make any adjustments.
             return CollectionValidation::RepairMode::kNone;

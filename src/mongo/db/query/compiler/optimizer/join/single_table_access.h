@@ -29,6 +29,7 @@
 
 #include "mongo/db/query/compiler/ce/sampling/sampling_estimator.h"
 #include "mongo/db/query/compiler/optimizer/cost_based_ranker/estimates_storage.h"
+#include "mongo/db/query/compiler/optimizer/join/join_graph.h"
 #include "mongo/db/query/compiler/optimizer/join/solution_storage.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 
@@ -46,7 +47,15 @@ struct SingleTableAccessPlansResult {
 };
 
 /**
- * Given a set of 'CanonicalQueries' over potentially different namespaces and a map of
+ * Constructor for sampling estimators per collection access.
+ */
+optimizer::SamplingEstimatorMap makeSamplingEstimators(
+    const MultipleCollectionAccessor& collections,
+    const mongo::join_ordering::JoinGraph& model,
+    PlanYieldPolicy::YieldPolicy yieldPolicy);
+
+/**
+ * Given a JoinGraph 'model' where each node links to a CanonicalQuery and a map of
  * 'SamplingEstimators' keyed by namespace, for each query, this function invokes the plan
  * enumerator and uses cost-based ranking (CBR) with sampling-based cardinality estimation. This
  * function returns a QuerySolution representing the best plan for each query along with an
@@ -55,7 +64,7 @@ struct SingleTableAccessPlansResult {
 StatusWith<SingleTableAccessPlansResult> singleTableAccessPlans(
     OperationContext* opCtx,
     const MultipleCollectionAccessor& collections,
-    const std::vector<std::unique_ptr<CanonicalQuery>>& queries,
+    const mongo::join_ordering::JoinGraph& model,
     const SamplingEstimatorMap& samplingEstimators);
 
 }  // namespace mongo::optimizer

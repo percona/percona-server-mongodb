@@ -77,6 +77,8 @@ Download and install VS Code from [code.visualstudio.com](https://code.visualstu
 
 To clone the repository using SSH (recommended for contributors), you'll need SSH keys configured with GitHub.
 
+> **⚠️ Important:** Run all commands in this section on your **host machine** (not inside the container). SSH keys need to be set up before cloning the repository into the container.
+
 #### Check if you have SSH keys
 
 ```bash
@@ -237,25 +239,11 @@ https://github.com/mongodb/mongo.git
      - Install VS Code extensions
      - Run post-creation commands
 
-### Step 2: Complete Git History (Recommended)
-
-The clone process may create a shallow clone. Fetch the complete history:
-
-```bash
-git fetch --unshallow --all
-```
-
-This ensures:
-
-- Access to full repository history
-- All branches are available
-- Certain build targets work correctly (e.g., `bazel build install-dist`)
-
-### Step 3: Verify Your Setup
+### Step 2: Verify Your Setup
 
 Let's make sure everything is working correctly.
 
-#### 3.1 Check Toolchain Installation
+#### 2.1 Check Toolchain Installation
 
 ```bash
 # Verify GCC version
@@ -265,7 +253,7 @@ gcc --version
 python3 --version
 ```
 
-#### 3.2 Verify Python Virtual Environment
+#### 2.2 Verify Python Virtual Environment
 
 The devcontainer automatically sets up a Python virtual environment:
 
@@ -278,7 +266,7 @@ which python
 poetry --version
 ```
 
-#### 3.3 Test Bazel Build
+#### 2.3 Test Bazel Build
 
 Try building a target:
 
@@ -292,7 +280,7 @@ This may take a while on first run but verifies:
 - Toolchain is working
 - Build system is functional
 
-#### 3.4 Check VS Code Extensions
+#### 2.4 Check VS Code Extensions
 
 The following extensions should be installed and active:
 
@@ -303,7 +291,7 @@ The following extensions should be installed and active:
 
 Check: View → Extensions and verify they're enabled.
 
-### Step 4: Understanding Your Environment
+### Step 3: Understanding Your Environment
 
 #### Workspace Location
 

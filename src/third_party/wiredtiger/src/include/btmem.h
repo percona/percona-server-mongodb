@@ -691,16 +691,17 @@ struct __wt_page {
     } while (0)
 #else
 /* Use WT_ACQUIRE_READ to enforce acquire semantics rather than relying on address dependencies. */
-#define WT_INTL_INDEX_GET_SAFE(page, pindex) WT_ACQUIRE_READ((pindex), (page)->u.intl.__index)
+#define WT_INTL_INDEX_GET_SAFE(page, pindex) \
+    (pindex) = __wt_atomic_load_ptr_acquire(&(page)->u.intl.__index)
 #define WT_INTL_INDEX_GET(session, page, pindex)                          \
     do {                                                                  \
         WT_ASSERT(session, __wt_session_gen(session, WT_GEN_SPLIT) != 0); \
         WT_INTL_INDEX_GET_SAFE(page, (pindex));                           \
     } while (0)
-#define WT_INTL_INDEX_SET(page, v)                               \
-    do {                                                         \
-        WT_RELEASE_BARRIER();                                    \
-        __wt_atomic_store_pointer(&(page)->u.intl.__index, (v)); \
+#define WT_INTL_INDEX_SET(page, v)                                   \
+    do {                                                             \
+        WT_RELEASE_BARRIER();                                        \
+        __wt_atomic_store_ptr_relaxed(&(page)->u.intl.__index, (v)); \
     } while (0)
 #endif
 
@@ -1649,7 +1650,8 @@ struct __wt_update {
  * The memory size of an update: include some padding because this is such a common case that
  * overhead of tiny allocations can swamp our cache overhead calculation.
  */
-#define WT_UPDATE_MEMSIZE(upd) WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
+#define WT_UPDATE_MEMSIZE(upd) \
+    WT_ALIGN(WT_UPDATE_SIZE + __wt_tsan_suppress_load_uint32(&(upd)->size), 32)
 
 /*
  * WT_UPDATE_VALUE --

@@ -3,7 +3,7 @@
  * @tags: [
  *   # The test caches authenticated connections, so we do not support stepdowns
  *   does_not_support_stepdowns,
- *   featureFlagPreventDirectShardDDLsDuringPromotion,
+ *   requires_fcv_83,
  *   # The test creates a sharded cluster with a dedicated config server, so the test is incompatible with fixtures with embedded config servers
  *   config_shard_incompatible,
  * ]
@@ -14,6 +14,7 @@ import {ShardingTest} from "jstests/libs/shardingtest.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {funWithArgs} from "jstests/libs/parallel_shell_helpers.js";
+import {TxnUtil} from "jstests/libs/txns/txn_util.js";
 
 const testCommands = [
     {
@@ -215,6 +216,21 @@ describe("Check direct DDLs during promotion and after promotion to sharded clus
         jsTest.log.info("Clearing hangAfterDrainingDDLOperations fail point");
         shardAfterDrainingDDLOperationsFP.off();
         addShardParallelShell();
+    });
+
+    it("Transactions are aborted during promotion", () => {
+        jsTest.log.info("Start a transaction");
+        let session = this.testDBDirectConnection.getMongo().startSession();
+        session.startTransaction();
+        assert.commandWorked(session.getDatabase("testDB").runCommand({create: "foo"}));
+
+        jsTest.log.info("Promote to sharded");
+        assert.commandWorked(this.cluster.s.adminCommand({addShard: this.rs.getURL()}));
+
+        jsTest.log.info("Check that the transaction was aborted");
+        const res = session.getDatabase("testDB").runCommand({insert: "foo", documents: [{x: 1}]});
+        assert.commandFailedWithCode(res, ErrorCodes.NoSuchTransaction);
+        assert(TxnUtil.isTransientTransactionError(res));
     });
 
     it("Direct DDLs after promotion", () => {

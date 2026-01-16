@@ -1139,7 +1139,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     }
 
     // If not in standalone mode, start background tasks to:
-    //  * Periodically remove expired documents from change collections
+    //  * Periodically remove expired documents from change streams pre-images collection.
     if (!isStandalone) {
         if (serverGlobalParams.replicaSetConfigShardMaintenanceMode) {
             PeriodicReplicaSetConfigShardMaintenanceModeChecker::get(serviceContext)->start();
@@ -1535,12 +1535,7 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
     BSONObjBuilder shutdownInfoBuilder;
 
     // Before doing anything else, ensure fsync is inactive or make it release its GlobalRead lock.
-    {
-        stdx::unique_lock<stdx::mutex> stateLock(fsyncStateMutex);
-        if (globalFsyncLockThread) {
-            globalFsyncLockThread->shutdown(stateLock);
-        }
-    }
+    shutdownFsyncLockThread();
 
     auto const serviceContext = getGlobalServiceContext();
 

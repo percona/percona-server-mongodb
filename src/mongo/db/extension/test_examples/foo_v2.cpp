@@ -41,7 +41,7 @@ DEFAULT_LOGICAL_AST_PARSE(TestFoo, "$testFoo")
  * $testFoo is a no-op stage.
  *
  * This file is identical to foo.cpp except this stage does _not_ fail parsing if the
- * stage definition is empty. This is used for extenison upgrade/downgrade testing.
+ * stage definition is empty. This is used for extension upgrade/downgrade testing.
  */
 class TestFooStageDescriptor : public sdk::AggStageDescriptor {
 public:

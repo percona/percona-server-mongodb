@@ -32,6 +32,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/traffic_recorder_gen.h"
+#include "mongo/platform/atomic.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/rpc/message.h"
 #include "mongo/stdx/mutex.h"
@@ -42,6 +43,7 @@
 #include "mongo/util/tick_source.h"
 #include "mongo/util/time_support.h"
 
+#include <filesystem>
 #include <memory>
 #include <queue>
 #include <string>
@@ -91,19 +93,15 @@ public:
     void start(const StartTrafficRecording& options, ServiceContext* svcCtx);
     void stop(ServiceContext* svcCtx);
 
-    void observe(uint64_t id,
-                 const std::string& session,
-                 const Message& message,
-                 ServiceContext* svcCtx,
-                 EventType eventType = EventType::kRegular);
+    void sessionStarted(const transport::Session& ts);
+    void sessionEnded(const transport::Session& ts);
 
     // This is the main interface to record a message. It also maintains open sessions in order to
     // record 'kSessionStart' and 'kSessionEnd' events.
     // TODO SERVER-106769: change usage of TickSource/std::chrono::steady_clock to solution proposed
     // in SERVER-106769
-    void observe(const std::shared_ptr<transport::Session>& ts,
+    void observe(const transport::Session& ts,
                  const Message& message,
-                 ServiceContext* svcCtx,
                  EventType eventType = EventType::kRegular);
 
     class TrafficRecorderSSS;
@@ -116,11 +114,17 @@ protected:
      */
     class Recording {
     public:
-        Recording(const StartTrafficRecording& options, TickSource* tickSource);
+        Recording(const StartTrafficRecording& options,
+                  std::filesystem::path globalRecordingDirectory,
+                  TickSource* tickSource);
         virtual ~Recording() = default;
 
-        virtual void run();
+        virtual void start();
         virtual Status shutdown();
+
+        bool started() const {
+            return _started.loadRelaxed();
+        }
 
         /**
          * pushRecord returns false if the queue was full.  This is ultimately fatal to the
@@ -134,6 +138,10 @@ protected:
                         EventType eventType = EventType::kRegular);
 
         BSONObj getStats();
+
+        TickSource* getTickSource() const {
+            return _tickSource;
+        }
 
         AtomicWord<uint64_t> order{0};
         AtomicWord<Microseconds> startTime{
@@ -149,23 +157,46 @@ protected:
 
 
     private:
-        static std::string _getPath(const std::string& filename);
+        static std::string _getPath(std::filesystem::path globalRecordingDirectory,
+                                    const std::string& recordingSubdir);
 
         const std::string _path;
         const int64_t _maxLogSize;
 
+        TickSource* _tickSource;
+
         stdx::thread _thread;
 
         stdx::mutex _mutex;
+        mongo::Atomic<bool> _started{false};
         bool _inShutdown = false;
         TrafficRecorderStats _trafficStats;
         int64_t _written = 0;
         Status _result = Status::OK();
     };
 
+    void _prepare(const StartTrafficRecording& options, ServiceContext* svcCtx);
+    void _start(ServiceContext* svcCtx);
+    void _stop(ServiceContext* svcCtx);
+    void _fail();
+
+
+    void _observe(uint64_t id,
+                  const std::string& session,
+                  const Message& message,
+                  EventType eventType);
+
+    void _observe(Recording& recording,
+                  uint64_t id,
+                  const std::string& session,
+                  const Message& message,
+                  EventType eventType);
+
     // Helper method to be overridden in tests
-    virtual std::shared_ptr<Recording> _makeRecording(const StartTrafficRecording& options,
-                                                      TickSource* tickSource) const;
+    virtual std::shared_ptr<Recording> _makeRecording(
+        const StartTrafficRecording& options,
+        std::filesystem::path globalRecordingDirectory,
+        TickSource* tickSource) const;
 
     std::shared_ptr<Recording> _getCurrentRecording() const;
 
@@ -183,13 +214,16 @@ public:
     class RecordingForTest : public TrafficRecorder::Recording {
     public:
         RecordingForTest(const StartTrafficRecording& options, TickSource* tickSource);
+        RecordingForTest(const StartTrafficRecording& options,
+                         std::filesystem::path globalRecordingDirectory,
+                         TickSource* tickSource);
 
         // Accessor for testing purposes
         MultiProducerSingleConsumerQueue<TrafficRecordingPacket,
                                          TrafficRecorder::Recording::CostFunction>::Pipe&
         getPcqPipe();
 
-        void run() override;
+        void start() override;
 
         Status shutdown() override;
     };
@@ -197,6 +231,7 @@ public:
     std::shared_ptr<RecordingForTest> getCurrentRecording() const;
 
     std::shared_ptr<Recording> _makeRecording(const StartTrafficRecording& options,
+                                              std::filesystem::path globalRecordingDirectory,
                                               TickSource* tickSource) const override;
 };
 }  // namespace mongo

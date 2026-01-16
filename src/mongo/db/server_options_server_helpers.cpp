@@ -480,6 +480,10 @@ Status storeServerOptions(const moe::Environment& params) {
         }
     }
 
+    if (params.count("net.maintenancePort")) {
+        serverGlobalParams.maintenancePort = params["net.maintenancePort"].as<int>();
+    }
+
     return Status::OK();
 }
 

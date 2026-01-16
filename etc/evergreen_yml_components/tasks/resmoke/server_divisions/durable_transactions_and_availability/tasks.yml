@@ -2193,6 +2193,7 @@ tasks:
         "incompatible_debug_mode",
         "misc_js",
         "requires_execution_on_windows_patch_build",
+        "requires_large_host",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2278,9 +2279,6 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           suite: timeseries_crud_jscore_passthrough
-          # TODO SERVER-112057: Enable viewless timeseries feature flag in this suite
-          resmoke_args: >-
-            --disableFeatureFlags=featureFlagCreateViewlessTimeseriesCollections
 
   - <<: *gen_task_template
     name: v1index_jscore_passthrough_gen

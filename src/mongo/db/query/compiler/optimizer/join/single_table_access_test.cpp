@@ -30,7 +30,9 @@
 #include "mongo/db/query/compiler/optimizer/join/single_table_access.h"
 
 #include "mongo/bson/json.h"
+#include "mongo/db/namespace_string.h"
 #include "mongo/db/query/compiler/ce/sampling/sampling_test_utils.h"
+#include "mongo/db/query/compiler/optimizer/join/unit_test_helpers.h"
 #include "mongo/unittest/unittest.h"
 
 namespace mongo::optimizer {
@@ -39,25 +41,6 @@ using namespace mongo::cost_based_ranker;
 
 class SingleTableAccessTestFixture : public CatalogTestFixture {
 public:
-    MultipleCollectionAccessor multipleCollectionAccessor(std::vector<NamespaceString> namespaces) {
-        auto opCtx = operationContext();
-
-        auto mainAcquisitionReq = CollectionAcquisitionRequest::fromOpCtx(
-            opCtx, namespaces.front(), AcquisitionPrerequisites::kRead);
-        auto mainAcquisition = acquireCollection(opCtx, mainAcquisitionReq, LockMode::MODE_X);
-
-        CollectionOrViewAcquisitionRequests acquisitionReqs;
-        for (size_t i = 1; i < namespaces.size(); ++i) {
-            acquisitionReqs.push_back(CollectionAcquisitionRequest::fromOpCtx(
-                opCtx, namespaces[i], AcquisitionPrerequisites::kRead));
-        }
-
-        auto acquisitions = acquireCollectionsOrViews(opCtx, acquisitionReqs, LockMode::MODE_X);
-        auto acquisitionMap = makeAcquisitionMap(acquisitions);
-        return MultipleCollectionAccessor(
-            std::move(mainAcquisition), std::move(acquisitionMap), false);
-    }
-
     std::unique_ptr<ce::SamplingEstimator> samplingEstimator(const MultipleCollectionAccessor& mca,
                                                              NamespaceString nss) {
         auto collPtr = mca.lookupCollection(nss);
@@ -131,9 +114,9 @@ TEST_F(SingleTableAccessTestFixture, EstimatesPopulated) {
     ce::createCollAndInsertDocuments(opCtx, nss2, docs);
 
     {
-        auto mca = multipleCollectionAccessor({nss1, nss2});
+        auto mca = join_ordering::multipleCollectionAccessor(opCtx, {nss1, nss2});
         auto nss1UUID = mca.lookupCollection(nss1)->uuid();
-        auto nss2UUID = mca.lookupCollection(nss1)->uuid();
+        auto nss2UUID = mca.lookupCollection(nss2)->uuid();
 
         createIndex(nss1UUID, fromjson("{a: 1}"), "a_1");
         createIndex(nss1UUID, fromjson("{b: 1}"), "b_1");
@@ -142,7 +125,7 @@ TEST_F(SingleTableAccessTestFixture, EstimatesPopulated) {
     }
 
     // Get new MultiCollectionAccessor after all DDLs are done.
-    auto mca = multipleCollectionAccessor({nss1, nss2});
+    auto mca = join_ordering::multipleCollectionAccessor(opCtx, {nss1, nss2});
 
     SamplingEstimatorMap estimators;
     estimators[nss1] = samplingEstimator(mca, nss1);
@@ -151,11 +134,11 @@ TEST_F(SingleTableAccessTestFixture, EstimatesPopulated) {
     auto filter1 = fromjson("{a: 1, b: 1}");
     auto filter2 = fromjson("{a: 1, b: 1}");
 
-    std::vector<std::unique_ptr<CanonicalQuery>> queries;
-    queries.push_back(makeCanonicalQuery(nss1, filter1));
-    queries.push_back(makeCanonicalQuery(nss2, filter2));
-
-    auto swRes = singleTableAccessPlans(opCtx, mca, queries, estimators);
+    // Mock a JoinGraph for testing purposes.
+    join_ordering::JoinGraph graph;
+    graph.addNode(nss1, makeCanonicalQuery(nss1, filter1), boost::none);
+    graph.addNode(nss2, makeCanonicalQuery(nss2, filter2), boost::none);
+    auto swRes = singleTableAccessPlans(opCtx, mca, graph, estimators);
     ASSERT_OK(swRes);
 
     auto& res = swRes.getValue();

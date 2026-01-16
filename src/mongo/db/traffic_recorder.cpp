@@ -52,6 +52,7 @@
 #include "mongo/stdx/thread.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
+#include "mongo/util/duration.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/producer_consumer_queue.h"
 #include "mongo/util/tick_source.h"
@@ -61,6 +62,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <string>
@@ -90,24 +92,27 @@ void appendPacketHeader(DataBuilder& db, const TrafficRecordingPacket& packet) {
     db.getCursor().write<LittleEndian<uint32_t>>(fullSize);
 }
 
-TrafficRecorder::Recording::Recording(const StartTrafficRecording& options, TickSource* tickSource)
-    : _path(_getPath(std::string{options.getDestination()})),
-      _maxLogSize(options.getMaxFileSize()) {
+TrafficRecorder::Recording::Recording(const StartTrafficRecording& options,
+                                      std::filesystem::path globalRecordingDirectory,
+                                      TickSource* tickSource)
+    : _path(_getPath(globalRecordingDirectory, std::string{options.getDestination()})),
+      _maxLogSize(options.getMaxFileSize()),
+      _tickSource(tickSource) {
 
     MultiProducerSingleConsumerQueue<TrafficRecordingPacket, CostFunction>::Options queueOptions;
     queueOptions.maxQueueDepth = options.getMaxMemUsage();
     _pcqPipe =
         MultiProducerSingleConsumerQueue<TrafficRecordingPacket, CostFunction>::Pipe(queueOptions);
 
-    _trafficStats.setRunning(true);
     _trafficStats.setBufferSize(options.getMaxMemUsage());
     _trafficStats.setRecordingDir(_path);
     _trafficStats.setMaxFileSize(_maxLogSize);
-
-    startTime.store(tickSource->ticksTo<Microseconds>(tickSource->getTicks()));
 }
 
-void TrafficRecorder::Recording::run() {
+void TrafficRecorder::Recording::start() {
+    _started.store(true);
+    _trafficStats.setRunning(true);
+    startTime.store(_tickSource->ticksTo<Microseconds>(_tickSource->getTicks()));
     _thread = stdx::thread([consumer = std::move(_pcqPipe.consumer), this] {
         if (!boost::filesystem::is_directory(boost::filesystem::absolute(_path))) {
             boost::filesystem::create_directory(boost::filesystem::absolute(_path));
@@ -257,19 +262,20 @@ BSONObj TrafficRecorder::Recording::getStats() {
     return _trafficStats.toBSON();
 }
 
-std::string TrafficRecorder::Recording::_getPath(const std::string& filename) {
-    uassert(
-        ErrorCodes::BadValue, "Traffic recording filename must not be empty", !filename.empty());
+std::string TrafficRecorder::Recording::_getPath(std::filesystem::path globalRecordingDirectory,
+                                                 const std::string& recordingSubdir) {
+    uassert(ErrorCodes::BadValue,
+            "Traffic recording destination must have a non-empty value",
+            !recordingSubdir.empty());
 
-    if (gTrafficRecordingDirectory.back() == '/') {
-        gTrafficRecordingDirectory.pop_back();
-    }
-    auto parentPath = boost::filesystem::path(gTrafficRecordingDirectory);
-    auto path = parentPath / filename;
+    // Normalise as directory with trailing "/"
+    globalRecordingDirectory = globalRecordingDirectory.concat("/").lexically_normal();
+
+    auto path = globalRecordingDirectory / recordingSubdir;
 
     uassert(ErrorCodes::BadValue,
             "Traffic recording filename must be a simple filename",
-            path.parent_path() == parentPath);
+            path.parent_path().concat("/") == globalRecordingDirectory);
 
     return path.string();
 }
@@ -288,66 +294,60 @@ TrafficRecorder::TrafficRecorder() = default;
 TrafficRecorder::~TrafficRecorder() {}
 
 std::shared_ptr<TrafficRecorder::Recording> TrafficRecorder::_makeRecording(
-    const StartTrafficRecording& options, TickSource* tickSource) const {
-    return std::make_shared<Recording>(options, tickSource);
+    const StartTrafficRecording& options,
+    std::filesystem::path globalRecordingDirectory,
+    TickSource* tickSource) const {
+    return std::make_shared<Recording>(options, globalRecordingDirectory, tickSource);
 }
 
 void TrafficRecorder::start(const StartTrafficRecording& options, ServiceContext* svcCtx) {
     uassert(ErrorCodes::BadValue,
-            "Traffic recording directory not set",
-            !gTrafficRecordingDirectory.empty());
+            "startTime and endTime should both be provided, or neither",
+            options.getStartTime().has_value() == options.getEndTime().has_value());
 
-    {
-        auto rec = _recording.synchronize();
-        uassert(ErrorCodes::BadValue, "Traffic recording already active", !*rec);
-        *rec = _makeRecording(options, svcCtx->getTickSource());
+    if (options.getStartTime().has_value()) {
+        auto start = *options.getStartTime();
+        auto end = *options.getEndTime();
 
-        (*rec)->run();
+        uassert(ErrorCodes::BadValue,
+                "startTime should be in the future, and less than 1 day into the future",
+                start > Date_t::now() && start < (Date_t::now() + Days(1)));
+
+
+        uassert(ErrorCodes::BadValue,
+                "endTime should be after startTime, and less than 10 days into the future",
+                end > start && end < (Date_t::now() + Days(10)));
     }
-    {
-        // TODO SERVER-111903: Ensure all session starts are observed exactly once. A session
-        // starting just after this getActiveSessions call, but before _shouldRecord is updated
-        // will not report session started.
-        auto sessions = getActiveSessions(svcCtx);
-        // Record SessionStart events if exists any active session.
-        for (const auto& [id, session] : sessions) {
-            observe(id, session, Message(), svcCtx, EventType::kSessionStart);
-        }
-    }
-    _shouldRecord.store(true);
+
+    _prepare(options, svcCtx);
+    _start(svcCtx);
 }
 
 void TrafficRecorder::stop(ServiceContext* svcCtx) {
-    auto sessions = getActiveSessions(svcCtx);
-    // Record SessionEnd events if exists any active session.
-    for (const auto& [id, session] : sessions) {
-        observe(id, session, Message(), svcCtx, EventType::kSessionEnd);
-    }
-
-    _shouldRecord.store(false);
-
-    auto recording = [&] {
-        auto rec = _recording.synchronize();
-        uassert(ErrorCodes::BadValue, "Traffic recording not active", *rec);
-
-        return std::move(*rec);
-    }();
-
-    uassertStatusOK(recording->shutdown());
+    _stop(svcCtx);
 }
 
-void TrafficRecorder::observe(const std::shared_ptr<transport::Session>& ts,
-                              const Message& message,
-                              ServiceContext* svcCtx,
-                              EventType eventType) {
-    observe(ts->id(), ts->toBSON().toString(), message, svcCtx, eventType);
+void TrafficRecorder::sessionStarted(const transport::Session& ts) {
+    auto id = ts.id();
+    auto session = ts.toBSON().toString();
+    _observe(id, session, Message(), EventType::kSessionStart);
+}
+void TrafficRecorder::sessionEnded(const transport::Session& ts) {
+    auto id = ts.id();
+    auto session = ts.toBSON().toString();
+    _observe(id, session, Message(), EventType::kSessionEnd);
 }
 
-void TrafficRecorder::observe(uint64_t id,
-                              const std::string& session,
+void TrafficRecorder::observe(const transport::Session& ts,
                               const Message& message,
-                              ServiceContext* svcCtx,
                               EventType eventType) {
+    _observe(ts.id(), ts.toBSON().toString(), message, eventType);
+}
+
+void TrafficRecorder::_observe(uint64_t id,
+                               const std::string& session,
+                               const Message& message,
+                               EventType eventType) {
     if (!_shouldRecord.load()) {
         return;
     }
@@ -359,26 +359,92 @@ void TrafficRecorder::observe(uint64_t id,
         return;
     }
 
-    auto* tickSource = svcCtx->getTickSource();
+    _observe(*recording, id, session, message, eventType);
+}
+
+void TrafficRecorder::_observe(Recording& recording,
+                               uint64_t id,
+                               const std::string& session,
+                               const Message& message,
+                               EventType eventType) {
+
+    auto* tickSource = recording.getTickSource();
     // Try to record the message
-    if (recording->pushRecord(id,
-                              session,
-                              tickSource->ticksTo<Microseconds>(tickSource->getTicks()) -
-                                  recording->startTime.load(),
-                              recording->order.addAndFetch(1),
-                              message,
-                              eventType)) {
+    if (recording.pushRecord(id,
+                             session,
+                             tickSource->ticksTo<Microseconds>(tickSource->getTicks()) -
+                                 recording.startTime.load(),
+                             recording.order.addAndFetch(1),
+                             message,
+                             eventType)) {
         return;
     }
 
     // If the recording isn't the one we have in hand bail (its been ended, or a new one has
     // been created
-    if (**_recording != recording) {
+    if (_recording->get() != &recording) {
         return;
     }
 
     // We couldn't queue and it's still our recording.  No one else should try to queue
     _shouldRecord.store(false);
+}
+
+
+void TrafficRecorder::_prepare(const StartTrafficRecording& options, ServiceContext* svcCtx) {
+    auto globalRecordingDirectory = gTrafficRecordingDirectory;
+    uassert(ErrorCodes::BadValue,
+            "Traffic recording directory not set",
+            !globalRecordingDirectory.empty());
+
+    {
+        auto rec = _recording.synchronize();
+        uassert(ErrorCodes::BadValue, "Traffic recording already active", !*rec);
+        *rec = _makeRecording(options, globalRecordingDirectory, svcCtx->getTickSource());
+    }
+}
+
+void TrafficRecorder::_start(ServiceContext* svcCtx) {
+    std::shared_ptr<Recording> recording = _getCurrentRecording();
+
+    uassert(ErrorCodes::BadValue, "Traffic recording must be prepared before starting", recording);
+    uassert(ErrorCodes::BadValue,
+            "Traffic recording instance cannot be started repeatedly",
+            !recording->started());
+
+    recording->start();
+    _shouldRecord.store(true);
+
+    // TODO SERVER-111903: Ensure all session starts are observed exactly once. A session
+    // starting just before this getActiveSessions call may be reported twice.
+    // For now, duplicate session starts are simpler to handle than omitted ones.
+    auto sessions = getActiveSessions(svcCtx);
+    // Record SessionStart events if any active sessions exist.
+    for (const auto& [id, session] : sessions) {
+        _observe(*recording, id, session, Message(), EventType::kSessionStart);
+    }
+}
+void TrafficRecorder::_stop(ServiceContext* svcCtx) {
+    // Take the recording, if it exists.
+    // Past this point, other operations cannot record events.
+    std::shared_ptr<Recording> recording = std::move(*_recording.synchronize());
+
+    uassert(ErrorCodes::BadValue, "Traffic recording not active", recording);
+
+    // Record SessionEnd events if any active sessions exist.
+    auto sessions = getActiveSessions(svcCtx);
+
+    for (const auto& [id, session] : sessions) {
+        _observe(*recording, id, session, Message(), EventType::kSessionEnd);
+    }
+
+    _shouldRecord.store(false);
+
+    uassertStatusOK(recording->shutdown());
+}
+
+void TrafficRecorder::_fail() {
+    _recording->reset();
 }
 
 std::shared_ptr<TrafficRecorder::Recording> TrafficRecorder::_getCurrentRecording() const {
@@ -421,13 +487,21 @@ TrafficRecorderForTest::getCurrentRecording() const {
 
 
 std::shared_ptr<TrafficRecorder::Recording> TrafficRecorderForTest::_makeRecording(
-    const StartTrafficRecording& options, TickSource* tickSource) const {
+    const StartTrafficRecording& options,
+    std::filesystem::path globalRecordingDirectory,
+    TickSource* tickSource) const {
     return std::make_shared<TrafficRecorderForTest::RecordingForTest>(options, tickSource);
 }
 
 TrafficRecorderForTest::RecordingForTest::RecordingForTest(const StartTrafficRecording& options,
                                                            TickSource* tickSource)
-    : TrafficRecorder::Recording(options, tickSource) {}
+    : TrafficRecorder::Recording(options, gTrafficRecordingDirectory, tickSource) {}
+
+TrafficRecorderForTest::RecordingForTest::RecordingForTest(
+    const StartTrafficRecording& options,
+    std::filesystem::path globalRecordingDirectory,
+    TickSource* tickSource)
+    : TrafficRecorder::Recording(options, globalRecordingDirectory, tickSource) {}
 
 MultiProducerSingleConsumerQueue<TrafficRecordingPacket,
                                  TrafficRecorder::Recording::CostFunction>::Pipe&
@@ -435,7 +509,7 @@ TrafficRecorderForTest::RecordingForTest::getPcqPipe() {
     return _pcqPipe;
 }
 
-void TrafficRecorderForTest::RecordingForTest::run() {
+void TrafficRecorderForTest::RecordingForTest::start() {
     // No-op for tests
 }
 

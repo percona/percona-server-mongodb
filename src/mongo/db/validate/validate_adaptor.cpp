@@ -971,10 +971,11 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
     RecordId prevRecordId;
 
     // In case validation occurs twice and the progress meter persists after index traversal
-    if (_progress.get(WithLock::withoutLock()) &&
-        _progress.get(WithLock::withoutLock())->isActive()) {
+    {
         stdx::unique_lock<Client> lk(*opCtx->getClient());
-        _progress.get(lk)->finished();
+        if (_progress.get(lk) && _progress.get(lk)->isActive()) {
+            _progress.get(lk)->finished();
+        }
     }
 
     // Because the progress meter is intended as an approximation, it's sufficient to get the number
@@ -1149,7 +1150,7 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                           {logv2::LogTruncation::Disabled},
                                           kMalformedMinMaxTimeseriesBucket,
                                           logAttrs(coll->ns()),
-                                          "bucketId"_attr = record->id,
+                                          "recordId"_attr = record->id,
                                           "error"_attr =
                                               containsMixedSchemaDataResponse.getStatus());
                 } else if (containsMixedSchemaDataResponse.isOK() &&
@@ -1162,14 +1163,20 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                               {logv2::LogTruncation::Disabled},
                                               kExpectedMixedSchemaTimeseriesWarning,
                                               logAttrs(coll->ns()),
-                                              "bucketId"_attr = record->id);
+                                              "recordId"_attr = record->id);
                     } else if (!mixedSchemaAllowed &&
                                results->addError(kUnexpectedMixedSchemaTimeseriesError)) {
+                        const auto& controlField =
+                            recordBson.getField(timeseries::kBucketControlFieldName).Obj();
+                        int count =
+                            controlField.getIntField(timeseries::kBucketControlCountFieldName);
                         LOGV2_WARNING_OPTIONS(8469902,
                                               {logv2::LogTruncation::Disabled},
                                               kUnexpectedMixedSchemaTimeseriesError,
                                               logAttrs(coll->ns()),
-                                              "bucketId"_attr = record->id);
+                                              "recordId"_attr = record->id,
+                                              "objSize"_attr = recordBson.objsize(),
+                                              "measurementCount"_attr = count);
                     }
                 }
             }
@@ -1228,13 +1235,15 @@ void ValidateAdaptor::traverseIndex(OperationContext* opCtx,
                                     ValidateResults* results) {
     // The progress meter will be inactive after traversing the record store to allow the message
     // and the total to be set to different values.
-    if (!_progress.get(WithLock::withoutLock())->isActive()) {
-        const char* curopMessage = "Validate: scanning index entries";
+    {
         stdx::unique_lock<Client> lk(*opCtx->getClient());
-        _progress.set(lk,
-                      CurOp::get(opCtx)->setProgress(
-                          lk, curopMessage, _keyBasedIndexConsistency.getTotalIndexKeys()),
-                      opCtx);
+        if (!_progress.get(lk)->isActive()) {
+            const char* curopMessage = "Validate: scanning index entries";
+            _progress.set(lk,
+                          CurOp::get(opCtx)->setProgress(
+                              lk, curopMessage, _keyBasedIndexConsistency.getTotalIndexKeys()),
+                          opCtx);
+        }
     }
 
     int64_t numKeys = _keyBasedIndexConsistency.traverseIndex(opCtx, index, _progress, results);

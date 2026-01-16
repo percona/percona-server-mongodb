@@ -31,6 +31,7 @@
 #include "mongo/db/query/write_ops/write_ops_gen.h"
 #include "mongo/db/timeseries/bucket_catalog/bucket_catalog.h"
 #include "mongo/db/timeseries/bucket_catalog/write_batch.h"
+#include "mongo/util/modules.h"
 
 #include <boost/optional/optional.hpp>
 
@@ -52,9 +53,6 @@ struct ContinuableRetryableErrorWithAbortBatch {
 struct ContinuableRetryableErrorWithAbortBatchAbandonSnapshot {
     Status error;
 };
-struct NonContinuableError {
-    Status error;
-};
 struct NonContinuableErrorWithAbortBatch {
     Status error;
 };
@@ -65,7 +63,6 @@ using Result = std::variant<Success,
                             ContinuableRetryableError,
                             ContinuableRetryableErrorWithAbortBatch,
                             ContinuableRetryableErrorWithAbortBatchAbandonSnapshot,
-                            NonContinuableError,
                             NonContinuableErrorWithAbortBatch>;
 
 }  // namespace commit_result

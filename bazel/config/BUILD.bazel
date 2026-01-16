@@ -24,6 +24,7 @@ load(
     "disable_warnings_as_errors",
     "dtlto",
     "dwarf_version",
+    "evg",
     "fsan",
     "gcov",
     "http_client",
@@ -1640,6 +1641,26 @@ config_setting(
     },
 )
 
+config_setting(
+    name = "tsan_enabled_x86_64",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+    ],
+    flag_values = {
+        "//bazel/config:tsan": "True",
+    },
+)
+
+config_setting(
+    name = "tsan_enabled_arm64",
+    constraint_values = [
+        "@platforms//cpu:aarch64",
+    ],
+    flag_values = {
+        "//bazel/config:tsan": "True",
+    },
+)
+
 selects.config_setting_group(
     name = "sanitize_address_required_settings",
     match_all = [
@@ -1727,7 +1748,7 @@ config_setting(
 
 dev_stacktrace(
     name = "dev_stacktrace",
-    build_setting_default = False,
+    build_setting_default = True,
 )
 
 config_setting(
@@ -1736,6 +1757,15 @@ config_setting(
     flag_values = {
         "//bazel/config:dev_stacktrace": "True",
         "//bazel/config:release": "False",
+        "//bazel/config:evg": "False",
+
+        # TODO(SERVER-112857): Fix dev_stacktrace compatibility with sanitizers/symbolizer and then remove the following lines
+        "//bazel/config:asan": "False",
+        "//bazel/config:fsan": "False",
+        "//bazel/config:msan": "False",
+        "//bazel/config:lsan": "False",
+        "//bazel/config:tsan": "False",
+        "//bazel/config:ubsan": "False",
     },
 )
 
@@ -3032,5 +3062,37 @@ config_setting(
     name = "all_headers_enabled",
     flag_values = {
         "//bazel/config:all_headers": "True",
+    },
+)
+
+# --------------------------------------
+# antithesis options
+# --------------------------------------
+
+bool_flag(
+    name = "antithesis",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "antithesis_enabled",
+    flag_values = {
+        "//bazel/config:antithesis": "True",
+    },
+)
+
+# --------------------------------------
+# evg options
+# --------------------------------------
+
+evg(
+    name = "evg",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "running_in_evg",
+    flag_values = {
+        "//bazel/config:evg": "True",
     },
 )
