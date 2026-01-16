@@ -57,7 +57,6 @@
 #include "mongo/executor/task_executor.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/fail_point.h"
 
 #include <functional>
 #include <memory>
@@ -74,31 +73,7 @@ class BSONObj;
 class OperationContext;
 class Pipeline;
 
-/**
- * Enabling the disablePipelineOptimization fail point will stop the aggregate command from
- * attempting to optimize the pipeline or the pipeline stages. Neither DocumentSource::optimizeAt()
- * nor DocumentSource::optimize() will be attempted.
- */
-extern FailPoint disablePipelineOptimization;
-
 using PipelineValidatorCallback = std::function<void(const Pipeline&)>;
-
-struct MakePipelineOptions {
-    bool optimize = true;
-
-    // It is assumed that the pipeline has already been optimized when we create the
-    // MakePipelineOptions. If this is not the case, the caller is responsible for setting
-    // alreadyOptimized to false.
-    bool alreadyOptimized = true;
-    bool attachCursorSource = true;
-
-    // When set to true, ensures that default collection collator will be attached to the pipeline.
-    // Needs 'attachCursorSource' set to true, in order to be applied.
-    bool useCollectionDefaultCollator = false;
-    ShardTargetingPolicy shardTargetingPolicy = ShardTargetingPolicy::kAllowed;
-    PipelineValidatorCallback validator = nullptr;
-    boost::optional<BSONObj> readConcern;
-};
 
 /**
  * A Pipeline object represents a list of DocumentSources and is responsible for optimizing the
@@ -173,50 +148,6 @@ public:
     static bool aggHasWriteStage(const BSONObj& cmd);
 
     /**
-     * Parses a Pipeline from a vector of BSONObjs representing DocumentSources. The state of the
-     * returned pipeline will depend upon the supplied MakePipelineOptions:
-     * - The boolean opts.optimize determines whether the pipeline will be optimized.
-     * - If opts.attachCursorSource is false, the pipeline will be returned without attempting to
-     * add an initial cursor source.
-     */
-    static std::unique_ptr<Pipeline> makePipeline(
-        const std::vector<BSONObj>& rawPipeline,
-        const boost::intrusive_ptr<ExpressionContext>& expCtx,
-        MakePipelineOptions opts = MakePipelineOptions{});
-
-    /**
-     * Creates a Pipeline from an AggregateCommandRequest. This preserves any aggregation options
-     * set on the aggRequest. The state of the returned pipeline will depend upon the supplied
-     * MakePipelineOptions:
-     * - The boolean opts.optimize determines whether the pipeline will be optimized.
-     * - If opts.attachCursorSource is false, the pipeline will be returned without attempting to
-     * add an initial cursor source.
-     *
-     * This function throws if parsing the pipeline set on aggRequest failed.
-     */
-    static std::unique_ptr<Pipeline> makePipeline(
-        AggregateCommandRequest& aggRequest,
-        const boost::intrusive_ptr<ExpressionContext>& expCtx,
-        boost::optional<BSONObj> shardCursorsSortSpec = boost::none,
-        const MakePipelineOptions& opts = MakePipelineOptions{});
-
-    /**
-     * Optimize the given pipeline after the stage that 'itr' points to.
-     *
-     * Returns a valid iterator that points to the new "end of the pipeline": i.e., the stage that
-     * comes after 'itr' in the newly optimized pipeline.
-     */
-    static DocumentSourceContainer::iterator optimizeEndOfPipeline(
-        DocumentSourceContainer::iterator itr, DocumentSourceContainer* container);
-
-    static std::unique_ptr<Pipeline> makePipelineFromViewDefinition(
-        const boost::intrusive_ptr<ExpressionContext>& subPipelineExpCtx,
-        ResolvedNamespace resolvedNs,
-        std::vector<BSONObj> currentPipeline,
-        const MakePipelineOptions& opts,
-        const NamespaceString& originalNs);
-
-    /**
      * Callers can optionally specify 'newExpCtx' to construct the deep clone with it. This will be
      * used to construct all the cloned DocumentSources as well.
      *
@@ -228,7 +159,6 @@ public:
     const boost::intrusive_ptr<ExpressionContext>& getContext() const {
         return pCtx;
     }
-
 
     bool isFrozen() const {
         return _frozen;
@@ -324,22 +254,6 @@ public:
                                         const CollectionRoutingInfo& cri);
     void performPreOptimizationRewrites(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                         const CollectionOrViewAcquisition& collOrView);
-
-    /**
-     * Modifies the pipeline, optimizing it by combining and swapping stages.
-     */
-    void optimizePipeline();
-
-    /**
-     * Modifies the container, optimizes each stage individually.
-     */
-    static void optimizeEachStage(DocumentSourceContainer* container);
-
-    /**
-     * Modifies the container, optimizing it by combining, swapping, dropping and/or inserting
-     * stages.
-     */
-    static void optimizeContainer(DocumentSourceContainer* container);
 
     /**
      * Returns any other collections involved in the pipeline in addition to the collection the
@@ -450,15 +364,21 @@ public:
     }
 
     /**
+     * Returns a pointer to the first stage of the pipeline, or a nullptr if the pipeline is empty.
+     */
+    DocumentSource* peekFront() const;
+
+    /**
      * Removes and returns the first stage of the pipeline. Returns nullptr if the pipeline is
      * empty.
      */
     boost::intrusive_ptr<DocumentSource> popFront();
 
     /**
-     * Returns a pointer to the first stage of the pipeline, or a nullptr if the pipeline is empty.
+     * Removes and returns the first stage of the pipeline if its name is 'targetStageName'.
+     * Returns nullptr if there is no first stage with that name.
      */
-    DocumentSource* peekFront() const;
+    boost::intrusive_ptr<DocumentSource> popFrontWithName(StringData targetStageName);
 
     /**
      * Removes and returns the last stage of the pipeline. Returns nullptr if the pipeline is empty.
@@ -468,21 +388,7 @@ public:
     /**
      * Adds the given stage to the end of the pipeline.
      */
-    void pushBack(boost::intrusive_ptr<DocumentSource>);
-
-    /**
-     * Removes and returns the first stage of the pipeline if its name is 'targetStageName'.
-     * Returns nullptr if there is no first stage with that name.
-     */
-    boost::intrusive_ptr<DocumentSource> popFrontWithName(StringData targetStageName);
-
-    /**
-     * Removes and returns the first stage of the pipeline if its name is 'targetStageName' and the
-     * given 'predicate' function, if present, returns 'true' when called with a pointer to the
-     * stage. Returns nullptr if there is no first stage which meets these criteria.
-     */
-    boost::intrusive_ptr<DocumentSource> popFrontWithNameAndCriteria(
-        StringData targetStageName, std::function<bool(const DocumentSource* const)> predicate);
+    void pushBack(boost::intrusive_ptr<DocumentSource> newStage);
 
     /**
      * Appends another pipeline to the existing pipeline.
@@ -499,15 +405,6 @@ public:
      * initial source as the first stage, which is illegal for $facet pipelines.
      */
     void validateCommon(bool alreadyOptimized) const;
-
-    /**
-     * PipelineD is a "sister" class that has additional functionality for the Pipeline. It exists
-     * because of linkage requirements. Pipeline needs to function in mongod and mongos. PipelineD
-     * contains extra functionality required in mongod, and which can't appear in mongos because the
-     * required symbols are unavailable for linking there. Consider PipelineD to be an extension of
-     * this class for mongod only.
-     */
-    friend class PipelineD;
 
     /**
      * For commands that return multiple pipelines, this value will contain the type of pipeline.
@@ -572,13 +469,6 @@ private:
         PipelineValidatorCallback validator,
         bool isFacetPipeline,
         std::function<BSONObj(T)> getElemFunc);
-
-    static std::unique_ptr<Pipeline> viewPipelineHelperForSearch(
-        const boost::intrusive_ptr<ExpressionContext>& subPipelineExpCtx,
-        ResolvedNamespace resolvedNs,
-        std::vector<BSONObj> currentPipeline,
-        const MakePipelineOptions& opts,
-        const NamespaceString& originalNs);
 
     DocumentSourceContainer _sources;
 

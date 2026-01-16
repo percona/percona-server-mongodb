@@ -96,6 +96,7 @@ protected:
     std::vector<HostAndPort> makeHostList(size_t count);
 
     void processAllNetworkRequests(const std::vector<RemoteCommandResponse>& responses);
+    void processNetworkRequest(const RemoteCommandResponse& response);
 
     template <typename Duration>
     void advanceTime(Duration d) {
@@ -108,12 +109,25 @@ protected:
         return _net->hasReadyRequests();
     }
 
+    Milliseconds advanceUntilReadyRequest() const {
+        using namespace std::literals;
+        stdx::this_thread::sleep_for(1ms);
+        auto totalWaited = Milliseconds{0};
+        auto _ = executor::NetworkInterfaceMock::InNetworkGuard{_net};
+        while (!_net->hasReadyRequests()) {
+            auto advance = Milliseconds{10};
+            _net->advanceTime(_net->now() + advance);
+            totalWaited += advance;
+            stdx::this_thread::sleep_for(100us);
+        }
+        return totalWaited;
+    }
+
     void checkRequestReadyAfterDelay(const int testBaseBackoffMillis) {
         // Verify the request doesn't get immediately retried because 'SystemOverloadedError' label
         // implies entering in an backoff delay.
-        advanceTime(Milliseconds(testBaseBackoffMillis - 1));
-        ASSERT_FALSE(networkHasReadyRequests());
-        advanceTime(Milliseconds(1));
+        auto waited = advanceUntilReadyRequest();
+        ASSERT_GTE(waited, Milliseconds{testBaseBackoffMillis});
         ASSERT_TRUE(networkHasReadyRequests());
     }
 
@@ -155,21 +169,24 @@ std::vector<HostAndPort> AsyncMulticasterTest::makeHostList(size_t count) {
     return hosts;
 }
 
+void AsyncMulticasterTest::processNetworkRequest(const RemoteCommandResponse& response) {
+    auto net = getNet();
+    executor::NetworkInterfaceMock::InNetworkGuard guard(net);
+    ASSERT_TRUE(net->hasReadyRequests());
+    auto noi = net->getNextReadyRequest();
+    net->scheduleResponse(noi, net->now(), response);
+    net->runReadyNetworkOperations();
+}
+
 void AsyncMulticasterTest::processAllNetworkRequests(
     const std::vector<RemoteCommandResponse>& responses) {
     using namespace std::literals;
-    auto net = getNet();
-    net->enterNetwork();
     for (const auto& response : responses) {
-        while (!net->hasReadyRequests()) {
+        while (!networkHasReadyRequests()) {
             stdx::this_thread::sleep_for(100us);
         }
-        ASSERT_TRUE(net->hasReadyRequests());
-        auto noi = net->getNextReadyRequest();
-        net->scheduleResponse(noi, net->now(), response);
+        processNetworkRequest(response);
     }
-    net->runReadyNetworkOperations();
-    net->exitNetwork();
 }
 
 RemoteCommandResponse AsyncMulticasterTest::makeSuccessResponse(const std::string& result) {

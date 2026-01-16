@@ -1,4 +1,4 @@
-load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test")
+load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test", "windows_rc")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -38,6 +38,14 @@ idl_generator(
 idl_generator(
     name = "balancer_feature_flag_gen",
     src = "balancer_feature_flag.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+    ],
+)
+
+idl_generator(
+    name = "balancer_configuration_gen",
+    src = "balancer_configuration.idl",
     deps = [
         "//src/mongo/db:basic_types_gen",
     ],
@@ -230,7 +238,6 @@ mongo_cc_library(
         "//src/mongo/s/client:shard_interface",
         "//src/mongo/s/query/exec:cluster_cursor_manager",
         "//src/mongo/util:caching",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/util:observable_mutex_registry",
         "//src/mongo/util/concurrency:spin_lock",  # TODO(SERVER-93876): Remove.
         "//src/mongo/util/concurrency:thread_pool",
     ],
@@ -345,6 +352,7 @@ mongo_cc_library(
         "refresh_query_analyzer_configuration_cmd_gen",
         "transaction_participant_failed_unyield_exception.cpp",
         "would_change_owning_shard_exception.cpp",
+        ":balancer_configuration_gen",
         ":balancer_feature_flag_gen",
         "//src/mongo/db/cluster_parameters:sharding_cluster_parameters_gen",
         "//src/mongo/db/global_catalog:chunk.cpp",
@@ -613,6 +621,7 @@ mongo_cc_library(
         "//src/mongo/executor:connection_pool_executor",
         "//src/mongo/executor:scoped_task_executor",
         "//src/mongo/executor:thread_pool_task_executor",
+        "//src/mongo/otel:telemetry_context_metadata_hook",
         "//src/mongo/rpc:client_metadata",
         "//src/mongo/rpc:metadata",
         "//src/mongo/rpc:metadata_impersonated_user",
@@ -759,6 +768,8 @@ mongo_cc_library(
         "//src/mongo/db:vector_clock",
         "//src/mongo/executor:async_rpc_error_info",
         "//src/mongo/idl:cluster_server_parameter_server_status",
+        "//src/mongo/otel",
+        "//src/mongo/otel/traces:tracing",
         "//src/mongo/logv2/log_metric_initializer",
         "//src/mongo/transport:message_compressor_options_server",
         "//src/mongo/transport:session_manager",
@@ -767,6 +778,7 @@ mongo_cc_library(
         "//src/mongo/util:clock_sources",
         "//src/mongo/util/net:http_client_impl",
         "//src/mongo/util:ntservice",
+        "//src/mongo/util:observable_mutex_server_status_section",
         "//src/mongo/util/options_parser",
         "//src/mongo/util/options_parser:options_parser_init",
         "//src/mongo/util:pin_code_segments",
@@ -881,6 +893,7 @@ mongo_cc_library(
         "//src/mongo/db:startup_warnings_common",
         "//src/mongo/db/telemetry:telemetry_s",
         "//src/mongo/idl:cluster_server_parameter_refresher",
+        "//src/mongo/otel",
         "//src/mongo/transport:ingress_handshake_metrics",
         "//src/mongo/transport:service_executor",
         "//src/mongo/transport:session_manager",
@@ -914,6 +927,13 @@ mongo_cc_library(
     }),
 )
 
+windows_rc(
+    name = "mongos_res",
+    src = "mongos.rc",
+    icon = "//src/mongo/db:mongo.ico",
+    manifest_in = "mongos.manifest.in",
+)
+
 mongo_cc_binary(
     name = "mongos",
     srcs = [
@@ -930,7 +950,6 @@ mongo_cc_binary(
         "devcore",
         "dist_test",
     ],
-    #+ env.WindowsResourceFile("mongos.rc"),
     deps = [
         # NOTE: Do not add new deps here unless required by the linker to
         # satisfy symbol dependencies from the files listed above in `sources`. If you need to add a
@@ -938,6 +957,7 @@ mongo_cc_binary(
         # dep of mongos_initializers.
         "mongos_main",
         "//src/mongo/db:server_base",
+        "mongos_res",
     ],
 )
 

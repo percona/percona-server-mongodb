@@ -41,6 +41,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/storage/control/storage_control.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
+#include "mongo/db/storage/oplog_cap_maintainer_thread.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/recovery_unit_noop.h"
 #include "mongo/db/storage/storage_engine_change_context.h"
@@ -282,6 +283,7 @@ StorageEngine::LastShutdownState reinitializeStorageEngine(
     StorageEngineInitFlags initFlags,
     bool isReplSet,
     bool shouldRecoverFromOplogAsStandalone,
+    bool shouldSkipOplogSampling,
     bool inStandaloneMode,
     std::function<void()> changeConfigurationCallback) {
     auto service = opCtx->getServiceContext();
@@ -299,6 +301,7 @@ StorageEngine::LastShutdownState reinitializeStorageEngine(
                                 shouldRecoverFromOplogAsStandalone,
                                 inStandaloneMode);
     StorageControl::startStorageControls(service);
+    startOplogCapMaintainerThread(service, isReplSet, shouldSkipOplogSampling);
     return lastShutdownState;
 }
 

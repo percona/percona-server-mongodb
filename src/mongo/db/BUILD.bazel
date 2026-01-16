@@ -1,5 +1,5 @@
 load("@poetry//:dependencies.bzl", "dependency")
-load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_fuzzer_test", "mongo_cc_integration_test", "mongo_cc_library", "mongo_cc_unit_test", "mongo_idl_library")
+load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_fuzzer_test", "mongo_cc_integration_test", "mongo_cc_library", "mongo_cc_unit_test", "mongo_idl_library", "windows_rc")
 load("//bazel/config:render_template.bzl", "render_template")
 
 package(default_visibility = ["//visibility:public"])
@@ -8,6 +8,7 @@ exports_files(
     glob([
         "*.h",
         "*.cpp",
+        "*.ico",
     ]),
 )
 
@@ -1677,8 +1678,8 @@ mongo_cc_library(
         ":server_base",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db:service_context",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/commands/server_status:server_status_core",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/db/sorter:sorter_base",
         "//src/mongo/rpc",
+        "//src/third_party/abseil-cpp:absl_crc32c",
     ],
 )
 
@@ -2235,7 +2236,6 @@ mongo_cc_library(
         "//src/mongo/db/storage:recovery_unit_base",
         "//src/mongo/db/storage:write_unit_of_work",
         "//src/mongo/util:clock_sources",
-        "//src/mongo/util:observable_mutex_registry",
         "//src/mongo/util:periodic_runner",
         "//src/mongo/util:processinfo",
         "//src/mongo/util/concurrency:spin_lock",
@@ -3243,6 +3243,7 @@ mongo_cc_library(
         "//src/mongo/util/net:network",
         "//src/mongo/util:ntservice",
         "//src/mongo/util/options_parser:options_parser_init",
+        "//src/mongo/util:observable_mutex_server_status_section",
         "//src/mongo/util:periodic_runner_factory",
         "//src/mongo/util:pin_code_segments",
         "//src/mongo/util:testing_options",
@@ -3335,6 +3336,8 @@ mongo_cc_library(
         "//src/mongo/db/ttl:ttl_d",
         "//src/mongo/db/update:update_driver",
         "//src/mongo/otel/metrics:otel_metrics",
+        "//src/mongo/otel",
+        "//src/mongo/otel/traces:tracing",
         "update_index_data",
     ] + select({
         "//bazel/config:use_tracing_profiler_enabled": [
@@ -3602,6 +3605,13 @@ mongo_cc_binary(
     ],
 )
 
+windows_rc(
+    name = "mongod_res",
+    src = "mongod.rc",
+    icon = "mongo.ico",
+    manifest_in = "mongod.manifest.in",
+)
+
 mongo_cc_binary(
     name = "mongod",
     srcs = [
@@ -3654,7 +3664,6 @@ mongo_cc_binary(
         "devcore",
         "dist_test",
     ],
-    #+ env.WindowsResourceFile("mongod.rc"),
     deps = [
         # NOTE: Do not add new deps here unless required by the linker to
         # satisfy symbol dependencies from the files listed above in `sources`. If you need to add a
@@ -3662,6 +3671,7 @@ mongo_cc_binary(
         # dep of mongod_initializers.
         "mongod_main",
         "server_base",
+        "mongod_res",
     ],
 )
 

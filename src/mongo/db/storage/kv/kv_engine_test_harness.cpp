@@ -92,7 +92,7 @@ public:
     ServiceContext::UniqueOperationContext _opCtx;
 };
 
-class MDBCatalogTest : public ServiceContextTest {
+class KVEngineMDBCatalogTest : public ServiceContextTest {
 protected:
     void setUp() override {
         helper = KVHarnessHelper::create(getServiceContext());
@@ -1080,7 +1080,7 @@ DEATH_TEST_REGEX_F(KVEngineTestHarness, CommitBehindStable, "Fatal assertion.*39
     }
 }
 
-TEST_F(MDBCatalogTest, Coll1) {
+TEST_F(KVEngineMDBCatalogTest, Coll1) {
     std::unique_ptr<RecordStore> catalogRS = createCatalogRS();
     std::unique_ptr<MDBCatalog> catalog = createMDBCatalog(catalogRS.get());
     RecordId catalogId;
@@ -1124,7 +1124,7 @@ TEST_F(MDBCatalogTest, Coll1) {
     ASSERT_NOT_EQUALS(ident, catalog->getEntry(newCatalogId).ident);
 }
 
-TEST_F(MDBCatalogTest, Idx1) {
+TEST_F(KVEngineMDBCatalogTest, Idx1) {
     std::unique_ptr<RecordStore> catalogRS = createCatalogRS();
     std::unique_ptr<MDBCatalog> catalog = createMDBCatalog(catalogRS.get());
 
@@ -1198,14 +1198,14 @@ TEST_F(MDBCatalogTest, Idx1) {
     }
 }
 
-TEST_F(MDBCatalogTest, BackupImplemented) {
+TEST_F(KVEngineMDBCatalogTest, BackupImplemented) {
     KVEngine* engine = helper->getEngine();
     ASSERT(engine);
     ASSERT_OK(engine->beginBackup());
     engine->endBackup();
 }
 
-TEST_F(MDBCatalogTest, AddRemoveAddRollBack) {
+TEST_F(KVEngineMDBCatalogTest, AddRemoveAddRollBack) {
     std::unique_ptr<RecordStore> catalogRS = createCatalogRS();
     std::unique_ptr<MDBCatalog> catalog = createMDBCatalog(catalogRS.get());
 
@@ -1224,7 +1224,7 @@ TEST_F(MDBCatalogTest, AddRemoveAddRollBack) {
     ASSERT_FALSE(catalog->getEntry_forTest(catalogId).has_value());
 }
 
-TEST_F(MDBCatalogTest, AddRemoveAddCommit) {
+TEST_F(KVEngineMDBCatalogTest, AddRemoveAddCommit) {
     std::unique_ptr<RecordStore> catalogRS = createCatalogRS();
     std::unique_ptr<MDBCatalog> catalog = createMDBCatalog(catalogRS.get());
 
@@ -1244,7 +1244,7 @@ TEST_F(MDBCatalogTest, AddRemoveAddCommit) {
     ASSERT_TRUE(catalog->getEntry_forTest(catalogId).has_value());
 }
 
-TEST_F(MDBCatalogTest, EntryIncludesTenantIdInMultitenantEnv) {
+TEST_F(KVEngineMDBCatalogTest, EntryIncludesTenantIdInMultitenantEnv) {
     gMultitenancySupport = true;
     std::unique_ptr<RecordStore> catalogRS = createCatalogRS();
     std::unique_ptr<MDBCatalog> catalog = createMDBCatalog(catalogRS.get());

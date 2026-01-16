@@ -163,7 +163,7 @@ typedef struct MongoExtensionHostQueryShapeOptsVTable {
      * transferred to the caller.
      */
     MongoExtensionStatus* (*serialize_identifier)(const MongoExtensionHostQueryShapeOpts* ctx,
-                                                  const MongoExtensionByteView* ident,
+                                                  MongoExtensionByteView ident,
                                                   MongoExtensionByteBuf** output);
 
     /**
@@ -171,7 +171,7 @@ typedef struct MongoExtensionHostQueryShapeOptsVTable {
      * transferred to the caller.
      */
     MongoExtensionStatus* (*serialize_field_path)(const MongoExtensionHostQueryShapeOpts* ctx,
-                                                  const MongoExtensionByteView* fieldPath,
+                                                  MongoExtensionByteView fieldPath,
                                                   MongoExtensionByteBuf** output);
 
     /**
@@ -186,9 +186,28 @@ typedef struct MongoExtensionHostQueryShapeOptsVTable {
      * Returned BSON format: {"": <serializedLiteral>}
      */
     MongoExtensionStatus* (*serialize_literal)(const MongoExtensionHostQueryShapeOpts* ctx,
-                                               const MongoExtensionByteView* bsonElementPtr,
+                                               MongoExtensionByteView bsonElement,
                                                MongoExtensionByteBuf** output);
 } MongoExtensionHostQueryShapeOptsVTable;
+
+/**
+ * Possible explain verbosity levels.
+ */
+typedef enum MongoExtensionExplainVerbosity : uint32_t {
+    /**
+     * Display basic information about the pipeline that would run.
+     */
+    kQueryPlanner = 0,
+    /**
+     * In addition reporting basic information about the pipeline, runs the pipeline and reports
+     * execution-related stats.
+     */
+    kExecStats = 1,
+    /**
+     * Generates kExecStats output for all possible query plans.
+     */
+    kExecAllPlans = 2,
+} MongoExtensionExplainVerbosity;
 
 /**
  * Types of aggregation stages that can be implemented as an extension.
@@ -255,6 +274,24 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      * Destroy `logicalStage` and free any related resources.
      */
     void (*destroy)(MongoExtensionLogicalAggStage* logicalStage);
+
+    /**
+     * Serialize `logicalStage` to be potentially sent across the wire to other execution nodes.
+     */
+    MongoExtensionStatus* (*serialize)(const MongoExtensionLogicalAggStage* logicalStage,
+                                       MongoExtensionByteBuf** output);
+
+    /**
+     * Populates the ByteBuf with the stage's explain output as serialized BSON. Ownership is
+     * transferred to the caller.
+     *
+     * Output is expected to be in the form {$stageName: {...}}.
+     *
+     * Note that this method will be called for all three verbosity levels.
+     */
+    MongoExtensionStatus* (*explain)(const MongoExtensionLogicalAggStage* logicalStage,
+                                     MongoExtensionExplainVerbosity verbosity,
+                                     MongoExtensionByteBuf** output);
 } MongoExtensionLogicalAggStageVTable;
 
 /**
@@ -376,6 +413,67 @@ typedef struct MongoExtensionAggStageAstNodeVTable {
 } MongoExtensionAggStageAstNodeVTable;
 
 /**
+ * Code indicating the result of a getNext() call.
+ */
+typedef enum MongoExtensionGetNextResultCode : uint8_t {
+    /**
+     * getNext() yielded a document.
+     */
+    kAdvanced = 0,
+
+    /**
+     * getNext() and the document stream was exhausted. Subsequent calls will not yield any more
+     * documents.
+     */
+    kEOF = 1,
+
+    /**
+     * getNext() did not yield a document, but may yield another document in the future.
+     */
+    kPauseExecution = 2,
+} MongoExtensionGetNextResultCode;
+
+/**
+ * MongoExtensionGetNextResult is a container used to fetch results from an
+ * ExecutableStage's get_next() function. Callers of ExecutableStage::get_next() are responsible for
+ * instantiating this struct and passing the corresponding pointer to the function invocation.
+ */
+typedef struct MongoExtensionGetNextResult {
+    MongoExtensionGetNextResultCode code;
+    MongoExtensionByteBuf* result;
+} MongoExtensionGetNextResult;
+
+/**
+ * MongoExtensionExecAggStage is the abstraction representing the executable phase of
+ * a stage by the extension.
+ */
+typedef struct MongoExtensionExecAggStage {
+    const struct MongoExtensionExecAggStageVTable* const vtable;
+} MongoExtensionExecAggStage;
+
+/**
+ * Virtual function table for MongoExtensionExecAggStage.
+ */
+typedef struct MongoExtensionExecAggStageVTable {
+    /**
+     * Destroys object and frees related resources.
+     */
+    void (*destroy)(MongoExtensionExecAggStage* execAggStage);
+
+    /**
+     * Pulls the next result from the stage executor.
+     * On success:
+     *    - Updates the provided MongoExtensionGetNextResult with a result code
+     *      indicating whether or not a document has been returned by the function.
+     *    - If the result code indicates a document is available, populates
+     *      MongoExtensionGetNextResult's ByteBuf pointer with the resulting document as
+     *      a byte buffer. Ownership of the buffer is transferred to the Host.
+     */
+    MongoExtensionStatus* (*get_next)(MongoExtensionExecAggStage* execAggStage,
+                                      MongoExtensionGetNextResult* getNextResult);
+} MongoExtensionExecAggStageVTable;
+
+/**
  * MongoExtensionHostPortal serves as the entry point for extensions to integrate with the
  * server. It exposes a function pointer, registerStageDescriptor, which allows extensions to
  * register custom aggregation stages.
@@ -417,8 +515,6 @@ typedef struct MongoExtensionHostPortalVTable {
  * MongoExtensionHostServices exposes services provided by the host to the extension.
  *
  * Currently, the VTable struct is a placeholder for future services.
- * TODO SERVER-110982 (or whichever ticket adds the first function to this struct): Remove
- * alwaysOK_TEMPORARY().
  */
 typedef struct MongoExtensionHostServices {
     const struct MongoExtensionHostServicesVTable* vtable;
@@ -428,8 +524,6 @@ typedef struct MongoExtensionHostServices {
  * Virtual function table for MongoExtensionHostServices.
  */
 typedef struct MongoExtensionHostServicesVTable {
-    MongoExtensionStatus* (*alwaysOK_TEMPORARY)();
-
     /**
      * Logs a message from the extension with severity INFO, WARNING, or ERROR.
      *

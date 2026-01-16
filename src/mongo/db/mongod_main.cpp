@@ -226,6 +226,7 @@
 #include "mongo/executor/thread_pool_task_executor.h"
 #include "mongo/logv2/log.h"
 #include "mongo/otel/metrics/metrics_initialization.h"
+#include "mongo/otel/traces/trace_initialization.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/platform/process_id.h"
@@ -1243,6 +1244,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     initPerconaTelemetry(serviceContext);
 
     serviceContext->notifyStorageStartupRecoveryComplete();
+    startOplogCapMaintainerThread(
+        serviceContext, replSettings.isReplSet(), replSettings.shouldSkipOplogSampling());
 
 #ifndef _WIN32
     initialize_server_global_state::signalForkSuccess();
@@ -1967,6 +1970,14 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         otel::metrics::shutdown();
     }
 
+    // Shutdown OpenTelemetry traces
+    {
+        SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
+                                       TimedSectionId::shutDownOtelTraces,
+                                       &shutdownTimeElapsedBuilder);
+        otel::traces::shutdown(serviceContext);
+    }
+
     // Shutdown Full-Time Data Capture
     {
         SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
@@ -2092,6 +2103,8 @@ int mongod_main(int argc, char* argv[]) {
 
         quickExit(ExitCode::auditRotateError);
     }
+
+    uassertStatusOK(otel::traces::initialize(service, "mongod"));
 
     setLocalExecutor(service, createLocalExecutor(service, "Standalone"));
 

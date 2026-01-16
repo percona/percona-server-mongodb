@@ -75,7 +75,6 @@
 #include "mongo/db/profile_collection.h"
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/query/canonical_query.h"
-#include "mongo/db/query/client_cursor/collect_query_stats_mongod.h"
 #include "mongo/db/query/collection_index_usage_tracker_decoration.h"
 #include "mongo/db/query/explain.h"
 #include "mongo/db/query/explain_diagnostic_printer.h"
@@ -1392,10 +1391,6 @@ static SingleWriteResult performSingleUpdateOpNoRetry(OperationContext* opCtx,
         *containsDotsAndDollarsField = true;
     }
 
-    curOp.setEndOfOpMetrics(0 /* no documents returned */);
-    collectQueryStatsMongod(
-        opCtx, parsedUpdate.expCtx(), std::move(curOp.debug().queryStatsInfo.key));
-
     return result;
 }
 
@@ -1448,7 +1443,7 @@ void registerRequestForQueryStats(OperationContext* opCtx,
 
 
     // Register query stats collection.
-    query_stats::registerRequest(opCtx, ns, [&]() {
+    query_stats::registerWriteRequest(opCtx, ns, [&]() {
         uassertStatusOKWithContext(deferredShape->getStatus(), "Failed to compute query shape");
         return std::make_unique<query_stats::UpdateKey>(parsedUpdate.expCtx(),
                                                         wholeOp,
@@ -1918,14 +1913,7 @@ WriteResult performUpdates(
                 collectMultiUpdateDeleteMetrics(timer->elapsed(), reply.getNModified());
             }
         } catch (const ExceptionFor<ErrorCodes::TimeseriesBucketCompressionFailed>& ex) {
-            // Do not handle errors for time-series bucket compressions. They need to be transparent
-            // to users to not interfere with any decisions around operation retry. It is OK to
-            // leave bucket uncompressed in these edge cases. We just record the status to the
-            // result vector so we can keep track of statistics for failed bucket compressions.
-            if (source == OperationSource::kTimeseriesBucketCompression) {
-                out.results.emplace_back(ex.toStatus());
-                break;
-            } else if (source == OperationSource::kTimeseriesInsert) {
+            if (source == OperationSource::kTimeseriesInsert) {
                 // Special case for failed attempt to compress a reopened bucket.
                 throw;
             } else if (source == OperationSource::kTimeseriesUpdate) {
@@ -1951,14 +1939,6 @@ WriteResult performUpdates(
                 break;
             }
         } catch (const DBException& ex) {
-            // Do not handle errors for time-series bucket compressions. They need to be transparent
-            // to users to not interfere with any decisions around operation retry. It is OK to
-            // leave bucket uncompressed in these edge cases. We just record the status to the
-            // result vector so we can keep track of statistics for failed bucket compressions.
-            if (source == OperationSource::kTimeseriesBucketCompression) {
-                out.results.emplace_back(ex.toStatus());
-                break;
-            }
             out.canContinue = handleError(opCtx,
                                           ex,
                                           ns,

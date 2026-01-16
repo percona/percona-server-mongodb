@@ -35,6 +35,7 @@
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/local_catalog/util/partitioned.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/db/query/lru_key_value.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/query/query_knobs_gen.h"
@@ -287,6 +288,14 @@ void updateQueryPlannerStatistics(QueryPlannerEntry& queryPlannerEntryToUpdate,
     queryPlannerEntryToUpdate.fromPlanCache.aggregate(snapshot.fromPlanCache);
 }
 
+void updateWriteStatistics(WritesEntry& writeEntryToUpdate, const QueryStatsSnapshot& snapshot) {
+    writeEntryToUpdate.nMatched.aggregate(snapshot.nMatched);
+    writeEntryToUpdate.nUpserted.aggregate(snapshot.nUpserted);
+    writeEntryToUpdate.nModified.aggregate(snapshot.nModified);
+    writeEntryToUpdate.nDeleted.aggregate(snapshot.nDeleted);
+    writeEntryToUpdate.nInserted.aggregate(snapshot.nInserted);
+}
+
 void updateStatistics(const QueryStatsStore::Partition& proofOfLock,
                       QueryStatsEntry& toUpdate,
                       const QueryStatsSnapshot& snapshot,
@@ -301,6 +310,7 @@ void updateStatistics(const QueryStatsStore::Partition& proofOfLock,
     updateCursorStatistics(toUpdate.cursorStats, snapshot);
     updateQueryExecStatistics(toUpdate.queryExecStats, snapshot);
     updateQueryPlannerStatistics(toUpdate.queryPlannerStats, snapshot);
+    updateWriteStatistics(toUpdate.writesStats, snapshot);
 
     for (auto& supplementalStatsEntry : supplementalStats) {
         toUpdate.addSupplementalStats(std::move(supplementalStatsEntry));
@@ -438,6 +448,16 @@ void registerRequest(OperationContext* opCtx,
     }
 }
 
+void registerWriteRequest(OperationContext* opCtx,
+                          const NamespaceString& collection,
+                          const std::function<std::unique_ptr<Key>(void)>& makeKey,
+                          bool willNeverExhaust) {
+    // Check if collecting write commands is enabled.
+    if (internalQueryStatsWriteCmdSampleRate.load() != 0.0) {
+        registerRequest(opCtx, collection, makeKey, willNeverExhaust);
+    }
+}
+
 bool shouldRequestRemoteMetrics(const OpDebug& opDebug) {
     // If the key is non-null, we expect that query stats should be collected at this level of
     // execution. If the keyHash is non-null, then we expect we should forward remote query stats
@@ -477,6 +497,11 @@ QueryStatsSnapshot captureMetrics(const OperationContext* opCtx,
         metrics.usedDisk,
         metrics.fromMultiPlanner,
         metrics.fromPlanCache.value_or(false),
+        static_cast<uint64_t>(metrics.nMatched.value_or(0)),
+        static_cast<uint64_t>(metrics.nUpserted.value_or(0)),
+        static_cast<uint64_t>(metrics.nModified.value_or(0)),
+        static_cast<uint64_t>(metrics.ndeleted.value_or(0)),
+        static_cast<uint64_t>(metrics.ninserted.value_or(0)),
     };
 
     return snapshot;

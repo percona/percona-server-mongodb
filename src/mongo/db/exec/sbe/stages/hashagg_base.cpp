@@ -31,8 +31,6 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
-#include "mongo/bson/bsonobj.h"
-#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/exec/sbe/stages/block_hashagg.h"
 #include "mongo/db/exec/sbe/stages/hash_agg.h"
 #include "mongo/db/exec/sbe/util/spilling.h"
@@ -67,7 +65,7 @@ HashAggBaseStage<Derived>::HashAggBaseStage(StringData stageName,
 
 template <class Derived>
 void HashAggBaseStage<Derived>::doSaveState() {
-    if (_rsCursor) {
+    if (_recordStore && _rsCursor) {
         _recordStore->saveCursor(_opCtx, _rsCursor);
     }
 }

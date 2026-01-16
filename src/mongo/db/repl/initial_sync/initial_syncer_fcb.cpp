@@ -1713,6 +1713,7 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
                                   StorageEngineInitFlags{},
                                   getGlobalReplSettings().isReplSet(),
                                   repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
+                                  repl::ReplSettings::shouldSkipOplogSampling(),
                                   getReplSetMemberInStandaloneMode(getGlobalServiceContext()),
                                   [&newLocation, opCtx] {
                                       storageGlobalParams.dbpath = newLocation;

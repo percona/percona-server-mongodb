@@ -52,7 +52,7 @@ public:
     std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
         sdk::validateStageDefinition(stageBson, kStageName);
 
-        return std::make_unique<VectorSearchParseNode>();
+        return std::make_unique<VectorSearchParseNode>(stageBson);
     }
 };
 

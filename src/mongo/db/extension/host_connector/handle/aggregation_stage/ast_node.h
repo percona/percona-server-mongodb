@@ -69,9 +69,8 @@ public:
 
 protected:
     void _assertVTableConstraints(const VTable_t& vtable) const override {
-        tassert(
-            11217601, "ExtensionAggStageAstNode 'get_name' is null", vtable.get_name != nullptr);
-        tassert(11113700, "ExtensionAggStageAstNode 'bind' is null", vtable.bind != nullptr);
+        tassert(11217601, "AggStageAstNode 'get_name' is null", vtable.get_name != nullptr);
+        tassert(11113700, "AggStageAstNode 'bind' is null", vtable.bind != nullptr);
     }
 };
 }  // namespace mongo::extension::host_connector

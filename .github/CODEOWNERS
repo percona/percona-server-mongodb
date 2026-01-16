@@ -11,7 +11,8 @@ OWNERS.yml @10gen/server-root-ownership @svc-auto-approve-bot
 .clang-format @10gen/server-programmability @svc-auto-approve-bot
 .clang-tidy.in @10gen/server-programmability @svc-auto-approve-bot
 **/.clang-tidy @10gen/server-programmability @svc-auto-approve-bot
-**/.cursor* @10gen/genai-coding-policy @svc-auto-approve-bot
+AGENTS.md @10gen/genai-coding-policy @svc-auto-approve-bot
+CLAUDE.md @10gen/genai-coding-policy @svc-auto-approve-bot
 /.editorconfig @10gen/devprod-build @svc-auto-approve-bot
 .git* @10gen/devprod-build @svc-auto-approve-bot
 .mypy.ini @10gen/devprod-build @10gen/devprod-correctness @svc-auto-approve-bot
@@ -178,6 +179,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/bulk_write_multi_op_sharded_collections_jscore_passthrough.yml @10gen/query-execution-router @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/change_streams* @10gen/query-execution-change-streams @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/clustered_collection_passthrough.yml @10gen/query-execution @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/concurrency_compute_mode.yml @10gen/query-integration-features @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/core_wildcard_indexes.yml @10gen/query-execution-write-exec @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/extensions* @10gen/query-integration-features @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/fle* @10gen/query-integration-features @svc-auto-approve-bot
@@ -220,6 +222,11 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/replica_sets_transition_to_csrs_jscore_passthrough.yml @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/streams* @10gen/streams-engine @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/*cbr* @10gen/query-optimization @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/sharding_config_shard.yml @10gen/server-cluster-scalability @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/concurrency_sharded_with_balancer_and_config_shard.yml @10gen/server-cluster-scalability @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/concurrency_sharded_with_config_shard.yml @10gen/server-cluster-scalability @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/sharding_jscore_passthrough_with_config_shard.yml @10gen/server-cluster-scalability @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/sharded_collections_jscore_passthrough_with_config_shard.yml @10gen/server-cluster-scalability @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokelib/OWNERS.yml
 /buildscripts/resmokelib/ @10gen/devprod-correctness @svc-auto-approve-bot
@@ -367,6 +374,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/OWNERS.yml
 /jstests/README.md @10gen/devprod-correctness @svc-auto-approve-bot
+/jstests/tags.md @10gen/devprod-correctness @svc-auto-approve-bot
 /jstests/**/*analyze_shard_key* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/**/*move*chunk* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/**/*moveChunk* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -815,6 +823,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/core/txns/OWNERS.yml
 /jstests/core/txns/**/* @10gen/server-transactions @svc-auto-approve-bot
+
+# The following patterns are parsed from ./jstests/core/views/OWNERS.yml
+/jstests/core/views/**/* @10gen/query-optimization @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/core/write/OWNERS.yml
 /jstests/core/write/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -1535,6 +1546,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/safe_secondary_reads_drop_recreate.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/safe_secondary_reads_single_migration_waitForDelete.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/startup_with_all_configs_down.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
+/jstests/sharding/**/addshard*.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/analyze_shard_key/OWNERS.yml
 /jstests/sharding/analyze_shard_key/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -2030,10 +2042,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/index/**/expression_params* @10gen/query-execution-write-exec @svc-auto-approve-bot
 /src/mongo/db/index/**/wildcard_validation* @10gen/query-execution-write-exec @svc-auto-approve-bot
 /src/mongo/db/index/**/multikey_paths* @10gen/query-execution-write-exec @svc-auto-approve-bot
-/src/mongo/db/index/**/2d_common* @10gen/query-integration-features @svc-auto-approve-bot
-/src/mongo/db/index/**/2d_key_generator* @10gen/query-integration-features @svc-auto-approve-bot
-/src/mongo/db/index/**/s2_common* @10gen/query-integration-features @svc-auto-approve-bot
-/src/mongo/db/index/**/s2*key_generator* @10gen/query-integration-features @svc-auto-approve-bot
+/src/mongo/db/index/**/2d_* @10gen/query-integration-features @svc-auto-approve-bot
+/src/mongo/db/index/**/s2_* @10gen/query-integration-features @svc-auto-approve-bot
 /src/mongo/db/index/**/wildcard_access_method* @10gen/query-execution-write-exec @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/index_builds/OWNERS.yml

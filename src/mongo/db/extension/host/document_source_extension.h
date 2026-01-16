@@ -40,6 +40,9 @@ namespace mongo::extension {
 class DocumentSourceExtensionTest;
 
 namespace host {
+using LiteParsedList = std::list<std::unique_ptr<LiteParsedDocumentSource>>;
+
+class LoadExtensionsTest;
 
 /**
  * A DocumentSource implementation for an extension aggregation stage. DocumentSourceExtension is a
@@ -53,6 +56,8 @@ public:
      */
     class LiteParsedExpandable : public LiteParsedDocumentSource {
     public:
+        inline static constexpr int kMaxExpansionDepth = 10;
+
         static std::unique_ptr<LiteParsedDocumentSource> parse(
             host_connector::AggStageDescriptorHandle descriptor,
             const NamespaceString& nss,
@@ -77,7 +82,7 @@ public:
         /**
          * Return the pre-computed expanded pipeline.
          */
-        const std::list<std::unique_ptr<LiteParsedDocumentSource>>& getExpandedPipeline() const {
+        const LiteParsedList& getExpandedPipeline() const {
             return _expanded;
         }
 
@@ -106,17 +111,40 @@ public:
         }
 
     private:
-        std::list<std::unique_ptr<LiteParsedDocumentSource>> expand() {
-            // TODO SERVER-109558 Implement depth validation and cycle checking.
-            return expandImpl();
-        }
+        /**
+         * Carries per-invocation validation state for recursive expansion performed by
+         * LiteParsedExpandable. The state is instantiated at the top-level expand() and passed by
+         * reference to recursive expandImpl() calls.
+         */
+        struct ExpansionState {
+            // Tracker for the current expansion depth. This is only incremented when expansion
+            // results in an ExtensionParseNode that requires further expansion.
+            int currDepth = 0;
 
-        std::list<std::unique_ptr<LiteParsedDocumentSource>> expandImpl();
+            // Ordered container of stageNames along the current expansion path.
+            std::vector<std::string> expansionPath;
+
+            // Tracker for seen stageNames. Provides O(1) cycle checking.
+            stdx::unordered_set<std::string> seenStages;
+        };
+
+        /**
+         * RAII frame that enforces recursive expansion depth constraints and cycle checking,
+         * unwinding on exit.
+         */
+        class ExpansionValidationFrame;
+
+        LiteParsedList expand();
+        static LiteParsedList expandImpl(
+            const host_connector::AggStageParseNodeHandle& parseNodeHandle,
+            ExpansionState& state,
+            const NamespaceString& nss,
+            const LiteParserOptions& options);
 
         host_connector::AggStageParseNodeHandle _parseNode;
         NamespaceString _nss;
         LiteParserOptions _options;
-        std::list<std::unique_ptr<LiteParsedDocumentSource>> _expanded;
+        LiteParsedList _expanded;
     };
 
     /**
@@ -181,12 +209,13 @@ private:
                               host_connector::AggStageDescriptorHandle descriptor);
 
     /**
-     * Give access to DocumentSourceExtensionTest to unregister parser.
+     * Give access to DocumentSourceExtensionTest/LoadExtensionsTest to unregister parser.
      * unregisterParser_forTest is only meant to be used in the context of unit
      * tests. This is because the parserMap is not thread safe, so modifying it at runtime is
      * unsafe.
      */
     friend class mongo::extension::DocumentSourceExtensionTest;
+    friend class mongo::extension::host::LoadExtensionsTest;
     static void unregisterParser_forTest(const std::string& name);
 
 protected:
@@ -195,19 +224,6 @@ protected:
                             Id id,
                             BSONObj rawStage,
                             mongo::extension::host_connector::AggStageDescriptorHandle descriptor);
-
-    // Struct that simplifies DocumentSourceExtension construction for sub-classes.
-    struct ExtensionBase {
-        std::string name;
-        boost::intrusive_ptr<ExpressionContext> exprCtx;
-        Id id;
-        BSONObj rawStage;
-        host_connector::AggStageDescriptorHandle descriptor;
-    };
-
-    explicit DocumentSourceExtension(const ExtensionBase& extensionBase);
-
-    ExtensionBase extensionBase() const;
 
     /**
      * NB : Here we keep a copy of the stage name to service getSourceName().
@@ -218,8 +234,6 @@ protected:
      **/
     const std::string _stageName;
     const Id _id;
-    BSONObj _raw_stage;
-    const mongo::extension::host_connector::AggStageDescriptorHandle _staticDescriptor;
     const mongo::extension::host_connector::AggStageParseNodeHandle _parseNode;
 
 private:

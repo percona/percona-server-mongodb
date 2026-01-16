@@ -32,6 +32,7 @@
 #include "mongo/db/extension/sdk/assert_util.h"
 #include "mongo/db/extension/shared/byte_buf.h"
 #include "mongo/db/extension/shared/extension_status.h"
+#include "mongo/db/extension/shared/get_next_result.h"
 #include "mongo/util/modules.h"
 
 #include <memory>
@@ -50,6 +51,8 @@ namespace mongo::extension::sdk {
 class LogicalAggStage {
 public:
     LogicalAggStage() = default;
+    virtual BSONObj serialize() const = 0;
+    virtual BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const = 0;
     virtual ~LogicalAggStage() = default;
 };
 
@@ -62,7 +65,7 @@ public:
  *
  * This abstraction is required to ensure we maintain the public
  * ::MongoExtensionLogicalAggStage interface and layout as dictacted by the public API.
- * Any polymorphic bevahiour must be deferred to and implemented by the underlying
+ * Any polymorphic behavior must be deferred to and implemented by the underlying
  * LogicalAggStage.
  */
 class ExtensionLogicalAggStage final : public ::MongoExtensionLogicalAggStage {
@@ -71,12 +74,45 @@ public:
         : ::MongoExtensionLogicalAggStage{&VTABLE}, _stage(std::move(logicalStage)) {}
     ~ExtensionLogicalAggStage() = default;
 
+    const LogicalAggStage& getImpl() const noexcept {
+        return *_stage;
+    }
+
 private:
     static void _extDestroy(::MongoExtensionLogicalAggStage* extlogicalStage) noexcept {
         delete static_cast<ExtensionLogicalAggStage*>(extlogicalStage);
     }
 
-    static constexpr ::MongoExtensionLogicalAggStageVTable VTABLE = {.destroy = &_extDestroy};
+    static MongoExtensionStatus* _extSerialize(
+        const ::MongoExtensionLogicalAggStage* extLogicalStage,
+        ::MongoExtensionByteBuf** output) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            *output = nullptr;
+
+            const auto& impl =
+                static_cast<const ExtensionLogicalAggStage*>(extLogicalStage)->getImpl();
+
+            *output = new VecByteBuf(impl.serialize());
+        });
+    }
+
+    static ::MongoExtensionStatus* _extExplain(
+        const ::MongoExtensionLogicalAggStage* extLogicalStage,
+        ::MongoExtensionExplainVerbosity verbosity,
+        ::MongoExtensionByteBuf** output) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            *output = nullptr;
+
+            const auto& impl =
+                static_cast<const ExtensionLogicalAggStage*>(extLogicalStage)->getImpl();
+
+            // Allocate a buffer on the heap. Ownership is transferred to the caller.
+            *output = new VecByteBuf(impl.explain(verbosity));
+        });
+    };
+
+    static constexpr ::MongoExtensionLogicalAggStageVTable VTABLE = {
+        .destroy = &_extDestroy, .serialize = &_extSerialize, .explain = &_extExplain};
     std::unique_ptr<LogicalAggStage> _stage;
 };
 
@@ -436,4 +472,118 @@ private:
     std::unique_ptr<AggStageDescriptor> _descriptor;
 };
 
+/**
+ * ExecAggStage is the base class for implementing the
+ * ::MongoExtensionExecAggStage interface by an extension.
+ *
+ * An extension executable agg stage must provide a specialization of this base class, and
+ * expose it to the host as an ExtensionExecAggStage.
+ */
+class ExecAggStage {
+public:
+    virtual ~ExecAggStage() = default;
+
+    virtual ExtensionGetNextResult getNext() = 0;
+};
+
+/**
+ * Takes a MongoExtensionGetNextResult C struct and ExtensionGetNextResult C++ struct and sets the
+ * code and result field of the MongoExtensionGetNextResult C struct accordingly. Asserts if the
+ * ExtensionGetNextResult C++ struct doesn't have a value for the result when it's expected or does
+ * have a value for a result when it's not expected.
+ */
+static void convertExtensionGetNextResultToCRepresentation(
+    ::MongoExtensionGetNextResult* const apiResult, const ExtensionGetNextResult& extensionResult) {
+    switch (extensionResult.code) {
+        case GetNextCode::kAdvanced: {
+            tripwireAssert(
+                10956801,
+                "If the ExtensionGetNextResult code is kAdvanced, then ExtensionGetNextResult "
+                "should have a result to return.",
+                extensionResult.res.has_value());
+            apiResult->code = ::MongoExtensionGetNextResultCode::kAdvanced;
+            apiResult->result = new VecByteBuf(extensionResult.res.get());
+            break;
+        }
+        case GetNextCode::kPauseExecution: {
+            tripwireAssert(10956802,
+                           (str::stream()
+                            << "If the ExtensionGetNextResult code is kPauseExecution, then "
+                               "there are currently no results to return so "
+                               "ExtensionGetNextResult shouldn't have a result. In this case, "
+                               "the following result was returned: "
+                            << extensionResult.res.get()),
+                           !(extensionResult.res.has_value()));
+            apiResult->code = ::MongoExtensionGetNextResultCode::kPauseExecution;
+            apiResult->result = nullptr;
+            break;
+        }
+        case GetNextCode::kEOF: {
+            tripwireAssert(10956805,
+                           (str::stream()
+                            << "If the ExtensionGetNextResult code is kEOF, then there are no "
+                               "results to return so ExtensionGetNextResult shouldn't have a "
+                               "result. In this case, the following result was returned: "
+                            << extensionResult.res.get()),
+                           !(extensionResult.res.has_value()));
+            apiResult->code = ::MongoExtensionGetNextResultCode::kEOF;
+            apiResult->result = nullptr;
+            break;
+        }
+        default:
+            tripwireAsserted(10956804,
+                             (str::stream() << "Invalid GetNextCode: "
+                                            << static_cast<const int>(extensionResult.code)));
+    }
+}
+
+/**
+ * ExecAggStage is a boundary object representation of a
+ * ::MongoExtensionExecAggStage. It is meant to abstract away the C++ implementation
+ * by the extension and provides the interface at the API boundary which will be called upon by the
+ * host. The static VTABLE member points to static methods which ensure the correct conversion from
+ * C++ context to the C API context.
+ *
+ * This abstraction is required to ensure we maintain the public
+ * ::MongoExtensionExecAggStage interface and layout as dictated by the public API.
+ * Any polymorphic behavior must be deferred to and implemented by the ExecAggStage.
+ */
+class ExtensionExecAggStage final : public ::MongoExtensionExecAggStage {
+public:
+    ExtensionExecAggStage(std::unique_ptr<ExecAggStage> execAggStage)
+        : ::MongoExtensionExecAggStage(&VTABLE), _execAggStage(std::move(execAggStage)) {}
+
+    ~ExtensionExecAggStage() = default;
+
+private:
+    const ExecAggStage& getImpl() const noexcept {
+        return *_execAggStage;
+    }
+
+    ExecAggStage& getImpl() noexcept {
+        return *_execAggStage;
+    }
+
+    static void _extDestroy(::MongoExtensionExecAggStage* execAggStage) noexcept {
+        delete static_cast<ExtensionExecAggStage*>(execAggStage);
+    }
+
+    static ::MongoExtensionStatus* _extGetNext(::MongoExtensionExecAggStage* execAggStage,
+                                               ::MongoExtensionGetNextResult* apiResult) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            apiResult->code = ::MongoExtensionGetNextResultCode::kPauseExecution;
+            apiResult->result = nullptr;
+
+            auto& impl = static_cast<ExtensionExecAggStage*>(execAggStage)->getImpl();
+
+            // Allocate a buffer on the heap. Ownership is transferred to the caller.
+            ExtensionGetNextResult extensionResult = impl.getNext();
+            convertExtensionGetNextResultToCRepresentation(apiResult, extensionResult);
+        });
+    };
+
+    static constexpr ::MongoExtensionExecAggStageVTable VTABLE = {.destroy = &_extDestroy,
+                                                                  .get_next = &_extGetNext};
+    std::unique_ptr<ExecAggStage> _execAggStage;
+};
 }  // namespace mongo::extension::sdk

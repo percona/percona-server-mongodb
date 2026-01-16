@@ -56,6 +56,9 @@ def main():
         if not atlas_mod.exists():
             args = append_args(args, ["--//bazel/config:build_atlas=False"])
 
+        if any(arg.startswith("--include_mongot") for arg in args):
+            os.makedirs("mongot-localdev", exist_ok=True)
+
         write_workstation_bazelrc(args)
         write_mongo_variables_bazelrc(args)
 

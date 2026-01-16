@@ -189,6 +189,15 @@ void registerRequest(OperationContext* opCtx,
 
 
 /**
+ * Register a write request. After performing write-relevant checks, it registers a write request
+ * using registerRequest().
+ */
+void registerWriteRequest(OperationContext* opCtx,
+                          const NamespaceString& collection,
+                          const std::function<std::unique_ptr<Key>(void)>& makeKey,
+                          bool willNeverExhaust = false);
+
+/**
  * Returns whether or not the current operation should request metrics from remote hosts. This
  * can be either because this query was chosen for query stats collection, the user explicitly
  * requested query stats collection for this query, or this query is an internal query generated
@@ -238,6 +247,12 @@ struct QueryStatsSnapshot {
     bool usedDisk;
     bool fromMultiPlanner;
     bool fromPlanCache;
+
+    uint64_t nMatched;
+    uint64_t nUpserted;
+    uint64_t nModified;
+    uint64_t nDeleted;
+    uint64_t nInserted;
 };
 
 /**

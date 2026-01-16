@@ -252,6 +252,12 @@ following way:
   query operation, including getMores.
 - `metrics.overdueInterruptApproxMaxMillis`: Maximum time in milliseconds that checkForInterrupt was
   delayed for a sampled query operation, including getMores.
+- `metrics.writes`: Contains the metrics relevant to writes.
+- `metrics.writes.nMatched`: The number of documents selected for update.
+- `metrics.writes.nUpserted`: The number of documents inserted by an upsert.
+- `metrics.writes.nModified`: The number of existing documents updated.
+- `metrics.writes.nDeleted`: The number of documents deleted.
+- `metrics.writes.nInserted`: The number of documents inserted (excluding upserts).
 
 #### Permissions
 
@@ -289,6 +295,16 @@ following way:
   - The default value is `0`. When set to `0`, sampling-based rate limiting is disabled and query
     stats rate limiting falls back to the window-based policy controlled by
     `internalQueryStatsRateLimit`.
+
+- `internalQueryStatsWriteCmdSampleRate`:
+
+  - This parameter is an integer number either 0 or 1. It controls whether query stats are collected
+    for write commands.
+    - `0` - Disable recording write commands.
+    - `1` - Enable recording write commands.
+  - This parameter is only effective if query stats is already enabled via `internalQueryStatsRateLimit`
+    or `internalQueryStatsSampleRate`.
+  - This parameter may become a floating point value to support percentage-based sampling in the future.
 
 - `logComponentVerbosity.queryStats`:
   - Controls the logging behavior for query stats. See [Logging](#logging) for details.
