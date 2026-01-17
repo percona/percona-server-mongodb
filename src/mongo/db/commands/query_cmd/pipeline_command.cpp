@@ -118,7 +118,8 @@ public:
                                                       serializationCtx);
 
         auto privileges = uassertStatusOK(
-            auth::getPrivilegesForAggregate(AuthorizationSession::get(opCtx->getClient()),
+            auth::getPrivilegesForAggregate(opCtx,
+                                            AuthorizationSession::get(opCtx->getClient()),
                                             aggregationRequest.getNamespace(),
                                             aggregationRequest,
                                             false));
@@ -323,8 +324,7 @@ public:
                                          _usedExternalDataSources));
         }
 
-        bool canRetryOnStaleConfigOrShardCannotRefreshDueToLocksHeld(
-            const OpMsgRequest& opMsgRequest) const override {
+        bool canRetryOnStaleShardMetadataError(const OpMsgRequest& opMsgRequest) const override {
             // Can not rerun the command when executing an aggregation that runs $mergeCursors as it
             // may have consumed the cursors within.
             SerializationContext serializationCtx = opMsgRequest.getSerializationContext();

@@ -743,6 +743,7 @@ const allCommands = {
         command: {enableSharding: dbName},
     },
     endSessions: {skip: "tested in startSession"},
+    eseRotateActiveKEK: {skip: "requires additional setup"},
     explain: {
         setUp: function (conn) {
             assert.commandWorked(conn.getDB(dbName).runCommand({create: collName}));
@@ -823,6 +824,7 @@ const allCommands = {
         isAdminCommand: true,
         command: {getDiagnosticData: 1},
     },
+    getESERotateActiveKEKStatus: {skip: "requires additional setup"},
     getLog: {
         isAdminCommand: true,
         command: {getLog: "global"},

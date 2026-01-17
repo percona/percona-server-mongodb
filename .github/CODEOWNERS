@@ -1528,19 +1528,18 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/*txn* @10gen/server-transactions @svc-auto-approve-bot
 /jstests/sharding/**/*_with_id_without_shard_key* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/*zone* @10gen/server-cluster-scalability @svc-auto-approve-bot
-/jstests/sharding/**/addShard* @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
+/jstests/sharding/**/add_shard_* @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/custom_write_concern.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/shard_unsplittable_collection.js @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
 /jstests/sharding/**/create_unsplittable_collection.js @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
 /jstests/sharding/**/list_cluster_catalog* @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
 /jstests/sharding/**/check_metadata* @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
-/jstests/sharding/**/direct_shard* @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
+/jstests/sharding/**/*direct_shard* @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 /jstests/sharding/**/start_shard_draining* @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/shard_draining_status_test.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/replica_set_to_csrs_promotion.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/replica_set_promotion_demotion.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/stop_shard_draining_test.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
-/jstests/sharding/**/remove_shard_interoperability_tests.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/commit_shard_removal_test.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/validate_collection*.js @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 /jstests/sharding/**/add_and_remove_shard_serializes_with_ddl.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
@@ -1554,8 +1553,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/safe_secondary_reads_drop_recreate.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/safe_secondary_reads_single_migration_waitForDelete.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/startup_with_all_configs_down.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
-/jstests/sharding/**/addshard*.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/safe_secondary_reads_causal_consistency.js @10gen/server-cluster-scalability @svc-auto-approve-bot
+/jstests/sharding/**/remove_shard_*.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
+/jstests/sharding/**/reporting_compound_wildcard_index_prefixed_by_shard_key.js @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/analyze_shard_key/OWNERS.yml
 /jstests/sharding/analyze_shard_key/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -1928,6 +1928,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/db/exec/agg/OWNERS.yml
 /src/mongo/db/exec/agg/**/* @10gen/query-execution-classic @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/OWNERS.yml @10gen/query-execution-staff-leads @10gen/query-integration-staff-leads @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+/src/mongo/db/exec/agg/**/change_stream* @10gen/query-execution-change-streams @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/coll_stats_stage* @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/current_op_stage* @10gen/query-integration-observability @svc-auto-approve-bot
 /src/mongo/db/exec/agg/**/densify_stage* @10gen/query-integration-features @svc-auto-approve-bot
@@ -2123,6 +2124,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/modules/atlas/jstests/disagg_storage/OWNERS.yml
 /src/mongo/db/modules/atlas/jstests/disagg_storage/**/* @10gen/server-disagg-storage @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/modules/atlas/jstests/disagg_storage/encryption/OWNERS.yml
+/src/mongo/db/modules/atlas/jstests/disagg_storage/encryption/**/* @10gen/server-security @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/modules/atlas/src/disagg_storage/OWNERS.yml
 /src/mongo/db/modules/atlas/src/disagg_storage/**/* @10gen/server-disagg-storage @svc-auto-approve-bot
@@ -2947,6 +2951,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/s/**/async_requests_sender* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/s/**/async_rpc_shard* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/s/**/load_balancer_support* @10gen/server-networking-and-observability @svc-auto-approve-bot
+/src/mongo/s/**/client_metadata_propagation_egress_hook* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /src/mongo/s/**/balancer_feature_flag* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /src/mongo/s/**/sharding_task_executor_pool* @10gen/server-networking-and-observability @svc-auto-approve-bot
 

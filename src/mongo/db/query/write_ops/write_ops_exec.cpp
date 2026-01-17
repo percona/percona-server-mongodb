@@ -75,6 +75,7 @@
 #include "mongo/db/profile_collection.h"
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/query/canonical_query.h"
+#include "mongo/db/query/client_cursor/collect_query_stats_mongod.h"
 #include "mongo/db/query/collection_index_usage_tracker_decoration.h"
 #include "mongo/db/query/explain.h"
 #include "mongo/db/query/explain_diagnostic_printer.h"
@@ -466,7 +467,9 @@ bool handleError(OperationContext* opCtx,
             // shard owning the post-image doc. As a result, this update will not show up in the
             // OpObserver as an update.
             auto wouldChangeOwningShardInfo = ex.extraInfo<WouldChangeOwningShardInfo>();
-            invariant(wouldChangeOwningShardInfo);
+            tassert(11052012,
+                    "Expected extraInfo of type WouldChangeOwningShardInfo",
+                    wouldChangeOwningShardInfo);
 
             analyze_shard_key::QueryAnalysisWriter::get(opCtx)
                 ->addDiff(*sampleId,
@@ -800,7 +803,9 @@ UpdateResult performUpdate(OperationContext* opCtx,
                 ? collection.getShardingDescription().getKeyPattern()
                 : BSONObj()});
 
-    invariant(DatabaseHolder::get(opCtx)->getDb(opCtx, dbName));
+    tassert(11052013,
+            fmt::format("Expected database {} to exist", dbName.toStringForErrorMsg()),
+            DatabaseHolder::get(opCtx)->getDb(opCtx, dbName));
     curOp->raiseDbProfileLevel(
         DatabaseProfileSettings::get(opCtx->getServiceContext()).getDatabaseProfileLevel(dbName));
 
@@ -1329,7 +1334,7 @@ WriteResult performInserts(
             out.results.emplace_back(makeWriteResultForInsertOrDeleteRetry());
         }
     }
-    invariant(batch.empty());
+    tassert(11052014, "Expected empty batch", batch.empty());
 
     return out;
 }
@@ -1389,6 +1394,15 @@ static SingleWriteResult performSingleUpdateOpNoRetry(OperationContext* opCtx,
 
     if (containsDotsAndDollarsField && updateResult.containsDotsAndDollarsField) {
         *containsDotsAndDollarsField = true;
+    }
+
+    // Collect query stats for the update operation if a QueryStats key was generated during
+    // registration. This ensures that we minimize the overhead of query stats collection for
+    // updates even if it does not have query stats enabled.
+    auto key = std::move(curOp.debug().queryStatsInfo.key);
+    if (key) {
+        curOp.setEndOfOpMetrics(0 /* no documents returned */);
+        collectQueryStatsMongod(opCtx, parsedUpdate.expCtx(), std::move(key));
     }
 
     return result;
@@ -2226,7 +2240,7 @@ WriteResult performDeletes(
 }
 
 void recordUpdateResultInOpDebug(const UpdateResult& updateResult, OpDebug* opDebug) {
-    invariant(opDebug);
+    tassert(11052015, "Expected non-null OpDebug pointer", opDebug);
     opDebug->additiveMetrics.nMatched = updateResult.numMatched;
     opDebug->additiveMetrics.nModified = updateResult.numDocsModified;
     opDebug->additiveMetrics.nUpserted = static_cast<long long>(!updateResult.upsertedId.isEmpty());
@@ -2289,7 +2303,7 @@ bool shouldRetryDuplicateKeyException(OperationContext* opCtx,
     }
 
     auto matchExpr = cq.getPrimaryMatchExpression();
-    invariant(matchExpr);
+    tassert(11052016, "Expected a match expression", matchExpr);
 
     // In order to be retryable, the update query must contain no expressions other than AND and EQ.
     if (!matchContainsOnlyAndedEqualityNodes(*matchExpr)) {
@@ -2361,8 +2375,12 @@ bool shouldRetryDuplicateKeyException(OperationContext* opCtx,
             }
         }
     }
-    invariant(!keyPatternIter.more());
-    invariant(!keyValueIter.more());
+    tassert(11052017,
+            fmt::format("Expected number of elements in keyPattern {} to match number of elements "
+                        "in keyValue {}",
+                        keyPattern.toString(),
+                        keyValue.toString()),
+            !keyPatternIter.more() && !keyValueIter.more());
 
     return true;
 }
