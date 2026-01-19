@@ -38,28 +38,46 @@ namespace mongo::extension::sdk {
 // at the very start of extension initialization, before any extension should attempt to access it.
 HostServicesHandle HostServicesHandle::_hostServices(nullptr);
 
-BSONObj HostServicesHandle::createExtensionLogMessage(
-    std::string message,
-    std::int32_t code,
-    mongo::extension::MongoExtensionLogSeverityEnum severity) {
-    mongo::extension::MongoExtensionLog log(std::move(message), code, severity);
-    return log.toBSON();
+::MongoExtensionLogMessage HostServicesHandle::createLogMessageStruct(
+    const std::string& message, std::int32_t code, MongoExtensionLogSeverity severity) {
+    // Convert message string to byte view.
+    auto messageBytes = stringViewAsByteView(std::string_view(message));
+
+    // TODO SERVER-111339 Handle attributes.
+    ::MongoExtensionLogMessage logMessage{
+        static_cast<uint32_t>(code), messageBytes, ::MongoExtensionLogType::kLog};
+    // Set union field for severity.
+    logMessage.severityOrLevel.severity = severity;
+
+    return logMessage;
 }
 
-BSONObj HostServicesHandle::createExtensionDebugLogMessage(std::string message,
-                                                           std::int32_t code,
-                                                           std::int32_t level) {
-    mongo::extension::MongoExtensionDebugLog debugLog(std::move(message), code, level);
-    return debugLog.toBSON();
+::MongoExtensionLogMessage HostServicesHandle::createDebugLogMessageStruct(
+    const std::string& message, std::int32_t code, std::int32_t level) {
+    // Convert message string to byte view.
+    auto messageBytes = stringViewAsByteView(std::string_view(message));
+
+    // TODO SERVER-111339 Handle attributes.
+    ::MongoExtensionLogMessage logMessage{
+        static_cast<uint32_t>(code), messageBytes, ::MongoExtensionLogType::kDebug};
+    // Set union field for level.
+    logMessage.severityOrLevel.level = level;
+
+    return logMessage;
 }
 
 void HostServicesHandle::_assertVTableConstraints(const VTable_t& vtable) const {
-    tripwireAssert(
+    sdk_tassert(
         11097801, "Host services' 'user_asserted' is null", vtable.user_asserted != nullptr);
-    tripwireAssert(11188200, "Host services' 'log' is null", vtable.log != nullptr);
-    tripwireAssert(11188201, "Host services' 'log_debug' is null", vtable.log_debug != nullptr);
+    sdk_tassert(11188200, "Host services' 'log' is null", vtable.log != nullptr);
+    sdk_tassert(11188201, "Host services' 'log_debug' is null", vtable.log_debug != nullptr);
     // Note that we intentionally do not validate tripwire_asserted here. If it wasn't valid, the
     // tripwire assert would fire and we would dereference the nullptr anyway.
+    sdk_tassert(11149304,
+                "Host services' 'create_host_agg_stage_parse_node' is null",
+                vtable.create_host_agg_stage_parse_node != nullptr);
+    sdk_tassert(
+        11134201, "Host services' 'create_id_lookup' is null", vtable.create_id_lookup != nullptr);
 }
 
 }  // namespace mongo::extension::sdk

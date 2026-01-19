@@ -30,9 +30,12 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/assert_util.h"
+#include "mongo/db/extension/sdk/operation_metrics_adapter.h"
+#include "mongo/db/extension/sdk/query_execution_context_handle.h"
 #include "mongo/db/extension/shared/byte_buf.h"
 #include "mongo/db/extension/shared/extension_status.h"
 #include "mongo/db/extension/shared/get_next_result.h"
+#include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
 #include "mongo/util/modules.h"
 
 #include <memory>
@@ -125,7 +128,6 @@ private:
  */
 class AggStageAstNode {
 public:
-    AggStageAstNode() = default;
     virtual ~AggStageAstNode() = default;
 
 
@@ -133,10 +135,15 @@ public:
         return _name;
     }
 
+    virtual BSONObj getProperties() const {
+        return BSONObj();
+    }
+
     virtual std::unique_ptr<LogicalAggStage> bind() const = 0;
 
 protected:
-    AggStageAstNode(std::string_view name) : _name(name) {}
+    AggStageAstNode() = delete;  // No default constructor.
+    explicit AggStageAstNode(std::string_view name) : _name(name) {}
 
 private:
     const std::string_view _name;
@@ -179,6 +186,19 @@ private:
             static_cast<const ExtensionAggStageAstNode*>(astNode)->getImpl().getName());
     }
 
+    static ::MongoExtensionStatus* _extGetProperties(
+        const ::MongoExtensionAggStageAstNode* astNode,
+        ::MongoExtensionByteBuf** properties) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&] {
+            *properties = nullptr;
+
+            const auto& impl = static_cast<const ExtensionAggStageAstNode*>(astNode)->getImpl();
+
+            // Allocate a buffer on the heap. Ownership is transferred to the caller.
+            *properties = new VecByteBuf(impl.getProperties());
+        });
+    }
+
     static ::MongoExtensionStatus* _extBind(
         const ::MongoExtensionAggStageAstNode* astNode,
         ::MongoExtensionLogicalAggStage** logicalStage) noexcept {
@@ -190,28 +210,13 @@ private:
         });
     }
 
-    static constexpr ::MongoExtensionAggStageAstNodeVTable VTABLE = {
-        .destroy = &_extDestroy, .get_name = &_extGetName, .bind = &_extBind};
+    static constexpr ::MongoExtensionAggStageAstNodeVTable VTABLE = {.destroy = &_extDestroy,
+                                                                     .get_name = &_extGetName,
+                                                                     .get_properties =
+                                                                         &_extGetProperties,
+                                                                     .bind = &_extBind};
     std::unique_ptr<AggStageAstNode> _astNode;
 };
-
-/**
- * Represents the possible types of nodes created during expansion.
- *
- * Expansion can result in four types of nodes:
- * 1. Host-defined parse node
- * 2. Extension-defined parse node
- * 3. Host-defined AST node
- * 4. Extension-defined AST node
- *
- * This variant allows extension developers to return both host- and extension-defined nodes in
- * AggStageParseNode::expand() without knowing the underlying implementation of host-defined
- * nodes.
- *
- * The host is responsible for differentiating between host- and extension-defined nodes later on.
- */
-using VariantNode =
-    std::variant<::MongoExtensionAggStageParseNode*, ::MongoExtensionAggStageAstNode*>;
 
 /**
  * AggStageParseNode is the base class for implementing the
@@ -232,10 +237,11 @@ public:
 
     virtual size_t getExpandedSize() const = 0;
 
-    virtual std::vector<VariantNode> expand() const = 0;
+    virtual std::vector<VariantNodeHandle> expand() const = 0;
 
 protected:
-    AggStageParseNode(std::string_view name) : _name(name) {}
+    AggStageParseNode() = delete;  // No default constructor.
+    explicit AggStageParseNode(std::string_view name) : _name(name) {}
 
 private:
     const std::string_view _name;
@@ -305,14 +311,14 @@ private:
     struct ConsumeVariantNodeToAbi {
         ::MongoExtensionExpandedArrayElement& dst;
 
-        void operator()(::MongoExtensionAggStageParseNode* parseNode) const {
+        void operator()(AggStageParseNodeHandle&& parseNode) const {
             dst.type = kParseNode;
-            dst.parse = parseNode;
+            dst.parse = parseNode.release();
         }
 
-        void operator()(::MongoExtensionAggStageAstNode* astNode) const {
+        void operator()(AggStageAstNodeHandle&& astNode) const {
             dst.type = kAstNode;
-            dst.ast = astNode;
+            dst.ast = astNode.release();
         }
     };
 
@@ -394,18 +400,13 @@ public:
         return std::string_view(_name);
     }
 
-    ::MongoExtensionAggStageType getType() const {
-        return _type;
-    }
-
     virtual std::unique_ptr<class AggStageParseNode> parse(BSONObj stageBson) const = 0;
 
 protected:
-    AggStageDescriptor(std::string name, ::MongoExtensionAggStageType type)
-        : _name(std::move(name)), _type(type) {}
+    AggStageDescriptor() = delete;  // No default constructor.
+    explicit AggStageDescriptor(std::string name) : _name(std::move(name)) {}
 
     const std::string _name;
-    ::MongoExtensionAggStageType _type;
 };
 
 /**
@@ -441,11 +442,6 @@ private:
             static_cast<const ExtensionAggStageDescriptor*>(descriptor)->getImpl().getName());
     }
 
-    static ::MongoExtensionAggStageType _extGetType(
-        const ::MongoExtensionAggStageDescriptor* descriptor) noexcept {
-        return static_cast<const ExtensionAggStageDescriptor*>(descriptor)->getImpl().getType();
-    }
-
     static ::MongoExtensionStatus* _extParse(
         const ::MongoExtensionAggStageDescriptor* descriptor,
         ::MongoExtensionByteView stageBson,
@@ -455,19 +451,19 @@ private:
                 static_cast<const ExtensionAggStageDescriptor*>(descriptor)->getImpl();
             auto parseNodePtr = impl.parse(bsonObjFromByteView(stageBson));
 
-            tripwireAssert(11217602,
-                           (str::stream()
-                            << "Descriptor and parse node stage names differ: descriptor='"
-                            << std::string(impl.getName()) << "' parseNode='"
-                            << std::string(parseNodePtr->getName()) << "'."),
-                           impl.getName() == parseNodePtr->getName());
+            sdk_tassert(11217602,
+                        (str::stream()
+                         << "Descriptor and parse node stage names differ: descriptor='"
+                         << std::string(impl.getName()) << "' parseNode='"
+                         << std::string(parseNodePtr->getName()) << "'."),
+                        impl.getName() == parseNodePtr->getName());
 
             *parseNode = new ExtensionAggStageParseNode(std::move(parseNodePtr));
         });
     }
 
-    static constexpr ::MongoExtensionAggStageDescriptorVTable VTABLE = {
-        .get_type = &_extGetType, .get_name = &_extGetName, .parse = &_extParse};
+    static constexpr ::MongoExtensionAggStageDescriptorVTable VTABLE = {.get_name = &_extGetName,
+                                                                        .parse = &_extParse};
 
     std::unique_ptr<AggStageDescriptor> _descriptor;
 };
@@ -481,10 +477,25 @@ private:
  */
 class ExecAggStage {
 public:
-    ExecAggStage() = default;
     virtual ~ExecAggStage() = default;
 
-    virtual ExtensionGetNextResult getNext() = 0;
+    virtual ExtensionGetNextResult getNext(const QueryExecutionContextHandle& execCtx,
+                                           const MongoExtensionExecAggStage* execStage) = 0;
+
+    std::string_view getName() const {
+        return _name;
+    }
+
+    // Extensions are not required to provide metrics if they do not need to.
+    virtual std::unique_ptr<OperationMetricsBase> createMetrics() const {
+        return nullptr;
+    }
+
+protected:
+    ExecAggStage(std::string_view name) : _name(name) {}
+
+private:
+    const std::string _name;
 };
 
 /**
@@ -497,7 +508,7 @@ static void convertExtensionGetNextResultToCRepresentation(
     ::MongoExtensionGetNextResult* const apiResult, const ExtensionGetNextResult& extensionResult) {
     switch (extensionResult.code) {
         case GetNextCode::kAdvanced: {
-            tripwireAssert(
+            sdk_tassert(
                 10956801,
                 "If the ExtensionGetNextResult code is kAdvanced, then ExtensionGetNextResult "
                 "should have a result to return.",
@@ -507,34 +518,34 @@ static void convertExtensionGetNextResultToCRepresentation(
             break;
         }
         case GetNextCode::kPauseExecution: {
-            tripwireAssert(10956802,
-                           (str::stream()
-                            << "If the ExtensionGetNextResult code is kPauseExecution, then "
-                               "there are currently no results to return so "
-                               "ExtensionGetNextResult shouldn't have a result. In this case, "
-                               "the following result was returned: "
-                            << extensionResult.res.get()),
-                           !(extensionResult.res.has_value()));
+            sdk_tassert(10956802,
+                        (str::stream()
+                         << "If the ExtensionGetNextResult code is kPauseExecution, then "
+                            "there are currently no results to return so "
+                            "ExtensionGetNextResult shouldn't have a result. In this case, "
+                            "the following result was returned: "
+                         << extensionResult.res.get()),
+                        !(extensionResult.res.has_value()));
             apiResult->code = ::MongoExtensionGetNextResultCode::kPauseExecution;
             apiResult->result = nullptr;
             break;
         }
         case GetNextCode::kEOF: {
-            tripwireAssert(10956805,
-                           (str::stream()
-                            << "If the ExtensionGetNextResult code is kEOF, then there are no "
-                               "results to return so ExtensionGetNextResult shouldn't have a "
-                               "result. In this case, the following result was returned: "
-                            << extensionResult.res.get()),
-                           !(extensionResult.res.has_value()));
+            sdk_tassert(10956805,
+                        (str::stream()
+                         << "If the ExtensionGetNextResult code is kEOF, then there are no "
+                            "results to return so ExtensionGetNextResult shouldn't have a "
+                            "result. In this case, the following result was returned: "
+                         << extensionResult.res.get()),
+                        !(extensionResult.res.has_value()));
             apiResult->code = ::MongoExtensionGetNextResultCode::kEOF;
             apiResult->result = nullptr;
             break;
         }
         default:
-            tripwireAsserted(10956804,
-                             (str::stream() << "Invalid GetNextCode: "
-                                            << static_cast<const int>(extensionResult.code)));
+            sdk_tasserted(10956804,
+                          (str::stream() << "Invalid GetNextCode: "
+                                         << static_cast<const int>(extensionResult.code)));
     }
 }
 
@@ -570,21 +581,46 @@ private:
     }
 
     static ::MongoExtensionStatus* _extGetNext(::MongoExtensionExecAggStage* execAggStage,
+                                               ::MongoExtensionQueryExecutionContext* execCtxPtr,
                                                ::MongoExtensionGetNextResult* apiResult) noexcept {
         return wrapCXXAndConvertExceptionToStatus([&]() {
             apiResult->code = ::MongoExtensionGetNextResultCode::kPauseExecution;
             apiResult->result = nullptr;
 
+            QueryExecutionContextHandle execCtx(execCtxPtr);
+
             auto& impl = static_cast<ExtensionExecAggStage*>(execAggStage)->getImpl();
 
             // Allocate a buffer on the heap. Ownership is transferred to the caller.
-            ExtensionGetNextResult extensionResult = impl.getNext();
+            ExtensionGetNextResult extensionResult = impl.getNext(execCtx, execAggStage);
             convertExtensionGetNextResultToCRepresentation(apiResult, extensionResult);
         });
     };
 
-    static constexpr ::MongoExtensionExecAggStageVTable VTABLE = {.destroy = &_extDestroy,
-                                                                  .get_next = &_extGetNext};
+    static ::MongoExtensionByteView _extGetName(
+        const ::MongoExtensionExecAggStage* execAggStage) noexcept {
+        const auto& impl = static_cast<const ExtensionExecAggStage*>(execAggStage)->getImpl();
+        return stringViewAsByteView(impl.getName());
+    }
+
+    static ::MongoExtensionStatus* _extCreateMetrics(
+        const ::MongoExtensionExecAggStage* execAggStage,
+        MongoExtensionOperationMetrics** metrics) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            const auto& impl = static_cast<const ExtensionExecAggStage*>(execAggStage)->getImpl();
+            auto result = impl.createMetrics();
+
+            auto adapter = new OperationMetricsAdapter(std::move(result));
+            *metrics = adapter;
+        });
+    }
+
+    static constexpr ::MongoExtensionExecAggStageVTable VTABLE = {
+        .destroy = &_extDestroy,
+        .get_next = &_extGetNext,
+        .get_name = &_extGetName,
+        .create_metrics = &_extCreateMetrics,
+    };
     std::unique_ptr<ExecAggStage> _execAggStage;
 };
 }  // namespace mongo::extension::sdk

@@ -70,7 +70,7 @@ public:
     }
 
     IndexAccessMethod* accessMethod() const final {
-        MONGO_UNREACHABLE;
+        return nullptr;
     }
 
     void setAccessMethod(std::unique_ptr<IndexAccessMethod> accessMethod) final {
@@ -94,11 +94,11 @@ public:
     }
 
     const MatchExpression* getFilterExpression() const final {
-        MONGO_UNREACHABLE;
+        return nullptr;
     }
 
     const CollatorInterface* getCollator() const final {
-        MONGO_UNREACHABLE;
+        return nullptr;
     }
 
     NamespaceString getNSSFromCatalog(OperationContext* opCtx) const final {

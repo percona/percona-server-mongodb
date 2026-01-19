@@ -441,6 +441,10 @@ void ReplicationCoordinatorImpl::_handleHeartbeatResponse(
 
     // Abort catchup if we have caught up to the latest known optime after heartbeat refreshing.
     if (_catchupState) {
+        LOGV2(10976700,
+              "Received heartbeat while in catchup state",
+              "requestId"_attr = cbData.request.id,
+              "target"_attr = target);
         _catchupState->signalHeartbeatUpdate(lk);
     }
 
@@ -760,8 +764,11 @@ void ReplicationCoordinatorImpl::_heartbeatReconfigStore(
                 return _selfIndex;
             }
         }
-        return validateConfigForHeartbeatReconfig(
-            _externalState.get(), newConfig, getMyHostAndPort(), cc().getServiceContext());
+        return validateConfigForHeartbeatReconfig(_externalState.get(),
+                                                  newConfig,
+                                                  getMyHostAndPort(),
+                                                  getMyMaintenancePort(),
+                                                  cc().getServiceContext());
     }();
 
     if (myIndex.getStatus() == ErrorCodes::NodeNotFound) {

@@ -494,7 +494,7 @@ config_run(void)
 
     tables_apply(config_table, NULL); /* Configure the tables. */
 
-    /* TODO: Temporarily disable salvage test due to increased failures. */
+    /* FIXME-WT-12983: Temporarily disable salvage test due to increased failures. */
     config_off(NULL, "ops.salvage");
 
     /* Order can be important, don't shuffle without careful consideration. */
@@ -1555,6 +1555,8 @@ config_disagg_storage(void)
     config_off(NULL, "ops.salvage");
     config_off(NULL, "backup");
     config_off(NULL, "backup.incremental");
+
+    /* Compaction is not supported for disaggregated storage. */
     config_off(NULL, "ops.compaction");
     config_off(NULL, "background_compact");
 }

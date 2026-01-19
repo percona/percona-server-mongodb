@@ -35,12 +35,28 @@ mongo_cc_library(
     ],
 )
 
+mongo_cc_library(
+    name = "plan_enumerator",
+    srcs = [
+        "plan_enumerator.cpp",
+        "plan_enumerator_helpers.cpp",
+    ],
+    hdrs = [
+        "plan_enumerator.h",
+        "plan_enumerator_helpers.h",
+    ],
+    deps = [
+        ":join_ordering",
+    ],
+)
+
 mongo_cc_unit_test(
     name = "join_ordering_test",
     srcs = [
         "agg_join_model_test.cpp",
         "join_graph_test.cpp",
         "path_resolver_test.cpp",
+        "plan_enumerator_test.cpp",
         "reorder_joins_test.cpp",
     ],
     data = [
@@ -49,10 +65,12 @@ mongo_cc_unit_test(
     tags = ["mongo_unittest_third_group"],
     deps = [
         ":join_ordering",
+        ":plan_enumerator",
         ":reorder_joins",
         ":unit_test_helpers",
         "//src/mongo/db:query_exec",
         "//src/mongo/db/local_catalog:catalog_test_fixture",
+        "//src/mongo/db/local_catalog:index_catalog_mock",
         "//src/mongo/db/pipeline:aggregation_context_fixture",
     ],
 )

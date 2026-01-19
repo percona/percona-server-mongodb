@@ -399,11 +399,8 @@ tasks:
           jstestfuzz_vars: --diffTestingMode timeseries --numPipelines=750
           npm_command: agg-fuzzer
           suite: generational_fuzzer
-          # TODO SERVER-112055: Enable CreateViewlessTimeseriesCollections feature flag once all aggregation stages
-          # work properly on viewless timeseries collections.
           resmoke_args: >-
             --mongodSetParameters='{logComponentVerbosity: {command: 2}}'
-            --disableFeatureFlags=featureFlagCreateViewlessTimeseriesCollections
 
   ## Like "aggregation_timeseries_fuzzer_gen", but it uses a pinned git revision for the
   ## "jstestfuzz" repo and it uses a fixed seed.
@@ -438,11 +435,8 @@ tasks:
           npm_command: agg-fuzzer
           suite: generational_fuzzer
           use_large_distro: "true"
-          # TODO SERVER-112055: Enable CreateViewlessTimeseriesCollections feature flag once all aggregation stages
-          # work properly on viewless timeseries collections.
           resmoke_args: >-
             --mongodSetParameters='{logComponentVerbosity: {command: 2}}'
-            --disableFeatureFlags=featureFlagCreateViewlessTimeseriesCollections
           jstestfuzz_vars: >-
             --diffTestingMode timeseries
             --numPipelines=1000
@@ -1331,7 +1325,7 @@ tasks:
       - func: "get mongot version"
       - func: "run tests"
         vars:
-          resmoke_jobs_max: 1
+          resmoke_jobs_max: 5
 
   - <<: *task_template
     name: mongot_e2e_single_shard
@@ -1832,6 +1826,41 @@ tasks:
       - func: "run tests"
 
   - <<: *task_template
+    name: unified_write_executor_bulk_write_multi_op_sharded_collections_jscore_passthrough
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: unified_write_executor_sharded_multi_stmt_txn_jscore_passthrough
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: unified_write_executor_bulk_write_sharded_causally_consistent_jscore_passthrough
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: unified_write_executor_bulk_write_sharded_collections_jscore_passthrough
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: unified_write_executor_bulk_write_sharded_multi_stmt_txn_jscore_passthrough
+    tags: ["assigned_to_jira_team_server_query_execution", "experimental"]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
     name: query_correctness_query_shape_hash_stability_generated_test_1
     tags:
       [
@@ -1854,6 +1883,7 @@ tasks:
         vars:
           # The name of test repo that we want this task to clone.
           repo_name: "query-correctness-tests-1"
+      - func: "attach QueryTester information"
       - func: "run tests"
         vars:
           suite: query_correctness_query_shape_hash_stability_generated_test
@@ -1882,6 +1912,7 @@ tasks:
         vars:
           # The name of test repo that we want this task to clone.
           repo_name: "query-correctness-tests-2"
+      - func: "attach QueryTester information"
       - func: "run tests"
         vars:
           suite: query_correctness_query_shape_hash_stability_generated_test
@@ -1910,6 +1941,7 @@ tasks:
         vars:
           # The name of test repo that we want this task to clone.
           repo_name: "query-correctness-tests-3"
+      - func: "attach QueryTester information"
       - func: "run tests"
         vars:
           suite: query_correctness_query_shape_hash_stability_generated_test
@@ -1938,6 +1970,7 @@ tasks:
         vars:
           # The name of test repo that we want this task to clone.
           repo_name: "query-correctness-tests-4"
+      - func: "attach QueryTester information"
       - func: "run tests"
         vars:
           suite: query_correctness_query_shape_hash_stability_generated_test
@@ -2187,6 +2220,7 @@ tasks:
         vars:
           # The name of test repo that we want this task to clone.
           repo_name: "query-correctness-tests-1"
+      - func: "attach QueryTester information"
       - func: "run tests"
         vars:
           suite: query_correctness_generated_test
@@ -2215,6 +2249,7 @@ tasks:
         vars:
           # The name of test repo that we want this task to clone.
           repo_name: "query-correctness-tests-2"
+      - func: "attach QueryTester information"
       - func: "run tests"
         vars:
           suite: query_correctness_generated_test
@@ -2243,6 +2278,7 @@ tasks:
         vars:
           # The name of test repo that we want this task to clone.
           repo_name: "query-correctness-tests-3"
+      - func: "attach QueryTester information"
       - func: "run tests"
         vars:
           suite: query_correctness_generated_test
@@ -2271,6 +2307,7 @@ tasks:
         vars:
           # The name of test repo that we want this task to clone.
           repo_name: "query-correctness-tests-4"
+      - func: "attach QueryTester information"
       - func: "run tests"
         vars:
           suite: query_correctness_generated_test

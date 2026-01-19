@@ -48,15 +48,14 @@ class TestBarStageDescriptor : public sdk::AggStageDescriptor {
 public:
     static inline const std::string kStageName = std::string(TestBarStageName);
 
-    TestBarStageDescriptor()
-        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
+    TestBarStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
     std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
         sdk::validateStageDefinition(stageBson, kStageName);
 
-        userAssert(10785800,
-                   "Failed to parse " + kStageName + ", must have at least one field",
-                   !stageBson.getField(kStageName).Obj().isEmpty());
+        sdk_uassert(10785800,
+                    "Failed to parse " + kStageName + ", must have at least one field",
+                    !stageBson.getField(kStageName).Obj().isEmpty());
 
         return std::make_unique<TestBarParseNode>(stageBson);
     }

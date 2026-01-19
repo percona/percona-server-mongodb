@@ -56,7 +56,7 @@ void optimizeEachStage(DocumentSourceContainer* container);
  * Modifies the container, optimizing it by combining, swapping, dropping and/or inserting
  * stages.
  */
-void optimizeContainer(DocumentSourceContainer* container);
+void optimizeContainer(const ExpressionContext&, DocumentSourceContainer* container);
 
 /**
  * Optimize the given pipeline after the stage that 'itr' points to.
@@ -64,7 +64,19 @@ void optimizeContainer(DocumentSourceContainer* container);
  * Returns a valid iterator that points to the new "end of the pipeline": i.e., the stage that
  * comes after 'itr' in the newly optimized pipeline.
  */
-DocumentSourceContainer::iterator optimizeEndOfPipeline(DocumentSourceContainer::iterator itr,
+DocumentSourceContainer::iterator optimizeEndOfPipeline(const ExpressionContext&,
+                                                        DocumentSourceContainer::iterator itr,
                                                         DocumentSourceContainer* container);
+
+/*
+ * Helper to optimize and validate pipelines. This helper is used by stages that execute
+ * subpipelines (lookup, graphLookup, unionWith), and **must** be called before we execute the
+ * subpipeline.
+ */
+inline void optimizeAndValidatePipeline(Pipeline* pipeline) {
+    tassert(10313300, "Expected pipeline to optimize", pipeline);
+    optimizePipeline(*pipeline);
+    pipeline->validateCommon(true /* alreadyOptimized */);
+}
 }  // namespace pipeline_optimization
 }  // namespace mongo

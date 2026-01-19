@@ -72,8 +72,8 @@ public:
         return 1;
     }
 
-    std::vector<sdk::VariantNode> expand() const override {
-        std::vector<sdk::VariantNode> expanded;
+    std::vector<mongo::extension::VariantNodeHandle> expand() const override {
+        std::vector<mongo::extension::VariantNodeHandle> expanded;
         expanded.reserve(getExpandedSize());
         expanded.emplace_back(new sdk::ExtensionAggStageAstNode(
             std::make_unique<ShardedExecutionSerializationAstNode>()));
@@ -98,13 +98,12 @@ class ShardedExecutionSerializationStageDescriptor : public sdk::AggStageDescrip
 public:
     static inline const std::string kStageName = "$shardedExecutionSerialization";
 
-    ShardedExecutionSerializationStageDescriptor()
-        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
+    ShardedExecutionSerializationStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
     std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
         sdk::validateStageDefinition(stageBson, kStageName);
 
-        userAssert(
+        sdk_uassert(
             11173701,
             "Intended assertion in sharded scenarios tripped",
             !stageBson.getField(kStageName)

@@ -298,6 +298,11 @@ void OpDebug::report(OperationContext* opCtx,
     if (mongotCursorId) {
         pAttrs->add("mongot", makeMongotDebugStatsObject());
     }
+
+    if (!extensionMetrics.empty()) {
+        pAttrs->add("extensionMetrics", extensionMetrics.serialize());
+    }
+
     OPDEBUG_TOATTR_HELP_BOOL(exhaust);
 
     OPDEBUG_TOATTR_HELP_OPTIONAL("keysExamined", additiveMetrics.keysExamined);
@@ -423,6 +428,10 @@ void OpDebug::report(OperationContext* opCtx,
 
     if (writeConcern && !writeConcern->usedDefaultConstructedWC) {
         pAttrs->add("writeConcern", writeConcern->toBSON());
+    }
+
+    if (writeConcernError) {
+        pAttrs->add("writeConcernError", *writeConcernError);
     }
 
     if (waitForWriteConcernDurationMillis > Milliseconds::zero()) {
@@ -568,6 +577,11 @@ void OpDebug::append(OperationContext* opCtx,
     if (mongotCursorId) {
         b.append("mongot", makeMongotDebugStatsObject());
     }
+
+    if (!extensionMetrics.empty()) {
+        b.append("extensionMetrics", extensionMetrics.serialize());
+    }
+
     OPDEBUG_APPEND_BOOL(b, exhaust);
 
     OPDEBUG_APPEND_OPTIONAL(b, "keysExamined", additiveMetrics.keysExamined);
@@ -683,6 +697,10 @@ void OpDebug::append(OperationContext* opCtx,
 
     if (writeConcern && !writeConcern->usedDefaultConstructedWC) {
         b.append("writeConcern", writeConcern->toBSON());
+    }
+
+    if (writeConcernError) {
+        b.append("writeConcernError", *writeConcernError);
     }
 
     if (waitForWriteConcernDurationMillis > Milliseconds::zero()) {
@@ -885,6 +903,11 @@ std::function<BSONObj(ProfileFilter::Args)> OpDebug::appendStaged(OperationConte
     addIfNeeded("mongot", [](auto field, auto args, auto& b) {
         if (args.op.mongotCursorId) {
             b.append(field, args.op.makeMongotDebugStatsObject());
+        }
+    });
+    addIfNeeded("extensionMetrics", [](auto field, auto args, auto& b) {
+        if (!args.op.extensionMetrics.empty()) {
+            b.append(field, args.op.extensionMetrics.serialize());
         }
     });
     addIfNeeded("exhaust", [](auto field, auto args, auto& b) {

@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/base/string_data.h"
+#include "mongo/db/operation_context.h"
 #include "mongo/stdx/unordered_set.h"
 
 #include <opentelemetry/context/propagation/text_map_propagator.h>

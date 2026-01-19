@@ -31,40 +31,8 @@
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/column/bson_element_storage.h"
 #include "mongo/bson/column/bsoncolumn.h"
+#include "mongo/bson/column/bsoncolumnbuilder.h"
 #include "mongo/util/base64.h"
-
-// Returns true if the binary contains interleaved data. This function just scans the binary for an
-// interleaved start control byte, it does no validation nor decompression.
-static bool isDataInterleaved(const char* binary, size_t size) {
-    using namespace mongo;
-    const char* pos = binary;
-    const char* end = binary + size;
-
-    while (pos != end) {
-        uint8_t control = *pos;
-        if (control == stdx::to_underlying(BSONType::eoo)) {
-            // Reached the end of the binary.
-            return false;
-        }
-
-        if (bsoncolumn::isInterleavedStartControlByte(control)) {
-            return true;
-        }
-
-        if (bsoncolumn::isUncompressedLiteralControlByte(control)) {
-            // Scan over the entire literal.
-            BSONElement literal(pos, 1, BSONElement::TrustedInitTag{});
-            pos += literal.size();
-            continue;
-        }
-
-        // If there are no control bytes, scan over the simple8b block.
-        uint8_t size = bsoncolumn::numSimple8bBlocksForControlByte(control) * sizeof(uint64_t);
-        pos += size + 1;
-    }
-
-    return false;
-};
 
 // There are two decoding APIs. For all data that pass validation, both decoder implementations
 // must produce the same results.
@@ -84,12 +52,17 @@ extern "C" int LLVMFuzzerTestOneInput(const char* Data, size_t Size) {
     std::vector<BSONElement> blockBasedElems = {};
     std::string blockBasedError;
     std::string iteratorError;
+    std::string reopenError;
 
     // Attempt to decompress using the block-based API.
     try {
         block.decompress<bsoncolumn::BSONElementMaterializer>(blockBasedElems, allocator);
     } catch (const DBException& e) {
         blockBasedError = e.toString();
+        invariant(e.code() == ErrorCodes::InvalidBSONColumn,
+                  str::stream() << "For the input: " << base64::encode(StringData(Data, Size))
+                                << ", the block based API failed with unexpected error code "
+                                << e.code());
     }
 
     // Attempt to decompress using the iterator API.
@@ -99,16 +72,29 @@ extern "C" int LLVMFuzzerTestOneInput(const char* Data, size_t Size) {
         };
     } catch (const DBException& e) {
         iteratorError = e.toString();
+        invariant(e.code() == ErrorCodes::InvalidBSONColumn,
+                  str::stream() << "For the input: " << base64::encode(StringData(Data, Size))
+                                << ", the iterator API failed with unexpected error code "
+                                << e.code());
     }
 
-    // If one API failed, then both APIs must fail.
-    if (!iteratorError.empty() || !blockBasedError.empty()) {
-        invariant(!(iteratorError.empty() || blockBasedError.empty()),
+    // Attempt to reopen using the reopen API.
+    try {
+        BSONColumnBuilder(Data, Size);
+    } catch (const DBException& e) {
+        reopenError = e.toString();
+    }
+
+    // If one API failed, then all APIs must fail.
+    if (!iteratorError.empty() || !blockBasedError.empty() || !reopenError.empty()) {
+        invariant(!(iteratorError.empty() || blockBasedError.empty() || reopenError.empty()),
                   str::stream() << "For the input: " << base64::encode(StringData(Data, Size))
                                 << ". Iterator API returned "
                                 << (iteratorError.empty() ? "results" : iteratorError)
                                 << ". The block based API returned "
-                                << (blockBasedError.empty() ? "results" : blockBasedError));
+                                << (blockBasedError.empty() ? "results" : blockBasedError)
+                                << ". The reopen API returned "
+                                << (reopenError.empty() ? "results" : reopenError));
         return 0;
     }
 

@@ -28,8 +28,10 @@
  */
 
 
-#include "search_task_executors.h"
+#include "mongo/db/query/search/search_task_executors.h"
 
+#include "mongo/db/query/search/mongot_options.h"
+#include "mongo/db/query/search/search_index_options.h"
 #include "mongo/executor/connection_pool_controllers.h"
 #include "mongo/executor/network_interface_factory.h"
 #include "mongo/executor/network_interface_thread_pool.h"
@@ -40,9 +42,6 @@
 
 #include <memory>
 #include <utility>
-
-#include "mongot_options.h"
-#include "search_index_options.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kExecutor
 
@@ -122,6 +121,28 @@ struct State {
 
 const auto getExecutorHolder = ServiceContext::declareDecoration<State>();
 
+Rarely _shutdownLogSampler;
+
+void destroyTaskExecutor(std::shared_ptr<TaskExecutor>& executor) {
+    // We want to make sure that the TaskExecutor gets destructed here so that it frees all its
+    // resources (e.g. GRPC clients) before continuing. However, any in progress search operations
+    // also keep a shared_ptr reference to the object, so resetting the global pointer isn't enough
+    // to guarantee that it is destructed. We create a weak pointer here and wait for it to be
+    // expired so that we know that all references are gone.
+    std::weak_ptr<executor::TaskExecutor> weakReference = executor;
+    executor.reset();
+
+    // Tick the log sampler in advance to avoid logging immediately - only log if it's a long wait.
+    _shutdownLogSampler.tick();
+
+    while (!weakReference.expired()) {
+        if (_shutdownLogSampler.tick()) {
+            LOGV2_INFO(11323800, "Waiting for search task executor to be destroyed.");
+        }
+        sleepFor(Milliseconds(100));
+    }
+}
+
 }  // namespace
 
 std::shared_ptr<TaskExecutor> getMongotTaskExecutor(ServiceContext* svc) {
@@ -155,11 +176,11 @@ void shutdownSearchExecutorsIfNeeded(ServiceContext* svc) {
         // The underlying mongot TaskExecutor must outlive any PinnedConnectionTaskExecutor that
         // uses it, so we must drain PCTEs first and then shut down the mongot executor.
         shutdownPinnedExecutors(svc, state.mongotExecutor);
-        // Deleting the executor will also call shutdown() and join(), but might as well call them
-        // explicitly here.
         state.mongotExecutor->shutdown();
         state.mongotExecutor->join();
-        state.mongotExecutor.reset();
+
+        destroyTaskExecutor(state.mongotExecutor);
+        LOGV2_INFO(11323801, "Finished shutting down mongot task executor.");
     }
 
     if (!globalSearchIndexParams.host.empty()) {
@@ -167,7 +188,9 @@ void shutdownSearchExecutorsIfNeeded(ServiceContext* svc) {
         shutdownPinnedExecutors(svc, state.searchIndexMgmtExecutor);
         state.searchIndexMgmtExecutor->shutdown();
         state.searchIndexMgmtExecutor->join();
-        state.searchIndexMgmtExecutor.reset();
+
+        destroyTaskExecutor(state.searchIndexMgmtExecutor);
+        LOGV2_INFO(11323802, "Finished shutting down search index management task executor.");
     }
 }
 

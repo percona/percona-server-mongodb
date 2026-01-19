@@ -1,10 +1,6 @@
 /**
  * Checks that if an operation is de-prioritized, its stats are aggregated correctly in
  * serverStatus, and it is reported as low-priority in both $currentOp and the slow query log.
- *
- * @tags: [
- *   featureFlagMultipleTicketPoolsExecutionControl,
- * ]
  */
 
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
@@ -32,9 +28,9 @@ describe("Deprioritized operation diagnostics", function () {
                     // Force the query to yield frequently to better expose the low-priority
                     // behavior.
                     internalQueryExecYieldIterations: 1,
-                    storageEngineConcurrencyAdjustmentAlgorithm: "fixedConcurrentTransactionsWithPrioritization",
-                    storageEngineHeuristicDeprioritizationEnabled: true,
-                    storageEngineHeuristicNumYieldsDeprioritizeThreshold: 1,
+                    executionControlConcurrencyAdjustmentAlgorithm: "fixedConcurrentTransactionsWithPrioritization",
+                    executionControlHeuristicDeprioritizationEnabled: true,
+                    executionControlHeuristicNumAdmissionsDeprioritizeThreshold: 1,
                     logComponentVerbosity: {command: 2},
                 },
                 slowms: 0,

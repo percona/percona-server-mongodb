@@ -26,6 +26,7 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+#include "mongo/base/status.h"
 #include "mongo/db/generic_argument_util.h"
 #include "mongo/db/global_catalog/ddl/ddl_lock_manager.h"
 #include "mongo/db/global_catalog/ddl/placement_history_cleaner.h"
@@ -43,9 +44,14 @@
 #include "mongo/db/pipeline/document_source_union_with.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/sharding_environment/grid.h"
+#include "mongo/db/sharding_environment/shard_id.h"
+#include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/vector_clock/vector_clock.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/pcre_util.h"
+
+#include <algorithm>
+#include <vector>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
@@ -366,7 +372,8 @@ HistoricalPlacement ShardingCatalogManager::getHistoricalPlacement(
     OperationContext* opCtx,
     const boost::optional<NamespaceString>& nss,
     const Timestamp& atClusterTime,
-    bool checkIfPointInTimeIsInFuture) {
+    bool checkIfPointInTimeIsInFuture,
+    bool ignoreRemovedShards) {
 
     uassert(ErrorCodes::InvalidOptions,
             "unsupported namespace for historical placement query",
@@ -797,7 +804,32 @@ HistoricalPlacement ShardingCatalogManager::getHistoricalPlacement(
 
     const auto sourceField =
         isComputedPlacementAccurate ? "computedPlacement" : "placementAtInitTime";
-    return HistoricalPlacement{extractShardIds(sourceField), HistoricalPlacementStatus::OK};
+
+    std::vector<ShardId> shardIds = extractShardIds(sourceField);
+
+    // Build the result piece by piece because some response fields are only set conditionally.
+    HistoricalPlacement historicalPlacementResult;
+    historicalPlacementResult.setStatus(HistoricalPlacementStatus::OK);
+
+    if (ignoreRemovedShards) {
+        // TODO SERVER-111106: Add the remaining missing output parameters here.
+
+        // Remove all shards that were mentioned in the placement history that are not present
+        // anymore in the current version of the shard registry.
+        auto allAvailableShardIds = Grid::get(opCtx)->shardRegistry()->getAllShardIds(opCtx);
+        std::sort(allAvailableShardIds.begin(), allAvailableShardIds.end());
+        size_t originalNumberOfShardIds = shardIds.size();
+        std::erase_if(shardIds, [&](const ShardId& shardId) {
+            return !std::binary_search(
+                allAvailableShardIds.begin(), allAvailableShardIds.end(), shardId);
+        });
+        historicalPlacementResult.setAnyRemovedShardDetected(shardIds.size() <
+                                                             originalNumberOfShardIds);
+    }
+
+    historicalPlacementResult.setShards(std::move(shardIds));
+
+    return historicalPlacementResult;
 }
 
 void ShardingCatalogManager::initializePlacementHistory(OperationContext* opCtx,
@@ -849,8 +881,20 @@ void ShardingCatalogManager::initializePlacementHistory(OperationContext* opCtx,
                                const boost::optional<BSONObj>& postBatchResumeToken) {
             return true;
         };
-        Status status = _localConfigShard->runAggregation(
-            snapshotReadsOpCtx.get(), createInitialSnapshotAggReq, noopCallback);
+
+        auto noopOnRetry = [](const Status&) {
+        };
+
+        // This aggregation cannot be retried because it performs writes in one of its steps.
+        // Restarting the aggregation process would potentially perform the write again, so we
+        // prohibit retries for this one.
+        // TODO(SERVER-113598): Consider finding a way to not need noop callbacks when no retries
+        // are needed.
+        Status status = _localConfigShard->runAggregation(snapshotReadsOpCtx.get(),
+                                                          createInitialSnapshotAggReq,
+                                                          Shard::RetryPolicy::kNoRetry,
+                                                          noopCallback,
+                                                          noopOnRetry);
         uassertStatusOK(status);
     }
 
@@ -870,8 +914,16 @@ void ShardingCatalogManager::initializePlacementHistory(OperationContext* opCtx,
             return true;
         };
 
-        uassertStatusOK(_localConfigShard->runAggregation(
-            snapshotReadsOpCtx.get(), findAllShardsReq, consumeBatchResponse));
+        auto resetOnRetriableFailure = [&](const Status& status) {
+            shardsAtInitializationTime.clear();
+        };
+
+        uassertStatusOK(
+            _localConfigShard->runAggregation(snapshotReadsOpCtx.get(),
+                                              findAllShardsReq,
+                                              Shard::RetryPolicy::kStrictlyNotIdempotent,
+                                              consumeBatchResponse,
+                                              resetOnRetriableFailure));
 
         setInitializationTimeOnPlacementHistory(
             opCtx, initializationTime, std::move(shardsAtInitializationTime));
@@ -892,7 +944,11 @@ void ShardingCatalogManager::cleanUpPlacementHistory(OperationContext* opCtx,
      */
     auto allShardIds = [&] {
         const auto clusterPlacementAtEarliestClusterTime =
-            getHistoricalPlacement(opCtx, boost::none /*namespace*/, earliestClusterTime);
+            getHistoricalPlacement(opCtx,
+                                   boost::none /*namespace*/,
+                                   earliestClusterTime,
+                                   true /* checkIfPointInTimeIsInFuture */,
+                                   false /* ignoreRemovedShards */);
         return clusterPlacementAtEarliestClusterTime.getShards();
     }();
 
@@ -963,7 +1019,14 @@ void ShardingCatalogManager::cleanUpPlacementHistory(OperationContext* opCtx,
         return true;
     };
 
-    uassertStatusOK(_localConfigShard->runAggregation(opCtx, aggRequest, callback));
+    auto onRetry = [&](const Status&) {
+        deleteStatements.clear();
+    };
+
+    // TODO(SERVER-113416): Consider using kIdempotent since onRetry allows read only aggregation
+    // processes to be restarted.
+    uassertStatusOK(_localConfigShard->runAggregation(
+        opCtx, aggRequest, Shard::RetryPolicy::kStrictlyNotIdempotent, callback, onRetry));
 
     LOGV2_DEBUG(7068806,
                 2,

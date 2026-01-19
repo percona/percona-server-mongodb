@@ -52,8 +52,6 @@
 #include "mongo/db/local_catalog/catalog_raii.h"
 #include "mongo/db/local_catalog/collection.h"
 #include "mongo/db/local_catalog/collection_catalog_helper.h"
-#include "mongo/db/local_catalog/health_log_gen.h"
-#include "mongo/db/local_catalog/health_log_interface.h"
 #include "mongo/db/local_catalog/index_catalog_entry.h"
 #include "mongo/db/local_catalog/lock_manager/d_concurrency.h"
 #include "mongo/db/local_catalog/lock_manager/exception_util.h"
@@ -62,12 +60,15 @@
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/read_write_concern_defaults.h"
+#include "mongo/db/repl/dbcheck/health_log_gen.h"
+#include "mongo/db/repl/dbcheck/health_log_interface.h"
 #include "mongo/db/repl/oplog.h"
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/oplog_entry_gen.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/repl_server_parameters_gen.h"
 #include "mongo/db/repl/replication_coordinator.h"
+#include "mongo/db/rss/replicated_storage_service.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/recovery_unit.h"
@@ -2240,6 +2241,12 @@ public:
              const DatabaseName& dbName,
              const BSONObj& cmdObj,
              BSONObjBuilder& result) override {
+        uassert(ErrorCodes::IllegalOperation,
+                str::stream() << "dbCheck can only be run when local collections are supported",
+                rss::ReplicatedStorageService::get(opCtx)
+                    .getPersistenceProvider()
+                    .supportsLocalCollections());
+
         auto job = getRun(opCtx, dbName, cmdObj);
         (new DbCheckJob(opCtx->getService(), std::move(job)))->go();
         return true;

@@ -31,43 +31,32 @@
 #include "mongo/db/extension/host/document_source_extension.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/ast_node.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/logical.h"
-#include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
-#include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
 
 namespace mongo::extension::host {
 
 class DocumentSourceExtensionOptimizable : public DocumentSourceExtension {
 public:
-    // Direct construction of a source or transform extension.
-    DocumentSourceExtensionOptimizable(StringData name,
-                                       const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                                       Id id,
-                                       BSONObj rawStage,
-                                       AggStageDescriptorHandle staticDescriptor)
-        : DocumentSourceExtension(name, expCtx, id, rawStage, staticDescriptor),
-          _logicalStage(validateAndCreateLogicalStage()) {}
+    // Construction of a source or transform stage that expanded from a desugar stage. This stage
+    // does not hold a parse node and therefore has no concept of a query shape. Its shape
+    // responsibility comes from the desugar stage it expanded from.
+    static boost::intrusive_ptr<DocumentSourceExtensionOptimizable> create(
+        const boost::intrusive_ptr<ExpressionContext>& expCtx, AggStageAstNodeHandle astNode) {
+        return boost::intrusive_ptr<DocumentSourceExtensionOptimizable>(
+            new DocumentSourceExtensionOptimizable(expCtx, std::move(astNode)));
+    }
 
     Value serialize(const SerializationOptions& opts) const override;
 
-private:
+    static const Id& id;
+
+    Id getId() const override;
+
+protected:
     const LogicalAggStageHandle _logicalStage;
 
-    LogicalAggStageHandle validateAndCreateLogicalStage() {
-        std::vector<VariantNodeHandle> expandedNodes = _parseNode.expand();
-
-        tassert(11164400,
-                str::stream() << "Source or transform stage " << _stageName
-                              << " must expand into exactly one node.",
-                expandedNodes.size() == 1);
-
-        if (const auto* astNodeHandlePtr = std::get_if<AggStageAstNodeHandle>(&expandedNodes[0])) {
-            return astNodeHandlePtr->bind();
-        } else {
-            tasserted(11164401,
-                      str::stream() << "Source or transform extension" << _stageName
-                                    << " must expand into an AST node");
-        }
-    }
+    DocumentSourceExtensionOptimizable(const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                                       AggStageAstNodeHandle astNode)
+        : DocumentSourceExtension(astNode.getName(), expCtx), _logicalStage(astNode.bind()) {}
 };
 
 }  // namespace mongo::extension::host

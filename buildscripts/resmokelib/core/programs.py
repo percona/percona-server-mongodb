@@ -72,6 +72,13 @@ def remove_set_parameter_if_before_version(
         set_parameters.pop(parameter_name, None)
 
 
+def _should_enable_otel(test_data, bin_version):
+    """Check whether OpenTelemetry is supported on the current platform."""
+    return test_data.get("enableOTELTracing", True) and version.parse(bin_version) >= version.parse(
+        "8.3.0"
+    )
+
+
 def mongod_program(
     logger: logging.Logger,
     job_num: int,
@@ -125,6 +132,10 @@ def mongod_program(
         mongod_options["port"] = network.PortAllocator.next_fixture_port(job_num)
 
     suite_set_parameters = mongod_options.get("set_parameters", {})
+
+    if config.OTEL_COLLECTOR_DIR and _should_enable_otel(mongod_options, bin_version):
+        suite_set_parameters["opentelemetryTraceDirectory"] = config.OTEL_COLLECTOR_DIR
+
     remove_set_parameter_if_before_version(
         suite_set_parameters, "queryAnalysisSamplerConfigurationRefreshSecs", bin_version, "7.0.0"
     )
@@ -203,6 +214,10 @@ def mongos_program(
         mongos_options["port"] = network.PortAllocator.next_fixture_port(job_num)
 
     suite_set_parameters = mongos_options.get("set_parameters", {})
+
+    if config.OTEL_COLLECTOR_DIR and _should_enable_otel(mongos_options, bin_version):
+        suite_set_parameters["opentelemetryTraceDirectory"] = config.OTEL_COLLECTOR_DIR
+
     remove_set_parameter_if_before_version(
         suite_set_parameters, "queryAnalysisSamplerConfigurationRefreshSecs", bin_version, "7.0.0"
     )
@@ -281,6 +296,8 @@ def mongo_shell_program(
     )
     args = [executable]
 
+    bin_version = get_binary_version(executable)
+
     eval_sb = []  # String builder.
     global_vars = kwargs.pop("global_vars", {}).copy()
 
@@ -345,6 +362,9 @@ def mongo_shell_program(
 
     if config.MONGOS_TLS_CERTIFICATE_KEY_FILE:
         test_data["mongosTlsCertificateKeyFile"] = config.MONGOS_TLS_CERTIFICATE_KEY_FILE
+
+    if config.OTEL_COLLECTOR_DIR and _should_enable_otel(test_data, bin_version):
+        test_data["otelTraceDirectory"] = config.OTEL_COLLECTOR_DIR
 
     global_vars["TestData"] = test_data
 

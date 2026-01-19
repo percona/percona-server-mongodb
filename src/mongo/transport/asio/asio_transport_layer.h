@@ -31,6 +31,7 @@
 
 #include "mongo/base/status_with.h"
 #include "mongo/config.h"
+#include "mongo/db/ftdc/rolling_stats.h"
 #include "mongo/db/server_options.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/mutex.h"
@@ -39,6 +40,7 @@
 #include "mongo/transport/transport_layer.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/hierarchical_acquisition.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/net/ssl_options.h"
 #include "mongo/util/net/ssl_types.h"
@@ -74,7 +76,7 @@ class AsioSession;
 /**
  * A TransportLayer implementation based on ASIO networking primitives.
  */
-class AsioTransportLayer final : public TransportLayer {
+class MONGO_MOD_NEEDS_REPLACEMENT AsioTransportLayer final : public TransportLayer {
     AsioTransportLayer(const AsioTransportLayer&) = delete;
     AsioTransportLayer& operator=(const AsioTransportLayer&) = delete;
 
@@ -368,6 +370,9 @@ private:
     // Counts the aggregate number of proxy connections that were dropped due to the server reaching
     // the maximum number of proxy connections pending proxy protocol header.
     Counter64 _discardedDueToMaximumPendingOnProxyHeader;
+
+    // Statistics on dns resolution latency in milliseconds.
+    RollingStats _dnsResolveStatsMillis;
 };
 
 }  // namespace transport

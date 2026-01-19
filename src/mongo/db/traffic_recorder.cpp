@@ -43,28 +43,37 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/commands/server_status/server_status.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/db/query/util/stop_token.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/traffic_recorder.h"
 #include "mongo/db/traffic_recorder_gen.h"
-#include "mongo/db/traffic_recorder_session_utils.h"
+#include "mongo/logv2/log.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/thread.h"
+#include "mongo/transport/session_manager.h"
+#include "mongo/transport/transport_layer_manager.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/concurrency/thread_name.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
+#include "mongo/util/functional.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/producer_consumer_queue.h"
 #include "mongo/util/tick_source.h"
 #include "mongo/util/time_support.h"
+#include "mongo/util/uuid.h"
 
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <exception>
 #include <filesystem>
 #include <limits>
 #include <memory>
+#include <queue>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -72,9 +81,29 @@
 #include <absl/crc/crc32c.h>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/filesystem/path.hpp>
+#include <boost/none.hpp>
 #include <fmt/ostream.h>
 
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kRecorder
+
+
 namespace mongo {
+
+static std::vector<std::pair<transport::SessionId, std::string>> getActiveSessions(
+    ServiceContext* svcCtx) {
+    transport::TransportLayerManager* tlManager = svcCtx->getTransportLayerManager();
+    std::vector<std::pair<transport::SessionId, std::string>> openSessions;
+    if (tlManager) {
+        tlManager->forEach([&openSessions](transport::TransportLayer* tl) {
+            auto sessionManager = tl->getSessionManager();
+            if (sessionManager) {
+                auto sessionIds = sessionManager->getOpenSessionIDs();
+                openSessions.insert(openSessions.end(), sessionIds.begin(), sessionIds.end());
+            }
+        });
+    }
+    return openSessions;
+}
 
 void appendPacketHeader(DataBuilder& db, const TrafficRecordingPacket& packet) {
     db.clear();
@@ -92,12 +121,35 @@ void appendPacketHeader(DataBuilder& db, const TrafficRecordingPacket& packet) {
     db.getCursor().write<LittleEndian<uint32_t>>(fullSize);
 }
 
+TrafficRecorder::RecordingID generateID() {
+    return UUID::gen().toString();
+}
+
 TrafficRecorder::Recording::Recording(const StartTrafficRecording& options,
                                       std::filesystem::path globalRecordingDirectory,
                                       TickSource* tickSource)
     : _path(_getPath(globalRecordingDirectory, std::string{options.getDestination()})),
       _maxLogSize(options.getMaxFileSize()),
       _tickSource(tickSource) {
+
+    if (auto id = options.getRecordingID()) {
+        _id = RecordingID(*id);
+    } else {
+        _id = generateID();
+    }
+
+    // Scheduled times can be provided to startTrafficRecording.
+    auto start = options.getStartTime();
+    auto end = options.getEndTime();
+
+    // Both or neither must be provided; validated in the command.
+    tassert(10849407,
+            "startTrafficRecording should enforce providing both start and end time, or neither",
+            start.has_value() == end.has_value());
+
+    if (start) {
+        _scheduledTimes = std::pair(*start, *end);
+    }
 
     MultiProducerSingleConsumerQueue<TrafficRecordingPacket, CostFunction>::Options queueOptions;
     queueOptions.maxQueueDepth = options.getMaxMemUsage();
@@ -111,7 +163,10 @@ TrafficRecorder::Recording::Recording(const StartTrafficRecording& options,
 
 void TrafficRecorder::Recording::start() {
     _started.store(true);
-    _trafficStats.setRunning(true);
+    {
+        stdx::lock_guard<stdx::mutex> lk(_mutex);
+        _trafficStats.setRunning(true);
+    }
     startTime.store(_tickSource->ticksTo<Microseconds>(_tickSource->getTicks()));
     _thread = stdx::thread([consumer = std::move(_pcqPipe.consumer), this] {
         if (!boost::filesystem::is_directory(boost::filesystem::absolute(_path))) {
@@ -247,7 +302,9 @@ Status TrafficRecorder::Recording::shutdown() {
         lk.unlock();
 
         _pcqPipe.producer.close();
-        _thread.join();
+        if (_thread.joinable()) {
+            _thread.join();
+        }
 
         lk.lock();
     }
@@ -289,8 +346,6 @@ TrafficRecorder& TrafficRecorder::get(ServiceContext* svc) {
     return getTrafficRecorder(svc);
 }
 
-TrafficRecorder::TrafficRecorder() = default;
-
 TrafficRecorder::~TrafficRecorder() {}
 
 std::shared_ptr<TrafficRecorder::Recording> TrafficRecorder::_makeRecording(
@@ -300,7 +355,7 @@ std::shared_ptr<TrafficRecorder::Recording> TrafficRecorder::_makeRecording(
     return std::make_shared<Recording>(options, globalRecordingDirectory, tickSource);
 }
 
-void TrafficRecorder::start(const StartTrafficRecording& options, ServiceContext* svcCtx) {
+StartReply TrafficRecorder::start(const StartTrafficRecording& options, ServiceContext* svcCtx) {
     uassert(ErrorCodes::BadValue,
             "startTime and endTime should both be provided, or neither",
             options.getStartTime().has_value() == options.getEndTime().has_value());
@@ -319,12 +374,101 @@ void TrafficRecorder::start(const StartTrafficRecording& options, ServiceContext
                 end > start && end < (Date_t::now() + Days(10)));
     }
 
-    _prepare(options, svcCtx);
-    _start(svcCtx);
+    // May throw if not in a valid state to create a new recording i.e., if a pending or running
+    // recording already exists.
+    auto [rec, created] = _prepare(options, svcCtx);
+    const auto recID = (*rec)->getID();
+    if (!created) {
+        // This request did not need to create a new recording - it is a repeated call with the same
+        // recording ID. No further action needs to be taken.
+        auto status =
+            (*rec)->isStarted() ? RecordingStateEnum::Running : RecordingStateEnum::Scheduled;
+        return {recID, false, status};
+    }
+    if (!options.getStartTime().has_value()) {
+        // Start immediately.
+        _start(std::move(rec), svcCtx);
+        return {recID, true, RecordingStateEnum::Running};
+    }
+
+    auto start = *options.getStartTime();
+    auto end = *options.getEndTime();
+
+    // A recording has been created, but needs to start (and stop) at times in the future.
+    // Create a task to do so.
+
+    LOGV2_INFO(10849400, "Recording Scheduled for", "time"_attr = start.toString());
+
+    std::shared_ptr<Recording> expectedRecording = *rec;
+
+    if (_worker) {
+        // If a previous scheduled recording still has tasks waiting to run, cancel them.
+        // They would be no-ops, but can be eagerly cleaned up.
+        _worker->cancelAll();
+    } else {
+        // Initialize the task worker.
+        _worker = makeTaskScheduler("TrafficRecorderScheduler");
+    }
+
+    _worker->runAt(start, [expectedRecording, this, svcCtx]() {
+        auto rec = _recording.synchronize();
+        if (*rec != expectedRecording) {
+            LOGV2_INFO(10849401,
+                       "Scheduled recording start skipped as recording not in expected state");
+            return;
+        }
+        try {
+            _start(std::move(rec), svcCtx);
+        } catch (const std::exception& e) {
+            LOGV2_ERROR(
+                10849402, "Scheduled recording could not be started", "exception"_attr = e.what());
+            return;
+        }
+        LOGV2_INFO(10849403, "Scheduled recording started");
+    });
+
+    _worker->runAt(end, [expectedRecording, this, svcCtx]() {
+        auto rec = _recording.synchronize();
+        if (*rec != expectedRecording) {
+            LOGV2_INFO(10849404,
+                       "Scheduled recording end skipped as recording not in expected state");
+            return;
+        }
+
+        try {
+            _stop(std::move(rec), svcCtx);
+        } catch (const DBException& e) {
+            LOGV2_ERROR(
+                10849405, "Scheduled recording could not be stopped", "exception"_attr = e.what());
+            return;
+        }
+        LOGV2_INFO(10849406, "Recording Stopped");
+    });
+    return {recID, true, RecordingStateEnum::Scheduled};
 }
 
 void TrafficRecorder::stop(ServiceContext* svcCtx) {
-    _stop(svcCtx);
+    // The recording may have been a scheduled recording.
+    // This explicit stop command should cancel any outstanding tasks.
+    if (_worker) {
+        _worker->cancelAll();
+    }
+    _stop(_recording.synchronize(), svcCtx);
+}
+
+StatusReply TrafficRecorder::status() const {
+    auto rec = _recording.synchronize();
+    StatusReply res;
+
+    auto recPtr = *rec;
+    if (!recPtr) {
+        res.setStatus(RecordingStateEnum::None);
+        return res;
+    }
+    res.setStatus(recPtr->isStarted() ? RecordingStateEnum::Running
+                                      : RecordingStateEnum::Scheduled);
+    res.setRecordingID(recPtr->getID());
+    return res;
 }
 
 void TrafficRecorder::sessionStarted(const transport::Session& ts) {
@@ -391,26 +535,45 @@ void TrafficRecorder::_observe(Recording& recording,
 }
 
 
-void TrafficRecorder::_prepare(const StartTrafficRecording& options, ServiceContext* svcCtx) {
+std::pair<TrafficRecorder::LockedRecordingHandle, bool> TrafficRecorder::_prepare(
+    const StartTrafficRecording& options, ServiceContext* svcCtx) {
     auto globalRecordingDirectory = gTrafficRecordingDirectory;
     uassert(ErrorCodes::BadValue,
             "Traffic recording directory not set",
             !globalRecordingDirectory.empty());
 
-    {
-        auto rec = _recording.synchronize();
-        uassert(ErrorCodes::BadValue, "Traffic recording already active", !*rec);
-        *rec = _makeRecording(options, globalRecordingDirectory, svcCtx->getTickSource());
+    auto rec = _recording.synchronize();
+    auto recPtr = *rec;
+    auto requestedID = options.getRecordingID();
+
+    if (recPtr) {
+        // A recording already exists.
+        if (requestedID.has_value()) {
+            // A recording exists, and the request provided a recording ID.
+            // If the current recording has the same ID, the start request should complete
+            // successfully without taking further action, else it should fail.
+            uassert(ErrorCodes::BadValue,
+                    "Traffic recording already active with a different recording ID",
+                    *requestedID == recPtr->getID());
+            return {std::move(rec), false};
+        } else {
+            // If no recording ID was specified, any existing recording means the current start
+            // command should fail.
+            uasserted(ErrorCodes::BadValue, "Traffic recording already active");
+        }
     }
+
+    *rec = _makeRecording(options, globalRecordingDirectory, svcCtx->getTickSource());
+    return {std::move(rec), true};
 }
 
-void TrafficRecorder::_start(ServiceContext* svcCtx) {
-    std::shared_ptr<Recording> recording = _getCurrentRecording();
+void TrafficRecorder::_start(LockedRecordingHandle rec, ServiceContext* svcCtx) {
+    std::shared_ptr<Recording> recording = *rec;
 
-    uassert(ErrorCodes::BadValue, "Traffic recording must be prepared before starting", recording);
+    uassert(ErrorCodes::BadValue, "Non-existent traffic recording cannot be started", recording);
     uassert(ErrorCodes::BadValue,
             "Traffic recording instance cannot be started repeatedly",
-            !recording->started());
+            !recording->isStarted());
 
     recording->start();
     _shouldRecord.store(true);
@@ -424,10 +587,10 @@ void TrafficRecorder::_start(ServiceContext* svcCtx) {
         _observe(*recording, id, session, Message(), EventType::kSessionStart);
     }
 }
-void TrafficRecorder::_stop(ServiceContext* svcCtx) {
+void TrafficRecorder::_stop(LockedRecordingHandle handle, ServiceContext* svcCtx) {
     // Take the recording, if it exists.
     // Past this point, other operations cannot record events.
-    std::shared_ptr<Recording> recording = std::move(*_recording.synchronize());
+    std::shared_ptr<Recording> recording = std::move(*handle);
 
     uassert(ErrorCodes::BadValue, "Traffic recording not active", recording);
 

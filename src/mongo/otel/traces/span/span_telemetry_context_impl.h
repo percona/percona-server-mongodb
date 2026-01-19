@@ -31,6 +31,7 @@
 
 #include "mongo/base/string_data.h"
 #include "mongo/otel/telemetry_context.h"
+#include "mongo/util/modules.h"
 
 #include <opentelemetry/context/propagation/text_map_propagator.h>
 #include <opentelemetry/trace/context.h>
@@ -53,7 +54,7 @@ constexpr OtelStringView falseValue = "false";
  * SpanTelemetryContextImpl is an implementation of TelemetryContext that wraps OpenTelemetry's
  * Context to allow for propagation of span state across OpenTelemetry functionality.
  */
-class SpanTelemetryContextImpl : public TelemetryContext {
+class MONGO_MOD_NEEDS_REPLACEMENT SpanTelemetryContextImpl : public TelemetryContext {
 public:
     explicit SpanTelemetryContextImpl(OtelContext ctx);
     SpanTelemetryContextImpl() : _ctx() {}
@@ -87,6 +88,10 @@ public:
     }
 
     void propagate(TextMapPropagator& propagator, TextMapCarrier& carrier) const;
+
+    std::shared_ptr<TelemetryContext> clone() const override {
+        return std::make_shared<SpanTelemetryContextImpl>(*this);
+    }
 
 private:
     OtelContext _ctx;

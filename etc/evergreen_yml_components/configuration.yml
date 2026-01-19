@@ -107,6 +107,7 @@ post:
   - func: "debug full disk"
   - func: "upload npm logs"
   - func: "generate clang-tidy report"
+  - func: "generate symbol-check report"
   - func: "attach local resmoke invocation"
   - func: "attach bazel invocation"
   - func: "create bazel test report"
@@ -122,6 +123,7 @@ post:
   - func: "attach docker logs"
   - func: "upload jstestfuzz minimized output"
   - func: "generate and upload network diagnostics"
+  - func: "save tracing data"
   - func: "kill processes"
   - func: "save code coverage data"
   - func: "save local client logs"
@@ -153,6 +155,8 @@ post:
         ${report_file|src/report.json}
         ${archive_file|src/archive.json}
         src/network_diagnostics.txt
+        ${workdir}/build/OTelTraces/*trace.jsonl
+        tracing-data.tgz
   - func: "umount tmp directory"
   - func: "cleanup FUSE watchdog"
   - func: "cleanup environment"

@@ -81,6 +81,8 @@
 #include "mongo/db/write_concern_options.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
+#include "mongo/otel/traces/span/span.h"
+#include "mongo/otel/traces/telemetry_context_serialization.h"
 #include "mongo/s/resharding/resharding_feature_flag_gen.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/stdx/unordered_set.h"
@@ -236,7 +238,8 @@ public:
         return std::make_unique<ShardingRecoveryService::FilteringMetadataClearer>();
     }
 
-    void abortUnpreparedTransactionIfNecessary(OperationContext* opCtx) override {
+    void abortUnpreparedTransactionIfNecessary(OperationContext* opCtx,
+                                               const NamespaceString& sourceNss) override {
         if (resharding::gFeatureFlagReshardingAbortUnpreparedTransactionsUponPreparingToBlockWrites
                 .isEnabled(VersionContext::getDecoration(opCtx),
                            serverGlobalParams.featureCompatibility.acquireFCVSnapshot()) &&
@@ -253,8 +256,11 @@ public:
 
             SessionKiller::Matcher matcherAllSessions(
                 KillAllSessionsByPatternSet{makeKillAllSessionsByPattern(opCtx)});
-            killSessionsAbortUnpreparedTransactions(
-                opCtx, matcherAllSessions, ErrorCodes::InterruptedDueToReshardingCriticalSection);
+            killSessionsAbortUnpreparedTransactionsWithinNamespace(
+                opCtx,
+                matcherAllSessions,
+                sourceNss,
+                ErrorCodes::InterruptedDueToReshardingCriticalSection);
         }
     }
 };
@@ -325,29 +331,65 @@ ReshardingDonorService::DonorStateMachine::DonorStateMachine(
 
 ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runUntilBlockingWritesOrErrored(
     const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-    const CancellationToken& abortToken) {
+    const CancellationToken& abortToken,
+    std::shared_ptr<otel::TelemetryContext> telemetryCtx) {
     return _retryingCancelableOpCtxFactory
-        ->withAutomaticRetry([this, executor, abortToken](const auto& factory) {
+        ->withAutomaticRetry([this, executor, abortToken, telemetryCtx = telemetryCtx->clone()](
+                                 const auto& factory) {
             return ExecutorFuture(**executor)
-                .then([this, &factory] {
+                .then([this, &factory, telemetryCtx = telemetryCtx->clone()]() mutable {
+                    auto span = _startSpan(
+                        telemetryCtx,
+                        "ReshardingDonorService::_"
+                        "onPreparingToDonateCalculateTimestampThenTransitionToDonatingInitialData");
                     _onPreparingToDonateCalculateTimestampThenTransitionToDonatingInitialData(
                         factory);
                 })
-                .then([this, executor, abortToken, &factory] {
+                .then([this,
+                       executor,
+                       abortToken,
+                       &factory,
+                       telemetryCtx = telemetryCtx->clone()]() mutable {
+                    auto span = _startSpan(
+                        telemetryCtx,
+                        "ReshardingDonorService::_"
+                        "awaitAllRecipientsDoneCloningThenTransitionToDonatingOplogEntries");
                     return _awaitAllRecipientsDoneCloningThenTransitionToDonatingOplogEntries(
                         executor, abortToken, factory);
                 })
-                .then([this, executor, abortToken, &factory] {
+                .then([this,
+                       executor,
+                       abortToken,
+                       &factory,
+                       telemetryCtx = telemetryCtx->clone()]() mutable {
+                    auto span =
+                        _startSpan(telemetryCtx,
+                                   "ReshardingDonorService::_createAndStartChangeStreamsMonitor");
                     return _createAndStartChangeStreamsMonitor(executor, abortToken, factory);
                 })
-                .then([this, executor, abortToken, &factory] {
+                .then([this,
+                       executor,
+                       abortToken,
+                       &factory,
+                       telemetryCtx = telemetryCtx->clone()]() mutable {
+                    auto span = _startSpan(
+                        telemetryCtx,
+                        "ReshardingDonorService::_"
+                        "awaitAllRecipientsDoneApplyingThenTransitionToPreparingToBlockWrites");
                     return _awaitAllRecipientsDoneApplyingThenTransitionToPreparingToBlockWrites(
                         executor, abortToken, factory);
                 })
-                .then([this, &factory] {
+                .then([this, &factory, telemetryCtx = telemetryCtx->clone()]() mutable {
+                    auto span =
+                        _startSpan(telemetryCtx,
+                                   "ReshardingDonorService::_"
+                                   "writeTransactionOplogEntryThenTransitionToBlockingWrites");
                     _writeTransactionOplogEntryThenTransitionToBlockingWrites(factory);
                 })
-                .then([this, executor, abortToken] {
+                .then([this, executor, abortToken, telemetryCtx = telemetryCtx->clone()]() mutable {
+                    auto span =
+                        _startSpan(telemetryCtx,
+                                   "ReshardingDonorService::_awaitChangeStreamsMonitorCompleted");
                     return _awaitChangeStreamsMonitorCompleted(executor, abortToken);
                 });
         })
@@ -598,6 +640,10 @@ ExecutorFuture<void> ReshardingDonorService::DonorStateMachine::_runMandatoryCle
 SemiFuture<void> ReshardingDonorService::DonorStateMachine::run(
     std::shared_ptr<executor::ScopedTaskExecutor> executor,
     const CancellationToken& stepdownToken) noexcept {
+    auto telemetryCtx = _donorCtx.getTelemetryContext()
+        ? otel::traces::TelemetryContextSerializer::fromBSON(*_donorCtx.getTelemetryContext())
+        : otel::traces::Span::createTelemetryContext();
+    auto span = _startSpan(telemetryCtx, "ReshardingDonorService::DonorStateMachine::run");
     auto abortToken = _initAbortSource(stepdownToken);
     _markKilledExecutor->startup();
     _retryingCancelableOpCtxFactory.emplace(
@@ -606,10 +652,14 @@ SemiFuture<void> ReshardingDonorService::DonorStateMachine::run(
         resharding::kRetryabilityPredicateIncludeWriteConcernTimeout);
 
     return ExecutorFuture(**executor)
-        .then([this, executor, abortToken] {
-            return _runUntilBlockingWritesOrErrored(executor, abortToken);
+        .then([this, executor, abortToken, telemetryCtx = telemetryCtx->clone()]() mutable {
+            auto span = _startSpan(telemetryCtx,
+                                   "ReshardingDonorService::_runUntilBlockingWritesOrErrored");
+            return _runUntilBlockingWritesOrErrored(executor, abortToken, telemetryCtx);
         })
-        .then([this, executor, abortToken] {
+        .then([this, executor, abortToken, telemetryCtx = telemetryCtx->clone()]() mutable {
+            auto span = _startSpan(telemetryCtx,
+                                   "ReshardingDonorService::_notifyCoordinatorAndAwaitDecision");
             return _notifyCoordinatorAndAwaitDecision(executor, abortToken);
         })
         .onCompletion([this, executor, stepdownToken, abortToken](Status status) {
@@ -896,7 +946,8 @@ void ReshardingDonorService::DonorStateMachine::
 
     {
         auto opCtx = factory.makeOperationContext(&cc());
-        _externalState->abortUnpreparedTransactionIfNecessary(opCtx.get());
+        _externalState->abortUnpreparedTransactionIfNecessary(opCtx.get(),
+                                                              _metadata.getSourceNss());
 
         ShardingRecoveryService::get(opCtx.get())
             ->acquireRecoverableCriticalSectionBlockWrites(
@@ -1474,6 +1525,15 @@ CancellationToken ReshardingDonorService::DonorStateMachine::_initAbortSource(
     }
 
     return _abortSource->token();
+}
+
+otel::traces::Span ReshardingDonorService::DonorStateMachine::_startSpan(
+    std::shared_ptr<otel::TelemetryContext> telemetryCtx,
+    const std::string& spanName,
+    bool keepSpan) {
+    auto span = otel::traces::Span::start(telemetryCtx, spanName, keepSpan);
+    TRACING_SPAN_ATTR(span, "reshardingUUID", _metadata.getReshardingUUID().toString());
+    return span;
 }
 
 void ReshardingDonorService::DonorStateMachine::abort(bool isUserCancelled) {

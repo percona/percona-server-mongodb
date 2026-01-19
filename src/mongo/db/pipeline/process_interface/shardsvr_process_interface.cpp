@@ -53,6 +53,7 @@
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/shard_id.h"
+#include "mongo/db/sharding_environment/shard_shared_state_cache.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/topology/shard_registry.h"
 #include "mongo/db/topology/sharding_state.h"
@@ -107,14 +108,35 @@ void writeToLocalShard(OperationContext* opCtx,
         return cmdObjBuilder.obj();
     }();
 
-    const auto cmdResponse =
-        repl::ReplicationCoordinator::get(opCtx)->runCmdOnPrimaryAndAwaitResponse(
-            opCtx,
-            batchedCommandRequest.getNS().dbName(),
-            cmdObj,
-            [](executor::TaskExecutor::CallbackHandle handle) {},
-            [](executor::TaskExecutor::CallbackHandle handle) {});
-    uassertStatusOK(getStatusFromCommandResult(cmdResponse));
+
+    auto shState = ShardingState::get(opCtx);
+    invariant(shState->enabled());
+    auto shardId = shState->shardId();
+    auto shardState = ShardSharedStateCache::get(opCtx).getShardState(shardId);
+
+    Shard::RetryStrategy retryStrategy{ConnectionString::ConnectionType::kLocal,
+                                       *shardState,
+                                       Shard::RetryPolicy::kStrictlyNotIdempotent};
+
+    uassertStatusOK(runWithRetryStrategy(
+        opCtx, retryStrategy, [&](const TargetingMetadata&) -> RetryStrategy::Result<BSONObj> {
+            auto replCoord = repl::ReplicationCoordinator::get(opCtx);
+            const auto primaryHostAndPort = replCoord->getCurrentPrimaryHostAndPort();
+            const auto cmdResponse = replCoord->runCmdOnPrimaryAndAwaitResponse(
+                opCtx,
+                batchedCommandRequest.getNS().dbName(),
+                cmdObj,
+                [](executor::TaskExecutor::CallbackHandle handle) {},
+                [](executor::TaskExecutor::CallbackHandle handle) {});
+
+            const auto status = getStatusFromCommandResult(cmdResponse);
+
+            if (!status.isOK()) {
+                return {status, executor::extractErrorLabels(cmdResponse), primaryHostAndPort};
+            }
+
+            return RetryStrategy::Result{cmdResponse, primaryHostAndPort};
+        }));
 }
 
 }  // namespace
@@ -237,8 +259,10 @@ StatusWith<MongoProcessInterface::UpdateResult> ShardServerProcessInterface::upd
     return {{response.getN(), response.getNModified()}};
 }
 
-BSONObj ShardServerProcessInterface::preparePipelineAndExplain(
-    std::unique_ptr<Pipeline> pipeline, ExplainOptions::Verbosity verbosity) {
+BSONObj ShardServerProcessInterface::finalizePipelineAndExplain(
+    std::unique_ptr<Pipeline> pipeline,
+    ExplainOptions::Verbosity verbosity,
+    std::function<void(Pipeline* pipeline)> optimizePipeline) {
     auto firstStage = pipeline->peekFront();
     // We don't want to send an internal stage to the shards.
     if (firstStage &&
@@ -247,7 +271,8 @@ BSONObj ShardServerProcessInterface::preparePipelineAndExplain(
          typeid(*firstStage) == typeid(DocumentSourceCursor))) {
         pipeline->popFront();
     }
-    return sharded_agg_helpers::targetShardsForExplain(std::move(pipeline));
+    return sharded_agg_helpers::finalizePipelineAndTargetShardsForExplain(std::move(pipeline),
+                                                                          optimizePipeline);
 }
 
 void ShardServerProcessInterface::renameIfOptionsAndIndexesHaveNotChanged(
@@ -275,7 +300,7 @@ void ShardServerProcessInterface::renameIfOptionsAndIndexesHaveNotChanged(
                          cdb,
                          newCmdObj,
                          ReadPreferenceSetting(ReadPreference::PrimaryOnly),
-                         Shard::RetryPolicy::kNoRetry);
+                         Shard::RetryPolicy::kStrictlyNotIdempotent);
                      uassertStatusOKWithContext(response.swResponse,
                                                 str::stream() << "failed while running command "
                                                               << newCmdObj);
@@ -512,7 +537,7 @@ void ShardServerProcessInterface::createIndexesOnEmptyCollection(
                 ns,
                 cmdObj,
                 ReadPreferenceSetting(ReadPreference::PrimaryOnly),
-                Shard::RetryPolicy::kNoRetry,
+                Shard::RetryPolicy::kStrictlyNotIdempotent,
                 BSONObj() /*query*/,
                 BSONObj() /*collation*/,
                 boost::none /*letParameters*/,
@@ -626,9 +651,7 @@ std::unique_ptr<Pipeline> ShardServerProcessInterface::finalizeAndMaybePreparePi
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     std::unique_ptr<Pipeline> pipeline,
     bool attachCursorAfterOptimizing,
-    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                       Pipeline* pipeline,
-                       CollectionMetadata collData)> finalizePipeline,
+    std::function<void(Pipeline* pipeline)> optimizePipeline,
     ShardTargetingPolicy shardTargetingPolicy,
     boost::optional<BSONObj> readConcern,
     bool shouldUseCollectionDefaultCollator) {
@@ -636,7 +659,7 @@ std::unique_ptr<Pipeline> ShardServerProcessInterface::finalizeAndMaybePreparePi
         expCtx,
         std::move(pipeline),
         attachCursorAfterOptimizing,
-        finalizePipeline,
+        optimizePipeline,
         shardTargetingPolicy,
         readConcern,
         shouldUseCollectionDefaultCollator);

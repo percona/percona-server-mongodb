@@ -429,6 +429,7 @@ test:remote_test --test_timeout=660 # Allow extra 60s for coredump on abort
 test:remote_test --test_tag_filters=-incompatible_with_bazel_remote_test
 
 # Coverage
+coverage --//bazel/config:coverage=True
 coverage --config=dbg
 coverage --compiler_type=clang
 coverage --linkstatic=False
@@ -524,6 +525,12 @@ common:mod-scanner --//bazel/config:mongo_toolchain_version=v5
 common:mod-scanner --output_groups=report
 common:mod-scanner --aspects //modules_poc:mod_scanner.bzl%mod_scanner_aspect
 common:mod-scanner --remote_download_regex=.*\.mod_scanner_decls.json$
+
+--config=symbol-checker
+common:symbol-checker --aspects //bazel/symbol_checker:symbol_checker.bzl%symbol_checker_aspect  
+common:symbol-checker --output_groups=symbol_checker 
+common:symbol-checker --skip_archive=False
+common:symbol-checker --keep_going
 
 # if you don't have access to the remote execution cluster above, use the local config
 # by passing "--config=local" on the bazel command line

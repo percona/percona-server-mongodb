@@ -46,7 +46,7 @@
 
 namespace mongo {
 
-enum class StorageEngineConcurrencyAdjustmentAlgorithmEnum;
+enum class ExecutionControlConcurrencyAdjustmentAlgorithmEnum;
 
 namespace admission {
 
@@ -65,8 +65,8 @@ namespace admission {
  */
 class TicketingSystem {
 public:
-    static constexpr auto kDefaultConcurrentTransactions = 128;
-    static constexpr auto kDefaultLowPriorityConcurrentTransactions = 5;
+    static constexpr auto kDefaultConcurrentTransactionsValue = 128;
+    static constexpr auto kUnsetLowPriorityConcurrentTransactionsValue = -1;
     static constexpr auto kExemptPriorityName = "exempt"_sd;
     static constexpr auto kLowPriorityName = "lowPriority"_sd;
     static constexpr auto kNormalPriorityName = "normalPriority"_sd;
@@ -78,11 +78,12 @@ public:
         std::unique_ptr<TicketHolder> write;
     };
 
-    TicketingSystem(ServiceContext* svcCtx,
-                    RWTicketHolder normal,
-                    RWTicketHolder low,
-                    Milliseconds throughputProbingInterval,
-                    StorageEngineConcurrencyAdjustmentAlgorithmEnum concurrencyAdjustmentAlgorithm);
+    TicketingSystem(
+        ServiceContext* svcCtx,
+        RWTicketHolder normal,
+        RWTicketHolder low,
+        Milliseconds throughputProbingInterval,
+        ExecutionControlConcurrencyAdjustmentAlgorithmEnum concurrencyAdjustmentAlgorithm);
 
     /**
      * A collection of static methods for managing normal priority settings.
@@ -108,9 +109,21 @@ public:
         static Status updateReadMaxQueueDepth(std::int32_t newReadMaxQueueDepth);
         static Status updateConcurrentWriteTransactions(const int32_t& newWriteTransactions);
         static Status updateConcurrentReadTransactions(const int32_t& newReadTransactions);
+        static Status validateConcurrentWriteTransactions(const int32_t& newWriteTransactions,
+                                                          boost::optional<TenantId>);
+        static Status validateConcurrentReadTransactions(const int32_t& newReadTransactions,
+                                                         boost::optional<TenantId>);
     };
 
     static Status updateConcurrencyAdjustmentAlgorithm(std::string newAlgorithm);
+
+    /**
+     * Resolves the configured number of low-priority tickets.
+     *
+     * If the server parameter matches the default, this function returns the number of logical
+     * cores. Otherwise, it returns the specific value loaded from the atomic.
+     */
+    static int resolveLowPriorityTickets(const AtomicWord<int32_t>& serverParam);
 
     static TicketingSystem* get(ServiceContext* svcCtx);
 
@@ -147,7 +160,7 @@ public:
      * adjust the number of concurrent transactions. This includes switching between fixed
      * concurrency and throughput probing-based algorithms.
      */
-    void setConcurrencyAdjustmentAlgorithm(OperationContext* opCtx, std::string algorithmName);
+    Status setConcurrencyAdjustmentAlgorithm(OperationContext* opCtx, std::string algorithmName);
 
     /**
      * Appends statistics about the ticketing system's state to a BSON.
@@ -188,11 +201,12 @@ private:
      * Encapsulates the ticketing system's concurrency mode and the logic that defines its behavior.
      */
     struct TicketingState {
-        StorageEngineConcurrencyAdjustmentAlgorithmEnum algorithm;
+        ExecutionControlConcurrencyAdjustmentAlgorithmEnum algorithm;
 
         bool usesPrioritization() const;
         bool usesThroughputProbing() const;
         bool isRuntimeResizable() const;
+        void appendStats(BSONObjBuilder& b) const;
     };
 
     /**

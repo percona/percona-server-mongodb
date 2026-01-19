@@ -37,7 +37,6 @@
 #include "mongo/db/index_builds/resumable_index_builds_gen.h"
 #include "mongo/db/storage/engine_extension.h"
 #include "mongo/db/storage/ident.h"
-#include "mongo/db/storage/spill_table.h"
 #include "mongo/db/storage/temporary_record_store.h"
 #include "mongo/util/periodic_runner.h"
 #include "mongo/util/str.h"
@@ -53,13 +52,14 @@
 
 namespace mongo {
 
-class KVBackupBlock;
 class JournalListener;
-class MDBCatalog;
+class KVBackupBlock;
 class KVEngine;
+class MDBCatalog;
 class OperationContext;
 class RecoveryUnit;
 class SnapshotManager;
+class SpillTable;
 class StorageEngineLockFile;
 class StorageEngineMetadata;
 

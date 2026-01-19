@@ -98,10 +98,10 @@ class JsExecution;
 
 class Pipeline;
 class RoutingContext;
-// TODO SERVER-110774 investigate removing 'CollectionRoutingInfo' and
-// 'CollectionOrViewAcquisition' forward declarations.
-class CollectionRoutingInfo;
-class CollectionOrViewAcquisition;
+// TODO SERVER-112970 Investigate removing 'CatalogResourceHandle' and 'MultipleCollectionAccessor'
+// information from forward declarations.
+class CatalogResourceHandle;
+class MultipleCollectionAccessor;
 class TransactionHistoryIteratorBase;
 
 /**
@@ -126,11 +126,6 @@ public:
     using BatchObject =
         std::tuple<BSONObj, write_ops::UpdateModification, boost::optional<BSONObj>>;
     using BatchedObjects = std::vector<BatchObject>;
-    using CollectionMetadata =
-        std::variant<std::monostate,
-                     std::reference_wrapper<const CollectionOrViewAcquisition>,
-                     std::reference_wrapper<const CollectionRoutingInfo>>;
-
 
     enum class UpsertType {
         kNone,              // This operation is not an upsert.
@@ -427,9 +422,9 @@ public:
 
     /**
      * Accepts a pipeline and returns a new one which will draw input from the underlying
-     * collection. Behavior for how to finalize the pipeline, such as optimizations and
-     * translations, before a cursor is attached must be defined inside 'finalizePipeline'. To
-     * attach a cursor this function calls 'preparePipelineForExecution' (see below).
+     * collection. The function will perform pre-optimization rewrites, but behavior for how to
+     * optimize the pipeline before a cursor is attached must be defined inside 'optimizePipeline'.
+     * To attach a cursor this function calls 'preparePipelineForExecution' (see below).
      *
      * This function guarantees that optimizing, translating and preparing the pipeline for
      * execution will use a single snapshot of collection metadata ('CollectionOrViewAcquisition' or
@@ -439,9 +434,7 @@ public:
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         std::unique_ptr<Pipeline> pipeline,
         bool attachCursorAfterOptimizing,
-        std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                           Pipeline* pipeline,
-                           CollectionMetadata collData)> finalizePipeline = nullptr,
+        std::function<void(Pipeline* pipeline)> optimizePipeline = nullptr,
         ShardTargetingPolicy shardTargetingPolicy = ShardTargetingPolicy::kAllowed,
         boost::optional<BSONObj> readConcern = boost::none,
         bool shouldUseCollectionDefaultCollator = false) = 0;
@@ -490,8 +483,26 @@ public:
      * {"pipeline": <explainOutput>}. Note that <explainOutput> can be an object (shardsvr) or an
      * array (non_shardsvr).
      */
-    virtual BSONObj preparePipelineAndExplain(std::unique_ptr<Pipeline> pipeline,
-                                              ExplainOptions::Verbosity verbosity) = 0;
+    virtual BSONObj finalizePipelineAndExplain(
+        std::unique_ptr<Pipeline> pipeline,
+        ExplainOptions::Verbosity verbosity,
+        std::function<void(Pipeline* pipeline)> optimizePipeline = nullptr) = 0;
+
+    /**
+     * Accepts a pipeline and returns a new one which will draw input from the underlying
+     * collection _locally_. Trying to run this method on mongos is a programming error. Running
+     * this method on a shard server will only return results which match the pipeline on that
+     * shard.
+     *
+     * Accepts catalog information that will be used for the new returned pipeline.
+     *
+     * Unlike attachCursorSourceToPipelineForLocalRead(), this method does not accept additional
+     * configuration through 'aggRequest' or 'shouldUseCollectionDefaultCollator' parameters.
+     */
+    virtual std::unique_ptr<Pipeline> attachCursorSourceToPipelineForLocalReadWithCatalog(
+        std::unique_ptr<Pipeline> pipeline,
+        const MultipleCollectionAccessor& collections,
+        const boost::intrusive_ptr<CatalogResourceHandle>& catalogResourceHandle) = 0;
 
     /**
      * Accepts a pipeline and returns a new one which will draw input from the underlying
@@ -514,9 +525,10 @@ public:
 
     /**
      * Accepts a pipeline and returns a new one which will draw input from the underlying collection
-     * _locally_. Behavior for how to finalize the pipeline, such as optimizations and translations,
-     * before a cursor is attached must be defined inside 'finalizePipeline'. To attach a cursor
-     * this function calls 'attachCursorSourceToPipelineForLocalRead' (see below).
+     * _locally_. The function will perform pre-optimization rewrites, but behavior for how to
+     * optimize the pipeline before a cursor is attached must be defined inside 'optimizePipeline'.
+     * To attach a cursor this function calls 'attachCursorSourceToPipelineForLocalRead' (see
+     * below).
      *
      * This function guarantees that parsing and preparing the pipeline for execution will use a
      * single snapshot of collection metadata ('CollectionOrViewAcquisition').
@@ -525,9 +537,7 @@ public:
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         std::unique_ptr<Pipeline> pipeline,
         bool attachCursorAfterOptimizing,
-        std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                           Pipeline* pipeline,
-                           CollectionMetadata collData)> finalizePipeline = nullptr,
+        std::function<void(Pipeline* pipeline)> optimizePipeline = nullptr,
         bool shouldUseCollectionDefaultCollator = false,
         boost::optional<const AggregateCommandRequest&> aggRequest = boost::none,
         ExecShardFilterPolicy shardFilterPolicy = AutomaticShardFiltering{}) = 0;

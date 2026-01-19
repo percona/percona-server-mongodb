@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/db/rss/persistence_provider.h"
+#include "mongo/util/modules.h"
 
 namespace mongo::rss {
 
@@ -121,6 +122,11 @@ public:
      * We can support oplog cap maintainer thread and oplog sampling.
      */
     bool supportsOplogSampling() const override;
+
+    /**
+     * We can support table verify.
+     */
+    bool supportsTableVerify() const override;
 };
 
 }  // namespace mongo::rss

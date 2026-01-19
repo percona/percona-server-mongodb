@@ -37,6 +37,7 @@
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/restore_context.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/uuid.h"
 
 #include <cstdint>
@@ -96,9 +97,7 @@ protected:
 
 private:
     // This can only be called when the plan stage is attached to an operation context.
-    uint64_t getCatalogEpoch() const {
-        return CollectionCatalog::get(opCtx())->getEpoch();
-    }
+    uint64_t getCatalogEpoch() const;
 
     // Pointer to a CollectionPtr that is stored at a high level in a AutoGetCollection or other
     // helper. It needs to stay valid until the PlanExecutor saves its state. To avoid this pointer

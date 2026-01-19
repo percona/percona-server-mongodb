@@ -106,6 +106,8 @@ mongo_cc_library(
     ],
     hdrs = [
         "boost_assert_shim.h",
+        "modules.h",
+        "//src/mongo/platform:compiler.h",
     ],
     copts = [
         "-Isrc/third_party/boost",
@@ -229,19 +231,6 @@ mongo_cc_library(
     deps = [
         "//src/mongo:base",
         "//src/mongo/db:server_options",
-    ],
-)
-
-mongo_cc_library(
-    name = "field_set",
-    srcs = [
-        "field_set.cpp",
-    ],
-    hdrs = [
-        "field_set.h",
-    ],
-    deps = [
-        "//src/mongo:base",
     ],
 )
 
@@ -866,6 +855,23 @@ mongo_cc_unit_test(
     ],
 )
 
+# Separate test for deprecated md5 functions
+mongo_cc_unit_test(
+    name = "md5_test",
+    srcs = [
+        "md5_test.cpp",
+    ],
+    tags = [
+        "mongo_unittest_fifth_group",
+        "server-programmability",
+    ],
+    deps = [
+        ":md5",
+        "//src/mongo:base",
+        "//src/third_party/tomcrypt-1.18.2:tomcrypt_md5",
+    ],
+)
+
 mongo_cc_binary(
     name = "pretty_printer_test_program",
     srcs = ["pretty_printer_test_program.cpp"],
@@ -990,7 +996,6 @@ mongo_cc_unit_test(
         "lockable_adapter_test.cpp",
         "log_with_sampling_test.cpp",
         "lru_cache_test.cpp",
-        "md5_test.cpp",
         "optional_util_test.cpp",
         "out_of_line_executor_test.cpp",
         "overloaded_visitor_test.cpp",
@@ -1062,7 +1067,6 @@ mongo_cc_unit_test(
         "//src/mongo/executor:thread_pool_task_executor_test_fixture",
         "//src/mongo/idl:server_parameter_test_controller",
         "//src/mongo/util/concurrency:thread_pool",
-        "//src/third_party/tomcrypt-1.18.2:tomcrypt_md5",
     ],
 )
 

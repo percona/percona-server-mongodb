@@ -39,6 +39,7 @@
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/query/stage_memory_limit_knobs/knobs.h"
+#include "mongo/db/raw_data_operation.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/logv2/log.h"
@@ -549,33 +550,12 @@ std::unique_ptr<mongo::Pipeline> GraphLookUpStage::makePipeline(BSONObj match,
 
     std::unique_ptr<mongo::Pipeline> pipeline = mongo::Pipeline::parse(_fromPipeline, _fromExpCtx);
     _fromExpCtx->initializeReferencedSystemVariables();
-
-    const auto& finalizePipeline = [](const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                                      mongo::Pipeline* pipeline,
-                                      MongoProcessInterface::CollectionMetadata collData) {
-        tassert(10313400, "Expected pipeline to finalize", pipeline);
-        visit(OverloadedVisitor{
-                  [&](std::monostate) {},
-                  [&](std::reference_wrapper<const CollectionOrViewAcquisition> collOrView) {
-                      pipeline->validateWithCollectionMetadata(collOrView);
-                      pipeline->performPreOptimizationRewrites(expCtx, collOrView);
-                  },
-                  [&](std::reference_wrapper<const CollectionRoutingInfo> cri) {
-                      if (cri.get().hasRoutingTable()) {
-                          pipeline->validateWithCollectionMetadata(cri);
-                          pipeline->performPreOptimizationRewrites(expCtx, cri);
-                      }
-                  }},
-              collData);
-        pipeline_optimization::optimizePipeline(*pipeline);
-        pipeline->validateCommon(true /* alreadyOptimized */);
-    };
     try {
         return pExpCtx->getMongoProcessInterface()->finalizeAndMaybePreparePipelineForExecution(
             _fromExpCtx,
             std::move(pipeline),
             true /* attachCursorAfterOptimizing */,
-            finalizePipeline,
+            pipeline_optimization::optimizeAndValidatePipeline,
             shardTargetingPolicy);
     } catch (const ExceptionFor<ErrorCodes::CommandOnShardedViewNotSupportedOnMongod>& e) {
         // This exception returns the information we need to resolve a sharded view. Update
@@ -584,9 +564,13 @@ std::unique_ptr<mongo::Pipeline> GraphLookUpStage::makePipeline(BSONObj match,
         pipeline_factory::MakePipelineOptions opts;
         opts.optimize = false;
         opts.attachCursorSource = false;
+        const std::vector<BSONObj>& resolvedPipe =
+            (e->timeseries() && isRawDataOperation(pExpCtx->getOperationContext()))
+            ? std::vector<BSONObj>{}
+            : e->getPipeline();
         pipeline = pipeline_factory::makePipelineFromViewDefinition(
             _fromExpCtx,
-            ResolvedNamespace{e->getNamespace(), e->getPipeline()},
+            ResolvedNamespace{e->getNamespace(), resolvedPipe},
             _fromPipeline,
             opts,
             _params.from);
@@ -597,7 +581,7 @@ std::unique_ptr<mongo::Pipeline> GraphLookUpStage::makePipeline(BSONObj match,
 
         // Update the expression context with any new namespaces the resolved pipeline has
         // introduced.
-        LiteParsedPipeline liteParsedPipeline(e->getNamespace(), e->getPipeline());
+        LiteParsedPipeline liteParsedPipeline(e->getNamespace(), resolvedPipe);
         _fromExpCtx = makeCopyFromExpressionContext(_fromExpCtx, e->getNamespace());
         _fromExpCtx->addResolvedNamespaces(liteParsedPipeline.getInvolvedNamespaces());
 
@@ -618,7 +602,7 @@ std::unique_ptr<mongo::Pipeline> GraphLookUpStage::makePipeline(BSONObj match,
             _fromExpCtx,
             std::move(pipeline),
             true /* attachCursorAfterOptimizing */,
-            finalizePipeline,
+            pipeline_optimization::optimizeAndValidatePipeline,
             shardTargetingPolicy);
     }
 }

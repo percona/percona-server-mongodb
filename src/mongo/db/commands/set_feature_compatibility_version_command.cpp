@@ -282,9 +282,12 @@ void handleDropPendingDBsGarbage(OperationContext* parentOpCtx) {
         };
         request.setReadConcern(repl::ReadConcernArgs::kMajority);
 
+        // TODO(SERVER-113504): Consider using kIdempotent since onRetry allows read only
+        // aggregation processes to be restarted.
         uassertStatusOK(configShard->runAggregation(
             opCtx,
             request,
+            Shard::RetryPolicy::kStrictlyNotIdempotent,
             [&](const std::vector<BSONObj>& batch, const boost::optional<BSONObj>&) {
                 invariant(batch.size() == 1);
                 const auto bsonVersion = batch[0][DatabaseType::kVersionFieldName];
@@ -297,7 +300,8 @@ void handleDropPendingDBsGarbage(OperationContext* parentOpCtx) {
                         bsonTimestamp.type() == BSONType::timestamp);
                 timestamp = bsonTimestamp.timestamp();
                 return true;
-            }));
+            },
+            [&](const Status&) { timestamp.reset(); }));
 
         return timestamp;
     };
@@ -448,14 +452,27 @@ void dropAuthoritativeDatabaseCollectionOnShards(OperationContext* opCtx) {
         const auto dropCmd = BSON("drop" << nss.coll() << "collectionUUID" << *uuid
                                          << "writeConcern" << BSON("w" << "majority"));
 
-        auto dropResponse = uassertStatusOK(
+        auto dropResponse =
             shard->runCommand(opCtx,
                               ReadPreferenceSetting{ReadPreference::PrimaryOnly},
                               NamespaceString::kConfigShardCatalogDatabasesNamespace.dbName(),
                               dropCmd,
-                              Shard::RetryPolicy::kIdempotent));
+                              Shard::RetryPolicy::kIdempotent);
 
-        uassertStatusOK(Shard::CommandResponse::getEffectiveStatus(dropResponse));
+        auto status = Shard::CommandResponse::getEffectiveStatus(dropResponse);
+
+        if (status == ErrorCodes::CollectionUUIDMismatch) {
+            // Dropping a collection by UUID isn't idempotent. An old primary may have already
+            // dropped it, so re-running the drop can trigger a CollectionUUIDMismatch. This can be
+            // safely ignored since the collection is already gone.
+            //
+            // Another edge case: the collection might have been dropped and re-created with the
+            // same name but a different UUID (e.g., during a split-brain scenario). We also ignore
+            // this to avoid deleting valid metadata.
+            continue;
+        }
+
+        uassertStatusOK(status);
     }
 }
 
@@ -1257,20 +1274,15 @@ private:
     void _prepareToUpgrade(OperationContext* opCtx,
                            const SetFeatureCompatibilityVersion& request,
                            boost::optional<Timestamp> changeTimestamp) {
-        {
-            // Take the global lock in S mode to create a barrier for operations taking the global
-            // IX or X locks. This ensures that either:
-            //   - The global IX/X locked operation will start after the FCV change, see the
-            //     upgrading to the latest FCV and act accordingly.
-            //   - The global IX/X locked operation began prior to the FCV change, is acting on that
-            //     assumption and will finish before upgrade procedures begin right after this.
-            Lock::GlobalLock lk(opCtx, MODE_S);
-        }
-
         const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
         invariant(fcvSnapshot.isUpgradingOrDowngrading());
         const auto originalVersion = getTransitionFCVInfo(fcvSnapshot.getVersion()).from;
         const auto requestedVersion = request.getCommandParameter();
+
+        // This wait serves as a barrier to guarantee that, from now on:
+        // - No operations with an OFCV lower than the upgrading OFCV will be running
+        // - All operations acquiring the global lock in X/IX mode see the 'kUpgrading' FCV state
+        _waitForOperationsRelyingOnStaleFcvToComplete(opCtx, fcvSnapshot.getVersion());
 
         _userCollectionsUassertsForUpgrade(opCtx, requestedVersion, originalVersion);
 
@@ -1373,6 +1385,26 @@ private:
         if (role && role->has(ClusterRole::ShardServer)) {
             // Shard server role actions.
         }
+    }
+
+    /**
+     * This function:
+     * - Waits for operations using a stale OFCV to complete
+     * - Acquires the global lock in shared mode to make sure that:
+     * --- All operations that may potentially have started on an old FCV complete
+     * --- All new operations are guaranteed to see at least the current FCV state
+     */
+    void _waitForOperationsRelyingOnStaleFcvToComplete(OperationContext* opCtx, FCV version) {
+        waitForOperationsNotMatchingVersionContextToComplete(opCtx, VersionContext(version));
+
+        // Take the global lock in S mode to create a barrier for operations taking the global
+        // IX or X locks. This ensures that either:
+        //   - The global IX/X locked operation will start after the FCV change, see the
+        //     updated server FCV value and act accordingly.
+        //   - The global IX/X locked operation began prior to the FCV change, is acting on that
+        //     assumption and will finish before upgrade/downgrade metadata cleanup procedures done
+        //     right after this barrier.
+        Lock::GlobalLock lk(opCtx, MODE_S);
     }
 
     // Tell the shards to enter phase-1 or phase-2 of setFCV.
@@ -1675,15 +1707,13 @@ private:
         // this function.
         _prepareToDowngradeActions(opCtx, requestedVersion);
 
-        {
-            // Take the global lock in S mode to create a barrier for operations taking the global
-            // IX or X locks. This ensures that either:
-            //   - The global IX/X locked operation will start after the FCV change, see the
-            //     upgrading to the latest FCV and act accordingly.
-            //   - The global IX/X locked operation began prior to the FCV change, is acting on that
-            //     assumption and will finish before upgrade procedures begin right after this.
-            Lock::GlobalLock lk(opCtx, MODE_S);
-        }
+        const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
+        invariant(fcvSnapshot.isUpgradingOrDowngrading());
+
+        // This wait serves as a barrier to gurantee that, from now on:
+        // - No operations with an OFCV greater than the downgrading OFCV will be running
+        // - All operations acquiring the global lock in X/IX mode see the 'kDowngrading' FCV state
+        _waitForOperationsRelyingOnStaleFcvToComplete(opCtx, fcvSnapshot.getVersion());
 
         uassert(ErrorCodes::Error(549181),
                 "Failing downgrade due to 'failDowngrading' failpoint set",
@@ -1702,10 +1732,7 @@ private:
         // this helper function can only have the CannotDowngrade error code indicating that the
         // user must manually clean up some user data in order to retry the FCV downgrade.
 
-        const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-        invariant(fcvSnapshot.isUpgradingOrDowngrading());
         const auto originalVersion = getTransitionFCVInfo(fcvSnapshot.getVersion()).from;
-
         _userCollectionsUassertsForDowngrade(opCtx, requestedVersion, originalVersion);
     }
 
@@ -1935,6 +1962,11 @@ private:
                     });
         }
 
+        // This wait serves as a barrier to gurantee that, from now on:
+        // - No operations with OFCV lower than the target version will be running
+        // - All operations acquiring the global lock in X/IX mode see the fully upgraded FCV state
+        _waitForOperationsRelyingOnStaleFcvToComplete(opCtx, requestedVersion);
+
         // TODO (SERVER-100309): Remove once 9.0 becomes last lts.
         if (isConfigsvr &&
             feature_flags::gSessionsCollectionCoordinatorOnConfigServer.isEnabledOnVersion(
@@ -2009,6 +2041,12 @@ private:
                         return ofcv != expectedOfcv;
                     });
         }
+
+        // This wait serves as a barrier to guarantee that, from now on:
+        // - No operations with OFCV higher than the target version will be running
+        // - All operations acquiring the global lock in X/IX mode see the fully downgraded FCV
+        // state
+        _waitForOperationsRelyingOnStaleFcvToComplete(opCtx, requestedVersion);
 
         // TODO (SERVER-98118): remove once 9.0 becomes last LTS.
         if (isConfigsvr &&

@@ -28,32 +28,94 @@
  */
 #include "mongo/db/extension/host_connector/host_services_adapter.h"
 
-#include "mongo/db/extension/host/host_services.h"
+#include "mongo/db/extension/host/aggregation_stage/ast_node.h"
+#include "mongo/db/extension/host/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/public/extension_error_types_gen.h"
-#include "mongo/db/extension/public/extension_log_gen.h"
+#include "mongo/db/extension/shared/byte_buf_utils.h"
 #include "mongo/db/extension/shared/extension_status.h"
+#include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
+#include "mongo/logv2/attribute_storage.h"
+#include "mongo/logv2/log_detail.h"
+#include "mongo/logv2/log_options.h"
 
 namespace mongo::extension::host_connector {
 
 // Initialize the static instance of HostServicesAdapter.
 HostServicesAdapter HostServicesAdapter::_hostServicesAdapter;
 
-MongoExtensionStatus* HostServicesAdapter::_extLog(::MongoExtensionByteView logMessage) noexcept {
+MongoExtensionStatus* HostServicesAdapter::_extLog(
+    const ::MongoExtensionLogMessage* logMessage) noexcept {
     return wrapCXXAndConvertExceptionToStatus([&]() {
-        BSONObj obj = bsonObjFromByteView(logMessage);
+        // Validate that the message type is kLog.
+        uassert(11288500,
+                "MongoExtensionLogMessage type must be kLog for log() function",
+                logMessage->type == ::MongoExtensionLogType::kLog);
 
-        mongo::extension::MongoExtensionLog extensionLog =
-            mongo::extension::MongoExtensionLog::parse(std::move(obj));
+        // For now we always log extension messages under the EXTENSION-MONGOT component. Someday
 
-        return host::HostServices::log(extensionLog);
+        // For now we always log extension messages under the EXTENSION-MONGOT component. Someday
+        // we'd like to dynamically create EXTENSION sub-components per extension.
+
+        logv2::LogOptions options(logv2::LogComponent::kExtensionMongot);
+
+        // Extract message from byte view.
+        auto messageView = byteViewAsStringView(logMessage->message);
+        StringData message(messageView.data(), messageView.size());
+
+        // Extract code.
+        std::int32_t code = static_cast<std::int32_t>(logMessage->code);
+
+        // Convert C enum to logv2 severity.
+        logv2::LogSeverity severity = [&]() {
+            switch (logMessage->severityOrLevel.severity) {
+                case ::MongoExtensionLogSeverity::kWarning:
+                    return logv2::LogSeverity::Warning();
+                case ::MongoExtensionLogSeverity::kError:
+                    return logv2::LogSeverity::Error();
+                case ::MongoExtensionLogSeverity::kInfo:
+                default:
+                    return logv2::LogSeverity::Info();
+            }
+        }();
+
+        // TODO SERVER-111339 Populate attributes from logMessage->attributes.
+        logv2::TypeErasedAttributeStorage attrs;
+
+        // We must go through logv2::detail::doLogImpl since the LOGV2 macros expect a static string
+        // literal for the message, but we have to log the message received at runtime from the
+        // extension.
+        logv2::detail::doLogImpl(code, severity, options, message, attrs);
     });
 }
 
-MongoExtensionStatus* HostServicesAdapter::_extLogDebug(::MongoExtensionByteView rawLog) noexcept {
+MongoExtensionStatus* HostServicesAdapter::_extLogDebug(
+    const ::MongoExtensionLogMessage* logMessage) noexcept {
     return extension::wrapCXXAndConvertExceptionToStatus([&]() {
-        BSONObj bsonLog = bsonObjFromByteView(rawLog);
-        auto debugLog = mongo::extension::MongoExtensionDebugLog::parse(bsonLog);
-        return host::HostServices::logDebug(std::move(debugLog));
+        // Validate that the message type is kDebug.
+        uassert(11288501,
+                "MongoExtensionLogMessage type must be kDebug for log_debug() function",
+                logMessage->type == ::MongoExtensionLogType::kDebug);
+
+        // For now we always log extension messages under the EXTENSION-MONGOT component. Someday
+        // we'd like to dynamically create EXTENSION sub-components per extension.
+        logv2::LogOptions options(logv2::LogComponent::kExtensionMongot);
+
+        // Extract message from byte view.
+        auto messageView = byteViewAsStringView(logMessage->message);
+        StringData message(messageView.data(), messageView.size());
+
+        // Extract code.
+        std::int32_t code = static_cast<std::int32_t>(logMessage->code);
+
+        // Extract level from union and trim to the range [1, 5] since we want to make sure that the
+        // log line is using one of the server's logv2 debug severities.
+        std::int32_t level = logMessage->severityOrLevel.level;
+        logv2::LogSeverity logSeverity = logv2::LogSeverity::Debug(std::min(5, std::max(1, level)));
+
+        // TODO SERVER-111339 Populate attributes from logMessage->attributes.
+        logv2::TypeErasedAttributeStorage attrs;
+
+        logv2::detail::doLogImpl(code, logSeverity, options, message, attrs);
     });
 }
 
@@ -64,14 +126,13 @@ MongoExtensionStatus* HostServicesAdapter::_extLogDebug(::MongoExtensionByteView
     // information. At the same time, we are not allowed to throw an exception across the API
     // boundary, so we immediately convert this to a MongoExtensionStatus. It will be rethrown after
     // being passed through the boundary.
-    return extension::wrapCXXAndConvertExceptionToStatus([&]() {
+    return wrapCXXAndConvertExceptionToStatus([&]() {
         BSONObj errorBson = bsonObjFromByteView(structuredErrorMessage);
         auto exceptionInfo = mongo::extension::ExtensionExceptionInformation::parse(
             errorBson, IDLParserContext("extUassert"));
 
         // Call the host's uassert implementation.
-        uasserted(exceptionInfo.getErrorCode(),
-                  "Extension encountered error: " + exceptionInfo.getMessage());
+        uasserted(exceptionInfo.getErrorCode(), exceptionInfo.getMessage());
     });
 }
 
@@ -79,7 +140,7 @@ MongoExtensionStatus* HostServicesAdapter::_extLogDebug(::MongoExtensionByteView
     ::MongoExtensionByteView structuredErrorMessage) {
     // We follow the same throw-then-catch pattern here as in _extUserAsserted, for the same
     // reasons.
-    return extension::wrapCXXAndConvertExceptionToStatus([&]() {
+    return wrapCXXAndConvertExceptionToStatus([&]() {
         BSONObj errorBson = bsonObjFromByteView(structuredErrorMessage);
         auto exceptionInfo = mongo::extension::ExtensionExceptionInformation::parse(
             errorBson, IDLParserContext("extTassert"));
@@ -87,6 +148,37 @@ MongoExtensionStatus* HostServicesAdapter::_extLogDebug(::MongoExtensionByteView
         // Call the host's tassert implementation.
         tasserted(exceptionInfo.getErrorCode(),
                   "Extension encountered error: " + exceptionInfo.getMessage());
+    });
+}
+
+::MongoExtensionStatus* HostServicesAdapter::_extCreateHostAggStageParseNode(
+    ::MongoExtensionByteView spec, ::MongoExtensionAggStageParseNode** node) noexcept {
+    return wrapCXXAndConvertExceptionToStatus([&]() {
+        *node = nullptr;
+        auto parseNode = std::make_unique<host::AggStageParseNode>(bsonObjFromByteView(spec));
+        *node = static_cast<::MongoExtensionAggStageParseNode*>(
+            new host::HostAggStageParseNode(std::move(parseNode)));
+    });
+}
+
+::MongoExtensionStatus* HostServicesAdapter::_extCreateIdLookup(
+    ::MongoExtensionByteView bsonSpec, ::MongoExtensionAggStageAstNode** node) noexcept {
+    return wrapCXXAndConvertExceptionToStatus([&]() {
+        *node = nullptr;
+        BSONObj specObj = bsonObjFromByteView(bsonSpec);
+
+        uassert(11134200,
+                "create_id_lookup requires a well-formed $_internalSearchIdLookup",
+                specObj.nFields() == 1 &&
+                    specObj.firstElementFieldNameStringData() ==
+                        DocumentSourceInternalSearchIdLookUp::kStageName &&
+                    specObj.firstElementType() == BSONType::object);
+
+        auto liteParsed = std::make_unique<DocumentSourceInternalSearchIdLookUp::LiteParsed>(
+            std::string(DocumentSourceInternalSearchIdLookUp::kStageName), specObj);
+
+        *node = static_cast<::MongoExtensionAggStageAstNode*>(new host::HostAggStageAstNode(
+            std::make_unique<host::AggStageAstNode>(std::move(liteParsed))));
     });
 }
 }  // namespace mongo::extension::host_connector

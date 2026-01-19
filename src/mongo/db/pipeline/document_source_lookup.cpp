@@ -60,6 +60,7 @@
 #include "mongo/db/pipeline/variable_validation.h"
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/query_knobs_gen.h"
+#include "mongo/db/raw_data_operation.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/topology/sharding_state.h"
 #include "mongo/db/views/resolved_view.h"
@@ -95,12 +96,15 @@ BSONObj buildEqualityOrQuery(const std::string& fieldName, const BSONArray& valu
 // {from: {db: "local", coll: "oplog.rs"}, ...}
 NamespaceString parseLookupFromAndResolveNamespace(const BSONElement& elem,
                                                    const DatabaseName& defaultDb,
-                                                   bool allowGenericForeignDbLookup) {
-    // The object syntax only works for 'cache.chunks.*', 'local.oplog.rs'
-    //  which are not user namespaces so object type is
-    // omitted from the error message below.
+                                                   bool allowGenericForeignDbLookup,
+                                                   // usingMongos is assumed false any time there is
+                                                   // no expCtx available.
+                                                   bool usingMongos = false,
+                                                   bool isParsingViewDefinition = false) {
+    // The 'from' field must be a string or an object. Since we now support the object form
+    // any time we are connected directly to mongod, we include it in the error message.
     uassert(ErrorCodes::FailedToParse,
-            str::stream() << "$lookup 'from' field must be a string, but found "
+            str::stream() << "$lookup 'from' field must be a string or an object, but found "
                           << typeName(elem.type()),
             elem.type() == BSONType::string || elem.type() == BSONType::object);
 
@@ -124,12 +128,26 @@ NamespaceString parseLookupFromAndResolveNamespace(const BSONElement& elem,
     // lookup as the merge will be done on the config server
     bool isConfigSvrSupportedCollection = nss == NamespaceString::kConfigsvrCollectionsNamespace ||
         nss == NamespaceString::kConfigsvrChunksNamespace;
+    auto extraContext = "";
+
+    if (usingMongos && isParsingViewDefinition) {
+        extraContext = " when executing on or with a mongos or in a view definition";
+    } else if (usingMongos) {
+        extraContext = " when executing on or with a mongos";
+    } else if (isParsingViewDefinition) {
+        extraContext = " in a view definition";
+    }
+    // TODO SPM-1966: This assert can be removed entirely once the view catalog is centralized in
+    // SPM-1966.
     uassert(
         ErrorCodes::FailedToParse,
         str::stream() << "$lookup with syntax {from: {db:<>, coll:<>},..} is not supported for db: "
-                      << nss.dbName().toStringForErrorMsg() << " and coll: " << nss.coll(),
+                      << nss.dbName().toStringForErrorMsg() << " and coll: " << nss.coll()
+                      << extraContext,
         nss.isConfigDotCacheDotChunks() || nss == NamespaceString::kRsOplogNamespace ||
-            isConfigSvrSupportedCollection || allowGenericForeignDbLookup);
+            isConfigSvrSupportedCollection || allowGenericForeignDbLookup ||
+            // gcc requires these unnecessary parentheses
+            (!usingMongos && !isParsingViewDefinition));
     return nss;
 }
 
@@ -222,7 +240,13 @@ DocumentSourceLookUp::DocumentSourceLookUp(NamespaceString fromNs,
     const auto& resolvedNamespace = expCtx->getResolvedNamespace(_fromNs);
     _resolvedNs = resolvedNamespace.ns;
     _fromNsIsAView = resolvedNamespace.involvedNamespaceIsAView;
-    _sharedState->resolvedPipeline = resolvedNamespace.pipeline;
+
+    // Prevent view resolution for rawData timeseries commands.
+    if (!resolvedNamespace.involvedNamespaceIsAView ||
+        !isRawDataOperation(expCtx->getOperationContext()) ||
+        !resolvedNamespace.ns.isTimeseriesBucketsCollection()) {
+        _sharedState->resolvedPipeline = resolvedNamespace.pipeline;
+    }
 
     _fromExpCtx = makeCopyForSubPipelineFromExpressionContext(
         expCtx, resolvedNamespace.ns, resolvedNamespace.uuid, _fromNs);
@@ -1104,9 +1128,12 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceLookUp::createFromBson(
     auto lookupSpec = DocumentSourceLookupSpec::parse(elem.Obj(), IDLParserContext(kStageName));
 
     if (lookupSpec.getFrom().has_value()) {
-        fromNs = parseLookupFromAndResolveNamespace(lookupSpec.getFrom().value().getElement(),
-                                                    pExpCtx->getNamespaceString().dbName(),
-                                                    pExpCtx->getAllowGenericForeignDbLookup());
+        fromNs =
+            parseLookupFromAndResolveNamespace(lookupSpec.getFrom().value().getElement(),
+                                               pExpCtx->getNamespaceString().dbName(),
+                                               pExpCtx->getAllowGenericForeignDbLookup(),
+                                               pExpCtx->getInRouter() || pExpCtx->getFromRouter(),
+                                               pExpCtx->getIsParsingViewDefinition());
     }
 
     as = std::string{lookupSpec.getAs()};

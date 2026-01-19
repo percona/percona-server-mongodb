@@ -960,6 +960,7 @@ def _parse_server_parameter(ctxt, spec, name, node):
             "description": _RuleDesc("scalar", _RuleDesc.REQUIRED),
             "cpp_vartype": _RuleDesc("scalar"),
             "cpp_varname": _RuleDesc("scalar"),
+            "mod_visibility": _RuleDesc("scalar"),
             "condition": _RuleDesc("mapping", mapping_parser_func=_parse_condition),
             "redact": _RuleDesc("required_bool_scalar", _RuleDesc.REQUIRED),
             "default": _RuleDesc("scalar_or_mapping", mapping_parser_func=_parse_expression),
@@ -972,6 +973,8 @@ def _parse_server_parameter(ctxt, spec, name, node):
             "is_deprecated": _RuleDesc("bool_scalar"),
         },
     )
+
+    _validate_mod_visibility(ctxt, param.mod_visibility, node)
 
     spec.server_parameters.append(param)
 
@@ -993,6 +996,7 @@ def _parse_feature_flag(ctxt, spec, name, node):
         {
             "description": _RuleDesc("scalar", _RuleDesc.REQUIRED),
             "cpp_varname": _RuleDesc("scalar"),
+            "mod_visibility": _RuleDesc("scalar"),
             "default": _RuleDesc("scalar_or_mapping", mapping_parser_func=_parse_expression),
             "version": _RuleDesc("scalar"),
             "fcv_gated": _RuleDesc(
@@ -1003,6 +1007,8 @@ def _parse_feature_flag(ctxt, spec, name, node):
             "fcv_context_unaware": _RuleDesc("bool_scalar"),
         },
     )
+
+    _validate_mod_visibility(ctxt, param.mod_visibility, node)
 
     spec.feature_flags.append(param)
 
@@ -1031,6 +1037,7 @@ def _parse_config_option(ctxt, spec, name, node):
             "arg_vartype": _RuleDesc("scalar", _RuleDesc.REQUIRED),
             "cpp_vartype": _RuleDesc("scalar"),
             "cpp_varname": _RuleDesc("scalar"),
+            "mod_visibility": _RuleDesc("scalar"),
             "condition": _RuleDesc("mapping", mapping_parser_func=_parse_condition),
             "conflicts": _RuleDesc("scalar_or_sequence"),
             "requires": _RuleDesc(
@@ -1051,6 +1058,8 @@ def _parse_config_option(ctxt, spec, name, node):
             "validator": _RuleDesc("mapping", mapping_parser_func=_parse_validator),
         },
     )
+
+    _validate_mod_visibility(ctxt, option.mod_visibility, node)
 
     spec.configs.append(option)
 

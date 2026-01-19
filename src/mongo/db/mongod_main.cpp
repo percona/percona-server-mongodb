@@ -105,8 +105,6 @@
 #include "mongo/db/local_catalog/db_raii.h"
 #include "mongo/db/local_catalog/ddl/direct_connection_ddl_hook.h"
 #include "mongo/db/local_catalog/ddl/replica_set_ddl_tracker.h"
-#include "mongo/db/local_catalog/health_log.h"
-#include "mongo/db/local_catalog/health_log_interface.h"
 #include "mongo/db/local_catalog/lock_manager/d_concurrency.h"
 #include "mongo/db/local_catalog/lock_manager/lock_manager_defs.h"
 #include "mongo/db/local_catalog/shard_role_api/resource_yielders.h"
@@ -146,6 +144,8 @@
 #include "mongo/db/query/search/search_task_executors.h"
 #include "mongo/db/read_write_concern_defaults.h"
 #include "mongo/db/read_write_concern_defaults_cache_lookup_mongod.h"
+#include "mongo/db/repl/dbcheck/health_log.h"
+#include "mongo/db/repl/dbcheck/health_log_interface.h"
 #include "mongo/db/repl/initial_sync/base_cloner.h"
 #include "mongo/db/repl/initial_sync/initial_syncer_factory.h"
 #include "mongo/db/repl/oplog.h"
@@ -317,6 +317,7 @@ namespace {
 
 MONGO_FAIL_POINT_DEFINE(hangDuringQuiesceMode);
 MONGO_FAIL_POINT_DEFINE(pauseWhileKillingOperationsAtShutdown);
+MONGO_FAIL_POINT_DEFINE(hangBeforeFinishingInitAndListen);
 MONGO_FAIL_POINT_DEFINE(hangBeforeShutdown);
 
 #ifdef _WIN32
@@ -328,43 +329,12 @@ auto& startupInfoSection =
     *ServerStatusSectionBuilder<BSONObjectStatusSection>("startupInfo").forShard().forRouter();
 
 auto makeTransportLayer(ServiceContext* svcCtx) {
-    boost::optional<int> proxyPort;
-
-    // (Ignore FCV check): The proxy port needs to be open before the FCV is set.
-    if (gFeatureFlagMongodProxyProtocolSupport.isEnabledAndIgnoreFCVUnsafe()) {
-        if (serverGlobalParams.proxyPort) {
-            proxyPort = *serverGlobalParams.proxyPort;
-            if (*proxyPort == serverGlobalParams.port) {
-                LOGV2_ERROR(9967800,
-                            "The proxy port must be different from the public listening port.",
-                            "port"_attr = serverGlobalParams.port);
-                quickExit(ExitCode::badOptions);
-            }
-        }
-    }
-
     // Mongod should not bind to any ports in repair mode so only allow egress.
     if (storageGlobalParams.repair) {
         return transport::TransportLayerManagerImpl::makeDefaultEgressTransportLayer();
     }
 
-    bool useEgressGRPC = false;
-    if (globalMongotParams.useGRPC) {
-#ifdef MONGO_CONFIG_GRPC
-        uassert(9715900,
-                "Egress GRPC for search is not enabled",
-                feature_flags::gEgressGrpcForSearch.isEnabled());
-        useEgressGRPC = true;
-#else
-        LOGV2_ERROR(
-            10049101,
-            "useGRPCForSearch is only supported on Linux platforms built with TLS support.");
-        quickExit(ExitCode::badOptions);
-#endif
-    }
-
-    return transport::TransportLayerManagerImpl::createWithConfig(
-        &serverGlobalParams, svcCtx, useEgressGRPC, std::move(proxyPort));
+    return transport::TransportLayerManagerImpl::make(svcCtx, globalMongotParams.useGRPC);
 }
 
 ExitCode initializeTransportLayer(ServiceContext* serviceContext, BSONObjBuilder* timerReport) {
@@ -823,8 +793,10 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     }
 
     // Start up health log writer thread.
-    HealthLogInterface::set(serviceContext, std::make_unique<HealthLog>());
-    HealthLogInterface::get(startupOpCtx.get())->startup();
+    if (rss.getPersistenceProvider().supportsLocalCollections()) {
+        HealthLogInterface::set(serviceContext, std::make_unique<HealthLog>());
+        HealthLogInterface::get(startupOpCtx.get())->startup();
+    }
 
     auto const globalLDAPManager = LDAPManager::get(serviceContext);
     if (globalLDAPManager) {
@@ -1217,6 +1189,33 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     // To ensure proper initialization of the registry, use a global initializer
     // function to construct the registry and register it with the ServiceContext.
     initializeOidcIdentityProvidersRegistry(serviceContext);
+
+    if (MONGO_unlikely(hangBeforeFinishingInitAndListen.shouldFail())) {
+        // If something unexpectedly takes the GlobalLock and doesn't release
+        // it, then we can livelock here because reconstructing prepared
+        // transactions (as a result of replCoord->startup) takes the GlobalLock
+        // and doesn't release it. Other services initialized above may do
+        // something similar, whether now or in the future. Therefore, this
+        // block should be the last block before we reset the startupOpCtx.
+        LOGV2(6295100,
+              "Hanging before finishing initAndListen due to hangBeforeFinishingInitAndListen "
+              "failpoint");
+        // It would be better if we could
+        // hangBeforeFinishingInitAndListen.pauseWhileSet();
+        // and then release the failpoint from elsewhere (like a jstest), but
+        // we can't because the server hasn't started listening yet. Therefore,
+        // we just sleep for a fixed amount of time.
+        sleepsecs(1);
+        // Nothing should be permanently holding the global lock, so it should
+        // be quickly acquired here and released when we exit the block.
+        LOGV2(
+            6295101,
+            "Taking the GlobalWrite lock in initAndListen due to hangBeforeFinishingInitAndListen "
+            "failpoint");
+        Lock::GlobalWrite lk(startupOpCtx.get());
+        LOGV2(6295102,
+              "Finished hanging initAndListen due to hangBeforeFinishingInitAndListen failpoint");
+    }
 
     // MessageServer::run will return when exit code closes its socket and we don't need the
     // operation context anymore
@@ -1863,7 +1862,7 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         ReplicaSetMonitor::shutdown();
     }
 
-    if (ShardingState::get(serviceContext)->enabled()) {
+    if (auto state = ShardingState::get(serviceContext); state != nullptr && state->enabled()) {
         SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
                                        TimedSectionId::shutDownTransactionCoord,
                                        &shutdownTimeElapsedBuilder);

@@ -64,10 +64,9 @@ public:
                     stageBuilder.append("verbosity", "allPlansExecution");
                     break;
                 default:
-                    tripwireAsserted(11239405,
-                                     (str::stream()
-                                      << "unknown explain verbosity provided to "
-                                      << kExplainStageName << " stage: " << verbosity));
+                    sdk_tasserted(11239405,
+                                  (str::stream() << "unknown explain verbosity provided to "
+                                                 << kExplainStageName << " stage: " << verbosity));
             }
 
             stageBuilder.done();
@@ -82,7 +81,7 @@ private:
 
 class ExplainAstNode : public sdk::AggStageAstNode {
 public:
-    ExplainAstNode(StringData input) : _input(input) {}
+    ExplainAstNode(StringData input) : sdk::AggStageAstNode(kExplainStageName), _input(input) {}
 
     std::unique_ptr<sdk::LogicalAggStage> bind() const override {
         return std::make_unique<ExplainLogicalStage>(_input);
@@ -100,8 +99,8 @@ public:
         return 1;
     }
 
-    std::vector<sdk::VariantNode> expand() const override {
-        std::vector<sdk::VariantNode> expanded;
+    std::vector<mongo::extension::VariantNodeHandle> expand() const override {
+        std::vector<mongo::extension::VariantNodeHandle> expanded;
         expanded.reserve(getExpandedSize());
         expanded.emplace_back(
             new sdk::ExtensionAggStageAstNode(std::make_unique<ExplainAstNode>(_input)));
@@ -127,15 +126,14 @@ class ExplainStageDescriptor : public sdk::AggStageDescriptor {
 public:
     static inline const std::string kStageName = "$explain";
 
-    ExplainStageDescriptor()
-        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
+    ExplainStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
     std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
         sdk::validateStageDefinition(stageBson, kStageName);
 
         auto arguments = stageBson[kStageName];
 
-        userAssert(
+        sdk_uassert(
             11239403,
             (str::stream() << "input to " << kStageName << " must be a string " << arguments),
             arguments["input"] && arguments["input"].type() == mongo::BSONType::string);

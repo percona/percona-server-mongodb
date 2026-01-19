@@ -691,6 +691,19 @@ __wt_checkpoint_verbose_timer_started(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __checkpoint_timer_stats_set --
+ *     Update checkpoint timer stats for a specific timer.
+ */
+static void
+__checkpoint_timer_stats_set(WTI_CKPT_TIMER *timer, uint64_t msec)
+{
+    __wt_atomic_stats_max(&timer->max, msec);
+    __wt_atomic_stats_min(&timer->min, msec);
+    __wt_atomic_store_uint64_relaxed(&timer->recent, msec);
+    (void)__wt_atomic_add_uint64_relaxed(&timer->total, msec);
+}
+
+/*
  * __checkpoint_stats --
  *     Update checkpoint timer stats.
  */
@@ -710,33 +723,15 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
     msec = WT_TIMEDIFF_MS(stop, conn->ckpt.ckpt_api.timer_start);
-
-    if (msec > conn->ckpt.ckpt_api.max)
-        conn->ckpt.ckpt_api.max = msec;
-    if (msec < conn->ckpt.ckpt_api.min)
-        conn->ckpt.ckpt_api.min = msec;
-    conn->ckpt.ckpt_api.recent = msec;
-    conn->ckpt.ckpt_api.total += msec;
+    __checkpoint_timer_stats_set(&conn->ckpt.ckpt_api, msec);
 
     /* Compute timer statistics for the scrub. */
     msec = WT_TIMEDIFF_MS(conn->ckpt.scrub.timer_end, conn->ckpt.ckpt_api.timer_start);
-
-    if (msec > conn->ckpt.scrub.max)
-        conn->ckpt.scrub.max = msec;
-    if (msec < conn->ckpt.scrub.min)
-        conn->ckpt.scrub.min = msec;
-    conn->ckpt.scrub.recent = msec;
-    conn->ckpt.scrub.total += msec;
+    __checkpoint_timer_stats_set(&conn->ckpt.scrub, msec);
 
     /* Compute timer statistics for the checkpoint prepare. */
     msec = WT_TIMEDIFF_MS(conn->ckpt.prepare.timer_end, conn->ckpt.prepare.timer_start);
-
-    if (msec > conn->ckpt.prepare.max)
-        conn->ckpt.prepare.max = msec;
-    if (msec < conn->ckpt.prepare.min)
-        conn->ckpt.prepare.min = msec;
-    conn->ckpt.prepare.recent = msec;
-    conn->ckpt.prepare.total += msec;
+    __checkpoint_timer_stats_set(&conn->ckpt.prepare, msec);
 }
 
 /*
@@ -871,7 +866,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * time and only write to the metadata.
      */
     __wt_writelock(session, &txn_global->rwlock);
-    txn_global->checkpoint_txn_shared = *txn_shared;
+    __wt_tsan_suppress_memcpy(&txn_global->checkpoint_txn_shared, txn_shared, sizeof(*txn_shared));
     __wt_atomic_store_uint64_v_relaxed(
       &txn_global->checkpoint_txn_shared.pinned_id, txn->snapshot_data.snap_min);
 
@@ -1208,13 +1203,13 @@ __checkpoint_db_internal(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_dirty_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_updates_page_size_per_checkpoint, 0);
     __wt_atomic_store_uint64_relaxed(&evict->evict_max_ms_per_checkpoint, 0);
-    evict->reentry_hs_eviction_ms = 0;
+    __wt_atomic_store_uint64_relaxed(&evict->reentry_hs_eviction_ms, 0);
     __wt_atomic_store_uint32_relaxed(&conn->heuristic_controls.obsolete_tw_btree_count, 0);
-    conn->rec_maximum_hs_wrapup_milliseconds = 0;
-    conn->rec_maximum_image_build_milliseconds = 0;
-    conn->rec_maximum_milliseconds = 0;
-    conn->page_delta.max_internal_delta_count = 0;
-    conn->page_delta.max_leaf_delta_count = 0;
+    __wt_atomic_store_uint64_relaxed(&conn->rec_maximum_hs_wrapup_milliseconds, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->rec_maximum_image_build_milliseconds, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->rec_maximum_milliseconds, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->page_delta.max_internal_delta_count, 0);
+    __wt_atomic_store_uint64_relaxed(&conn->page_delta.max_leaf_delta_count, 0);
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt.ckpt_api.timer_start);
@@ -2630,8 +2625,32 @@ fake:
 
 err:
     /* Resolved the checkpoint for the block manager in the error path. */
-    if (resolve_bm)
+    if (resolve_bm) {
         WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
+
+        /*
+         * If in disaggregated mode, discard the root page associated with checkpoints that are
+         * marked for deletion.
+         *
+         * FIXME-WT-15879: Fix up layering for checkpoint root page discard
+         */
+        if (ret == 0 && F_ISSET(btree, WT_BTREE_DISAGGREGATED)) {
+            WT_CKPT *ckptbase, *ckpt_temp;
+            ckptbase = btree->ckpt;
+
+            WT_CKPT_FOREACH (ckptbase, ckpt_temp) {
+                /*
+                 * In disagg, checkpoint cookie is the same as address cookie of the root page, this
+                 * applies to disagg only and not classic WT. Currently all checkpoint root page are
+                 * written with an unique page ID, therefore discarding the old checkpoint root page
+                 * here is appropriate. If the logic for writing checkpoint root pages ever change,
+                 * the discard logic would also need to be reconsidered.
+                 */
+                if (F_ISSET(ckpt_temp, WT_CKPT_DELETE) && ckpt_temp->raw.data)
+                    bm->free(bm, session, ckpt_temp->raw.data, ckpt_temp->raw.size);
+            }
+        }
+    }
 
     /*
      * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.

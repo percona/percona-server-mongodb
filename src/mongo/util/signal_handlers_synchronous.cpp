@@ -41,8 +41,6 @@
 #include <string>
 #include <typeinfo>
 
-#include "signal_handlers_synchronous.h"
-
 #include <boost/exception/diagnostic_information.hpp>
 #include <boost/exception/exception.hpp>
 #include <fmt/format.h>
@@ -215,7 +213,7 @@ void dumpScopedDebugInfo(std::ostream& os) {
     if (!shouldLogScopedDebugInfoInSignalHandlers.load()) {
         return;
     }
-    auto diagStack = scopedDebugInfoStack().getAll();
+    auto diagStack = error_details::scopedDebugInfoStack().getAll();
     if (diagStack.empty())
         return;
     os << "ScopedDebugInfo: [";

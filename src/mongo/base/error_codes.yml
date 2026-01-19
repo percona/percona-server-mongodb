@@ -978,6 +978,9 @@ error_codes:
       categories: [Interruption, RetriableError],
     }
 
+  # Bad BSON column format found during decompression
+  - {code: 472, name: InvalidBSONColumn, categories: [ValidationError]}
+
   # Error codes 4000-8999 are reserved.
 
   # Percona Server for MongoDB error codes
@@ -1053,6 +1056,7 @@ error_codes:
     }
   - {code: 56846, name: ConfigServerUnreachable}
   - {code: 57986, name: RetryableInternalTransactionNotSupported}
+  # Codes 65000-70999 are reserved for extension-developed logs and errors. Do not use these unless they are used for writing an extension.
   - {code: 640570, name: IllegalChangeToExpectedShardVersion}
   - {code: 640571, name: IllegalChangeToExpectedDatabaseVersion}
   - {

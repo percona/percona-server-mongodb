@@ -31,6 +31,7 @@
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/traffic_recorder/utils/task_scheduler.h"
 #include "mongo/db/traffic_recorder_gen.h"
 #include "mongo/platform/atomic.h"
 #include "mongo/platform/atomic_word.h"
@@ -48,6 +49,7 @@
 #include <queue>
 #include <string>
 
+#include <boost/none.hpp>
 #include <boost/optional.hpp>
 
 namespace mongo {
@@ -71,6 +73,7 @@ struct TrafficRecordingPacket {
 class DataBuilder;
 void appendPacketHeader(DataBuilder& builder, const TrafficRecordingPacket& packet);
 
+
 /**
  * A service context level global which captures packet capture through the transport layer if it is
  * enabled.  The service is intended to be turned on and off via startTrafficRecording and
@@ -81,17 +84,20 @@ void appendPacketHeader(DataBuilder& builder, const TrafficRecordingPacket& pack
  */
 class TrafficRecorder {
 public:
+    using RecordingID = std::string;
     // The Recorder may record some special events that are required by the replay client.
 
     static TrafficRecorder& get(ServiceContext* svc);
 
-    TrafficRecorder();
     virtual ~TrafficRecorder();
 
     // Start and stop block until the associate operation has succeeded or failed
     // On failure these methods throw
-    void start(const StartTrafficRecording& options, ServiceContext* svcCtx);
+    StartReply start(const StartTrafficRecording& options, ServiceContext* svcCtx);
     void stop(ServiceContext* svcCtx);
+
+    StatusReply status() const;
+
 
     void sessionStarted(const transport::Session& ts);
     void sessionEnded(const transport::Session& ts);
@@ -122,8 +128,12 @@ protected:
         virtual void start();
         virtual Status shutdown();
 
-        bool started() const {
+        bool isStarted() const {
             return _started.loadRelaxed();
+        }
+
+        const RecordingID& getID() {
+            return _id;
         }
 
         /**
@@ -141,6 +151,10 @@ protected:
 
         TickSource* getTickSource() const {
             return _tickSource;
+        }
+
+        boost::optional<std::pair<Date_t, Date_t>> getScheduledTimeWindow() const {
+            return _scheduledTimes;
         }
 
         AtomicWord<uint64_t> order{0};
@@ -163,6 +177,8 @@ protected:
         const std::string _path;
         const int64_t _maxLogSize;
 
+        boost::optional<std::pair<Date_t, Date_t>> _scheduledTimes = boost::none;
+
         TickSource* _tickSource;
 
         stdx::thread _thread;
@@ -173,11 +189,18 @@ protected:
         TrafficRecorderStats _trafficStats;
         int64_t _written = 0;
         Status _result = Status::OK();
+
+        RecordingID _id;
     };
 
-    void _prepare(const StartTrafficRecording& options, ServiceContext* svcCtx);
-    void _start(ServiceContext* svcCtx);
-    void _stop(ServiceContext* svcCtx);
+    using LockedRecordingHandle =
+        decltype(std::declval<mongo::synchronized_value<std::shared_ptr<Recording>>>()
+                     .synchronize());
+
+    [[nodiscard]] std::pair<TrafficRecorder::LockedRecordingHandle, bool> _prepare(
+        const StartTrafficRecording& options, ServiceContext* svcCtx);
+    void _start(LockedRecordingHandle handle, ServiceContext* svcCtx);
+    void _stop(LockedRecordingHandle handle, ServiceContext* svcCtx);
     void _fail();
 
 
@@ -203,6 +226,7 @@ protected:
     AtomicWord<bool> _shouldRecord = false;
 
     mongo::synchronized_value<std::shared_ptr<Recording>> _recording;
+    std::unique_ptr<TaskScheduler> _worker = nullptr;
 };
 
 class TrafficRecorderForTest : public TrafficRecorder {

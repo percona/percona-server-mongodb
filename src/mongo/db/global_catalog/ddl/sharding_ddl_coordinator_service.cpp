@@ -55,7 +55,6 @@
 #include "mongo/db/global_catalog/ddl/move_primary_coordinator.h"
 #include "mongo/db/global_catalog/ddl/refine_collection_shard_key_coordinator.h"
 #include "mongo/db/global_catalog/ddl/rename_collection_coordinator.h"
-#include "mongo/db/global_catalog/ddl/reshard_collection_coordinator.h"
 #include "mongo/db/global_catalog/ddl/set_allow_migrations_coordinator.h"
 #include "mongo/db/global_catalog/ddl/sharding_ddl_coordinator.h"
 #include "mongo/db/global_catalog/ddl/untrack_unsplittable_collection_coordinator.h"
@@ -63,6 +62,7 @@
 #include "mongo/db/local_catalog/shard_role_catalog/operation_sharding_state.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/s/forwardable_operation_metadata.h"
+#include "mongo/db/s/resharding/reshard_collection_coordinator.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/topology/add_shard_coordinator.h"
 #include "mongo/db/topology/remove_shard_commit_coordinator.h"
@@ -410,8 +410,8 @@ ShardingDDLCoordinatorService::getOrCreateInstance(OperationContext* opCtx,
     ForwardableOperationMetadata forwardableOpMetadata(opCtx);
     // We currently only propagate the Operation FCV for DDL operations.
     // Moreover, DDL operations cannot be nested. Therefore, the VersionContext
-    // shouldn't have been initialized yet.
-    invariant(!VersionContext::getDecoration(opCtx).isInitialized());
+    // shouldn't have an OFCV yet.
+    invariant(!VersionContext::getDecoration(opCtx).hasOperationFCV());
     if (feature_flags::gSnapshotFCVInDDLCoordinators.isEnabled(kVersionContextIgnored_UNSAFE,
                                                                fcv)) {
         forwardableOpMetadata.setVersionContext(VersionContext{fcv});

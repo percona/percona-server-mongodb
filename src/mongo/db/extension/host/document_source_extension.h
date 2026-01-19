@@ -29,12 +29,12 @@
 #pragma once
 
 #include "mongo/base/string_data.h"
-#include "mongo/bson/bsonobj.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/db/pipeline/desugarer.h"
 #include "mongo/db/pipeline/document_source.h"
+#include "mongo/stdx/unordered_set.h"
 #include "mongo/util/modules.h"
-
 namespace mongo::extension {
 
 class DocumentSourceExtensionTest;
@@ -74,9 +74,14 @@ public:
             : LiteParsedDocumentSource(std::move(stageName)),
               _parseNode(std::move(parseNode)),
               _nss(nss),
-              _options(options) {
-            _expanded = expand();
-        }
+              _options(options),
+              _expanded([&] {
+                  auto expanded = expand();
+                  tassert(10905600,
+                          "LiteParsedExpandable must not have an empty expanded pipeline",
+                          !expanded.empty());
+                  return expanded;
+              }()) {}
 
         /**
          * Return the pre-computed expanded pipeline.
@@ -91,14 +96,12 @@ public:
 
         PrivilegeVector requiredPrivileges(bool isMongos,
                                            bool bypassDocumentValidation) const override {
-            // TODO SERVER-109056 Support getting required privileges from extensions.
+            // TODO SERVER-113506 Support getting required privileges from extensions.
             return {};
         }
 
         bool isInitialSource() const override {
-            // TODO SERVER-109056 isInitialSource() value should be inherited from the first
-            // stage in the LiteParsedExpandable's expanded pipeline.
-            return false;
+            return _expanded.front()->isInitialSource();
         }
 
         /**
@@ -139,10 +142,10 @@ public:
                                          const NamespaceString& nss,
                                          const LiteParserOptions& options);
 
-        AggStageParseNodeHandle _parseNode;
-        NamespaceString _nss;
-        LiteParserOptions _options;
-        LiteParsedList _expanded;
+        const AggStageParseNodeHandle _parseNode;
+        const NamespaceString _nss;
+        const LiteParserOptions _options;
+        const LiteParsedList _expanded;
     };
 
     /**
@@ -152,7 +155,9 @@ public:
     class LiteParsedExpanded : public LiteParsedDocumentSource {
     public:
         LiteParsedExpanded(std::string stageName, AggStageAstNodeHandle astNode)
-            : LiteParsedDocumentSource(std::move(stageName)), _astNode(std::move(astNode)) {}
+            : LiteParsedDocumentSource(std::move(stageName)),
+              _astNode(std::move(astNode)),
+              _properties(_astNode.getProperties()) {}
 
         stdx::unordered_set<NamespaceString> getInvolvedNamespaces() const override {
             return stdx::unordered_set<NamespaceString>();
@@ -160,13 +165,12 @@ public:
 
         PrivilegeVector requiredPrivileges(bool isMongos,
                                            bool bypassDocumentValidation) const override {
-            // TODO SERVER-109056 Support getting required privileges from extensions.
+            // TODO SERVER-113506 Support getting required privileges from extensions.
             return {};
         }
 
         bool isInitialSource() const override {
-            // TODO SERVER-112779 Change this to return true if the stage is a source stage.
-            return false;
+            return _properties.getPosition() == MongoExtensionPositionRequirementEnum::kFirst;
         }
 
         /**
@@ -179,13 +183,10 @@ public:
 
     private:
         AggStageAstNodeHandle _astNode;
+        const MongoExtensionStaticProperties _properties;
     };
 
     const char* getSourceName() const override;
-
-    static const Id& id;
-
-    Id getId() const override;
 
     boost::optional<DistributedPlanLogic> distributedPlanLogic() override;
 
@@ -202,10 +203,6 @@ public:
     ~DocumentSourceExtension() override = 0;
 
 private:
-    static void registerStage(const std::string& name,
-                              DocumentSource::Id id,
-                              AggStageDescriptorHandle descriptor);
-
     /**
      * Give access to DocumentSourceExtensionTest/LoadExtensionsTest to unregister parser.
      * unregisterParser_forTest is only meant to be used in the context of unit
@@ -218,10 +215,7 @@ private:
 
 protected:
     DocumentSourceExtension(StringData name,
-                            const boost::intrusive_ptr<ExpressionContext>& exprCtx,
-                            Id id,
-                            BSONObj rawStage,
-                            mongo::extension::AggStageDescriptorHandle descriptor);
+                            const boost::intrusive_ptr<ExpressionContext>& exprCtx);
 
     /**
      * NB : Here we keep a copy of the stage name to service getSourceName().
@@ -231,8 +225,6 @@ protected:
      * terminator.
      **/
     const std::string _stageName;
-    const Id _id;
-    const mongo::extension::AggStageParseNodeHandle _parseNode;
 
 private:
     // Do not support copy or move.

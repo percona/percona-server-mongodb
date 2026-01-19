@@ -1026,6 +1026,7 @@ mongo_cc_library(
         "//src/mongo/db/commands:test_commands_enabled",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/commands/server_status:server_status_core",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/exec/mutable_bson",
+        "//src/mongo/db/extension/host:extension_operation_metrics_registry",
         "//src/mongo/db/local_catalog:collection_options",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/local_catalog:local_oplog_info",
         "//src/mongo/db/query:common_query_enums_and_helpers",
@@ -1218,7 +1219,6 @@ mongo_cc_library(
         "//src/mongo/db/exec/classic:fetch.h",
         "//src/mongo/db/exec/classic:filter.h",
         "//src/mongo/db/exec/classic:geo_near.h",
-        "//src/mongo/db/exec/classic:histogram_server_status_metric.h",
         "//src/mongo/db/exec/classic:idhack.h",
         "//src/mongo/db/exec/classic:index_scan.h",
         "//src/mongo/db/exec/classic:limit.h",
@@ -1324,12 +1324,12 @@ mongo_cc_library(
         "//src/mongo/bson/dotted_path:dotted_path_support",
         "//src/mongo/db/auth:auth_checks",
         "//src/mongo/db/collection_crud",
+        "//src/mongo/db/commands/server_status:histogram_server_status_metric",
         "//src/mongo/db/commands/server_status:server_status_core",
         "//src/mongo/db/exec:projection_executor",
         "//src/mongo/db/exec:scoped_timer",
         "//src/mongo/db/exec:sort_executor",
         "//src/mongo/db/exec:working_set",
-        "//src/mongo/db/exec/classic:histogram_server_status_metric",
         "//src/mongo/db/exec/sbe:query_sbe_stages",
         "//src/mongo/db/exec/sbe:query_sbe_storage",
         "//src/mongo/db/fts:base_fts",
@@ -1341,7 +1341,6 @@ mongo_cc_library(
         "//src/mongo/db/pipeline",
         "//src/mongo/db/pipeline:change_stream_pipeline",
         "//src/mongo/db/pipeline:document_source_internal_apply_oplog_update",
-        "//src/mongo/db/pipeline:pipeline_visitor",
         "//src/mongo/db/query:plan_executor",
         "//src/mongo/db/query:plan_yield_policy",
         "//src/mongo/db/query:plan_yield_policy_release_memory",
@@ -1360,6 +1359,7 @@ mongo_cc_library(
         "//src/mongo/db/query/query_settings",
         "//src/mongo/db/query/stage_builder/sbe:stage_builder",
         "//src/mongo/db/query/stage_memory_limit_knobs",
+        "//src/mongo/db/query/util:field_set",
         "//src/mongo/db/query/write_ops:delete_request_idl",
         "//src/mongo/db/query/write_ops:parsed_update",
         "//src/mongo/db/query/write_ops:parsed_update_and_delete",
@@ -1383,7 +1383,6 @@ mongo_cc_library(
         "//src/mongo/scripting",
         "//src/mongo/util:background_job",
         "//src/mongo/util:elapsed_tracker",
-        "//src/mongo/util:field_set",
         "//src/third_party/s2",
     ],
 )
@@ -1682,18 +1681,18 @@ mongo_cc_library(
     srcs = [
         "traffic_recorder.cpp",
         "traffic_recorder_gen",
-        "traffic_recorder_session_utils.cpp",
         "traffic_recorder_validators.cpp",
     ],
     hdrs = [
         "traffic_recorder.h",
-        "traffic_recorder_session_utils.h",
         "traffic_recorder_validators.h",
     ],
     deps = [
         ":server_base",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db:service_context",  # TODO(SERVER-93876): Remove.
         "//src/mongo/db/commands/server_status:server_status_core",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/db/query/util:stop_token",
+        "//src/mongo/db/traffic_recorder/utils:task_scheduler",
         "//src/mongo/rpc",
         "//src/third_party/abseil-cpp:absl_crc32c",
     ],
@@ -2300,6 +2299,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/sbe/values:cell_interface.cpp",
         "//src/mongo/db/exec/sbe/values:key_string_entry.cpp",
         "//src/mongo/db/exec/sbe/values:object_walk_node.cpp",
+        "//src/mongo/db/exec/sbe/values:path_request.cpp",
         "//src/mongo/db/exec/sbe/values:row.cpp",
         "//src/mongo/db/exec/sbe/values:slot_printer.cpp",
         "//src/mongo/db/exec/sbe/values:ts_block.cpp",
@@ -2319,6 +2319,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/sbe/stages:stages.h",
         "//src/mongo/db/exec/sbe/stages:window.h",
         "//src/mongo/db/exec/sbe/util:debug_print.h",
+        "//src/mongo/db/exec/sbe/util:id_generator.h",
         "//src/mongo/db/exec/sbe/util:print_options.h",
         "//src/mongo/db/exec/sbe/util:spilling.h",
         "//src/mongo/db/exec/sbe/values:arith_common.h",
@@ -2356,7 +2357,7 @@ mongo_cc_library(
         "//src/mongo/executor:task_executor_cursor_parameters_gen",
     ],
     header_deps = [
-        "//src/mongo/util:field_set",
+        "//src/mongo/db/query/util:field_set",
         "//src/mongo/db/timeseries:bucket_compression",
     ],
     private_hdrs = [
@@ -3279,7 +3280,7 @@ mongo_cc_library(
         "//src/mongo/db/local_catalog:catalog_impl",
         "//src/mongo/db/local_catalog:collection_options",
         "//src/mongo/db/local_catalog:document_validation",
-        "//src/mongo/db/local_catalog:health_log_interface",
+        "//src/mongo/db/repl/dbcheck:health_log_interface",
         "//src/mongo/db/local_catalog:index_key_validate",
         "collection_index_usage_tracker",
         "//src/mongo/db/commands:mongod",
@@ -3355,8 +3356,7 @@ mongo_cc_library(
         "//src/mongo/db/ttl:ttl_d",
         "//src/mongo/db/update:update_driver",
         "//src/mongo/otel/metrics:otel_metrics",
-        "//src/mongo/otel",
-        "//src/mongo/otel/traces:tracing",
+        "//src/mongo/otel/traces:tracing_initialization",
         "update_index_data",
     ] + select({
         "//bazel/config:use_tracing_profiler_enabled": [
@@ -3503,8 +3503,8 @@ mongo_cc_library(
         "//src/mongo/db/local_catalog:catalog_helpers",
         "//src/mongo/db/local_catalog:catalog_impl",
         "//src/mongo/db/collection_crud",
-        "//src/mongo/db/local_catalog:health_log",
-        "//src/mongo/db/local_catalog:health_log_interface",
+        "//src/mongo/db/repl/dbcheck:health_log",
+        "//src/mongo/db/repl/dbcheck:health_log_interface",
         "//src/mongo/db/local_catalog/shard_role_api:resource_yielders",
         "change_stream_options_manager",
         "//src/mongo/db/commands:mongod",

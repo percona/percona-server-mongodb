@@ -41,13 +41,14 @@
 #include "mongo/db/ftdc/controller.h"
 #include "mongo/db/ftdc/ftdc_server_gen.h"
 #include "mongo/db/ftdc/ftdc_system_stats.h"
+#include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/db/mirror_maestro.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/rpc/get_status_from_command_result.h"
-#include "mongo/transport/transport_layer_ftdc_collector.h"
+#include "mongo/transport/transport_layer_manager.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
 #include "mongo/util/duration.h"
@@ -287,6 +288,12 @@ public:
         // the oplog window.
         // "lockContentionMetrics" is included to collect metrics on mutexes
 
+        auto ru = shard_role_details::getRecoveryUnit(opCtx);
+        if (ru) {
+            // Prevent FTDC from getting blocked on cache eviction.
+            ru->optOutOfCacheEviction();
+        }
+
         BSONObjBuilder commandBuilder;
         commandBuilder.append(kCommand, 1);
         commandBuilder.append("sharding", false);
@@ -361,6 +368,19 @@ void registerServerCollectors(FTDCController* controller) {
     controller->addPeriodicCollector(std::make_unique<FTDCServerStatusCommandCollector>());
 }
 
+class TransportLayerFTDCCollector final : public FTDCCollectorInterface {
+public:
+    void collect(OperationContext* opCtx, BSONObjBuilder& builder) override {
+        if (auto tl = opCtx->getServiceContext()->getTransportLayerManager()) {
+            tl->appendStatsForFTDC(builder);
+        }
+    }
+
+    std::string name() const override {
+        return "transportLayerStats";
+    }
+};
+
 // Register the FTDC system
 // Note: This must be run before the server parameters are parsed during startup
 // so that the FTDCController is initialized.
@@ -398,7 +418,7 @@ void startFTDC(ServiceContext* serviceContext,
         fn(controller.get());
     }
 
-    controller->addPeriodicCollector(std::make_unique<transport::TransportLayerFTDCCollector>());
+    controller->addPeriodicCollector(std::make_unique<TransportLayerFTDCCollector>());
 
     // Install System Metric Collector as a periodic collector
     installSystemMetricsCollector(controller.get());

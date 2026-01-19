@@ -34,6 +34,14 @@
 namespace mongo::join_ordering {
 
 /**
+ * Represent sargable predicate that can be the RHS of an indexed nested loop join.
+ */
+struct IndexedJoinPredicate {
+    QSNJoinPredicate::ComparisonOp op;
+    FieldPath field;
+};
+
+/**
  * Construct a 'QuerySolution' with a pseudo-random join ordering based on the given seed. Performs
  * a random walk of the join graph to determine the join order and uses the given 'QuerySolutionMap'
  * to lookup the corresponding single-table access plan for each node.
@@ -44,5 +52,22 @@ std::unique_ptr<QuerySolution> constructSolutionWithRandomOrder(
     const std::vector<ResolvedPath>& resolvedPaths,
     const MultipleCollectionAccessor& catalog,
     int seed);
+
+/**
+ * Returns true if the given join predicates can be satisfied by an "index probe" (RHS of INLJ) on
+ * the given index.
+ */
+bool indexSatisfiesJoinPredicates(const IndexCatalogEntry& ice,
+                                  const std::vector<IndexedJoinPredicate>& joinPreds);
+
+/**
+ * Returns the best index that can satify the indexed predicates by "index probe". If there is no
+ * index that can satisfy it then return boost::none. If multiple indexes can satisfy the join
+ * predicates, this function selects one using deterministic heuristics:
+ *  1. Prefer the index with fewer fields.
+ *  2. If tied, prefer the index whose key pattern is lexicographically earlier.
+ */
+boost::optional<IndexEntry> bestIndexSatisfyingJoinPredicates(
+    const IndexCatalog& indexCatalog, const std::vector<IndexedJoinPredicate>& joinPreds);
 
 }  // namespace mongo::join_ordering

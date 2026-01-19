@@ -27,7 +27,7 @@
  *    it in the license file.
  */
 
-#include "replication_coordinator_noop.h"
+#include "mongo/db/repl/replication_coordinator_noop.h"
 
 #include "mongo/base/error_codes.h"
 #include "mongo/util/assert_util.h"
@@ -295,6 +295,10 @@ int ReplicationCoordinatorNoOp::getMyId() const {
 }
 
 HostAndPort ReplicationCoordinatorNoOp::getMyHostAndPort() const {
+    MONGO_UNREACHABLE;
+}
+
+boost::optional<int> ReplicationCoordinatorNoOp::getMyMaintenancePort() const {
     MONGO_UNREACHABLE;
 }
 

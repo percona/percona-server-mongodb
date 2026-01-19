@@ -77,6 +77,14 @@ class MongoTidyTests(unittest.TestCase):
 
         self.run_clang_tidy()
 
+    def test_MongoHeaderIncludePathCheck(self):
+        self.expected_output = [
+            "mongo include 'base/data_range.h' should be referenced from 'src/' as 'mongo/base/data_range.h'",
+            "mongo include 'base/data_type.h' should be referenced from 'src/' as 'mongo/base/data_type.h'",
+        ]
+
+        self.run_clang_tidy()
+
     def test_MongoUninterruptibleLockGuardCheck(self):
         self.expected_output = (
             "Potentially incorrect use of UninterruptibleLockGuard, "
@@ -317,8 +325,11 @@ class MongoTidyTests(unittest.TestCase):
 
         self.run_clang_tidy()
 
-    def test_MongoBannedAutoGetUsageCheck(self):
-        self.expected_output = "AutoGetCollection is not allowed to be used from the query modules. Use ShardRole CollectionAcquisitions instead."
+    def test_MongoBannedCatalogAccessFromQueryCodeCheck(self):
+        self.expected_output = [
+            "AutoGetCollection is not allowed to be used from the query modules. Use ShardRole CollectionAcquisitions instead.",
+            "CollectionCatalog is not allowed to be used from the query modules. Use ShardRole CollectionAcquisitions instead.",
+        ]
         self.run_clang_tidy()
 
 

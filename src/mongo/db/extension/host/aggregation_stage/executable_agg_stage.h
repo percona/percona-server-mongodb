@@ -43,8 +43,8 @@ namespace mongo::extension::host {
  */
 class ExecAggStage {
 public:
-    ExecAggStage(std::unique_ptr<exec::agg::Stage> execAggStage)
-        : _execAggStage(std::move(execAggStage)) {}
+    ExecAggStage(std::unique_ptr<exec::agg::Stage> execAggStage, const std::string& stageName)
+        : _execAggStage(std::move(execAggStage)), _stageName(stageName) {}
 
     ~ExecAggStage() = default;
 
@@ -55,8 +55,13 @@ public:
         return _execAggStage->getNext();
     }
 
+    std::string_view getName() const {
+        return _stageName;
+    }
+
 private:
     std::unique_ptr<exec::agg::Stage> _execAggStage;
+    const std::string _stageName;
 };
 
 };  // namespace mongo::extension::host

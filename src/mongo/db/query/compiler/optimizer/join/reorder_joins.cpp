@@ -36,14 +36,6 @@ namespace mongo::join_ordering {
 
 namespace {
 
-/**
- * Represent sargable predicate that can be the RHS of an indexed nested loop join.
- */
-struct IndexedJoinPredicate {
-    QSNJoinPredicate::ComparisonOp op;
-    FieldPath field;
-};
-
 class ReorderContext {
 public:
     ReorderContext(const JoinGraph& joinGraph, const std::vector<ResolvedPath>& resolvedPaths)
@@ -117,55 +109,80 @@ private:
     const std::vector<ResolvedPath>& _resolvedPaths;
 };
 
+const IndexCatalogEntry* betterIndexForProbe(const IndexCatalogEntry* first,
+                                             const IndexCatalogEntry* second) {
+    auto& firstKeyPattern = first->descriptor()->keyPattern();
+    auto& secondKeyPattern = second->descriptor()->keyPattern();
+    if (firstKeyPattern.nFields() < secondKeyPattern.nFields()) {
+        return first;
+    } else if (firstKeyPattern.nFields() > secondKeyPattern.nFields()) {
+        return second;
+    }
+    if (firstKeyPattern.woCompare(secondKeyPattern) > 0) {
+        return second;
+    }
+    return first;
+}
+
+}  // namespace
+
 bool indexSatisfiesJoinPredicates(const IndexCatalogEntry& ice,
-                                  std::vector<IndexedJoinPredicate>& joinPreds) {
+                                  const std::vector<IndexedJoinPredicate>& joinPreds) {
     auto desc = ice.descriptor();
     if (desc->isHashedIdIndex() || desc->hidden() || desc->isPartial() || desc->isSparse() ||
         !desc->collation().isEmpty() || dynamic_cast<WildcardAccessMethod*>(ice.accessMethod())) {
         return false;
     }
-    StringDataSet indexedPaths;
-    for (auto&& elem : desc->keyPattern()) {
-        indexedPaths.insert(elem.fieldNameStringData());
-    }
-
+    StringSet joinFields;
     for (auto&& joinPred : joinPreds) {
-        if (!indexedPaths.contains(joinPred.field.fullPath())) {
-            return false;
+        joinFields.insert(joinPred.field.fullPath());
+    }
+    for (auto&& elem : desc->keyPattern()) {
+        auto it = joinFields.find(elem.fieldName());
+        if (it != joinFields.end()) {
+            joinFields.erase(it);
+        } else {
+            break;
         }
     }
-    return true;
+    return joinFields.empty();
 }
 
-boost::optional<IndexEntry> indexSatisfyingJoinPredicates(
-    const IndexCatalog& indexCatalog, std::vector<IndexedJoinPredicate>& joinPreds) {
+boost::optional<IndexEntry> bestIndexSatisfyingJoinPredicates(
+    const IndexCatalog& indexCatalog, const std::vector<IndexedJoinPredicate>& joinPreds) {
     auto it = indexCatalog.getIndexIterator(IndexCatalog::InclusionPolicy::kReady);
+    boost::optional<const IndexCatalogEntry*> bestIndex{boost::none};
     while (it->more()) {
         auto ice = it->next();
-        auto desc = ice->descriptor();
-        // TODO SERVER-112939: Pick best available index to make this function deterministic in
-        // prescense of multiple indexes which can serve as the probe side.
         if (indexSatisfiesJoinPredicates(*ice, joinPreds)) {
-            return IndexEntry{desc->keyPattern(),
-                              desc->getIndexType(),
-                              desc->version(),
-                              false /*isMultikey*/,
-                              {} /*multikeyPaths*/,
-                              {} /*multikeySet*/,
-                              desc->isSparse(),
-                              desc->unique(),
-                              IndexEntry::Identifier{desc->indexName()},
-                              ice->getFilterExpression(),
-                              desc->infoObj(),
-                              ice->getCollator(),
-                              nullptr /*wildcardProjection*/,
-                              ice->shared_from_this()};
+            if (!bestIndex.has_value()) {
+                bestIndex = ice;
+            } else {
+                // Keep the better suited index in 'bestIndex'.
+                bestIndex = betterIndexForProbe(bestIndex.get(), ice);
+            }
         }
+    }
+    if (bestIndex.has_value()) {
+        auto ice = bestIndex.get();
+        auto desc = ice->descriptor();
+        return IndexEntry{desc->keyPattern(),
+                          desc->getIndexType(),
+                          desc->version(),
+                          false /*isMultikey*/,
+                          {} /*multikeyPaths*/,
+                          {} /*multikeySet*/,
+                          desc->isSparse(),
+                          desc->unique(),
+                          IndexEntry::Identifier{desc->indexName()},
+                          ice->getFilterExpression(),
+                          desc->infoObj(),
+                          ice->getCollator(),
+                          nullptr /*wildcardProjection*/,
+                          ice->shared_from_this()};
     }
     return boost::none;
 }
-
-}  // namespace
 
 std::unique_ptr<QuerySolution> constructSolutionWithRandomOrder(
     QuerySolutionMap solns,
@@ -227,7 +244,7 @@ std::unique_ptr<QuerySolution> constructSolutionWithRandomOrder(
             auto joinPreds = ctx.makeIndexedJoinPreds(edge, current);
 
             // Attempt to use INLJ if possible, otherwise fallback to NLJ.
-            if (auto indexEntry = indexSatisfyingJoinPredicates(
+            if (auto indexEntry = bestIndexSatisfyingJoinPredicates(
                     *mca.lookupCollection(currentNode.collectionName)->getIndexCatalog(),
                     joinPreds);
                 indexEntry.has_value()) {
@@ -243,6 +260,12 @@ std::unique_ptr<QuerySolution> constructSolutionWithRandomOrder(
                                                                             ctx.makeJoinPreds(edge),
                                                                             boost::none,
                                                                             currentNode.embedPath);
+            } else if (internalRandomJoinReorderDefaultToHashJoin.load()) {
+                soln = std::make_unique<HashJoinEmbeddingNode>(std::move(soln),
+                                                               std::move(rhs),
+                                                               ctx.makeJoinPreds(edge),
+                                                               boost::none,
+                                                               currentNode.embedPath);
             } else {
                 soln = std::make_unique<NestedLoopJoinEmbeddingNode>(std::move(soln),
                                                                      std::move(rhs),

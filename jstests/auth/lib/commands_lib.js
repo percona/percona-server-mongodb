@@ -242,6 +242,7 @@ const skippedAuthTestingAggStages = [
     "$tumblingWindow",
     "$sessionWindow",
     "$validate",
+    "$setStreamMeta",
 
     // The following stages are stubs defined in aggregation_stage_stub_parsers.json.
     "$stubStage",
@@ -472,6 +473,19 @@ export const authCommandsLib = {
                     runOnDb: adminDbName,
                     roles: Object.extend({enableSharding: 1}, roles_clusterManager),
                     privileges: [{resource: {db: "test", collection: "x"}, actions: ["reshardCollection"]}],
+                    expectFail: true,
+                },
+            ],
+        },
+        {
+            testname: "abortRewriteCollection",
+            command: {abortRewriteCollection: "test.x"},
+            skipUnlessSharded: true,
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: Object.extend({enableSharding: 1}, roles_clusterManager),
+                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["rewriteCollection"]}],
                     expectFail: true,
                 },
             ],
@@ -6850,7 +6864,21 @@ export const authCommandsLib = {
                 {runOnDb: secondDbName, roles: {}},
             ],
         },
-
+        {
+            testname: "rewriteCollection",
+            command: {rewriteCollection: "test.x"},
+            skipUnlessSharded: true,
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: Object.extend({enableSharding: 1}, roles_clusterManager),
+                    privileges: [{resource: {db: "test", collection: "x"}, actions: ["rewriteCollection"]}],
+                    expectFail: true,
+                },
+                {runOnDb: firstDbName, roles: {}},
+                {runOnDb: secondDbName, roles: {}},
+            ],
+        },
         {
             testname: "_configsvrReshardCollection",
             command: {_configsvrReshardCollection: "test.x", key: {_id: 1}},

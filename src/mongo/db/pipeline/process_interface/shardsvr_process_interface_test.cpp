@@ -44,10 +44,13 @@
 #include "mongo/db/query/client_cursor/cursor_response.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
 #include "mongo/db/repl/storage_interface_mock.h"
+#include "mongo/db/sharding_environment/shard_id.h"
+#include "mongo/db/topology/sharding_state.h"
 #include "mongo/executor/network_test_env.h"
 #include "mongo/executor/remote_command_request.h"
 #include "mongo/s/query/exec/sharded_agg_test_fixture.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/fail_point.h"
 
 
 namespace mongo {
@@ -63,12 +66,21 @@ auto mongoProcessInterfaceCreateRegistration = MONGO_WEAK_FUNCTION_REGISTRATION(
 
 class ShardsvrProcessInterfaceTest : public ShardedAggTestFixture {
 public:
+    static inline auto kMyShardName = ShardId{"DummyShard"};
+
     void setUp() override {
         ShardedAggTestFixture::setUp();
         auto service = expCtx()->getOperationContext()->getServiceContext();
         repl::ReplSettings settings;
 
         settings.setReplSetString("lookupTestSet/node1:12345");
+
+
+        ShardingState::get(getServiceContext())
+            ->setRecoveryCompleted({OID::gen(),
+                                    ClusterRole::ShardServer,
+                                    ConnectionString{kConfigHostAndPort},
+                                    kMyShardName});
 
         repl::StorageInterface::set(service, std::make_unique<repl::StorageInterfaceMock>());
         auto replCoord = std::make_unique<repl::ReplicationCoordinatorMock>(service, settings);
@@ -80,6 +92,9 @@ public:
 };
 
 TEST_F(ShardsvrProcessInterfaceTest, TestInsert) {
+    // We disable any backoff to avoid dealing with network waits.
+    auto _ = FailPointEnableBlock{"setBackoffDelayForTesting", BSON("backoffDelayMs" << 0)};
+
     setupNShards(2);
 
     const NamespaceString kOutNss =
@@ -106,6 +121,12 @@ TEST_F(ShardsvrProcessInterfaceTest, TestInsert) {
     const BSONObj listCollectionsResponse = BSON("name" << kOutNss.coll() << "type"
                                                         << "collection"
                                                         << "options" << collectionOptions);
+
+    // Mock a server overloaded response for "listCollections". We expect the process interface to
+    // proceed to retry the request.
+    onCommand([&](const executor::RemoteCommandRequest& request) {
+        return createErrorSystemOverloaded(ErrorCodes::IngressRequestRateLimitExceeded);
+    });
 
     // Mock the response to $out's "listCollections" request.
     onCommand([&](const executor::RemoteCommandRequest& request) {
@@ -201,6 +222,12 @@ TEST_F(ShardsvrProcessInterfaceTest, TestInsert) {
         ASSERT_EQ(tempNss.coll(), request.cmdObj["filter"]["name"].valueStringData());
         return CursorResponse(kTestAggregateNss, CursorId{0}, {listCollectionsGetUUIDResponse})
             .toBSON(CursorResponse::ResponseType::InitialResponse);
+    });
+
+    // Mock a server overloaded response for what is supposed to be
+    // "internalRenameIfOptionsAndIndexesMatch". We expect the process interface to retry.
+    onCommandForPoolExecutor([&](const executor::RemoteCommandRequest& request) {
+        return createErrorSystemOverloaded(ErrorCodes::IngressRequestRateLimitExceeded);
     });
 
     // Mock the response to $out's "internalRenameIfOptionsAndIndexesMatch" request.

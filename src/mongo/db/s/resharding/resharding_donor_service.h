@@ -46,6 +46,8 @@
 #include "mongo/db/service_context.h"
 #include "mongo/db/sharding_environment/shard_id.h"
 #include "mongo/executor/scoped_task_executor.h"
+#include "mongo/otel/telemetry_context.h"
+#include "mongo/otel/traces/span/span.h"
 #include "mongo/s/resharding/common_types_gen.h"
 #include "mongo/s/resharding/type_collection_fields_gen.h"
 #include "mongo/stdx/mutex.h"
@@ -191,7 +193,8 @@ private:
      */
     ExecutorFuture<void> _runUntilBlockingWritesOrErrored(
         const std::shared_ptr<executor::ScopedTaskExecutor>& executor,
-        const CancellationToken& abortToken);
+        const CancellationToken& abortToken,
+        std::shared_ptr<otel::TelemetryContext> telemetryCtx);
 
     /**
      * Notifies the coordinator if the donor is in kBlockingWrites or kError and waits for
@@ -305,6 +308,13 @@ private:
     // Should only be called once per lifetime.
     CancellationToken _initAbortSource(const CancellationToken& stepdownToken);
 
+    /**
+     * Creates a new span with the resharding UUID set as an attribute.
+     */
+    otel::traces::Span _startSpan(std::shared_ptr<otel::TelemetryContext> telemetryCtx,
+                                  const std::string& spanName,
+                                  bool keepSpan = false);
+
     // The primary-only service instance corresponding to the donor instance. Not owned.
     const ReshardingDonorService* const _donorService;
 
@@ -400,7 +410,8 @@ public:
     virtual void refreshCollectionPlacementInfo(OperationContext* opCtx,
                                                 const NamespaceString& sourceNss) = 0;
 
-    virtual void abortUnpreparedTransactionIfNecessary(OperationContext* opCtx) = 0;
+    virtual void abortUnpreparedTransactionIfNecessary(OperationContext* opCtx,
+                                                       const NamespaceString& sourceNss) = 0;
 };
 
 }  // namespace mongo

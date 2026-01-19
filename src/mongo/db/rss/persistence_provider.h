@@ -31,6 +31,7 @@
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
+#include "mongo/util/modules.h"
 
 #include <string>
 #include <utility>
@@ -48,7 +49,7 @@ namespace rss {
  * expected behaviors, allowing consumers to act based on these flags, rather than needing to reason
  * about how a particular provider would behave in a given context.
  */
-class PersistenceProvider {
+class MONGO_MOD_OPEN PersistenceProvider {
 public:
     virtual ~PersistenceProvider() = default;
 
@@ -150,6 +151,13 @@ public:
      * If true, the provider supports starting the oplog cap maintainer thread and oplog sampling.
      */
     virtual bool supportsOplogSampling() const = 0;
+
+    /**
+     * If true, the provider supports table verify.
+     *
+     * TODO SERVER-113061: remove this workaround.
+     */
+    virtual bool supportsTableVerify() const = 0;
 };
 
 }  // namespace rss

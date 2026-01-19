@@ -61,6 +61,7 @@
 #include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/db/local_catalog/shard_role_catalog/operation_sharding_state.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
+#include "mongo/db/pipeline/catalog_resource_handle.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_cursor.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
@@ -109,6 +110,7 @@
 #include "mongo/s/analyze_shard_key_role.h"
 #include "mongo/s/query_analysis_sample_tracker.h"
 #include "mongo/s/query_analysis_sampler_util.h"
+#include "mongo/util/assert_util.h"
 #include "mongo/util/database_name_util.h"
 #include "mongo/util/future.h"
 #include "mongo/util/namespace_string_util.h"
@@ -758,9 +760,7 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
     const boost::intrusive_ptr<ExpressionContext>& expCtx,
     std::unique_ptr<Pipeline> pipeline,
     bool attachCursorAfterOptimizing,
-    std::function<void(const boost::intrusive_ptr<ExpressionContext>& expCtx,
-                       Pipeline* pipeline,
-                       CollectionMetadata collData)> finalizePipeline,
+    std::function<void(Pipeline* pipeline)> optimizePipeline,
     bool shouldUseCollectionDefaultCollator,
     boost::optional<const AggregateCommandRequest&> aggRequest,
     ExecShardFilterPolicy shardFilterPolicy) {
@@ -779,8 +779,8 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
     // Viewless timeseries translations should have already occurred so we can get stable results
     // reading from the cache.
     if (!requiresCollectionAcquisition(*pipeline) || !attachCursorAfterOptimizing) {
-        if (finalizePipeline) {
-            finalizePipeline(expCtx, pipeline.get(), std::monostate{});
+        if (optimizePipeline) {
+            optimizePipeline(pipeline.get());
         }
         return pipeline;
     }
@@ -789,14 +789,15 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
     bool isAnySecondaryCollectionNotLocal =
         acquireCollectionsForPipeline(expCtx, pipeline->serializeToBson(), allAcquisitions);
 
-    // Find the primary acquisition, so we can use it in makePipeline.
+    // Find the primary acquisition, so we can use it in 'performPreOptimizationRewrites'.
     const auto& itr = allAcquisitions.find(expCtx->getNamespaceString());
     tassert(10313201, "Must acquire the primary namespace", itr != allAcquisitions.end());
     const CollectionOrViewAcquisition& primaryAcquisition = itr->second;
+    pipeline->validateWithCollectionMetadata(primaryAcquisition);
+    pipeline->performPreOptimizationRewrites(expCtx, primaryAcquisition);
 
-    // After acquiring all of the collections, we can make and optimize the pipeline.
-    if (finalizePipeline) {
-        finalizePipeline(expCtx, pipeline.get(), primaryAcquisition);
+    if (optimizePipeline) {
+        optimizePipeline(pipeline.get());
     }
     return attachCursorSourceToPipelineForLocalReadImpl(std::move(pipeline),
                                                         allAcquisitions,
@@ -804,6 +805,15 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
                                                         aggRequest,
                                                         shouldUseCollectionDefaultCollator,
                                                         shardFilterPolicy);
+}
+
+// TODO SERVER-111401 Define this function.
+std::unique_ptr<Pipeline>
+CommonMongodProcessInterface::attachCursorSourceToPipelineForLocalReadWithCatalog(
+    std::unique_ptr<Pipeline> pipeline,
+    const MultipleCollectionAccessor& collections,
+    const boost::intrusive_ptr<CatalogResourceHandle>& catalogResourceHandle) {
+    MONGO_UNIMPLEMENTED_TASSERT(11087000);
 }
 
 std::unique_ptr<Pipeline> CommonMongodProcessInterface::attachCursorSourceToPipelineForLocalRead(

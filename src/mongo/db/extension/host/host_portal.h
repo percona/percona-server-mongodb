@@ -28,34 +28,22 @@
  */
 #pragma once
 
-#include "mongo/db/extension/public/api.h"
-#include "mongo/util/modules.h"
-
-#include <string>
+#include "mongo/db/extension/host/document_source_extension.h"
+#include "mongo/db/extension/host_connector/host_portal_adapter.h"
+#include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/util/assert_util.h"
 
 namespace mongo::extension::host {
 
-class HostPortal final : public ::MongoExtensionHostPortal {
+class HostPortal : public host_connector::HostPortalBase {
 public:
-    HostPortal(::MongoExtensionAPIVersion apiVersion,
-               int maxWireVersion,
-               std::string extensionOptions)
-        : ::MongoExtensionHostPortal{&VTABLE, apiVersion, maxWireVersion},
-          _extensionOpts(std::move(extensionOptions)) {}
-
-    static void registerStageDescriptor(const ::MongoExtensionAggStageDescriptor* descriptor);
-
-private:
-    static ::MongoExtensionStatus* _extRegisterStageDescriptor(
-        const MongoExtensionAggStageDescriptor* stageDesc) noexcept;
-
-    static ::MongoExtensionByteView _extGetOptions(
-        const ::MongoExtensionHostPortal* portal) noexcept;
-
-    static constexpr ::MongoExtensionHostPortalVTable VTABLE{&_extRegisterStageDescriptor,
-                                                             &_extGetOptions};
-
-    const std::string _extensionOpts;
+    void registerStageDescriptor(
+        const ::MongoExtensionAggStageDescriptor* descriptor) const override {
+        tassert(10596400,
+                "Got null stage descriptor during extension registration",
+                descriptor != nullptr);
+        host::DocumentSourceExtension::registerStage(AggStageDescriptorHandle(descriptor));
+    };
 };
 
 }  // namespace mongo::extension::host

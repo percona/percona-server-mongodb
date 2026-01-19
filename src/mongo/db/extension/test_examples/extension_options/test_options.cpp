@@ -50,8 +50,7 @@ class OptionAStageDescriptor : public sdk::AggStageDescriptor {
 public:
     static inline const std::string kStageName = std::string(OptionAStageName);
 
-    OptionAStageDescriptor()
-        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
+    OptionAStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
     std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
         sdk::validateStageDefinition(stageBson, kStageName, true /* checkEmpty */);
@@ -69,8 +68,7 @@ class OptionBStageDescriptor : public sdk::AggStageDescriptor {
 public:
     static inline const std::string kStageName = std::string(OptionBStageName);
 
-    OptionBStageDescriptor()
-        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
+    OptionBStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
     std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
         sdk::validateStageDefinition(stageBson, kStageName, true /* checkEmpty */);
@@ -83,7 +81,7 @@ class MyExtension : public sdk::Extension {
 public:
     void initialize(const sdk::HostPortalHandle& portal) override {
         YAML::Node node = portal.getExtensionOptions();
-        userAssert(10999100, "Extension options must include 'optionA'", node["optionA"]);
+        sdk_uassert(10999100, "Extension options must include 'optionA'", node["optionA"]);
         ExtensionOptions::optionA = node["optionA"].as<bool>();
 
         if (ExtensionOptions::optionA) {

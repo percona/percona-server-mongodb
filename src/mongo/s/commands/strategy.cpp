@@ -83,8 +83,8 @@
 #include "mongo/logv2/log.h"
 #include "mongo/logv2/log_severity_suppressor.h"
 #include "mongo/otel/telemetry_context_holder.h"
-#include "mongo/otel/telemetry_context_serialization.h"
 #include "mongo/otel/traces/span/span.h"
+#include "mongo/otel/traces/telemetry_context_serialization.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/check_allowed_op_query_cmd.h"
 #include "mongo/rpc/factory.h"
@@ -520,10 +520,10 @@ void ParseAndRunCommand::_parseCommand() {
     }
 
     if (auto& traceCtx = _invocation->getGenericArguments().getTraceCtx()) {
-        auto telemetryCtx = otel::TelemetryContextSerializer::fromBSON(*traceCtx);
+        auto telemetryCtx = otel::traces::TelemetryContextSerializer::fromBSON(*traceCtx);
         if (telemetryCtx) {
-            auto& telemetryCtxHolder = otel::TelemetryContextHolder::get(opCtx);
-            telemetryCtxHolder.set(telemetryCtx);
+            auto& telemetryCtxHolder = otel::TelemetryContextHolder::getDecoration(opCtx);
+            telemetryCtxHolder.setTelemetryContext(telemetryCtx);
         }
     }
 

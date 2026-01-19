@@ -268,7 +268,6 @@ mongo_cc_library(
         "//src/mongo/scripting:engine.h",
         "//src/mongo/util:elapsed_tracker.h",
         "//src/mongo/util:histogram.h",
-        "//src/mongo/util:id_generator.h",
         "//src/mongo/util:lazily_initialized.h",
         "//src/mongo/util:pcre.h",
         "//src/mongo/util:processinfo.h",
@@ -293,6 +292,7 @@ mongo_cc_library(
     }),
     deps = [
         "//src/mongo/db:profile_settings",
+        "//src/mongo/db/extension/host:extension_operation_metrics_registry",
         "//src/mongo/db/query/algebra",
         "//src/mongo/db/sorter:sorter_base",
         "//src/mongo/db/storage:container",
@@ -326,5 +326,27 @@ mongo_cc_library(
         "//src/mongo/transport:message_compressor",
         "//src/mongo/transport:service_executor",
         "//src/mongo/util/net:ssl_manager",  # TODO(SERVER-93876): Remove.
+    ],
+)
+
+mongo_cc_library(
+    name = "histogram_server_status_metric",
+    hdrs = [
+        "histogram_server_status_metric.h",
+        "//src/mongo/util:histogram.h",
+    ],
+    deps = [
+        "//src/mongo/db/commands/server_status:server_status_metric",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "histogram_server_status_metric_test",
+    srcs = [
+        "histogram_server_status_metric_test.cpp",
+    ],
+    tags = ["mongo_unittest_sixth_group"],
+    deps = [
+        ":histogram_server_status_metric",
     ],
 )

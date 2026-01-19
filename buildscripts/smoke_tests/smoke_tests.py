@@ -373,16 +373,6 @@ def run_smoke_tests(
 
     formatters = [
         runner.command(
-            name="clang format",
-            args=[
-                MONGO_PYTHON_INTERPRETER,
-                ROOT.joinpath("buildscripts", "clang_format.py"),
-                "format-my",
-                upstream_branch,
-            ],
-            log_file="clang_format.log",
-        ),
-        runner.command(
             name="misc. lint",
             args=[
                 BAZEL,
@@ -439,6 +429,7 @@ def run_smoke_tests(
                 *bazel_args,
                 f"--test_tag_filters={unit_test_tag}",
                 "--test_output=summary",
+                "--dev_stacktrace=False",
                 unit_test_build_target,
             ],
             # NOTE: bazel already stores the real logs somewhere else

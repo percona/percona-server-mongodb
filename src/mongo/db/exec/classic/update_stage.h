@@ -51,6 +51,7 @@
 #include "mongo/db/storage/snapshot.h"
 #include "mongo/db/update/update_driver.h"
 #include "mongo/stdx/unordered_set.h"
+#include "mongo/util/modules.h"
 
 #include <cstddef>
 #include <functional>
@@ -64,7 +65,7 @@ namespace mongo {
 class OpDebug;
 struct PlanSummaryStats;
 
-struct UpdateStageParams {
+struct MONGO_MOD_PUBLIC UpdateStageParams {
     using DocumentCounter = std::function<size_t(const BSONObj&)>;
 
     UpdateStageParams(const UpdateRequest* r,
@@ -143,7 +144,6 @@ private:
                                             const Snapshotted<BSONObj>& oldObj);
 
     void checkUpdateChangesReshardingKey(OperationContext* opCtx,
-                                         const ShardingWriteRouter& shardingWriteRouter,
                                          const BSONObj& newObj,
                                          const Snapshotted<BSONObj>& oldObj);
 

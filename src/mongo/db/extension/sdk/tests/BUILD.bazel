@@ -13,6 +13,7 @@ mongo_cc_library(
     hdrs = ["shared_test_stages.h"],
     deps = [
         "//src/mongo:base",
+        "//src/mongo/db/extension/host/aggregation_stage",
         "//src/mongo/db/extension/sdk:sdk_cpp",
     ],
 )
@@ -27,6 +28,28 @@ mongo_cc_unit_test(
         "versioned_extension_test.cpp",
     ],
     tags = ["mongo_unittest_second_group"],
+    deps = [
+        ":shared_test_stages",
+        "//src/mongo:base",
+        "//src/mongo/db/extension/host:extension_host",
+        "//src/mongo/db/extension/host_connector:extensions_host_connector",
+        "//src/mongo/db/extension/host_connector:host_services_adapter",
+        "//src/mongo/db/extension/host_connector/handle:host_handles",
+        "//src/mongo/db/extension/sdk:sdk_cpp",
+        "//src/mongo/db/extension/shared/handle",
+        "//src/mongo/db/extension/shared/handle/aggregation_stage",
+        "//src/mongo/db/pipeline:expression_context_for_test",
+    ],
+)
+
+# Separate target for long-running tests (death tests). Death tests spawn separate processes
+# and may take longer to execute than regular unit tests.
+mongo_cc_unit_test(
+    name = "extension_sdk_lrt_tests",
+    srcs = [
+        "aggregation_stage_death_test.cpp",
+    ],
+    tags = ["mongo_unittest_fourth_group"],
     deps = [
         ":shared_test_stages",
         "//src/mongo:base",

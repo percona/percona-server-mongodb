@@ -29,6 +29,7 @@
 # abortReshardCollection IDL file
 
 global:
+    mod_visibility: private
     cpp_namespace: "mongo"
 
 imports:
@@ -76,6 +77,14 @@ commands:
     abortMoveCollection:
         description: "The public command on mongos that aborts a moveCollection commmand."
         command_name: abortMoveCollection
+        strict: false
+        namespace: type
+        api_version: ""
+        type: namespacestring
+
+    abortRewriteCollection:
+        description: "The public command on mongos that aborts a rewriteCollection commmand."
+        command_name: abortRewriteCollection
         strict: false
         namespace: type
         api_version: ""

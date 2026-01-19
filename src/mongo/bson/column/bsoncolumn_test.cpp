@@ -1093,7 +1093,8 @@ public:
         appendEOO(expected);
 
         BSONColumn col(createBSONColumn(expected.buf(), expected.len()));
-        ASSERT_THROWS_CODE(std::distance(col.begin(), col.end()), DBException, 6785500);
+        ASSERT_THROWS_CODE(
+            std::distance(col.begin(), col.end()), DBException, ErrorCodes::InvalidBSONColumn);
     }
 
     const boost::optional<uint64_t> kDeltaForBinaryEqualValues = Simple8bTypeUtil::encodeInt64(0);
@@ -1326,7 +1327,7 @@ TEST_F(BSONColumnTest, BuilderFuzzerReopenDiscoveredEdgeCases) {
     //
     std::vector<StringData> binariesBase64 = {
         // Pending fix of SERVER-100659
-        //        "gPz/////////CAAAgP7/////////AQAAAAAAAAAAYI/OxcXFxcXFAQ4AAAAAAAAB7uLi4uLi4gAuHR0dHR2dAI5xcXFxcXEAjnFxcXFxcQCOcXFxcXFxAK6rq6urq2sAzri4uLi4OADOuLi4uLg4AM64uLi4uDgAzri4uLi4OADOuLi4uLg4AM64uLi4uDgAzri4uLi4OADOuLi4uLg4AI9ulpaWlpY2AG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAI9uXFxcXFwcAG5cXFxcXBwA7gsMDAwMHAAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAI8uLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAI8uLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAK6wr6+vrwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAI8uFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAIYuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAAA="_sd,
+        "gPz/////////CAAAgP7/////////AQAAAAAAAAAAYI/OxcXFxcXFAQ4AAAAAAAAB7uLi4uLi4gAuHR0dHR2dAI5xcXFxcXEAjnFxcXFxcQCOcXFxcXFxAK6rq6urq2sAzri4uLi4OADOuLi4uLg4AM64uLi4uDgAzri4uLi4OADOuLi4uLg4AM64uLi4uDgAzri4uLi4OADOuLi4uLg4AI9ulpaWlpY2AG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAG5cXFxcXBwAblxcXFxcHABuXFxcXFwcAI9uXFxcXFwcAG5cXFxcXBwA7gsMDAwMHAAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAI8uLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAI8uLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAC4uLi4uLg4ALi4uLi4uDgAuLi4uLi4OAK6wr6+vrwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAI8uFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAIYuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAC4XFxcXFwcALhcXFxcXBwAuFxcXFxcHAAA="_sd,
     };
 
     for (auto&& binaryBase64 : binariesBase64) {
@@ -3879,7 +3880,7 @@ TEST_F(BSONColumnTest, BinDataLargerThan16WithNonZeroDelta) {
         std::vector<BSONElement> collection;
         ASSERT_THROWS_CODE(colBlockBased.decompress<BSONElementMaterializer>(collection, allocator),
                            DBException,
-                           8690000);
+                           ErrorCodes::InvalidBSONColumn);
     }
 
     // Verify block-based path decompression throws an error.
@@ -3894,7 +3895,7 @@ TEST_F(BSONColumnTest, BinDataLargerThan16WithNonZeroDelta) {
         ASSERT_THROWS_CODE(
             colBlockBased.decompress<BSONElementMaterializer>(allocator, std::span(testPaths)),
             DBException,
-            8609800);
+            ErrorCodes::InvalidBSONColumn);
     }
 
     // Build a similar BSONColumn that has the delta block not in interleaved mode.
@@ -3912,7 +3913,8 @@ TEST_F(BSONColumnTest, BinDataLargerThan16WithNonZeroDelta) {
 
     // Verify the iterative implementation throws an error.
     BSONColumn col{scalarBinary.buf(), static_cast<size_t>(scalarBinary.len())};
-    ASSERT_THROWS_CODE(std::distance(col.begin(), col.end()), DBException, 8412601);
+    ASSERT_THROWS_CODE(
+        std::distance(col.begin(), col.end()), DBException, ErrorCodes::InvalidBSONColumn);
 
     // Verify non-interleaved block-based decompression throws an error.
     {
@@ -3922,7 +3924,7 @@ TEST_F(BSONColumnTest, BinDataLargerThan16WithNonZeroDelta) {
         std::vector<BSONElement> collection;
         ASSERT_THROWS_CODE(colBlockBased.decompress<BSONElementMaterializer>(collection, allocator),
                            DBException,
-                           8609800);
+                           ErrorCodes::InvalidBSONColumn);
     }
 }
 
@@ -8218,14 +8220,15 @@ TEST_F(BSONColumnTest, InterleavedEmptySequence) {
         {TestPath{{"x"}}, collection}};
     ASSERT_THROWS_CODE(colBlockBased.decompress<BSONElementMaterializer>(collection, allocator),
                        DBException,
-                       8625732);
+                       ErrorCodes::InvalidBSONColumn);
     ASSERT_THROWS_CODE(
         colBlockBased.decompress<BSONElementMaterializer>(allocator, std::span(testPaths)),
         DBException,
-        8625730);
+        ErrorCodes::InvalidBSONColumn);
 
     BSONColumn col(createBSONColumn(interleavedBinary.buf(), interleavedBinary.len()));
-    ASSERT_THROWS_CODE(std::distance(col.begin(), col.end()), DBException, 9232700);
+    ASSERT_THROWS_CODE(
+        std::distance(col.begin(), col.end()), DBException, ErrorCodes::InvalidBSONColumn);
 }
 
 
@@ -8542,7 +8545,8 @@ TEST_F(BSONColumnTest, InvalidDeltaAfterInterleaved) {
         appendEOO(expected);
 
         BSONColumn col(createBSONColumn(expected.buf(), expected.len()));
-        ASSERT_THROWS_CODE(std::distance(col.begin(), col.end()), DBException, 6785500);
+        ASSERT_THROWS_CODE(
+            std::distance(col.begin(), col.end()), DBException, ErrorCodes::InvalidBSONColumn);
     };
 
     test(appendInterleavedStartLegacy);
@@ -8558,7 +8562,8 @@ TEST_F(BSONColumnTest, InvalidDeltaAfterInterleaved) {
     appendEOO(expected);
 
     BSONColumn col(createBSONColumn(expected.buf(), expected.len()));
-    ASSERT_THROWS_CODE(std::distance(col.begin(), col.end()), DBException, 6785500);
+    ASSERT_THROWS_CODE(
+        std::distance(col.begin(), col.end()), DBException, ErrorCodes::InvalidBSONColumn);
 }
 
 TEST_F(BSONColumnTest, InvalidDelta) {
@@ -9459,7 +9464,7 @@ TEST_F(BSONColumnTest, LegacyInterleavedPaths) {
     // 'Request for unknown element'
     ASSERT_THROWS_CODE(column.decompress<BSONElementMaterializer>(allocator, std::span(paths)),
                        DBException,
-                       9071200);
+                       ErrorCodes::InvalidBSONColumn);
 
     // Try again with a path that we can support.
     for (auto&& elem : elems) {

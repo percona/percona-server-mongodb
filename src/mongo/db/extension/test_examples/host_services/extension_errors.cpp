@@ -52,8 +52,7 @@ DEFAULT_LOGICAL_AST_PARSE(Assert, "$assert")
 class AssertStageDescriptor : public sdk::AggStageDescriptor {
 public:
     static inline const std::string kStageName = std::string(AssertStageName);
-    AssertStageDescriptor()
-        : sdk::AggStageDescriptor(kStageName, MongoExtensionAggStageType::kNoOp) {}
+    AssertStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
     std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
         sdk::validateStageDefinition(stageBson, kStageName);
@@ -71,10 +70,10 @@ public:
         auto code = obj["code"].Number();
 
         // Check if it's a uassert.
-        userAssert(code, errmsg, assertionType != "uassert");
+        sdk_uassert(code, errmsg, assertionType != "uassert");
 
         // Check if it's a tassert.
-        tripwireAssert(code, errmsg, assertionType != "tassert");
+        sdk_tassert(code, errmsg, assertionType != "tassert");
 
         return nullptr;
     }

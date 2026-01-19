@@ -231,6 +231,7 @@ SYMBOL_ORDER_FILES = [
 RE_ENABLE_DISABLED_3RD_PARTY_WARNINGS_FEATURES = select({
     "//bazel/config:compiler_type_clang": [
         "-disable_warnings_for_third_party_libraries_clang",
+        "thread_safety_warnings",
     ],
     "//bazel/config:compiler_type_gcc": [
         "-disable_warnings_for_third_party_libraries_gcc",
@@ -600,6 +601,7 @@ def mongo_cc_library(
         })
     else:
         undefined_ref_flag = []
+        tags = tags + ["skip_symbol_check"]
 
     create_header_dep(
         name = name + HEADER_DEP_SUFFIX,
@@ -652,7 +654,7 @@ def mongo_cc_library(
         copts = copts,
         cxxopts = cxxopts,
         data = data,
-        tags = tags + ["mongo_library"],
+        tags = tags + ["mongo_library", "check_symbol_target"],
         linkopts = linkopts,
         linkstatic = True,
         local_defines = MONGO_GLOBAL_DEFINES + local_defines,

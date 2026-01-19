@@ -36,7 +36,7 @@
 #include "mongo/s/write_ops/write_command_ref.h"
 #include "mongo/util/modules.h"
 
-namespace mongo {
+namespace MONGO_MOD_PUB mongo {
 namespace unified_write_executor {
 
 struct FindAndModifyCommandResponse {
@@ -73,10 +73,9 @@ FindAndModifyCommandResponse findAndModify(OperationContext* opCtx,
                                            BSONObj originalCommand = BSONObj());
 
 /**
- * Unified write executor feature flag check. Also ensures we only have viewless timeseries
- * collections.
+ * Unified write executor query knob check.
  */
 bool isEnabled(OperationContext* opCtx);
 
 }  // namespace unified_write_executor
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUB mongo

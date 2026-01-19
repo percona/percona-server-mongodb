@@ -143,6 +143,7 @@ roles:
           - moveCollection
           - refineCollectionShardKey
           - reshardCollection
+          - rewriteCollection
           - unshardCollection
 
   readAnyDatabase:
@@ -385,6 +386,7 @@ roles:
           - refineCollectionShardKey
           - reshardCollection
           - unshardCollection
+          - rewriteCollection
 
       - matchType: any_system_buckets
         actions: *clusterManagerRoleDatabaseActions

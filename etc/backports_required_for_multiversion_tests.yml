@@ -75,6 +75,18 @@ last-continuous:
       ticket: SERVER-106239
     - test_file: jstests/core/timeseries/geo/timeseries_geonear_measurements.js
       ticket: SERVER-112520
+    - test_file: jstests/core/catalog/list_collections_config_debug_dump.js
+      ticket: SERVER-113022
+    - test_file: jstests/aggregation/optimization/elemmatch_deps.js
+      ticket: SERVER-112844
+    - test_file: jstests/change_streams/filter_excludes_resume_point.js
+      ticket: SERVER-112849
+    - test_file: jstests/sharding/query/lookup/lookup_foreign_local_different_shards.js
+      ticket: SERVER-113468
+    - test_file: jstests/sharding/disable_resumable_range_deleter.js
+      ticket: SERVER-112357
+    - test_file: jstests/aggregation/accumulators/accumulator_js_size_limits.js
+      ticket: SERVER-112267
   suites: null
 last-lts:
   all:
@@ -652,4 +664,14 @@ last-lts:
       ticket: SERVER-106239
     - test_file: jstests/core/timeseries/geo/timeseries_geonear_measurements.js
       ticket: SERVER-112520
+    - test_file: jstests/aggregation/optimization/elemmatch_deps.js
+      ticket: SERVER-112844
+    - test_file: jstests/change_streams/filter_excludes_resume_point.js
+      ticket: SERVER-112849
+    - test_file: jstests/sharding/query/lookup/lookup_foreign_local_different_shards.js
+      ticket: SERVER-113468
+    - test_file: jstests/sharding/disable_resumable_range_deleter.js
+      ticket: SERVER-112357
+    - test_file: jstests/aggregation/accumulators/accumulator_js_size_limits.js
+      ticket: SERVER-112267
   suites: null

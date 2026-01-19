@@ -29,7 +29,6 @@
 
 #include "mongo/db/admission/execution_control_init.h"
 
-#include "mongo/db/admission/admission_feature_flags_gen.h"
 #include "mongo/db/admission/execution_admission_context.h"
 #include "mongo/db/admission/execution_control_parameters_gen.h"
 #include "mongo/db/admission/throughput_probing.h"
@@ -53,18 +52,18 @@ bool hasNonDefaultTransactionConcurrencySettings() {
                             gConcurrentReadLowPriorityTransactions.load(),
                             gConcurrentWriteLowPriorityTransactions.load()};
 
-    const std::array defaults{TicketingSystem::kDefaultConcurrentTransactions,
-                              TicketingSystem::kDefaultConcurrentTransactions,
-                              TicketingSystem::kDefaultLowPriorityConcurrentTransactions,
-                              TicketingSystem::kDefaultLowPriorityConcurrentTransactions};
+    const std::array defaults{TicketingSystem::kDefaultConcurrentTransactionsValue,
+                              TicketingSystem::kDefaultConcurrentTransactionsValue,
+                              TicketingSystem::kUnsetLowPriorityConcurrentTransactionsValue,
+                              TicketingSystem::kUnsetLowPriorityConcurrentTransactionsValue};
 
     auto [actIt, defIt] = std::mismatch(actual.begin(), actual.end(), defaults.begin());
     return actIt != actual.end();
 }
 
 std::unique_ptr<TicketingSystem> createTicketingSystem(
-    ServiceContext* svcCtx, StorageEngineConcurrencyAdjustmentAlgorithmEnum algorithm) {
-    using enum StorageEngineConcurrencyAdjustmentAlgorithmEnum;
+    ServiceContext* svcCtx, ExecutionControlConcurrencyAdjustmentAlgorithmEnum algorithm) {
+    using enum ExecutionControlConcurrencyAdjustmentAlgorithmEnum;
 
     auto delinquentReadCb = [](AdmissionContext* admCtx, Milliseconds delta) {
         static_cast<ExecutionAdmissionContext*>(admCtx)->recordDelinquentReadAcquisition(delta);
@@ -88,35 +87,40 @@ std::unique_ptr<TicketingSystem> createTicketingSystem(
                                            gWriteMaxQueueDepth.load(),
                                            delinquentWriteCb)},
         TicketingSystem::RWTicketHolder{
-            std::make_unique<TicketHolder>(svcCtx,
-                                           gConcurrentReadLowPriorityTransactions.load(),
-                                           false /* trackPeakUsed */,
-                                           gReadLowPriorityMaxQueueDepth.load(),
-                                           delinquentReadCb),
-            std::make_unique<TicketHolder>(svcCtx,
-                                           gConcurrentWriteLowPriorityTransactions.load(),
-                                           false /* trackPeakUsed */,
-                                           gWriteLowPriorityMaxQueueDepth.load(),
-                                           delinquentWriteCb)},
-        Milliseconds{gStorageEngineConcurrencyAdjustmentIntervalMillis},
+            std::make_unique<TicketHolder>(
+                svcCtx,
+                TicketingSystem::resolveLowPriorityTickets(gConcurrentReadLowPriorityTransactions),
+                false /* trackPeakUsed */,
+                gReadLowPriorityMaxQueueDepth.load(),
+                delinquentReadCb),
+            std::make_unique<TicketHolder>(
+                svcCtx,
+                TicketingSystem::resolveLowPriorityTickets(gConcurrentWriteLowPriorityTransactions),
+                false /* trackPeakUsed */,
+                gWriteLowPriorityMaxQueueDepth.load(),
+                delinquentWriteCb)},
+        Milliseconds{gExecutionControlConcurrencyAdjustmentIntervalMillis},
         algorithm);
 }
 
 }  // namespace
 
 void initializeExecutionControl(ServiceContext* svcCtx) {
-    auto algorithm = StorageEngineConcurrencyAdjustmentAlgorithm_parse(
-        gStorageEngineConcurrencyAdjustmentAlgorithm,
-        IDLParserContext{"storageEngineConcurrencyAdjustmentAlgorithm"});
+    auto algorithm = ExecutionControlConcurrencyAdjustmentAlgorithm_parse(
+        gExecutionControlConcurrencyAdjustmentAlgorithm,
+        IDLParserContext{"executionControlConcurrencyAdjustmentAlgorithm"});
 
-    if (algorithm == StorageEngineConcurrencyAdjustmentAlgorithmEnum::kThroughputProbing &&
-        (gConcurrentReadTransactions.load() != TicketingSystem::kDefaultConcurrentTransactions ||
-         gConcurrentWriteTransactions.load() != TicketingSystem::kDefaultConcurrentTransactions)) {
-        gStorageEngineConcurrencyAdjustmentAlgorithm = "fixedConcurrentTransactions";
-        algorithm = StorageEngineConcurrencyAdjustmentAlgorithmEnum::kFixedConcurrentTransactions;
+    if (algorithm == ExecutionControlConcurrencyAdjustmentAlgorithmEnum::kThroughputProbing &&
+        (gConcurrentReadTransactions.load() !=
+             TicketingSystem::kDefaultConcurrentTransactionsValue ||
+         gConcurrentWriteTransactions.load() !=
+             TicketingSystem::kDefaultConcurrentTransactionsValue)) {
+        gExecutionControlConcurrencyAdjustmentAlgorithm = "fixedConcurrentTransactions";
+        algorithm =
+            ExecutionControlConcurrencyAdjustmentAlgorithmEnum::kFixedConcurrentTransactions;
     }
 
-    if (algorithm == StorageEngineConcurrencyAdjustmentAlgorithmEnum::kThroughputProbing &&
+    if (algorithm == ExecutionControlConcurrencyAdjustmentAlgorithmEnum::kThroughputProbing &&
         hasNonDefaultTransactionConcurrencySettings()) {
         LOGV2_WARNING(11039601,
                       "When using the kThroughputProbing storage engine algorithm, all concurrent "
@@ -124,20 +128,11 @@ void initializeExecutionControl(ServiceContext* svcCtx) {
                       "Non-default values will be ignored.");
     }
 
-    if (algorithm ==
-        StorageEngineConcurrencyAdjustmentAlgorithmEnum::
-            kFixedConcurrentTransactionsWithPrioritization) {
-        tassert(11039600,
-                "Expected to have the feature flag enabled to use "
-                "kFixedConcurrentTransactionsWithPrioritization algorithm",
-                gFeatureFlagMultipleTicketPoolsExecutionControl.isEnabled());
-    }
-
     TicketingSystem::use(svcCtx, createTicketingSystem(svcCtx, algorithm));
 
     auto* ticketingSystem = TicketingSystem::get(svcCtx);
 
-    if (algorithm != StorageEngineConcurrencyAdjustmentAlgorithmEnum::kThroughputProbing) {
+    if (algorithm != ExecutionControlConcurrencyAdjustmentAlgorithmEnum::kThroughputProbing) {
         return;
     }
 

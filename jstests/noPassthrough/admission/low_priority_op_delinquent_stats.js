@@ -1,10 +1,8 @@
 /**
- * Checks that an operation that is deprioritized reports the delinquency statistic as part of the lowPriority object.
+ * Checks that an operation that is deprioritized reports the delinquency statistic as part of the
+ * lowPriority object.
  *
- * # TODO (SERVER-111527): integrate this test with delinquency_ops.js, when the feature flag is fully enabled.
- * @tags: [
- *    featureFlagMultipleTicketPoolsExecutionControl,
- * ]
+ * # TODO (SERVER-112729): integrate this test with delinquency_ops.js.
  */
 
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
@@ -22,9 +20,9 @@ const findComment = "delinquent_ops.js-COMMENT";
 // to enforce that all (or some fraction) of operations are not delinquent. Also lower the threshold
 // of parameters to generate low priority operations.
 let lowPriorityParams = {
-    storageEngineHeuristicDeprioritizationEnabled: true,
+    executionControlHeuristicDeprioritizationEnabled: true,
     internalQueryExecYieldIterations: 1,
-    storageEngineConcurrencyAdjustmentAlgorithm: "fixedConcurrentTransactionsWithPrioritization",
+    executionControlConcurrencyAdjustmentAlgorithm: "fixedConcurrentTransactionsWithPrioritization",
     featureFlagRecordDelinquentMetrics: true,
     delinquentAcquisitionIntervalMillis: delinquentIntervalMs,
     internalQueryStatsRateLimit: -1,

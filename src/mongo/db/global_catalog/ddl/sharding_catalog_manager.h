@@ -178,9 +178,14 @@ public:
                                const std::string& zoneName);
 
     /**
-     * Assigns a range of a sharded collection to a particular shard zone. If range is a prefix of
-     * the shard key, the range will be converted into a new range with full shard key filled with
-     * MinKey values.
+     * Checks that the given zone exists.
+     */
+    void checkZoneExists(OperationContext* opCtx, std::string zoneName);
+
+    /**
+     * Assigns a range of a sharded collection to a particular shard zone. If range is a prefix
+     * of the shard key, the range will be converted into a new range with full shard key filled
+     * with MinKey values.
      */
     void assignKeyRangeToZone(OperationContext* opCtx,
                               const NamespaceString& nss,
@@ -722,7 +727,8 @@ public:
     HistoricalPlacement getHistoricalPlacement(OperationContext* opCtx,
                                                const boost::optional<NamespaceString>& nss,
                                                const Timestamp& atClusterTime,
-                                               bool checkIfPointInTimeIsInFuture = true);
+                                               bool checkIfPointInTimeIsInFuture,
+                                               bool ignoreRemovedShards);
 
     /**
      * Helper function to compose a command request to insert new initialization metadata documents

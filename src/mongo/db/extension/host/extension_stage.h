@@ -36,7 +36,7 @@
 
 namespace mongo {
 namespace exec {
-namespace MONGO_MOD_FILE_PRIVATE agg {
+namespace agg {
 /**
  * A Stage implementation for an extension aggregation stage. ExtensionStage is a facade around
  * handles to extension API objects.
@@ -48,6 +48,6 @@ public:
 private:
     GetNextResult doGetNext() final;
 };
-}  // namespace MONGO_MOD_FILE_PRIVATE agg
+}  // namespace agg
 }  // namespace exec
 }  // namespace mongo

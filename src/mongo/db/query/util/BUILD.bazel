@@ -49,6 +49,9 @@ mongo_cc_library(
     hdrs = [
         "string_util.h",
     ],
+    deps = [
+        "//src/mongo:base",
+    ],
 )
 
 mongo_cc_library(
@@ -85,6 +88,19 @@ mongo_cc_library(
         "//src/mongo:base",
         "//src/mongo:core_headers_library",
         "//src/mongo/db/query:query_knobs",
+    ],
+)
+
+mongo_cc_library(
+    name = "field_set",
+    srcs = [
+        "field_set.cpp",
+    ],
+    hdrs = [
+        "field_set.h",
+    ],
+    deps = [
+        "//src/mongo:base",
     ],
 )
 

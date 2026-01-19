@@ -27,6 +27,7 @@
 #
 
 global:
+    mod_visibility: private
     cpp_namespace: "mongo"
 
 imports:
@@ -38,5 +39,21 @@ server_parameters:
         set_at: [startup, runtime]
         cpp_class:
             name: RedactEncryptedFields
+            override_set: true
+        redact: false
+
+    ramLogMaxLines:
+        description: "Sets the maximum number of lines the RamLog can store."
+        set_at: [startup, runtime]
+        cpp_class:
+            name: RamLogMaxLines
+            override_set: true
+        redact: false
+
+    ramLogMaxSizeBytes:
+        description: "Sets the maximum number of bytes the RamLog can store."
+        set_at: [startup, runtime]
+        cpp_class:
+            name: RamLogMaxSizeBytes
             override_set: true
         redact: false

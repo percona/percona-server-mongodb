@@ -184,29 +184,44 @@ struct WriteBatch {
     }
 };
 
+struct BatcherResult {
+    WriteBatch batch;
+    std::vector<std::pair<WriteOp, Status>> opsWithErrors;
+    bool transientTxnError = false;
+
+    bool hasTransientTxnError() const {
+        return !opsWithErrors.empty() && transientTxnError;
+    }
+    const Status& getTransientTxnError() const {
+        tassert(11272109, "Expected transient transaction error", hasTransientTxnError());
+        return opsWithErrors.front().second;
+    }
+};
+
 /**
  * Based on the analysis of the write ops, this class bundles multiple write ops into batches to be
  * sent to shards.
  */
 class WriteOpBatcher {
 public:
-    struct Result {
-        WriteBatch batch;
-        std::vector<std::pair<WriteOp, Status>> opsWithErrors;
-    };
-
     WriteOpBatcher(WriteOpProducer& producer, WriteOpAnalyzer& analyzer)
         : _producer(producer), _analyzer(analyzer) {}
 
     virtual ~WriteOpBatcher() = default;
 
-    // XXX Update comment
     /**
      * This method makes a new batch using ops taken from the producer and returns it. Depending on
      * the results from analyzing the ops from the producer, the batch returned may have different
      * types. If the producer has no more ops, this function returns an EmptyBatch.
      */
-    virtual Result getNextBatch(OperationContext* opCtx, RoutingContext& routingCtx) = 0;
+    virtual BatcherResult getNextBatch(OperationContext* opCtx, RoutingContext& routingCtx) = 0;
+
+    /**
+     * This method consumes all remaining ops from the producer and returns these ops in a vector.
+     */
+    std::vector<WriteOp> getAllRemainingOps() {
+        return _producer.consumeAllRemainingOps();
+    }
 
     /**
      * Mark a write op to be reprocessed, which will in turn be reanalyzed and rebatched.
@@ -252,7 +267,6 @@ public:
     void setRetryOnTargetError(bool b) {
         _retryOnTargetError = b;
     }
-
 
     /**
      * Marks the shards that ops already succeeded in case we only need to retry parts
@@ -300,7 +314,7 @@ public:
     OrderedWriteOpBatcher(WriteOpProducer& producer, WriteOpAnalyzer& analyzer)
         : WriteOpBatcher(producer, analyzer) {}
 
-    Result getNextBatch(OperationContext* opCtx, RoutingContext& routingCtx) override;
+    BatcherResult getNextBatch(OperationContext* opCtx, RoutingContext& routingCtx) override;
 };
 
 class UnorderedWriteOpBatcher : public WriteOpBatcher {
@@ -308,7 +322,7 @@ public:
     UnorderedWriteOpBatcher(WriteOpProducer& producer, WriteOpAnalyzer& analyzer)
         : WriteOpBatcher(producer, analyzer) {}
 
-    Result getNextBatch(OperationContext* opCtx, RoutingContext& routingCtx) override;
+    BatcherResult getNextBatch(OperationContext* opCtx, RoutingContext& routingCtx) override;
 };
 
 }  // namespace unified_write_executor

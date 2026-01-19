@@ -34,7 +34,9 @@ imports:
 
 feature_flags:
     featureFlagTracing:
+        mod_visibility: public
         description: "Feature flag for enabling the creation of tracing spans in the server code."
         cpp_varname: gFeatureFlagTracing
-        default: false
+        default: true
         fcv_gated: true
+        version: 8.3

@@ -908,6 +908,37 @@ export class ShardingTest {
     }
 
     /**
+     * TODO (SERVER-112863) Remove this once the maintenance port is supported on lastLTS.
+     *
+     * Returns true if:
+     *  1. A maintenance port is specified in any of the replica set configurations in the cluster
+     *  2. LastLTS FCV is less than the FCV on which featureFlagReplicationUsageOfMaintenancePort is
+     *     enabled.
+     * Note that we compare the FCVs directly rather than checking the feature flag on the replica
+     * sets because the FCV isn't known until replSetInitiate.
+     */
+    _shouldSkipMaintenancePortDuringInitialization() {
+        const mpFeatureFlag = "ReplicationUsageOfMaintenancePort";
+        let skipInitiatingWithMaintenancePort = false;
+        const containsMaintenancePort = this._rs.some(rs => {
+            return bsonUnorderedFieldsCompare(rs.test.getReplSetConfig(true), rs.test.getReplSetConfig(false)) != 0;
+        });
+        if (containsMaintenancePort) {
+            let maintenancePortEnabledFCV;
+            let node = this.configRS.nodes[0];
+            if (this.configRS.keyFile) {
+                authutil.asCluster(node, this.configRS.keyFile, function() {
+                    maintenancePortEnabledFCV = FeatureFlagUtil.getFeatureFlagDoc(node, mpFeatureFlag).version;
+                });
+            } else {
+                maintenancePortEnabledFCV = FeatureFlagUtil.getFeatureFlagDoc(node, mpFeatureFlag).version;
+            }
+            skipInitiatingWithMaintenancePort = MongoRunner.compareBinVersions(lastLTSFCV, maintenancePortEnabledFCV) == -1;
+        }
+        return skipInitiatingWithMaintenancePort;
+    }
+
+    /**
      * @typedef {Object} ShardingTestOtherParams
      * @property {Object} [rs] Same `rs` parameter to ShardingTest constructor
      * @property {number} [chunkSize] Same as chunkSize parameter to ShardingTest constructor
@@ -929,6 +960,8 @@ export class ShardingTest {
      * @property {Object} [bridgeOptions={}] Options to apply to all mongobridge processes.
      * @property {Object} [rsOptions] Same as the `rs` parameter to ShardingTest constructor. Can be
      * used to specify options that are common all replica members.
+     * @property {boolean} [useMaintenancePorts=false] If true, then a maintenance port will be
+     * specified for each node in the cluster.
      *
      * // replica Set only:
      * @property {boolean} [useHostname] if true, use hostname of machine, otherwise use localhost
@@ -1116,6 +1149,7 @@ export class ShardingTest {
         otherParams.useBridge = otherParams.useBridge || false;
         otherParams.bridgeOptions = otherParams.bridgeOptions || {};
         otherParams.causallyConsistent = otherParams.causallyConsistent || false;
+        otherParams.useMaintenancePorts = otherParams.useMaintenancePorts ?? false;
 
         if (jsTestOptions().networkMessageCompressors) {
             otherParams.bridgeOptions["networkMessageCompressors"] =
@@ -1142,6 +1176,7 @@ export class ShardingTest {
                 "useBridge cannot be true when using TLS. Add the requires_mongobridge tag to the test to ensure it will be skipped on variants that use TLS.",
             );
         }
+        this._useMaintenancePorts = otherParams.useMaintenancePorts;
 
         this._unbridgedMongos = [];
         let _allocatePortForMongos;
@@ -1221,6 +1256,7 @@ export class ShardingTest {
                     host: hostName,
                     useBridge: otherParams.useBridge,
                     bridgeOptions: otherParams.bridgeOptions,
+                    useMaintenancePorts: otherParams.useMaintenancePorts,
                     keyFile: this.keyFile,
                     waitForKeys: false,
                     name: testName + "-configRS",
@@ -1243,6 +1279,13 @@ export class ShardingTest {
                 }
 
                 startOptions = Object.merge(startOptions, otherParams.configOptions);
+
+                const clusterVersionInfo = this.getClusterVersionInfo();
+                if (jsTestOptions().otelTraceDirectory && !clusterVersionInfo.isMixedVersion &&
+                    MongoRunner.compareBinVersions(MongoRunner.getBinVersionFor(startOptions.binVersion ?? "latest"), MongoRunner.getBinVersionFor("8.3.0")) >= 0) {
+                    startOptions.setParameter = startOptions.setParameter ?? {};
+                    startOptions.setParameter.opentelemetryTraceDirectory = jsTestOptions().otelTraceDirectory;
+                }
                 rstOptions = Object.merge(rstOptions, otherParams.configReplSetTestOptions);
 
                 let nodeOptions = [];
@@ -1317,6 +1360,12 @@ export class ShardingTest {
                 rsDefaults.setParameter.migrationLockAcquisitionMaxWaitMS =
                     otherParams.migrationLockAcquisitionMaxWaitMS;
 
+                const clusterVersionInfo = this.getClusterVersionInfo();
+                if (jsTestOptions().otelTraceDirectory && !clusterVersionInfo.isMixedVersion &&
+                    MongoRunner.compareBinVersions(MongoRunner.getBinVersionFor(rsDefaults.binVersion || "latest"), MongoRunner.getBinVersionFor("8.3.0")) >= 0) {
+                    rsDefaults.setParameter.opentelemetryTraceDirectory = jsTestOptions().otelTraceDirectory;
+                }
+
                 let rsSettings = rsDefaults.settings;
                 delete rsDefaults.settings;
 
@@ -1346,6 +1395,7 @@ export class ShardingTest {
                     useHostName: otherParams.useHostname,
                     useBridge: otherParams.useBridge,
                     bridgeOptions: otherParams.bridgeOptions,
+                    useMaintenancePorts: otherParams.useMaintenancePorts,
                     keyFile: this.keyFile,
                     protocolVersion: protocolVersion,
                     waitForKeys: false,
@@ -1404,6 +1454,8 @@ export class ShardingTest {
                 delete jsTest.options().setParameters.maxTransactionLockRequestTimeoutMillis;
             }
 
+            let skipInitiatingWithMaintenancePort = this._shouldSkipMaintenancePortDuringInitialization();
+
             //
             // Initiate each shard replica set and wait for replication. Also initiate the config
             // replica set. Whenever possible, in parallel.
@@ -1417,7 +1469,7 @@ export class ShardingTest {
             }
 
             const replicaSetsToInitiate = replSetToIntiateArr.map((rst) => {
-                const rstConfig = rst.getReplSetConfig();
+                const rstConfig = rst.getReplSetConfig(skipInitiatingWithMaintenancePort);
 
                 // The mongo shell cannot authenticate as the internal __system user in tests that
                 // use x509 for cluster authentication. Choosing the default value for
@@ -1623,7 +1675,16 @@ export class ShardingTest {
                 options.setParameter.mongosShutdownTimeoutMillisForSignaledShutdown =
                     options.setParameter.mongosShutdownTimeoutMillisForSignaledShutdown || 0;
 
+                const clusterVersionInfo = this.getClusterVersionInfo();
+                if (jsTestOptions().otelTraceDirectory && !clusterVersionInfo.isMixedVersion &&
+                    MongoRunner.compareBinVersions(MongoRunner.getBinVersionFor(options.binVersion ?? "latest"), MongoRunner.getBinVersionFor("8.3.0")) >= 0) {
+                    options.setParameter.opentelemetryTraceDirectory = jsTestOptions().otelTraceDirectory;
+                }
+
                 options.port = options.port || _allocatePortForMongos();
+                if (this._useMaintenancePorts || options.hasOwnProperty("maintenancePort")) {
+                    options.maintenancePort = options.hasOwnProperty("maintenancePort") ? options.maintenancePort : _allocatePortForMongos();
+                }
                 if (jsTestOptions().shellGRPC) {
                     options.grpcPort = options.grpcPort || _allocatePortForMongos();
                 }
@@ -1819,6 +1880,14 @@ export class ShardingTest {
                 this.stop();
                 throw e;
             }
+
+            // TODO (SERVER-112863) Remove this once the maintenance port is supported on lastLTS.
+            this._rs.forEach((rs) => {
+                if (skipInitiatingWithMaintenancePort) {
+                    rs.test.reInitiate();
+                }
+            });
+
 
             // Ensure that the sessions collection exists so jstests can run things with
             // logical sessions and test them. We do this by forcing an immediate cache refresh

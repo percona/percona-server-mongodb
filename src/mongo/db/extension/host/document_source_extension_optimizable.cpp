@@ -29,21 +29,27 @@
 
 #include "mongo/db/extension/host/document_source_extension_optimizable.h"
 
-#include "mongo/db/extension/host_connector/query_shape_opts_adapter.h"
-
 namespace mongo::extension::host {
 
+ALLOCATE_DOCUMENT_SOURCE_ID(extensionOptimizable, DocumentSourceExtensionOptimizable::id);
+
 Value DocumentSourceExtensionOptimizable::serialize(const SerializationOptions& opts) const {
-    if (!opts.isKeepingLiteralsUnchanged()) {
-        host_connector::QueryShapeOptsAdapter adapter{&opts};
-        return Value(_parseNode.getQueryShape(adapter));
-    } else if (opts.isSerializingForExplain()) {
+    tassert(11217800,
+            "SerializationOptions should keep literals unchanged while represented as a "
+            "DocumentSourceExtensionOptimizable",
+            opts.isKeepingLiteralsUnchanged());
+
+    if (opts.isSerializingForExplain()) {
         return Value(_logicalStage.explain(*opts.verbosity));
     } else {
         // Serialize the stage for query execution.
         return Value(_logicalStage.serialize());
     }
     return Value(BSONObj());
+}
+
+DocumentSource::Id DocumentSourceExtensionOptimizable::getId() const {
+    return id;
 }
 
 }  // namespace mongo::extension::host

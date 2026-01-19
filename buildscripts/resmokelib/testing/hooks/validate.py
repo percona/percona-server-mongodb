@@ -11,6 +11,7 @@ import pymongo.mongo_client
 from pymongo.collection import Collection
 from pymongo.database import Database
 
+from buildscripts.resmokelib.testing.fixtures import replicaset, shardedcluster
 from buildscripts.resmokelib.testing.fixtures.external import ExternalFixture
 from buildscripts.resmokelib.testing.fixtures.interface import build_client
 from buildscripts.resmokelib.testing.fixtures.standalone import MongoDFixture
@@ -115,6 +116,12 @@ class ValidateCollectionsTestCase(jsfile.DynamicJSTestCase):
                     result = future.result()
                     if result is not True:
                         raise RuntimeError("Collection validation failed.")
+
+            # Perform inter-node validation.
+            if isinstance(self.fixture, replicaset.ReplicaSetFixture) or isinstance(
+                self.fixture, shardedcluster.ShardedClusterFixture
+            ):
+                self.fixture.internode_validation()
         except:
             self.logger.exception("Uncaught exception while validating collections")
             raise
@@ -195,7 +202,11 @@ def validate_database(
         skipValidationOnNamespaceNotFound = test_data.get("skipValidationOnNamespaceNotFound", True)
 
         validate_opts = {
-            "full": True,
+            # Run non-full validation because certain test fixtures run validate while
+            # the oplog applier is still active, and full:true can cause the oplog applier
+            # thread to encounter ObjectIsBusy errors during internal finds.
+            "full": False,
+            "checkBSONConformance": True,
             # TODO (SERVER-24266): Always enforce fast counts, once they are always accurate
             "enforceFastCount": not skipEnforceFastCountOnValidate,
         }
@@ -262,14 +273,14 @@ def validate_collection(
     skipValidationOnNamespaceNotFound: bool,
     logger: logging.Logger,
 ):
+    logger.info(f"Trying to validate collection {coll_name} in database {db.name}")
+
     validate_cmd = {"validate": coll_name}
     validate_cmd.update(validate_opts)
     ret = db.command(validate_cmd, check=False)
 
     ok = "ok" in ret and ret["ok"]
     valid = "valid" in ret and ret["valid"]
-
-    logger.info(f"Trying to validate collection {coll_name} in database {db.name}")
 
     if not ok or not valid:
         if (
