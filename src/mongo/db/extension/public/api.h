@@ -369,6 +369,22 @@ typedef struct MongoExtensionLogicalAggStageVTable {
     MongoExtensionStatus* (*explain)(const MongoExtensionLogicalAggStage* logicalStage,
                                      MongoExtensionExplainVerbosity verbosity,
                                      MongoExtensionByteBuf** output);
+
+    /**
+     * compile: On success, "compiles" the LogicalStage into an ExecutableStage, populating the
+     * output parameter ExecutableStage pointer with the extension's executable stage. Ownership is
+     * transferred to the caller.
+     *
+     * The caller may optionally provide its own executable input stage in the case of a Transform
+     * stage. In this case, the extension must pull documents from the input executable stage. If an
+     * input stage is provided, ownership is NOT transferred from the Host to the Extension.
+     * Otherwise, in cases in which there is no predecessor stage to pull from, the caller will
+     * provide a nullptr for the input.
+     */
+    MongoExtensionStatus* (*compile)(const MongoExtensionLogicalAggStage* logicalStage,
+                                     struct MongoExtensionExecAggStage* input,
+                                     struct MongoExtensionExecAggStage** output);
+
 } MongoExtensionLogicalAggStageVTable;
 
 /**
@@ -694,6 +710,16 @@ typedef struct MongoExtensionHostServicesVTable {
      */
     MongoExtensionStatus* (*create_id_lookup)(MongoExtensionByteView bsonSpec,
                                               MongoExtensionAggStageAstNode** node);
+
+    /**
+     * This provides an optimization to the logging service, as it compares the provided log
+     * level/severity against the server's current log level before materializing and sending a log
+     * over the wire. 'logType' indicates whether levelOrSeverity is a level (kDebug) or a severity
+     * (kLog), as in the latter case in case we need to transform the value to a logv2::LogSeverity.
+     */
+    MongoExtensionStatus* (*should_log)(MongoExtensionLogSeverity levelOrSeverity,
+                                        ::MongoExtensionLogType logType,
+                                        bool* out);
 } MongoExtensionHostServicesVTable;
 
 /**
