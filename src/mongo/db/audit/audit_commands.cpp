@@ -136,9 +136,19 @@ public:
                "Example: { auditGetOptions: 1 }";
     }
 
-    Status checkAuthForOperation(OperationContext*,
-                                 const DatabaseName&,
+    bool adminOnly() const override {
+        return true;
+    }
+
+    Status checkAuthForOperation(OperationContext* opCtx,
+                                 const DatabaseName& dbName,
                                  const BSONObj&) const override {
+        auto* as = AuthorizationSession::get(opCtx->getClient());
+        if (!as->isAuthorizedForActionsOnResource(
+                ResourcePattern::forClusterResource(dbName.tenantId()), ActionType::getParameter)) {
+            return {ErrorCodes::Unauthorized, "unauthorized"};
+        }
+
         return Status::OK();
     }
 
