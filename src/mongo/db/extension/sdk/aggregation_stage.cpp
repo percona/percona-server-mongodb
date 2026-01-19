@@ -29,12 +29,84 @@
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 
 #include "mongo/db/extension/sdk/assert_util.h"
+#include "mongo/db/extension/sdk/raii_vector_to_abi_array.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/scopeguard.h"
 
-namespace mongo::extension::sdk {
+namespace mongo::extension {
+
+template <>
+struct RaiiVectorElemType<::MongoExtensionExpandedArrayElement> {
+    using type = VariantNodeHandle;
+};
+
+template <>
+struct AbiArrayElemType<VariantNodeHandle> {
+    using type = ::MongoExtensionExpandedArrayElement;
+};
+
+template <>
+struct AbiArrayElemType<VariantDPLHandle> {
+    using type = ::MongoExtensionDPLArrayElement;
+};
+
+namespace sdk {
 
 MONGO_FAIL_POINT_DEFINE(failVariantNodeConversion);
+MONGO_FAIL_POINT_DEFINE(failVariantDPLConversion);
+
+namespace {
+
+/**
+ * Converts an SDK VariantNode into a tagged union of ABI objects and writes the raw pointers
+ * into the host-allocated ExpandedArray element.
+ */
+struct ConsumeVariantNodeToAbi {
+    ::MongoExtensionExpandedArrayElement& dst;
+
+    void operator()(AggStageParseNodeHandle&& parseNode) const {
+        dst.type = kParseNode;
+        dst.parseOrAst.parse = parseNode.release();
+    }
+
+    void operator()(AggStageAstNodeHandle&& astNode) const {
+        dst.type = kAstNode;
+        dst.parseOrAst.ast = astNode.release();
+    }
+};
+
+/**
+ * Converts an SDK VariantDPLHandle into a tagged union of ABI objects and writes the raw pointers
+ * into the host-allocated DPLArray element.
+ */
+struct ConsumeVariantDPLToAbi {
+    ::MongoExtensionDPLArrayElement& dst;
+
+    void operator()(AggStageParseNodeHandle&& parseNode) const {
+        dst.type = kParse;
+        dst.element.parseNode = parseNode.release();
+    }
+
+    void operator()(LogicalAggStageHandle&& logicalStage) const {
+        dst.type = kLogical;
+        dst.element.logicalStage = logicalStage.release();
+    }
+};
+}  // namespace
+
+template <>
+struct RaiiAsArrayElem<VariantNodeHandle> {
+    using VectorElem_t = VariantNodeHandle;
+    using ArrayElem_t = AbiArrayElemType<VectorElem_t>::type;
+
+    static void consume(ArrayElem_t& arrayElt, VectorElem_t&& vectorElt) {
+        if (MONGO_unlikely(failVariantNodeConversion.shouldFail())) {
+            sdk_uasserted(11197200,
+                          "Injected failure in VariantNode conversion to ExpandedArrayElement");
+        }
+        std::visit(ConsumeVariantNodeToAbi{arrayElt}, std::move(vectorElt));
+    }
+};
 
 ::MongoExtensionStatus* ExtensionAggStageParseNode::_extExpand(
     const ::MongoExtensionAggStageParseNode* parseNode,
@@ -49,35 +121,27 @@ MONGO_FAIL_POINT_DEFINE(failVariantNodeConversion);
                     expanded->size == expandedSize);
 
         auto expandedNodes = impl.expand();
-        sdk_uassert(11113802,
-                    (str::stream() << "AggStageParseNode expand() returned a different "
-                                      "number of elements than getExpandedSize(): returned "
-                                   << expandedNodes.size() << ", but required " << expandedSize),
-                    expandedNodes.size() == expandedSize);
-
-        // If we exit early, destroy the ABI nodes and null any raw pointers written to the
-        // caller's buffer.
-        size_t filled = 0;
-        ScopeGuard guard([&]() noexcept {
-            // Destroy elements already written to the expanded array.
-            for (size_t i = 0; i < filled; ++i) {
-                destroyArrayElement(expanded->elements[i]);
-            }
-            // Elements not yet written to the expanded array are still owned by the handle vector
-            // and will be destroyed there instead.
-        });
-
-        // Populate the caller's buffer directly with raw pointers to nodes.
-        for (size_t i = 0; i < expandedSize; ++i) {
-            if (MONGO_unlikely(failVariantNodeConversion.shouldFail())) {
-                sdk_uasserted(11197200,
-                              "Injected failure in VariantNode conversion to ExpandedArrayElement");
-            }
-            auto& dst = expanded->elements[i];
-            std::visit(ConsumeVariantNodeToAbi{dst}, std::move(expandedNodes[i]));
-            ++filled;
-        }
-        guard.dismiss();
+        raiiVectorToAbiArray(std::move(expandedNodes), *expanded);
     });
 }
-}  // namespace mongo::extension::sdk
+
+template <>
+struct RaiiAsArrayElem<VariantDPLHandle> {
+    using VectorElem_t = VariantDPLHandle;
+    using ArrayElem_t = AbiArrayElemType<VectorElem_t>::type;
+
+    static void consume(ArrayElem_t& arrayElt, VectorElem_t&& vectorElt) {
+        if (MONGO_unlikely(failVariantDPLConversion.shouldFail())) {
+            sdk_uasserted(11365501, "Injected failure in VariantDPL conversion to DPLArrayElement");
+        }
+        std::visit(ConsumeVariantDPLToAbi{arrayElt}, std::move(vectorElt));
+    }
+};
+
+template void raiiVectorToAbiArray<VariantNodeHandle>(std::vector<VariantNodeHandle> inputVector,
+                                                      ::MongoExtensionExpandedArray& outputArray);
+template void raiiVectorToAbiArray<VariantDPLHandle>(std::vector<VariantDPLHandle> inputVector,
+                                                     ::MongoExtensionDPLArray& outputArray);
+
+}  // namespace sdk
+}  // namespace mongo::extension

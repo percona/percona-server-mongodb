@@ -37,7 +37,6 @@
 #include "mongo/db/client.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/exec/document_value/document_value_test_util.h"
-#include "mongo/db/exec/exec_shard_filter_policy.h"
 #include "mongo/db/global_catalog/router_role_api/router_role.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/aggregation_context_fixture.h"
@@ -162,8 +161,7 @@ class StubExplainInterface : public StubMongoProcessInterface {
     std::unique_ptr<Pipeline> attachCursorSourceToPipelineForLocalRead(
         std::unique_ptr<Pipeline> pipeline,
         boost::optional<const AggregateCommandRequest&> aggRequest,
-        bool shouldUseCollectionDefaultCollator,
-        ExecShardFilterPolicy = AutomaticShardFiltering{}) override {
+        bool shouldUseCollectionDefaultCollator) override {
         return pipeline;
     }
 };
@@ -5695,7 +5693,7 @@ TEST_F(PipelineMustRunOnRouterTest, UnsplittableRouterPipelineAssertsIfDisallowe
 
 DEATH_TEST_F(PipelineMustRunOnRouterTest,
              SplittablePipelineMustMergeOnRouterAfterSplit,
-             "invariant") {
+             "Tripwire assertion") {
     setExpCtx({.inRouter = true, .allowDiskUse = false});
     auto pipeline =
         makePipeline({matchStage("{x: 5}"), splitStage(HostTypeRequirement::kNone), runOnRouter()});
@@ -5710,7 +5708,7 @@ DEATH_TEST_F(PipelineMustRunOnRouterTest,
 
     ASSERT_TRUE(splitPipeline.mergePipeline->requiredToRunOnRouter());
 
-    // Calling 'requiredToRunOnRouter' on the shard pipeline will hit an invariant.
+    // Calling 'requiredToRunOnRouter' on the shard pipeline will hit a tassert.
     splitPipeline.shardsPipeline->requiredToRunOnRouter();
 }
 

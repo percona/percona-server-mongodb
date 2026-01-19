@@ -69,6 +69,7 @@
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
 #include "mongo/db/pipeline/pipeline_d.h"
 #include "mongo/db/pipeline/search/search_helper.h"
+#include "mongo/db/pipeline/shard_role_transaction_resources_stasher_for_pipeline.h"
 #include "mongo/db/pipeline/stage_constraints.h"
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/profile_settings.h"
@@ -332,7 +333,8 @@ bool requiresCollectionAcquisition(const Pipeline& pipeline) {
         // There's no need to attach a cursor or perform collection acquisition here (for stages
         // like $documents or $collStats that will not read from a user collection). Mongot
         // pipelines will not need a cursor but _do_ need to acquire the collection to check for a
-        // stale shard version.
+        // stale shard version and we may need the collection acquisition for
+        // $_internalSearchIdLookup.
         return false;
     }
 
@@ -344,8 +346,7 @@ std::unique_ptr<Pipeline> attachCursorSourceToPipelineForLocalReadImpl(
     CollectionOrViewAcquisitionMap& allAcquisitions,
     bool isAnySecondaryCollectionNotLocal,
     boost::optional<const AggregateCommandRequest&> aggRequest,
-    bool shouldUseCollectionDefaultCollator,
-    ExecShardFilterPolicy shardFilterPolicy) {
+    bool shouldUseCollectionDefaultCollator) {
     const boost::intrusive_ptr<ExpressionContext>& expCtx = pipeline->getContext();
 
     if (expCtx->eligibleForSampling()) {
@@ -407,21 +408,25 @@ std::unique_ptr<Pipeline> attachCursorSourceToPipelineForLocalReadImpl(
                                                           expCtx->getNamespaceString(),
                                                           resolvedAggRequest,
                                                           pipeline.get(),
-                                                          catalogResourceHandle,
-                                                          shardFilterPolicy);
+                                                          catalogResourceHandle);
 
     const bool isMongotPipeline = search_helpers::isMongotPipeline(pipeline.get());
+    // We split up mongot special logic as bindCatalogInfo() should be called on a desugared search
+    // pipeline and requires catalog locks.
     if (isMongotPipeline) {
-        // For mongot pipelines, we will not have a cursor attached and now must perform
-        // $search-specific stage preparation. It's important that we release locks early, before
-        // preparing the pipeline, so that we don't hold them during network calls to mongot. This
-        // is fine for search pipelines since they are not reading any local (lock-protected) data
-        // in the main pipeline. It was important that we still acquired the collection in order to
-        // check for a stale shard version.
+        search_helpers::desugarSearchPipeline(pipeline.get());
+    }
+
+    pipeline->bindCatalogInfo(holder, sharedStasher);
+
+    // Mongot pipelines may not use the MultipleCollectionAccessor and related acquisitions. Clear
+    // them to prevent dangling references to CollectionAcquistions.
+    if (isMongotPipeline) {
         holder.clear();
         primaryAcquisition.reset();
         secondaryAcquisitions.clear();
-        search_helpers::prepareSearchForNestedPipelineLegacyExecutor(pipeline.get());
+        // TODO SERVER-94874 Establish mongot cursor here for nested pipelines, similarly to
+        // prepareSearchForTopLevelPipelineLegacyExecutor().
     }
 
     // Stash resources to free locks.
@@ -762,15 +767,7 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
     bool attachCursorAfterOptimizing,
     std::function<void(Pipeline* pipeline)> optimizePipeline,
     bool shouldUseCollectionDefaultCollator,
-    boost::optional<const AggregateCommandRequest&> aggRequest,
-    ExecShardFilterPolicy shardFilterPolicy) {
-
-    // TODO: SPM-4050 Remove this.
-    boost::optional<BypassCheckAllShardRoleAcquisitionsVersioned>
-        bypassCheckAllShardRoleAcquisitionsAreVersioned(
-            boost::in_place_init_if,
-            std::holds_alternative<ProofOfUpstreamFiltering>(shardFilterPolicy),
-            expCtx->getOperationContext());
+    boost::optional<const AggregateCommandRequest&> aggRequest) {
 
     // If the pipeline doesn't require any collection acquisition, since it produces it's own data,
     // or attachCursorAfterOptimizing is false we do not need to attach a cursor or perform viewless
@@ -803,32 +800,33 @@ CommonMongodProcessInterface::finalizeAndAttachCursorToPipelineForLocalRead(
                                                         allAcquisitions,
                                                         isAnySecondaryCollectionNotLocal,
                                                         aggRequest,
-                                                        shouldUseCollectionDefaultCollator,
-                                                        shardFilterPolicy);
+                                                        shouldUseCollectionDefaultCollator);
 }
 
-// TODO SERVER-111401 Define this function.
 std::unique_ptr<Pipeline>
 CommonMongodProcessInterface::attachCursorSourceToPipelineForLocalReadWithCatalog(
     std::unique_ptr<Pipeline> pipeline,
     const MultipleCollectionAccessor& collections,
     const boost::intrusive_ptr<CatalogResourceHandle>& catalogResourceHandle) {
-    MONGO_UNIMPLEMENTED_TASSERT(11087000);
+    const boost::intrusive_ptr<ExpressionContext>& expCtx = pipeline->getContext();
+
+    auto stasher = catalogResourceHandle->getStasher();
+    PipelineD::buildAndAttachInnerQueryExecutorToPipeline(
+        collections,
+        expCtx->getNamespaceString(),
+        nullptr /*resolvedAggRequest*/,
+        pipeline.get(),
+        make_intrusive<DSCursorCatalogResourceHandle>(stasher));
+    pipeline->bindCatalogInfo(collections, stasher);
+
+    return pipeline;
 }
 
 std::unique_ptr<Pipeline> CommonMongodProcessInterface::attachCursorSourceToPipelineForLocalRead(
     std::unique_ptr<Pipeline> pipeline,
     boost::optional<const AggregateCommandRequest&> aggRequest,
-    bool shouldUseCollectionDefaultCollator,
-    ExecShardFilterPolicy shardFilterPolicy) {
+    bool shouldUseCollectionDefaultCollator) {
     const boost::intrusive_ptr<ExpressionContext>& expCtx = pipeline->getContext();
-
-    // TODO: SPM-4050 Remove this.
-    boost::optional<BypassCheckAllShardRoleAcquisitionsVersioned>
-        bypassCheckAllShardRoleAcquisitionsAreVersioned(
-            boost::in_place_init_if,
-            std::holds_alternative<ProofOfUpstreamFiltering>(shardFilterPolicy),
-            expCtx->getOperationContext());
 
     if (!requiresCollectionAcquisition(*pipeline)) {
         // There's no need to attach a cursor here so we can just return the pipeline.
@@ -843,8 +841,7 @@ std::unique_ptr<Pipeline> CommonMongodProcessInterface::attachCursorSourceToPipe
                                                         allAcquisitions,
                                                         isAnySecondaryCollectionNotLocal,
                                                         aggRequest,
-                                                        shouldUseCollectionDefaultCollator,
-                                                        shardFilterPolicy);
+                                                        shouldUseCollectionDefaultCollator);
 }
 
 std::string CommonMongodProcessInterface::getShardName(OperationContext* opCtx) const {

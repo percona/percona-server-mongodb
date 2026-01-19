@@ -29,10 +29,7 @@
 
 #pragma once
 
-#include "mongo/base/status.h"
 #include "mongo/base/string_data.h"
-#include "mongo/bson/bsonobj.h"
-#include "mongo/db/index_builds/multi_index_block.h"
 #include "mongo/db/local_catalog/catalog_raii.h"
 #include "mongo/db/local_catalog/database.h"
 #include "mongo/db/local_catalog/db_raii.h"
@@ -45,25 +42,6 @@
 
 MONGO_MOD_PUBLIC;
 namespace mongo::dbtests {
-
-/**
- * Creates an index if it does not already exist.
- */
-Status createIndex(OperationContext* opCtx,
-                   StringData ns,
-                   const BSONObj& keys,
-                   bool unique = false);
-
-/**
- * Creates an index from a BSON spec, if it does not already exist.
- */
-Status createIndexFromSpec(OperationContext* opCtx, StringData ns, const BSONObj& spec);
-
-Status initializeMultiIndexBlock(OperationContext* opCtx,
-                                 CollectionWriter& collection,
-                                 MultiIndexBlock& indexer,
-                                 const BSONObj& spec,
-                                 MultiIndexBlock::OnInitFn onInit = MultiIndexBlock::kNoopOnInitFn);
 
 /**
  * Combines AutoGetDb and AutoStatsTracker. If the requested 'ns' exists, the constructed

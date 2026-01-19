@@ -83,7 +83,7 @@ void addCacheStageAndOptimize(boost::intrusive_ptr<DocumentSource> source,
     // optimizeContainer on the pipeline to ensure the rest of the pipeline is in its correct
     // order before optimizing the cache.
     // TODO SERVER-84113: We will no longer have separate logic based on if a cache is present
-    // in doOptimizeAt(), so we can instead only add and optimize the cache after
+    // in optimizeAt(), so we can instead only add and optimize the cache after
     // optimizeContainer is called.
     pipeline.addFinalSource(std::move(source));
 
@@ -472,10 +472,15 @@ std::unique_ptr<mongo::Pipeline> LookUpStage::buildPipeline(
     const auto& optimizePipeline = [this](mongo::Pipeline* pipeline) {
         tassert(11028105, "Expected pipeline to optimize", pipeline);
         // We've already validated above the cache exists and is not abandoned, so we should
-        // always apply the optimization here. We do not validate the pipeline after adding the
-        // cache stage optimization.
+        // always apply the optimization here.
         addCacheStageAndOptimize(DocumentSourceSequentialDocumentCache::create(_fromExpCtx, _cache),
                                  *pipeline);
+
+        // We perform pipeline validation again after adding the cache stage, given that stages with
+        // a stage constraint of PositionRequirement::kCustom will only perform validation checks
+        // when 'alreadyOptimized' is true. If we avoid this check we could potentially try to
+        // execute invalid pipelines.
+        pipeline->validateCommon(true /* alreadyOptimized */);
     };
 
     try {

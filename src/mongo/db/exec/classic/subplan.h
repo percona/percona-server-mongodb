@@ -46,6 +46,7 @@
 #include "mongo/db/query/query_planner_params.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/modules.h"
 
 #include <cstddef>
 #include <memory>
@@ -148,7 +149,10 @@ public:
      * otherwise returns false.
      */
     bool branchPlannedFromCache(size_t i) const {
-        invariant(i < _branchPlannedFromCache.size());
+        tassert(11051620,
+                str::stream() << "Branch id " << i << " points beyond the total number of branches "
+                              << _branchPlannedFromCache.size(),
+                i < _branchPlannedFromCache.size());
         return _branchPlannedFromCache[i];
     }
 

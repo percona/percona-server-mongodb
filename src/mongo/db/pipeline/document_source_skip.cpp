@@ -69,9 +69,9 @@ intrusive_ptr<DocumentSource> DocumentSourceSkip::optimize() {
     return _nToSkip == 0 ? nullptr : this;
 }
 
-DocumentSourceContainer::iterator DocumentSourceSkip::doOptimizeAt(
+DocumentSourceContainer::iterator DocumentSourceSkip::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
-    invariant(*itr == this);
+    tassert(11282962, "Expecting DocumentSource iterator pointing to this stage", *itr == this);
 
     if (std::next(itr) == container->end()) {
         return container->end();

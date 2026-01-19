@@ -109,7 +109,7 @@ public:
      * abandoned it is expected that the cache will not be used for subsequent operations.
      */
     void abandonCache() {
-        invariant(_cache);
+        tassert(11282967, "Missing document cache", _cache);
         _cache->abandon();
     }
 
@@ -132,9 +132,8 @@ public:
         return _hasOptimizedPos;
     }
 
-protected:
-    DocumentSourceContainer::iterator doOptimizeAt(DocumentSourceContainer::iterator itr,
-                                                   DocumentSourceContainer* container) final;
+    DocumentSourceContainer::iterator optimizeAt(DocumentSourceContainer::iterator itr,
+                                                 DocumentSourceContainer* container);
 
 private:
     DocumentSourceSequentialDocumentCache(const boost::intrusive_ptr<ExpressionContext>& expCtx,

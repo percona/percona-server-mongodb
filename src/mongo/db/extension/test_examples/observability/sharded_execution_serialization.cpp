@@ -48,6 +48,12 @@ public:
         const MongoExtensionExecAggStage* execStage) override {
         return mongo::extension::ExtensionGetNextResult::pauseExecution();
     }
+
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
 };
 
 class ShardedExecutionSerializationLogicalStage : public sdk::LogicalAggStage {

@@ -516,6 +516,10 @@ bool isUnshardCollection(const boost::optional<ReshardingProvenanceEnum>& proven
     return provenance && provenance.get() == ReshardingProvenanceEnum::kUnshardCollection;
 }
 
+bool isRewriteCollection(const boost::optional<ReshardingProvenanceEnum>& provenance) {
+    return provenance && provenance.get() == ReshardingProvenanceEnum::kRewriteCollection;
+}
+
 std::shared_ptr<ThreadPool> makeThreadPoolForMarkKilledExecutor(const std::string& poolName) {
     return std::make_shared<ThreadPool>([&] {
         ThreadPool::Options options;
@@ -720,6 +724,11 @@ Milliseconds getMajorityReplicationLag(OperationContext* opCtx) {
     const auto& replCoord = repl::ReplicationCoordinator::get(opCtx);
     const auto lastAppliedWallTime = replCoord->getMyLastAppliedOpTimeAndWallTime().wallTime;
     const auto lastCommittedWallTime = replCoord->getLastCommittedOpTimeAndWallTime().wallTime;
+    // TODO SERVER-113571 Remove this if block and adjust the replication lag calculation (if
+    // needed).
+    if (lastCommittedWallTime == Date_t()) {
+        return Milliseconds(0);
+    }
 
     if (!lastAppliedWallTime.isFormattable() || !lastCommittedWallTime.isFormattable()) {
         return Milliseconds(0);

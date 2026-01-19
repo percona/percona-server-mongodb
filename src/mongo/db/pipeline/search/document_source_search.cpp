@@ -31,7 +31,6 @@
 
 #include "mongo/db/exec/document_value/document_metadata_fields.h"
 #include "mongo/db/pipeline/document_source.h"
-#include "mongo/db/pipeline/document_source_internal_shard_filter.h"
 #include "mongo/db/pipeline/document_source_limit.h"
 #include "mongo/db/pipeline/document_source_replace_root.h"
 #include "mongo/db/pipeline/expression_context.h"
@@ -180,7 +179,7 @@ bool checkRequiresSearchSequenceToken(DocumentSourceContainer::iterator itr,
     return deps.getNeedsMetadata(DocumentMetadataFields::kSearchSequenceToken);
 }
 
-DocumentSourceContainer::iterator DocumentSourceSearch::doOptimizeAt(
+DocumentSourceContainer::iterator DocumentSourceSearch::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
     // In the case where the query has an extractable limit, we send that limit to mongot as a guide
     // for the number of documents mongot should return (rather than the default batchsize).

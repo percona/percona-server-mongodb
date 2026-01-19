@@ -39,7 +39,10 @@
 #include "mongo/db/extension/host_connector/query_shape_opts_adapter.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/query_shape_opts_handle.h"
+#include "mongo/db/extension/sdk/raii_vector_to_abi_array.h"
 #include "mongo/db/extension/sdk/tests/shared_test_stages.h"
+#include "mongo/db/extension/shared/array/abi_array_to_raii_vector.h"
+#include "mongo/db/extension/shared/byte_buf_utils.h"
 #include "mongo/db/extension/shared/get_next_result.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/ast_node.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
@@ -268,6 +271,8 @@ TEST_F(AggStageTest, NoOpAstNodeWithDefaultGetPropertiesSucceeds) {
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle.getProperties();
     ASSERT_EQ(props.getPosition(), MongoExtensionPositionRequirementEnum::kNone);
+    ASSERT_EQ(props.getHostType(), MongoExtensionHostTypeRequirementEnum::kNone);
+    ASSERT_EQ(props.getRequiresInputDocSource(), true);
 }
 
 TEST_F(AggStageTest, NonePosAstNodeSucceeds) {
@@ -314,6 +319,114 @@ TEST_F(AggStageTest, UnknownPropertyAstNodeIsIgnored) {
     auto handle = AggStageAstNodeHandle{astNode};
     auto props = handle.getProperties();
     ASSERT_EQ(props.getPosition(), MongoExtensionPositionRequirementEnum::kNone);
+}
+
+TEST_F(AggStageTest, TransformAggStageAstNodeSucceeds) {
+    auto astNode = new sdk::ExtensionAggStageAstNode(
+        sdk::shared_test_stages::TransformAggStageAstNode::make());
+    auto handle = AggStageAstNodeHandle{astNode};
+    auto props = handle.getProperties();
+    ASSERT_EQ(props.getRequiresInputDocSource(), true);
+}
+
+TEST_F(AggStageTest, SearchLikeSourceAggStageAstNodeSucceeds) {
+    auto astNode = new sdk::ExtensionAggStageAstNode(
+        sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
+    auto handle = AggStageAstNodeHandle{astNode};
+    auto props = handle.getProperties();
+    ASSERT_EQ(props.getPosition(), MongoExtensionPositionRequirementEnum::kFirst);
+    ASSERT_EQ(props.getHostType(), MongoExtensionHostTypeRequirementEnum::kAnyShard);
+    ASSERT_EQ(props.getRequiresInputDocSource(), false);
+}
+
+TEST_F(AggStageTest, BadRequiresInputDocSourceTypeAggStageAstNodeFails) {
+    auto astNode = new sdk::ExtensionAggStageAstNode(
+        sdk::shared_test_stages::BadRequiresInputDocSourceTypeAggStageAstNode::make());
+    auto handle = AggStageAstNodeHandle{astNode};
+    ASSERT_THROWS_CODE(handle.getProperties(), DBException, ErrorCodes::TypeMismatch);
+}
+
+class InvalidResourcePatternRequiredPrivilegesAggStageAstNode : public sdk::AggStageAstNode {
+public:
+    static constexpr std::string_view kName = "$invalidResourcePattern";
+
+    InvalidResourcePatternRequiredPrivilegesAggStageAstNode() : sdk::AggStageAstNode(kName) {}
+
+    BSONObj getProperties() const override {
+        return BSON("requiredPrivileges" << BSON_ARRAY(BSON(
+                        "resourcePattern" << "database"
+                                          << "actions" << BSON_ARRAY(BSON("action" << "find")))));
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> bind() const override {
+        return std::make_unique<sdk::shared_test_stages::NoOpLogicalAggStage>();
+    }
+
+    static inline std::unique_ptr<sdk::AggStageAstNode> make() {
+        return std::make_unique<InvalidResourcePatternRequiredPrivilegesAggStageAstNode>();
+    }
+};
+
+class InvalidActionTypeRequiredPrivilegesAggStageAstNode : public sdk::AggStageAstNode {
+public:
+    static constexpr std::string_view kName = "$invalidActionType";
+
+    InvalidActionTypeRequiredPrivilegesAggStageAstNode() : sdk::AggStageAstNode(kName) {}
+
+    BSONObj getProperties() const override {
+        return BSON("requiredPrivileges" << BSON_ARRAY(BSON(
+                        "resourcePattern" << "namespace"
+                                          << "actions" << BSON_ARRAY(BSON("action" << "update")))));
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> bind() const override {
+        return std::make_unique<sdk::shared_test_stages::NoOpLogicalAggStage>();
+    }
+
+    static inline std::unique_ptr<sdk::AggStageAstNode> make() {
+        return std::make_unique<InvalidActionTypeRequiredPrivilegesAggStageAstNode>();
+    }
+};
+
+class BadTypeRequiredPrivilegesAstNode : public sdk::AggStageAstNode {
+public:
+    static constexpr std::string_view kName = "$badTypeRequiredPrivileges";
+
+    BadTypeRequiredPrivilegesAstNode() : sdk::AggStageAstNode(kName) {}
+
+    BSONObj getProperties() const override {
+        return BSON("requiredPrivileges" << BSON(
+                        "resourcePattern" << "namespace"
+                                          << "actions" << BSON_ARRAY(BSON("action" << "find"))));
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> bind() const override {
+        return std::make_unique<sdk::shared_test_stages::NoOpLogicalAggStage>();
+    }
+
+    static inline std::unique_ptr<sdk::AggStageAstNode> make() {
+        return std::make_unique<BadTypeRequiredPrivilegesAstNode>();
+    }
+};
+
+TEST_F(AggStageTest, InvalidResourcePatternRequiredPrivilegesAggStageAstNodeFails) {
+    auto astNode = new sdk::ExtensionAggStageAstNode(
+        InvalidResourcePatternRequiredPrivilegesAggStageAstNode::make());
+    auto handle = AggStageAstNodeHandle{astNode};
+    ASSERT_THROWS_CODE(handle.getProperties(), DBException, ErrorCodes::BadValue);
+}
+
+TEST_F(AggStageTest, InvalidActionTypeRequiredPrivilegesAggStageAstNodeFails) {
+    auto astNode = new sdk::ExtensionAggStageAstNode(
+        InvalidActionTypeRequiredPrivilegesAggStageAstNode::make());
+    auto handle = AggStageAstNodeHandle{astNode};
+    ASSERT_THROWS_CODE(handle.getProperties(), DBException, ErrorCodes::BadValue);
+}
+
+TEST_F(AggStageTest, BadTypeRequiredPrivilegesAstNodeFails) {
+    auto astNode = new sdk::ExtensionAggStageAstNode(BadTypeRequiredPrivilegesAstNode::make());
+    auto handle = AggStageAstNodeHandle{astNode};
+    ASSERT_THROWS_CODE(handle.getProperties(), DBException, ErrorCodes::TypeMismatch);
 }
 
 class SimpleSerializationLogicalStage : public LogicalAggStage {
@@ -729,6 +842,12 @@ public:
         }
     }
 
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
+
     static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
         return std::make_unique<ValidExtensionExecAggStage>("$noOp");
     }
@@ -736,6 +855,50 @@ public:
 private:
     std::deque<BSONObj> _results = {
         BSON("meow" << "adithi"), BSON("meow" << "josh"), BSON("meow" << "cedric")};
+};
+
+/**
+ * Test class that tracks resource allocation and cleanup for lifecycle method testing.
+ * open() allocates a resource, close() cleans it up, and reopen() reinitializes without cleanup.
+ */
+class ResourceTrackingExecAggStage : public ExecAggStage {
+public:
+    ResourceTrackingExecAggStage(std::string_view stageName) : ExecAggStage(stageName) {}
+
+    ExtensionGetNextResult getNext(const QueryExecutionContextHandle& execCtx,
+                                   const MongoExtensionExecAggStage* execAggStage) override {
+        return extension::ExtensionGetNextResult::eof();
+    }
+
+    void open() override {
+        _resourceAllocated = true;
+        _initialized = true;
+    }
+
+    void reopen() override {
+        _initialized = true;
+    }
+
+    void close() override {
+        _resourceAllocated = false;
+        _initialized = false;
+    }
+
+    bool isResourceAllocated() const {
+        return _resourceAllocated;
+    }
+
+    bool isInitialized() const {
+        return _initialized;
+    }
+
+    static inline std::unique_ptr<ExecAggStage> make() {
+        return std::make_unique<ResourceTrackingExecAggStage>("$resourceTracking");
+    }
+
+private:
+    bool _resourceAllocated = false;
+    bool _initialized = false;
 };
 
 TEST(AggregationStageTest, ValidExecAggStageVTableGetNextSucceeds) {
@@ -822,6 +985,12 @@ public:
     std::unique_ptr<OperationMetricsBase> createMetrics() const override {
         return std::make_unique<GetMetricsExtensionOperationMetrics>();
     }
+
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
 
     static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
         return std::make_unique<GetMetricsExtensionExecAggStage>("$getMetrics");
@@ -951,6 +1120,116 @@ TEST_F(AggStageTest, TestValidExecAggStageFromCompiledSourceLogicalAggStage) {
         ASSERT_EQUALS(extension::GetNextCode::kEOF, getNext.code);
         ASSERT_EQ(boost::none, getNext.res);
     }
+}
+
+TEST_F(AggStageTest, ValidateExecAggStageLifecycleFunctions) {
+    auto trackingExecAggStageImpl = ResourceTrackingExecAggStage::make();
+    auto* trackingExecAggStageImplPtr =
+        static_cast<ResourceTrackingExecAggStage*>(trackingExecAggStageImpl.get());
+    auto trackingExecAggStage =
+        new extension::sdk::ExtensionExecAggStage(std::move(trackingExecAggStageImpl));
+    auto handle = ExecAggStageHandle{trackingExecAggStage};
+
+    // Open allocates resources.
+    handle.open();
+    ASSERT_TRUE(trackingExecAggStageImplPtr->isResourceAllocated());
+    ASSERT_TRUE(trackingExecAggStageImplPtr->isInitialized());
+
+    // Reopen reinitializes the stage without cleaning up resources.
+    handle.reopen();
+    ASSERT_TRUE(trackingExecAggStageImplPtr->isResourceAllocated());
+    ASSERT_TRUE(trackingExecAggStageImplPtr->isInitialized());
+
+    // Close cleans up all resources.
+    handle.close();
+    ASSERT_FALSE(trackingExecAggStageImplPtr->isResourceAllocated());
+    ASSERT_FALSE(trackingExecAggStageImplPtr->isInitialized());
+}
+
+TEST_F(AggStageTest, TestDPLRaiiVecToAbiArrayRoundTrip) {
+    shared_test_stages::CountingLogicalStage::alive = 0;
+    shared_test_stages::CountingParse::alive = 0;
+
+    auto logicalStage =
+        new sdk::ExtensionLogicalAggStage(shared_test_stages::CountingLogicalStage::make());
+    auto parseNode = new sdk::ExtensionAggStageParseNode(shared_test_stages::CountingParse::make());
+
+    ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 1);
+    ASSERT_EQ(shared_test_stages::CountingParse::alive, 1);
+
+    // Convert vector of RAII handles to an ABI array.
+    std::vector<extension::VariantDPLHandle> originalVector;
+    originalVector.emplace_back(extension::LogicalAggStageHandle{logicalStage});
+    originalVector.emplace_back(extension::AggStageParseNodeHandle{parseNode});
+
+    std::vector<::MongoExtensionDPLArrayElement> abiArray{originalVector.size()};
+    ::MongoExtensionDPLArray abiArr{originalVector.size(), abiArray.data()};
+
+    sdk::raiiVectorToAbiArray(std::move(originalVector), abiArr);
+
+    // Verify ABI array is correctly populated.
+    ASSERT_EQ(abiArray[0].type, ::MongoExtensionDPLArrayElementType::kLogical);
+    ASSERT_NE(abiArray[0].element.logicalStage, nullptr);
+
+    ASSERT_EQ(abiArray[1].type, ::MongoExtensionDPLArrayElementType::kParse);
+    ASSERT_NE(abiArray[1].element.parseNode, nullptr);
+
+    // Convert ABI array to vector of RAII handles (round-trip)
+    auto roundTripVector = extension::dplArrayToRaiiVector(abiArr);
+
+    // Verify handle vector is correctly populated.
+    ASSERT_EQ(roundTripVector.size(), 2U);
+
+    ASSERT_TRUE(std::holds_alternative<extension::LogicalAggStageHandle>(roundTripVector[0]));
+    auto& logicalHandle = std::get<extension::LogicalAggStageHandle>(roundTripVector[0]);
+    ASSERT_EQ(logicalHandle.get(), logicalStage);
+
+    ASSERT_TRUE(std::holds_alternative<extension::AggStageParseNodeHandle>(roundTripVector[1]));
+    auto& parseHandle = std::get<extension::AggStageParseNodeHandle>(roundTripVector[1]);
+    ASSERT_EQ(parseHandle.get(), parseNode);
+
+    // Verify that the ABI array elements' ownership has been transferred, but the instances are
+    // still alive.
+    ASSERT_EQ(abiArray[0].element.logicalStage, nullptr);
+    ASSERT_EQ(abiArray[1].element.parseNode, nullptr);
+    ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 1);
+    ASSERT_EQ(shared_test_stages::CountingParse::alive, 1);
+}
+
+TEST_F(AggStageTest, TestDPLRaiiVecToAbiArrayWithFailPoint) {
+    shared_test_stages::CountingLogicalStage::alive = 0;
+    shared_test_stages::CountingParse::alive = 0;
+
+    auto logicalStage =
+        new sdk::ExtensionLogicalAggStage(shared_test_stages::CountingLogicalStage::make());
+    auto parseNode = new sdk::ExtensionAggStageParseNode(shared_test_stages::CountingParse::make());
+
+    ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 1);
+    ASSERT_EQ(shared_test_stages::CountingParse::alive, 1);
+
+    std::vector<extension::VariantDPLHandle> dplVec;
+    dplVec.emplace_back(extension::LogicalAggStageHandle{logicalStage});
+    dplVec.emplace_back(extension::AggStageParseNodeHandle{parseNode});
+
+    std::vector<::MongoExtensionDPLArrayElement> abiArray{dplVec.size()};
+    ::MongoExtensionDPLArray abiArr{dplVec.size(), abiArray.data()};
+
+    // Enable the fail point to test error handling.
+    auto failDPLConversion = globalFailPointRegistry().find("failVariantDPLConversion");
+    failDPLConversion->setMode(FailPoint::skip, 1);
+
+    ASSERT_THROWS_CODE(
+        [&] {
+            extension::sdk::raiiVectorToAbiArray(std::move(dplVec), abiArr);
+        }(),
+        DBException,
+        11365501);
+
+    failDPLConversion->setMode(FailPoint::off, 0);
+
+    // Verify all instances are destroyed even after exception.
+    ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 0);
+    ASSERT_EQ(shared_test_stages::CountingParse::alive, 0);
 }
 
 }  // namespace

@@ -37,12 +37,15 @@ namespace rbr = rule_based_rewrites::pipeline;
 MONGO_FAIL_POINT_DEFINE(disablePipelineOptimization);
 
 namespace {
-void applyRuleBasedRewrites(rbr::PipelineRewriteContext rewriteContext) {
+using Tags = rbr::PipelineRewriteContext::Tags;
+
+void applyRuleBasedRewrites(rbr::PipelineRewriteContext rewriteContext,
+                            rule_based_rewrites::TagSet tags) {
     rbr::PipelineRewriteEngine engine(std::move(rewriteContext),
                                       internalQueryMaxPipelineRewrites.load());
 
     try {
-        engine.applyRules();
+        engine.applyRules(tags);
     } catch (DBException& ex) {
         ex.addContext("Failed to optimize pipeline");
         throw;
@@ -61,7 +64,7 @@ void optimizePipeline(Pipeline& pipeline) {
     if (MONGO_unlikely(disablePipelineOptimization.shouldFail())) {
         return;
     }
-    applyRuleBasedRewrites(rbr::PipelineRewriteContext(pipeline));
+    applyRuleBasedRewrites(rbr::PipelineRewriteContext(pipeline), Tags::Reordering);
     // Not converted to rules yet.
     optimizeEachStage(&pipeline.getSources());
 }
@@ -89,8 +92,10 @@ void optimizeEachStage(DocumentSourceContainer* container) {
  * Modifies the container, optimizing it by combining, swapping, dropping and/or inserting
  * stages.
  */
-void optimizeContainer(const ExpressionContext& expCtx, DocumentSourceContainer* container) {
-    applyRuleBasedRewrites(rbr::PipelineRewriteContext(expCtx, *container));
+void optimizeContainer(const ExpressionContext& expCtx,
+                       DocumentSourceContainer* container,
+                       boost::optional<DocumentSourceContainer::iterator> itr) {
+    applyRuleBasedRewrites(rbr::PipelineRewriteContext(expCtx, *container, itr), Tags::Reordering);
 }
 
 /**

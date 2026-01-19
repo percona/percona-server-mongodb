@@ -34,6 +34,7 @@
 #include "mongo/client/read_preference.h"
 #include "mongo/client/retry_strategy.h"
 #include "mongo/util/future.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/net/hostandport.h"
 #include "mongo/util/time_support.h"
 
@@ -42,7 +43,7 @@ namespace mongo {
 /**
  * Interface encapsulating the targeting logic for a given replica set or a standalone host.
  */
-class RemoteCommandTargeter {
+class MONGO_MOD_PUBLIC RemoteCommandTargeter {
     RemoteCommandTargeter(const RemoteCommandTargeter&) = delete;
     RemoteCommandTargeter& operator=(const RemoteCommandTargeter&) = delete;
 
@@ -117,6 +118,15 @@ public:
      * host again on a subsequent request for the primary.
      */
     virtual void markHostShuttingDown(const HostAndPort& host, const Status& status) = 0;
+
+    /**
+     * Uses the list of deprioritized servers to pick the most suitable host from the list of hosts.
+     *
+     * This function is exposed so that it can be tested separately, as findHost already executes
+     * this logic.
+     */
+    static const HostAndPort& firstHostPrioritized(
+        std::span<const HostAndPort> hosts, std::span<const HostAndPort> deprioritizedServers);
 
 protected:
     RemoteCommandTargeter() = default;

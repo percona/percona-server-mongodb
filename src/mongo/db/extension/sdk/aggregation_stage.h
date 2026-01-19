@@ -32,6 +32,7 @@
 #include "mongo/db/extension/sdk/assert_util.h"
 #include "mongo/db/extension/sdk/operation_metrics_adapter.h"
 #include "mongo/db/extension/sdk/query_execution_context_handle.h"
+#include "mongo/db/extension/sdk/raii_vector_to_abi_array.h"
 #include "mongo/db/extension/shared/byte_buf.h"
 #include "mongo/db/extension/shared/extension_status.h"
 #include "mongo/db/extension/shared/get_next_result.h"
@@ -43,6 +44,12 @@
 #include <string_view>
 
 namespace mongo::extension::sdk {
+
+// Explicit template instantiations are provided in aggregation_stage.cpp.
+extern template void raiiVectorToAbiArray<VariantNodeHandle>(
+    std::vector<VariantNodeHandle> inputVector, ::MongoExtensionExpandedArray& outputArray);
+extern template void raiiVectorToAbiArray<VariantDPLHandle>(
+    std::vector<VariantDPLHandle> inputVector, ::MongoExtensionDPLArray& outputArray);
 
 /**
  * LogicalAggStage is the base class for implementing the
@@ -119,7 +126,6 @@ private:
 
     static ::MongoExtensionStatus* _extCompile(
         const ::MongoExtensionLogicalAggStage* extLogicalStage,
-        ::MongoExtensionExecAggStage* input,
         ::MongoExtensionExecAggStage** output) noexcept;
 
     static constexpr ::MongoExtensionLogicalAggStageVTable VTABLE = {.destroy = &_extDestroy,
@@ -156,7 +162,7 @@ protected:
     explicit AggStageAstNode(std::string_view name) : _name(name) {}
 
 private:
-    const std::string_view _name;
+    const std::string _name;
 };
 
 /**
@@ -254,7 +260,7 @@ protected:
     explicit AggStageParseNode(std::string_view name) : _name(name) {}
 
 private:
-    const std::string_view _name;
+    const std::string _name;
 };
 
 /**
@@ -312,67 +318,6 @@ private:
         return static_cast<const ExtensionAggStageParseNode*>(parseNode)
             ->getImpl()
             .getExpandedSize();
-    }
-
-    /**
-     * Converts an SDK VariantNode into a tagged union of ABI objects and writes the raw pointers
-     * into the host-allocated ExpandedArray element.
-     */
-    struct ConsumeVariantNodeToAbi {
-        ::MongoExtensionExpandedArrayElement& dst;
-
-        void operator()(AggStageParseNodeHandle&& parseNode) const {
-            dst.type = kParseNode;
-            dst.parse = parseNode.release();
-        }
-
-        void operator()(AggStageAstNodeHandle&& astNode) const {
-            dst.type = kAstNode;
-            dst.ast = astNode.release();
-        }
-    };
-
-    /*
-     * Invokes the destructor for a ::MongoExtensionAggStageParseNode and sets the element
-     * to null.
-     */
-    static void destroyAbiNode(::MongoExtensionAggStageParseNode*& node) noexcept {
-        if (node && node->vtable && node->vtable->destroy) {
-            node->vtable->destroy(node);
-        }
-        node = nullptr;
-    }
-
-    /*
-     * Invokes the destructor for a ::MongoExtensionAggStageAstNode and sets the element
-     * to null.
-     */
-    static void destroyAbiNode(::MongoExtensionAggStageAstNode*& node) noexcept {
-        if (node && node->vtable && node->vtable->destroy) {
-            node->vtable->destroy(node);
-        }
-        node = nullptr;
-    }
-
-    /*
-     * Invokes the destructor for a MongoExtensionExpandedArrayElement and sets the element to null.
-     */
-    static void destroyArrayElement(MongoExtensionExpandedArrayElement& node) noexcept {
-        switch (node.type) {
-            case kParseNode: {
-                destroyAbiNode(node.parse);
-                break;
-            }
-            case kAstNode: {
-                destroyAbiNode(node.ast);
-                break;
-            }
-            default: {
-                // Memory is leaked if the type tag is invalid, but this only happens if the
-                // extension violates the API contract.
-                break;
-            }
-        }
     }
 
     /**
@@ -501,6 +446,12 @@ public:
         return nullptr;
     }
 
+    virtual void open() = 0;
+
+    virtual void reopen() = 0;
+
+    virtual void close() = 0;
+
 protected:
     ExecAggStage(std::string_view name) : _name(name) {}
 
@@ -625,18 +576,34 @@ private:
         });
     }
 
-    static constexpr ::MongoExtensionExecAggStageVTable VTABLE = {
-        .destroy = &_extDestroy,
-        .get_next = &_extGetNext,
-        .get_name = &_extGetName,
-        .create_metrics = &_extCreateMetrics,
-    };
+    static ::MongoExtensionStatus* _extOpen(::MongoExtensionExecAggStage* execAggStage) noexcept {
+        return wrapCXXAndConvertExceptionToStatus(
+            [&]() { static_cast<ExtensionExecAggStage*>(execAggStage)->getImpl().open(); });
+    }
+
+    static ::MongoExtensionStatus* _extReopen(::MongoExtensionExecAggStage* execAggStage) noexcept {
+        return wrapCXXAndConvertExceptionToStatus(
+            [&]() { static_cast<ExtensionExecAggStage*>(execAggStage)->getImpl().reopen(); });
+    }
+
+    static ::MongoExtensionStatus* _extClose(::MongoExtensionExecAggStage* execAggStage) noexcept {
+        return wrapCXXAndConvertExceptionToStatus(
+            [&]() { static_cast<ExtensionExecAggStage*>(execAggStage)->getImpl().close(); });
+    }
+
+    static constexpr ::MongoExtensionExecAggStageVTable VTABLE = {.destroy = &_extDestroy,
+                                                                  .get_next = &_extGetNext,
+                                                                  .get_name = &_extGetName,
+                                                                  .create_metrics =
+                                                                      &_extCreateMetrics,
+                                                                  .open = &_extOpen,
+                                                                  .reopen = &_extReopen,
+                                                                  .close = &_extClose};
     std::unique_ptr<ExecAggStage> _execAggStage;
 };
 
 inline ::MongoExtensionStatus* ExtensionLogicalAggStage::_extCompile(
     const ::MongoExtensionLogicalAggStage* extLogicalStage,
-    ::MongoExtensionExecAggStage* input,
     ::MongoExtensionExecAggStage** output) noexcept {
     return wrapCXXAndConvertExceptionToStatus([&]() {
         *output = nullptr;

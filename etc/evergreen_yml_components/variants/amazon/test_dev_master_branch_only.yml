@@ -408,11 +408,12 @@ buildvariants:
     tags: ["required"]
     activate: true
     run_on:
-      - amazon2023.3-arm64-large
+      - amazon2023.3-arm64-m6g-4xlarge
     expansions:
       build_timeout_seconds: 900
       bazel_compile_flags: >-
         --define=MONGO_DISTMOD=amazon2023
+        --release=True
         --dbg_level=1
         --separate_debug=False
       evergreen_remote_exec: on
@@ -446,8 +447,8 @@ buildvariants:
     # here should be duplicated to
     # enterprise-amazon-linux2023-arm64-all-feature-flags-required-query-patch-only.
     tasks: &query-alias-task-list
-      - name: .assigned_to_jira_team_server_query_execution !.requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias !.requires_all_feature_flags
-      - name: .assigned_to_jira_team_server_query_execution .requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias !.requires_all_feature_flags
+      - name: .assigned_to_jira_team_server_query_execution !.requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias !.requires_all_feature_flags !.uwe
+      - name: .assigned_to_jira_team_server_query_execution .requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias !.requires_all_feature_flags !.uwe
         distros:
           - amazon2023-arm64-atlas-latest-m8g-4xlarge
       - name: .assigned_to_jira_team_server_query_optimization !.requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.change_stream_fuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias !.requires_all_feature_flags
@@ -534,8 +535,8 @@ buildvariants:
         --excludeWithAnyTags=resource_intensive
     # This set of tasks is duplicated from amazon_linux2023_arm64_static-classic-engine-query-patch-only.
     tasks:
-      - name: .assigned_to_jira_team_server_query_execution !.requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias
-      - name: .assigned_to_jira_team_server_query_execution .requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias
+      - name: .assigned_to_jira_team_server_query_execution !.requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias !.uwe
+      - name: .assigned_to_jira_team_server_query_execution .requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias !.uwe
         distros:
           - amazon2023-arm64-atlas-latest-m8g-4xlarge
       - name: .assigned_to_jira_team_server_query_optimization !.requires_large_host !.aggfuzzer !.query_fuzzer !.updatefuzzer !.change_stream_fuzzer !.jstestfuzz !.benchmarks !.blocked_in_query_alias
@@ -599,7 +600,6 @@ buildvariants:
       exec_timeout_factor: 1.5
       test_flags: >-
         --runAllFeatureFlagTests
-        --additionalFeatureFlags "featureFlagCreateViewlessTimeseriesCollections"
         --mongodSetParameters="{internalQueryUnifiedWriteExecutor: true}"
         --mongosSetParameters="{internalQueryUnifiedWriteExecutor: true}"
     # For now just unified write executor suites but tasks will be added as development continues.
@@ -639,6 +639,8 @@ buildvariants:
       - name: unified_write_executor_sharding_jscore_passthrough_with_balancer_gen
       - name: unified_write_executor_fle2_sharding
       - name: unified_write_executor_fle2_sharding_high_cardinality
+      - name: unified_write_executor_sharding_legacy_timeseries_no_rawdata_gen
+      - name: unified_write_executor_sharding_jscore_passthrough_legacy_timeseries_no_rawdata_gen
       - name: burn_in_tests_gen
         depends_on:
           - name: version_burn_in_gen

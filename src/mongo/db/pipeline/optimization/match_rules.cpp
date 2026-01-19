@@ -109,7 +109,12 @@ bool isChangeStreamRouterPipelineStage(StringData stageName) {
 }
 
 const PipelineRewriteRule kPushMatchBeforeChangeStreams{
-    "PUSH_MATCH_BEFORE_CHANGE_STREAMS", alwaysTrue, swapStageWithPrev, kDefaultPushdownPriority};
+    .name = "PUSH_MATCH_BEFORE_CHANGE_STREAMS",
+    .precondition = alwaysTrue,
+    .transform = Transforms::swapStageWithPrev,
+    .priority = kDefaultPushdownPriority,
+    .tags = PipelineRewriteContext::Tags::Reordering,
+};
 
 bool canPushMatchBefore(PipelineRewriteContext& ctx,
                         const DocumentSource* prev,
@@ -195,7 +200,8 @@ bool pushdownMatch(PipelineRewriteContext& ctx, DocumentSource& prev, DocumentSo
         ctx.advance();
     }
 
-    return partialPushdown(ctx, std::move(renameableMatchPart), std::move(nonRenameableMatchPart));
+    return Transforms::partialPushdown(
+        ctx, std::move(renameableMatchPart), std::move(nonRenameableMatchPart));
 }
 
 /**
@@ -219,24 +225,33 @@ bool pushMatchBeforeCurrentStage(PipelineRewriteContext& ctx) {
 
 REGISTER_RULES(DocumentSourceMatch,
                OPTIMIZE_AT_RULE(DocumentSourceMatch),
-               {"MATCH_PUSHDOWN",
-                matchCanSwapWithPrecedingStage,
-                pushMatchBeforePrecedingStage,
-                kDefaultPushdownPriority});
+               {
+                   .name = "MATCH_PUSHDOWN",
+                   .precondition = matchCanSwapWithPrecedingStage,
+                   .transform = pushMatchBeforePrecedingStage,
+                   .priority = kDefaultPushdownPriority,
+                   .tags = PipelineRewriteContext::Tags::Reordering,
+               });
 
 REGISTER_RULES(DocumentSourceInternalChangeStreamMatch,
                OPTIMIZE_AT_RULE(DocumentSourceInternalChangeStreamMatch),
-               {"INTERNAL_CHANGE_STREAM_MATCH_PUSHDOWN",
-                matchCanSwapWithPrecedingStage,
-                pushMatchBeforePrecedingStage,
-                kDefaultPushdownPriority});
+               {
+                   .name = "INTERNAL_CHANGE_STREAM_MATCH_PUSHDOWN",
+                   .precondition = matchCanSwapWithPrecedingStage,
+                   .transform = pushMatchBeforePrecedingStage,
+                   .priority = kDefaultPushdownPriority,
+                   .tags = PipelineRewriteContext::Tags::Reordering,
+               });
 
 // Timeseries rewrites require $match pushdown to be attempted before the other optimizations
-// implemented in 'doOptimizeAt()'.
+// implemented in 'optimizeAt()'.
 REGISTER_RULES(DocumentSourceInternalUnpackBucket,
                OPTIMIZE_AT_RULE(DocumentSourceInternalUnpackBucket),
-               {"PUSH_MATCH_BEFORE_UNPACK_BUCKET",
-                canSwapWithSubsequentMatch,
-                pushMatchBeforeCurrentStage,
-                kDefaultPushdownPriority});
+               {
+                   .name = "PUSH_MATCH_BEFORE_UNPACK_BUCKET",
+                   .precondition = canSwapWithSubsequentMatch,
+                   .transform = pushMatchBeforeCurrentStage,
+                   .priority = kDefaultPushdownPriority,
+                   .tags = PipelineRewriteContext::Tags::Reordering,
+               });
 }  // namespace mongo::rule_based_rewrites::pipeline

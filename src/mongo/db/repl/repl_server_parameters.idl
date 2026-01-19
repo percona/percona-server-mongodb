@@ -644,17 +644,6 @@ server_parameters:
             gte: 0
         redact: false
 
-    disableTransitionFromLatestToLastContinuous:
-        description: >-
-            Prohibits downgrading from latest FCV to last continuous FCV. Disabled by default.
-            Test-only.
-        test_only: true
-        set_at: startup
-        cpp_vartype: bool
-        cpp_varname: disableTransitionFromLatestToLastContinuous
-        default: true
-        redact: false
-
     unsupportedSyncSource:
         description: >-
             **Not a supported feature**. Specifies the host/port for a node to use as a sync source.
@@ -767,7 +756,7 @@ feature_flags:
         default: true
         version: 8.0
         fcv_gated: true
-        fcv_context_unaware: true
+        check_against_fcv: legacy_fcv_snapshot_only
 
     featureFlagReduceMajorityWriteLatency:
         description: When enabled, Secondaries acknowledge writes as durable after an oplog entry is written durably to disk, without waiting for it to be applied.

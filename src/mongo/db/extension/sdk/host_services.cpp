@@ -38,39 +38,10 @@ namespace mongo::extension::sdk {
 // at the very start of extension initialization, before any extension should attempt to access it.
 HostServicesHandle HostServicesHandle::_hostServices(nullptr);
 
-::MongoExtensionLogMessage HostServicesHandle::createLogMessageStruct(
-    const std::string& message, std::int32_t code, MongoExtensionLogSeverity severity) {
-    // Convert message string to byte view.
-    auto messageBytes = stringViewAsByteView(std::string_view(message));
-
-    // TODO SERVER-111339 Handle attributes.
-    ::MongoExtensionLogMessage logMessage{
-        static_cast<uint32_t>(code), messageBytes, ::MongoExtensionLogType::kLog};
-    // Set union field for severity.
-    logMessage.severityOrLevel.severity = severity;
-
-    return logMessage;
-}
-
-::MongoExtensionLogMessage HostServicesHandle::createDebugLogMessageStruct(
-    const std::string& message, std::int32_t code, std::int32_t level) {
-    // Convert message string to byte view.
-    auto messageBytes = stringViewAsByteView(std::string_view(message));
-
-    // TODO SERVER-111339 Handle attributes.
-    ::MongoExtensionLogMessage logMessage{
-        static_cast<uint32_t>(code), messageBytes, ::MongoExtensionLogType::kDebug};
-    // Set union field for level.
-    logMessage.severityOrLevel.level = level;
-
-    return logMessage;
-}
-
 void HostServicesHandle::_assertVTableConstraints(const VTable_t& vtable) const {
     sdk_tassert(
         11097801, "Host services' 'user_asserted' is null", vtable.user_asserted != nullptr);
-    sdk_tassert(11188200, "Host services' 'log' is null", vtable.log != nullptr);
-    sdk_tassert(11188201, "Host services' 'log_debug' is null", vtable.log_debug != nullptr);
+    sdk_tassert(11338300, "Host services' 'get_logger' is null", vtable.get_logger != nullptr);
     // Note that we intentionally do not validate tripwire_asserted here. If it wasn't valid, the
     // tripwire assert would fire and we would dereference the nullptr anyway.
     sdk_tassert(11149304,
@@ -78,7 +49,6 @@ void HostServicesHandle::_assertVTableConstraints(const VTable_t& vtable) const 
                 vtable.create_host_agg_stage_parse_node != nullptr);
     sdk_tassert(
         11134201, "Host services' 'create_id_lookup' is null", vtable.create_id_lookup != nullptr);
-    sdk_tassert(11288201, "Host services' 'should_log' is null", vtable.should_log != nullptr);
 }
 
 }  // namespace mongo::extension::sdk

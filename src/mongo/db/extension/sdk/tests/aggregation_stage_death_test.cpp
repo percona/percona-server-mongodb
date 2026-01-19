@@ -103,6 +103,12 @@ public:
         return {.code = extension::GetNextCode::kAdvanced, .res = boost::none};
     }
 
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
+
     static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
         return std::make_unique<InvalidExtensionExecAggStageAdvancedState>();
     }
@@ -118,6 +124,12 @@ public:
                 .res = boost::make_optional(BSON("$dog" << "I should not exist"))};
     }
 
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
+
     static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
         return std::make_unique<InvalidExtensionExecAggStagePauseExecutionState>();
     }
@@ -132,6 +144,12 @@ public:
                 .res = boost::make_optional(BSON("$dog" << "I should not exist"))};
     }
 
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
+
     static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
         return std::make_unique<InvalidExtensionExecAggStageEofState>();
     }
@@ -145,6 +163,12 @@ public:
         const MongoExtensionExecAggStage* execAggStage) override {
         return {.code = static_cast<const GetNextCode>(10), .res = boost::none};
     }
+
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
 
     static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
         return std::make_unique<InvalidExtensionExecAggStageGetNextCode>();
@@ -291,6 +315,37 @@ DEATH_TEST_F(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsGetNext,
     vtable.get_next = nullptr;
     handle.assertVTableConstraints(vtable);
 };
+
+DEATH_TEST_F(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsOpen, "11216705") {
+    auto noOpExecAggStage = new extension::sdk::ExtensionExecAggStage(
+        shared_test_stages::NoOpExtensionExecAggStage::make());
+    auto handle = TestExecAggStageVTableHandle{noOpExecAggStage};
+
+    auto vtable = handle.vtable();
+    vtable.open = nullptr;
+    handle.assertVTableConstraints(vtable);
+};
+
+DEATH_TEST_F(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsReopen, "11216706") {
+    auto noOpExecAggStage = new extension::sdk::ExtensionExecAggStage(
+        shared_test_stages::NoOpExtensionExecAggStage::make());
+    auto handle = TestExecAggStageVTableHandle{noOpExecAggStage};
+
+    auto vtable = handle.vtable();
+    vtable.reopen = nullptr;
+    handle.assertVTableConstraints(vtable);
+};
+
+DEATH_TEST_F(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsClose, "11216707") {
+    auto noOpExecAggStage = new extension::sdk::ExtensionExecAggStage(
+        shared_test_stages::NoOpExtensionExecAggStage::make());
+    auto handle = TestExecAggStageVTableHandle{noOpExecAggStage};
+
+    auto vtable = handle.vtable();
+    vtable.close = nullptr;
+    handle.assertVTableConstraints(vtable);
+};
+
 
 DEATH_TEST_F(AggStageDeathTest, InvalidExtensionGetNextResultAdvanced, "10956801") {
     auto invalidExtensionExecAggStageAdvancedState = new extension::sdk::ExtensionExecAggStage(

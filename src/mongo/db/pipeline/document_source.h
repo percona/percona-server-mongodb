@@ -44,6 +44,7 @@
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/field_path.h"
 #include "mongo/db/pipeline/pipeline_split_state.h"
+#include "mongo/db/pipeline/shard_role_transaction_resources_stasher_for_pipeline.h"
 #include "mongo/db/pipeline/stage_constraints.h"
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/compiler/dependency_analysis/dependencies.h"
@@ -203,10 +204,6 @@ class Pipeline;
 namespace exec::agg {
 class ListMqlEntitiesStage;
 }  // namespace exec::agg
-
-namespace rule_based_rewrites::pipeline {
-struct CommonTransforms;
-}  // namespace rule_based_rewrites::pipeline
 
 class DocumentSource : public RefCountable {
 public:
@@ -457,61 +454,6 @@ public:
         return mergeShardId.get();
     }
 
-private:
-    /**
-     * itr is pointing to some stage `A`. Fetch stage `B`, the stage after A in itr. If B is a
-     * $match stage, attempt to push B before A. Returns whether this optimization was
-     * performed.
-     */
-    bool pushMatchBefore(DocumentSourceContainer::iterator itr, DocumentSourceContainer* container);
-
-    /**
-     * itr is pointing to some stage `A`. Fetch stage `B`, the stage after A in itr. If B is a
-     * $sample stage, attempt to push B before A. Returns whether this optimization was
-     * performed.
-     */
-    bool pushSampleBefore(DocumentSourceContainer::iterator itr,
-                          DocumentSourceContainer* container);
-
-    /**
-     * Attempts to push any kind of 'DocumentSourceSingleDocumentTransformation' stage or a $redact
-     * stage directly ahead of the stage present at the 'itr' position if matches the constraints.
-     * Returns true if optimization was performed, false otherwise.
-     *
-     * Note that this optimization is oblivious to the transform function. The only stages that are
-     * eligible to swap are those that can safely swap with any transform.
-     */
-    bool pushSingleDocumentTransformOrRedactBefore(DocumentSourceContainer::iterator itr,
-                                                   DocumentSourceContainer* container);
-
-    /**
-     * Wraps various optimization methods and returns the call immediately if any one of them
-     * returns true.
-     */
-    bool attemptToPushStageBefore(DocumentSourceContainer::iterator itr,
-                                  DocumentSourceContainer* container) {
-        if (std::next(itr) == container->end()) {
-            return false;
-        }
-
-        return pushMatchBefore(itr, container) || pushSampleBefore(itr, container) ||
-            pushSingleDocumentTransformOrRedactBefore(itr, container);
-    }
-
-public:
-    /**
-     * The non-virtual public interface for optimization. Attempts to do some generic optimizations
-     * such as pushing $matches as early in the pipeline as possible, then calls out to
-     * doOptimizeAt() for stage-specific optimizations.
-     *
-     * Subclasses should override doOptimizeAt() if they can apply some optimization(s) based on
-     * subsequent stages in the pipeline.
-     *
-     * TODO(SERVER-110107): Remove this.
-     */
-    DocumentSourceContainer::iterator optimizeAt(DocumentSourceContainer::iterator itr,
-                                                 DocumentSourceContainer* container);
-
     /**
      * Returns an optimized DocumentSource that is semantically equivalent to this one, or
      * nullptr if this stage is a no-op. Implementations are allowed to modify themselves
@@ -732,24 +674,26 @@ public:
         return _expCtx->getOperationContext() == opCtx;
     }
 
+    /**
+     * Stages must override this method if they need access to collection data during execution
+     * (e.g. to read documents, scan indexes, etc.). Stages can obtain the collectionAcquisitions
+     * they need from 'collections'. The 'stasher' must be used to maintain these acquisitions and
+     * manage TransactionResources as execution occurs.
+     *
+     * This is for shard-level catalog information and not for routing information. Stages that act
+     * as a router for their subpipelines do not need to define it.
+     *
+     * Pipeline::bindCatalogInfo() MUST be invoked on any pipeline before execution begins to
+     * ensure all stages receive the necessary catalog information.
+     *
+     * TODO SERVER-113754: $cursor and $geoNearCursor should implement this function.
+     */
+    virtual void bindCatalogInfo(
+        const MultipleCollectionAccessor& collections,
+        boost::intrusive_ptr<ShardRoleTransactionResourcesStasherForPipeline> stasher) {}
+
 protected:
     DocumentSource(StringData stageName, const boost::intrusive_ptr<ExpressionContext>& pExpCtx);
-
-    /**
-     * Attempt to perform an optimization with the following source in the pipeline. 'container'
-     * refers to the entire pipeline, and 'itr' points to this stage within the pipeline.
-     *
-     * The return value is an iterator over the same container which points to the first location
-     * in the container at which an optimization may be possible, or the end of the container().
-     *
-     * For example, if a swap takes place, the returned iterator should just be the position
-     * directly preceding 'itr', if such a position exists, since the stage at that position may be
-     * able to perform further optimizations with its new neighbor.
-     */
-    virtual DocumentSourceContainer::iterator doOptimizeAt(DocumentSourceContainer::iterator itr,
-                                                           DocumentSourceContainer* container) {
-        return std::next(itr);
-    }
 
     /**
      * Utility which describes when a stage needs to nominate a merging shard.
@@ -781,10 +725,6 @@ private:
     // Give access to 'getParserMap()' for the implementation of $listMqlEntities but hiding
     // it from all other stages.
     friend class exec::agg::ListMqlEntitiesStage;
-
-    // TODO(SERVER-110107): Remove.
-    // Give access to 'doOptimizeAt()' to allow it to be registered as an unconditional rule.
-    friend struct rule_based_rewrites::pipeline::CommonTransforms;
 
     // Used to keep track of which DocumentSources are registered under which name. Initialized
     // during process initialization and const thereafter.

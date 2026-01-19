@@ -76,9 +76,9 @@ static const Value descendVal = Value("descend"_sd);
 static const Value pruneVal = Value("prune"_sd);
 static const Value keepVal = Value("keep"_sd);
 
-DocumentSourceContainer::iterator DocumentSourceRedact::doOptimizeAt(
+DocumentSourceContainer::iterator DocumentSourceRedact::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
-    invariant(*itr == this);
+    tassert(11282971, "Expecting DocumentSource iterator pointing to this stage", *itr == this);
 
     if (std::next(itr) == container->end()) {
         return container->end();

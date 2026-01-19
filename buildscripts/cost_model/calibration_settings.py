@@ -179,16 +179,22 @@ def create_coll_scan_collection_template(
                 ),
                 indexed=True,
             ),
-            config.FieldTemplate(
-                name="int_uniform_unindexed",
-                data_type=config.DataType.INTEGER,
-                distribution=RandomDistribution.uniform(RangeGenerator(DataType.INTEGER, 1, 2)),
-                indexed=False,
-            ),
         ],
         compound_indexes=[],
         cardinalities=cardinalities,
     )
+
+    # 10 more unindexed fields whose value is always 1.
+    filter_fields = [
+        config.FieldTemplate(
+            name=f"int_uniform_unindexed_{i}",
+            data_type=config.DataType.INTEGER,
+            distribution=RandomDistribution.uniform(RangeGenerator(DataType.INTEGER, 1, 2)),
+            indexed=False,
+        )
+        for i in range(10)
+    ]
+    template.fields.extend(filter_fields)
 
     if payload_size > 0:
         payload_distr = random_strings_distr(payload_size, 1000)
@@ -345,8 +351,14 @@ doc_scan_collection = create_coll_scan_collection_template(
 )
 sort_collections = create_coll_scan_collection_template(
     "sort",
-    cardinalities=[5, 10, 50, 75, 100, 150, 300, 400, 500, 750, 1000],
-    payload_size=10,
+    # We add '2' here to calibrate the startup cost in qsn_calibrator
+    cardinalities=[2] + list(range(1000, 10_001, 1000)),
+    payload_size=1000,
+)
+large_sort_collections = create_coll_scan_collection_template(
+    "large_sort",
+    cardinalities=list(range(100_000, 150_001, 10_000)),
+    payload_size=1000,
 )
 merge_sort_collections = create_indexed_fields_template(
     "merge_sort",
@@ -395,6 +407,7 @@ data_generator = config.DataGeneratorConfig(
         index_scan_collection,
         doc_scan_collection,
         sort_collections,
+        large_sort_collections,
         merge_sort_collections,
         or_collections,
         intersection_sorted_collections,
@@ -439,6 +452,30 @@ qsn_nodes = [
         type="IXSCAN",
         variables_override=lambda df: pd.concat(
             [df["n_index_fields"].rename("Number of fields in index")],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        name="FETCH_W_FILTERS_W_DIFF_NUM_LEAVES",
+        type="FETCH",
+        variables_override=lambda df: pd.concat(
+            [df["n_top_level_and_children"].rename("Number of filters")],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        name="COLLSCAN_W_FILTERS_W_DIFF_NUM_LEAVES",
+        type="COLLSCAN",
+        variables_override=lambda df: pd.concat(
+            [df["n_top_level_and_children"].rename("Number of filters")],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        name="IXSCAN_W_FILTERS_W_DIFF_NUM_LEAVES",
+        type="IXSCAN",
+        variables_override=lambda df: pd.concat(
+            [df["n_top_level_and_children"].rename("Number of filters")],
             axis=1,
         ),
     ),
@@ -495,8 +532,19 @@ qsn_nodes = [
             [
                 (df["n_processed"] * np.log2(df["n_processed"])).rename(
                     "n_processed * log2(n_processed)"
-                ),
-                df["n_processed"],
+                )
+            ],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        name="SORT_DEFAULT_SPILL",
+        type="SORT",
+        variables_override=lambda df: pd.concat(
+            [
+                (df["n_processed"] * np.log2(df["n_processed"])).rename(
+                    "n_processed * log2(n_processed)"
+                )
             ],
             axis=1,
         ),
@@ -510,7 +558,18 @@ qsn_nodes = [
                 (df["n_processed"] * np.log2(df["n_processed"])).rename(
                     "n_processed * log2(n_processed)"
                 ),
-                df["n_processed"],
+            ],
+            axis=1,
+        ),
+    ),
+    config.QsNodeCalibrationConfig(
+        name="SORT_SIMPLE_SPILL",
+        type="SORT",
+        variables_override=lambda df: pd.concat(
+            [
+                (df["n_processed"] * np.log2(df["n_processed"])).rename(
+                    "n_processed * log2(n_processed)"
+                )
             ],
             axis=1,
         ),

@@ -28,6 +28,8 @@ import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 import {getRawOperationSpec} from "jstests/libs/raw_operation_utils.js";
 
+const isMultiversion =
+    Boolean(jsTest.options().useRandomBinVersionsWithinReplicaSet) || Boolean(TestData.multiversionBinVersion);
 function assertNoUnrecognizedFields(restParameters, sourceName, targetName, sourceObject) {
     assert(
         !Object.keys(restParameters).length,
@@ -363,7 +365,16 @@ function validateListCatalogToListCollectionsConsistency(listCatalog, listCollec
         ),
     );
     const sortedListCollections = sortCollectionsInPlace([...listCollections]);
-
+    // TODO (SERVER-95599): Remove this workaround under the "if" for the configDebugDump once 9.0 becomes last LTS.
+    // This is because v8.2 and v8.3 binaries handle this field differently for views and timeseries. We just prevent any comparison.
+    if (isMultiversion) {
+        listCollectionsFromListCatalog.forEach((e) => {
+            if (e.type == "view" || e.type == "timeseries") delete e.info.configDebugDump;
+        });
+        sortedListCollections.forEach((e) => {
+            if (e.type == "view" || e.type == "timeseries") delete e.info.configDebugDump;
+        });
+    }
     const equals = bsonUnorderedFieldArrayEquals(listCollectionsFromListCatalog, sortedListCollections);
     if (!equals) {
         const message =
@@ -499,22 +510,29 @@ export function assertCatalogListOperationsConsistencyForCollection(collection) 
     // so we can assume that the database is not read-only when running a sharded cluster.
     const isDbReadOnly = !FixtureHelpers.isMongos(db) && db.serverStatus().storageEngine.readOnly;
 
-    const listCollections = db.getCollectionInfos({name: {$in: collectionNames}});
-    const listIndexes = listCollections
-        .filter((e) => !isViewListCollectionsEntry(e))
-        .map((coll) => ({
-            name: coll.name,
-            indexes: db.getCollection(coll.name).getIndexes(getRawOperationSpec(db)),
-        }));
+    const originalHideImplicitlyCreatedIndexesFromListIndexes = TestData.hideImplicitlyCreatedIndexesFromListIndexes;
+    try {
+        TestData.hideImplicitlyCreatedIndexesFromListIndexes = false;
 
-    let listCatalog = db
-        .getSiblingDB("admin")
-        .aggregate([{$listCatalog: {}}, {$match: {db: db.getName(), name: {$in: collectionNames}}}])
-        .toArray();
+        const listCollections = db.getCollectionInfos({name: {$in: collectionNames}});
+        const listIndexes = listCollections
+            .filter((e) => !isViewListCollectionsEntry(e))
+            .map((coll) => ({
+                name: coll.name,
+                indexes: db.getCollection(coll.name).getIndexes(getRawOperationSpec(db)),
+            }));
 
-    listCatalog = filterListCatalogEntriesFromShardsWithoutChunks(db, listCatalog);
+        let listCatalog = db
+            .getSiblingDB("admin")
+            .aggregate([{$listCatalog: {}}, {$match: {db: db.getName(), name: {$in: collectionNames}}}])
+            .toArray();
 
-    validateCatalogListOperationsConsistency(listCatalog, listCollections, listIndexes, isDbReadOnly, true);
+        listCatalog = filterListCatalogEntriesFromShardsWithoutChunks(db, listCatalog);
+
+        validateCatalogListOperationsConsistency(listCatalog, listCollections, listIndexes, isDbReadOnly, true);
+    } finally {
+        TestData.hideImplicitlyCreatedIndexesFromListIndexes = originalHideImplicitlyCreatedIndexesFromListIndexes;
+    }
 }
 
 export function assertCatalogListOperationsConsistencyForDb(db, tenantId) {
@@ -617,14 +635,22 @@ export function assertCatalogListOperationsConsistencyForDb(db, tenantId) {
                 return true;
             }
             // TODO SERVER-75675: do not skip index consistency check on sharded clusters.
-            collIndexes = !isMongos
-                ? collInfo
-                      .filter((e) => !isViewListCollectionsEntry(e))
-                      .map((coll) => ({
-                          name: coll.name,
-                          indexes: db.getCollection(coll.name).getIndexes(getRawOperationSpec(db)),
-                      }))
-                : null;
+            const originalHideImplicitlyCreatedIndexesFromListIndexes =
+                TestData.hideImplicitlyCreatedIndexesFromListIndexes;
+            try {
+                TestData.hideImplicitlyCreatedIndexesFromListIndexes = false;
+                collIndexes = !isMongos
+                    ? collInfo
+                          .filter((e) => !isViewListCollectionsEntry(e))
+                          .map((coll) => ({
+                              name: coll.name,
+                              indexes: db.getCollection(coll.name).getIndexes(getRawOperationSpec(db)),
+                          }))
+                    : null;
+            } finally {
+                TestData.hideImplicitlyCreatedIndexesFromListIndexes =
+                    originalHideImplicitlyCreatedIndexesFromListIndexes;
+            }
         } catch (ex) {
             // In a sharded cluster with in-progress validate command for the config database
             // (i.e. on the config server), catalog accesses on a mongos or shardsvr mongod that

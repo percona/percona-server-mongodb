@@ -62,9 +62,9 @@ const char* DocumentSourceInternalProjection::getSourceName() const {
     return kStageNameInternal.data();
 }
 
-DocumentSourceContainer::iterator DocumentSourceInternalProjection::doOptimizeAt(
+DocumentSourceContainer::iterator DocumentSourceInternalProjection::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
-    invariant(*itr == this);
+    tassert(11282992, "Expecting DocumentSource iterator pointing to this stage", *itr == this);
     return itr;
 }
 

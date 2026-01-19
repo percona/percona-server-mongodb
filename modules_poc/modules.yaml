@@ -421,6 +421,9 @@ access_control:
     slack: server-security
     jira: Server Security
   files:
+    - src/mongo/client/native_sasl_client_session*
+    - src/mongo/client/sasl_*
+    - src/mongo/client/scram_client_cache*
     - src/mongo/db/auth/
     - src/mongo/db/commands/authentication*
     - src/mongo/db/commands/user_management*
@@ -475,7 +478,7 @@ audit:
     - src/mongo/rpc/metadata/audit*
     - src/mongo/s/client_metadata_propagation_egress_hook*
 
-encrypted_storage_engine:
+storage_engine_api.encrypted_storage_engine:
   meta:
     slack: server-security
     jira: Server Security
@@ -666,6 +669,8 @@ networking:
   meta:
     slack: server-networking-observability
     jira: Networking & Observability
+    # TODO SERVER-113765: uncomment the following line.
+    # fully_marked: true
   files:
     - src/mongo/client/
     - src/mongo/dbtests/clienttests.cpp
@@ -808,7 +813,6 @@ index_builds: # authoritative: @10gen/server-index-builds
     - src/mongo/db/commands/create_indexes*
     - src/mongo/db/commands/set_index_commit_quorum*
     - src/mongo/db/commands/vote*index_build*
-    - src/mongo/dbtests/index_builds/*
     - src/mongo/dbtests/indexupdatetests.cpp
     - src/mongo/s/commands/commit_quorum/cluster_set_index_commit_quorum_cmd.cpp
 
@@ -921,10 +925,10 @@ server_backup_restore:
   meta:
     slack: storage-engines-server-integration
     jira: Server Integration
+    fully_marked: true
   files:
     - src/mongo/db/modules/enterprise/src/hot_backups
     - src/mongo/db/modules/enterprise/src/live_import
-    - src/mongo/db/modules/enterprise/src/util/document_source_visitor_registry_enterprise.h
     - src/mongo/db/storage/backup*
 
 cache_pressure:
@@ -1125,6 +1129,7 @@ replication.replication_coordinator:
     - src/mongo/db/command_can_run_here*
     - src/mongo/db/repl/*always_allow_non_local_writes*
     - src/mongo/db/repl/*isself*
+    - src/mongo/db/repl/data_with_lock_free_reads*
     - src/mongo/db/repl/replication_waiter_list_bm.cpp
     - src/mongo/db/modules/atlas/src/disagg_storage/replication_coordinator*
 

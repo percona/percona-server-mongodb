@@ -28,7 +28,13 @@
  */
 #pragma once
 
+#ifdef __has_include
+#if __has_include("mongo/util/modules.h")
 #include "mongo/util/modules.h"
+#else
+#define MONGO_MOD_PUB
+#endif
+#endif  // __has_include
 
 #include <stddef.h>
 #include <stdint.h>
@@ -41,25 +47,21 @@ extern "C" {
  * Represents the API version of the MongoDB extension, to ensure compatibility between the MongoDB
  * server and the extension.
  *
- * The version is composed of three parts: major, minor, and patch. The major version is incremented
- * for incompatible changes, the minor version for for backward-compatible changes, and the patch
- * version for bug fixes.
+ * The version is composed of two parts: major and minor. The major version is incremented
+ * for incompatible changes and the minor version for for backward-compatible changes.
  */
 typedef struct {
     uint32_t major;
     uint32_t minor;
-    uint32_t patch;
 } MongoExtensionAPIVersion;
 
 #define MONGODB_EXTENSION_API_MAJOR_VERSION 0
 #define MONGODB_EXTENSION_API_MINOR_VERSION 0
-#define MONGODB_EXTENSION_API_PATCH_VERSION 0
 
 // The current API version of the MongoDB extension.
-#define MONGODB_EXTENSION_API_VERSION                                             \
-    MongoExtensionAPIVersion {                                                    \
-        MONGODB_EXTENSION_API_MAJOR_VERSION, MONGODB_EXTENSION_API_MINOR_VERSION, \
-            MONGODB_EXTENSION_API_PATCH_VERSION                                   \
+#define MONGODB_EXTENSION_API_VERSION                                            \
+    MongoExtensionAPIVersion {                                                   \
+        MONGODB_EXTENSION_API_MAJOR_VERSION, MONGODB_EXTENSION_API_MINOR_VERSION \
     }
 
 /**
@@ -382,7 +384,6 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      * provide a nullptr for the input.
      */
     MongoExtensionStatus* (*compile)(const MongoExtensionLogicalAggStage* logicalStage,
-                                     struct MongoExtensionExecAggStage* input,
                                      struct MongoExtensionExecAggStage** output);
 
 } MongoExtensionLogicalAggStageVTable;
@@ -418,7 +419,7 @@ typedef struct MongoExtensionExpandedArrayElement {
     union {
         MongoExtensionAggStageParseNode* parse;
         MongoExtensionAggStageAstNode* ast;
-    };
+    } parseOrAst;
 } MongoExtensionExpandedArrayElement;
 
 /**
@@ -431,6 +432,39 @@ typedef struct MongoExtensionExpandedArray {
     size_t size;
     struct MongoExtensionExpandedArrayElement* const elements;
 } MongoExtensionExpandedArray;
+
+/**
+ * Types of elements that can be in a MongoExtensionDPLArray.
+ */
+typedef enum MongoExtensionDPLArrayElementType : uint32_t {
+    kParse = 0,   // Parse node
+    kLogical = 1  // Logical stage
+} MongoExtensionDPLArrayElementType;
+
+/**
+ * MongoExtensionDPLArrayElement represents a single element in a MongoExtensionDPLArray. Each
+ * element can be either a parse node or a logical stage.
+ */
+typedef struct MongoExtensionDPLArrayElement {
+    // Indicates what type the element is.
+    MongoExtensionDPLArrayElementType type;
+    union {
+        MongoExtensionAggStageParseNode* parseNode;
+        MongoExtensionLogicalAggStage* logicalStage;
+    } element;
+} MongoExtensionDPLArrayElement;
+
+/**
+ * MongoExtensionDPLArray represents an array of elements used during distributed planning. The
+ * array can contain either parse nodes or logical stages.
+ *
+ * Once the MongoExtensionDPLArray is populated by the extension, ownership is assumed to be
+ * transferred entirely to the Host.
+ */
+typedef struct MongoExtensionDPLArray {
+    size_t size;
+    struct MongoExtensionDPLArrayElement* const elements;
+} MongoExtensionDPLArray;
 
 /**
  * Virtual function table for MongoExtensionAggStageParseNode.
@@ -586,6 +620,23 @@ typedef struct MongoExtensionExecAggStageVTable {
     MongoExtensionStatus* (*create_metrics)(const MongoExtensionExecAggStage* execAggStage,
                                             MongoExtensionOperationMetrics** metrics);
 
+    /**
+     * Initializes the stage and positions it before the first result.
+     * Resources should be acquired during open() and avoided in getNext() for better
+     * performance.
+     */
+    MongoExtensionStatus* (*open)(MongoExtensionExecAggStage* execAggStage);
+
+    /**
+     * Reinitializes acquired resources. Semantically equivalent to close() + open(), but more
+     * efficient.
+     */
+    MongoExtensionStatus* (*reopen)(MongoExtensionExecAggStage* execAggStage);
+
+    /**
+     * Frees all acquired resources.
+     */
+    MongoExtensionStatus* (*close)(MongoExtensionExecAggStage* execAggStage);
 } MongoExtensionExecAggStageVTable;
 
 /**
@@ -628,6 +679,30 @@ typedef struct MongoExtensionHostPortalVTable {
 } MongoExtensionHostPortalVTable;
 
 /**
+ * Represents a single key-value pair attribute for a structured log message. Both `name` and
+ * `value` are expected to be strings serialized to ByteViews.
+ *
+ * These attributes provide additional context and metadata for extension log messages,
+ * allowing structured logging with arbitrary metadata beyond the base message text.
+ */
+typedef struct MongoExtensionLogAttribute {
+    MongoExtensionByteView name;
+    MongoExtensionByteView value;
+} MongoExtensionLogAttribute;
+
+/**
+ * A fixed-size array of log attributes that accompany a structured log message.
+ *
+ * The array is allocated by the caller and populated with attributes to be logged
+ * alongside a structured log message. The `elements` pointer references an array of
+ * `size` MongoExtensionLogAttribute entries.
+ */
+typedef struct MongoExtensionLogAttributesArray {
+    uint64_t size;
+    struct MongoExtensionLogAttribute* elements;
+} MongoExtensionLogAttributesArray;
+
+/**
  * Log severity levels for extension log messages.
  */
 typedef enum MongoExtensionLogSeverity : uint32_t {
@@ -649,12 +724,47 @@ typedef struct MongoExtensionLogMessage {
     uint32_t code;
     MongoExtensionByteView message;
     MongoExtensionLogType type;
-    // TODO SERVER-111339 Add attributes.
+    MongoExtensionLogAttributesArray attributes;
     union {
         MongoExtensionLogSeverity severity;
         int level;
     } severityOrLevel;
 } MongoExtensionLogMessage;
+
+/**
+ * MongoExtensionLogger enables extensions to send structured log messages to MongoDB's logging
+ * system.
+ *
+ * The logger is implemented by the host and provided to extensions through `HostServices`.
+ *
+ * The logger supports multiple severity levels (Info, Warning, Error) for standard logs and
+ * debug levels (1-5) for debug logs, allowing extensions to categorize messages by importance
+ * and emit debug traces conditionally based on server log level configuration.
+ */
+typedef struct MongoExtensionLogger {
+    const struct MongoExtensionLoggerVTable* vtable;
+} MongoExtensionLogger;
+
+/**
+ * Virtual function table for MongoExtensionLogger.
+ */
+typedef struct MongoExtensionLoggerVTable {
+    /**
+     * Logs a message from the extension. The log may be a severity log with severity INFO, WARNING,
+     * or ERROR. It may also be a debug log w/ a numeric debug log level.
+     */
+    MongoExtensionStatus* (*log)(const MongoExtensionLogMessage* rawLog);
+
+    /**
+     * This provides an optimization to the logging service, as it compares the provided log
+     * level/severity against the server's current log level before materializing and sending a log
+     * over the wire. 'logType' indicates whether levelOrSeverity is a level (kDebug) or a severity
+     * (kLog), as in the latter case in case we need to transform the value to a logv2::LogSeverity.
+     */
+    MongoExtensionStatus* (*should_log)(MongoExtensionLogSeverity levelOrSeverity,
+                                        ::MongoExtensionLogType logType,
+                                        bool* out);
+} MongoExtensionLoggerVTable;
 
 /**
  * MongoExtensionHostServices exposes services provided by the host to the extension.
@@ -670,15 +780,9 @@ typedef struct MongoExtensionHostServices {
  */
 typedef struct MongoExtensionHostServicesVTable {
     /**
-     * Logs a message from the extension with severity INFO, WARNING, or ERROR.
+     * Retrieve the static logging instance on the host.
      */
-    MongoExtensionStatus* (*log)(const MongoExtensionLogMessage* rawLog);
-
-    /**
-     * Sends a debug log message to the server, and logs it as long as the 'Extension' log component
-     * in the server has a level greater or equal to the debug log's level.
-     */
-    MongoExtensionStatus* (*log_debug)(const MongoExtensionLogMessage* rawLog);
+    MongoExtensionLogger* (*get_logger)();
 
     /**
      * Throws a non-fatal exception to end the current operation with an error. This should be
@@ -710,16 +814,6 @@ typedef struct MongoExtensionHostServicesVTable {
      */
     MongoExtensionStatus* (*create_id_lookup)(MongoExtensionByteView bsonSpec,
                                               MongoExtensionAggStageAstNode** node);
-
-    /**
-     * This provides an optimization to the logging service, as it compares the provided log
-     * level/severity against the server's current log level before materializing and sending a log
-     * over the wire. 'logType' indicates whether levelOrSeverity is a level (kDebug) or a severity
-     * (kLog), as in the latter case in case we need to transform the value to a logv2::LogSeverity.
-     */
-    MongoExtensionStatus* (*should_log)(MongoExtensionLogSeverity levelOrSeverity,
-                                        ::MongoExtensionLogType logType,
-                                        bool* out);
 } MongoExtensionHostServicesVTable;
 
 /**

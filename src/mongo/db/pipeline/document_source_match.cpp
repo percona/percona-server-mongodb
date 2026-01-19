@@ -108,7 +108,7 @@ void DocumentSourceMatch::rebuild(BSONObj predicate) {
 }
 
 void DocumentSourceMatch::rebuild(BSONObj predicate, std::unique_ptr<MatchExpression> expr) {
-    invariant(predicate.isOwned());
+    tassert(11282978, "Expecting owned predicate", predicate.isOwned());
     _isTextQuery = containsTextOperator(*expr);
     DepsTracker dependencies =
         DepsTracker(_isTextQuery ? DepsTracker::kOnlyTextScore : DepsTracker::kNoMetadata);
@@ -141,9 +141,9 @@ intrusive_ptr<DocumentSource> DocumentSourceMatch::optimize() {
     return this;
 }
 
-DocumentSourceContainer::iterator DocumentSourceMatch::doOptimizeAt(
+DocumentSourceContainer::iterator DocumentSourceMatch::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
-    invariant(*itr == this);
+    tassert(11282977, "Expecting DocumentSource iterator pointing to this stage", *itr == this);
 
     if (std::next(itr) == container->end()) {
         return container->end();
@@ -157,7 +157,9 @@ DocumentSourceContainer::iterator DocumentSourceMatch::doOptimizeAt(
     if (nextMatch) {
         // Text queries are not allowed anywhere except as the first stage. This is checked before
         // optimization.
-        invariant(!nextMatch->_isTextQuery);
+        tassert(11282985,
+                "Expect text query to be the first stage in the series of matches",
+                !nextMatch->_isTextQuery);
 
         // Merge 'nextMatch' into this stage.
         joinMatchWith(nextMatch, MatchExpression::MatchType::AND);
@@ -443,18 +445,13 @@ void DocumentSourceMatch::joinMatchWith(intrusive_ptr<DocumentSourceMatch> other
 pair<intrusive_ptr<DocumentSourceMatch>, intrusive_ptr<DocumentSourceMatch>>
 DocumentSourceMatch::splitSourceBy(const OrderedPathSet& fields,
                                    const StringMap<std::string>& renames) && {
-    return std::move(*this).splitSourceByFunc(fields, renames, expression::isIndependentOf);
-}
-
-pair<intrusive_ptr<DocumentSourceMatch>, intrusive_ptr<DocumentSourceMatch>>
-DocumentSourceMatch::splitSourceByFunc(const OrderedPathSet& fields,
-                                       const StringMap<std::string>& renames,
-                                       expression::ShouldSplitExprFunc func) && {
     pair<unique_ptr<MatchExpression>, unique_ptr<MatchExpression>> newExpr(
         expression::splitMatchExpressionBy(
-            std::move(_matchProcessor->getExpression()), fields, renames, func));
+            std::move(_matchProcessor->getExpression()), fields, renames));
 
-    invariant(newExpr.first || newExpr.second);
+    tassert(11282976,
+            "Expect match split to produce at least 1 match expression",
+            newExpr.first || newExpr.second);
 
     if (!newExpr.first) {
         // The entire $match depends on 'fields'. It cannot be split or moved, so we return this

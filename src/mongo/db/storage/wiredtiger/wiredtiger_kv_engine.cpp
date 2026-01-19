@@ -3079,12 +3079,14 @@ void WiredTigerKVEngine::setSortedDataInterfaceExtraOptions(const std::string& o
 }
 
 Status WiredTigerKVEngine::_createRecordStore(const rss::PersistenceProvider& provider,
+                                              RecoveryUnit& ru,
                                               const NamespaceString& nss,
                                               StringData ident,
                                               KeyFormat keyFormat,
                                               const BSONObj& storageEngineCollectionOptions,
                                               boost::optional<std::string> customBlockCompressor) {
-    WiredTigerSession session(_connection.get());
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+    auto& session = *wtRu.getSessionNoTxn();
 
     WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig;
     wtTableConfig.keyFormat = keyFormat;
@@ -3124,11 +3126,13 @@ Status WiredTigerKVEngine::_createRecordStore(const rss::PersistenceProvider& pr
     return wtRCToStatus(session.create(uri.c_str(), config.c_str()), session);
 }
 
-Status WiredTigerKVEngine::importRecordStore(StringData ident,
+Status WiredTigerKVEngine::importRecordStore(RecoveryUnit& ru,
+                                             StringData ident,
                                              const BSONObj& storageMetadata,
                                              bool panicOnCorruptWtMetadata,
                                              bool repair) {
-    WiredTigerSession session(_connection.get());
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+    auto& session = *wtRu.getSessionNoTxn();
 
     std::string config = uassertStatusOK(WiredTigerUtil::generateImportString(
         ident, storageMetadata, panicOnCorruptWtMetadata, repair));
@@ -3145,6 +3149,7 @@ Status WiredTigerKVEngine::importRecordStore(StringData ident,
 }
 
 Status WiredTigerKVEngine::recoverOrphanedIdent(const rss::PersistenceProvider& provider,
+                                                RecoveryUnit& ru,
                                                 const NamespaceString& nss,
                                                 StringData ident,
                                                 const RecordStore::Options& options) {
@@ -3179,7 +3184,7 @@ Status WiredTigerKVEngine::recoverOrphanedIdent(const rss::PersistenceProvider& 
 
     LOGV2(22333, "Creating new RecordStore", logAttrs(nss));
 
-    status = createRecordStore(provider, nss, ident, options);
+    status = createRecordStore(provider, ru, nss, ident, options);
     if (!status.isOK()) {
         return status;
     }
@@ -3434,7 +3439,8 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::getTemporaryRecordStore(Recover
 std::unique_ptr<RecordStore> WiredTigerKVEngine::makeTemporaryRecordStore(RecoveryUnit& ru,
                                                                           StringData ident,
                                                                           KeyFormat keyFormat) {
-    WiredTigerSession session(_connection.get());
+    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
+    auto& session = *wtRu.getSessionNoTxn();
 
     WiredTigerRecordStore::WiredTigerTableConfig wtTableConfig;
     wtTableConfig.keyFormat = keyFormat;
@@ -3513,6 +3519,8 @@ Status WiredTigerKVEngine::dropIdent(RecoveryUnit& ru,
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
     wtRu.getSessionNoTxn()->closeAllCursors(uri);
 
+    // Use a separate session to avoid transactional issues, because a drop may impact the
+    // in-progress transaction.
     WiredTigerSession session(_connection.get());
 
     Status status = _drop(session, uri.c_str(), "checkpoint_wait=false");
@@ -3547,6 +3555,8 @@ void WiredTigerKVEngine::dropIdentForImport(Interruptible& interruptible,
     WiredTigerRecoveryUnit* wtRu = checked_cast<WiredTigerRecoveryUnit*>(&ru);
     wtRu->getSessionNoTxn()->closeAllCursors(uri);
 
+    // Use a separate session to avoid transactional issues, because a drop may impact the
+    // in-progress transaction.
     WiredTigerSession session(_connection.get());
 
     // Don't wait for the global checkpoint lock to be obtained in WiredTiger as it can take a

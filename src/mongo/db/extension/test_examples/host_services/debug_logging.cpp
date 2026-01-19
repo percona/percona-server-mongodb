@@ -29,6 +29,7 @@
 
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/extension_factory.h"
+#include "mongo/db/extension/sdk/log_util.h"
 #include "mongo/db/extension/sdk/test_extension_factory.h"
 #include "mongo/db/extension/sdk/test_extension_util.h"
 
@@ -47,6 +48,7 @@ class DebugLogStageDescriptor : public sdk::AggStageDescriptor {
 public:
     static inline const std::string kStageName = std::string(DebugLogStageName);
     static inline const std::string kDebugLogLevelField = "level";
+    static inline const std::string kAttributesField = "attrs";
 
     DebugLogStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
@@ -66,16 +68,24 @@ public:
         int level = bsonSpec.getIntField(kDebugLogLevelField);
 
         // This tests the functionality of the shouldLog host service.
-        if (sdk::HostServicesHandle::getHostServices()->shouldLog(
+        if (sdk::HostServicesHandle::getHostServices()->getLogger().shouldLog(
                 ::MongoExtensionLogSeverity(level), ::MongoExtensionLogType::kDebug)) {
-            sdk::HostServicesHandle::getHostServices()->log(
-                "Log level is enough", 11134101, ::MongoExtensionLogSeverity::kWarning);
+            sdk::sdk_log("Log level is enough", 11134101, ::MongoExtensionLogSeverity::kWarning);
         } else {
-            sdk::HostServicesHandle::getHostServices()->log(
+            sdk::sdk_log(
                 "Log level is not enough", 11134102, ::MongoExtensionLogSeverity::kWarning);
         }
 
-        sdk::HostServicesHandle::getHostServices()->logDebug("Test log message", 11134100, level);
+        std::vector<mongo::extension::sdk::ExtensionLogAttribute> attrs;
+        if (bsonSpec.hasElement(kAttributesField)) {
+            auto attrsSpec = bsonSpec.getObjectField(kAttributesField);
+            for (const auto& field : attrsSpec.getFieldNames<std::set<std::string>>()) {
+                attrs.emplace_back(mongo::extension::sdk::ExtensionLogAttribute{
+                    field, std::string(attrsSpec.getStringField(field))});
+            }
+        }
+
+        sdk::sdk_logDebug("Test log message", 11134100, level, attrs);
 
         return std::make_unique<DebugLogParseNode>(stageBson);
     }

@@ -29,12 +29,13 @@
 
 #include "mongo/db/extension/sdk/extension_helper.h"
 
+#include <span>
+
 namespace mongo::extension::sdk {
 
-bool isVersionCompatible(const ::MongoExtensionAPIVersionVector* hostVersions,
+bool isVersionCompatible(std::span<const ::MongoExtensionAPIVersion> hostVersions,
                          const ::MongoExtensionAPIVersion* version) {
-    for (size_t i = 0; i < hostVersions->len; ++i) {
-        const auto& hostVersion = hostVersions->versions[i];
+    for (const auto& hostVersion : hostVersions) {
         if (hostVersion.major == version->major && hostVersion.minor >= version->minor) {
             return true;
         }

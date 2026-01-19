@@ -28,6 +28,9 @@ EXCLUDED_PATTERNS = [
     "buildscripts/modules/",
 ]
 
+# Commit hash of Copybara to use (v20251110)
+COPYBARA_COMMIT_HASH = "3f050c9e08b84aeda98875bf1b02a3288d351333"
+
 
 class CopybaraRepoConfig(NamedTuple):
     """Copybara source and destination repo sync configuration."""
@@ -489,7 +492,10 @@ def main():
     if os.path.exists("copybara"):
         print("Copybara directory already exists.")
     else:
-        run_command("git clone --branch d03973e9fe1 https://github.com/10gen/copybara.git")
+        run_command("git clone https://github.com/10gen/copybara.git")
+
+    # Checkout the specific commit of Copybara we want to use
+    run_command(f"cd copybara && git checkout {COPYBARA_COMMIT_HASH}")
 
     # Navigate to the Copybara directory and build the Copybara Docker image
     run_command("cd copybara && docker build --rm -t copybara_container .")
@@ -643,6 +649,48 @@ def main():
         if args.workflow == "prod":
             error_message = f"Copybara failed with error: {err.returncode}"
             handle_failure(expansions, error_message, err.output)
+
+    # Write newly generated tokens to the config file to make sure
+    # the token isn't expired by the time the dry-run finishes
+    token_mongodb_mongo = get_installation_access_token(
+        expansions["app_id_copybara_syncer"],
+        expansions["private_key_copybara_syncer"],
+        expansions["installation_id_copybara_syncer"],
+    )
+    token_10gen_mongo = get_installation_access_token(
+        expansions["app_id_copybara_syncer_10gen"],
+        expansions["private_key_copybara_syncer_10gen"],
+        expansions["installation_id_copybara_syncer_10gen"],
+    )
+
+    REDACTED_STRINGS += [token_mongodb_mongo, token_10gen_mongo]
+
+    tokens_map = {
+        "mongodb/mongo.git": token_mongodb_mongo,
+        "10gen/mongo.git": token_10gen_mongo,
+        "10gen/mongo-copybara.git": token_10gen_mongo,
+    }
+
+    with fileinput.FileInput(config_file, inplace=True) as file:
+        for line in file:
+            token = None
+
+            for repo, value in tokens_map.items():
+                if repo in line:
+                    token = value
+                    break
+
+            if token:
+                print(
+                    re.sub(
+                        r"https://x-access-token:.*@github.com",
+                        f"https://x-access-token:{token}@github.com",
+                        line,
+                    ),
+                    end="",
+                )
+            else:
+                print(line, end="")
 
     # dry run successful, time to push
     try:

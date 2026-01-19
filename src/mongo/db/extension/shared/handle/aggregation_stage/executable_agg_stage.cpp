@@ -75,4 +75,16 @@ host_connector::HostOperationMetricsHandle UnownedExecAggStageHandle::createMetr
     return _internalCreateMetrics(vtable(), get());
 }
 
+void ExecAggStageHandle::open() {
+    invokeCAndConvertStatusToException([&]() { return vtable().open(get()); });
+}
+
+void ExecAggStageHandle::reopen() {
+    invokeCAndConvertStatusToException([&]() { return vtable().reopen(get()); });
+}
+
+void ExecAggStageHandle::close() {
+    invokeCAndConvertStatusToException([&]() { return vtable().close(get()); });
+}
+
 }  // namespace mongo::extension

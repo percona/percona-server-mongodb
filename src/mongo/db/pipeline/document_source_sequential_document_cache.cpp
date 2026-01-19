@@ -49,7 +49,7 @@ constexpr StringData DocumentSourceSequentialDocumentCache::kStageName;
 DocumentSourceSequentialDocumentCache::DocumentSourceSequentialDocumentCache(
     const boost::intrusive_ptr<ExpressionContext>& expCtx, SequentialDocumentCachePtr cache)
     : DocumentSource(kStageName, expCtx), _cache(std::move(cache)) {
-    invariant(_cache);
+    tassert(11282970, "Missing cache", _cache);
 
     if (_cache->isServing()) {
         _cache->restartIteration();
@@ -66,14 +66,16 @@ DocumentSourceSequentialDocumentCache::DocumentSourceSequentialDocumentCache(
 }
 
 
-DocumentSourceContainer::iterator DocumentSourceSequentialDocumentCache::doOptimizeAt(
+DocumentSourceContainer::iterator DocumentSourceSequentialDocumentCache::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
     // The DocumentSourceSequentialDocumentCache relies on all other stages in the pipeline being at
     // the final positions which they would have occupied if no cache stage was present. This should
     // be the case when we reach this function. The cache should always be the last stage in the
     // pipeline pre-optimizing.
-    invariant(_hasOptimizedPos || std::next(itr) == container->end());
-    invariant((*itr).get() == this);
+    tassert(11282969,
+            "Expecting cache stage to always be the last stage in the pipeline pre-optimizing",
+            _hasOptimizedPos || std::next(itr) == container->end());
+    tassert(11282968, "Expecting DocumentSource iterator pointing to this stage", *itr == this);
 
     // If we have already optimized our position, stay where we are.
     if (_hasOptimizedPos) {

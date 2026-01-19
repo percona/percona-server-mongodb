@@ -10,6 +10,7 @@
  *  assumes_against_mongod_not_mongos
  * ]
  */
+import {isAggregationPlan} from "jstests/libs/query/analyze_plan.js";
 
 const coll = db[jsTestName()];
 coll.drop();
@@ -23,7 +24,9 @@ assert.commandWorked(
 );
 
 function explainPipeline(pipeline) {
-    const explain = coll.explain().aggregate(pipeline);
+    // Add $_internalInhibitOptimization to prevent the pipeline from being optimized away
+    const explain = coll.explain().aggregate([{$_internalInhibitOptimization: {}}, ...pipeline]);
+    assert.eq(true, isAggregationPlan(explain), "Pipeline should not be optimized away");
     jsTest.log.info("Stages for pipeline", {input: pipeline, stages: explain.stages, explain});
     return explain;
 }

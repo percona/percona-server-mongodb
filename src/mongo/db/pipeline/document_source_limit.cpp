@@ -61,9 +61,9 @@ ALLOCATE_DOCUMENT_SOURCE_ID(limit, DocumentSourceLimit::id)
 
 constexpr StringData DocumentSourceLimit::kStageName;
 
-DocumentSourceContainer::iterator DocumentSourceLimit::doOptimizeAt(
+DocumentSourceContainer::iterator DocumentSourceLimit::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
-    invariant(*itr == this);
+    tassert(11282987, "Expecting DocumentSource iterator pointing to this stage", *itr == this);
 
     if (std::next(itr) == container->end()) {
         return container->end();

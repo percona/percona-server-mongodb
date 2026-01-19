@@ -30,7 +30,6 @@
 
 #include "mongo/db/exec/agg/pipeline_builder.h"
 #include "mongo/db/exec/document_value/document.h"
-#include "mongo/db/pipeline/document_source_internal_shard_filter.h"
 #include "mongo/db/pipeline/document_source_limit.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup_gen.h"
 #include "mongo/db/pipeline/search/document_source_search.h"
@@ -50,15 +49,9 @@ ALLOCATE_DOCUMENT_SOURCE_ID(_internalSearchIdLookup, DocumentSourceInternalSearc
 DocumentSourceInternalSearchIdLookUp::DocumentSourceInternalSearchIdLookUp(
     const intrusive_ptr<ExpressionContext>& expCtx,
     long long limit,
-    const boost::intrusive_ptr<CatalogResourceHandle>& catalogResourceHandle,
-    const boost::optional<MultipleCollectionAccessor> collections,
-    ExecShardFilterPolicy shardFilterPolicy,
     boost::optional<SearchQueryViewSpec> view)
     : DocumentSource(kStageName, expCtx),
       _limit(limit),
-      _catalogResourceHandle(catalogResourceHandle),
-      _collections(collections),
-      _shardFilterPolicy(shardFilterPolicy),
       _viewPipeline(view ? Pipeline::parse(view->getEffectivePipeline(), getExpCtx()) : nullptr) {
     // We need to reset the docsSeenByIdLookup/docsReturnedByIdLookup in the state sharedby the
     // DocumentSourceInternalSearchMongotRemote and DocumentSourceInternalSearchIdLookup stages when
@@ -131,7 +124,18 @@ const char* DocumentSourceInternalSearchIdLookUp::getSourceName() const {
     return kStageName.data();
 }
 
-DocumentSourceContainer::iterator DocumentSourceInternalSearchIdLookUp::doOptimizeAt(
+void DocumentSourceInternalSearchIdLookUp::bindCatalogInfo(
+    const MultipleCollectionAccessor& collections,
+    boost::intrusive_ptr<ShardRoleTransactionResourcesStasherForPipeline> sharedStasher) {
+    // We should not error on non-existent collections as they should return EOF.
+    uassert(11140100,
+            "$_internalSearchIdLookup must be run on a collection.",
+            collections.hasMainCollection() || collections.hasNonExistentMainCollection());
+    _catalogResourceHandle = make_intrusive<DSInternalSearchIdLookUpCatalogResourceHandle>(
+        sharedStasher, collections.getMainCollectionAcquisition());
+}
+
+DocumentSourceContainer::iterator DocumentSourceInternalSearchIdLookUp::optimizeAt(
     DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
     for (auto optItr = std::next(itr); optItr != container->end(); ++optItr) {
         auto limitStage = dynamic_cast<DocumentSourceLimit*>(optItr->get());

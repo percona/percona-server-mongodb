@@ -141,8 +141,8 @@ public:
      * Attempts to combine with any subsequent $match stages, joining the query objects with a
      * $and and flattening top-level $and's in the process.
      */
-    DocumentSourceContainer::iterator doOptimizeAt(DocumentSourceContainer::iterator itr,
-                                                   DocumentSourceContainer* container) override;
+    DocumentSourceContainer::iterator optimizeAt(DocumentSourceContainer::iterator itr,
+                                                 DocumentSourceContainer* container);
 
     DepsTracker::State getDependencies(DepsTracker* deps) const final;
 
@@ -250,11 +250,6 @@ private:
     void rebuild(BSONObj predicate, std::unique_ptr<MatchExpression> expr);
 
     DepsTracker::State getDependencies(const MatchExpression* expr, DepsTracker* deps) const;
-
-    std::pair<boost::intrusive_ptr<DocumentSourceMatch>, boost::intrusive_ptr<DocumentSourceMatch>>
-    splitSourceByFunc(const OrderedPathSet& fields,
-                      const StringMap<std::string>& renames,
-                      expression::ShouldSplitExprFunc func) &&;
 
     std::shared_ptr<MatchProcessor> _matchProcessor;
     SbeCompatibility _sbeCompatibility{SbeCompatibility::notCompatible};

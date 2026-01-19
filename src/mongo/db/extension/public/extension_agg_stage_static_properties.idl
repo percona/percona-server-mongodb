@@ -44,8 +44,53 @@ enums:
             kNone: "none"
             kFirst: "first"
             kLast: "last"
+    MongoExtensionHostTypeRequirement:
+        description: >-
+            Where the stage is permitted to be run in a sharded cluster.
+        type: string
+        values:
+            kNone: "none"
+            kLocalOnly: "localOnly"
+            kRunOnceAnyNode: "runOnceAnyNode"
+            kAnyShard: "anyShard"
+            kRouter: "router"
+            kAllShardHosts: "allShardHosts"
+    MongoExtensionPrivilegeResourcePattern:
+        description: What resource the privilege applies to.
+        type: string
+        values:
+            kNamespace: "namespace"
+    MongoExtensionPrivilegeAction:
+        description: >-
+            Allowed actions for this stage. Currently, these are constrained to read-only actions
+            on a specific namespace.
+        type: string
+        values:
+            kFind: "find"
+            kListIndexes: "listIndexes"
+            kListSearchIndexes: "listSearchIndexes"
+            kPlanCacheRead: "planCacheRead"
+            kCollStats: "collStats"
+            kIndexStats: "indexStats"
 
 structs:
+    MongoExtensionPrivilegeActionEntry:
+        description: >-
+            Represents one allowed action entry in the requiredPrivilege field.
+            Each entry wraps a MongoExtensionPrivilegeAction enum to satisfy the IDL restriction
+            that arrays cannot directly contain enums.
+        fields:
+            action:
+                type: MongoExtensionPrivilegeAction
+    MongoExtensionRequiredPrivilege:
+        description: A constrained privilege specification.
+        fields:
+            resourcePattern:
+                description: Kinds of resources targetable by the access control system.
+                type: MongoExtensionPrivilegeResourcePattern
+            actions:
+                description: Actions required on the target.
+                type: array<MongoExtensionPrivilegeActionEntry>
     MongoExtensionStaticProperties:
         description: >-
             Properties specified by the extension that remain static throughout its lifetime, such as
@@ -56,5 +101,17 @@ structs:
             position:
                 description: What position the stage must occupy in the pipeline.
                 type: MongoExtensionPositionRequirement
-                optional: true
                 default: kNone
+            hostType:
+                description: Where the stage can be executed when the pipeline is run in a sharded cluster.
+                type: MongoExtensionHostTypeRequirement
+                default: kNone
+            requiresInputDocSource:
+                description: >-
+                    Whether this stage requires an input document source (i.e., it does not generate
+                    results itself, and must imstead pull inputs from an input DocumentSource).
+                type: bool
+                default: true
+            requiredPrivileges:
+                type: array<MongoExtensionRequiredPrivilege>
+                optional: true

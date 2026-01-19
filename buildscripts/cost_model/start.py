@@ -179,19 +179,14 @@ async def execute_collection_scans(
                     Query(
                         {
                             "limit": limit,
-                            "filter": {"int_uniform_unindexed": {"$gt": 0, "$lt": 2}},
+                            "filter": {"int_uniform_unindexed_0": {"$gt": 0}},
                             "sort": {"$natural": direction},
                         },
                         note="COLLSCAN_W_FILTER",
                         expected_stage={
                             "COLLSCAN": {
                                 "direction": dir_text.lower(),
-                                "filter": {
-                                    "$and": [
-                                        {"int_uniform_unindexed": {"$lt": 2}},
-                                        {"int_uniform_unindexed": {"$gt": 0}},
-                                    ]
-                                },
+                                "filter": {"int_uniform_unindexed_0": {"$gt": 0}},
                             }
                         },
                     )
@@ -309,7 +304,7 @@ async def execute_sorts(database: DatabaseInstance, collections: Sequence[Collec
 
     # By combining a sort with a limit, we trigger the top-K sorting algorithm, which works
     # for both the simple and default sort algorithms.
-    limits = [5, 10, 50, 75, 100, 150, 300, 500, 1000]
+    limits = [2, 5, 10, 50, 75, 100, 150, 300, 500, 1000]
     for limit in limits:
         requests.append(
             Query(
@@ -329,6 +324,30 @@ async def execute_sorts(database: DatabaseInstance, collections: Sequence[Collec
                 expected_stage="SORT",
             )
         )
+
+    await workload_execution.execute(
+        database, main_config.workload_execution, collections, requests
+    )
+
+
+async def execute_sorts_spill(database: DatabaseInstance, collections: Sequence[CollectionInfo]):
+    collections = [c for c in collections if c.name.startswith("large_sort")]
+    assert len(collections) == 6
+
+    requests = [
+        # A standard sort applies the simple sort algorithm.
+        Query(
+            {"sort": {"payload": 1}},
+            note="SORT_SIMPLE_SPILL",
+            expected_stage={"SORT": {"usedDisk": True}},
+        ),
+        # Including the recordId explicitly forces the use of the default sort algorithm.
+        Query(
+            {"projection": {"$recordId": {"$meta": "recordId"}}, "sort": {"payload": 1}},
+            note="SORT_DEFAULT_SPILL",
+            expected_stage={"SORT": {"usedDisk": True}},
+        ),
+    ]
 
     await workload_execution.execute(
         database, main_config.workload_execution, collections, requests
@@ -466,24 +485,15 @@ async def execute_fetches(database: DatabaseInstance, collections: Sequence[Coll
 
         requests.append(
             Query(
-                # 'int_uniform_unindexed' is not indexed, so the fetch will have a filter.
+                # 'int_uniform_unindexed_0' is not indexed, so the fetch will have a filter.
                 {
                     "filter": {
                         "int_uniform": {"$lt": card},
-                        "int_uniform_unindexed": {"$gt": 0, "$lt": 2},
+                        "int_uniform_unindexed_0": {"$gt": 0},
                     }
                 },
                 note="FETCH_W_FILTER",
-                expected_stage={
-                    "FETCH": {
-                        "filter": {
-                            "$and": [
-                                {"int_uniform_unindexed": {"$lt": 2}},
-                                {"int_uniform_unindexed": {"$gt": 0}},
-                            ]
-                        }
-                    }
-                },
+                expected_stage={"FETCH": {"filter": {"int_uniform_unindexed_0": {"$gt": 0}}}},
             )
         )
 
@@ -517,6 +527,121 @@ async def execute_index_scans_w_diff_num_fields(
     )
 
 
+async def execute_fetch_w_filters_w_diff_num_leaves(
+    database: DatabaseInstance, collections: Sequence[CollectionInfo]
+):
+    collections = [c for c in collections if c.name == "doc_scan_100000"]
+    assert len(collections) == 1
+
+    requests = []
+
+    unindexed_fields = [field.name for field in collections[0].fields if "unindexed" in field.name]
+    assert len(unindexed_fields) == 10
+
+    for fields_w_preds in [unindexed_fields[:i] for i in range(1, len(unindexed_fields) + 1)]:
+        # We build up queries of the shape
+        # {'int_uniform_unindexed_0': {'$gt': 0}, 'int_uniform': {'$lt': 50000}}},
+        # {'int_uniform_unindexed_0': {'$gt': 0}, 'int_uniform_unindexed_1': {'$gt': 0}, 'int_uniform': {'$lt': 50000}}}
+        # and so on, until we have all 10 unindexed fields in the filter.
+        filter = {f: {"$gt": 0} for f in fields_w_preds}
+        filter["int_uniform"] = {"$lt": 50000}
+
+        requests.append(
+            Query(
+                {"filter": filter},
+                note="FETCH_W_FILTERS_W_DIFF_NUM_LEAVES",
+                expected_stage={
+                    "FETCH": {
+                        "filter": {fields_w_preds[0]: {"$gt": 0}}
+                        if len(fields_w_preds) == 1
+                        else {"$and": [{k: v} for k, v in filter.items() if k != "int_uniform"]}
+                    }
+                },
+            )
+        )
+
+    await workload_execution.execute(
+        database, main_config.workload_execution, collections, requests
+    )
+
+
+async def execute_collscan_w_filters_w_diff_num_leaves(
+    database: DatabaseInstance, collections: Sequence[CollectionInfo]
+):
+    collections = [c for c in collections if c.name == "doc_scan_100000"]
+    assert len(collections) == 1
+
+    requests = []
+
+    unindexed_fields = [field.name for field in collections[0].fields if "unindexed" in field.name]
+    assert len(unindexed_fields) == 10
+
+    for fields_w_preds in [unindexed_fields[:i] for i in range(1, len(unindexed_fields) + 1)]:
+        # We build up queries of the shape
+        # {'int_uniform_unindexed_0': {'$gt': 0}},
+        # {'int_uniform_unindexed_0': {'$gt': 0}, 'int_uniform_unindexed_1': {'$gt': 0}}
+        # and so on, until we have all 10 unindexed fields in the filter.
+        filter = {f: {"$gt": 0} for f in fields_w_preds}
+
+        requests.append(
+            Query(
+                {"filter": filter, "sort": {"$natural": 1}, "limit": 50000},
+                note="COLLSCAN_W_FILTERS_W_DIFF_NUM_LEAVES",
+                expected_stage={
+                    "COLLSCAN": {
+                        "filter": {fields_w_preds[0]: {"$gt": 0}}
+                        if len(fields_w_preds) == 1
+                        else {"$and": [{k: v} for k, v in filter.items()]}
+                    }
+                },
+            )
+        )
+
+    await workload_execution.execute(
+        database, main_config.workload_execution, collections, requests
+    )
+
+
+async def execute_ixscan_w_filters_w_diff_num_leaves(
+    database: DatabaseInstance, collections: Sequence[CollectionInfo]
+):
+    collections = [c for c in collections if c.name == "index_scan_10000"]
+    assert len(collections) == 1
+
+    requests = []
+
+    field_names = [chr(ord("a") + i) for i in range(10)]
+
+    # Note we do not include a filter that has only one leaf. We noticed that there is a
+    # large jump between 1 and 2 leaves for the cost of an ixscan filter, so we omitted
+    # it to get a better fit.
+    for fields_w_preds in [field_names[:i] for i in range(2, len(field_names) + 1)]:
+        # We build up queries of the shape
+        # {'a': {"$mod": [1, 0]}, 'b': {"$mod": [1, 0]}},
+        # {'a': {"$mod": [1, 0]}, 'b': {"$mod": [1, 0]}, 'c': {"$mod": [1, 0]}},
+        # and so on, until we have all 10 fields in the filter.
+        filter = {f: {"$mod": [1, 0]} for f in fields_w_preds}
+
+        requests.append(
+            Query(
+                # hint the compound index on {a: 1, b: 1, ... j: 1}
+                {"filter": filter, "hint": {k: 1 for k in field_names}},
+                note="IXSCAN_W_FILTERS_W_DIFF_NUM_LEAVES",
+                expected_stage={
+                    "IXSCAN": {
+                        "filter": {fields_w_preds[0]: {"$mod": [1, 0]}}
+                        if len(fields_w_preds) == 1
+                        else {"$and": [{k: v} for k, v in filter.items()]}
+                    }
+                },
+            )
+        )
+
+    await workload_execution.execute(
+        database, main_config.workload_execution, collections, requests
+    )
+
+
 async def main():
     """Entry point function."""
     script_directory = os.path.abspath(os.path.dirname(__file__))
@@ -537,12 +662,16 @@ async def main():
             execute_limits,
             execute_skips,
             execute_sorts,
+            execute_sorts_spill,
             execute_merge_sorts,
             execute_ors,
             execute_sort_intersections,
             execute_hash_intersections,
             execute_fetches,
             execute_index_scans_w_diff_num_fields,
+            execute_fetch_w_filters_w_diff_num_leaves,
+            execute_collscan_w_filters_w_diff_num_leaves,
+            execute_ixscan_w_filters_w_diff_num_leaves,
         ]
         for execute_query in execution_query_functions:
             await execute_query(database, generator.collection_infos)

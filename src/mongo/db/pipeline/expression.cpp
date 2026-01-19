@@ -1393,7 +1393,10 @@ ExpressionDateDiff::ExpressionDateDiff(ExpressionContext* const expCtx,
 boost::intrusive_ptr<Expression> ExpressionDateDiff::parse(ExpressionContext* const expCtx,
                                                            BSONElement expr,
                                                            const VariablesParseState& vps) {
-    invariant(expr.fieldNameStringData() == "$dateDiff");
+    tassert(11282956,
+            str::stream() << "Expecting to parse $dateDiff field, got "
+                          << expr.fieldNameStringData(),
+            expr.fieldNameStringData() == "$dateDiff");
     uassert(5166301,
             "$dateDiff only supports an object as its argument",
             expr.type() == BSONType::object);
@@ -1683,23 +1686,12 @@ intrusive_ptr<ExpressionFieldPath> ExpressionFieldPath::parse(ExpressionContext*
             expCtx->setSystemVarReferencedInQuery(varId);
         }
 
-        auto ret = new ExpressionFieldPath(expCtx, std::string{fieldPath}, varId);
-        size_t pathLength = ret->getFieldPath().getPathLength();
-        if (pathLength > 1) {
-            // Only count nested fields.
-            expCtx->incrNumNestedExpressionFieldPathComponentsParsed(static_cast<int>(pathLength));
-        }
-        return ret;
-    }
-    auto ret = new ExpressionFieldPath(expCtx,
+        return new ExpressionFieldPath(expCtx, std::string{fieldPath}, varId);
+    } else {
+        return new ExpressionFieldPath(expCtx,
                                        "CURRENT." + raw.substr(1),  // strip the "$" prefix
                                        vps.getVariable("CURRENT"));
-    size_t pathLength = ret->getFieldPath().getPathLength();
-    if (pathLength > 2) {
-        // Only count nested fields, excluding the leading CURRENT.
-        expCtx->incrNumNestedExpressionFieldPathComponentsParsed(static_cast<int>(pathLength - 1));
     }
-    return ret;
 }
 
 intrusive_ptr<ExpressionFieldPath> ExpressionFieldPath::createPathFromString(
@@ -2636,7 +2628,9 @@ intrusive_ptr<Expression> ExpressionNary::optimize() {
 
     // An operator cannot be left-associative and commutative, because left-associative
     // operators need to preserve their order-of-operations.
-    invariant(!(getAssociativity() == Associativity::kLeft && isCommutative()));
+    tassert(11282955,
+            "Nary expression cannot be left-associative and commutative at the same time",
+            !(getAssociativity() == Associativity::kLeft && isCommutative()));
 
     // If the expression is associative, we can collapse all the consecutive constant operands
     // into one by applying the expression to those consecutive constant operands. If the

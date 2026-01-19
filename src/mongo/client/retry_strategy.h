@@ -33,10 +33,10 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/client/backoff_with_jitter.h"
 #include "mongo/platform/rwmutex.h"
-#include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/duration.h"
 #include "mongo/util/interruptible.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/net/hostandport.h"
 
 #include <concepts>
@@ -44,13 +44,14 @@
 #include <span>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include <boost/optional.hpp>
 
-namespace mongo {
+namespace MONGO_MOD_PUBLIC mongo {
 
 struct TargetingMetadata {
-    stdx::unordered_set<HostAndPort> deprioritizedServers;
+    std::vector<HostAndPort> deprioritizedServers;
 };
 
 /**
@@ -77,7 +78,7 @@ struct TargetingMetadata {
  *
  *  See 'runWithRetryStrategy' for a reference usage of retry strategies.
  */
-class RetryStrategy {
+class MONGO_MOD_OPEN RetryStrategy {
 public:
     virtual ~RetryStrategy() = default;
 
@@ -345,8 +346,10 @@ public:
     };
 };
 
-bool containsRetryableLabels(std::span<const std::string> errorLabels);
-bool containsSystemOverloadedLabels(std::span<const std::string> errorLabels);
+/**
+ * Determines whether the error labels indicate that an error is caused by an overloaded system.
+ */
+bool containsSystemOverloadedErrorLabel(std::span<const std::string> errorLabels);
 
 /**
  * Implements the basic behavior for retryability of failed requests.
@@ -362,6 +365,8 @@ public:
     using RetryCriteria = std::function<bool(Status s, std::span<const std::string> errorLabels)>;
 
     static bool defaultRetryCriteria(Status s, std::span<const std::string> errorLabels);
+    static bool unconditionallyRetryableCriteria(Status s,
+                                                 std::span<const std::string> errorLabels);
 
     struct RetryParameters {
         // Maximum number of retries after initial retriable error.
@@ -486,7 +491,7 @@ public:
          */
         void updateRateParameters(double returnRate, double capacity);
 
-        double getBalance_forTest() const;
+        MONGO_MOD_PUBLIC double getBalance_forTest() const;
 
         /**
          * Appends the stats for the retry budget metrics.
@@ -700,4 +705,4 @@ StatusWith<T> runWithRetryStrategy(Interruptible* interruptible,
     return result;
 }
 
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUBLIC mongo

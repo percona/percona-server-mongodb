@@ -61,6 +61,12 @@ public:
                                    const MongoExtensionExecAggStage* execStage) override {
         return ExtensionGetNextResult::pauseExecution();
     }
+
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
 };
 
 class NoOpLogicalAggStage : public sdk::LogicalAggStage {
@@ -153,6 +159,12 @@ public:
         }
         return ExtensionGetNextResult::advanced(_documents[_currentIndex++]);
     }
+
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
 
 private:
     // Every SourceExecAggStage object will have access to the same test document suite.
@@ -558,13 +570,17 @@ public:
     }
 };
 
-// Test stages for static properties
+// Test stages for static properties (position)
 static constexpr std::string_view kNoneName = "$none";
 static constexpr std::string_view kFirstName = "$first";
 static constexpr std::string_view kLastName = "$last";
 static constexpr std::string_view kBadPosName = "$badPos";
 static constexpr std::string_view kBadPosTypeName = "$badPosType";
 static constexpr std::string_view kUnknownPropertyName = "$unknownProperty";
+static constexpr std::string_view kTransformName = "$transform";
+static constexpr std::string_view kSearchLikeSourceStageName = "$searchLikeSource";
+static constexpr std::string_view kBadRequiresInputDocSourceTypeName =
+    "$badRequiresInputDocSourceType";
 
 class NonePosAggStageAstNode : public sdk::AggStageAstNode {
 public:
@@ -668,6 +684,59 @@ public:
     }
 };
 
+class TransformAggStageAstNode : public sdk::AggStageAstNode {
+public:
+    TransformAggStageAstNode() : sdk::AggStageAstNode(kTransformName) {}
+
+    BSONObj getProperties() const override {
+        return BSON("requiresInputDocSource" << true);
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> bind() const override {
+        return std::make_unique<NoOpLogicalAggStage>();
+    }
+
+    static inline std::unique_ptr<sdk::AggStageAstNode> make() {
+        return std::make_unique<TransformAggStageAstNode>();
+    }
+};
+
+class SearchLikeSourceAggStageAstNode : public sdk::AggStageAstNode {
+public:
+    SearchLikeSourceAggStageAstNode() : sdk::AggStageAstNode(kSearchLikeSourceStageName) {}
+
+    BSONObj getProperties() const override {
+        return BSON("requiresInputDocSource" << false << "position" << "first" << "hostType"
+                                             << "anyShard");
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> bind() const override {
+        return std::make_unique<NoOpLogicalAggStage>();
+    }
+
+    static inline std::unique_ptr<sdk::AggStageAstNode> make() {
+        return std::make_unique<SearchLikeSourceAggStageAstNode>();
+    }
+};
+
+class BadRequiresInputDocSourceTypeAggStageAstNode : public sdk::AggStageAstNode {
+public:
+    BadRequiresInputDocSourceTypeAggStageAstNode()
+        : sdk::AggStageAstNode(kBadRequiresInputDocSourceTypeName) {}
+
+    BSONObj getProperties() const override {
+        return BSON("requiresInputDocSource" << BSONArray(BSON_ARRAY(1)));
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> bind() const override {
+        return std::make_unique<NoOpLogicalAggStage>();
+    }
+
+    static inline std::unique_ptr<sdk::AggStageAstNode> make() {
+        return std::make_unique<BadRequiresInputDocSourceTypeAggStageAstNode>();
+    }
+};
+
 static constexpr std::string_view kDesugarToEmptyName = "$desugarToEmpty";
 static constexpr std::string_view kCountingName = "$counting";
 static constexpr std::string_view kNestedDesugaringName = "$nestedDesugaring";
@@ -752,8 +821,38 @@ public:
     }
 };
 
+class CountingLogicalStage final : public sdk::LogicalAggStage {
+public:
+    static int alive;
+
+    CountingLogicalStage() {
+        ++alive;
+    }
+
+    ~CountingLogicalStage() override {
+        --alive;
+    }
+
+    BSONObj serialize() const override {
+        return BSON(std::string(kCountingName) << "serializedForExecution");
+    }
+
+    BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const override {
+        return BSONObj();
+    }
+
+    std::unique_ptr<sdk::ExecAggStage> compile() const override {
+        return std::make_unique<NoOpExecAggStage>();
+    }
+
+    static inline std::unique_ptr<sdk::LogicalAggStage> make() {
+        return std::make_unique<CountingLogicalStage>();
+    }
+};
+
 inline int CountingParse::alive = 0;
 inline int CountingAst::alive = 0;
+inline int CountingLogicalStage::alive = 0;
 
 class NestedDesugaringParseNode final : public sdk::AggStageParseNode {
 public:
@@ -930,6 +1029,12 @@ public:
         }
     }
 
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
+
     static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
         return std::make_unique<ValidExtensionExecAggStage>();
     }
@@ -967,6 +1072,12 @@ public:
                                    const MongoExtensionExecAggStage* execStage) override {
         MONGO_UNIMPLEMENTED;
     }
+
+    void open() override {}
+
+    void reopen() override {}
+
+    void close() override {}
 
     static inline std::unique_ptr<sdk::ExecAggStage> make() {
         return std::unique_ptr<sdk::ExecAggStage>(new NoOpExtensionExecAggStage());

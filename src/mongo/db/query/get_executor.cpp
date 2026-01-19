@@ -1274,11 +1274,6 @@ bool isQuerySbeCompatible(const CollectionPtr& collection, const CanonicalQuery&
         return false;
     }
 
-    if (expCtx->getNumNestedExpressionFieldPathComponentsParsed() >
-        queryKnob.getInternalQueryMaxNumExprFieldPathComponentsSupportedInSbe()) {
-        return false;
-    }
-
     // Queries against the oplog are not supported. Also queries on the inner side of a $lookup are
     // not considered for SBE except search queries.
     if ((expCtx->getInLookup() && !cq.isSearchQuery()) || nss.isOplog() ||
@@ -1310,13 +1305,11 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     std::size_t plannerOptions,
     Pipeline* pipeline,
     bool needsMerge,
-    boost::optional<TraversalPreference> traversalPreference,
-    ExecShardFilterPolicy execShardFilterPolicy) {
+    boost::optional<TraversalPreference> traversalPreference) {
     invariant(canonicalQuery);
 
     // Ensure that the shard filter option is set if this is a shard.
-    if (OperationShardingState::isComingFromRouter(opCtx) &&
-        std::holds_alternative<AutomaticShardFiltering>(execShardFilterPolicy)) {
+    if (OperationShardingState::isComingFromRouter(opCtx)) {
         plannerOptions |= QueryPlannerParams::INCLUDE_SHARD_FILTER;
     }
 

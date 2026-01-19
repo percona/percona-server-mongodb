@@ -58,9 +58,9 @@ static ExtensionGetNextResult convertCRepresentationToGetNextResult(
             return ExtensionGetNextResult{.code = GetNextCode::kEOF, .res = boost::none};
         }
         default:
-            tasserted(
-                10956803,
-                (str::stream() << "Invalid MongoExtensionGetNextResultCode: " << apiResult->code));
+            tasserted(10956803,
+                      str::stream()
+                          << "Invalid MongoExtensionGetNextResultCode: " << apiResult->code);
     }
 }
 
@@ -80,12 +80,21 @@ public:
 
     host_connector::HostOperationMetricsHandle createMetrics() const;
 
+    void open();
+
+    void reopen();
+
+    void close();
+
 protected:
     void _assertVTableConstraints(const VTable_t& vtable) const override {
         tassert(10956800, "ExecAggStage 'get_next' is null", vtable.get_next != nullptr);
         tassert(11213503, "ExecAggStage 'get_name' is null", vtable.get_name != nullptr);
         tassert(
             11213504, "ExecAggStage 'create_metrics' is null", vtable.create_metrics != nullptr);
+        tassert(11216705, "ExecAggStage 'open' is null", vtable.open != nullptr);
+        tassert(11216706, "ExecAggStage 'reopen' is null", vtable.reopen != nullptr);
+        tassert(11216707, "ExecAggStage 'close' is null", vtable.close != nullptr);
     }
 };
 
@@ -105,11 +114,20 @@ public:
 
     host_connector::HostOperationMetricsHandle createMetrics() const;
 
+    void open();
+
+    void reopen();
+
+    void close();
+
 protected:
     void _assertVTableConstraints(const VTable_t& vtable) const override {
         tassert(11213502, "ExecAggStage 'get_name' is null", vtable.get_name != nullptr);
         tassert(
             11213506, "ExecAggStage 'create_metrics' is null", vtable.create_metrics != nullptr);
+        tassert(11216710, "ExecAggStage 'open' is null", vtable.open != nullptr);
+        tassert(11216711, "ExecAggStage 'reopen' is null", vtable.reopen != nullptr);
+        tassert(11216712, "ExecAggStage 'close' is null", vtable.close != nullptr);
     }
 };
 
