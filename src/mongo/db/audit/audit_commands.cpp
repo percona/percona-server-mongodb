@@ -36,6 +36,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/init.h"
 #include "mongo/bson/bson_field.h"
 #include "mongo/db/audit.h"
+#include "mongo/db/audit/audit_options.h"
 #include "mongo/db/auth/authorization_manager.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/client.h"
@@ -46,8 +47,6 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include <cstdio>
 #include <iostream>
 #include <string>
-
-#include "audit_options.h"
 
 namespace mongo {
 

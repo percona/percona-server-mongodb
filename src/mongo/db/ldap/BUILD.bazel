@@ -15,10 +15,6 @@ mongo_cc_library(
         "ldap_manager.cpp",
         "ldap_manager_impl.cpp",
     ],
-    hdrs = [
-        "ldap_manager.h",
-        "ldap_manager_impl.h",
-    ],
     linkopts = [
         "-lldap",
         "-llber",

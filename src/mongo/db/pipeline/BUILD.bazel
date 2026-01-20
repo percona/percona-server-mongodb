@@ -1016,14 +1016,6 @@ mongo_cc_library(
         "//src/mongo/db/exec/agg:backup_cursor_extend_stage.cpp",
         "//src/mongo/db/exec/agg:backup_file_stage.cpp",
     ],
-    hdrs = [
-        "document_source_backup_cursor.h",
-        "document_source_backup_cursor_extend.h",
-        "document_source_backup_file.h",
-        "//src/mongo/db/exec/agg:backup_cursor_stage.h",
-        "//src/mongo/db/exec/agg:backup_cursor_extend_stage.h",
-        "//src/mongo/db/exec/agg:backup_file_stage.h",
-    ],
     deps = [
         ":pipeline",
         "//src/mongo/db:server_base",

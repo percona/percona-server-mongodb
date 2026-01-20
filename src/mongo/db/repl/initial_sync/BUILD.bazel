@@ -126,10 +126,6 @@ mongo_cc_library(
         "fcb_file_cloner.cpp",
         "initial_syncer_fcb.cpp",
     ],
-    hdrs = [
-        "fcb_file_cloner.h",
-        "initial_syncer_fcb.h",
-    ],
     deps = [
         ":base_cloner",
         ":initial_syncer",

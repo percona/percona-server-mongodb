@@ -32,7 +32,7 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "audit_options.h"
+#include "mongo/db/audit/audit_options.h"
 
 #include "mongo/base/status.h"
 #include "mongo/bson/json.h"

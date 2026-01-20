@@ -29,7 +29,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "initial_syncer_fcb.h"
+#include "mongo/db/repl/initial_sync/initial_syncer_fcb.h"
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"

@@ -18,14 +18,6 @@ mongo_cc_library(
         "gssapi_server_mechanism.cpp",
         "sasl_oidc_server_mechanism.cpp",
     ],
-    hdrs = [
-        "awsiam_server_mechanism.h",
-        "cyrus_sasl_server_session.h",
-        "external_sasl_authentication_session.h",
-        "gssapi_server_mechanism.h",
-        "sasl_oidc_server_mechanism.h",
-        "//src/mongo/crypto:jws_validated_token.h",
-    ],
     linkopts = [
         "-lgssapi_krb5",
         "-lldap",

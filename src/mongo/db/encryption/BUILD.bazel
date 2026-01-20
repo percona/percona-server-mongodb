@@ -15,10 +15,6 @@ mongo_cc_library(
         "key.cpp",
         "key_id.cpp",
     ],
-    hdrs = [
-        "key.h",
-        "key_id.h",
-    ],
     deps = [
         "//src/mongo:base",
         "//src/mongo/base:secure_allocator",
@@ -30,18 +26,12 @@ mongo_cc_library(
     srcs = [
         "encryption_options.cpp",
     ],
-    hdrs = [
-        "encryption_options.h",
-    ],
 )
 
 mongo_cc_library(
     name = "read_file_to_secure_string",
     srcs = [
         "read_file_to_secure_string.cpp",
-    ],
-    hdrs = [
-        "read_file_to_secure_string.h",
     ],
     deps = [
         "//src/mongo/base:secure_allocator",
@@ -54,18 +44,12 @@ mongo_cc_library(
     srcs = [
         "vault_secret_metadata_locator.cpp",
     ],
-    hdrs = [
-        "vault_secret_metadata_locator.h",
-    ],
 )
 
 mongo_cc_library(
     name = "vault_client",
     srcs = [
         "vault_client.cpp",
-    ],
-    hdrs = [
-        "vault_client.h",
     ],
     deps = [
         ":read_file_to_secure_string",
@@ -81,12 +65,6 @@ mongo_cc_library(
         "kmip_client.cpp",
         "kmip_exchange.cpp",
     ],
-    hdrs = [
-        "key_state.h",
-        "kmip_client.h",
-        "kmip_exchange.h",
-        "kmip_session.h",
-    ],
     deps = [
         ":encryption_key",
         "//src/mongo:base",
@@ -101,13 +79,6 @@ mongo_cc_library(
     srcs = [
         "key_operations.cpp",
         "master_key_provider.cpp",
-    ],
-    hdrs = [
-        "error.h",
-        "error_builder.h",
-        "key_entry.h",
-        "key_operations.h",
-        "master_key_provider.h",
     ],
     deps = [
         ":encryption_options",

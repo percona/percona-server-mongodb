@@ -29,7 +29,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
     it in the license file.
 ======= */
 
-#include "fcb_file_cloner.h"
+#include "mongo/db/repl/initial_sync/fcb_file_cloner.h"
 
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"

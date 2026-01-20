@@ -333,9 +333,6 @@ mongo_cc_library(
         "ldap_options.cpp",
         "ldap_options_gen",
     ],
-    hdrs = [
-        "ldap_options.h",
-    ],
     deps = [
         ":server_base",
         "//src/mongo:base",
@@ -547,10 +544,6 @@ mongo_cc_library(
     name = "audit_interface",
     srcs = [
         "audit_interface.cpp",
-    ],
-    hdrs = [
-        "audit_format.h",
-        "audit_interface.h",
     ],
     deps = [
         ":service_context",

@@ -2,6 +2,13 @@ load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_library", "mongo_
 
 package(default_visibility = ["//visibility:public"])
 
+exports_files(
+    glob([
+        "*.h",
+        "*.cpp",
+    ]),
+)
+
 idl_generator(
     name = "audit_parameters_gen",
     src = "audit_parameters.idl",
@@ -19,9 +26,6 @@ mongo_cc_library(
         ":audit_options_gen",
         ":audit_parameters_gen",
     ],
-    hdrs = [
-        "audit_options.h",
-    ],
     deps = [
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
@@ -34,11 +38,6 @@ mongo_cc_library(
     srcs = [
         "audit.cpp",
         "audit_flusher.cpp",
-    ],
-    hdrs = [
-        "audit.h",
-        "audit_flusher.h",
-        "auditlog.h",
     ],
     deps = [
         ":audit_options",

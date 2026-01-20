@@ -325,20 +325,12 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
-    name = "master_key_rotation",
-    hdrs = [
-        "master_key_rotation_completed.h",
-    ],
-)
-
-mongo_cc_library(
     name = "storage_engine_common",
     srcs = [
         "storage_engine_change_context.cpp",
         "storage_engine_init.cpp",
     ],
     deps = [
-        ":master_key_rotation",
         ":storage_control",
         ":storage_engine_lock_file",
         ":storage_engine_metadata",
