@@ -1,0 +1,76 @@
+Graph:
+BASE -- F1 -- F2
+Solution with seed 0:
+NESTED_LOOP_JOIN
+---leftEmbeddingField: (none)
+---rightEmbeddingField: (none)
+---joinPredicates:
+------f1.a = a
+---Outer:
+------NESTED_LOOP_JOIN
+---------leftEmbeddingField: f2
+---------rightEmbeddingField: f1
+---------joinPredicates:
+------------c = c
+---------Outer:
+------------COLLSCAN
+---------------ns = test.f2
+---------------filter = $and
+---------------nodeId = 1
+---------------fetched = 1
+---------------sortedByDiskLoc = 0
+---------------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+---------Inner:
+------------COLLSCAN
+---------------ns = test.f1
+---------------filter = $and
+---------------nodeId = 2
+---------------fetched = 1
+---------------sortedByDiskLoc = 0
+---------------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+---Inner:
+------COLLSCAN
+---------ns = test.base
+---------filter = $and
+---------nodeId = 4
+---------fetched = 1
+---------sortedByDiskLoc = 0
+---------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+
+Solution with seed 4:
+NESTED_LOOP_JOIN
+---leftEmbeddingField: (none)
+---rightEmbeddingField: (none)
+---joinPredicates:
+------f1.a = a
+---Outer:
+------NESTED_LOOP_JOIN
+---------leftEmbeddingField: f1
+---------rightEmbeddingField: f2
+---------joinPredicates:
+------------c = c
+---------Outer:
+------------COLLSCAN
+---------------ns = test.f1
+---------------filter = $and
+---------------nodeId = 1
+---------------fetched = 1
+---------------sortedByDiskLoc = 0
+---------------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+---------Inner:
+------------COLLSCAN
+---------------ns = test.f2
+---------------filter = $and
+---------------nodeId = 2
+---------------fetched = 1
+---------------sortedByDiskLoc = 0
+---------------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+---Inner:
+------COLLSCAN
+---------ns = test.base
+---------filter = $and
+---------nodeId = 4
+---------fetched = 1
+---------sortedByDiskLoc = 0
+---------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+

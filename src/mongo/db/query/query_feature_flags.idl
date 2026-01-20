@@ -65,12 +65,6 @@ feature_flags:
         default: true
         fcv_gated: false
 
-    featureFlagVectorSearchPublicPreview:
-        description: "Feature flag to enable vector search for public preview."
-        cpp_varname: gFeatureFlagVectorSearchPublicPreview
-        default: true
-        fcv_gated: false
-
     featureFlagSearchInSbe:
         description: "Feature flag to enable $search execution in SBE"
         cpp_varname: gFeatureFlagSearchInSbe
@@ -224,7 +218,8 @@ feature_flags:
     featureFlagCurrentDate:
         description: "Feature flag to enable $currentDate expression"
         cpp_varname: gFeatureFlagCurrentDate
-        default: false
+        default: true
+        version: 8.3
         fcv_gated: true
 
     featureFlagMultiPlanLimiter:
@@ -242,7 +237,8 @@ feature_flags:
     featureFlagUUIDExpression:
         description: "Feature flag to enable $createUUID expression"
         cpp_varname: gFeatureFlagUUIDExpression
-        default: false
+        default: true
+        version: 8.3
         fcv_gated: true
 
     featureFlagTopNBottomNExpressions:

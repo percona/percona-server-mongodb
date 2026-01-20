@@ -480,8 +480,10 @@ void CurOp::setEndOfOpMetrics(long long nreturned) {
         // We don't strictly need to record executionTime unless keyHash is non-none, but there's
         // no harm in recording it since we've already computed the value.
         metrics.executionTime = elapsed;
+        auto workingMillis =
+            duration_cast<Milliseconds>(elapsed - (_sumBlockedTimeTotal() - _blockedTimeAtStart));
         metrics.clusterWorkingTime = metrics.clusterWorkingTime.value_or(Milliseconds(0)) +
-            (duration_cast<Milliseconds>(elapsed - (_sumBlockedTimeTotal() - _blockedTimeAtStart)));
+            std::max(Milliseconds(0), workingMillis);
 
         calculateCpuTime();
         metrics.cpuNanos = metrics.cpuNanos.value_or(Nanoseconds(0)) + _debug.cpuTime;
@@ -806,7 +808,8 @@ bool CurOp::completeAndLogOperation(const logv2::LogOptions& logOptions,
     if (!opCtx->inMultiDocumentTransaction()) {
         // If we're not in a txn, we record information about delinquent ticket acquisitions to the
         // Queue's stats.
-        if (auto ticketingSystem = admission::TicketingSystem::get(opCtx->getServiceContext())) {
+        if (auto ticketingSystem =
+                admission::execution_control::TicketingSystem::get(opCtx->getServiceContext())) {
             ticketingSystem->incrementStats(opCtx);
         }
     }

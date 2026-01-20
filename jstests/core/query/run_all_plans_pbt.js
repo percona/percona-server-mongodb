@@ -24,6 +24,8 @@
  * # Exercises hashed index bug in SERVER-102302. Once that fix is backported, this fcv
  * # requirement can be removed.
  * requires_fcv_82,
+ * # Time series collections do not support indexing array values in measurement fields.
+ * exclude_from_timeseries_crud_passthrough,
  * ]
  */
 import {getDifferentlyShapedQueries} from "jstests/libs/property_test_helpers/common_properties.js";
@@ -100,7 +102,15 @@ function hintedQueryHasSameResultsAsControlCollScan(getQuery, testHelpers) {
     return {passed: true};
 }
 
-const aggModel = getQueryAndOptionsModel();
+const is83orAbove = (() => {
+    const {version} = db.adminCommand({getParameter: 1, featureCompatibilityVersion: 1});
+    return MongoRunner.compareBinVersions(version, "8.3") >= 0;
+})();
+
+const aggModel = getQueryAndOptionsModel().filter(
+    // Older versions suffer from SERVER-101007
+    ({pipeline}) => is83orAbove || !JSON.stringify(pipeline).includes('"$elemMatch"'),
+);
 
 // Test with a regular collection.
 testProperty(

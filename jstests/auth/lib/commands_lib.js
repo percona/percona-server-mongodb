@@ -3514,6 +3514,23 @@ export const authCommandsLib = {
             ],
         },
         {
+            testname: "_shardsvrReshardRecipientCriticalSectionStarted",
+            command: {
+                _shardsvrReshardRecipientCriticalSectionStarted: UUID(),
+            },
+            skipSharded: true,
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: {__system: 1},
+                    privileges: [{resource: {cluster: true}, actions: ["internal"]}],
+                    expectFail: true,
+                },
+                {runOnDb: firstDbName, roles: {}},
+                {runOnDb: secondDbName, roles: {}},
+            ],
+        },
+        {
             testname: "clusterCommitTransaction",
             command: {clusterCommitTransaction: 1},
             skipSharded: true,
@@ -5737,6 +5754,58 @@ export const authCommandsLib = {
                 },
                 {runOnDb: firstDbName, roles: {}},
                 {runOnDb: secondDbName, roles: {}},
+            ],
+        },
+        {
+            testname: "killOpWrongErrorCode",
+            command: {killOp: 1, op: 123, errorCode: ErrorCodes.DuplicateKey},
+            skipSharded: true,
+            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagKillOpErrorCodeOverride"),
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: {},
+                },
+            ],
+        },
+        {
+            testname: "killOpWrongErrorCode",
+            command: {killOp: 1, op: "shard1:123", errorCode: ErrorCodes.DuplicateKey},
+            skipUnlessSharded: true,
+            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagKillOpErrorCodeOverride"),
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: {},
+                    expectFail: true, // we won't be able to find the shardId
+                },
+            ],
+        },
+        {
+            testname: "killOpErrorCode",
+            command: {killOp: 1, op: 123, errorCode: ErrorCodes.InterruptedDueToOverload},
+            skipSharded: true,
+            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagKillOpErrorCodeOverride"),
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: roles_hostManager,
+                    privileges: [{resource: {cluster: true}, actions: ["killop"]}],
+                },
+            ],
+        },
+        {
+            testname: "killOpErrorCode",
+            command: {killOp: 1, op: "shard1:123", errorCode: ErrorCodes.InterruptedDueToOverload},
+            skipUnlessSharded: true,
+            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagKillOpErrorCodeOverride"),
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: roles_hostManager,
+                    privileges: [{resource: {cluster: true}, actions: ["killop"]}],
+                    expectFail: true, // we won't be able to find the shardId
+                },
             ],
         },
         // The rest of kill sessions auth testing is in the kill_sessions fixture (because calling

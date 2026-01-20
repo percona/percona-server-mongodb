@@ -28,18 +28,26 @@
  */
 
 #include "mongo/bson/bsonobj.h"
+#include "mongo/db/exec/agg/document_source_to_stage_registry.h"
+#include "mongo/db/extension/host/aggregation_stage/executable_agg_stage.h"
+#include "mongo/db/extension/host/document_source_extension_optimizable.h"
+#include "mongo/db/extension/host/extension_stage.h"
 #include "mongo/db/extension/host/query_execution_context.h"
-#include "mongo/db/extension/host_connector/host_services_adapter.h"
-#include "mongo/db/extension/host_connector/query_execution_context_adapter.h"
+#include "mongo/db/extension/host_connector/adapter/executable_agg_stage_adapter.h"
+#include "mongo/db/extension/host_connector/adapter/host_services_adapter.h"
+#include "mongo/db/extension/host_connector/adapter/query_execution_context_adapter.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
+#include "mongo/db/extension/sdk/distributed_plan_logic.h"
 #include "mongo/db/extension/sdk/dpl_array_container.h"
 #include "mongo/db/extension/sdk/tests/shared_test_stages.h"
 #include "mongo/db/extension/shared/get_next_result.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/ast_node.h"
+#include "mongo/db/extension/shared/handle/aggregation_stage/distributed_plan_logic.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/dpl_array_container.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/db/pipeline/document_source_documents.h"
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/query/query_test_service_context.h"
 #include "mongo/unittest/death_test.h"
@@ -52,7 +60,6 @@
 #include <boost/optional/optional.hpp>
 
 namespace mongo::extension::sdk {
-
 namespace {
 
 class AggStageDeathTest : public unittest::Test {
@@ -62,7 +69,8 @@ public:
         // functions, e.g. to run assertions.
         extension::sdk::HostServicesHandle::setHostServices(
             extension::host_connector::HostServicesAdapter::get());
-        _execCtx = std::make_unique<host_connector::QueryExecutionContextAdapter>(nullptr);
+        _execCtx = std::make_unique<host_connector::QueryExecutionContextAdapter>(
+            std::make_unique<shared_test_stages::MockQueryExecutionContext>());
     }
 
     std::unique_ptr<host_connector::QueryExecutionContextAdapter> _execCtx;
@@ -101,7 +109,7 @@ class InvalidExtensionExecAggStageAdvancedState
 public:
     extension::ExtensionGetNextResult getNext(
         const QueryExecutionContextHandle& expCtx,
-        const MongoExtensionExecAggStage* execAggStage,
+        MongoExtensionExecAggStage* execAggStage,
         MongoExtensionGetNextRequestType requestType) override {
         return {.code = extension::GetNextCode::kAdvanced, .res = boost::none};
     }
@@ -112,7 +120,7 @@ public:
 
     void close() override {}
 
-    static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
+    static inline std::unique_ptr<ExecAggStageBase> make() {
         return std::make_unique<InvalidExtensionExecAggStageAdvancedState>();
     }
 };
@@ -122,7 +130,7 @@ class InvalidExtensionExecAggStagePauseExecutionState
 public:
     extension::ExtensionGetNextResult getNext(
         const QueryExecutionContextHandle& expCtx,
-        const MongoExtensionExecAggStage* execAggStage,
+        MongoExtensionExecAggStage* execAggStage,
         MongoExtensionGetNextRequestType requestType) override {
         return {.code = extension::GetNextCode::kPauseExecution,
                 .res = boost::make_optional(BSON("$dog" << "I should not exist"))};
@@ -134,7 +142,7 @@ public:
 
     void close() override {}
 
-    static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
+    static inline std::unique_ptr<ExecAggStageBase> make() {
         return std::make_unique<InvalidExtensionExecAggStagePauseExecutionState>();
     }
 };
@@ -143,7 +151,7 @@ class InvalidExtensionExecAggStageEofState : public shared_test_stages::NoOpExte
 public:
     extension::ExtensionGetNextResult getNext(
         const QueryExecutionContextHandle& expCtx,
-        const MongoExtensionExecAggStage* execAggStage,
+        MongoExtensionExecAggStage* execAggStage,
         MongoExtensionGetNextRequestType requestType) override {
         return {.code = extension::GetNextCode::kEOF,
                 .res = boost::make_optional(BSON("$dog" << "I should not exist"))};
@@ -155,7 +163,7 @@ public:
 
     void close() override {}
 
-    static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
+    static inline std::unique_ptr<ExecAggStageBase> make() {
         return std::make_unique<InvalidExtensionExecAggStageEofState>();
     }
 };
@@ -165,7 +173,7 @@ class InvalidExtensionExecAggStageGetNextCode
 public:
     extension::ExtensionGetNextResult getNext(
         const QueryExecutionContextHandle& expCtx,
-        const MongoExtensionExecAggStage* execAggStage,
+        MongoExtensionExecAggStage* execAggStage,
         MongoExtensionGetNextRequestType requestType) override {
         return {.code = static_cast<const GetNextCode>(10), .res = boost::none};
     }
@@ -176,7 +184,7 @@ public:
 
     void close() override {}
 
-    static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
+    static inline std::unique_ptr<ExecAggStageBase> make() {
         return std::make_unique<InvalidExtensionExecAggStageGetNextCode>();
     }
 };
@@ -322,6 +330,16 @@ DEATH_TEST_F(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsGetNext,
     handle.assertVTableConstraints(vtable);
 };
 
+DEATH_TEST_F(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsSetSource, "10957202") {
+    auto noOpExecAggStage = new extension::sdk::ExtensionExecAggStage(
+        shared_test_stages::NoOpExtensionExecAggStage::make());
+    auto handle = TestExecAggStageVTableHandle{noOpExecAggStage};
+
+    auto vtable = handle.vtable();
+    vtable.set_source = nullptr;
+    handle.assertVTableConstraints(vtable);
+};
+
 DEATH_TEST_F(ExecAggStageVTableDeathTest, InvalidExecAggStageVTableFailsOpen, "11216705") {
     auto noOpExecAggStage = new extension::sdk::ExtensionExecAggStage(
         shared_test_stages::NoOpExtensionExecAggStage::make());
@@ -397,7 +415,7 @@ class TestLogicalStageCompileWithInvalidExtensionExecAggStageAdvancedState
 public:
     TestLogicalStageCompileWithInvalidExtensionExecAggStageAdvancedState() {}
 
-    std::unique_ptr<ExecAggStage> compile() const override {
+    std::unique_ptr<ExecAggStageBase> compile() const override {
         return std::make_unique<InvalidExtensionExecAggStageAdvancedState>();
     }
 
@@ -412,7 +430,7 @@ class TestLogicalStageCompileWithInvalidExtensionExecAggStagePauseExecutionState
 public:
     TestLogicalStageCompileWithInvalidExtensionExecAggStagePauseExecutionState() {}
 
-    std::unique_ptr<ExecAggStage> compile() const override {
+    std::unique_ptr<ExecAggStageBase> compile() const override {
         return std::make_unique<InvalidExtensionExecAggStagePauseExecutionState>();
     }
 
@@ -427,7 +445,7 @@ class TestLogicalStageCompileWithInvalidExtensionExecAggStageEofState
 public:
     TestLogicalStageCompileWithInvalidExtensionExecAggStageEofState() {}
 
-    std::unique_ptr<ExecAggStage> compile() const override {
+    std::unique_ptr<ExecAggStageBase> compile() const override {
         return std::make_unique<InvalidExtensionExecAggStageEofState>();
     }
 
@@ -535,6 +553,134 @@ DEATH_TEST_F(AggStageDeathTest, DPLArrayContainerAdapterNullContainerFails, "113
             std::unique_ptr<sdk::DPLArrayContainer>(nullptr))};
 };
 
-}  // namespace
+class DistributedPlanLogicVTableDeathTest : public unittest::Test {
+public:
+    class TestDistributedPlanLogicVTableHandle : public DistributedPlanLogicHandle {
+    public:
+        TestDistributedPlanLogicVTableHandle(
+            ::MongoExtensionDistributedPlanLogic* distributedPlanLogic)
+            : DistributedPlanLogicHandle(distributedPlanLogic) {};
 
+        void assertVTableConstraints(const VTable_t& vtable) {
+            _assertVTableConstraints(vtable);
+        }
+    };
+};
+
+DEATH_TEST_F(DistributedPlanLogicVTableDeathTest, InvalidDPLVTableFailsGetShards, "11027300") {
+    auto distributedPlanLogic = new sdk::ExtensionDistributedPlanLogicAdapter(
+        shared_test_stages::EmptyDistributedPlanLogic::make());
+    auto handle = TestDistributedPlanLogicVTableHandle{distributedPlanLogic};
+
+    auto vtable = handle.vtable();
+    vtable.get_shards_pipeline = nullptr;
+    handle.assertVTableConstraints(vtable);
+};
+
+DEATH_TEST_F(DistributedPlanLogicVTableDeathTest, InvalidDPLVTableFailsGetMerging, "11027301") {
+    auto distributedPlanLogic = new sdk::ExtensionDistributedPlanLogicAdapter(
+        shared_test_stages::EmptyDistributedPlanLogic::make());
+    auto handle = TestDistributedPlanLogicVTableHandle{distributedPlanLogic};
+
+    auto vtable = handle.vtable();
+    vtable.get_merging_pipeline = nullptr;
+    handle.assertVTableConstraints(vtable);
+};
+
+DEATH_TEST_F(DistributedPlanLogicVTableDeathTest, InvalidDPLVTableFailsGetSortPattern, "11027302") {
+    auto distributedPlanLogic = new sdk::ExtensionDistributedPlanLogicAdapter(
+        shared_test_stages::EmptyDistributedPlanLogic::make());
+    auto handle = TestDistributedPlanLogicVTableHandle{distributedPlanLogic};
+
+    auto vtable = handle.vtable();
+    vtable.get_sort_pattern = nullptr;
+    handle.assertVTableConstraints(vtable);
+};
+
+DEATH_TEST_F(AggStageDeathTest, SourceStageForTransformExtensionStageBecomesInvalid, "10957209") {
+    // This test verifies that if the source stage becomes invalid or is deleted,
+    // the extension stage will safely fail when trying to access it.
+    QueryTestServiceContext testCtx;
+    auto opCtx = testCtx.makeOperationContext();
+    auto expCtx = make_intrusive<ExpressionContextForTest>(
+        opCtx.get(),
+        NamespaceString::createNamespaceString_forTest("test"_sd, "namespace"_sd),
+        SerializationContext());
+
+    auto astNode = new sdk::ExtensionAggStageAstNode(
+        sdk::shared_test_stages::AddFruitsToDocumentsAggStageAstNode::make());
+    auto astHandle = AggStageAstNodeHandle(astNode);
+
+    auto optimizable =
+        host::DocumentSourceExtensionOptimizable::create(expCtx, std::move(astHandle));
+
+    auto docSourcesList = DocumentSourceDocuments::createFromBson(
+        BSON("$documents" << BSON_ARRAY(BSON("sourceField" << 1))).firstElement(), expCtx);
+
+    std::vector<boost::intrusive_ptr<exec::agg::Stage>> stages;
+    for (auto& docSource : docSourcesList) {
+        stages.push_back(exec::agg::buildStage(docSource));
+    }
+
+    // Stitch stages returned from DocumentSourceDocuments::createFromBson(...) together.
+    for (size_t i = 1; i < stages.size(); ++i) {
+        stages[i]->setSource(stages[i - 1].get());
+    }
+
+    // Set the last stage as source for the extension stage.
+    boost::intrusive_ptr<exec::agg::Stage> extensionStage =
+        exec::agg::buildStageAndStitch(optimizable, stages.back().get());
+
+    // getNext() should work fine here because the source stage is still valid.
+    auto result = extensionStage->getNext();
+    ASSERT_TRUE(result.isAdvanced());
+
+    extensionStage->setSource(nullptr);
+    // Hits tassert because the stage provided was null, clearing out our predecessor.
+    result = extensionStage->getNext();
+};
+
+DEATH_TEST_F(AggStageDeathTest, NoSourceStageForTransformStage, "10957209") {
+    auto transformStage = shared_test_stages::AddFruitsToDocumentsExecAggStage::make();
+
+    QueryTestServiceContext testCtx;
+    auto opCtx = testCtx.makeOperationContext();
+    auto expCtx = make_intrusive<ExpressionContextForTest>(
+        opCtx.get(),
+        NamespaceString::createNamespaceString_forTest("test"_sd, "namespace"_sd),
+        SerializationContext());
+
+    host::QueryExecutionContext wrappedCtx(expCtx.get());
+    host_connector::QueryExecutionContextAdapter ctxAdapter(
+        std::make_unique<host::QueryExecutionContext>(expCtx.get()));
+
+    // Call getNext() without setting a source.
+    [[maybe_unused]] auto result = transformStage->getNext(&ctxAdapter, nullptr);
+}
+
+DEATH_TEST_F(AggStageDeathTest, HostExecAggStageAdapterNullStageAsserts, "10957207") {
+    [[maybe_unused]] auto adapter = host_connector::HostExecAggStageAdapter{nullptr};
+}
+
+DEATH_TEST_F(AggStageDeathTest, SetSourceOnSourceStageFails, "10957210") {
+    // Setting the source of a source stage should fail irrespective of the type of the stage being
+    // set as the source.
+    auto sourceHandle = extension::ExecAggStageHandle{new extension::sdk::ExtensionExecAggStage(
+        shared_test_stages::AddFruitsToDocumentsExecAggStage::make())};
+    // ValidExtensionExecAggStage is a source stage.
+    auto handle = extension::ExecAggStageHandle{new extension::sdk::ExtensionExecAggStage(
+        shared_test_stages::ValidExtensionExecAggStage::make())};
+
+    // Calling setSource on a source stage should fail.
+    handle.setSource(sourceHandle);
+}
+
+DEATH_TEST_F(AggStageDeathTest, GetSourceOnSourceStageFails, "10957208") {
+    shared_test_stages::FruitsAsDocumentsExecAggStage sourceStage{};
+
+    // Calling getSource on a source stage should fail.
+    [[maybe_unused]] auto source = sourceStage._getSource();
+}
+
+}  // namespace
 }  // namespace mongo::extension::sdk

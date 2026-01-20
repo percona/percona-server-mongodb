@@ -12,6 +12,8 @@
  * does_not_support_stepdowns,
  * # Runs queries that may return many results, requiring getmores
  * requires_getmore,
+ * # Time series collections do not support indexing array values in measurement fields.
+ * exclude_from_timeseries_crud_passthrough,
  * ]
  */
 import {createCacheCorrectnessProperty} from "jstests/libs/property_test_helpers/common_properties.js";
@@ -28,6 +30,10 @@ if (isSlowBuild(db)) {
     quit();
 }
 
+const is83orAbove = (() => {
+    const {version} = db.adminCommand({getParameter: 1, featureCompatibilityVersion: 1});
+    return MongoRunner.compareBinVersions(version, "8.3") >= 0;
+})();
 const numRuns = 15;
 const numQueriesPerRun = 20;
 
@@ -45,11 +51,19 @@ const matchWithTopLevelOrArb = getMatchPredicateSpec()
         // queries is quick, this isn't a concern.
         return Object.keys(pred).includes("$or");
     })
+    // Older versions suffer from SERVER-101007
+    .filter((pred) => is83orAbove || !JSON.stringify(pred).includes('"$elemMatch"'))
     .map((pred) => {
         return {$match: pred};
     });
 const aggModel = fc
-    .record({orMatch: matchWithTopLevelOrArb, query: getQueryAndOptionsModel()})
+    .record({
+        orMatch: matchWithTopLevelOrArb,
+        query: getQueryAndOptionsModel().filter(
+            // Older versions suffer from SERVER-101007
+            ({pipeline}) => is83orAbove || !JSON.stringify(pipeline).includes('"$elemMatch"'),
+        ),
+    })
     .map(({orMatch, query}) => {
         return {
             "pipeline": [orMatch, ...query.pipeline],

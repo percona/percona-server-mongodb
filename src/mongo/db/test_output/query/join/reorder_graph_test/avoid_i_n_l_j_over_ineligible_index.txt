@@ -1,5 +1,6 @@
 Graph:
 A -- B
+Solution with seed 0:
 NESTED_LOOP_JOIN
 ---leftEmbeddingField: (none)
 ---rightEmbeddingField: c
@@ -8,6 +9,7 @@ NESTED_LOOP_JOIN
 ---Outer:
 ------COLLSCAN
 ---------ns = test.a
+---------filter = $and
 ---------nodeId = 1
 ---------fetched = 1
 ---------sortedByDiskLoc = 0
@@ -15,8 +17,33 @@ NESTED_LOOP_JOIN
 ---Inner:
 ------COLLSCAN
 ---------ns = test.b
+---------filter = $and
 ---------nodeId = 2
 ---------fetched = 1
 ---------sortedByDiskLoc = 0
 ---------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+
+Solution with seed 1:
+INDEXED_NESTED_LOOP_JOIN
+---leftEmbeddingField: c
+---rightEmbeddingField: (none)
+---joinPredicates:
+------c = a
+---Outer:
+------COLLSCAN
+---------ns = test.b
+---------filter = $and
+---------nodeId = 1
+---------fetched = 1
+---------sortedByDiskLoc = 0
+---------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+---Inner:
+------FETCH
+---------nodeId = 3
+---------fetched = 1
+---------sortedByDiskLoc = 0
+---------providedSorts = {baseSortPattern: {}, ignoredFields: []}
+---------Child:
+------------INDEX_PROBE
+---------------Namespace: test.a Index: { a: 1 }
 

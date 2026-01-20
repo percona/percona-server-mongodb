@@ -37,20 +37,19 @@
 #include "mongo/db/repl/intent_guard.h"
 #include "mongo/db/repl/intent_registry.h"
 #include "mongo/db/tenant_id.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/time_support.h"
 
 #include <boost/move/utility_core.hpp>
 #include <boost/none.hpp>
 #include <boost/optional/optional.hpp>
 
+MONGO_MOD_PUBLIC;
+
 namespace mongo {
 
 class Lock {
 public:
-    // TODO (SERVER-102774): Remove this aliasing by substituting all usages of Lock::ResourceMutex
-    // with ResourceMutex.
-    using ResourceMutex = mongo::ResourceMutex;
-
     /**
      * General purpose RAII wrapper for a resource managed by the lock manager
      *

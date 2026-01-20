@@ -164,7 +164,7 @@ MONGO_FAIL_POINT_DEFINE(failUpgradeValidationDueToIncompatibleFeature);
 /**
  * Ensures that only one instance of setFeatureCompatibilityVersion can run at a given time.
  */
-Lock::ResourceMutex commandMutex("setFCVCommandMutex");
+ResourceMutex commandMutex("setFCVCommandMutex");
 
 void abortAllReshardCollection(OperationContext* opCtx) {
     auto reshardingCoordinatorService = checked_cast<ReshardingCoordinatorService*>(
@@ -2050,6 +2050,8 @@ private:
                     .migrateRepresentativeQueriesFromQuerySettingsClusterParameterToDedicatedCollection(
                         opCtx);
             } catch (const ExceptionFor<ErrorCodes::Interrupted>&) {
+                throw;
+            } catch (const ExceptionFor<ErrorCodes::InterruptedDueToOverload>&) {
                 throw;
             } catch (const DBException& ex) {
                 uasserted(ErrorCodes::TemporarilyUnavailable,

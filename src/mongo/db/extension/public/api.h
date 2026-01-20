@@ -237,7 +237,7 @@ typedef struct MongoExtensionQueryExecutionContextVTable {
      * stage in a single pipeline will share operation metrics.
      */
     MongoExtensionStatus* (*get_metrics)(const MongoExtensionQueryExecutionContext* ctx,
-                                         const MongoExtensionExecAggStage* execAggStage,
+                                         MongoExtensionExecAggStage* execAggStage,
                                          MongoExtensionOperationMetrics** metrics);
 } MongoExtensionQueryExecutionContextVTable;
 
@@ -376,12 +376,6 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      * compile: On success, "compiles" the LogicalStage into an ExecutableStage, populating the
      * output parameter ExecutableStage pointer with the extension's executable stage. Ownership is
      * transferred to the caller.
-     *
-     * The caller may optionally provide its own executable input stage in the case of a Transform
-     * stage. In this case, the extension must pull documents from the input executable stage. If an
-     * input stage is provided, ownership is NOT transferred from the Host to the Extension.
-     * Otherwise, in cases in which there is no predecessor stage to pull from, the caller will
-     * provide a nullptr for the input.
      */
     MongoExtensionStatus* (*compile)(const MongoExtensionLogicalAggStage* logicalStage,
                                      struct MongoExtensionExecAggStage** output);
@@ -505,6 +499,53 @@ typedef struct MongoExtensionDPLArrayContainerVTable {
     MongoExtensionStatus* (*transfer)(MongoExtensionDPLArrayContainer* container,
                                       MongoExtensionDPLArray* array);
 } MongoExtensionDPLArrayContainerVTable;
+
+typedef struct MongoExtensionDistributedPlanLogic {
+    const struct MongoExtensionDistributedPlanLogicVTable* const vtable;
+} MongoExtensionDistributedPlanLogic;
+
+typedef struct MongoExtensionDistributedPlanLogicVTable {
+    /**
+     * Destroys `distributedPlanLogic` and frees any related resources.
+     */
+    void (*destroy)(MongoExtensionDistributedPlanLogic* distributedPlanLogic);
+
+    /**
+     * Returns the pipeline to execute on each shard in parallel.
+     * On success, if the stage has a component that can run on the shards, allocates a
+     * MongoExtensionDPLArrayContainer with the stages that make up the shards pipeline. The
+     * extension populates the provided output pointer, transferring ownership of the container to
+     * the caller. If a stage must run exclusively on the merging node, the output pointer is
+     * returned as a nullptr.
+     *
+     * Note: This is currently restricted to only a single shardsStage for parity with the
+     * DistributedPlanLogic shardsStage. If in the future an extension stage may return more than
+     * one shardsStage, we will remove that restriction and modify DistributedPlanLogic.
+     */
+    MongoExtensionStatus* (*get_shards_pipeline)(
+        MongoExtensionDistributedPlanLogic* distributedPlanLogic,
+        MongoExtensionDPLArrayContainer** output);
+
+    /**
+     * Returns the stages that will be run on the merging node.
+     * On success, if the stage has a component that must run on the merging node, allocates a
+     * MongoExtensionDPLArrayContainer with the stages that make up the merge pipeline. The
+     * extension populates the provided output pointer, transferring ownership of the container to
+     * the caller. If nothing can run on the merging node, the output pointer is returned as a
+     * nullptr.
+     */
+    MongoExtensionStatus* (*get_merging_pipeline)(
+        MongoExtensionDistributedPlanLogic* distributedPlanLogic,
+        MongoExtensionDPLArrayContainer** output);
+
+    /**
+     * Returns which fields are ascending and which fields are descending when merging streams
+     * together. Ownership of the ByteBuf is transferred to the caller. The MongoExtensionByteBuf
+     * will not be allocated if no sort pattern is required to merge the streams.
+     */
+    MongoExtensionStatus* (*get_sort_pattern)(
+        MongoExtensionDistributedPlanLogic* distributedPlanLogic, MongoExtensionByteBuf** output);
+} MongoExtensionDistributedPlanLogicVTable;
 
 /**
  * Virtual function table for MongoExtensionAggStageParseNode.
@@ -672,6 +713,12 @@ typedef struct MongoExtensionExecAggStageVTable {
                                             MongoExtensionOperationMetrics** metrics);
 
     /**
+     * Sets the source input stage for the extension stage. Ownership is NOT transferred to the
+     * caller.
+     */
+    MongoExtensionStatus* (*set_source)(MongoExtensionExecAggStage* execAggStage,
+                                        MongoExtensionExecAggStage* sourceStage);
+    /**
      * Initializes the stage and positions it before the first result.
      * Resources should be acquired during open() and avoided in getNext() for better
      * performance.
@@ -783,6 +830,22 @@ typedef struct MongoExtensionLogMessage {
 } MongoExtensionLogMessage;
 
 /**
+ * MongoExtensionIdleThreadBlock enables extension-spawned threads to be marked as idle, which means
+ * they will be excluded from multi-threaded gdb stacktraces.
+ *
+ * Only the 'destroy' function is needed as the idle functionality will be handled by a
+ * host-constructed adapter, so the API struct is only responsible for providing a bridge
+ * to transfer ownership from said adapter to the extension-side handle.
+ */
+typedef struct MongoExtensionIdleThreadBlock {
+    const struct MongoExtensionIdleThreadBlockVTable* const vtable;
+} MongoExtensionIdleThreadBlock;
+
+typedef struct MongoExtensionIdleThreadBlockVTable {
+    void (*destroy)(MongoExtensionIdleThreadBlock*);
+} MongoExtensionIdleThreadBlockVTable;
+
+/**
  * MongoExtensionLogger enables extensions to send structured log messages to MongoDB's logging
  * system.
  *
@@ -848,6 +911,17 @@ typedef struct MongoExtensionHostServicesVTable {
      */
     MongoExtensionStatus* (*tripwire_asserted)(MongoExtensionByteView structuredErrorMessage);
 
+    /**
+     * Call this method to mark an extension-owned thread as idle. This will cause the thread to be
+     * omitted from gdb stacktraces when using the 'mongodb-bt-if-active' command. The thread will
+     * remain idle as long as the owned handle for 'idleThreadBlock' remains in scope.
+     *
+     * Location must be a null-terminated c string, so either a string literal or a stable char*.
+     * For ease of use, the MONGO_EXTENSION_IDLE_LOCATION macro will pass in the location in the
+     * correct format.
+     */
+    MongoExtensionStatus* (*mark_idle_thread_block)(MongoExtensionIdleThreadBlock** idleThreadBlock,
+                                                    const char* location);
     /*
      * Creates a host-defined parse node. Use this function when you need to instantiate a parse
      * node implemented by the host during extension parse node expansion.

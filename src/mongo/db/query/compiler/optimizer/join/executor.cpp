@@ -30,6 +30,8 @@
 #include "mongo/db/query/compiler/optimizer/join/executor.h"
 
 #include "mongo/base/status_with.h"
+#include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/pipeline/document_source_lookup.h"
 #include "mongo/db/query/compiler/optimizer/join/agg_join_model.h"
 #include "mongo/db/query/compiler/optimizer/join/reorder_joins.h"
 #include "mongo/db/query/compiler/optimizer/join/single_table_access.h"
@@ -114,10 +116,27 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
         return status;
     }
 
+    // Validate we have all the collection acquisitions we need here.
+    bool missingAcquisitions = std::any_of(swModel.getValue().prefix->getSources().begin(),
+                                           swModel.getValue().prefix->getSources().end(),
+                                           [&](const auto& stage) {
+                                               auto* lookup =
+                                                   dynamic_cast<DocumentSourceLookUp*>(stage.get());
+                                               if (!lookup) {
+                                                   return false;
+                                               }
+                                               return !mca.knowsNamespace(lookup->getFromNs());
+                                           });
+    if (missingAcquisitions) {
+        return Status(
+            ErrorCodes::QueryFeatureNotAllowed,
+            "Pipeline ineligible for join-reordering due to missing foreign namespace acquisition");
+    }
+
     LOGV2_DEBUG(11083902,
                 5,
                 "Join model was successfully constructed, reordering joins",
-                "graph"_attr = swModel.getValue().toString(/*pretty*/ true));
+                "graph"_attr = swModel.getValue().toBSON());
     auto model = std::move(swModel.getValue());
 
     // Select access plans for each table in the join.
@@ -130,35 +149,35 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
     auto& accessPlans = swAccessPlans.getValue();
     const auto qkc = expCtx->getQueryKnobConfiguration();
-    std::unique_ptr<QuerySolution> qsn;
+    ReorderedJoinSolution reordered;
     switch (qkc.getJoinReorderMode()) {
         case JoinReorderModeEnum::kBottomUp:
             // Optimize join order using bottom-up Sellinger-style algorithm.
-            qsn = constructSolutionBottomUp(
+            reordered = constructSolutionBottomUp(
                 std::move(accessPlans.solns), model.graph, model.resolvedPaths, mca);
             break;
         case JoinReorderModeEnum::kRandom:
             // Randomly reorder joins.
-            qsn = constructSolutionWithRandomOrder(std::move(accessPlans.solns),
-                                                   model.graph,
-                                                   model.resolvedPaths,
-                                                   mca,
-                                                   qkc.getRandomJoinOrderSeed(),
-                                                   qkc.getRandomJoinReorderDefaultToHashJoin());
+            reordered =
+                constructSolutionWithRandomOrder(std::move(accessPlans.solns),
+                                                 model.graph,
+                                                 model.resolvedPaths,
+                                                 mca,
+                                                 qkc.getRandomJoinOrderSeed(),
+                                                 qkc.getRandomJoinReorderDefaultToHashJoin());
             break;
         default:
             MONGO_UNREACHABLE_TASSERT(11336911);
     }
 
     // Lower to SBE.
-    // TODO SERVER-111581: permit the use of a different base collection for this query.
     // TODO SERVER-112232: Identify SBE suffixes that are eligible for pushdown & push them to the
     // SBE executor.
-    auto& baseCQ = *model.graph.getNode(0).accessPath;
+    auto& baseCQ = *model.graph.accessPathAt(reordered.baseNode);
     auto baseNss = baseCQ.nss();
     auto sbeYieldPolicy = PlanYieldPolicySBE::make(opCtx, yieldPolicy, mca, baseNss);
-    auto planStagesAndData =
-        stage_builder::buildSlotBasedExecutableTree(opCtx, mca, baseCQ, *qsn, sbeYieldPolicy.get());
+    auto planStagesAndData = stage_builder::buildSlotBasedExecutableTree(
+        opCtx, mca, baseCQ, *reordered.soln, sbeYieldPolicy.get());
     stage_builder::prepareSlotBasedExecutableTree(opCtx,
                                                   planStagesAndData.first.get(),
                                                   &planStagesAndData.second,
@@ -182,7 +201,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     // We actually have several canonical queries, so we don't try to pass one in.
     auto exec = uassertStatusOK(plan_executor_factory::make(opCtx,
                                                             nullptr /* cq */,
-                                                            std::move(qsn),
+                                                            std::move(reordered.soln),
                                                             std::move(planStagesAndData),
                                                             mca,
                                                             plannerOptions,

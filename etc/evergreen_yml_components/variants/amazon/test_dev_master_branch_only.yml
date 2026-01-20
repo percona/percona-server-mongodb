@@ -366,7 +366,7 @@ buildvariants:
       <<: *amazon_linux2023_arm64_all_feature_flags_dynamic_expansions
       test_flags: >-
         --runAllFeatureFlagTests
-        --mongodSetParameters="{executionControlConcurrencyAdjustmentAlgorithm: fixedConcurrentTransactionsWithPrioritization}"
+        --mongodSetParameters="{executionControlDeprioritizationGate: true}"
         --excludeWithAnyTags=incompatible_with_execution_control_with_prioritization,incompatible_with_amazon_linux,requires_ldap_pool,requires_external_data_source,incompatible_with_atlas_environment
     tasks:
       - name: .development_critical !.requires_large_host !.requires_compile_variant !.incompatible_development_variant !.incompatible_all_feature_flags !.suggested_excluding_required__for_devprod_mitigation_only !.requires_all_feature_flags !.multiversion
@@ -604,11 +604,9 @@ buildvariants:
         --mongosSetParameters="{internalQueryUnifiedWriteExecutor: true}"
     # For now just unified write executor suites but tasks will be added as development continues.
     tasks:
-      # TODO SERVER-104147: Both 'DocumentSequenceLargeDocumentMultiInsertWorks' and
-      # 'DocumentSequenceMaxWriteBatchWorks' currently fails in the UWE because we do not check our
-      # batches for sizing, nor do we check that a batch is under the BSON size limit. Enable this
-      # task and verify that this passes once we have support for this.
-      # - name: integration_tests_sharded
+      - name: compile_integration_and_test_parallel_stream_TG
+        distros:
+          - amazon2023-arm64-latest-large
       - name: run_unit_tests_TG
         distros:
           - amazon2023-arm64-latest-large
@@ -641,6 +639,7 @@ buildvariants:
       - name: unified_write_executor_fle2_sharding_high_cardinality
       - name: unified_write_executor_sharding_legacy_timeseries_no_rawdata_gen
       - name: unified_write_executor_sharding_jscore_passthrough_legacy_timeseries_no_rawdata_gen
+      - name: unified_write_executor_concurrency_sharded_initial_sync_gen
       - name: burn_in_tests_gen
         depends_on:
           - name: version_burn_in_gen

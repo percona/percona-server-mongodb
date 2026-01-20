@@ -99,23 +99,23 @@ class UseReaderWriterGlobalThrottling {
 public:
     explicit UseReaderWriterGlobalThrottling(ServiceContext* svcCtx, int numTickets)
         : _svcCtx(svcCtx) {
+        using namespace admission::execution_control;
         const bool trackPeakUsed = false;
         constexpr auto maxQueueDepth = TicketHolder::kDefaultMaxQueueDepth;
-        auto ticketingSystem = std::make_unique<admission::TicketingSystem>(
+        auto ticketingSystem = std::make_unique<TicketingSystem>(
             _svcCtx,
-            admission::TicketingSystem::RWTicketHolder{
+            TicketingSystem::RWTicketHolder{
                 std::make_unique<TicketHolder>(_svcCtx, numTickets, trackPeakUsed, maxQueueDepth),
                 std::make_unique<TicketHolder>(_svcCtx, numTickets, trackPeakUsed, maxQueueDepth)},
-            admission::TicketingSystem::RWTicketHolder{
+            TicketingSystem::RWTicketHolder{
                 std::make_unique<TicketHolder>(_svcCtx, numTickets, trackPeakUsed, maxQueueDepth),
                 std::make_unique<TicketHolder>(_svcCtx, numTickets, trackPeakUsed, maxQueueDepth)},
-            Milliseconds{100},
             ExecutionControlConcurrencyAdjustmentAlgorithmEnum::kFixedConcurrentTransactions);
-        admission::TicketingSystem::use(_svcCtx, std::move(ticketingSystem));
+        TicketingSystem::use(_svcCtx, std::move(ticketingSystem));
     }
 
     ~UseReaderWriterGlobalThrottling() noexcept(false) {
-        admission::TicketingSystem::use(_svcCtx, nullptr);
+        admission::execution_control::TicketingSystem::use(_svcCtx, nullptr);
     }
 
 private:
@@ -173,7 +173,7 @@ public:
 };
 
 TEST_F(DConcurrencyTestFixture, ResourceMutex) {
-    Lock::ResourceMutex mtx("testMutex");
+    ResourceMutex mtx("testMutex");
     auto opCtx = makeOperationContext();
     auto clients = makeKClientsWithLockers(3);
 
@@ -1504,9 +1504,9 @@ TEST_F(DConcurrencyTestFixture, StressPartitioned) {
 TEST_F(DConcurrencyTestFixture, ResourceMutexLabels) {
     auto opCtx = makeOperationContext();
 
-    Lock::ResourceMutex mutex("label");
+    ResourceMutex mutex("label");
     ASSERT_EQ("label", *ResourceCatalog::get().name(mutex.getRid()));
-    Lock::ResourceMutex mutex2("label2");
+    ResourceMutex mutex2("label2");
     ASSERT_EQ("label2", *ResourceCatalog::get().name(mutex2.getRid()));
 }
 

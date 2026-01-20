@@ -540,7 +540,7 @@ config_fuzzer_params = {
             "period": 60,
             "fuzz_at": ["startup", "runtime"],
         },
-        "executionControlConcurrencyAdjustmentIntervalMillis": {
+        "throughputProbingConcurrencyAdjustmentIntervalMillis": {
             "min": 10,
             "max": 1_000,
             "fuzz_at": ["startup"],
@@ -548,13 +548,17 @@ config_fuzzer_params = {
         "executionControlConcurrencyAdjustmentAlgorithm": {
             "choices": [
                 "fixedConcurrentTransactions",
-                "fixedConcurrentTransactionsWithPrioritization",
                 "throughputProbing",
             ],
             "period": 60,
             "fuzz_at": ["startup", "runtime"],
         },
-        "executionControlHeuristicDeprioritizationEnabled": {
+        "executionControlDeprioritizationGate": {
+            "choices": [True, False],
+            "period": 60,
+            "fuzz_at": ["startup", "runtime"],
+        },
+        "executionControlHeuristicDeprioritization": {
             "choices": [True, False],
             "period": 60,
             "fuzz_at": ["startup", "runtime"],
@@ -565,7 +569,7 @@ config_fuzzer_params = {
             "period": 60,
             "fuzz_at": ["startup", "runtime"],
         },
-        "executionControlDeprioritizeBackgroundTasks": {
+        "executionControlBackgroundTasksDeprioritization": {
             "choices": [True, False],
             "period": 60,
             "fuzz_at": ["startup", "runtime"],

@@ -1968,6 +1968,42 @@ TEST_F(OpObserverTransactionTest, checkIsTimeseriesOnMultiDocTransaction) {
     wuow.commit();
 }
 
+TEST_F(OpObserverTransactionTest, TransactionOpsIncludeVersionContext) {
+    // (Generic FCV reference): used for testing, should exist across LTS binary versions
+    auto expectedVCtx = VersionContext{multiversion::GenericFCV::kLastContinuous};
+
+    auto txnParticipant = TransactionParticipant::get(opCtx());
+    txnParticipant.unstashTransactionResources(opCtx(), "insert");
+
+    {
+        VersionContext::ScopedSetDecoration scopedVersionContext(opCtx(), expectedVCtx);
+        AutoGetCollection autoColl1(opCtx(), nss1, MODE_IX);
+        WriteUnitOfWork wuow(opCtx());
+        std::vector<InsertStatement> inserts = {
+            InsertStatement(0, BSON("_id" << 0 << "data" << "x"))};
+        opObserver().onInserts(opCtx(),
+                               *autoColl1,
+                               inserts.begin(),
+                               inserts.end(),
+                               /*recordIds=*/{},
+                               /*fromMigrate=*/std::vector<bool>(inserts.size(), false),
+                               /*defaultFromMigrate=*/false);
+        commitUnpreparedTransaction<OpObserverImpl>(opCtx(), opObserver());
+        wuow.commit();
+    }
+
+    auto oplogEntryObj = getSingleOplogEntry(opCtx());
+    checkCommonFields(oplogEntryObj);
+    OplogEntry oplogEntry = assertGet(OplogEntry::parse(oplogEntryObj));
+
+    // The transaction (applyOps) entry itself should have no VersionContext
+    ASSERT_EQ(boost::none, oplogEntry.getVersionContext());
+
+    // Ops inside the transaction should have the VersionContext field set
+    auto innerOp = getInnerEntryFromApplyOpsOplogEntry(oplogEntry);
+    ASSERT_EQ(expectedVCtx, innerOp.getVersionContext());
+}
+
 TEST_F(OpObserverTransactionTest, TransactionalPrepareTest) {
     auto txnParticipant = TransactionParticipant::get(opCtx());
     txnParticipant.unstashTransactionResources(opCtx(), "insert");
@@ -2080,12 +2116,7 @@ TEST_F(OpObserverTransactionTest, TransactionalPreparedCommitTest) {
 
     {
         Lock::GlobalLock lk(opCtx(), MODE_IX);
-        opObserver().onPreparedTransactionCommit(
-            opCtx(),
-            commitSlot,
-            prepareTimestamp,
-            txnParticipant.retrieveCompletedTransactionOperations(opCtx())
-                ->getOperationsForOpObserver());
+        opObserver().onPreparedTransactionCommit(opCtx(), commitSlot, prepareTimestamp);
     }
     repl::OplogInterfaceLocal oplogInterface(opCtx());
     auto oplogIter = oplogInterface.makeIterator();
@@ -2369,12 +2400,7 @@ TEST_F(OpObserverTransactionTest, CommittingPreparedTransactionWritesToTransacti
 
     {
         Lock::GlobalLock lk(opCtx(), MODE_IX);
-        opObserver().onPreparedTransactionCommit(
-            opCtx(),
-            commitSlot,
-            prepareOpTime.getTimestamp(),
-            txnParticipant.retrieveCompletedTransactionOperations(opCtx())
-                ->getOperationsForOpObserver());
+        opObserver().onPreparedTransactionCommit(opCtx(), commitSlot, prepareOpTime.getTimestamp());
     }
     assertTxnRecord(txnNum(), commitOpTime, DurableTxnStateEnum::kCommitted);
 }
@@ -5046,12 +5072,7 @@ TEST_F(OpObserverMultiEntryTransactionTest, CommitPreparedTest) {
 
     {
         Lock::GlobalLock lk(opCtx(), MODE_IX);
-        opObserver().onPreparedTransactionCommit(
-            opCtx(),
-            commitSlot,
-            commitTimestamp,
-            txnParticipant.retrieveCompletedTransactionOperations(opCtx())
-                ->getOperationsForOpObserver());
+        opObserver().onPreparedTransactionCommit(opCtx(), commitSlot, commitTimestamp);
     }
     oplogEntryObjs = getNOplogEntries(opCtx(), 3);
     const auto commitOplogObj = oplogEntryObjs.back();
@@ -5320,12 +5341,7 @@ TEST_F(OpObserverMultiEntryTransactionTest, CommitPreparedPackingTest) {
     // commitTimestamp must be greater than the prepareTimestamp.
     auto commitTimestamp = Timestamp(prepareTimestamp.getSecs(), prepareTimestamp.getInc() + 1);
 
-    opObserver().onPreparedTransactionCommit(
-        opCtx(),
-        commitSlot,
-        commitTimestamp,
-        txnParticipant.retrieveCompletedTransactionOperations(opCtx())
-            ->getOperationsForOpObserver());
+    opObserver().onPreparedTransactionCommit(opCtx(), commitSlot, commitTimestamp);
 
     oplogEntryObjs = getNOplogEntries(opCtx(), 2);
     const auto commitOplogObj = oplogEntryObjs.back();

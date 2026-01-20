@@ -97,15 +97,14 @@ private:
     // This alignment is a best effort approach to ensure that each partition falls on a
     // separate page/cache line in order to avoid false sharing.
     struct alignas(stdx::hardware_destructive_interference_size) AlignedLockStats {
-        AtomicLockStats stats;
+        Locker::AtomicLockStats stats;
     };
 
     enum { NumPartitions = 8 };
 
-    AtomicLockStats& _get(LockerId id) {
+    Locker::AtomicLockStats& _get(LockerId id) {
         return _partitions[id % NumPartitions].stats;
     }
-
 
     AlignedLockStats _partitions[NumPartitions];
 };
@@ -222,7 +221,7 @@ const auto globalLockOrderingsSet =
 Locker::Locker(ServiceContext* serviceContext)
     : _id(idCounter.addAndFetch(1)),
       _lockManager(LockManager::get(serviceContext)),
-      _ticketingSystem(admission::TicketingSystem::get(serviceContext)) {
+      _ticketingSystem(admission::execution_control::TicketingSystem::get(serviceContext)) {
 #ifdef MONGO_CONFIG_DEBUG_BUILD
     _lockOrderingsSet = &globalLockOrderingsSet(serviceContext);
 #endif
@@ -821,7 +820,7 @@ void Locker::setGlobalLockTakenInMode(LockMode mode) {
     }
 }
 
-std::vector<LogDebugInfo> Locker::getLockInfoFromResourceHolders(ResourceId resId) const {
+std::vector<LockDebugInfo> Locker::getLockInfoFromResourceHolders(ResourceId resId) const {
     return _lockManager->getLockInfoFromResourceHolders(resId);
 }
 
@@ -1131,8 +1130,9 @@ bool Locker::_acquireTicket(OperationContext* opCtx, LockMode mode, Date_t deadl
 
     _ticket = _ticketingSystem->waitForTicketUntil(
         opCtx,
-        isSharedLockMode(mode) ? admission::TicketingSystem::OperationType::kRead
-                               : admission::TicketingSystem::OperationType::kWrite,
+        isSharedLockMode(mode)
+            ? admission::execution_control::TicketingSystem::OperationType::kRead
+            : admission::execution_control::TicketingSystem::OperationType::kWrite,
         deadline);
 
     if (!_ticket) {
@@ -1253,7 +1253,7 @@ void reportGlobalLockingStats(SingleThreadedLockStats* outStats) {
     globalStats.report(outStats);
 }
 
-void resetGlobalLockStats() {
+void resetGlobalLockStats_forTest() {
     globalStats.reset();
 }
 

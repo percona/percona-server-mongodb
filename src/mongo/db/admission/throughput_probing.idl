@@ -26,7 +26,7 @@
 # it in the license file.
 
 global:
-    cpp_namespace: "mongo::admission::throughput_probing"
+    cpp_namespace: "mongo::admission::execution_control::throughput_probing"
     cpp_includes:
         - "mongo/db/admission/throughput_probing.h"
 
@@ -114,4 +114,17 @@ server_parameters:
         default: 60000
         validator:
             gt: 0
+        redact: false
+
+    throughputProbingConcurrencyAdjustmentIntervalMillis:
+        description: >-
+            The interval in milliseconds in which to run the concurrency adjustment algorithm.
+        set_at: startup
+        cpp_vartype: int32_t
+        cpp_varname: gConcurrencyAdjustmentIntervalMillis
+        deprecated_name:
+            - storageEngineConcurrencyAdjustmentIntervalMillis
+        default: 100
+        validator:
+            gte: 10
         redact: false

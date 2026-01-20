@@ -34,10 +34,11 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/extension/host/query_execution_context.h"
-#include "mongo/db/extension/host_connector/host_services_adapter.h"
-#include "mongo/db/extension/host_connector/query_execution_context_adapter.h"
-#include "mongo/db/extension/host_connector/query_shape_opts_adapter.h"
+#include "mongo/db/extension/host_connector/adapter/host_services_adapter.h"
+#include "mongo/db/extension/host_connector/adapter/query_execution_context_adapter.h"
+#include "mongo/db/extension/host_connector/adapter/query_shape_opts_adapter.h"
 #include "mongo/db/extension/public/api.h"
+#include "mongo/db/extension/sdk/distributed_plan_logic.h"
 #include "mongo/db/extension/sdk/dpl_array_container.h"
 #include "mongo/db/extension/sdk/query_shape_opts_handle.h"
 #include "mongo/db/extension/sdk/raii_vector_to_abi_array.h"
@@ -46,6 +47,7 @@
 #include "mongo/db/extension/shared/byte_buf_utils.h"
 #include "mongo/db/extension/shared/get_next_result.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/ast_node.h"
+#include "mongo/db/extension/shared/handle/aggregation_stage/distributed_plan_logic.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/dpl_array_container.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
@@ -82,9 +84,9 @@ public:
     void setUp() override {
         // Initialize HostServices so that aggregation stages will be able to access member
         // functions, e.g. to run assertions.
-        extension::sdk::HostServicesHandle::setHostServices(
-            extension::host_connector::HostServicesAdapter::get());
-        _execCtx = std::make_unique<host_connector::QueryExecutionContextAdapter>(nullptr);
+        sdk::HostServicesHandle::setHostServices(host_connector::HostServicesAdapter::get());
+        _execCtx = std::make_unique<host_connector::QueryExecutionContextAdapter>(
+            std::make_unique<shared_test_stages::MockQueryExecutionContext>());
     }
 
     std::unique_ptr<host_connector::QueryExecutionContextAdapter> _execCtx;
@@ -349,12 +351,11 @@ TEST_F(AggStageTest, SearchLikeSourceAggStageAstNodeSucceeds) {
 
     ASSERT_TRUE(requiredFields.has_value());
     ASSERT_EQ(requiredFields->size(), 1u);
-    ASSERT_EQ((*requiredFields)[0], "searchScore");
+    ASSERT_EQ((*requiredFields)[0], "score");
 
     ASSERT_TRUE(providedFields.has_value());
-    ASSERT_EQ(providedFields->size(), 2u);
-    ASSERT_EQ((*providedFields)[0], "searchScore");
-    ASSERT_EQ((*providedFields)[1], "searchHighlights");
+    ASSERT_EQ(providedFields->size(), 1u);
+    ASSERT_EQ((*providedFields)[0], "searchHighlights");
 }
 
 TEST_F(AggStageTest, BadRequiresInputDocSourceTypeAggStageAstNodeFails) {
@@ -463,7 +464,7 @@ public:
     }
 
     // TODO (SERVER-112395): Implement this function for testing.
-    std::unique_ptr<ExecAggStage> compile() const override {
+    std::unique_ptr<ExecAggStageBase> compile() const override {
         return nullptr;
     }
 
@@ -632,13 +633,13 @@ TEST_F(AggStageTest, DesugarToEmptyDescriptorParseTest) {
 
 TEST_F(AggStageTest, SourceStageParseTest) {
     auto descriptor = std::make_unique<ExtensionAggStageDescriptor>(
-        shared_test_stages::SourceAggStageDescriptor::make());
+        shared_test_stages::FruitsAsDocumentsDescriptor::make());
     auto handle = extension::AggStageDescriptorHandle{descriptor.get()};
 
     BSONObj stageBson =
-        BSON(shared_test_stages::SourceAggStageDescriptor::kStageName << BSON("foo" << true));
+        BSON(shared_test_stages::FruitsAsDocumentsDescriptor::kStageName << BSON("foo" << true));
     auto parseNodeHandle = handle.parse(stageBson);
-    ASSERT_EQ(shared_test_stages::SourceAggStageDescriptor::kStageName, handle.getName());
+    ASSERT_EQ(shared_test_stages::FruitsAsDocumentsDescriptor::kStageName, handle.getName());
 }
 
 class FieldPathQueryShapeParseNode : public sdk::AggStageParseNode {
@@ -836,13 +837,14 @@ TEST_F(AggStageTest, SerializingLiteralQueryShapeSucceedsWithRepresentativeValue
     ASSERT_BSONOBJ_EQ(BSON(LiteralQueryShapeParseNode::kStageName << spec), queryShape);
 }
 
-class ValidExtensionExecAggStage : public extension::sdk::ExecAggStage {
+class ValidExtensionExecAggStage : public extension::sdk::ExecAggStageSource {
 public:
-    ValidExtensionExecAggStage(std::string stageName) : extension::sdk::ExecAggStage(stageName) {}
+    ValidExtensionExecAggStage(std::string stageName)
+        : extension::sdk::ExecAggStageSource(stageName) {}
 
     extension::ExtensionGetNextResult getNext(
         const QueryExecutionContextHandle& expCtx,
-        const MongoExtensionExecAggStage* execAggStage,
+        MongoExtensionExecAggStage* execAggStage,
         MongoExtensionGetNextRequestType requestType) override {
         // TODO SERVER-113905: once we support metadata, we should only support returning both
         // document and metadata.
@@ -869,7 +871,7 @@ public:
 
     void close() override {}
 
-    static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
+    static inline std::unique_ptr<ExecAggStageBase> make() {
         return std::make_unique<ValidExtensionExecAggStage>("$noOp");
     }
 
@@ -882,12 +884,12 @@ private:
  * Test class that tracks resource allocation and cleanup for lifecycle method testing.
  * open() allocates a resource, close() cleans it up, and reopen() reinitializes without cleanup.
  */
-class ResourceTrackingExecAggStage : public ExecAggStage {
+class ResourceTrackingExecAggStage : public ExecAggStageSource {
 public:
-    ResourceTrackingExecAggStage(std::string_view stageName) : ExecAggStage(stageName) {}
+    ResourceTrackingExecAggStage(std::string_view stageName) : ExecAggStageSource(stageName) {}
 
     ExtensionGetNextResult getNext(const QueryExecutionContextHandle& execCtx,
-                                   const MongoExtensionExecAggStage* execAggStage,
+                                   MongoExtensionExecAggStage* execAggStage,
                                    MongoExtensionGetNextRequestType requestType) override {
         // TODO SERVER-113905: once we support metadata, we should only support returning both
         // document and metadata.
@@ -916,7 +918,7 @@ public:
         return _initialized;
     }
 
-    static inline std::unique_ptr<ExecAggStage> make() {
+    static inline std::unique_ptr<ExecAggStageBase> make() {
         return std::make_unique<ResourceTrackingExecAggStage>("$resourceTracking");
     }
 
@@ -925,26 +927,24 @@ private:
     bool _initialized = false;
 };
 
-TEST(AggregationStageTest, ValidExecAggStageVTableGetNextSucceeds) {
+TEST_F(AggStageTest, ValidExecAggStageVTableGetNextSucceeds) {
     auto validExecAggStage = new extension::sdk::ExtensionExecAggStage(
         shared_test_stages::ValidExtensionExecAggStage::make());
     auto handle = extension::ExecAggStageHandle{validExecAggStage};
 
-    auto nullExecCtx = host_connector::QueryExecutionContextAdapter(nullptr);
-
-    auto getNext = handle.getNext(&nullExecCtx);
+    auto getNext = handle.getNext(_execCtx.get());
     ASSERT_EQUALS(extension::GetNextCode::kAdvanced, getNext.code);
     ASSERT_BSONOBJ_EQ(BSON("meow" << "adithi"), getNext.res.get());
 
-    getNext = handle.getNext(&nullExecCtx);
+    getNext = handle.getNext(_execCtx.get());
     ASSERT_EQUALS(extension::GetNextCode::kPauseExecution, getNext.code);
     ASSERT_EQ(boost::none, getNext.res);
 
-    getNext = handle.getNext(&nullExecCtx);
+    getNext = handle.getNext(_execCtx.get());
     ASSERT_EQUALS(extension::GetNextCode::kAdvanced, getNext.code);
     ASSERT_BSONOBJ_EQ(BSON("meow" << "cedric"), getNext.res.get());
 
-    getNext = handle.getNext(&nullExecCtx);
+    getNext = handle.getNext(_execCtx.get());
     ASSERT_EQUALS(extension::GetNextCode::kEOF, getNext.code);
     ASSERT_EQ(boost::none, getNext.res);
 };
@@ -982,15 +982,15 @@ private:
 };
 
 class GetMetricsExtensionExecAggStage
-    : public extension::sdk::ExecAggStage,
+    : public extension::sdk::ExecAggStageSource,
       std::enable_shared_from_this<GetMetricsExtensionExecAggStage> {
 public:
     GetMetricsExtensionExecAggStage(std::string stageName)
-        : extension::sdk::ExecAggStage(stageName) {}
+        : extension::sdk::ExecAggStageSource(stageName) {}
 
     extension::ExtensionGetNextResult getNext(
         const extension::sdk::QueryExecutionContextHandle& execCtx,
-        const MongoExtensionExecAggStage* execAggStage,
+        MongoExtensionExecAggStage* execAggStage,
         MongoExtensionGetNextRequestType requestType) override {
         // TODO SERVER-113905: once we support metadata, we should only support returning both
         // document and metadata.
@@ -1018,10 +1018,10 @@ public:
 
     void close() override {}
 
-    static inline std::unique_ptr<extension::sdk::ExecAggStage> make() {
+    static inline std::unique_ptr<ExecAggStageBase> make() {
         return std::make_unique<GetMetricsExtensionExecAggStage>("$getMetrics");
     }
-};
+};  // namespace
 
 TEST(AggregationStageTest, GetMetricsExtensionExecAggStageSucceeds) {
     QueryTestServiceContext testCtx;
@@ -1094,7 +1094,7 @@ TEST_F(AggStageTest, TestValidExecAggStageFromCompiledLogicalAggStage) {
     }
 }
 
-class TestSourceLogicalAggStage : public shared_test_stages::SourceLogicalAggStage {
+class TestSourceLogicalAggStage : public shared_test_stages::FruitsAsDocumentsLogicalAggStage {
 public:
     static inline std::unique_ptr<extension::sdk::LogicalAggStage> make() {
         return std::make_unique<TestSourceLogicalAggStage>();
@@ -1287,6 +1287,97 @@ TEST_F(AggStageTest, TestDPLArrayContainerRoundTrip) {
 
     ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 1);
     ASSERT_EQ(shared_test_stages::CountingParse::alive, 1);
+}
+
+class TestDistributedPlanLogic : public sdk::DistributedPlanLogicBase {
+public:
+    std::unique_ptr<sdk::DPLArrayContainer> getShardsPipeline() const override {
+        std::vector<extension::VariantDPLHandle> elements;
+        elements.emplace_back(_makeCountingLogicalStage());
+        elements.emplace_back(_makeCountingLogicalStage());
+        return std::make_unique<sdk::DPLArrayContainer>(std::move(elements));
+    }
+
+    std::unique_ptr<sdk::DPLArrayContainer> getMergingPipeline() const override {
+        std::vector<extension::VariantDPLHandle> elements;
+        elements.emplace_back(_makeCountingLogicalStage());
+        return std::make_unique<sdk::DPLArrayContainer>(std::move(elements));
+    }
+
+    BSONObj getSortPattern() const override {
+        return BSON("_id" << 1);
+    }
+
+    static inline std::unique_ptr<sdk::DistributedPlanLogicBase> make() {
+        return std::make_unique<TestDistributedPlanLogic>();
+    }
+
+private:
+    static extension::LogicalAggStageHandle _makeCountingLogicalStage() {
+        return extension::LogicalAggStageHandle{
+            new sdk::ExtensionLogicalAggStage(shared_test_stages::CountingLogicalStage::make())};
+    }
+};
+
+TEST_F(AggStageTest, TestDPLWithCountingStages) {
+    shared_test_stages::CountingLogicalStage::alive = 0;
+
+    auto handle = DistributedPlanLogicHandle(
+        new sdk::ExtensionDistributedPlanLogicAdapter(TestDistributedPlanLogic::make()));
+
+    // Confirm getShardsPipeline() returns a vector with 2 logical stages.
+    {
+        auto shardsPipeline = handle.getShardsPipeline();
+        ASSERT_EQ(shardsPipeline.size(), 2U);
+        ASSERT_TRUE(std::holds_alternative<LogicalAggStageHandle>(shardsPipeline[0]));
+        ASSERT_TRUE(std::holds_alternative<LogicalAggStageHandle>(shardsPipeline[1]));
+
+        ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 2);
+    }
+
+    // Stages are destroyed when shardsPipeline goes out of scope.
+    ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 0);
+
+    // Confirm getMergingPipeline() returns a vector with 1 logical stage.
+    {
+        auto mergingPipeline = handle.getMergingPipeline();
+        ASSERT_EQ(mergingPipeline.size(), 1U);
+        ASSERT_TRUE(std::holds_alternative<LogicalAggStageHandle>(mergingPipeline[0]));
+
+        ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 1);
+    }
+
+    // Stages are destroyed when mergingPipeline goes out of scope.
+    ASSERT_EQ(shared_test_stages::CountingLogicalStage::alive, 0);
+
+    // Confirm getSortPattern() returns the appropriate sort pattern.
+    {
+        auto sortPattern = handle.getSortPattern();
+        ASSERT_BSONOBJ_EQ(BSON("_id" << 1), sortPattern);
+    }
+}
+
+TEST_F(AggStageTest, TestEmptyDistributedPlanLogic) {
+    auto handle = DistributedPlanLogicHandle(new sdk::ExtensionDistributedPlanLogicAdapter(
+        shared_test_stages::EmptyDistributedPlanLogic::make()));
+
+    // Verify that getShardsPipeline() returns an empty vector when the C returns nullptr.
+    {
+        auto shardsPipeline = handle.getShardsPipeline();
+        ASSERT_EQ(shardsPipeline.size(), 0U);
+    }
+
+    // Verify that getMergingPipeline() returns an empty vector when the C API returns nullptr.
+    {
+        auto mergingPipeline = handle.getMergingPipeline();
+        ASSERT_EQ(mergingPipeline.size(), 0U);
+    }
+
+    // Verify that getSortPattern() returns an empty BSONObj.
+    {
+        auto sortPattern = handle.getSortPattern();
+        ASSERT_BSONOBJ_EQ(BSONObj(), sortPattern);
+    }
 }
 
 }  // namespace
