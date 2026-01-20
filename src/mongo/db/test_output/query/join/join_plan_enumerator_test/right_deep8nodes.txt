@@ -46,13 +46,13 @@ Output plans (best plan 0):
                          -> right:
                             [00000010][test.nss1] COLLSCAN
 
-1.[11111111] NLJ
+1.[11111111] HJ
  -> left:
-    [10000000][test.nss7] COLLSCAN
+    [01000000][test.nss6] COLLSCAN
  -> right:
-    [01111111] HJ
+    [10111111] HJ
      -> left:
-        [01000000][test.nss6] COLLSCAN
+        [10000000][test.nss7] COLLSCAN
      -> right:
         [00111111] HJ
          -> left:
@@ -78,15 +78,15 @@ Output plans (best plan 0):
 
 2.[11111111] HJ
  -> left:
-    [01000000][test.nss6] COLLSCAN
+    [00100000][test.nss5] COLLSCAN
  -> right:
-    [10111111] HJ
+    [11011111] HJ
      -> left:
         [10000000][test.nss7] COLLSCAN
      -> right:
-        [00111111] HJ
+        [01011111] HJ
          -> left:
-            [00100000][test.nss5] COLLSCAN
+            [01000000][test.nss6] COLLSCAN
          -> right:
             [00011111] HJ
              -> left:
@@ -106,21 +106,21 @@ Output plans (best plan 0):
                          -> right:
                             [00000010][test.nss1] COLLSCAN
 
-3.[11111111] NLJ
+3.[11111111] HJ
  -> left:
-    [01000000][test.nss6] COLLSCAN
+    [00010000][test.nss4] COLLSCAN
  -> right:
-    [10111111] HJ
+    [11101111] HJ
      -> left:
         [10000000][test.nss7] COLLSCAN
      -> right:
-        [00111111] HJ
+        [01101111] HJ
          -> left:
-            [00100000][test.nss5] COLLSCAN
+            [01000000][test.nss6] COLLSCAN
          -> right:
-            [00011111] HJ
+            [00101111] HJ
              -> left:
-                [00010000][test.nss4] COLLSCAN
+                [00100000][test.nss5] COLLSCAN
              -> right:
                 [00001111] HJ
                  -> left:
@@ -138,23 +138,23 @@ Output plans (best plan 0):
 
 4.[11111111] HJ
  -> left:
-    [00100000][test.nss5] COLLSCAN
+    [00001000][test.nss3] COLLSCAN
  -> right:
-    [11011111] HJ
+    [11110111] HJ
      -> left:
         [10000000][test.nss7] COLLSCAN
      -> right:
-        [01011111] HJ
+        [01110111] HJ
          -> left:
             [01000000][test.nss6] COLLSCAN
          -> right:
-            [00011111] HJ
+            [00110111] HJ
              -> left:
-                [00010000][test.nss4] COLLSCAN
+                [00100000][test.nss5] COLLSCAN
              -> right:
-                [00001111] HJ
+                [00010111] HJ
                  -> left:
-                    [00001000][test.nss3] COLLSCAN
+                    [00010000][test.nss4] COLLSCAN
                  -> right:
                     [00000111] HJ
                      -> left:
@@ -166,29 +166,29 @@ Output plans (best plan 0):
                          -> right:
                             [00000010][test.nss1] COLLSCAN
 
-5.[11111111] NLJ
+5.[11111111] HJ
  -> left:
-    [00100000][test.nss5] COLLSCAN
+    [00000100][test.nss2] COLLSCAN
  -> right:
-    [11011111] HJ
+    [11111011] HJ
      -> left:
         [10000000][test.nss7] COLLSCAN
      -> right:
-        [01011111] HJ
+        [01111011] HJ
          -> left:
             [01000000][test.nss6] COLLSCAN
          -> right:
-            [00011111] HJ
+            [00111011] HJ
              -> left:
-                [00010000][test.nss4] COLLSCAN
+                [00100000][test.nss5] COLLSCAN
              -> right:
-                [00001111] HJ
+                [00011011] HJ
                  -> left:
-                    [00001000][test.nss3] COLLSCAN
+                    [00010000][test.nss4] COLLSCAN
                  -> right:
-                    [00000111] HJ
+                    [00001011] HJ
                      -> left:
-                        [00000100][test.nss2] COLLSCAN
+                        [00001000][test.nss3] COLLSCAN
                      -> right:
                         [00000011] HJ
                          -> left:
@@ -198,186 +198,6 @@ Output plans (best plan 0):
 
 6.[11111111] HJ
  -> left:
-    [00010000][test.nss4] COLLSCAN
- -> right:
-    [11101111] HJ
-     -> left:
-        [10000000][test.nss7] COLLSCAN
-     -> right:
-        [01101111] HJ
-         -> left:
-            [01000000][test.nss6] COLLSCAN
-         -> right:
-            [00101111] HJ
-             -> left:
-                [00100000][test.nss5] COLLSCAN
-             -> right:
-                [00001111] HJ
-                 -> left:
-                    [00001000][test.nss3] COLLSCAN
-                 -> right:
-                    [00000111] HJ
-                     -> left:
-                        [00000100][test.nss2] COLLSCAN
-                     -> right:
-                        [00000011] HJ
-                         -> left:
-                            [00000001][test.nss0] COLLSCAN
-                         -> right:
-                            [00000010][test.nss1] COLLSCAN
-
-7.[11111111] NLJ
- -> left:
-    [00010000][test.nss4] COLLSCAN
- -> right:
-    [11101111] HJ
-     -> left:
-        [10000000][test.nss7] COLLSCAN
-     -> right:
-        [01101111] HJ
-         -> left:
-            [01000000][test.nss6] COLLSCAN
-         -> right:
-            [00101111] HJ
-             -> left:
-                [00100000][test.nss5] COLLSCAN
-             -> right:
-                [00001111] HJ
-                 -> left:
-                    [00001000][test.nss3] COLLSCAN
-                 -> right:
-                    [00000111] HJ
-                     -> left:
-                        [00000100][test.nss2] COLLSCAN
-                     -> right:
-                        [00000011] HJ
-                         -> left:
-                            [00000001][test.nss0] COLLSCAN
-                         -> right:
-                            [00000010][test.nss1] COLLSCAN
-
-8.[11111111] HJ
- -> left:
-    [00001000][test.nss3] COLLSCAN
- -> right:
-    [11110111] HJ
-     -> left:
-        [10000000][test.nss7] COLLSCAN
-     -> right:
-        [01110111] HJ
-         -> left:
-            [01000000][test.nss6] COLLSCAN
-         -> right:
-            [00110111] HJ
-             -> left:
-                [00100000][test.nss5] COLLSCAN
-             -> right:
-                [00010111] HJ
-                 -> left:
-                    [00010000][test.nss4] COLLSCAN
-                 -> right:
-                    [00000111] HJ
-                     -> left:
-                        [00000100][test.nss2] COLLSCAN
-                     -> right:
-                        [00000011] HJ
-                         -> left:
-                            [00000001][test.nss0] COLLSCAN
-                         -> right:
-                            [00000010][test.nss1] COLLSCAN
-
-9.[11111111] NLJ
- -> left:
-    [00001000][test.nss3] COLLSCAN
- -> right:
-    [11110111] HJ
-     -> left:
-        [10000000][test.nss7] COLLSCAN
-     -> right:
-        [01110111] HJ
-         -> left:
-            [01000000][test.nss6] COLLSCAN
-         -> right:
-            [00110111] HJ
-             -> left:
-                [00100000][test.nss5] COLLSCAN
-             -> right:
-                [00010111] HJ
-                 -> left:
-                    [00010000][test.nss4] COLLSCAN
-                 -> right:
-                    [00000111] HJ
-                     -> left:
-                        [00000100][test.nss2] COLLSCAN
-                     -> right:
-                        [00000011] HJ
-                         -> left:
-                            [00000001][test.nss0] COLLSCAN
-                         -> right:
-                            [00000010][test.nss1] COLLSCAN
-
-10.[11111111] HJ
- -> left:
-    [00000100][test.nss2] COLLSCAN
- -> right:
-    [11111011] HJ
-     -> left:
-        [10000000][test.nss7] COLLSCAN
-     -> right:
-        [01111011] HJ
-         -> left:
-            [01000000][test.nss6] COLLSCAN
-         -> right:
-            [00111011] HJ
-             -> left:
-                [00100000][test.nss5] COLLSCAN
-             -> right:
-                [00011011] HJ
-                 -> left:
-                    [00010000][test.nss4] COLLSCAN
-                 -> right:
-                    [00001011] HJ
-                     -> left:
-                        [00001000][test.nss3] COLLSCAN
-                     -> right:
-                        [00000011] HJ
-                         -> left:
-                            [00000001][test.nss0] COLLSCAN
-                         -> right:
-                            [00000010][test.nss1] COLLSCAN
-
-11.[11111111] NLJ
- -> left:
-    [00000100][test.nss2] COLLSCAN
- -> right:
-    [11111011] HJ
-     -> left:
-        [10000000][test.nss7] COLLSCAN
-     -> right:
-        [01111011] HJ
-         -> left:
-            [01000000][test.nss6] COLLSCAN
-         -> right:
-            [00111011] HJ
-             -> left:
-                [00100000][test.nss5] COLLSCAN
-             -> right:
-                [00011011] HJ
-                 -> left:
-                    [00010000][test.nss4] COLLSCAN
-                 -> right:
-                    [00001011] HJ
-                     -> left:
-                        [00001000][test.nss3] COLLSCAN
-                     -> right:
-                        [00000011] HJ
-                         -> left:
-                            [00000001][test.nss0] COLLSCAN
-                         -> right:
-                            [00000010][test.nss1] COLLSCAN
-
-12.[11111111] HJ
- -> left:
     [00000010][test.nss1] COLLSCAN
  -> right:
     [11111101] HJ
@@ -406,67 +226,7 @@ Output plans (best plan 0):
                          -> right:
                             [00000100][test.nss2] COLLSCAN
 
-13.[11111111] NLJ
- -> left:
-    [00000010][test.nss1] COLLSCAN
- -> right:
-    [11111101] HJ
-     -> left:
-        [10000000][test.nss7] COLLSCAN
-     -> right:
-        [01111101] HJ
-         -> left:
-            [01000000][test.nss6] COLLSCAN
-         -> right:
-            [00111101] HJ
-             -> left:
-                [00100000][test.nss5] COLLSCAN
-             -> right:
-                [00011101] HJ
-                 -> left:
-                    [00010000][test.nss4] COLLSCAN
-                 -> right:
-                    [00001101] HJ
-                     -> left:
-                        [00001000][test.nss3] COLLSCAN
-                     -> right:
-                        [00000101] HJ
-                         -> left:
-                            [00000001][test.nss0] COLLSCAN
-                         -> right:
-                            [00000100][test.nss2] COLLSCAN
-
-14.[11111111] HJ
- -> left:
-    [00000001][test.nss0] COLLSCAN
- -> right:
-    [11111110] HJ
-     -> left:
-        [10000000][test.nss7] COLLSCAN
-     -> right:
-        [01111110] HJ
-         -> left:
-            [01000000][test.nss6] COLLSCAN
-         -> right:
-            [00111110] HJ
-             -> left:
-                [00100000][test.nss5] COLLSCAN
-             -> right:
-                [00011110] HJ
-                 -> left:
-                    [00010000][test.nss4] COLLSCAN
-                 -> right:
-                    [00001110] HJ
-                     -> left:
-                        [00001000][test.nss3] COLLSCAN
-                     -> right:
-                        [00000110] HJ
-                         -> left:
-                            [00000010][test.nss1] COLLSCAN
-                         -> right:
-                            [00000100][test.nss2] COLLSCAN
-
-15.[11111111] NLJ
+7.[11111111] HJ
  -> left:
     [00000001][test.nss0] COLLSCAN
  -> right:
