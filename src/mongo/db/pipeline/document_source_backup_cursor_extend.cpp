@@ -60,7 +60,7 @@ DocumentSourceBackupCursorExtend::LiteParsed::parse(const NamespaceString& nss,
                                                     const BSONElement& spec,
                                                     const LiteParserOptions& options) {
 
-    return std::make_unique<DocumentSourceBackupCursorExtend::LiteParsed>(spec.fieldName());
+    return std::make_unique<DocumentSourceBackupCursorExtend::LiteParsed>(spec);
 }
 
 const char* DocumentSourceBackupCursorExtend::getSourceName() const {

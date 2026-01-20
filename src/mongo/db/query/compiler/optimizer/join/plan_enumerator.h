@@ -30,15 +30,15 @@
 #pragma once
 
 #include "mongo/db/query/compiler/optimizer/join/join_graph.h"
+#include "mongo/db/query/compiler/optimizer/join/join_plan.h"
+#include "mongo/db/query/compiler/optimizer/join/solution_storage.h"
 
 namespace mongo::join_ordering {
 
 /**
- * Represents a subset of a JoinGraph.
+ * Describes shape of plan tree.
  */
-struct JoinSubset {
-    NodeSet subset;
-};
+enum class PlanTreeShape { LEFT_DEEP, RIGHT_DEEP };
 
 /**
  * Context containing all the state for the bottom-up dynamic programming join plan enumeration
@@ -46,7 +46,7 @@ struct JoinSubset {
  */
 class PlanEnumeratorContext {
 public:
-    PlanEnumeratorContext(const JoinGraph& joinGraph);
+    PlanEnumeratorContext(const JoinGraph& joinGraph, const QuerySolutionMap& map);
 
     // Delete copy and move operations to prevent issues with copying '_joinGraph'.
     PlanEnumeratorContext(const PlanEnumeratorContext&) = delete;
@@ -62,15 +62,58 @@ public:
     /**
      * Enumerates all join subsets in bottom-up fashion.
      */
-    void enumerateJoinSubsets();
+    void enumerateJoinSubsets(PlanTreeShape type = PlanTreeShape::LEFT_DEEP);
+
+    JoinPlanNodeId getBestFinalPlan() const {
+        tassert(11336904,
+                "Expected subsets to have already been enumerated",
+                _joinSubsets.size() > 0 && _joinSubsets[_joinSubsets.size() - 1].size() == 1);
+        const auto& lastSubset = _joinSubsets[_joinSubsets.size() - 1][0];
+        return lastSubset.bestPlan();
+    }
+
+    const JoinPlanNodeRegistry& registry() const {
+        return _registry;
+    }
+
+    /**
+     * Used for testing & debugging.
+     */
+    std::string toString() const;
 
 private:
+    /**
+     * Enumerate plans by constructing possible joins between the 'left' and 'right' subsets and
+     * outputting those plans in 'cur'. Note that 'left' and 'right' must be disjoint, and their
+     * union must produce 'cur'.
+     */
+    void enumerateJoinPlans(PlanTreeShape type,
+                            const JoinSubset& left,
+                            const JoinSubset& right,
+                            JoinSubset& cur);
+
+    /**
+     * Helper for adding a join plan to subset 'cur', constructed using the specified join 'method'
+     * connecting the best plans from the provided subsets.
+     */
+    void addJoinPlan(JoinMethod method,
+                     const JoinSubset& left,
+                     const JoinSubset& right,
+                     const std::vector<EdgeId>& edges,
+                     JoinSubset& cur);
+
     const JoinGraph& _joinGraph;
 
     // Hold intermediate results of the enumeration algorithm. The index into the outer vector
     // represents the "level". The i'th level contains solutions for the optimal way to join all
     // possible subsets of size i+1.
     std::vector<std::vector<JoinSubset>> _joinSubsets;
+
+    // Memory management for trees so we can reuse nodes.
+    JoinPlanNodeRegistry _registry;
+
+    // Holds results from CBR.
+    const QuerySolutionMap& _cqsToQsns;
 };
 
 }  // namespace mongo::join_ordering

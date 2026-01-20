@@ -404,9 +404,6 @@ mongo_cc_library(
     srcs = [
         ":notify_sharding_event_gen",
     ],
-    header_deps = [
-        "//src/mongo/db/user_write_block:set_user_write_block_mode_idl",
-    ],
     deps = [
         "//src/mongo/db:server_base",
     ],
@@ -418,6 +415,15 @@ idl_generator(
     deps = [
         "//src/mongo/db:basic_types_gen",
         "//src/mongo/db/global_catalog/ddl:sharding_ddl_coordinator_gen",
+    ],
+)
+
+idl_generator(
+    name = "repair_sharded_collection_chunks_history_gen",
+    src = "repair_sharded_collection_chunks_history.idl",
+    deps = [
+        "//src/mongo/db:basic_types_gen",
+        "//src/mongo/idl:generic_argument_gen",
     ],
 )
 

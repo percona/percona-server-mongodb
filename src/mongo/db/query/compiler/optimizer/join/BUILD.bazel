@@ -25,12 +25,6 @@ mongo_cc_library(
         "join_graph.cpp",
         "path_resolver.cpp",
     ],
-    hdrs = [
-        "adjacency_matrix.h",
-        "join_graph.h",
-        "logical_defs.h",
-        "path_resolver.h",
-    ],
     deps = [
         "//src/mongo/db:server_base",
         "//src/mongo/db/query:canonical_query_base",
@@ -41,10 +35,12 @@ mongo_cc_library(
 mongo_cc_library(
     name = "plan_enumerator",
     srcs = [
+        "join_plan.cpp",
         "plan_enumerator.cpp",
         "plan_enumerator_helpers.cpp",
     ],
     hdrs = [
+        "join_plan.h",
         "plan_enumerator.h",
         "plan_enumerator_helpers.h",
         "single_table_access.h",
@@ -68,6 +64,7 @@ mongo_cc_unit_test(
         "reorder_joins_test.cpp",
     ],
     data = [
+        "//src/mongo/db/test_output/query/join/join_plan_enumerator_test:test_data",
         "//src/mongo/db/test_output/query/join/reorder_graph_test:test_data",
     ],
     tags = ["mongo_unittest_third_group"],
@@ -106,9 +103,6 @@ mongo_cc_library(
     srcs = [
         "join_predicate.cpp",
     ],
-    hdrs = [
-        "join_predicate.h",
-    ],
     deps = [
         "//src/mongo/db/pipeline:field_path",
     ],
@@ -133,11 +127,8 @@ mongo_cc_library(
     srcs = [
         "reorder_joins.cpp",
     ],
-    hdrs = [
-        "reorder_joins.h",
-    ],
     deps = [
-        ":join_ordering",
+        ":plan_enumerator",
         ":solution_storage",
         "//src/mongo/db/query:random_utils",
     ],
@@ -145,9 +136,6 @@ mongo_cc_library(
 
 mongo_cc_library(
     name = "solution_storage",
-    hdrs = [
-        "solution_storage.h",
-    ],
     deps = [
         "//src/mongo/db/query:canonical_query_base",
     ],
@@ -158,12 +146,10 @@ mongo_cc_library(
     srcs = [
         "unit_test_helpers.cpp",
     ],
-    hdrs = [
-        "unit_test_helpers.h",
-    ],
     deps = [
         "//src/mongo/db:server_base",
         "//src/mongo/db/local_catalog:catalog_test_fixture",
         "//src/mongo/db/pipeline",
+        "//src/mongo/unittest",
     ],
 )

@@ -72,7 +72,7 @@ using boost::intrusive_ptr;
 std::unique_ptr<DocumentSourceBackupFile::LiteParsed> DocumentSourceBackupFile::LiteParsed::parse(
     const NamespaceString& nss, const BSONElement& spec, const LiteParserOptions& options) {
 
-    return std::make_unique<DocumentSourceBackupFile::LiteParsed>(spec.fieldName());
+    return std::make_unique<DocumentSourceBackupFile::LiteParsed>(spec);
 }
 
 const char* DocumentSourceBackupFile::getSourceName() const {
