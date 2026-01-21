@@ -29,10 +29,10 @@
 
 #pragma once
 
-#include "mongo/db/local_catalog/collection.h"
-#include "mongo/db/local_catalog/db_raii.h"
-#include "mongo/db/local_catalog/shard_role_api/shard_role.h"
 #include "mongo/db/query/plan_executor.h"
+#include "mongo/db/shard_role/shard_catalog/collection.h"
+#include "mongo/db/shard_role/shard_catalog/db_raii.h"
+#include "mongo/db/shard_role/shard_role.h"
 
 namespace mongo {
 
@@ -99,13 +99,6 @@ public:
 
     CollectionPtr lookupCollection(const NamespaceString& nss) const {
         return _lookupCollectionAcquisitionAndGetCollPtr(nss);
-    }
-
-    bool knowsNamespace(const NamespaceString& nss) const {
-        if (nss == _mainAcq->nss()) {
-            return true;
-        }
-        return _secondaryAcq.find(nss) != _secondaryAcq.end();
     }
 
     boost::optional<CollectionAcquisition> getCollectionAcquisitionFromUuid(const UUID uuid) const {

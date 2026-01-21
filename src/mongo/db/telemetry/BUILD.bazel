@@ -39,10 +39,10 @@ mongo_cc_library(
     ],
     deps = [
         ":telemetry_base",
-        "//src/mongo/db/local_catalog:collection_options",
         "//src/mongo/db/encryption:vault_client",
         "//src/mongo/db/repl:repl_server_parameters",
         "//src/mongo/db/repl:storage_interface",
+        "//src/mongo/db/shard_role/shard_catalog:collection_options",
         "//src/mongo/s:grid",
     ],
 )

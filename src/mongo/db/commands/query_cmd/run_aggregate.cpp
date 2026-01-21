@@ -51,15 +51,6 @@
 #include "mongo/db/exec/agg/exchange_stage.h"
 #include "mongo/db/exec/disk_use_options_gen.h"
 #include "mongo/db/fle_crud.h"
-#include "mongo/db/global_catalog/router_role_api/router_role.h"
-#include "mongo/db/local_catalog/collection.h"
-#include "mongo/db/local_catalog/collection_options.h"
-#include "mongo/db/local_catalog/db_raii.h"
-#include "mongo/db/local_catalog/external_data_source_scope_guard.h"
-#include "mongo/db/local_catalog/shard_role_api/resource_yielders.h"
-#include "mongo/db/local_catalog/shard_role_api/shard_role_loop.h"
-#include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
-#include "mongo/db/local_catalog/shard_role_catalog/operation_sharding_state.h"
 #include "mongo/db/logical_time.h"
 #include "mongo/db/memory_tracking/operation_memory_usage_tracker.h"
 #include "mongo/db/namespace_string.h"
@@ -103,13 +94,22 @@
 #include "mongo/db/query/query_stats/agg_key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
 #include "mongo/db/query/shard_key_diagnostic_printer.h"
-#include "mongo/db/raw_data_operation.h"
 #include "mongo/db/read_concern.h"
 #include "mongo/db/repl/read_concern_args.h"
+#include "mongo/db/router_role/router_role.h"
 #include "mongo/db/s/query_analysis_writer.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
+#include "mongo/db/shard_role/resource_yielders.h"
+#include "mongo/db/shard_role/shard_catalog/collection.h"
+#include "mongo/db/shard_role/shard_catalog/collection_options.h"
+#include "mongo/db/shard_role/shard_catalog/db_raii.h"
+#include "mongo/db/shard_role/shard_catalog/external_data_source_scope_guard.h"
+#include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
+#include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
+#include "mongo/db/shard_role/shard_role_loop.h"
+#include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/tenant_id.h"
@@ -1236,16 +1236,7 @@ Status _runAggregate(AggExState& aggExState, rpc::ReplyBuilderInterface* result)
     auto swResForJoin = join_ordering::getJoinReorderedExecutor(
         aggCatalogState->getCollections(), *pipeline, aggExState.getOpCtx(), expCtx);
     if (swResForJoin.isOK()) {
-        /**
-         * We are careful to keep the AggJoinModel alive for the entirety of this function scope.
-         * We've created several CanonicalQueries, which in turn may own memory to the backing BSON
-         * of some MatchExpression filters. Several places in code may try to access this BSON, so
-         * we need to make sure it doesn't get deleted.
-         *
-         * TODO SERVER-114272: We keep our QSN tree alive in the SBE executor; however, filters in
-         * that QSN tree may be unowned, so accessing them may lead to use-after-free.
-         */
-        auto& resForJoin = swResForJoin.getValue();
+        auto resForJoin = std::move(swResForJoin.getValue());
         auto attachExecutorCallback =
             [](const MultipleCollectionAccessor& collections,
                std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> exec,

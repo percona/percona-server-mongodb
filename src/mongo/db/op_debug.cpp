@@ -35,12 +35,12 @@
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/curop_bson_helpers.h"
-#include "mongo/db/local_catalog/local_oplog_info.h"
 #include "mongo/db/profile_filter.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_summary_stats.h"
-#include "mongo/db/raw_data_operation.h"
+#include "mongo/db/repl/local_oplog_info.h"
 #include "mongo/db/repl/read_concern_args.h"
+#include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 #include "mongo/logv2/log.h"
 #include "mongo/rpc/metadata/client_metadata.h"
 #include "mongo/util/assert_util.h"
@@ -184,6 +184,7 @@ void OpDebug::report(OperationContext* opCtx,
                      const SingleThreadedLockStats* lockStats,
                      const SingleThreadedStorageMetrics& storageMetrics,
                      long long prepareReadConflicts,
+                     const Date_t* operationDeadline,
                      logv2::DynamicAttributes* pAttrs) const {
     Client* client = opCtx->getClient();
     auto& curop = *CurOp::get(opCtx);
@@ -508,6 +509,10 @@ void OpDebug::report(OperationContext* opCtx,
             durationCount<Nanoseconds>(ts->ticksTo<Nanoseconds>(ts->getTicks() - killTime)));
     }
 
+    if (operationDeadline != nullptr && *operationDeadline != Date_t::max()) {
+        pAttrs->add("deadline", *operationDeadline);
+    }
+
     // durationMillis should always be present for any operation
     pAttrs->add("durationMillis",
                 durationCount<Milliseconds>(CurOp::get(opCtx)->elapsedTimeTotal()));
@@ -783,6 +788,10 @@ void OpDebug::append(OperationContext* opCtx,
         b.appendNumber(
             "interruptLatencyNanos",
             durationCount<Nanoseconds>(ts->ticksTo<Nanoseconds>(ts->getTicks() - killTime)));
+    }
+
+    if (auto deadline = opCtx->getDeadline(); deadline != Date_t::max()) {
+        b.appendDate("deadline", deadline);
     }
 }
 

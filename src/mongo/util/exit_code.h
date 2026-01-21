@@ -29,11 +29,13 @@
 
 #pragma once
 
+#include "mongo/util/modules.h"
+
 /**
  * Mongo exit codes.
  */
 
-namespace mongo {
+namespace MONGO_MOD_PUB mongo {
 
 enum class ExitCode {
     clean = 0,
@@ -74,4 +76,4 @@ enum class ExitCode {
     perconaDataAtRestEncryptionError = 1001
 };
 
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUB mongo

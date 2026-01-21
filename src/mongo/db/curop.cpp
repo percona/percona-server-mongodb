@@ -43,9 +43,6 @@
 #include "mongo/db/commands.h"
 #include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/curop_bson_helpers.h"
-#include "mongo/db/local_catalog/lock_manager/d_concurrency.h"
-#include "mongo/db/local_catalog/lock_manager/lock_manager_defs.h"
-#include "mongo/db/local_catalog/shard_role_api/transaction_resources.h"
 #include "mongo/db/operation_context_options_gen.h"
 #include "mongo/db/profile_filter.h"
 #include "mongo/db/profile_settings.h"
@@ -53,6 +50,9 @@
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/session/logical_session_id_gen.h"
+#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
+#include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
+#include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/stats/timer_stats.h"
 #include "mongo/db/storage/execution_context.h"
 #include "mongo/db/storage/prepare_conflict_tracker.h"
@@ -755,6 +755,7 @@ CurOp::ShouldProfileQuery CurOp::_shouldProfileAtLevel1AndLogSlowQuery(
 }
 
 logv2::DynamicAttributes CurOp::_reportDebugAndStats(const logv2::LogOptions& logOptions,
+                                                     const Date_t* operationDeadline,
                                                      bool isFinalStorageStatsUpdate) {
     auto* opCtx = this->opCtx();
     auto locker = shard_role_details::getLocker(opCtx);
@@ -784,7 +785,8 @@ logv2::DynamicAttributes CurOp::_reportDebugAndStats(const logv2::LogOptions& lo
     const auto& storageMetrics = getOperationStorageMetrics();
 
     logv2::DynamicAttributes attr;
-    _debug.report(opCtx, &lockStats, storageMetrics, getPrepareReadConflicts(), &attr);
+    _debug.report(
+        opCtx, &lockStats, storageMetrics, getPrepareReadConflicts(), operationDeadline, &attr);
     return attr;
 }
 
@@ -843,7 +845,8 @@ bool CurOp::completeAndLogOperation(const logv2::LogOptions& logOptions,
     }
 
     if (forceLog || shouldLogSlowOp) {
-        logv2::DynamicAttributes attr = _reportDebugAndStats(logOptions, true);
+        Date_t deadline = opCtx->getDeadline();
+        logv2::DynamicAttributes attr = _reportDebugAndStats(logOptions, &deadline, true);
         LOGV2_OPTIONS(51803, logOptions, "Slow query", attr);
 
         _checkForFailpointsAfterCommandLogged();
@@ -885,7 +888,8 @@ void CurOp::logLongRunningOperationIfNeeded() {
     }
 
     calculateCpuTime();
-    logv2::DynamicAttributes attr = _reportDebugAndStats(kLogOptions, false);
+    Date_t deadline = opCtx()->getDeadline();
+    logv2::DynamicAttributes attr = _reportDebugAndStats(kLogOptions, &deadline, false);
     LOGV2_OPTIONS(1794200, kLogOptions, "Slow in-progress query", attr);
     _eligibleForLongRunningQueryLogging = false;
 }
