@@ -31,10 +31,16 @@ def generate_mongo_version_file():
     except CalledProcessError as exp:
         raise ChildProcessError("Failed to run git describe to get the latest tag") from exp
 
+    # Remove a tag prefix
+    UPSTREAM_TAG_PREFIX = "r"  # e.g. res = 'r5.1.0-alpha-597-g8c345c6693\n'
+    PERCONA_TAG_PREFIX = "psmdb-"  # e.g. res = 'psmdb-7.0.22-12-44-g80c7fa9d709'
+    for p in [UPSTREAM_TAG_PREFIX, PERCONA_TAG_PREFIX]:
+        if res.startswith(p):
+            res = res[len(p):]
+            break
+
     # Write the current MONGO_VERSION to a data file.
     with open(MONGO_VERSION_YAML, 'w') as mongo_version_fh:
-        # E.g. res = 'r5.1.0-alpha-597-g8c345c6693\n'
-        res = res[1:]  # Remove the leading "r" character.
         mongo_version_fh.write("mongo_version: " + res)
 
 
