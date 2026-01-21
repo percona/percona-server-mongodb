@@ -38,12 +38,14 @@
 #include "mongo/db/auth/privilege.h"
 #include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/pipeline/stage_params.h"
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/read_concern_support_result.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/str.h"
 
 #include <functional>
@@ -55,7 +57,7 @@
 #include <boost/optional.hpp>
 #include <boost/optional/optional.hpp>
 
-namespace mongo {
+namespace MONGO_MOD_UNFORTUNATELY_OPEN mongo {
 
 class LiteParsedPipeline;
 
@@ -76,7 +78,7 @@ struct LiteParserOptions {
  * make certain DocumentSource properties available before full parsing (e.g., getting the involved
  * foreign collections).
  */
-class LiteParsedDocumentSource {
+class MONGO_MOD_UNFORTUNATELY_OPEN LiteParsedDocumentSource {
 public:
     /*
      * This is the type of parser you should register using REGISTER_DOCUMENT_SOURCE. It need not
@@ -224,6 +226,12 @@ public:
     virtual void assertPermittedInAPIVersion(const APIParameters&) const {
         // By default there are no custom checks needed. The 'AllowedWithApiStrict' flag should take
         // care of most cases.
+    }
+
+    virtual std::unique_ptr<StageParams> getStageParams() const {
+        // The base class of StageParams should never be called.
+        // TODO SERVER-114306 Make this a pure virtual function.
+        MONGO_UNIMPLEMENTED_TASSERT(11429300);
     }
 
     /**
@@ -519,4 +527,4 @@ protected:
     boost::optional<NamespaceString> _foreignNss;
     std::vector<LiteParsedPipeline> _pipelines;
 };
-}  // namespace mongo
+}  // namespace MONGO_MOD_UNFORTUNATELY_OPEN mongo

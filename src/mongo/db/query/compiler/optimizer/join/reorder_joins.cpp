@@ -312,8 +312,6 @@ boost::optional<IndexEntry> bestIndexSatisfyingJoinPredicates(
     }
     if (bestIndex) {
         auto desc = bestIndex->descriptor();
-        auto filterExpression = bestIndex->getFilterExpression();
-        auto collator = bestIndex->getCollator();
         return IndexEntry{desc->keyPattern(),
                           desc->getIndexType(),
                           desc->version(),
@@ -323,9 +321,7 @@ boost::optional<IndexEntry> bestIndexSatisfyingJoinPredicates(
                           desc->isSparse(),
                           desc->unique(),
                           IndexEntry::Identifier{desc->indexName()},
-                          filterExpression,
                           desc->infoObj(),
-                          collator,
                           nullptr /*wildcardProjection*/,
                           std::move(bestIndex)};
     }
@@ -338,8 +334,7 @@ ReorderedJoinSolution constructSolutionWithRandomOrder(
     const std::vector<ResolvedPath>& resolvedPaths,
     const MultipleCollectionAccessor& mca,
     int seed,
-    bool defaultHJ,
-    bool enableBaseReordering) {
+    bool defaultHJ) {
     random_utils::PseudoRandomGenerator rand(seed);
     ReorderContext ctx(joinGraph, resolvedPaths);
 
@@ -349,9 +344,7 @@ ReorderedJoinSolution constructSolutionWithRandomOrder(
     std::vector<NodeId> frontier;
 
     // Randomly select a base collection.
-    NodeId baseId = enableBaseReordering
-        ? rand.generateUniformInt(0, (int)(joinGraph.numNodes() - 1))
-        : 0 /* Use first node seen by graph. */;
+    NodeId baseId = rand.generateUniformInt(0, (int)(joinGraph.numNodes() - 1));
     frontier.push_back(baseId);
 
     // Final query solution
@@ -406,9 +399,12 @@ ReorderedJoinSolution constructSolutionWithRandomOrder(
                     *mca.lookupCollection(currentNode.collectionName)->getIndexCatalog(),
                     indexedJoinPreds);
                 indexEntry.has_value()) {
-                rhs = std::make_unique<FetchNode>(std::make_unique<IndexProbeNode>(
-                    currentNode.collectionName, std::move(indexEntry.value())));
-                // TODO SERVER-111910: Write an end-to-end test exercising this codepath.
+                rhs = std::make_unique<FetchNode>(
+                    std::make_unique<IndexProbeNode>(currentNode.collectionName,
+                                                     std::move(indexEntry.value())),
+                    currentNode.collectionName);
+                // TODO SERVER-111222: Write an end-to-end test exercising this codepath, once we
+                // can lower INLJ nodes to SBE.
                 if (auto matchExpr = currentNode.accessPath->getPrimaryMatchExpression();
                     matchExpr != nullptr && !matchExpr->isTriviallyTrue()) {
                     rhs->filter = matchExpr->clone();

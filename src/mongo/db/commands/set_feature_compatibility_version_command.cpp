@@ -84,6 +84,7 @@
 #include "mongo/db/s/range_deletion_util.h"
 #include "mongo/db/s/resharding/coordinator_document_gen.h"
 #include "mongo/db/s/resharding/resharding_coordinator_service.h"
+#include "mongo/db/s/resharding/resharding_util.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
@@ -159,6 +160,7 @@ MONGO_FAIL_POINT_DEFINE(automaticallyCollmodToRecordIdsReplicatedFalse);
 MONGO_FAIL_POINT_DEFINE(setFCVPauseAfterReadingConfigDropPedingDBs);
 MONGO_FAIL_POINT_DEFINE(failDowngradeValidationDueToIncompatibleFeature);
 MONGO_FAIL_POINT_DEFINE(failUpgradeValidationDueToIncompatibleFeature);
+MONGO_FAIL_POINT_DEFINE(immediatelyTimeOutWaitForStaleOFCV);
 
 
 /**
@@ -170,7 +172,11 @@ void abortAllReshardCollection(OperationContext* opCtx) {
     auto reshardingCoordinatorService = checked_cast<ReshardingCoordinatorService*>(
         repl::PrimaryOnlyServiceRegistry::get(opCtx->getServiceContext())
             ->lookupServiceByName(ReshardingCoordinatorService::kServiceName));
-    reshardingCoordinatorService->abortAllReshardCollection(opCtx);
+    // Skip the quiesce period to avoid blocking the FCV change. Please note that a resharding
+    // operation only has a quiesce period if its resharding UUID was provided by the user which is
+    // used for retryability.
+    reshardingCoordinatorService->abortAllReshardCollection(
+        opCtx, {resharding::kFCVChangeAbortReason, resharding::AbortType::kAbortSkipQuiesce});
 
     PersistentTaskStore<ReshardingCoordinatorDocument> store(
         NamespaceString::kConfigReshardingOperationsNamespace);
@@ -1403,7 +1409,12 @@ private:
      * --- All new operations are guaranteed to see at least the current FCV state
      */
     void _waitForOperationsRelyingOnStaleFcvToComplete(OperationContext* opCtx, FCV version) {
-        waitForOperationsNotMatchingVersionContextToComplete(opCtx, VersionContext(version));
+        auto waitForStaleOFcvDeadline = Date_t::max();
+        if (MONGO_unlikely(immediatelyTimeOutWaitForStaleOFCV.shouldFail())) {
+            waitForStaleOFcvDeadline = Date_t::now();
+        }
+        waitForOperationsNotMatchingVersionContextToComplete(
+            opCtx, VersionContext(version), waitForStaleOFcvDeadline);
 
         // Take the global lock in S mode to create a barrier for operations taking the global
         // IX or X locks. This ensures that either:

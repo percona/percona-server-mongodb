@@ -15,6 +15,7 @@
 /massif.out.*
 /merged_decls.json
 /modules_dump.yaml
+/.tmp
 venv
 
 *~

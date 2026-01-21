@@ -72,7 +72,7 @@ protected:
         solnsPerQuery.insert(std::move(p));
         idxMap.insert({nss, std::move(params.indexes)});
 
-        return graph.addNode(nss, std::move(cq), params.embedPath);
+        return *graph.addNode(nss, std::move(cq), params.embedPath);
     }
 
     void outputSolutions(std::ostream& out) {
@@ -89,13 +89,8 @@ protected:
         // Ensure each solution has a different base node.
         std::set<NodeId> baseNodes;
         for (auto seed : seeds) {
-            auto r = constructSolutionWithRandomOrder(cloneSolnMap(solnsPerQuery),
-                                                      graph,
-                                                      resolvedPaths,
-                                                      mca,
-                                                      seed,
-                                                      false /* Default to NLJ. */,
-                                                      true /* Allow base collection reordering. */);
+            auto r = constructSolutionWithRandomOrder(
+                cloneSolnMap(solnsPerQuery), graph, resolvedPaths, mca, seed);
             ASSERT(r.soln);
             // Ensure our seeds produce different base collections.
             ASSERT(!baseNodes.contains(r.baseNode));

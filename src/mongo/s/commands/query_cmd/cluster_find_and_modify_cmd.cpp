@@ -51,7 +51,6 @@
 #include "mongo/db/global_catalog/chunk.h"
 #include "mongo/db/global_catalog/chunk_manager.h"
 #include "mongo/db/global_catalog/ddl/cluster_ddl.h"
-#include "mongo/db/global_catalog/shard_key_pattern_query_util.h"
 #include "mongo/db/global_catalog/type_collection_common_types_gen.h"
 #include "mongo/db/internal_transactions_feature_flag_gen.h"
 #include "mongo/db/pipeline/expression_context.h"
@@ -86,6 +85,7 @@
 #include "mongo/s/commands/document_shard_key_update_util.h"
 #include "mongo/s/commands/query_cmd/cluster_explain.h"
 #include "mongo/s/multi_statement_transaction_requests_sender.h"
+#include "mongo/s/query/shard_key_pattern_query_util.h"
 #include "mongo/s/query_analysis_sampler_util.h"
 #include "mongo/s/request_types/cluster_commands_without_shard_key_gen.h"
 #include "mongo/s/session_catalog_router.h"
@@ -1206,7 +1206,9 @@ void FindAndModifyCmd::_runExplainWithoutShardKey(OperationContext* opCtx,
         auto opMsg = OpMsgRequestBuilder::create(auth::ValidatedTenancyScope::get(opCtx),
                                                  nss.dbName(),
                                                  explainClusterQueryWithoutShardKeyCmd);
-        return CommandHelpers::runCommandDirectly(opCtx, opMsg).getOwned();
+        auto res = CommandHelpers::runCommandDirectly(opCtx, opMsg);
+        uassertStatusOK(getStatusFromCommandResult(res));
+        return res.getOwned();
     }();
 
     auto clusterWriteWithoutShardKeyExplainRes = [&] {
@@ -1222,12 +1224,14 @@ void FindAndModifyCmd::_runExplainWithoutShardKey(OperationContext* opCtx,
         auto opMsg = OpMsgRequestBuilder::create(auth::ValidatedTenancyScope::get(opCtx),
                                                  nss.dbName(),
                                                  explainClusterWriteWithoutShardKeyCmd);
-        return CommandHelpers::runCommandDirectly(opCtx, opMsg).getOwned();
+        auto res = CommandHelpers::runCommandDirectly(opCtx, opMsg);
+        uassertStatusOK(getStatusFromCommandResult(res));
+        return res.getOwned();
     }();
 
-    auto output = write_without_shard_key::generateExplainResponseForTwoPhaseWriteProtocol(
-        clusterQueryWithoutShardKeyExplainRes, clusterWriteWithoutShardKeyExplainRes);
-    result->appendElementsUnique(output);
+
+    write_without_shard_key::generateExplainResponseForTwoPhaseWriteProtocol(
+        *result, clusterQueryWithoutShardKeyExplainRes, clusterWriteWithoutShardKeyExplainRes);
 }
 
 // Command invocation to be used if a shard key is specified or the collection is unsharded.

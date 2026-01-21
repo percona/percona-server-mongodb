@@ -94,6 +94,33 @@ std::vector<BSONObj> pipelineToBSON(const std::unique_ptr<Pipeline>& pipeline) {
         return {};
     }
 }
+
+bool isLookupEligible(const DocumentSourceLookUp& lookup) {
+    if (!lookup.hasUnwindSrc()) {
+        return false;
+    }
+
+    if (!lookup.hasLocalFieldForeignFieldJoin()) {
+        // TODO SERVER-111164: once we start adding edge from $expr we need to remove check for
+        // hasLocalFieldForeignFieldJoin().
+        return false;
+    }
+
+    if (!lookup.hasPipeline()) {
+        // A $lookup with no sub-pipeline is eligible.
+        return true;
+    }
+
+    if (lookup.getLetVariables().size() > 0) {
+        // TODO SERVER-111164: permit let variables/ correlated sub-pipelines.
+        return false;
+    }
+
+    // If the $lookup has a sub-pipeline, then it may only contain a $match stage.
+    return lookup.getResolvedIntrospectionPipeline().size() == 1 &&
+        dynamic_cast<DocumentSourceMatch*>(lookup.getResolvedIntrospectionPipeline().peekFront());
+}
+
 }  // namespace
 
 bool AggJoinModel::pipelineEligibleForJoinReordering(const Pipeline& pipeline) {
@@ -106,12 +133,8 @@ bool AggJoinModel::pipelineEligibleForJoinReordering(const Pipeline& pipeline) {
     // Since we can reorder base collections, any pipeline with even just one eligible $lookup +
     // $unwind pair could be eligible.
     return std::any_of(pipeline.getSources().begin(), pipeline.getSources().end(), [](auto ds) {
-        if (auto* lookup = dynamic_cast<DocumentSourceLookUp*>(ds.get());
-            // TODO SERVER-111164: once we start adding edge from $expr we need to remove check for
-            // hasLocalFieldForeignFieldJoin().
-            lookup != nullptr && lookup->hasUnwindSrc() &&
-            lookup->hasLocalFieldForeignFieldJoin()) {
-            return true;
+        if (auto* lookup = dynamic_cast<DocumentSourceLookUp*>(ds.get()); lookup) {
+            return isLookupEligible(*lookup);
         }
         return false;
     });
@@ -137,27 +160,23 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
     JoinGraph graph;
     auto baseNodeId =
         graph.addNode(expCtx->getNamespaceString(), std::move(swCQ.getValue()), boost::none);
+    if (!baseNodeId) {
+        return Status(ErrorCodes::BadValue, "Failed to create a node for base collection");
+    }
 
     auto prefix = createEmptyPipeline(suffix->getContext());
     std::vector<ResolvedPath> resolvedPaths;
-    PathResolver pathResolver{baseNodeId, resolvedPaths};
+    PathResolver pathResolver{*baseNodeId, resolvedPaths};
 
     // Go through the pipeline trying to find the maximal chain of join optimization eligible
     // $lookup+$unwinds pairs and turning them into CanonicalQueries. At the end only ineligible for
     // join optimization stages are left in the suffix.
-    while (!suffix->getSources().empty()) {
+    // If we already reach the maximum number of edges we bail out from building the graph and put
+    // the remaining stages into the suffix.
+    while (!suffix->getSources().empty() && graph.numNodes() < kMaxNodesInJoin) {
         auto* stage = suffix->getSources().front().get();
         if (auto* lookup = dynamic_cast<DocumentSourceLookUp*>(stage); lookup) {
-            // TODO SERVER-111164: once we start adding edge from $expr we need to remove check for
-            // hasLocalFieldForeignFieldJoin(). The same check below is kept below for the future
-            // needs.
-            if (!lookup->hasUnwindSrc() || !lookup->hasLocalFieldForeignFieldJoin()) {
-                // We can't push this $lookup to the prefix.
-                break;
-            }
-
-            if (lookup->hasPipeline()) {
-                // TODO SERVER-111910: Enable lookup with sub-pipelines for join-opt.
+            if (!isLookupEligible(*lookup)) {
                 break;
             }
 
@@ -168,18 +187,29 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
 
             auto foreignNodeId = graph.addNode(
                 lookup->getFromNs(), std::move(swCQ.getValue()), lookup->getAsField());
-            pathResolver.addNode(foreignNodeId, lookup->getAsField());
+
+            if (!foreignNodeId) {
+                return Status(ErrorCodes::BadValue, "Graph is too big: too many nodes");
+            }
 
             if (lookup->hasLocalFieldForeignFieldJoin()) {
                 // The order of resolving the paths are important here: localPathId shouln't be
                 // resolved to the foreign collection even if it is prefixed by the foreign
                 // collection's embedPath.
                 auto localPathId = pathResolver.resolve(*lookup->getLocalField());
-                auto foreignPathId =
-                    pathResolver.addPath(foreignNodeId, *lookup->getForeignField());
 
-                graph.addSimpleEqualityEdge(
-                    pathResolver[localPathId].nodeId, foreignNodeId, localPathId, foreignPathId);
+                pathResolver.addNode(*foreignNodeId, lookup->getAsField());
+                auto foreignPathId =
+                    pathResolver.addPath(*foreignNodeId, *lookup->getForeignField());
+
+                auto edgeId = graph.addSimpleEqualityEdge(
+                    pathResolver[localPathId].nodeId, *foreignNodeId, localPathId, foreignPathId);
+                if (!edgeId) {
+                    // Cannot add an edge for existing nodes.
+                    return Status(ErrorCodes::BadValue, "Graph is too big: too many edges");
+                }
+            } else {
+                pathResolver.addNode(*foreignNodeId, lookup->getAsField());
             }
 
             // TODO SERVER-111164: add edges from $expr's

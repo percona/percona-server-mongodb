@@ -980,6 +980,8 @@ TEST_F(StorageEngineRepairTest, LoadCatalogRecoversOrphansInCatalog) {
 
     ASSERT(!collectionExists(opCtx.get(), collNs));
 
+    _storageEngine->closeMDBCatalog(opCtx.get());
+
     // When in a repair context, loadMDBCatalog() recreates catalog entries for orphaned idents.
     _storageEngine->loadMDBCatalog(opCtx.get(), StorageEngine::LastShutdownState::kClean);
     catalog::initializeCollectionCatalog(opCtx.get(), _storageEngine, boost::none);
@@ -1017,6 +1019,7 @@ TEST_F(StorageEngineTest, LoadCatalogDropsOrphans) {
     // orphaned idents.
     {
         Lock::GlobalWrite writeLock(opCtx.get(), Date_t::max(), Lock::InterruptBehavior::kThrow);
+        _storageEngine->closeMDBCatalog(opCtx.get());
         _storageEngine->loadMDBCatalog(opCtx.get(), StorageEngine::LastShutdownState::kClean);
         catalog::initializeCollectionCatalog(opCtx.get(), _storageEngine, boost::none);
     }
@@ -1137,10 +1140,8 @@ TEST_F(StorageEngineTest, IdentMissingForNonReadyIndex) {
     auto collection =
         CollectionCatalog::get(opCtx.get())->lookupCollectionByNamespace(opCtx.get(), ns);
     ASSERT(collection);
-    auto indexDesc = collection->getIndexCatalog()->findIndexByName(
+    auto indexEntry = collection->getIndexCatalog()->findIndexByName(
         opCtx.get(), indexName, IndexCatalog::InclusionPolicy::kUnfinished);
-    ASSERT(indexDesc);
-    auto indexEntry = indexDesc->getEntry();
     ASSERT(indexEntry);
     // Even though the index was rebuilt it's not ready due to that it's waiting for commit quorum
     ASSERT_FALSE(indexEntry->isReady());

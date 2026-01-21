@@ -30,6 +30,7 @@
 #include "mongo/s/write_ops/unified_write_executor/write_batch_scheduler.h"
 
 #include "mongo/db/global_catalog/ddl/cluster_ddl.h"
+#include "mongo/db/query/shard_key_diagnostic_printer.h"
 #include "mongo/db/router_role/cluster_commands_helpers.h"
 #include "mongo/db/server_feature_flags_gen.h"
 
@@ -102,6 +103,21 @@ bool WriteBatchScheduler::executeRound(OperationContext* opCtx) {
 
     auto result = routing_context_utils::runAndValidate(
         *swRoutingCtx.getValue(), [&](RoutingContext& routingCtx) -> ProcessorResult {
+            // Create an RAII object that prints each collection's shard key in the case of a
+            // tassert or crash.
+            stdx::unordered_map<NamespaceString, boost::optional<BSONObj>> shardKeys;
+            for (auto& nss : nssList) {
+                const auto& cri = routingCtx.getCollectionRoutingInfo(nss);
+                shardKeys.emplace(nss,
+                                  cri.isSharded()
+                                      ? boost::optional<BSONObj>(
+                                            cri.getChunkManager().getShardKeyPattern().toBSON())
+                                      : boost::none);
+            }
+            ScopedDebugInfo shardKeyDiagnostics(
+                "ShardKeyDiagnostics",
+                diagnostic_printers::MultipleShardKeysDiagnosticPrinter{shardKeys});
+
             // Call getNextBatch() and handle any target errors that occurred.
             auto batch = getNextBatchAndHandleTargetErrors(opCtx, routingCtx);
 
@@ -171,8 +187,35 @@ StatusWith<std::unique_ptr<RoutingContext>> WriteBatchScheduler::initRoutingCont
             const auto allowLocks = opCtx->inMultiDocumentTransaction() &&
                 shard_role_details::getLocker(opCtx)->isLocked();
 
-            return std::make_unique<RoutingContext>(
+
+            // We should only be passing the target epoch if we're targeting one namespace. In
+            // general, a target epoch is only passed for $merge commands to detect concurrent
+            // collection drops between rounds of inserting documents.
+            tassert(11413801, "Expected at least one nss to be targeted", nssList.size() > 0);
+            tassert(11413800,
+                    "Expected only one namespace when target epoch is specified",
+                    !_targetEpoch || nssList.size() == 1);
+            const auto firstNss = nssList.front();
+
+            auto routingCtx = std::make_unique<RoutingContext>(
                 opCtx, std::move(nssList), allowLocks, true /* checkTimeseriesBucketsNss */);
+
+            // Throws a StaleEpoch exception if the collection has been dropped and recreated or has
+            // an epoch that doesn't match that target epoch specified.
+            if (_targetEpoch) {
+                const auto& cri = routingCtx->getCollectionRoutingInfo(firstNss);
+                const auto& cm = cri.getChunkManager();
+
+                uassert(StaleEpochInfo(firstNss, ShardVersion{}, ShardVersion{}),
+                        "Collection has been dropped",
+                        cm.hasRoutingTable());
+                uassert(StaleEpochInfo(firstNss, ShardVersion{}, ShardVersion{}),
+                        "Collection epoch has changed",
+                        cm.getVersion().epoch() == _targetEpoch);
+            }
+
+            return std::move(routingCtx);
+
         } catch (const DBException& ex) {
             // For NamespaceNotFound errors, we will retry a couple of times before returning
             // the error to the caller. For all other types of errors, we return the error to

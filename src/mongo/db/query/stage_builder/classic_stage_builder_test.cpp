@@ -161,9 +161,7 @@ IndexEntry buildSimpleIndexEntry(const BSONObj& kp) {
             false,
             false,
             CoreIndexInfo::Identifier("a_1"),
-            nullptr,
             {},
-            nullptr,
             nullptr};
 }
 }  // namespace
@@ -208,9 +206,9 @@ TEST_F(ClassicStageBuilderTest, VirtualScanTranslation) {
 }
 
 TEST_F(ClassicStageBuilderTest, IndexFetchTranslationPopulatesMap) {
-    auto idxScan = std::make_unique<IndexScanNode>(buildSimpleIndexEntry(BSON("a" << 1)));
+    auto idxScan = std::make_unique<IndexScanNode>(kNss, buildSimpleIndexEntry(BSON("a" << 1)));
     QuerySolutionNode* idxScanPtr = idxScan.get();
-    auto fetch = std::make_unique<FetchNode>(std::move(idxScan));
+    auto fetch = std::make_unique<FetchNode>(std::move(idxScan), kNss);
     QuerySolutionNode* fetchPtr = fetch.get();
 
     auto stage = buildPlanStage(makeQuerySolution(std::move(fetch)));

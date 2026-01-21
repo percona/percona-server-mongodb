@@ -30,8 +30,9 @@
 #pragma once
 
 #include "mongo/db/pipeline/expression_context.h"
+#include "mongo/util/modules.h"
 
-namespace mongo {
+namespace MONGO_MOD_PUBLIC mongo {
 class AggregateCommandRequest;
 class DistinctCommandRequest;
 class FindCommandRequest;
@@ -124,6 +125,10 @@ public:
     ExpressionContextBuilder& fromRequest(OperationContext*,
                                           const AggregateCommandRequest&,
                                           bool useDisk = false);
+    ExpressionContextBuilder& fromRequest(OperationContext*,
+                                          const UpdateRequest& request,
+                                          bool forgoOpCounterIncrements = false);
+    ExpressionContextBuilder& fromRequest(OperationContext*, const DeleteRequest& request);
 
     boost::intrusive_ptr<ExpressionContext> build();
 
@@ -171,4 +176,4 @@ boost::intrusive_ptr<ExpressionContext> makeCopyForSubPipelineFromExpressionCont
     NamespaceString nss,
     boost::optional<UUID> uuid = boost::none,
     boost::optional<NamespaceString> userNs = boost::none);
-}  // namespace mongo
+}  // namespace MONGO_MOD_PUBLIC mongo

@@ -47,8 +47,11 @@ export const $config = extendWorkload($baseConfig, function ($config, $super) {
         ErrorCodes.Interrupted,
         // In older versions there is no moveCollection.
         ErrorCodes.CommandNotSupported,
-        // On FCV a moveCollection could be aborted.
+        // On FCV a moveCollection could be aborted. Starting in 8.3, ReshardCollectionAborted is
+        // reserved for user abort and ReshardCollectionInterruptedDueToFCVChange is used for
+        // setFCV abort.
         ErrorCodes.ReshardCollectionAborted,
+        ErrorCodes.ReshardCollectionInterruptedDueToFCVChange,
     ];
     // Failures that are accepted for the createCollection command
     $config.data.kAcceptedCreateErrors = [
@@ -69,7 +72,9 @@ export const $config = extendWorkload($baseConfig, function ($config, $super) {
     $config.data.kAcceptedSetFCVErrors = [
         // If setFCV failed due to collections in non primary shard (regardless of the best effort),
         // allow the state to run again eventually.
+        // TODO (SERVER-114541): Remove CannotDowngrade error code from the list once v9.0 is last LTS
         ErrorCodes.CannotDowngrade,
+        ErrorCodes.ConflictingOperationInProgress,
         // Invalid fcv transition (e.g lastContinuous -> lastLTS).
         5147403,
         // Cannot upgrade FCV if a previous FCV downgrade stopped in the middle of cleaning up

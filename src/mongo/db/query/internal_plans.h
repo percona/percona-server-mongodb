@@ -48,6 +48,7 @@
 #include "mongo/db/shard_role/shard_catalog/index_catalog.h"
 #include "mongo/db/shard_role/shard_catalog/index_descriptor.h"
 #include "mongo/db/shard_role/shard_role.h"
+#include "mongo/util/modules.h"
 
 #include <cstdint>
 #include <memory>
@@ -61,7 +62,7 @@ namespace mongo {
 class BSONObj;
 class Collection;
 class CollectionPtr;
-class IndexDescriptor;
+class IndexCatalogEntry;
 class OperationContext;
 class PlanStage;
 class CollectionAcquisition;
@@ -72,7 +73,7 @@ struct UpdateStageParams;
  * The internal planner is a one-stop shop for "off-the-shelf" plans.  Most internal procedures
  * that do not require advanced queries could be served by plans already in here.
  */
-class InternalPlanner {
+class MONGO_MOD_NEEDS_REPLACEMENT InternalPlanner {
 public:
     enum Direction {
         FORWARD = 1,
@@ -169,7 +170,7 @@ public:
     static std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> indexScan(
         OperationContext* opCtx,
         const CollectionAcquisition& collection,
-        const IndexDescriptor* descriptor,
+        const IndexCatalogEntry* descriptor,
         const BSONObj& startKey,
         const BSONObj& endKey,
         BoundInclusion boundInclusion,
@@ -185,7 +186,7 @@ public:
         OperationContext* opCtx,
         CollectionAcquisition collection,
         std::unique_ptr<DeleteStageParams> params,
-        const IndexDescriptor* descriptor,
+        const IndexCatalogEntry* descriptor,
         const BSONObj& startKey,
         const BSONObj& endKey,
         BoundInclusion boundInclusion,
@@ -234,7 +235,7 @@ public:
         OperationContext* opCtx,
         CollectionAcquisition collection,
         const UpdateStageParams& params,
-        const IndexDescriptor* descriptor,
+        const IndexCatalogEntry* descriptor,
         const BSONObj& key,
         PlanYieldPolicy::YieldPolicy yieldPolicy);
 
@@ -269,7 +270,7 @@ private:
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         WorkingSet* ws,
         const CollectionAcquisition& collection,
-        const IndexDescriptor* descriptor,
+        const IndexCatalogEntry* descriptor,
         const BSONObj& startKey,
         const BSONObj& endKey,
         BoundInclusion boundInclusion,

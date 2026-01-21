@@ -494,14 +494,13 @@ void updateSessionEntry(OperationContext* opCtx,
                     << NamespaceString::kSessionTransactionsTableNamespace.toStringForErrorMsg(),
                 idIndex);
 
-        const IndexCatalogEntry* entry = collectionPtr->getIndexCatalog()->getEntry(idIndex);
-        auto indexAccess = entry->accessMethod()->asSortedData();
+        auto indexAccess = idIndex->accessMethod()->asSortedData();
         // Since we are looking up a key inside the _id index, create a key object consisting of
         // only the _id field.
         recordId = indexAccess->findSingle(opCtx,
                                            *shard_role_details::getRecoveryUnit(opCtx),
                                            collectionPtr,
-                                           entry,
+                                           idIndex,
                                            toUpdateIdDoc);
     }
 
@@ -3773,6 +3772,17 @@ void TransactionParticipant::Participant::handleWouldChangeOwningShardError(
 
         addTransactionOperation(opCtx, operation);
     }
+}
+
+void TransactionParticipant::Participant::addPreparedTransactionPreciseCheckpointRecoveryFields(
+    SessionTxnRecord& sessionTxnRecord) const {
+    const auto& affectedNamespacesSet = affectedNamespaces();
+    sessionTxnRecord.setAffectedNamespaces(boost::optional<std::vector<NamespaceString>>(
+        boost::in_place_init, affectedNamespacesSet.begin(), affectedNamespacesSet.end()));
+
+    auto prepareOpTime = getPrepareOpTime();
+    invariant(!prepareOpTime.isNull());
+    sessionTxnRecord.setPrepareTimestamp(prepareOpTime.getTimestamp());
 }
 
 void TransactionParticipant::Participant::_registerUpdateCacheOnCommit(

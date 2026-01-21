@@ -36,7 +36,6 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/error_labels.h"
 #include "mongo/db/global_catalog/shard_key_pattern.h"
-#include "mongo/db/global_catalog/shard_key_pattern_query_util.h"
 #include "mongo/db/global_catalog/type_database_gen.h"
 #include "mongo/db/keypattern.h"
 #include "mongo/db/logical_time.h"
@@ -70,6 +69,7 @@
 #include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/rpc/write_concern_error_detail.h"
 #include "mongo/s/multi_statement_transaction_requests_sender.h"
+#include "mongo/s/query/shard_key_pattern_query_util.h"
 #include "mongo/s/query_analysis_sampler_util.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/decorable.h"
@@ -1187,16 +1187,19 @@ StatusWith<boost::optional<int64_t>> addLimitAndSkipForShards(boost::optional<in
     return newLimit;
 }
 
-RoutingContext& translateNssForRawDataAccordingToRoutingInfo(
+
+RoutingContext& performTimeseriesTranslationAccordingToRoutingInfo(
     OperationContext* opCtx,
     const NamespaceString& originalNss,
     const CollectionRoutingInfoTargeter& targeter,
     RoutingContext& originalRoutingCtx,
-    std::function<void(const NamespaceString& translatedNss)> translateNssFunc) {
-    const bool shouldTranslateCmdForRawDataOperation =
-        isRawDataOperation(opCtx) && targeter.timeseriesNamespaceNeedsRewrite(originalNss);
+    std::function<void(const NamespaceString& translatedNss)> translateNssFunc,
+    bool translateLogicalCmd) {
 
-    if (shouldTranslateCmdForRawDataOperation) {
+    const auto requireTranslation = (translateLogicalCmd || isRawDataOperation(opCtx)) &&
+        targeter.timeseriesNamespaceNeedsRewrite(originalNss);
+
+    if (requireTranslation) {
         const auto& nss = originalNss.makeTimeseriesBucketsNamespace();
         translateNssFunc(nss);
 

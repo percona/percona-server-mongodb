@@ -30,7 +30,6 @@
 #include "mongo/db/query/query_planner_params.h"
 
 #include "mongo/db/exec/projection_executor_utils.h"
-#include "mongo/db/global_catalog/shard_key_pattern_query_util.h"
 #include "mongo/db/index/multikey_metadata_access_stats.h"
 #include "mongo/db/index/wildcard_access_method.h"
 #include "mongo/db/query/compiler/stats/collection_statistics_impl.h"
@@ -43,6 +42,7 @@
 #include "mongo/db/query/wildcard_multikey_paths.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/timeseries/timeseries_index_schema_conversion_functions.h"
+#include "mongo/s/query/shard_key_pattern_query_util.h"
 #include "mongo/s/shard_targeting_helpers.h"
 #include "mongo/util/assert_util.h"
 
@@ -72,8 +72,6 @@ IndexEntry indexEntryFromIndexCatalogEntry(OperationContext* opCtx,
     tassert(11321048, "Index catalog entry descriptor must not be null", desc);
 
     if (desc->isIdIndex()) {
-        auto filterExpression = ice->getFilterExpression();
-        auto collator = ice->getCollator();
         // _id indexes are guaranteed to be non-multikey. Determining whether the index is multikey
         // has a small cost associated with it, so we skip that here to make _id lookups faster.
         return {desc->keyPattern(),
@@ -85,9 +83,7 @@ IndexEntry indexEntryFromIndexCatalogEntry(OperationContext* opCtx,
                 desc->isSparse(),
                 desc->unique(),
                 IndexEntry::Identifier{desc->indexName()},
-                filterExpression,
                 desc->infoObj(),
-                collator,
                 nullptr /* wildcard projection */,
                 std::move(ice)};
     }
@@ -128,8 +124,6 @@ IndexEntry indexEntryFromIndexCatalogEntry(OperationContext* opCtx,
         }
     }
 
-    auto filterExpression = ice->getFilterExpression();
-    auto collator = ice->getCollator();
     auto multikeyPaths = ice->getMultikeyPaths(opCtx, collection);
     return {desc->keyPattern(),
             desc->getIndexType(),
@@ -145,9 +139,7 @@ IndexEntry indexEntryFromIndexCatalogEntry(OperationContext* opCtx,
             desc->isSparse(),
             desc->unique(),
             IndexEntry::Identifier{desc->indexName()},
-            filterExpression,
             desc->infoObj(),
-            collator,
             wildcardProjection,
             std::move(ice)};
 }

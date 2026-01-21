@@ -558,6 +558,7 @@ protected:
         OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
         {
             // Generate the create oplog entry.
+            VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
             AutoGetCollection autoColl(opCtx, nss, MODE_X);
             WriteUnitOfWork wuow(opCtx);
             opObserver.onCreateCollection(opCtx,
@@ -600,6 +601,7 @@ protected:
         OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
         {
             // Generate the create oplog entry.
+            VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx);
             AutoGetCollection autoColl(opCtx, nss, MODE_X);
             WriteUnitOfWork wuow(opCtx);
             opObserver.onCreateCollection(opCtx,
@@ -649,6 +651,7 @@ protected:
         }
 
         {
+            VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx.get());
             AutoGetCollection autoColl(opCtx.get(), localNSS, MODE_X);
             WriteUnitOfWork wuow(opCtx.get());
             opObserver.onCreateCollection(opCtx.get(),
@@ -717,7 +720,7 @@ TEST_F(OpObserverOnCreateCollectionTest, UnreplicatedCollectionNotInLocalCatalog
 using OpObserverOnCreateCollectionTestDeathTest = OpObserverOnCreateCollectionTest;
 DEATH_TEST_F(OpObserverOnCreateCollectionTestDeathTest,
              CrashIfNoReplicatedCatalogIdentifier,
-             "invariant") {
+             "Missing catalog identifier") {
     // Invariant only enforced when replicated local catalog identifiers are required for
     // replication correctness.
     RAIIServerParameterControllerForTest replicateLocalCatalogInfoController(
@@ -726,6 +729,7 @@ DEATH_TEST_F(OpObserverOnCreateCollectionTestDeathTest,
     auto opCtx = cc().makeOperationContext();
 
     ASSERT_TRUE(nss.isReplicated());
+    VersionContext::FixedOperationFCVRegion fixedOfcvRegion(opCtx.get());
     AutoGetCollection autoColl(opCtx.get(), nss, MODE_X);
     WriteUnitOfWork wuow(opCtx.get());
     opObserver.onCreateCollection(opCtx.get(),
@@ -1891,7 +1895,9 @@ protected:
 
     void assertTxnRecord(TxnNumber txnNum,
                          repl::OpTime opTime,
-                         boost::optional<DurableTxnStateEnum> txnState) {
+                         boost::optional<DurableTxnStateEnum> txnState,
+                         boost::optional<Timestamp> prepareTs = boost::none,
+                         boost::optional<size_t> numAffectedNamespaces = boost::none) {
         DBDirectClient client(opCtx());
         FindCommandRequest findRequest{NamespaceString::kSessionTransactionsTableNamespace};
         findRequest.setFilter(BSON("_id" << session()->getSessionId().toBSON()));
@@ -1915,6 +1921,20 @@ protected:
             ASSERT_EQ(opTime, txnParticipant.getLastWriteOpTime());
         } else {
             ASSERT_EQ(txnRecord.getLastWriteOpTime(), txnParticipant.getLastWriteOpTime());
+        }
+
+        if (prepareTs) {
+            ASSERT(txnRecord.getPrepareTimestamp());
+            ASSERT_EQ(*txnRecord.getPrepareTimestamp(), *prepareTs);
+        } else {
+            ASSERT(!txnRecord.getPrepareTimestamp());
+        }
+
+        if (numAffectedNamespaces) {
+            ASSERT(txnRecord.getAffectedNamespaces());
+            ASSERT_EQ(txnRecord.getAffectedNamespaces()->size(), *numAffectedNamespaces);
+        } else {
+            ASSERT(!txnRecord.getAffectedNamespaces());
         }
     }
 
@@ -2288,6 +2308,30 @@ TEST_F(OpObserverTransactionTest, PreparingTransactionWritesToTransactionTable) 
               shard_role_details::getRecoveryUnit(opCtx())->getPrepareTimestamp());
     txnParticipant.stashTransactionResources(opCtx());
     assertTxnRecord(txnNum(), prepareOpTime, DurableTxnStateEnum::kPrepared);
+    txnParticipant.unstashTransactionResources(opCtx(), "abortTransaction");
+}
+
+TEST_F(OpObserverTransactionTest,
+       PreparingTransactionWritesToTransactionTablePreciseCheckpointsFlagOn) {
+    RAIIServerParameterControllerForTest featureFlagController(
+        "featureFlagPreparedTransactionsPreciseCheckpoints", true);
+
+    auto txnParticipant = TransactionParticipant::get(opCtx());
+    txnParticipant.unstashTransactionResources(opCtx(), "prepareTransaction");
+
+    repl::OpTime prepareOpTime;
+    {
+        Lock::GlobalLock lk(opCtx(), MODE_IX);
+        WriteUnitOfWork wuow(opCtx());
+        auto reservedSlots = prepareTransaction();
+        prepareOpTime = reservedSlots.back();
+    }
+
+    ASSERT_EQ(prepareOpTime.getTimestamp(),
+              shard_role_details::getRecoveryUnit(opCtx())->getPrepareTimestamp());
+    txnParticipant.stashTransactionResources(opCtx());
+    assertTxnRecord(
+        txnNum(), prepareOpTime, DurableTxnStateEnum::kPrepared, prepareOpTime.getTimestamp(), 0);
     txnParticipant.unstashTransactionResources(opCtx(), "abortTransaction");
 }
 
@@ -3489,7 +3533,7 @@ TEST_F(BatchedWriteOutputsTest, TestApplyOpsGrouping) {
     }
 }
 
-// Verifies that a WriteUnitOfWork with groupOplogEntries=kGroupForTransaction constisting of an
+// Verifies that a WriteUnitOfWork with groupOplogEntries=kGroupForTransaction consisting of an
 // insert, an update and a delete replicates as a single applyOps.
 TEST_F(BatchedWriteOutputsTest, TestApplyOpsInsertDeleteUpdate) {
     // Setup.
@@ -3853,8 +3897,8 @@ TEST_F(BatchedWriteOutputsTest, testWUOWTooLarge) {
     AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
     WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
 
-    // Attempt to delete more documents than allowed in a single applyOps batch because it
-    // the generated entry exceeds the limit of 16MB for an applyOps entry.
+    // Attempt to delete more documents than allowed in a single applyOps batch because the
+    // generated entry exceeds the limit of 16MB for an applyOps entry.
     int approximateDifferenceBetweenBSONObjMaxUserAndInternalSize = 2000;
     for (int docId = 0; docId < BatchedWriteOutputsTest::maxDeleteOpsInBatch +
              approximateDifferenceBetweenBSONObjMaxUserAndInternalSize + 1;

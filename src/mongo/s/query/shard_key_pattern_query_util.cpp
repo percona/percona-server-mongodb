@@ -27,7 +27,7 @@
  *    it in the license file.
  */
 
-#include "mongo/db/global_catalog/shard_key_pattern_query_util.h"
+#include "mongo/s/query/shard_key_pattern_query_util.h"
 
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
@@ -438,9 +438,7 @@ boost::optional<IndexBounds> getIndexBoundsForQuery(const BSONObj& key,
                           false /* sparse */,
                           false /* unique */,
                           IndexEntry::Identifier{"shardkey"},
-                          nullptr /* filterExpr */,
                           BSONObj(),
-                          nullptr, /* collator */
                           nullptr /* projExec */);
     ;
 

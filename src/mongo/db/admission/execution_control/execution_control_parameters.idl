@@ -27,6 +27,7 @@
 #
 
 global:
+    mod_visibility: public
     cpp_namespace: "mongo::admission::execution_control"
     cpp_includes:
         - "mongo/db/admission/execution_control/ticketing_system.h"
@@ -204,19 +205,6 @@ server_parameters:
         cpp_varname: gHeuristicDeprioritization
         on_update: "TicketingSystem::updateHeuristicDeprioritization"
         default: true
-        redact: false
-
-    executionControlHeuristicNumAdmissionsDeprioritizeThreshold:
-        description: >-
-            The number of admissions an operation must perform before it is deprioritized to the low-priority
-            ticket pool. This parameter only takes effect when `executionControlHeuristicDeprioritization`
-            is true.
-        set_at: [startup, runtime]
-        cpp_vartype: Atomic<int>
-        cpp_varname: gHeuristicNumAdmissionsDeprioritizeThreshold
-        default: 3
-        validator:
-            gte: 0
         redact: false
 
     executionControlBackgroundTasksDeprioritization:

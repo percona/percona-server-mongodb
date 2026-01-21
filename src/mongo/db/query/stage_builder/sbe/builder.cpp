@@ -52,6 +52,7 @@
 #include "mongo/db/index_names.h"
 #include "mongo/db/matcher/expression_leaf.h"
 #include "mongo/db/matcher/matcher_type_set.h"
+#include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/accumulator.h"
 #include "mongo/db/pipeline/accumulator_multi.h"
 #include "mongo/db/pipeline/document_source_match.h"
@@ -140,7 +141,7 @@ void prepareSearchQueryParameters(PlanStageData* data, const CanonicalQuery& cq)
     }
 
     // Build a SearchNode in order to retrieve the search info.
-    auto sn = search_helpers::getSearchNode(cq.cqPipeline().front().get());
+    auto sn = search_helpers::getSearchNode(cq.nss(), cq.cqPipeline().front().get());
 
     auto& env = data->env;
 
@@ -371,18 +372,16 @@ std::unique_ptr<fts::FTSMatcher> makeFtsMatcher(OperationContext* opCtx,
                                                 const CollectionPtr& collection,
                                                 const std::string& indexName,
                                                 const fts::FTSQuery* ftsQuery) {
-    auto desc = collection->getIndexCatalog()->findIndexByName(opCtx, indexName);
-    tassert(5432209,
-            str::stream() << "index descriptor not found for index named '" << indexName
-                          << "' in collection '" << collection->ns().toStringForErrorMsg() << "'",
-            desc);
-
-    auto entry = collection->getIndexCatalog()->getEntry(desc);
+    auto entry = collection->getIndexCatalog()->findIndexByName(opCtx, indexName);
     tassert(5432210,
             str::stream() << "index entry not found for index named '" << indexName
                           << "' in collection '" << collection->ns().toStringForErrorMsg() << "'",
             entry);
-
+    const auto desc = entry->descriptor();
+    tassert(5432209,
+            str::stream() << "index descriptor not found for index named '" << indexName
+                          << "' in collection '" << collection->ns().toStringForErrorMsg() << "'",
+            desc);
     auto accessMethod = static_cast<const FTSAccessMethod*>(entry->accessMethod());
     tassert(5432211,
             str::stream() << "access method is not defined for index named '" << indexName
@@ -408,7 +407,7 @@ std::pair<SbStage, PlanStageSlots> PlanStageSlots::makeMergedPlanStageSlots(
     tassert(8146604, "Expected 'trees' to be non-empty", !trees.empty());
 
     if (reqs.hasResultInfo()) {
-        // Merge the childeren's result infos.
+        // Merge the children's result infos.
         mergeResultInfos(state, nodeId, reqs, trees, postimageAllowedFieldSets);
     }
 
@@ -956,11 +955,6 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildTree() {
     // token or a tailable cursor) or if the caller simply expects to be able to read it.
     reqs.setIf(kRecordId, needsRecordIdSlot);
 
-    // Set the target namespace to '_mainNss'. This is necessary as some QuerySolutionNodes that
-    // require a collection when stage building do not explicitly name which collection they are
-    // targeting.
-    reqs.setTargetNamespace(_mainNss);
-
     // Build the SBE plan stage tree and return it.
     return build(_root, reqs);
 }
@@ -1010,7 +1004,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildCollScan(
     auto fields = reqs.getFields();
 
     auto [stage, outputs] =
-        generateCollScan(_state, getCurrentCollection(reqs), csn, std::move(fields));
+        generateCollScan(_state, getCollection(csn->nss), csn, std::move(fields));
 
     if (reqs.has(kReturnKey)) {
         // Assign the 'returnKeySlot' to be the empty object.
@@ -1098,7 +1092,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildIndexScan(
     const auto generateIndexScanFunc =
         ixn->iets.empty() ? generateIndexScan : generateIndexScanWithDynamicBounds;
     auto&& [scanStage, scanOutputs] =
-        generateIndexScanFunc(_state, getCurrentCollection(reqs), ixn, reqs);
+        generateIndexScanFunc(_state, getCollection(ixn->nss), ixn, reqs);
 
     auto stage = std::move(scanStage);
     auto outputs = std::move(scanOutputs);
@@ -1129,11 +1123,11 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildCountScan(
 
     auto csn = static_cast<const CountScanNode*>(root);
 
-    auto collection = getCurrentCollection(reqs);
+    auto collection = getCollection(csn->nss);
     auto indexName = csn->index.identifier.catalogName;
-    auto indexDescriptor = collection->getIndexCatalog()->findIndexByName(_state.opCtx, indexName);
-    auto indexAccessMethod =
-        collection->getIndexCatalog()->getEntry(indexDescriptor)->accessMethod()->asSortedData();
+    const auto indexEntry = collection->getIndexCatalog()->findIndexByName(_state.opCtx, indexName);
+    const auto indexDescriptor = indexEntry->descriptor();
+    auto indexAccessMethod = indexEntry->accessMethod()->asSortedData();
 
     std::unique_ptr<key_string::Value> lowKey, highKey;
     bool isPointInterval = false;
@@ -1296,7 +1290,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildFetch(const Query
                              indexKeySlot,
                              indexKeyPatternSlot,
                              prefetchedResultSlot,
-                             getCurrentCollection(reqs),
+                             getCollection(fn->nss),
                              _state,
                              root->nodeId(),
                              std::move(relevantSlots));
@@ -1854,7 +1848,9 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSortMerge(
                                                                      postimageAllowedFieldSets);
 
     if (mergeSortNode->dedup) {
-        auto collection = getCurrentCollection(reqs);
+        // TODO: SERVER-114436 This assumes that all results for merging come from the main
+        // collection.
+        auto collection = getCollection(_mainNss);
         if (collection->isClustered()) {
             stage = b.makeUnique(std::move(stage), outputs.get(kRecordId));
         } else {
@@ -3179,7 +3175,9 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildOr(const QuerySol
                                                                      postimageAllowedFieldSets);
 
     if (orn->dedup) {
-        auto collection = getCurrentCollection(reqs);
+        // TODO: SERVER-114436 This assumes that all results for merging come from the main
+        // collection.
+        auto collection = getCollection(_mainNss);
         if (collection->isClustered()) {
             stage = b.makeUnique(std::move(stage), outputs.get(kRecordId));
         } else {
@@ -3209,7 +3207,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildTextMatch(
     SbBuilder b(_state, root->nodeId());
 
     auto textNode = static_cast<const TextMatchNode*>(root);
-    auto coll = getCurrentCollection(reqs);
+    auto coll = getCollection(textNode->nss);
     tassert(5432212, "no collection object", coll);
     tassert(6023410, "buildTextMatch() does not support kSortKey", !reqs.hasSortKeys());
     tassert(5432215,
@@ -4789,7 +4787,7 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSearch(const Quer
         return buildSearchMeta(sn, _state, _cq, &_slotIdGenerator, _env, _yieldPolicy);
     }
 
-    auto collection = getCurrentCollection(reqs);
+    auto collection = getCollection(sn->nss);
     auto expCtx = _cq.getExpCtxRaw();
 
     // Register search query parameter slots.
@@ -4873,8 +4871,9 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildSearch(const Quer
 
     // Make a project stage to convert '_id' field value into keystring.
     auto catalog = collection->getIndexCatalog();
-    auto indexDescriptor = catalog->findIndexByName(_state.opCtx, kIdIndexName);
-    auto indexAccessMethod = catalog->getEntry(indexDescriptor)->accessMethod()->asSortedData();
+    auto indexEntry = catalog->findIndexByName(_state.opCtx, kIdIndexName);
+    auto indexDescriptor = indexEntry->descriptor();
+    auto indexAccessMethod = indexEntry->accessMethod()->asSortedData();
     auto sortedData = indexAccessMethod->getSortedDataInterface();
     auto version = sortedData->getKeyStringVersion();
     auto ordering = sortedData->getOrdering();
@@ -5031,8 +5030,7 @@ std::pair<SbStage, bool> SlotBasedStageBuilder::buildVectorizedFilterExpr(
     }
 }
 
-CollectionPtr SlotBasedStageBuilder::getCurrentCollection(const PlanStageReqs& reqs) const {
-    auto nss = reqs.getTargetNamespace();
+CollectionPtr SlotBasedStageBuilder::getCollection(const NamespaceString& nss) const {
     const auto coll = _collections.lookupCollection(nss);
     tassert(7922500,
             str::stream() << "No collection found that matches namespace '"
@@ -5166,10 +5164,10 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::build(const QuerySolut
         if (!outputs.hasResultObj()) {
             for (const auto& f : missingFields) {
                 tassert(6023424,
-                        str::stream()
-                            << "Expected build() for " << nodeStageTypeToString(root)
-                            << " to either satisfy all kField reqs, provide a materialized "
-                            << "result object, or provide a compatible result base object",
+                        str::stream() << "Expected build() for " << nodeStageTypeToString(root)
+                                      << " to satisfy the kField reqs for '" << f
+                                      << "' by providing a materialized result object or a "
+                                         "compatible result base object",
                         reqs.hasResultInfo() && reqs.getResultInfoTrackedFieldSet().count(f) &&
                             outputs.hasResultInfo() &&
                             outputs.getResultInfoChanges().get(f) == FieldEffect::kKeep);

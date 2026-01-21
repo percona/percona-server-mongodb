@@ -38,7 +38,6 @@
 #include "mongo/db/field_ref.h"
 #include "mongo/db/field_ref_set.h"
 #include "mongo/db/global_catalog/chunk_manager.h"
-#include "mongo/db/global_catalog/shard_key_pattern_query_util.h"
 #include "mongo/db/global_catalog/type_collection_common_types_gen.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/query/canonical_query.h"
@@ -69,6 +68,7 @@
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/rpc/write_concern_error_detail.h"
+#include "mongo/s/query/shard_key_pattern_query_util.h"
 #include "mongo/s/request_types/cluster_commands_without_shard_key_gen.h"
 #include "mongo/s/transaction_router_resource_yielder.h"
 #include "mongo/s/write_ops/batched_command_response.h"
@@ -411,7 +411,8 @@ StatusWith<ClusterWriteWithoutShardKeyResponse> runTwoPhaseWriteProtocol(
     }
 }
 
-BSONObj generateExplainResponseForTwoPhaseWriteProtocol(
+void generateExplainResponseForTwoPhaseWriteProtocol(
+    BSONObjBuilder& explainOutputBuilder,
     const BSONObj& clusterQueryWithoutShardKeyExplainObj,
     const BSONObj& clusterWriteWithoutShardKeyExplainObj) {
     // To express the two phase nature of the two phase write protocol, we use the output of the
@@ -485,7 +486,6 @@ BSONObj generateExplainResponseForTwoPhaseWriteProtocol(
         return newExecutionStatsBuilder.obj();
     }();
 
-    BSONObjBuilder explainOutputBuilder;
     if (!queryPlannerOutput.isEmpty()) {
         explainOutputBuilder.appendObject("queryPlanner", queryPlannerOutput.objdata());
     }
@@ -495,7 +495,6 @@ BSONObj generateExplainResponseForTwoPhaseWriteProtocol(
     // This step is to get 'command', 'serverInfo', and 'serverParamter' fields to return in the
     // final explain output.
     explainOutputBuilder.appendElementsUnique(clusterWriteWithoutShardKeyExplainObj);
-    return explainOutputBuilder.obj();
 }
 }  // namespace write_without_shard_key
 }  // namespace mongo

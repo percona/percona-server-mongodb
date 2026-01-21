@@ -37,6 +37,7 @@
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/util/concurrency/ticketholder.h"
+#include "mongo/util/modules.h"
 
 #include <cstdint>
 #include <memory>
@@ -44,7 +45,9 @@
 
 #include <boost/optional/optional.hpp>
 
-namespace mongo::admission::execution_control {
+namespace mongo {
+namespace admission {
+namespace MONGO_MOD_PUBLIC execution_control {
 
 enum class ExecutionControlConcurrencyAdjustmentAlgorithmEnum;
 
@@ -61,15 +64,15 @@ enum class ExecutionControlConcurrencyAdjustmentAlgorithmEnum;
  * pool based on a heuristic.
  *   - Throughput probing: a single pool is dynamically adjusted based on observed throughput.
  */
-class TicketingSystem {
+class MONGO_MOD_PUBLIC TicketingSystem {
 public:
     static constexpr auto kDefaultConcurrentTransactionsValue = 128;
     static constexpr auto kUnsetLowPriorityConcurrentTransactionsValue = -1;
     static constexpr auto kExemptPriorityName = "exempt"_sd;
     static constexpr auto kLowPriorityName = "lowPriority"_sd;
     static constexpr auto kNormalPriorityName = "normalPriority"_sd;
-
-    enum class OperationType { kRead = 0, kWrite };
+    static constexpr auto kShortRunningName = "shortRunning"_sd;
+    static constexpr auto kLongRunningName = "longRunning"_sd;
 
     struct RWTicketHolder {
         std::unique_ptr<TicketHolder> read;
@@ -91,10 +94,10 @@ public:
         static Status updateReadMaxQueueDepth(std::int32_t newReadMaxQueueDepth);
         static Status updateConcurrentWriteTransactions(const int32_t& newWriteTransactions);
         static Status updateConcurrentReadTransactions(const int32_t& newReadTransactions);
-        static Status validateConcurrentWriteTransactions(const int32_t& newWriteTransactions,
-                                                          boost::optional<TenantId>);
-        static Status validateConcurrentReadTransactions(const int32_t& newReadTransactions,
-                                                         boost::optional<TenantId>);
+        MONGO_MOD_PRIVATE static Status validateConcurrentWriteTransactions(
+            const int32_t& newWriteTransactions, boost::optional<TenantId>);
+        MONGO_MOD_PRIVATE static Status validateConcurrentReadTransactions(
+            const int32_t& newReadTransactions, boost::optional<TenantId>);
     };
 
     /**
@@ -106,14 +109,14 @@ public:
         static Status updateReadMaxQueueDepth(std::int32_t newReadMaxQueueDepth);
         static Status updateConcurrentWriteTransactions(const int32_t& newWriteTransactions);
         static Status updateConcurrentReadTransactions(const int32_t& newReadTransactions);
-        static Status validateConcurrentWriteTransactions(const int32_t& newWriteTransactions,
-                                                          boost::optional<TenantId>);
-        static Status validateConcurrentReadTransactions(const int32_t& newReadTransactions,
-                                                         boost::optional<TenantId>);
+        MONGO_MOD_PRIVATE static Status validateConcurrentWriteTransactions(
+            const int32_t& newWriteTransactions, boost::optional<TenantId>);
+        MONGO_MOD_PRIVATE static Status validateConcurrentReadTransactions(
+            const int32_t& newReadTransactions, boost::optional<TenantId>);
     };
 
-    static Status validateConcurrencyAdjustmentAlgorithm(const std::string& name,
-                                                         const boost::optional<TenantId>&);
+    MONGO_MOD_PRIVATE static Status validateConcurrencyAdjustmentAlgorithm(
+        const std::string& name, const boost::optional<TenantId>&);
 
     static Status updateConcurrencyAdjustmentAlgorithm(std::string newAlgorithm);
 
@@ -208,7 +211,7 @@ public:
      * Bumps the delinquency counters to all ticket holders (read and write pools) and the
      * de-prioritization stats.
      */
-    void incrementStats(OperationContext* opCtx);
+    void incrementStats(OperationContext* opCtx, int64_t elapsedMicros, int64_t cpuUsageMicros);
 
     /**
      * Attempts to acquire a ticket within a deadline, 'until'.
@@ -228,6 +231,25 @@ private:
      * Returns the appropriate TicketHolder based on the given priority and operation type.
      */
     TicketHolder* _getHolder(AdmissionContext::Priority p, OperationType o) const;
+
+    /**
+     * Appends long/short operation statistics.
+     */
+    void _appendOperationStats(BSONObjBuilder& b, OperationType opType) const;
+
+    /**
+     * Helper function to generalize ticket holder stats report.
+     */
+    void _appendTicketHolderStats(BSONObjBuilder& b,
+                                  StringData fieldName,
+                                  bool usesPrioritization,
+                                  const AdmissionContext::Priority& priority,
+                                  const std::unique_ptr<TicketHolder>& holder,
+                                  OperationType opType,
+                                  boost::optional<BSONObjBuilder>& opStats,
+                                  int32_t& out,
+                                  int32_t& available,
+                                  int32_t& totalTickets) const;
 
     /**
      * Encapsulates the ticketing system's concurrency mode and the logic that defines its behavior.
@@ -314,6 +336,16 @@ private:
      * Counts the total number of operations deprioritized.
      */
     AtomicWord<std::int64_t> _opsDeprioritized;
+
+    /**
+     * Accumulate long/short operation statistics for read and write operations.
+     */
+    OperationExecutionStats _readShortExecutionStats;
+    mongo::admission::execution_control::OperationExecutionStats _readLongExecutionStats;
+    mongo::admission::execution_control::OperationExecutionStats _writeShortExecutionStats;
+    mongo::admission::execution_control::OperationExecutionStats _writeLongExecutionStats;
 };
 
-}  // namespace mongo::admission::execution_control
+}  // namespace MONGO_MOD_PUBLIC execution_control
+}  // namespace admission
+}  // namespace mongo

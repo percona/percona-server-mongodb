@@ -209,12 +209,25 @@ std::unique_ptr<TransportLayerManager> TransportLayerManagerImpl::make(
         }
     }
 
-    if (gFeatureFlagDedicatedPortForMaintenanceOperations.isEnabled() &&
-        serverGlobalParams.maintenancePort) {
+    if (serverGlobalParams.maintenancePort) {
+        if (!gFeatureFlagDedicatedPortForMaintenanceOperations.isEnabled()) {
+            LOGV2_ERROR(11438200,
+                        "Maintenance port support is not enabled",
+                        "maintenancePort"_attr = serverGlobalParams.maintenancePort);
+            quickExit(ExitCode::badOptions);
+        }
         maintenancePort = serverGlobalParams.maintenancePort;
         addUniquePort(uniquePorts, *maintenancePort, "maintenance"_sd);
     }
 
+    // Check ingress GRPC
+#ifdef MONGO_CONFIG_GRPC
+    if (shouldGRPCIngressBeEnabled()) {
+        addUniquePort(uniquePorts, serverGlobalParams.grpcPort, "grpc"_sd);
+    }
+#endif
+
+    // Check egress GRPC
     bool useEgressGRPC = false;
     if (isUseGrpc) {
 #ifdef MONGO_CONFIG_GRPC

@@ -27,39 +27,38 @@
  *    it in the license file.
  */
 
-#include "mongo/bson/bsonobj.h"
-#include "mongo/db/extension/sdk/aggregation_stage.h"
-#include "mongo/db/extension/sdk/extension_factory.h"
-#include "mongo/db/extension/sdk/test_extension_factory.h"
+#include "mongo/db/query/util/bitset_compare.h"
 
-namespace sdk = mongo::extension::sdk;
+#include "mongo/unittest/unittest.h"
 
-DEFAULT_LOGICAL_AST_PARSE(TestFooSource, "$testFooSource")
+namespace mongo {
+namespace {
+template <size_t N>
+void assertLess(std::string_view lhs, std::string_view rhs) {
+    std::bitset<N> lhb{lhs.data(), lhs.size()};
+    std::bitset<N> lhb2{lhs.data(), lhs.size()};
+    std::bitset<N> rhb{rhs.data(), rhs.size()};
+    ASSERT_TRUE(bitsetLess(lhb, rhb));
+    ASSERT_FALSE(bitsetLess(rhb, lhb));
+    ASSERT_FALSE(bitsetLess(lhb, lhb));
+    ASSERT_FALSE(bitsetLess(lhb, lhb2));
+}
+}  // namespace
 
-/**
- * $testFoo is a source stage.
- *
- * This file is identical to foo.cpp except it is a source stage instead of a no-op stage.
- */
-class TestFooSourceStageDescriptor : public sdk::AggStageDescriptor {
-public:
-    static inline const std::string kStageName = std::string(TestFooSourceStageName);
+TEST(BitsetCompareTest, Less) {
+    assertLess<8>("0", "1");
+    assertLess<32>("0", "1");
+    assertLess<64>("0", "1");
+    assertLess<100>("0", "1");
 
-    TestFooSourceStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
-    std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
-        auto arguments = sdk::validateStageDefinition(stageBson, kStageName, true /* checkEmpty */);
+    assertLess<8>("10", "11");
+    assertLess<32>("10", "11");
+    assertLess<64>("10", "11");
+    assertLess<100>("10", "11");
 
-        return std::make_unique<TestFooSourceParseNode>(kStageName, arguments);
-    }
-};
-
-class FooExtension : public sdk::Extension {
-public:
-    void initialize(const sdk::HostPortalHandle& portal) override {
-        _registerStage<TestFooSourceStageDescriptor>(portal);
-    }
-};
-
-REGISTER_EXTENSION(FooExtension)
-DEFINE_GET_EXTENSION()
+    assertLess<32>("1000000000010", "1000000000011");
+    assertLess<64>("1000000000010", "1000000000011");
+    assertLess<100>("1000000000010", "1000000000011");
+}
+}  // namespace mongo

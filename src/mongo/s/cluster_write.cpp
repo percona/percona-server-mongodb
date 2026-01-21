@@ -62,16 +62,6 @@ void write(OperationContext* opCtx,
         &NotPrimaryErrorTracker::get(opCtx->getClient()));
 
     CollectionRoutingInfoTargeter targeter(opCtx, request.getNS(), targetEpoch);
-
-    // Create an RAII object that prints the collection's shard key in the case of a tassert
-    // or crash.
-    ScopedDebugInfo shardKeyDiagnostics(
-        "ShardKeyDiagnostics",
-        diagnostic_printers::ShardKeyDiagnosticPrinter{
-            targeter.isTargetedCollectionSharded()
-                ? targeter.getRoutingInfo().getChunkManager().getShardKeyPattern().toBSON()
-                : BSONObj()});
-
     if (nss) {
         *nss = targeter.getNS();
     }
@@ -81,10 +71,19 @@ void write(OperationContext* opCtx,
 
     // TODO SERVER-104145: Enable insert/update/delete commands from internal clients.
     if (unified_write_executor::isEnabled(opCtx)) {
-        *response = unified_write_executor::write(opCtx, request);
+        *response = unified_write_executor::write(opCtx, request, targetEpoch);
         // SERVER-109104 This can be removed once we delete BatchWriteExec.
         stats->markIgnore();
     } else {
+        // Create an RAII object that prints the collection's shard key in the case of a tassert
+        // or crash.
+        ScopedDebugInfo shardKeyDiagnostics(
+            "ShardKeyDiagnostics",
+            diagnostic_printers::ShardKeyDiagnosticPrinter{
+                targeter.isTargetedCollectionSharded()
+                    ? targeter.getRoutingInfo().getChunkManager().getShardKeyPattern().toBSON()
+                    : BSONObj()});
+
         if (request.hasEncryptionInformation()) {
             FLEBatchResult result = processFLEBatch(opCtx, request, response);
             if (result == FLEBatchResult::kProcessed) {

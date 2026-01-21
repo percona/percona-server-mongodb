@@ -105,6 +105,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/modules/atlas/OWNERS.yml
 /buildscripts/modules/atlas/ @10gen/server-disagg-storage @svc-auto-approve-bot
+/buildscripts/modules/atlas/suites/*sharding*.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/monitor_build_status/OWNERS.yml
 /buildscripts/monitor_build_status/ @10gen/devprod-correctness @svc-auto-approve-bot
@@ -308,6 +309,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./buildscripts/tests/OWNERS.yml
 /buildscripts/tests/ @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/tests/test_evergreen_task_timeout.py @10gen/devprod-correctness @svc-auto-approve-bot
+/buildscripts/tests/test_generate_sbom.py @10gen/code-review-team-ssdlc @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/tests/burn_in_tests_end2end/OWNERS.yml
 /buildscripts/tests/burn_in_tests_end2end/ @10gen/devprod-correctness @svc-auto-approve-bot
@@ -355,6 +357,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /docs/owners/** @10gen/devprod-correctness @svc-auto-approve-bot
 /docs/**/poetry_execution.md @10gen/devprod-correctness @svc-auto-approve-bot
 /docs/**/server_parameters.md @10gen/server-programmability @svc-auto-approve-bot
+
+# The following patterns are parsed from ./docs/branching/OWNERS.yml
+/docs/branching/**/* @10gen/server-release @svc-auto-approve-bot
 
 # The following patterns are parsed from ./docs/evergreen-testing/OWNERS.yml
 /docs/evergreen-testing/ @10gen/devprod-correctness @svc-auto-approve-bot
@@ -1131,7 +1136,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/default_startup_FCV_parameter.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/do_upgrade_downgrade.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/downgrade_replset.js @10gen/server-fcv @svc-auto-approve-bot
-/jstests/multiVersion/genericSetFCVUsage/**/drain_transactions_on_FCV_transition.js @10gen/server-fcv @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/draining_on_FCV_transition.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/feature_compatibility_version_lagging_secondary.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/initial_sync* @10gen/server-fcv @10gen/server-initial-sync @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/major_version_upgrade.js @10gen/server-fcv @svc-auto-approve-bot
@@ -2442,6 +2447,14 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/document_source_list_catalog* @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 /src/mongo/db/pipeline/**/document_source_list_extensions* @10gen/query-integration-extensions-api @svc-auto-approve-bot
 
+# The following patterns are parsed from ./src/mongo/db/pipeline/optimization/OWNERS.yml
+/src/mongo/db/pipeline/optimization/**/* @10gen/query-optimization @svc-auto-approve-bot
+/src/mongo/db/pipeline/optimization/**/OWNERS.yml @10gen/query-optimization-staff-leads @svc-auto-approve-bot
+/src/mongo/db/pipeline/optimization/**/change_stream* @10gen/query-execution-change-streams @svc-auto-approve-bot
+/src/mongo/db/pipeline/optimization/**/qe_rules_to_move.cpp @10gen/query-execution-classic @svc-auto-approve-bot
+/src/mongo/db/pipeline/optimization/**/qi_rules_to_move.cpp @10gen/query-integration-features @svc-auto-approve-bot
+/src/mongo/db/pipeline/optimization/**/cr_rules_to_move.cpp @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
+
 # The following patterns are parsed from ./src/mongo/db/pipeline/search/OWNERS.yml
 /src/mongo/db/pipeline/search/**/* @10gen/query-integration-search @svc-auto-approve-bot
 /src/mongo/db/pipeline/search/**/OWNERS.yml @10gen/query-integration-staff-leads @svc-auto-approve-bot
@@ -3098,6 +3111,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/s/query/**/README_aggregation.md @10gen/query @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /src/mongo/s/query/**/OWNERS.yml @10gen/query-execution-staff-leads @10gen/query-integration-staff-leads @10gen/query-optimization-staff-leads @svc-auto-approve-bot
 /src/mongo/s/query/**/document_source_visitor_docs_needed_bounds* @10gen/query-integration-search @svc-auto-approve-bot
+/src/mongo/s/query/**/shard_key_pattern_query_util* @10gen/query-optimization @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/s/query/exec/OWNERS.yml
 /src/mongo/s/query/exec/**/* @10gen/query-execution-router @svc-auto-approve-bot

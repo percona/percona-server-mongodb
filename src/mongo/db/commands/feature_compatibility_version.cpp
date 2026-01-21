@@ -50,6 +50,8 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/replication_process.h"
 #include "mongo/db/repl/storage_interface.h"
+#include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
@@ -472,9 +474,11 @@ void FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
     runUpdateCommand(opCtx, newFCVDoc);
 }
 
-Timestamp FeatureCompatibilityVersion::setIfCleanStartup(OperationContext* opCtx,
-                                                         repl::StorageInterface* storageInterface,
-                                                         long long term) {
+Timestamp FeatureCompatibilityVersion::setIfCleanStartup(
+    OperationContext* opCtx,
+    repl::StorageInterface* storageInterface,
+    const multiversion::FeatureCompatibilityVersion& minimumRequiredFCV,
+    long long term) {
     if (!hasNoReplicatedCollections(opCtx)) {
         if (!gDefaultStartupFCV.empty()) {
             LOGV2(7557701,
@@ -483,19 +487,25 @@ Timestamp FeatureCompatibilityVersion::setIfCleanStartup(OperationContext* opCtx
         return {};
     }
 
-    // If the server was not started with --shardsvr, the default featureCompatibilityVersion on
-    // clean startup is the upgrade version. If it was started with --shardsvr, the default
-    // featureCompatibilityVersion is the downgrade version, so that it can be safely added to a
-    // downgrade version cluster. The config server will run setFeatureCompatibilityVersion as
-    // part of addShard.
-    const bool storeUpgradeVersion = !serverGlobalParams.clusterRole.isShardOnly();
-
-    // Set FCV to lastLTS for nodes started with --shardsvr. If an FCV was specified at startup
-    // through a startup parameter, set it to that FCV. Otherwise, set it to latest.
+    // If an FCV was specified at startup through a startup parameter, set it to that FCV.
+    // Otherwise, set it to an FCV implicitly selected as per the node's configuration.
     FeatureCompatibilityVersionDocument fcvDoc;
-    if (!storeUpgradeVersion) {
-        fcvDoc.setVersion(GenericFCV::kLastLTS);
-    } else if (!gDefaultStartupFCV.empty()) {
+    if (gDefaultStartupFCV.empty()) {
+        // The config server will run setFeatureCompatibilityVersion as part of addShard, but some
+        // new features can block downgrade and require manual intervention. To mitigate this, if
+        // the server was started as a shard, the default featureCompatibilityVersion is the minimum
+        // required FCV. This minimizes the chance of requiring a manual intervention.
+        const auto implicitStartupFCV = [&minimumRequiredFCV]() {
+            const bool preferDowngradeFCV = serverGlobalParams.clusterRole.isShardOnly();
+            if (preferDowngradeFCV) {
+                return minimumRequiredFCV > GenericFCV::kLastLTS ? minimumRequiredFCV
+                                                                 : GenericFCV::kLastLTS;
+            } else {
+                return GenericFCV::kLatest;
+            }
+        }();
+        fcvDoc.setVersion(implicitStartupFCV);
+    } else {
         StringData versionString = StringData(gDefaultStartupFCV);
         FCV parsedVersion;
 
@@ -515,9 +525,19 @@ Timestamp FeatureCompatibilityVersion::setIfCleanStartup(OperationContext* opCtx
                                   "latestFCV"_attr = multiversion::toString(GenericFCV::kLatest));
         }
 
+        if (parsedVersion < minimumRequiredFCV) {
+            LOGV2_WARNING_OPTIONS(11392800,
+                                  {logv2::LogTag::kStartupWarnings},
+                                  "The provided 'defaultStartupFCV' is lower than the minimum "
+                                  "required FCV for this deployment. Setting the FCV to the "
+                                  "minimum required FCV instead",
+                                  "defaultStartupFCV"_attr = multiversion::toString(parsedVersion),
+                                  "minimumRequiredFCV"_attr =
+                                      multiversion::toString(minimumRequiredFCV));
+            parsedVersion = minimumRequiredFCV;
+        }
+
         fcvDoc.setVersion(parsedVersion);
-    } else {
-        fcvDoc.setVersion(GenericFCV::kLatest);
     }
 
     auto action = [&]() {
@@ -612,6 +632,13 @@ void FeatureCompatibilityVersion::initializeForStartup(OperationContext* opCtx) 
     invariant(shard_role_details::getLocker(opCtx)->isW());
     auto featureCompatibilityVersion = findFeatureCompatibilityVersionDocument(opCtx);
     if (!featureCompatibilityVersion.isOK()) {
+        const auto& status = featureCompatibilityVersion.getStatus();
+        // NamespaceNotFound is expected on a new cluster, and NoSuchKey is expected if the
+        // featureCompatibilityVersion document is not found and --repair is used.
+        if (status.code() != ErrorCodes::NamespaceNotFound &&
+            status.code() != ErrorCodes::NoSuchKey) {
+            LOGV2_FATAL(11379202, "FCV initialization failed", "status"_attr = status);
+        }
         serverGlobalParams.featureCompatibility.acquireFCVSnapshot().logFCVWithContext(
             "startup"_sd);
         return;
@@ -684,7 +711,8 @@ void FeatureCompatibilityVersion::fassertInitializedAfterStartup(OperationContex
     if (!fcvDocument.isOK() && nonLocalDatabases) {
         LOGV2_FATAL_NOTRACE(40652,
                             "Unable to start up mongod due to missing featureCompatibilityVersion "
-                            "document. Please run with --repair to restore the document.");
+                            "document. Please run with --repair to restore the document.",
+                            "status"_attr = fcvDocument.getStatus());
     }
 
     // If we are part of a replica set and are started up with no data files, we do not set the

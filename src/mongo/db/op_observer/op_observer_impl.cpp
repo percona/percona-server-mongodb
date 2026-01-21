@@ -1366,6 +1366,10 @@ void OpObserverImpl::onCreateCollection(
     const boost::optional<CreateCollCatalogIdentifier>& createCollCatalogIdentifier,
     bool fromMigrate,
     bool isTimeseries) {
+    tassert(11145000,
+            "All collection creation paths are expected to acquire an Operation FCV",
+            VersionContext::getDecoration(opCtx).hasOperationFCV());
+
     if (repl::ReplicationCoordinator::get(opCtx)->isOplogDisabledFor(opCtx, collectionName)) {
         return;
     }
@@ -1812,6 +1816,18 @@ repl::OpTime logApplyOps(OperationContext* opCtx,
             if (txnRetryCounter && !isDefaultTxnRetryCounter(*txnRetryCounter)) {
                 sessionTxnRecord.setTxnRetryCounter(*txnRetryCounter);
             }
+
+            if (gFeatureFlagPreparedTransactionsPreciseCheckpoints.isEnabled() && txnState &&
+                *txnState == DurableTxnStateEnum::kPrepared) {
+                // TODO SERVER-113730: Decide if kInProgress needs to include these fields too.
+                auto txnParticipant = TransactionParticipant::get(opCtx);
+                tassert(11372300,
+                        "Tried to set state to prepared without an active transaction",
+                        txnParticipant);
+                txnParticipant.addPreparedTransactionPreciseCheckpointRecoveryFields(
+                    sessionTxnRecord);
+            }
+
             onWriteOpCompleted(
                 opCtx, std::move(stmtIdsWritten), sessionTxnRecord, NamespaceString());
         }
