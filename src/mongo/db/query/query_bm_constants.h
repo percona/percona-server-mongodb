@@ -48,5 +48,25 @@ extern const BSONObj kComplexProjection;
 
 extern const BSONObj kChangeStreamPredicate;
 extern const BSONObj kVeryComplexProjection;
+
+struct UpdateSpec {
+    BSONObj u;
+    boost::optional<BSONObj> c;
+};
+
+enum class PipelineComplexity : int {
+    kSimple = 0,
+    kWithConstants,
+    kWithMultipleStages,
+    kWithMultipleStagesAndExpressions,
+};
+
+extern UpdateSpec getUpdateSpec(const PipelineComplexity& complexity);
+
+extern const UpdateSpec kReplacementUpdate;
+extern const UpdateSpec kPipelineUpdateSimple;
+extern const UpdateSpec kPipelineUpdateWithConstants;
+extern const UpdateSpec kPipelineUpdateWithMultipleStages;
+extern const UpdateSpec kPipelineUpdateWithMultipleStagesAndExpressions;
 }  // namespace query_benchmark_constants
 }  // namespace mongo

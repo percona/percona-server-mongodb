@@ -155,7 +155,7 @@ After producing an `AggregateCommandRequest` via IDL, the request is [passed and
 >
 > - For example, on systems running with authorization, the `$currentOp` aggregation stage requires that the user has access that includes the [`inprog`](https://www.mongodb.com/docs/manual/reference/privilege-actions/#mongodb-authaction-inprog) privilege action. That means that if our `LiteParsedPipeline` finds a `$currentOp` that does not satisfy the [necessary privileges](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/pipeline/document_source_current_op.h#L105), we can [return an error](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/auth/authorization_checks.cpp#L90) and avoid the more expensive `DocumentSource` parsing process.
 
-After confirming that the `LiteParsedPipeline` satisfies all the necessary permissions, the full `AggregateCommandRequest` is passed to [`Pipeline::parseCommon()`](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/pipeline/pipeline.cpp#L213) as a vector of pipeline stages (represented as raw `BSONObj`s). Each pipeline stage is then re-parsed using [`DocumentSource::parse()`](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/pipeline/document_source.cpp#L101), which calls on the `DocumentSource<Stage>::createFromBson()` parser for each stage. Note that this procedure is inefficient, as it requires parsing the original `AggregateCommandRequest` twice, rather than [utilizing the `LiteParsedPipeline`](https://jira.mongodb.org/browse/SERVER-93372) when creating `DocumentSource`s.
+After confirming that the `LiteParsedPipeline` satisfies all the necessary permissions, the full `AggregateCommandRequest` is passed to [`Pipeline::parseCommon()`](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/pipeline/pipeline.cpp#L213) as a vector of pipeline stages (represented as raw `BSONObj`s). Each pipeline stage is then re-parsed using [`DocumentSource::parse()`](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/pipeline/document_source.cpp#L101), which calls on the `DocumentSource<Stage>::createFromBson()` parser for each stage. At the time of this writing, this double parse happens for all stages, but [SPM-4362](https://jira.mongodb.org/browse/SPM-4362) is aiming to make it possible to 'upgrade' a `LiteParsedPipeline` to a full `Pipeline` without re-parsing from raw BSON. We will prototype this capability but not replace all existing stage's parsing implementations. This will be important for extensions processing though - it's a step towards a world where full parsing and query shape generation happen earlier in the process.
 
 > ### Aside: `DocumentSource`
 >
@@ -214,9 +214,11 @@ Insert, Delete, Update, and FindAndModify are all parsed by IDL as described abo
 
 Inserts are internally [represented](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/commands/query_cmd/bulk_write.idl#L324) as a `BulkWriteCommandRequest` which contains an array of `BulkWriteInsertOp`s. No query optimization is needed for inserts beyond parsing, since insert is a write-only operation.
 
-`DeleteRequest`s are passed into a `ParsedDelete` constructor and `UpdateRequest`s are passed to a `ParsedUpdate` constructor. Both of these constructors will in turn pass the request to [`parseWriteQueryToCQ()`](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/query/write_ops/parsed_writes_common.h#L84). This function parses the `filter` component of the write query as if it were a `FindCommandRequest`, and the result is a `CanonicalQuery`, just as it is with `find`.
+`DeleteRequest`s are passed into a `ParsedDelete` constructor which will pass the request to [`parseWriteQueryToCQ()`](https://github.com/mongodb/mongo/blob/65b9efd4861b9f0d61f8b29843d29febcba91bcb/src/mongo/db/query/write_ops/parsed_writes_common.h#L84). This function parses the `filter` component of the write query as if it were a `FindCommandRequest`, and the result is a `CanonicalQuery`, just as it is with `find`.
 
-`FindAndModifyCommandRequest`s can contain both find and update/delete syntax. For this reason, the query portion is entirely delegated to the `find` query parser. The update or delete portion is translated into a `ParsedUpdate` or `ParsedDelete`, each of which uses the corresponding codepath henceforth.
+`UpdateRequest`s are passed to `parsed_update_command::parse()`, which parses them into `ParsedUpdate` objects. `parsed_update_command::parse()` uses `parseWriteQueryToParsedFindCommand()`, which shares the same parsing flow as `parseWriteQueryToCQ()`. However, the difference is that it generates a pre-optimized `ParsedFindCommand`, allowing other components to access the pre-optimized parsed structure from `ParsedUpdate`. Subsequently, the `ParsedUpdate` objects are passed to `CanonicalUpdate::make()`, which constructs a `CanonicalUpdate` consisting of a `CanonicalQuery`.
+
+`FindAndModifyCommandRequest`s can contain both find and update/delete syntax. For this reason, the query portion is entirely delegated to the `find` query parser. The update or delete portion is translated into a `CanonicalUpdate` or `ParsedDelete`, each of which uses the corresponding codepath henceforth.
 
 ```mermaid
 ---
@@ -240,8 +242,8 @@ flowchart LR
     n31 --> n32["BulkWriteCommandRequest"] & n34["DeleteRequest"] & n35["UpdateRequest"] & n39["FindAndModifyCommandRequest"]
     n32 --o n33["BulkWriteInsertOp"]
     n34 --> n36["ParsedDelete"]
-    n39 --> n37["ParsedUpdate"] & n36
-    n35 --> n37
+    n39 & n35 -- "parsed_update_command::parse()" --> n37["ParsedUpdate"]
+    n39 --> n36
     n36 -- "parseWriteQueryToCQ()" --> n11
     n37 -- "parseWriteQueryToCQ()" --> n11
 

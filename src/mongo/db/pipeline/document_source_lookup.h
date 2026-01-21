@@ -57,6 +57,7 @@
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/stdx/unordered_set.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/modules.h"
 
 #include <cstddef>
 #include <memory>
@@ -92,11 +93,13 @@ struct LookUpSharedState {
 
 void lookupPipeValidator(const Pipeline& pipeline);
 
+DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(LookUp);
+
 /**
  * Queries separate collection for equality matches with documents in the pipeline collection.
  * Adds matching documents to a new array field in the input document.
  */
-class DocumentSourceLookUp final : public DocumentSource {
+class MONGO_MOD_NEEDS_REPLACEMENT DocumentSourceLookUp final : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$lookup"_sd;
     static constexpr StringData kFromField = "from"_sd;
@@ -147,6 +150,10 @@ public:
 
         bool requiresAuthzChecks() const override {
             return false;
+        }
+
+        std::unique_ptr<StageParams> getStageParams() const override {
+            return std::make_unique<LookUpStageParams>(_originalBson);
         }
     };
 
@@ -212,7 +219,8 @@ public:
     /**
      * Helper to absorb an $unwind stage. Only used for testing this special behavior.
      */
-    void setUnwindStage_forTest(const boost::intrusive_ptr<DocumentSourceUnwind>& unwind) {
+    MONGO_MOD_NEEDS_REPLACEMENT void setUnwindStage_forTest(
+        const boost::intrusive_ptr<DocumentSourceUnwind>& unwind) {
         invariant(!_unwindSrc);
         _unwindSrc = unwind;
     }

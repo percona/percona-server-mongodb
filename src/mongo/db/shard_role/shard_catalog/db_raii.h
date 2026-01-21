@@ -29,29 +29,19 @@
 
 #pragma once
 
-#include "mongo/base/string_data.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
-#include "mongo/db/shard_role/shard_catalog/collection.h"
-#include "mongo/db/shard_role/shard_catalog/collection_type.h"
-#include "mongo/db/shard_role/shard_catalog/database.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/stats/top.h"
 #include "mongo/db/storage/recovery_unit.h"
-#include "mongo/db/views/view.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/overloaded_visitor.h"  // IWYU pragma: keep
 #include "mongo/util/time_support.h"
-#include "mongo/util/timer.h"
 
-#include <memory>
-#include <set>
-#include <string>
-#include <utility>
-#include <variant>
 #include <vector>
 
 #include <absl/container/inlined_vector.h>
@@ -66,7 +56,7 @@ namespace mongo {
  * the operation via Top upon destruction. Can be configured to only update the Top counters if
  * desired.
  */
-class AutoStatsTracker {
+class MONGO_MOD_PUBLIC AutoStatsTracker {
     AutoStatsTracker(const AutoStatsTracker&) = delete;
     AutoStatsTracker& operator=(const AutoStatsTracker&) = delete;
 
@@ -119,7 +109,7 @@ private:
  * Acquires the global MODE_IS lock and establishes a consistent CollectionCatalog and storage
  * snapshot.
  */
-class AutoReadLockFree {
+class MONGO_MOD_NEEDS_REPLACEMENT AutoReadLockFree {
 public:
     AutoReadLockFree(OperationContext* opCtx, Date_t deadline = Date_t::max());
 
@@ -140,7 +130,7 @@ private:
  * Should only be used to read catalog metadata for a particular Db and not for reading from
  * Collection(s).
  */
-class AutoGetDbForReadLockFree {
+class MONGO_MOD_PRIVATE AutoGetDbForReadLockFree {
 public:
     AutoGetDbForReadLockFree(OperationContext* opCtx,
                              const DatabaseName& dbName,
@@ -157,7 +147,7 @@ private:
  * Creates either an AutoGetDb or AutoGetDbForReadLockFree depending on whether a lock-free read is
  * supported in the situation per the results of supportsLockFreeRead().
  */
-class AutoGetDbForReadMaybeLockFree {
+class MONGO_MOD_NEEDS_REPLACEMENT AutoGetDbForReadMaybeLockFree {
 public:
     AutoGetDbForReadMaybeLockFree(OperationContext* opCtx,
                                   const DatabaseName& dbName,
@@ -173,7 +163,7 @@ private:
  * will block on accessing an already updated document which is in prepared state. And they will
  * unblock after the prepared transaction that performed the update commits/aborts.
  */
-class EnforcePrepareConflictsBlock {
+class MONGO_MOD_PUBLIC EnforcePrepareConflictsBlock {
 public:
     explicit EnforcePrepareConflictsBlock(OperationContext* opCtx)
         : _opCtx(opCtx),
@@ -207,9 +197,4 @@ private:
     PrepareConflictBehavior _originalValue;
 };
 
-// Asserts whether the read concern is supported for the given collection with the specified read
-// source.
-void assertReadConcernSupported(const CollectionPtr& coll,
-                                const repl::ReadConcernArgs& readConcernArgs,
-                                const RecoveryUnit::ReadSource& readSource);
 }  // namespace mongo

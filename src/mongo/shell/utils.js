@@ -477,6 +477,7 @@ function jsTestOptions() {
             skipCheckOrphans: TestData.skipCheckOrphans || false,
             skipCheckRoutingTableConsistency: TestData.skipCheckRoutingTableConsistency || false,
             skipCheckShardFilteringMetadata: TestData.skipCheckShardFilteringMetadata || false,
+            skipMultiRouterRotation: TestData.skipMultiRouterRotation || false,
             inEvergreen: TestData.inEvergreen || false,
             defaultReadPreference: TestData.defaultReadPreference,
 

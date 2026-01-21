@@ -35,13 +35,9 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
+#include "mongo/util/modules.h"
 
 namespace mongo {
-
-class Collection;
-class CollectionPtr;
-class CollectionCatalogEntry;
-
 namespace catalog {
 
 /**
@@ -51,6 +47,7 @@ namespace catalog {
  * Note: If the caller calls this method without locking the collection, then the returned result
  * could be stale right after this call.
  */
+MONGO_MOD_PUBLIC
 Status checkIfNamespaceExists(OperationContext* opCtx, const NamespaceString& nss);
 
 /**
@@ -64,19 +61,25 @@ Status checkIfNamespaceExists(OperationContext* opCtx, const NamespaceString& ns
  *
  * Iterating through the remaining collections stops when the callback returns false.
  */
+MONGO_MOD_PUBLIC
 void forEachCollectionFromDb(OperationContext* opCtx,
                              const DatabaseName& dbName,
                              LockMode collLockMode,
                              CollectionCatalog::CollectionInfoFn callback,
                              CollectionCatalog::CollectionInfoFn predicate = nullptr);
 
+/**
+ * Checks whether the specified namespace should be included in the debug dump of the config
+ * collections.
+ */
+MONGO_MOD_PUBLIC
 boost::optional<bool> getConfigDebugDump(const VersionContext& vCtx, const NamespaceString& nss);
 
 /**
  * Indicates whether the data drop (the data table) should occur immediately or be two-phased, which
  * delays data removal to support older PIT reads or rollback.
  */
-enum class DataRemoval {
+enum class MONGO_MOD_PUBLIC DataRemoval {
     kImmediate,
     kTwoPhase,
 };
@@ -97,6 +100,7 @@ enum class DataRemoval {
  * guarantees that there are no remaining users of the index. This handles situations wherein there
  * is no in-memory state available for an index, such as during repair.
  */
+MONGO_MOD_PUBLIC
 void removeIndex(OperationContext* opCtx,
                  StringData indexName,
                  Collection* collection,
@@ -114,20 +118,21 @@ void removeIndex(OperationContext* opCtx,
  * execute until no users of the collection record store (shared owners) remain. 'ident' is not
  * allowed to be nullptr.
  */
-Status dropCollection(OperationContext* opCtx,
-                      const NamespaceString& nss,
-                      RecordId collectionCatalogId,
-                      std::shared_ptr<Ident> ident);
+MONGO_MOD_PRIVATE Status dropCollection(OperationContext* opCtx,
+                                        const NamespaceString& nss,
+                                        RecordId collectionCatalogId,
+                                        std::shared_ptr<Ident> ident);
 
 /**
  * Deletes all data and metadata for a database.
  */
-Status dropDatabase(OperationContext* opCtx, const DatabaseName& dbName);
+MONGO_MOD_PRIVATE Status dropDatabase(OperationContext* opCtx, const DatabaseName& dbName);
 
 /**
  * Delete all collections with a name starting with collectionNamePrefix in a database.
  * To drop all collections regardless of prefix, use an empty string.
  */
+MONGO_MOD_PUBLIC
 Status dropCollectionsWithPrefix(OperationContext* opCtx,
                                  const DatabaseName& dbName,
                                  const std::string& collectionNamePrefix);
@@ -136,6 +141,7 @@ Status dropCollectionsWithPrefix(OperationContext* opCtx,
  * Shuts down collection catalog and storage engine cleanly.
  * Set `memLeakAllowed` to true for faster shutdown.
  */
+MONGO_MOD_PUBLIC
 void shutDownCollectionCatalogAndGlobalStorageEngineCleanly(ServiceContext* service,
                                                             bool memLeakAllowed);
 
@@ -145,6 +151,7 @@ void shutDownCollectionCatalogAndGlobalStorageEngineCleanly(ServiceContext* serv
  * In most scenarios, startUpStorageEngineAndCollectionCatalog() should be used instead of this
  * function unless there is a specific reason to defer collection catalog initialization.
  */
+MONGO_MOD_PUBLIC
 StorageEngine::LastShutdownState startUpStorageEngine(OperationContext* opCtx,
                                                       StorageEngineInitFlags initFlags,
                                                       BSONObjBuilder* startupTimeElapsedBuilder);
@@ -154,15 +161,18 @@ StorageEngine::LastShutdownState startUpStorageEngine(OperationContext* opCtx,
  * catalog initialization needs to be deferred after storage engine startup (via
  * startUpStorageEngine).
  */
+MONGO_MOD_NEEDS_REPLACEMENT
 void startUpCollectionCatalogDeferred(OperationContext* opCtx);
 
 /**
  * Starts up storage engine and initializes the collection catalog.
  */
+MONGO_MOD_NEEDS_REPLACEMENT
 StorageEngine::LastShutdownState startUpStorageEngineAndCollectionCatalog(
     ServiceContext* service,
     Client* client,
     StorageEngineInitFlags initFlags = {},
     BSONObjBuilder* startupTimeElapsedBuilder = nullptr);
+
 }  // namespace catalog
 }  // namespace mongo

@@ -50,6 +50,9 @@ public:
     void open() override {}
     void reopen() override {}
     void close() override {}
+    mongo::BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const override {
+        return BSONObj();
+    }
 
 protected:
     const mongo::BSONObj _arguments;
@@ -62,7 +65,7 @@ template <typename ExecStageType>
 class TestLogicalStage : public sdk::LogicalAggStage {
 public:
     TestLogicalStage(std::string_view stageName, const mongo::BSONObj& arguments)
-        : _arguments(arguments.getOwned()), _name(stageName) {}
+        : sdk::LogicalAggStage(stageName), _arguments(arguments.getOwned()) {}
 
     mongo::BSONObj serialize() const override {
         return BSON(_name << _arguments);
@@ -73,10 +76,12 @@ public:
     std::unique_ptr<sdk::ExecAggStageBase> compile() const override {
         return std::make_unique<ExecStageType>(_name, _arguments);
     }
+    std::unique_ptr<sdk::DistributedPlanLogicBase> getDistributedPlanLogic() const override {
+        return nullptr;
+    }
 
 protected:
     const mongo::BSONObj _arguments;
-    const std::string _name;
 };
 
 /**
@@ -146,16 +151,18 @@ struct StringLiteral {
 
 /**
  * Default AggStageDescriptor implementation for a stage with name 'StageName' that parses to type
- * 'ParseNodeType'.
+ * 'ParseNodeType'. If 'ExpectEmptyStageDefinition' is true, the stage input will be validated
+ * during parsing to ensure that it is an empty object.
+ *
+ * Supports custom validation via validate() method override.
  *
  * This can be instantiated using a stage name constant or with the stage name as an inline string
- * literal:
- * using GroupStageDescriptor = TestStageDescriptor<"$group", GroupParseNode>;
+ * literal: using GroupStageDescriptor = TestStageDescriptor<"$group", GroupParseNode>;
  *
  * constexpr char kMatchStageName[] = "$match";
  * using MatchStageDescriptor = TestStageDescriptor<kMatchStageName, MatchParseNode>;
  */
-template <StringLiteral StageName, typename ParseNodeType>
+template <StringLiteral StageName, typename ParseNodeType, bool ExpectEmptyStageDefinition = false>
 class TestStageDescriptor : public sdk::AggStageDescriptor {
 public:
     static inline const std::string kStageName = std::string(StageName);
@@ -163,19 +170,17 @@ public:
     TestStageDescriptor() : sdk::AggStageDescriptor(kStageName) {}
 
     std::unique_ptr<sdk::AggStageParseNode> parse(mongo::BSONObj stageBson) const override {
-        auto arguments = sdk::validateStageDefinition(stageBson, kStageName);
-        return std::make_unique<ParseNodeType>(kStageName, std::move(arguments));
+        auto arguments =
+            sdk::validateStageDefinition(stageBson, kStageName, ExpectEmptyStageDefinition);
+        validate(arguments);
+        return std::make_unique<ParseNodeType>(kStageName, arguments);
     }
+
+    virtual void validate(const mongo::BSONObj& arguments) const {}
 };
 }  // namespace mongo::extension::sdk
 
 namespace sdk = mongo::extension::sdk;
-
-/*
- * Defines a stage name variable with the name k<ExtensionName>StageName.
- */
-#define STAGE_NAME(ExtensionName, StageNameStringView) \
-    inline constexpr char ExtensionName##StageName[] = StageNameStringView;
 
 /*
  * Defines a default ExecAggStage class implementation with the name <ExtensionName>ExecStage.
@@ -202,16 +207,6 @@ namespace sdk = mongo::extension::sdk;
  */
 #define DEFAULT_PARSE_NODE(ExtensionName) \
     using ExtensionName##ParseNode = sdk::TestParseNode<ExtensionName##AstNode>;
-
-/*
- * Defines default ExecAggStage, LogicalStage, AstNode, and ParseNode class for the extension.
- */
-#define DEFAULT_LOGICAL_AST_PARSE(ExtensionName, StageNameStringView) \
-    STAGE_NAME(ExtensionName, StageNameStringView);                   \
-    DEFAULT_EXEC_STAGE(ExtensionName);                                \
-    DEFAULT_LOGICAL_STAGE(ExtensionName);                             \
-    DEFAULT_AST_NODE(ExtensionName);                                  \
-    DEFAULT_PARSE_NODE(ExtensionName);
 
 /**
  * Defines an extension that registers a single StageDescriptor with the given name prefix.

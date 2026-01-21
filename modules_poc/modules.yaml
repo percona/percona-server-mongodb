@@ -408,6 +408,7 @@ admission:
   meta:
     slack: server-workload-resilience
     jira: Workload Scheduling
+    fully_marked: true
   files:
     - src/mongo/db/admission/
     - src/mongo/db/flow_control_ticketholder*
@@ -418,6 +419,7 @@ workload_simulation:
   meta:
     slack: server-workload-resilience
     jira: Workload Scheduling
+    fully_marked: true
   files:
     - src/mongo/tools/workload_simulation/
 
@@ -738,6 +740,7 @@ timeseries: # authoritative: @10gen/server-collection-write-path
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/db/timeseries # excluding ./bucket_catalog
 
@@ -745,6 +748,7 @@ timeseries.bucket_catalog: # authoritative: @10gen/server-timeseries-bucket-cata
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/db/timeseries/bucket_catalog
 
@@ -760,6 +764,7 @@ bsoncolumn: # authoritative: @10gen/server-bsoncolumn
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/bson/column
 
@@ -767,6 +772,7 @@ external_sorter: # authoritative: @10gen/server-external-sorter
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/db/sorter
 
@@ -774,6 +780,7 @@ index_builds: # authoritative: @10gen/server-index-builds
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/db/index_builds
     - src/mongo/db/index/index_access_method*
@@ -789,6 +796,7 @@ key_string: # authoritative: @10gen/server-key-string
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/db/storage/key_string
 
@@ -796,6 +804,7 @@ disagg_storage:
   meta:
     slack: disaggregated-storage-mongod
     jira: RSSD
+    fully_marked: true
   files:
     - src/mongo/db/modules/atlas/src/disagg_storage
 
@@ -803,6 +812,7 @@ disagg_storage.encryption:
   meta:
     slack: disagg-security-data-encryption
     jira: Server Security
+    fully_marked: true
   files:
     - src/mongo/db/modules/atlas/src/disagg_storage/encryption
 
@@ -828,6 +838,7 @@ storage_engine_integration:
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/db/storage # excluding ./key_string, ./wiredtiger, ./devnull, some of ./kv
     - src/mongo/db/record_id*
@@ -914,6 +925,7 @@ ttl: # authoritative: @10gen/server-ttl
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/db/ttl
 
@@ -921,6 +933,7 @@ tracking_allocators: # authoritative: @10gen/server-tracking-allocators
   meta:
     slack: server-storage-execution
     jira: Storage Execution
+    fully_marked: true
   files:
     - src/mongo/util/tracking
 

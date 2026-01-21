@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,50 +27,52 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/db/query/util/disjoint_set.h"
 
-#ifndef DB_STATS_FINE_CLOCK_HEADER
-#define DB_STATS_FINE_CLOCK_HEADER
-
-#include <ctime>  // struct timespec
+#include <algorithm>
+#include <numeric>
 
 namespace mongo {
+DisjointSet::DisjointSet(size_t size) : _parents(size), _ranks(size) {
+    clear();
+}
 
-/**
- * This is a nano-second precision clock. We're skipping the
- * harware TSC in favor of clock_gettime() which in some systems
- * does not involve a trip to the OS (VDSO).
- *
- * We're exporting a type WallTime that is and should remain
- * opaque. The business of getting accurate time is still ongoing
- * and we may change the internal representation of this class.
- * (http://lwn.net/Articles/388188/)
- *
- * Really, you shouldn't be using this class in hot code paths for
- * platforms you're not sure whether the overhead is low.
- */
-class FineClock {
-public:
-    typedef timespec WallTime;
-
-    static WallTime now() {
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return ts;
+void DisjointSet::unite(size_t lhs, size_t rhs) {
+    if (!isValidElement(lhs) || !isValidElement(rhs)) {
+        return;
     }
 
-    static uint64_t diffInNanos(WallTime end, WallTime start) {
-        uint64_t diff;
-        if (end.tv_nsec < start.tv_nsec) {
-            diff = 1000000000 * (end.tv_sec - start.tv_sec - 1);
-            diff += 1000000000 + end.tv_nsec - start.tv_nsec;
-        } else {
-            diff = 1000000000 * (end.tv_sec - start.tv_sec);
-            diff += end.tv_nsec - start.tv_nsec;
+    const auto left = unsafeFind(lhs);
+    const auto right = unsafeFind(rhs);
+
+    // If both elements already belong to the same set, do nothing.
+    if (left == right) {
+        return;
+    }
+
+    // Union by rank heuristic: joining smaller tree to larger tree.
+    if (_ranks[left] < _ranks[right]) {
+        _parents[left] = right;
+    } else {
+        _parents[right] = left;
+        if (_ranks[right] == _ranks[left]) {
+            // If both sets are of the same size, increase the size of the tree.
+            ++_ranks[right];
         }
-        return diff;
     }
-};
-}  // namespace mongo
+}
 
-#endif  // DB_STATS_FINE_CLOCK_HEADER
+void DisjointSet::clear() {
+    // Initialize each element's parent to itself because each element is in its own disjoint set.
+    std::iota(_parents.begin(), _parents.end(), 0);
+    std::fill(_ranks.begin(), _ranks.end(), 1);
+}
+
+size_t DisjointSet::unsafeFind(size_t element) {
+    if (_parents[element] != element) {
+        // Path compression heuristic.
+        _parents[element] = find(_parents[element]).value();
+    }
+    return _parents[element];
+}
+}  // namespace mongo

@@ -44,12 +44,11 @@
 namespace mongo::classic_runtime_planner {
 
 ClassicPlannerInterface::ClassicPlannerInterface(PlannerData plannerData)
-    : ClassicPlannerInterface(std::move(plannerData), QueryPlanner::CostBasedRankerResult{}) {}
+    : ClassicPlannerInterface(std::move(plannerData), QueryPlanner::PlanRankingResult{}) {}
 
-ClassicPlannerInterface::ClassicPlannerInterface(
-    PlannerData plannerData, QueryPlanner::CostBasedRankerResult costBasedRankerResult)
-    : _costBasedRankerResult(std::move(costBasedRankerResult)),
-      _plannerData(std::move(plannerData)) {
+ClassicPlannerInterface::ClassicPlannerInterface(PlannerData plannerData,
+                                                 QueryPlanner::PlanRankingResult planRankingResult)
+    : _planRankingResult(std::move(planRankingResult)), _plannerData(std::move(plannerData)) {
     if (collections().hasMainCollection()) {
         _nss = collections().getMainCollection()->ns();
     } else {
@@ -59,7 +58,7 @@ ClassicPlannerInterface::ClassicPlannerInterface(
     }
     if (cq()->getExpCtx()->getExplain().has_value()) {
         // Translate CBR rejected plans into PlanStages so they can be explained
-        for (auto&& solution : _costBasedRankerResult.rejectedPlans) {
+        for (auto&& solution : _planRankingResult.rejectedPlans) {
             _cbrRejectedPlanStages.push_back(buildExecutableTree(*solution));
         }
     }
@@ -151,15 +150,15 @@ void ClassicPlannerInterface::addDeleteStage(ParsedDelete* parsedDelete,
     }
 }
 
-void ClassicPlannerInterface::addUpdateStage(ParsedUpdate* parsedUpdate,
+void ClassicPlannerInterface::addUpdateStage(CanonicalUpdate* canonicalUpdate,
                                              projection_ast::Projection* projection,
                                              UpdateStageParams updateStageParams) {
     invariant(_state == kNotInitialized);
     invariant(collections().hasMainCollection());
-    const auto& request = parsedUpdate->getRequest();
+    const auto& request = canonicalUpdate->getRequest();
     const bool isUpsert = updateStageParams.request->isUpsert();
     const auto timeseriesOptions = collections().getMainCollection()->getTimeseriesOptions();
-    if (parsedUpdate->isEligibleForArbitraryTimeseriesUpdate()) {
+    if (canonicalUpdate->isEligibleForArbitraryTimeseriesUpdate()) {
         if (request->isMulti()) {
             // If this is a multi-update, we need to spool the data before beginning to apply
             // updates, in order to avoid the Halloween problem.
@@ -173,8 +172,8 @@ void ClassicPlannerInterface::addUpdateStage(ParsedUpdate* parsedUpdate,
                 std::move(_root),
                 collections().getMainCollectionAcquisition(),
                 timeseries::BucketUnpacker(*timeseriesOptions),
-                parsedUpdate->releaseResidualExpr(),
-                parsedUpdate->releaseOriginalExpr(),
+                canonicalUpdate->releaseResidualExpr(),
+                canonicalUpdate->releaseOriginalExpr(),
                 *request);
         } else {
             _root = std::make_unique<TimeseriesModifyStage>(
@@ -184,8 +183,8 @@ void ClassicPlannerInterface::addUpdateStage(ParsedUpdate* parsedUpdate,
                 std::move(_root),
                 collections().getMainCollectionAcquisition(),
                 timeseries::BucketUnpacker(*timeseriesOptions),
-                parsedUpdate->releaseResidualExpr(),
-                parsedUpdate->releaseOriginalExpr());
+                canonicalUpdate->releaseResidualExpr(),
+                canonicalUpdate->releaseOriginalExpr());
         }
     } else if (isUpsert) {
         _root = std::make_unique<UpsertStage>(cq()->getExpCtxRaw(),
@@ -239,7 +238,7 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> ClassicPlannerInterface::ma
                                                        std::move(_nss),
                                                        yieldPolicy(),
                                                        cachedPlanHash(),
-                                                       std::move(_costBasedRankerResult),
+                                                       std::move(_planRankingResult),
                                                        std::move(_planStageQsnMap),
                                                        std::move(_cbrRejectedPlanStages)));
 }

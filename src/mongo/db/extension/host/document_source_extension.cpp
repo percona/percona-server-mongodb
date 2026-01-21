@@ -35,6 +35,9 @@
 
 namespace mongo::extension::host {
 
+ALLOCATE_STAGE_PARAMS_ID(expandable, ExpandableStageParams::id);
+ALLOCATE_STAGE_PARAMS_ID(expanded, ExpandedStageParams::id);
+
 class DocumentSourceExtension::LiteParsedExpandable::ExpansionValidationFrame {
 public:
     ExpansionValidationFrame(ExpansionState& state, std::string stageName)
@@ -171,11 +174,6 @@ DocumentSourceExtension::DocumentSourceExtension(
 
 const char* DocumentSourceExtension::getSourceName() const {
     return _stageName.c_str();
-}
-
-boost::optional<DocumentSource::DistributedPlanLogic>
-DocumentSourceExtension::distributedPlanLogic() {
-    return boost::none;
 }
 
 StageConstraints DocumentSourceExtension::constraints(PipelineSplitState pipeState) const {

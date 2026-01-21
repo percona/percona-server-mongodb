@@ -49,6 +49,7 @@
 #include "mongo/db/query/stage_memory_limit_knobs/knobs.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/stdx/unordered_set.h"
+#include "mongo/util/modules.h"
 
 #include <cstddef>
 #include <memory>
@@ -99,6 +100,8 @@ private:
     std::unique_ptr<StatsProvider> _provider{nullptr};
 };
 
+DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(Facet);
+
 /**
  * A $facet stage contains multiple sub-pipelines. Each input to the $facet stage will feed into
  * each of the sub-pipelines. The $facet stage is blocking, and outputs only one document,
@@ -108,9 +111,9 @@ private:
  * stage which will produce a document like the following:
  * {facetA: [<all input documents except the first one>], facetB: [<the first document>]}.
  */
-class DocumentSourceFacet final : public DocumentSource {
+class MONGO_MOD_NEEDS_REPLACEMENT DocumentSourceFacet final : public DocumentSource {
 public:
-    static constexpr StringData kStageName = "$facet"_sd;
+    MONGO_MOD_NEEDS_REPLACEMENT static constexpr StringData kStageName = "$facet"_sd;
     static constexpr StringData kTeeConsumerStageName = "$internalFacetTeeConsumer"_sd;
     struct FacetPipeline {
         FacetPipeline(std::string name, std::unique_ptr<Pipeline> pipeline)
@@ -136,6 +139,10 @@ public:
 
         bool requiresAuthzChecks() const override {
             return false;
+        }
+
+        std::unique_ptr<StageParams> getStageParams() const override {
+            return std::make_unique<FacetStageParams>(_originalBson);
         }
     };
 

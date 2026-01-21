@@ -3,6 +3,8 @@
  */
 import {LeafParameter, leafParametersPerFamily} from "jstests/libs/property_test_helpers/models/basic_models.js";
 import {fc} from "jstests/third_party/fast_check/fc-3.1.0.js";
+import {getTimeseriesCollForDDLOps} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {assertDropCollection} from "jstests/libs/collection_drop_recreate.js";
 
 /*
  * Given a query family and an index in [0-numLeafParameters), we replace the leaves of the query
@@ -33,8 +35,7 @@ export function concreteQueryFromFamily(queryShape, leafId) {
     return queryShape;
 }
 
-function createColl(coll, isTS = false) {
-    const db = coll.getDB();
+function createColl(db, coll, isTS = false) {
     const args = isTS ? {timeseries: {timeField: "t", metaField: "m"}} : {};
     assert.commandWorked(db.createCollection(coll.getName(), args));
 }
@@ -53,6 +54,8 @@ const okIndexCreationErrorCodes = [
     7246200,
     7246204,
     7246208,
+    7246209,
+    7246210,
     // For partial index filters, we can sometimes go over the depth limit of the filter. It's
     // difficult to control the exact depth of the filters generated without sacrificing lots of
     // interesting cases, so instead we allow this error.
@@ -87,13 +90,13 @@ function runProperty(propertyFn, namespaces, workload) {
 
     // Setup the control/experiment collections, define the helper functions, then run the property.
     if (controlColl) {
-        assert(controlColl.drop());
-        createColl(controlColl);
+        assertDropCollection(controlColl.getDB(), controlColl.getName());
+        createColl(controlColl.getDB(), controlColl);
         assert.commandWorked(controlColl.insert(collSpec.docs));
     }
 
-    assert(experimentColl.drop());
-    createColl(experimentColl, collSpec.isTS);
+    assertDropCollection(experimentColl.getDB(), experimentColl.getName());
+    createColl(experimentColl.getDB(), experimentColl, collSpec.isTS);
     assert.commandWorked(experimentColl.insert(collSpec.docs));
     collSpec.indexes.forEach((indexSpec, num) => {
         const name = "index_" + num;
@@ -127,11 +130,11 @@ function reporter(propertyFn, namespaces) {
         if (runDetails.failed) {
             // Print the fast-check failure summary, the counterexample, and additional details
             // about the property failure.
-            jsTestLog("Failed property: " + propertyFn.name);
-            jsTestLog(runDetails);
+            jsTest.log.info("Failed property: " + propertyFn.name);
+            jsTest.log.info(runDetails);
             const workload = runDetails.counterexample[0];
-            jsTestLog(workload);
-            jsTestLog(runProperty(propertyFn, namespaces, workload));
+            jsTest.log.info(workload);
+            jsTest.log.info(runProperty(propertyFn, namespaces, workload));
             assert(false);
         }
     };
@@ -149,7 +152,7 @@ export function testProperty(propertyFn, namespaces, workloadModel, numRuns, exa
     assert.eq(typeof numRuns, "number");
 
     const seed = 4;
-    jsTestLog("Running property `" + propertyFn.name + "` from test file `" + jsTestName() + "`, seed = " + seed);
+    jsTest.log.info("Running property `" + propertyFn.name + "` from test file `" + jsTestName() + "`, seed = " + seed);
     // PBTs can throw (and then catch) exceptions for a few reasons. For example it's hard to model
     // indexes exactly, so we end up trying to create some invalid indexes which throw exceptions.
     // These exceptions make the logs hard to read and can be ignored, so we turn off
@@ -167,11 +170,11 @@ export function testProperty(propertyFn, namespaces, workloadModel, numRuns, exa
             // If it failed for the first time, print that out so we have the first failure available
             // in case shrinking fails.
             if (!result.passed && alwaysPassed) {
-                jsTestLog("The property " + propertyFn.name + " from " + jsTestName() + " failed");
-                jsTestLog("Initial inputs **before minimization**");
-                jsTestLog(workload);
-                jsTestLog("Initial failure details **before minimization**");
-                jsTestLog(result);
+                jsTest.log.info("The property " + propertyFn.name + " from " + jsTestName() + " failed");
+                jsTest.log.info("Initial inputs **before minimization**");
+                jsTest.log.info(workload);
+                jsTest.log.info("Initial failure details **before minimization**");
+                jsTest.log.info(result);
                 alwaysPassed = false;
             }
             return result.passed;
@@ -190,7 +193,7 @@ function isCollTS(collName) {
 export function getPlanCache(coll) {
     const collName = coll.getName();
     if (isCollTS(collName)) {
-        return db.system.buckets[collName].getPlanCache();
+        return getTimeseriesCollForDDLOps(db, coll).getPlanCache();
     }
     return db[collName].getPlanCache();
 }

@@ -66,6 +66,7 @@
 #include "mongo/s/write_ops/batched_command_request.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/intrusive_counter.h"
+#include "mongo/util/modules.h"
 
 #include <functional>
 #include <memory>
@@ -81,12 +82,14 @@
 
 namespace mongo {
 
+DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(Merge);
+
 /**
  * A class for the $merge aggregation stage to handle all supported merge modes. Each instance of
  * this class must be initialized (via a constructor) with a 'MergeDescriptor', which defines a
  * a particular merge strategy for a pair of 'whenMatched' and 'whenNotMatched' merge  modes.
  */
-class DocumentSourceMerge final : public DocumentSourceWriter {
+class MONGO_MOD_NEEDS_REPLACEMENT DocumentSourceMerge final : public DocumentSourceWriter {
 public:
     static constexpr StringData kStageName = "$merge"_sd;
     static constexpr auto kDefaultWhenMatched = MergeStrategyDescriptor::WhenMatched::kMerge;
@@ -142,6 +145,10 @@ public:
 
         bool isWriteStage() const override {
             return true;
+        }
+
+        std::unique_ptr<StageParams> getStageParams() const override {
+            return std::make_unique<MergeStageParams>(_originalBson);
         }
 
     private:

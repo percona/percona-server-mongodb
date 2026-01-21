@@ -53,6 +53,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
+ALLOCATE_STAGE_PARAMS_ID(_backupFile, BackupFileStageParams::id);
+
 namespace {
 constexpr StringData kBackupId = "backupId"_sd;
 constexpr StringData kFile = "file"_sd;

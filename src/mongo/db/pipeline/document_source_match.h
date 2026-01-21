@@ -44,6 +44,7 @@
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/compiler/dependency_analysis/dependencies.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/string_map.h"
 
 #include <memory>
@@ -58,7 +59,9 @@
 
 namespace mongo {
 
-class DocumentSourceMatch : public DocumentSource {
+DEFINE_LITE_PARSED_STAGE_DEFAULT_DERIVED(Match);
+
+class MONGO_MOD_NEEDS_REPLACEMENT DocumentSourceMatch : public DocumentSource {
 public:
     static bool containsTextOperator(const MatchExpression& expr);
 

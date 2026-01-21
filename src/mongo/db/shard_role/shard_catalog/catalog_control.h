@@ -31,6 +31,7 @@
 
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/uuid.h"
 
 #include <map>
@@ -38,18 +39,14 @@
 namespace mongo {
 namespace catalog {
 
-using MinVisibleTimestamp = Timestamp;
-using MinVisibleTimestampMap = std::map<UUID, MinVisibleTimestamp>;
-using RequiresTimestampExtendedRangeSupportMap = std::map<UUID, bool>;
-struct PreviousCatalogState {
+using MinVisibleTimestamp MONGO_MOD_PRIVATE = Timestamp;
+using MinVisibleTimestampMap MONGO_MOD_PRIVATE = std::map<UUID, MinVisibleTimestamp>;
+using RequiresTimestampExtendedRangeSupportMap MONGO_MOD_PRIVATE = std::map<UUID, bool>;
+
+struct MONGO_MOD_PRIVATE PreviousCatalogState {
     MinVisibleTimestampMap minValidTimestampMap;
     RequiresTimestampExtendedRangeSupportMap requiresTimestampExtendedRangeSupportMap;
 };
-
-/**
- * Checks if the catalog is open.
- */
-bool isCatalogOpen(OperationContext* opCtx);
 
 /**
  * Closes the catalog, destroying all associated in-memory data structures for all databases. After
@@ -57,16 +54,16 @@ bool isCatalogOpen(OperationContext* opCtx);
  *
  * Must be called with the global lock acquired in exclusive mode.
  */
-PreviousCatalogState closeCatalog(OperationContext* opCtx);
+MONGO_MOD_NEEDS_REPLACEMENT PreviousCatalogState closeCatalog(OperationContext* opCtx);
 
 /**
  * Restores the catalog and all in-memory state after a call to closeCatalog(). Used by replication
  * after it recovers to the stable timestamp, whereas initial sync goes through a different sequence
  * that reinitializes storage engine and restores the catalog, and so does not use this function.
  */
-void openCatalog(OperationContext* opCtx,
-                 const PreviousCatalogState& catalogState,
-                 Timestamp stableTimestamp);
+MONGO_MOD_NEEDS_REPLACEMENT void openCatalog(OperationContext* opCtx,
+                                             const PreviousCatalogState& catalogState,
+                                             Timestamp stableTimestamp);
 
 /**
  * Restores the catalog and all in-memory state after a call to
@@ -74,6 +71,7 @@ void openCatalog(OperationContext* opCtx,
  *
  * Must be called with the global lock acquired in exclusive mode.
  */
-void openCatalogAfterStorageChange(OperationContext* opCtx);
+MONGO_MOD_NEEDS_REPLACEMENT void openCatalogAfterStorageChange(OperationContext* opCtx);
+
 }  // namespace catalog
 }  // namespace mongo

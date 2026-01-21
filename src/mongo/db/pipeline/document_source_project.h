@@ -41,6 +41,7 @@
 #include "mongo/db/query/compiler/logical_model/projection/projection_policies.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/intrusive_counter.h"
+#include "mongo/util/modules.h"
 
 #include <string>
 
@@ -48,13 +49,15 @@
 
 namespace mongo {
 
+DEFINE_LITE_PARSED_STAGE_DEFAULT_DERIVED(Project);
+
 /**
  * The $project stage can be used for simple transformations such as including or excluding a set
  * of fields, or can do more sophisticated things, like include some fields and add new "computed"
  * fields, using the expression language. Note you can not mix an exclusion-style projection with
  * adding or including any other fields.
  */
-class DocumentSourceProject final {
+class MONGO_MOD_NEEDS_REPLACEMENT DocumentSourceProject final {
 public:
     static constexpr StringData kStageName = "$project"_sd;
     static constexpr StringData kAliasNameUnset = "$unset"_sd;

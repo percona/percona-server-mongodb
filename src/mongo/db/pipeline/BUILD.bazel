@@ -1061,6 +1061,7 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo/db:change_stream_pre_images_collection_manager",
+        "//src/mongo/db/repl:replica_set_aware_service",
         "//src/mongo/db/shard_role",
         "//src/mongo/util:periodic_runner",
     ],
@@ -1329,7 +1330,6 @@ mongo_cc_unit_test(
         "//src/mongo/db/exec/document_value:document_value_test_util",
         "//src/mongo/db/extension/host:extension_loader",
         "//src/mongo/db/extension/sdk:sdk_cpp",
-        "//src/mongo/db/extension/sdk/tests:shared_test_stages",
         "//src/mongo/db/op_observer",
         "//src/mongo/db/op_observer:op_observer_impl",
         "//src/mongo/db/op_observer:operation_logger_impl",

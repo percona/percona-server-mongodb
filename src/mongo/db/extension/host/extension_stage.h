@@ -50,6 +50,9 @@ public:
                    extension::ExecAggStageHandle execAggStageHandle);
     void setSource(Stage* source) override;
 
+    Document getExplainOutput(
+        const SerializationOptions& opts = SerializationOptions{}) const override;
+
 private:
     GetNextResult doGetNext() final;
 

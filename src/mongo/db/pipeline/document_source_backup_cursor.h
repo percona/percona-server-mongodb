@@ -40,6 +40,8 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
+DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(BackupCursor);
+
 class DocumentSourceBackupCursor : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$backupCursor"_sd;
@@ -86,6 +88,10 @@ public:
 
         void assertSupportsMultiDocumentTransaction() const final {
             transactionNotSupported(kStageName);
+        }
+
+        std::unique_ptr<StageParams> getStageParams() const final {
+            return std::make_unique<BackupCursorStageParams>(_originalBson);
         }
     };
 

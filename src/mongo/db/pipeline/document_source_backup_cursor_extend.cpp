@@ -40,6 +40,8 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
+ALLOCATE_STAGE_PARAMS_ID(backupCursorExtend, BackupCursorExtendStageParams::id);
+
 namespace {
 constexpr StringData kBackupId = "backupId"_sd;
 constexpr StringData kTimestamp = "timestamp"_sd;

@@ -120,6 +120,10 @@ public:
 
     void close() override {}
 
+    BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const override {
+        return BSONObj();
+    }
+
     /**
      * Create metrics instance for this stage.
      * The instance will be stored on the OperationContext and accessed via execCtx.getMetrics().
@@ -134,7 +138,8 @@ private:
 
 class MetricsLogicalStage : public sdk::LogicalAggStage {
 public:
-    MetricsLogicalStage(const std::string& algorithm) : _algorithm(algorithm) {};
+    MetricsLogicalStage(const std::string& algorithm)
+        : sdk::LogicalAggStage(kMetricsStageName), _algorithm(algorithm) {}
 
     BSONObj serialize() const override {
         return BSON(kMetricsStageName << BSONObj());
@@ -146,6 +151,10 @@ public:
 
     std::unique_ptr<sdk::ExecAggStageBase> compile() const override {
         return std::make_unique<MetricsExecAggStage>(_algorithm);
+    }
+
+    std::unique_ptr<sdk::DistributedPlanLogicBase> getDistributedPlanLogic() const override {
+        return nullptr;
     }
 
 private:

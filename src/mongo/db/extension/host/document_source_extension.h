@@ -49,6 +49,9 @@ using LiteParsedList = std::list<std::unique_ptr<LiteParsedDocumentSource>>;
 class LoadExtensionsTest;
 class LoadNativeVectorSearchTest;
 
+DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(Expandable);
+DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(Expanded);
+
 /**
  * A DocumentSource implementation for an extension aggregation stage. DocumentSourceExtension is a
  * facade around handles to extension API objects.
@@ -86,6 +89,10 @@ public:
                           !expanded.empty());
                   return expanded;
               }()) {}
+
+        std::unique_ptr<StageParams> getStageParams() const override {
+            return std::make_unique<ExpandableStageParams>(_originalBson);
+        }
 
         /**
          * Return the pre-computed expanded pipeline.
@@ -179,6 +186,10 @@ public:
               _properties(_astNode.getProperties()),
               _nss(nss) {}
 
+        std::unique_ptr<StageParams> getStageParams() const override {
+            return std::make_unique<ExpandedStageParams>(_originalBson);
+        }
+
         stdx::unordered_set<NamespaceString> getInvolvedNamespaces() const override {
             return stdx::unordered_set<NamespaceString>();
         }
@@ -229,8 +240,6 @@ public:
     };
 
     const char* getSourceName() const override;
-
-    boost::optional<DistributedPlanLogic> distributedPlanLogic() override;
 
     void addVariableRefs(std::set<Variables::Id>* refs) const override {}
 

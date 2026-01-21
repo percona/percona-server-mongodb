@@ -47,6 +47,8 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
+DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(BackupFile);
+
 class DocumentSourceBackupFile final : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$_backupFile"_sd;
@@ -75,6 +77,10 @@ public:
 
         void assertSupportsMultiDocumentTransaction() const final {
             transactionNotSupported(kStageName);
+        }
+
+        std::unique_ptr<StageParams> getStageParams() const final {
+            return std::make_unique<BackupFileStageParams>(_originalBson);
         }
     };
 

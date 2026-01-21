@@ -40,6 +40,8 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 namespace mongo {
 
+ALLOCATE_STAGE_PARAMS_ID(backupCursor, BackupCursorStageParams::id);
+
 namespace {
 constexpr StringData kDisableIncrementalBackup = "disableIncrementalBackup"_sd;
 constexpr StringData kIncrementalBackup = "incrementalBackup"_sd;

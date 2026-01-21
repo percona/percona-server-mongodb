@@ -28,6 +28,7 @@
  */
 #include "mongo/db/extension/shared/handle/aggregation_stage/executable_agg_stage.h"
 
+#include "mongo/db/extension/shared/explain_utils.h"
 #include "mongo/db/extension/shared/extension_status.h"
 
 namespace mongo::extension {
@@ -39,9 +40,8 @@ void ExecAggStageHandle::setSource(const ExecAggStageHandle& input) {
 namespace {
 ExtensionGetNextResult _internalGetNext(const MongoExtensionExecAggStageVTable& vtable,
                                         MongoExtensionExecAggStage* stage,
-                                        MongoExtensionQueryExecutionContext* execCtxPtr,
-                                        ::MongoExtensionGetNextRequestType requestType) {
-    ::MongoExtensionGetNextResult result = createDefaultExtensionGetNext(requestType);
+                                        MongoExtensionQueryExecutionContext* execCtxPtr) {
+    ::MongoExtensionGetNextResult result = createDefaultExtensionGetNext();
     invokeCAndConvertStatusToException(
         [&]() { return vtable.get_next(stage, execCtxPtr, &result); });
 
@@ -65,9 +65,9 @@ host_connector::HostOperationMetricsHandle _internalCreateMetrics(
 }
 }  // namespace
 
-ExtensionGetNextResult ExecAggStageHandle::getNext(MongoExtensionQueryExecutionContext* execCtxPtr,
-                                                   ::MongoExtensionGetNextRequestType requestType) {
-    return _internalGetNext(vtable(), get(), execCtxPtr, requestType);
+ExtensionGetNextResult ExecAggStageHandle::getNext(
+    MongoExtensionQueryExecutionContext* execCtxPtr) {
+    return _internalGetNext(vtable(), get(), execCtxPtr);
 }
 
 std::string_view ExecAggStageHandle::getName() const {
@@ -87,9 +87,8 @@ host_connector::HostOperationMetricsHandle UnownedExecAggStageHandle::createMetr
 }
 
 ExtensionGetNextResult UnownedExecAggStageHandle::getNext(
-    MongoExtensionQueryExecutionContext* execCtxPtr,
-    ::MongoExtensionGetNextRequestType requestType) {
-    return _internalGetNext(vtable(), get(), execCtxPtr, requestType);
+    MongoExtensionQueryExecutionContext* execCtxPtr) {
+    return _internalGetNext(vtable(), get(), execCtxPtr);
 }
 
 void ExecAggStageHandle::open() {
@@ -102,6 +101,21 @@ void ExecAggStageHandle::reopen() {
 
 void ExecAggStageHandle::close() {
     invokeCAndConvertStatusToException([&]() { return vtable().close(get()); });
+}
+
+BSONObj ExecAggStageHandle::explain(mongo::ExplainOptions::Verbosity verbosity) const {
+    ::MongoExtensionByteBuf* buf;
+    auto extVerbosity = convertHostVerbosityToExtVerbosity(verbosity);
+    invokeCAndConvertStatusToException(
+        [&]() { return vtable().explain(get(), extVerbosity, &buf); });
+
+    tassert(11239500, "buffer returned from explain must not be null", buf);
+
+    // Take ownership of the returned buffer so that it gets cleaned up, then retrieve an owned
+    // BSONObj to return to the host.
+    // TODO: SERVER-112442 Avoid the BSON copy in getOwned() once the work is completed.
+    ExtensionByteBufHandle ownedBuf{buf};
+    return bsonObjFromByteView(ownedBuf.getByteView()).getOwned();
 }
 
 }  // namespace mongo::extension

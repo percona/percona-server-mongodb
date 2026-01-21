@@ -1168,6 +1168,14 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         coll.insert_one({"a": 1})
         coll.drop()
 
+        res = primary_client.admin.command({"replSetGetStatus": 1})
+
+        if "appliedOpTime" not in res["optimes"]:
+            # This can be null when the node is starting up.
+            return False
+
+        clusterTime = res["optimes"]["appliedOpTime"]["ts"]
+
         self.logger.info("Performing Internode Validation")
 
         # Collections we exclude from the hash comparisons. This is because these collections can contain different document contents for valid reasons (i.e. implicitly replicated, TTL indexes, updated by background threads, etc)
@@ -1210,16 +1218,25 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
                 if db_name not in hashes:
                     hashes[db_name] = {}
                 db = client.get_database(db_name)
-                for coll_name in db.list_collection_names(filter=filter):
+                for coll in db.list_collections(filter=filter):
+                    coll_name = coll["name"]
                     # Skip excluded collections which all live in the 'config' database.
                     if db_name == "config" and coll_name in excluded_config_collections:
                         continue
                     if coll_name in excluded_any_db_collections:
                         continue
-                    # Skip collections that contain TTL indexes.
-                    if "ttl" in coll_name:
+                    # Skip collections that contain TTL indexes or TTL options.
+                    indexes = db.get_collection(coll_name).list_indexes()
+                    if any("expireAfterSeconds" in index for index in indexes):
                         continue
-                    validate_cmd = {"validate": coll_name, "collHash": True}
+                    if "expireAfterSeconds" in coll["options"]:
+                        continue
+
+                    validate_cmd = {
+                        "validate": coll_name,
+                        "collHash": True,
+                        "atClusterTime": clusterTime,
+                    }
                     ret = db.command(validate_cmd, check=False)
                     if "all" in ret and "metadata" in ret:
                         something_set = True
