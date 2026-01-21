@@ -211,7 +211,7 @@
   "moduleExtensions": {
     "//bazel:bzlmod.bzl%setup_mongo_python_toolchains": {
       "general": {
-        "bzlTransitiveDigest": "ck8ADNf5P+K8JYkXTXnUbjZMQ97Uyx4eG3Nn8DHK660=",
+        "bzlTransitiveDigest": "YyPGLMC0nHT6z0vyn4KLfyiFJkAs0xu78iipK87sK5s=",
         "usagesDigest": "bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
