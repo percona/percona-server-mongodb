@@ -250,6 +250,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/concurrency_simultaneous_replication.yml @10gen/server-replication-reviewers @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/change_streams* @10gen/query-execution-change-streams @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharding_change_streams_v2.yml @10gen/query-execution-change-streams @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/*rate_limited.yml @10gen/server-workload-resilience @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokelib/OWNERS.yml
 /buildscripts/resmokelib/ @10gen/devprod-correctness @svc-auto-approve-bot
@@ -1389,6 +1390,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/noPassthrough/replication/**/*initial_sync* @10gen/server-initial-sync @svc-auto-approve-bot
 /jstests/noPassthrough/replication/**/*replication_recovery* @10gen/server-recovery @svc-auto-approve-bot
 
+# The following patterns are parsed from ./jstests/noPassthrough/routing/OWNERS.yml
+/jstests/noPassthrough/routing/**/* @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
+
 # The following patterns are parsed from ./jstests/noPassthrough/rs_endpoint/OWNERS.yml
 /jstests/noPassthrough/rs_endpoint/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
 
@@ -1894,6 +1898,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/admission/OWNERS.yml
 /src/mongo/db/admission/**/* @10gen/server-workload-resilience @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/db/admission/execution_control/OWNERS.yml
+/src/mongo/db/admission/execution_control/ @10gen/server-workload-resilience @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/auth/OWNERS.yml
 /src/mongo/db/auth/**/* @10gen/server-security @svc-auto-approve-bot

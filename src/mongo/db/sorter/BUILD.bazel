@@ -35,9 +35,9 @@ mongo_cc_library(
         "sorter_gen",
     ],
     deps = [
-        ":sorter_stats",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/db:server_feature_flags",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/db/stats:counters_sort",  # TODO(SERVER-93876): Remove.
+        ":sorter_stats",
+        "//src/mongo/db:server_feature_flags",
+        "//src/mongo/db/stats:counters_sort",
     ] + select({
         "//bazel/config:use_wiredtiger_enabled": [
             "//src/third_party/wiredtiger:wiredtiger_checksum",
@@ -63,6 +63,9 @@ mongo_cc_unit_test(
         "sorter_stats_test.cpp",
         "sorter_test.cpp",
     ],
+    minimum_test_resources = {
+        "cpu_cores": 2,
+    },
     tags = [
         "mongo_unittest_second_group",
         "server-external-sorter",

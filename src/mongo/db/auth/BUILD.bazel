@@ -67,7 +67,7 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo:base",
-        "//src/mongo/idl:idl_parser",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/idl:idl_parser",
         "//src/mongo/util/net:network",
     ],
 )
@@ -488,13 +488,13 @@ mongo_cc_library(
         "user_management_commands_parser.cpp",
     ],
     deps = [
-        ":address_restriction",  # TODO(SERVER-93876): Remove.
+        ":address_restriction",
         ":auth",
         ":authprivilege",
-        "//src/mongo/bson/util:bson_extract",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/db:common",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/bson/util:bson_extract",
+        "//src/mongo/db:common",
         "//src/mongo/db:server_base",
-        "//src/mongo/db/exec/mutable_bson",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/db/exec/mutable_bson",
         "//src/mongo/rpc:metadata_impersonated_user",
     ],
 )
@@ -638,27 +638,26 @@ mongo_cc_library(
         "//conditions:default": [],
     }],
     deps = [
-        # TODO(SERVER-93876): Remove all except authorization_manager_global.
-        "//src/mongo/base:secure_allocator",
-        "//src/mongo/db/commands:test_commands_enabled",
-        "//src/mongo/util:icu",
-        "//src/mongo/util:md5",
-        "//src/mongo/util/net:network",
         ":auth",
         ":auth_options",
         ":authorization_manager_global",
         ":authprivilege",
+        ":cluster_auth_mode",
         ":sasl_mechanism_protocol",
         ":sasl_options",
         ":sasl_options_init",
         ":user",
         ":user_request_x509",
+        "//src/mongo/base:secure_allocator",
+        "//src/mongo/crypto:sha_block",
         "//src/mongo/db:connection_health_metrics_parameter",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/commands:test_commands_enabled",
+        "//src/mongo/util:icu",
+        "//src/mongo/util:md5",
+        "//src/mongo/util/net:network",
         "//src/mongo/util/net:ssl_manager",
-        ":cluster_auth_mode",
-        "//src/mongo/crypto:sha_block",
     ],
 )
 
@@ -668,12 +667,12 @@ mongo_cc_library(
         "authentication_session.cpp",
     ],
     deps = [
-        ":auth",  # TODO(SERVER-93876): Remove.
+        ":auth",
         ":saslauth",
         "//src/mongo/db:audit",
-        "//src/mongo/db:connection_health_metrics_parameter",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/db:connection_health_metrics_parameter",
         "//src/mongo/db:service_context",
-        "//src/mongo/db/stats:counters",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/db/stats:counters",
     ],
 )
 
@@ -764,46 +763,4 @@ mongo_cc_unit_test(
         "//src/mongo:base",
         "//src/mongo/util/net:mock_http_client",
     ],
-)
-
-# TODO(SERVER-96858): Remove cycle created by moving //src/mongo/db/auth:action_set.h to //src/mongo/db/auth:authprivilege
-filegroup(
-    name = "action_set_hdrs",
-    srcs = [":action_set.h"],
-)
-
-# TODO(SERVER-96858): Remove cycle created by moving //src/mongo/db/auth:action_type.h to //src/mongo/db/auth:authprivilege
-filegroup(
-    name = "action_type_hdrs",
-    srcs = [":action_type.h"],
-)
-
-# TODO(SERVER-96858): Remove cycle created by moving //src/mongo/db/auth:auth_name.h to //src/mongo/db:server_base
-filegroup(
-    name = "auth_name_hdrs",
-    srcs = [":auth_name.h"],
-)
-
-# TODO(SERVER-96858): Remove cycle created by moving //src/mongo/db/auth:privilege.h to //src/mongo/db/auth:authprivilege
-filegroup(
-    name = "privilege_hdrs",
-    srcs = [":privilege.h"],
-)
-
-# TODO(SERVER-96858): Remove cycle created by moving //src/mongo/db/auth:resource_pattern.h to //src/mongo/db/auth:authprivilege
-filegroup(
-    name = "resource_pattern_hdrs",
-    srcs = [":resource_pattern.h"],
-)
-
-# TODO(SERVER-96858): Remove cycle created by moving //src/mongo/db/auth:validated_tenancy_scope.h to //src/mongo/db:server_base
-filegroup(
-    name = "validated_tenancy_scope_hdrs",
-    srcs = [":validated_tenancy_scope.h"],
-)
-
-# TODO(SERVER-96858): Remove cycle created by moving //src/mongo/db/auth:validated_tenancy_scope_factory.h to //src/mongo/db/auth:security_token_auth
-filegroup(
-    name = "validated_tenancy_scope_factory_hdrs",
-    srcs = [":validated_tenancy_scope_factory.h"],
 )

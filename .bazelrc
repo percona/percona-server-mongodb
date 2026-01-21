@@ -141,7 +141,6 @@ common --flag_alias=use_wiredtiger=//bazel/config:use_wiredtiger
 common --flag_alias=use_glibcxx_debug=//bazel/config:use_glibcxx_debug
 common --flag_alias=use_tracing_profiler=//bazel/config:use_tracing_profiler
 common --flag_alias=build_otel=//bazel/config:build_otel
-common --flag_alias=detect_odr_violations=//bazel/config:detect_odr_violations
 common --flag_alias=shared_archive=//bazel/config:shared_archive
 common --flag_alias=skip_archive=//bazel/config:skip_archive
 common --flag_alias=streams_release_build=//bazel/config:streams_release_build
@@ -466,6 +465,7 @@ common:macos --//bazel/config:compress_debug_compile=False
 
 # Dynamic linking on Windows (DLL generation) is currently not supported.
 common:windows --//bazel/config:linkstatic=True
+common:windows --//bazel/config:skip_archive=False
 
 # The only Windows compiler we support is MSVC.
 common:windows --//bazel/config:compiler_type=msvc
@@ -594,8 +594,8 @@ try-import %workspace%/.bazelrc.evergreen
 # local default dev settings
 try-import %workspace%/.bazelrc.common_bes
 
-# local default dev settings
-try-import %workspace%/.bazelrc.mongo_variables
+# Settings unconditionally written by the wrapper hook
+try-import %workspace%/.bazelrc.wrapper_hook
 
 # local git version info
 try-import %workspace%/.bazelrc.git

@@ -1,4 +1,4 @@
-load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test")
+load("//bazel:mongo_src_rules.bzl", "TCMALLOC_DEPS", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_library", "mongo_cc_unit_test")
 load("//bazel/config:generate_config_header.bzl", "generate_config_header")
 load("//bazel/config:render_template.bzl", "render_template")
 load("//bazel/toolchains/cc:mongo_compiler_flags.bzl", "MONGO_GLOBAL_COPTS", "MONGO_GLOBAL_LINKFLAGS")
@@ -76,7 +76,7 @@ mongo_cc_library(
     deps = [
         "//src/mongo:base",
         "//src/mongo/db:service_context",
-        "//src/mongo/util/concurrency:spin_lock",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/util/concurrency:spin_lock",
     ],
 )
 
@@ -296,10 +296,10 @@ mongo_cc_library(
         "periodic_runner_impl.cpp",
     ],
     deps = [
-        ":periodic_runner",  # TODO(SERVER-93876): Remove.
+        ":periodic_runner",
         "//src/mongo:base",
         "//src/mongo/db:service_context",
-        "//src/mongo/util/concurrency:spin_lock",  # TODO(SERVER-93876): Remove.
+        "//src/mongo/util/concurrency:spin_lock",
     ],
 )
 
@@ -310,8 +310,8 @@ mongo_cc_library(
     ],
     deps = [
         ":periodic_runner_impl",
-        "//src/mongo:base",  # TODO(SERVER-93876): Remove.
-        "//src/mongo/db:service_context",  # TODO(SERVER-93876): Remove.
+        "//src/mongo:base",
+        "//src/mongo/db:service_context",
     ],
 )
 
@@ -582,7 +582,7 @@ mongo_cc_library(
     deps = [
         "processinfo",
         "//src/mongo/db:server_base",
-    ],
+    ] + TCMALLOC_DEPS,
 )
 
 mongo_cc_library(
