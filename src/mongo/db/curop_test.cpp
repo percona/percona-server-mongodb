@@ -36,12 +36,15 @@
 #include "mongo/db/operation_context_options_gen.h"
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/query/query_test_service_context.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/idl/server_parameter_test_controller.h"
+#include "mongo/transport/mock_session.h"
 #include "mongo/transport/transport_layer_mock.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/tick_source_mock.h"
 
+#include <algorithm>
 #include <initializer_list>
 #include <mutex>
 
@@ -578,7 +581,11 @@ TEST(CurOpTest, OptionalAdditiveMetricsNotDisplayedIfUninitialized) {
     }
 
     // Append should include only the basic fields when just initialized.
-    ASSERT_EQ(static_cast<size_t>(bs.nFields()), basicFields.size());
+    for (const auto& elem : bs) {
+        ASSERT(std::find(basicFields.begin(), basicFields.end(), elem.fieldName()) !=
+               basicFields.end())
+            << "Unexpected extra field in output: " << elem.fieldName();
+    }
 }
 
 TEST(CurOpTest, ShouldUpdateMemoryStats) {
@@ -871,6 +878,99 @@ TEST(CurOpTest, ShouldReportIsFromUserConnection) {
     ASSERT_TRUE(bsonObjUserConn.getField("isFromUserConnection").Bool());
 }
 
+class MockMaintenanceSession : public transport::MockSession {
+public:
+    explicit MockMaintenanceSession(transport::TransportLayer* tl) : MockSession(tl) {}
+
+    bool isConnectedToMaintenancePort() const override {
+        return true;
+    }
+};
+
+TEST(CurOpTest, ShouldNotReportIsFromMaintenancePortConnectionWhenFFDisabled) {
+    gFeatureFlagDedicatedPortForMaintenanceOperations.setForServerParameter(false);
+
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    auto client = serviceContext.getClient();
+
+    // Mock a client with a user connection.
+    transport::TransportLayerMock transportLayer;
+    transportLayer.createSessionHook = [](transport::TransportLayer* tl) {
+        return std::make_shared<MockMaintenanceSession>(tl);
+    };
+    auto clientMaintenanceConn = serviceContext.getServiceContext()->getService()->makeClient(
+        "maintenanceConn", transportLayer.createSession());
+
+    auto curop = CurOp::get(*opCtx);
+
+    BSONObjBuilder curOpObj;
+    BSONObjBuilder curOpObjMaintenanceConn;
+    {
+        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        auto nss = NamespaceString::createNamespaceString_forTest("db", "coll");
+
+        // Serialization Context on expression context should be non-empty in
+        // reportCurrentOpForClient.
+        auto sc = SerializationContext(SerializationContext::Source::Command,
+                                       SerializationContext::CallerType::Reply,
+                                       SerializationContext::Prefix::ExcludePrefix);
+        auto expCtx = make_intrusive<ExpressionContextForTest>(opCtx.get(), nss, sc);
+
+        curop->reportCurrentOpForClient(expCtx, client, false, &curOpObj);
+        curop->reportCurrentOpForClient(
+            expCtx, clientMaintenanceConn.get(), false, &curOpObjMaintenanceConn);
+    }
+    auto bsonObj = curOpObj.done();
+    auto bsonObjMaintenanceConn = curOpObjMaintenanceConn.done();
+
+    ASSERT_FALSE(bsonObj.hasField("isFromMaintenancePortConnection"));
+    ASSERT_FALSE(bsonObjMaintenanceConn.hasField("isFromMaintenancePortConnection"));
+}
+
+TEST(CurOpTest, ShouldReportIsFromMaintenancePortConnection) {
+    gFeatureFlagDedicatedPortForMaintenanceOperations.setForServerParameter(true);
+
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    auto client = serviceContext.getClient();
+
+    // Mock a client with a user connection.
+    transport::TransportLayerMock transportLayer;
+    transportLayer.createSessionHook = [](transport::TransportLayer* tl) {
+        return std::make_shared<MockMaintenanceSession>(tl);
+    };
+    auto clientMaintenanceConn = serviceContext.getServiceContext()->getService()->makeClient(
+        "maintenanceConn", transportLayer.createSession());
+
+    auto curop = CurOp::get(*opCtx);
+
+    BSONObjBuilder curOpObj;
+    BSONObjBuilder curOpObjMaintenanceConn;
+    {
+        stdx::lock_guard<Client> lk(*opCtx->getClient());
+        auto nss = NamespaceString::createNamespaceString_forTest("db", "coll");
+
+        // Serialization Context on expression context should be non-empty in
+        // reportCurrentOpForClient.
+        auto sc = SerializationContext(SerializationContext::Source::Command,
+                                       SerializationContext::CallerType::Reply,
+                                       SerializationContext::Prefix::ExcludePrefix);
+        auto expCtx = make_intrusive<ExpressionContextForTest>(opCtx.get(), nss, sc);
+
+        curop->reportCurrentOpForClient(expCtx, client, false, &curOpObj);
+        curop->reportCurrentOpForClient(
+            expCtx, clientMaintenanceConn.get(), false, &curOpObjMaintenanceConn);
+    }
+    auto bsonObj = curOpObj.done();
+    auto bsonObjMaintenanceConn = curOpObjMaintenanceConn.done();
+
+    ASSERT_TRUE(bsonObj.hasField("isFromMaintenancePortConnection"));
+    ASSERT_TRUE(bsonObjMaintenanceConn.hasField("isFromMaintenancePortConnection"));
+    ASSERT_FALSE(bsonObj.getField("isFromMaintenancePortConnection").Bool());
+    ASSERT_TRUE(bsonObjMaintenanceConn.getField("isFromMaintenancePortConnection").Bool());
+}
+
 TEST(CurOpTest, ElapsedTimeReflectsTickSource) {
     QueryTestServiceContext serviceContext;
 
@@ -1049,6 +1149,45 @@ TEST(CurOpTest, SlowLogFinishesWithDuration) {
     ASSERT_GTE(attrs.size(), 1);
     std::string lastName = (attrs.end() - 1)->name;
     ASSERT_EQ("durationMillis", lastName);
+}
+
+TEST(CurOpTest, OpDebugAllowsMultipleQueryStatsInfos) {
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    CurOp* curOp = CurOp::get(*opCtx);
+    OpDebug& opDebug = curOp->debug();
+
+    // Create a new set of metrics for an operation at index 10.
+    const size_t opIndex = 10;
+    OpDebug::QueryStatsInfo& qsi = opDebug.setQueryStatsInfoAtOpIndex(opIndex);
+
+    // If we fetch the info with the getter, it should be the same object.
+    OpDebug::QueryStatsInfo& qsi2 = opDebug.getQueryStatsInfo(opIndex);
+    ASSERT_EQ(&qsi, &qsi2);
+
+    // The new set of metrics should be distinct from the one for the main operation.
+    OpDebug::QueryStatsInfo& mainQsi = opDebug.getQueryStatsInfo();
+    ASSERT_NE(&qsi, &mainQsi);
+}
+
+TEST(CurOpTest, OpDebugAllowsMultipleAdditiveMetrics) {
+    QueryTestServiceContext serviceContext;
+    auto opCtx = serviceContext.makeOperationContext();
+    CurOp* curOp = CurOp::get(*opCtx);
+    OpDebug& opDebug = curOp->debug();
+
+    // Create a new set of metrics for an operation at index 10.
+    const size_t opIndex = 10;
+    OpDebug::QueryStatsInfo& qsi = opDebug.setQueryStatsInfoAtOpIndex(opIndex);
+    OpDebug::AdditiveMetrics& am = qsi.additiveMetrics;
+
+    // If we fetch the metrics with the getter, it whould be the same object.
+    OpDebug::AdditiveMetrics& am2 = opDebug.getAdditiveMetrics(opIndex);
+    ASSERT_EQ(&am, &am2);
+
+    // The new set of metrics should be distinct from the one for the main operation.
+    OpDebug::AdditiveMetrics& mainAm = opDebug.getAdditiveMetrics();
+    ASSERT_NE(&mainAm, &am);
 }
 
 }  // namespace

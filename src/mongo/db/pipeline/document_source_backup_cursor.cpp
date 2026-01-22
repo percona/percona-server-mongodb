@@ -38,9 +38,8 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 
+// We only link this file into mongod so this stage doesn't exist in mongos
 namespace mongo {
-
-ALLOCATE_STAGE_PARAMS_ID(backupCursor, BackupCursorStageParams::id);
 
 namespace {
 constexpr StringData kDisableIncrementalBackup = "disableIncrementalBackup"_sd;
@@ -48,13 +47,15 @@ constexpr StringData kIncrementalBackup = "incrementalBackup"_sd;
 constexpr StringData kBlockSize = "blockSize"_sd;
 constexpr StringData kThisBackupName = "thisBackupName"_sd;
 constexpr StringData kSrcBackupName = "srcBackupName"_sd;
-
-// We only link this file into mongod so this stage doesn't exist in mongos
-REGISTER_DOCUMENT_SOURCE(backupCursor,
-                         DocumentSourceBackupCursor::LiteParsed::parse,
-                         DocumentSourceBackupCursor::createFromBson,
-                         AllowedWithApiStrict::kAlways);
 }  // namespace
+
+REGISTER_LITE_PARSED_DOCUMENT_SOURCE(backupCursor,
+                                     DocumentSourceBackupCursor::LiteParsed::parse,
+                                     AllowedWithApiStrict::kAlways);
+
+REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(backupCursor,
+                                                   DocumentSourceBackupCursor,
+                                                   BackupCursorStageParams);
 
 ALLOCATE_DOCUMENT_SOURCE_ID(backupCursor, DocumentSourceBackupCursor::id)
 

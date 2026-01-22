@@ -193,6 +193,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/aggregation_repeat_queries_multiplan_single_solutions.yml @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/aggregation_unsplittable_collections_on_random_shard_passthrough* @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/aggregation_facet_unwind_passthrough.yml @10gen/query-execution-classic @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/*join_optimization* @10gen/query-optimization @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/aggregation_sharded_collections_causally_consistent_passthrough.yml @10gen/query-execution-classic @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/aggregation_secondary_reads.yml @10gen/query-execution-classic @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/backup_restore.yml @10gen/server-backup-restore @svc-auto-approve-bot
@@ -1140,8 +1141,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/OWNERS.yml @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/rsm* @10gen/server-networking-and-observability @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/bit_update_mixed_fcv.js @10gen/query-execution-write-exec @svc-auto-approve-bot
-/jstests/multiVersion/genericSetFCVUsage/**/fcv_upgrade_removes_legacy_timeseries_bucketing_parameters_flag.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/view_definition_feature_compatibility_version.js @10gen/query-optimization @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/collection_validator_feature_compatibility_version.js @10gen/query-optimization @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/1_test_launching_replset.js @10gen/server-replication-reviewers @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/3_upgrade_replset.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/arbiter_always_has_latest_fcv.js @10gen/server-fcv @svc-auto-approve-bot
@@ -1174,6 +1175,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/index_builds/OWNERS.yml
 /jstests/multiVersion/genericSetFCVUsage/index_builds/**/* @10gen/server-index-builds @svc-auto-approve-bot
+
+# The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/shard_catalog/OWNERS.yml
+/jstests/multiVersion/genericSetFCVUsage/shard_catalog/**/* @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/libs/OWNERS.yml
 /jstests/multiVersion/libs/**/initial_sync.js @10gen/server-fcv @10gen/server-initial-sync @svc-auto-approve-bot
@@ -1643,8 +1647,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/sharding/**/safe_secondary_reads_causal_consistency.js @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/sharding/**/remove_shard_*.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/sharding/**/reporting_compound_wildcard_index_prefixed_by_shard_key.js @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
-/jstests/sharding/**/availability_canaries_under_transitions.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 /jstests/sharding/**/index_commands_shard_targeting.js @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
+/jstests/sharding/**/shard_identity_rollback.js @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/sharding/analyze_shard_key/OWNERS.yml
 /jstests/sharding/analyze_shard_key/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot

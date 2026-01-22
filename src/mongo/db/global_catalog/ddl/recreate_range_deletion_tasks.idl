@@ -24,18 +24,26 @@
 # delete this exception statement from your version. If you delete this
 # exception statement from all source files in the program, then also delete
 # it in the license file.
+#
 
 global:
-    cpp_namespace: mongo
+    mod_visibility: private
+    cpp_namespace: "mongo"
 
-server_parameters:
-    overloadAwareRetargetingEnabled:
-        description: >-
-            Controls whether server-based clients will avoid targeting nodes suspected to be
-            overloaded when performing retries.
+imports:
+    - "mongo/db/basic_types.idl"
 
-        set_at: [startup, runtime]
-        cpp_vartype: "Atomic<bool>"
-        cpp_varname: gOverloadAwareRetargetingEnabled
-        default: true
-        redact: false
+commands:
+    recreateRangeDeletionTasks:
+        description: "The public recreateRangeDeletionTasks command on mongos."
+        command_name: recreateRangeDeletionTasks
+        cpp_name: RecreateRangeDeletionTasksRequest
+        namespace: concatenate_with_db
+        allow_global_collection_name: true
+        api_version: ""
+        reply_type: OkReply
+        strict: false
+        fields:
+            skipEmptyRanges:
+                description: "If true, only recreate range deletion document if needed"
+                type: bool

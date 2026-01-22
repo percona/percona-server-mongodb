@@ -30,6 +30,7 @@
 #include "mongo/db/pipeline/stage_params_to_document_source_registry.h"
 
 #include "mongo/bson/bsonobj.h"
+#include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_limit.h"
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
@@ -73,20 +74,15 @@ public:
 };
 
 /**
- * Test that buildDocumentSource returns boost::none for stages that are not registered
+ * Test that buildDocumentSource tasserts for stages that are not registered
  * in the StageParams to DocumentSource registry.
- *
- * This behavior allows the system to fall back to the traditional BSON-based parsing
- * path for stages that haven't been migrated yet.
  */
-TEST(StageParamsToDocumentSourceRegistryTest, UnregisteredStageReturnsNone) {
+DEATH_TEST(StageParamsToDocumentSourceRegistryTest, UnregisteredStageReturnsNone, "11434300") {
     BSONObj spec = BSON("$unregisteredTestStage" << BSONObj());
     auto liteParsed = UnregisteredTestLiteParsed(spec.firstElement());
     auto expCtx = make_intrusive<ExpressionContextForTest>();
 
     auto result = buildDocumentSource(liteParsed, expCtx);
-
-    ASSERT_FALSE(result.has_value());
 }
 
 /**
@@ -103,11 +99,11 @@ TEST(StageParamsToDocumentSourceRegistryTest, RegisteredStageReturnsDocumentSour
 
     auto result = buildDocumentSource(liteParsed, expCtx);
 
-    ASSERT_TRUE(result.has_value());
-    ASSERT_TRUE(result.get() != nullptr);
+    ASSERT_EQ(result.size(), 1);
+    ASSERT_TRUE(result.front() != nullptr);
 
     // Verify it's actually a DocumentSourceLimit.
-    auto* limitDS = dynamic_cast<DocumentSourceLimit*>(result.get().get());
+    auto* limitDS = dynamic_cast<DocumentSourceLimit*>(result.front().get());
     ASSERT_TRUE(limitDS != nullptr);
     ASSERT_EQ(limitDS->getLimit(), 10);
 }
@@ -119,15 +115,13 @@ DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(DuplicateRegistrationTest);
 ALLOCATE_STAGE_PARAMS_ID(duplicateRegistrationTest, DuplicateRegistrationTestStageParams::id);
 
 // A dummy mapping function for the duplicate registration test.
-boost::intrusive_ptr<DocumentSource> dummyMappingFn(
-    const std::unique_ptr<StageParams>& stageParams,
-    const boost::intrusive_ptr<ExpressionContext>& expCtx) {
-    return nullptr;
+DocumentSourceContainer dummyMappingFn(const std::unique_ptr<StageParams>& stageParams,
+                                       const boost::intrusive_ptr<ExpressionContext>& expCtx) {
+    return {};
 }
 
 // Register the first mapping for the duplicate registration test.
 REGISTER_STAGE_PARAMS_TO_DOCUMENT_SOURCE_MAPPING(duplicateRegistrationTest,
-                                                 "$duplicateRegistrationTestStage",
                                                  DuplicateRegistrationTestStageParams::id,
                                                  dummyMappingFn);
 
@@ -141,30 +135,7 @@ REGISTER_STAGE_PARAMS_TO_DOCUMENT_SOURCE_MAPPING(duplicateRegistrationTest,
 DEATH_TEST(StageParamsToDocumentSourceRegistryTest, DuplicateRegistrationFails, "11458700") {
     // Attempt to register a second mapping function for the same StageParams::Id.
     // This should trigger a tassert.
-    registerStageParamsToDocumentSourceFn("$duplicateRegistrationTestStage",
-                                          DuplicateRegistrationTestStageParams::id,
-                                          dummyMappingFn);
-}
-
-/**
- * A test-only StageParams class used for testing overlapping registration.
- */
-DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(OverlappingRegistrationTest);
-ALLOCATE_STAGE_PARAMS_ID(overlappingRegistrationTest, OverlappingRegistrationTestStageParams::id);
-
-/**
- * Test that registering a stage that is already in the old parserMap triggers a tassert failure.
- *
- * This validates that stages cannot be registered in both the new StageParams->DocumentSource
- * registry and the old parserMap simultaneously.
- */
-DEATH_TEST(StageParamsToDocumentSourceRegistryTest,
-           RegistrationFailsForStageInParserMap,
-           "11458701") {
-    // $match is registered in the old parserMap, so registering it in the new registry
-    // should trigger a tassert.
-    registerStageParamsToDocumentSourceFn(
-        "$match", OverlappingRegistrationTestStageParams::id, dummyMappingFn);
+    registerStageParamsToDocumentSourceFn(DuplicateRegistrationTestStageParams::id, dummyMappingFn);
 }
 
 }  // namespace

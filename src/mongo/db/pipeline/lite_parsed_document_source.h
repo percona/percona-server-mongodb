@@ -74,7 +74,120 @@ struct LiteParserOptions {
 
 namespace exec::agg {
 class ListMqlEntitiesStage;
-}  // namespace exec::agg
+}
+
+namespace extension::host {
+class LoadExtensionsTest;
+class LoadNativeVectorSearchTest;
+}  // namespace extension::host
+
+// Forward declare LiteParsedDocumentSource.
+class LiteParsedDocumentSource;
+
+/**
+ * A ViewInfo struct stores the view namespace, resolved namespace (underlying collection), and the
+ * desugared view pipeline from ResolvedView.
+ */
+struct MONGO_MOD_PUBLIC ViewInfo {
+    using LiteParsedVec = std::vector<std::unique_ptr<LiteParsedDocumentSource>>;
+
+    ViewInfo() = default;
+
+    // Move-only semantics (viewPipeline contains unique_ptrs which are non-copyable).
+    ViewInfo(ViewInfo&&) noexcept = default;
+    ViewInfo& operator=(ViewInfo&&) noexcept = default;
+    ViewInfo(const ViewInfo&) = delete;
+    ViewInfo& operator=(const ViewInfo&) = delete;
+
+    /**
+     * Constructs a ViewInfo object from the view namespace, underlying collection's namespace, and
+     * parses the bson stages in the view pipeline into LiteParsedDocumentSources.
+     *
+     * Note that the ViewInfo owns the backing BSONObj for `viewPipeline`.
+     */
+    ViewInfo(NamespaceString viewName,
+             NamespaceString resolvedNss,
+             std::vector<BSONObj> viewPipeBson,
+             const LiteParserOptions& options = LiteParserOptions{});
+
+    /**
+     * Returns the original BSON view pipeline. Note that this is the pre-desugared version of the
+     * pipeline.
+     */
+    std::vector<BSONObj> getOriginalBson() const;
+
+    ViewInfo clone() const;
+
+    NamespaceString viewName;     // Unresolved view namespace.
+    NamespaceString resolvedNss;  // Underlying collection that the view runs.
+
+private:
+    // Owns the BSON data that viewPipeline's LiteParsedDocumentSource objects reference.
+    // Must be declared before viewPipeline so it is destroyed after viewPipeline (C++ destroys
+    // members in reverse declaration order, and LiteParsedDocumentSource holds BSONElement
+    // references into this data).
+    std::vector<BSONObj> _ownedOriginalBsonPipeline;
+
+public:
+    // The desugared view pipeline as a vector of LiteParsedDocumentSources. This vector can be
+    // added to existing pipelines to apply a view to a pipeline.
+    LiteParsedVec viewPipeline;
+};
+
+using ViewPolicyCallbackFn = std::function<void(const ViewInfo&, StringData)>;
+
+/**
+ * Indicates how this stage will interact with a view. LiteParsedDocumentSources that
+ * wish to perform custom behavior for views should override the callback function.
+ */
+struct ViewPolicy {
+    // Describes what the pipeline as a whole should do with a view on the main aggregate
+    // collection, if this stage is at the front of the pipeline.
+    enum class kFirstStageApplicationPolicy {
+        // If this stage is at the front of the pipeline, the pipeline should
+        // prepend the view.
+        kDefaultPrepend,
+        // If this stage is at the front of the pipeline, the pipeline should not
+        // prepend the view. The stage will apply the view pipeline itself internally.
+        kDoNothing,
+    } policy = kFirstStageApplicationPolicy::kDefaultPrepend;
+
+    // Offers a stage the chance to receive/bind to a view definition on the command's resolved view
+    // definitions. Receives resolved view information and the stage name.
+    ViewPolicyCallbackFn callback = [](const ViewInfo&, StringData) {
+        // Default callback is a no-op.
+    };
+};
+
+/**
+ * Default view policy for aggregation stages. This policy allows views to be used with the stage
+ * by prepending the view pipeline when the stage is at the front of the pipeline.
+ *
+ * When a stage uses DefaultViewPolicy:
+ * - If the stage is at the front of the pipeline and the main collection is a view, the view
+ *   pipeline will be prepended to the aggregation pipeline.
+ * - The callback is a no-op, meaning the stage does not need to perform any special handling
+ *   when a view is encountered.
+ *
+ * This is the default behavior for most aggregation stages that support views.
+ */
+struct DefaultViewPolicy : ViewPolicy {};
+
+/**
+ * View policy that disallows views for aggregation stages. This policy prevents views from being
+ * used with the stage by throwing an error when a view is encountered.
+ *
+ * When a stage uses DisallowViewsPolicy:
+ * - The policy is set to kDoNothing, meaning the view pipeline will not be automatically prepended.
+ * - The callback throws a CommandNotSupportedOnView error (or a custom error if a custom callback
+ *   is provided) when a view is detected.
+ *
+ * Use this policy for stages that cannot operate on views.
+ */
+struct DisallowViewsPolicy : public ViewPolicy {
+    DisallowViewsPolicy();
+    DisallowViewsPolicy(ViewPolicyCallbackFn&&);
+};
 
 /**
  * A lightly parsed version of a DocumentSource. It is not executable and not guaranteed to return a
@@ -259,6 +372,13 @@ public:
     virtual std::unique_ptr<StageParams> getStageParams() const = 0;
 
     /**
+     * Retrieve the ViewPolicy for this stage.
+     */
+    virtual ViewPolicy getViewPolicy() const {
+        return DefaultViewPolicy{};
+    }
+
+    /**
      * Returns true if this is a $collStats stage.
      */
     virtual bool isCollStats() const {
@@ -424,6 +544,8 @@ private:
      */
     friend class LiteParserRegistrationTest;
     friend class LiteParsedDocumentSourceParseTest;
+    friend class extension::host::LoadExtensionsTest;
+    friend class extension::host::LoadNativeVectorSearchTest;
 
     /**
      * Give access to 'getParserMap()' for the implementation of $listMqlEntities but hiding

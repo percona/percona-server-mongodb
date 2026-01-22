@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2021-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,39 +27,57 @@
  *    it in the license file.
  */
 
-#pragma once
+#include "mongo/otel/metrics/metrics_gauge.h"
 
-#include "mongo/base/error_codes.h"
-#include "mongo/base/error_extra_info.h"
-#include "mongo/bson/bsonobj.h"
-#include "mongo/util/modules.h"
+#include "mongo/stdx/thread.h"
+#include "mongo/unittest/unittest.h"
 
-#include <memory>
+#include <vector>
 
-namespace mongo {
+namespace mongo::otel::metrics {
 
-class BSONObjBuilder;
+TEST(Int64GaugeImplTest, Sets) {
+    GaugeImpl<int64_t> gauge;
+    ASSERT_EQ(gauge.value(), 0);
+    gauge.set(1);
+    ASSERT_EQ(gauge.value(), 1);
+    gauge.set(10);
+    ASSERT_EQ(gauge.value(), 10);
+    gauge.set(-1);
+    ASSERT_EQ(gauge.value(), -1);
+}
 
-/**
- * Contains a BSONObj the stores the topology change event in a sharded-cluster deployment.
- */
-class MONGO_MOD_NEEDS_REPLACEMENT ChangeStreamTopologyChangeInfo final : public ErrorExtraInfo {
-public:
-    static constexpr auto code = ErrorCodes::ChangeStreamTopologyChange;
+TEST(DoubleGaugeImplTest, Sets) {
+    GaugeImpl<double> gauge;
+    ASSERT_EQ(gauge.value(), 0.0);
+    gauge.set(1.0);
+    ASSERT_EQ(gauge.value(), 1.0);
+    gauge.set(10.0);
+    ASSERT_EQ(gauge.value(), 10.0);
+    gauge.set(-1.0);
+    ASSERT_EQ(gauge.value(), -1.0);
+}
 
-    static std::shared_ptr<const ErrorExtraInfo> parse(const BSONObj& obj);
+// Any issues with thread safety should be caught by tsan on this test.
+TEST(Int64GaugeImplTest, ConcurrentAdds) {
+    GaugeImpl<int64_t> gauge;
+    constexpr int kNumThreads = 10;
+    constexpr int kIterationsPerThread = 1000;
 
-    explicit ChangeStreamTopologyChangeInfo(BSONObj topologyChangeEvent)
-        : _topologyChangeEvent{topologyChangeEvent.getOwned()} {}
-
-    BSONObj getTopologyChangeEvent() const {
-        return _topologyChangeEvent;
+    std::vector<stdx::thread> threads;
+    for (int i = 0; i < kNumThreads; ++i) {
+        threads.emplace_back([&gauge, i]() {
+            for (int j = 0; j < kIterationsPerThread; ++j) {
+                gauge.set(j);
+            }
+        });
     }
 
-    void serialize(BSONObjBuilder* bob) const final;
+    for (stdx::thread& thread : threads) {
+        thread.join();
+    }
 
-private:
-    BSONObj _topologyChangeEvent;
-};
+    ASSERT_EQ(gauge.value(), kIterationsPerThread - 1);
+}
 
-}  // namespace mongo
+}  // namespace mongo::otel::metrics

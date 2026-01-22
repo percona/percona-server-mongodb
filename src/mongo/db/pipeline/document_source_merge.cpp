@@ -37,6 +37,7 @@
 #include "mongo/db/pipeline/document_source_merge_gen.h"
 #include "mongo/db/pipeline/document_source_merge_spec.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
+#include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/pipeline/variable_validation.h"
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/explain_options.h"
@@ -68,12 +69,12 @@
 
 namespace mongo {
 
-ALLOCATE_STAGE_PARAMS_ID(merge, MergeStageParams::id);
+REGISTER_LITE_PARSED_DOCUMENT_SOURCE(merge,
+                                     DocumentSourceMerge::LiteParsed::parse,
+                                     AllowedWithApiStrict::kAlways);
 
-REGISTER_DOCUMENT_SOURCE(merge,
-                         DocumentSourceMerge::LiteParsed::parse,
-                         DocumentSourceMerge::createFromBson,
-                         AllowedWithApiStrict::kAlways);
+REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(merge, DocumentSourceMerge, MergeStageParams);
+
 ALLOCATE_DOCUMENT_SOURCE_ID(merge, DocumentSourceMerge::id)
 
 namespace {
@@ -404,7 +405,9 @@ Value DocumentSourceMerge::serialize(const SerializationOptions& opts) const {
             }
             return withErrorContext(
                 [&]() {
-                    return Pipeline::parse(pipeline.value(), expCtxWithLetVariables)
+                    return pipeline_factory::makePipeline(pipeline.value(),
+                                                          expCtxWithLetVariables,
+                                                          pipeline_factory::kOptionsMinimal)
                         ->serializeToBson(opts);
                 },
                 "Error parsing $merge.whenMatched pipeline"_sd);

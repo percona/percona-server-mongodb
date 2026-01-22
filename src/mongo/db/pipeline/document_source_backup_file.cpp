@@ -51,21 +51,21 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 
+// We only link this file into mongod so this stage doesn't exist in mongos
 namespace mongo {
-
-ALLOCATE_STAGE_PARAMS_ID(_backupFile, BackupFileStageParams::id);
 
 namespace {
 constexpr StringData kBackupId = "backupId"_sd;
 constexpr StringData kFile = "file"_sd;
 constexpr StringData kByteOffset = "byteOffset"_sd;
-
-// We only link this file into mongod so this stage doesn't exist in mongos
-REGISTER_INTERNAL_DOCUMENT_SOURCE(_backupFile,
-                                  DocumentSourceBackupFile::LiteParsed::parse,
-                                  DocumentSourceBackupFile::createFromBson,
-                                  true);
 }  // namespace
+
+REGISTER_INTERNAL_LITE_PARSED_DOCUMENT_SOURCE(_backupFile,
+                                              DocumentSourceBackupFile::LiteParsed::parse);
+
+REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(_backupFile,
+                                                   DocumentSourceBackupFile,
+                                                   BackupFileStageParams);
 
 ALLOCATE_DOCUMENT_SOURCE_ID(_backupFile, DocumentSourceBackupFile::id)
 

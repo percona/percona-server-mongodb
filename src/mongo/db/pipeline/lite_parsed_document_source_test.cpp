@@ -199,6 +199,16 @@ DEATH_TEST_F(LiteParsedDocumentSourceParseTest, MustRegisterPrimaryAfterFallback
     registerFallbackParser(&mockFlag);
 }
 
+DEATH_TEST_F(LiteParsedDocumentSourceParseTest, CannotOverridePrimaryParser, "11534800") {
+    _stageName = "$cannotOverridePrimaryParser";
+
+    // Register the primary parser first.
+    registerPrimaryParser();
+
+    // Try to register another primary parser for the same stage, which should assert.
+    registerPrimaryParser();
+}
+
 TEST_F(LiteParsedDocumentSourceParseTest, FirstFallbackParserTakesPrecedence) {
     _stageName = "$firstFallbackParserTakesPrecedence";
 
@@ -255,12 +265,13 @@ DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(Test);
 ALLOCATE_STAGE_PARAMS_ID(test, TestStageParams::id);
 
 /**
- * A dummy LiteParsedDocumentSource that implements just enough functionality to return custom
- * derived StageParams.
+ * A dummy LiteParsedDocumentSource that implements just enough functionality to test select
+ * functionality.
  */
 class TestLiteParsed final : public LiteParsedDocumentSource {
 public:
-    TestLiteParsed(const BSONElement& originalBson) : LiteParsedDocumentSource(originalBson) {}
+    TestLiteParsed(const BSONElement& originalBson, ViewPolicy viewPolicy = DefaultViewPolicy{})
+        : LiteParsedDocumentSource(originalBson), _viewPolicy(viewPolicy) {}
 
     stdx::unordered_set<NamespaceString> getInvolvedNamespaces() const final {
         return stdx::unordered_set<NamespaceString>();
@@ -273,6 +284,12 @@ public:
     std::unique_ptr<StageParams> getStageParams() const final {
         return std::make_unique<TestStageParams>(_originalBson);
     }
+
+    ViewPolicy getViewPolicy() const final {
+        return _viewPolicy;
+    }
+
+    ViewPolicy _viewPolicy;
 };
 
 /**
@@ -292,6 +309,65 @@ TEST(StageParams, CanGetStageParamsFromLiteParsed) {
     auto baseParams = lp.getStageParams();
     ASSERT_TRUE(dynamic_cast<TestStageParams*>(baseParams.get()) != nullptr);
     ASSERT_NE(baseParams->getId(), 0);
+}
+
+TEST(ViewPolicy, CanSpecifyDefaultViewPolicyWithNoCustomReadFunction) {
+    BSONObj spec = BSON("$testStage" << BSONObj());
+    auto lp = TestLiteParsed(spec.firstElement());
+
+    ASSERT_EQ(lp.getViewPolicy().policy, ViewPolicy::kFirstStageApplicationPolicy::kDefaultPrepend);
+}
+
+TEST(ViewPolicy, CanSpecifyViewPolicyWithCustomReadFunction) {
+    // Make a custom view function that just sets a bool flag indicating that the function has been
+    // called successfully.
+    bool fired = false;
+    auto viewFunc = [&fired](const ViewInfo&, StringData stageName) {
+        ASSERT_FALSE(fired);
+        fired = true;
+    };
+
+    BSONObj spec = BSON("$testStage" << BSONObj());
+    auto lp =
+        TestLiteParsed(spec.firstElement(),
+                       ViewPolicy{.policy = ViewPolicy::kFirstStageApplicationPolicy::kDoNothing,
+                                  .callback = viewFunc});
+
+    auto viewPolicy = lp.getViewPolicy();
+    ASSERT_EQ(viewPolicy.policy, ViewPolicy::kFirstStageApplicationPolicy::kDoNothing);
+
+    // Make sure that we can actually call the custom view function.
+    viewPolicy.callback({}, "");
+    ASSERT_TRUE(fired);
+}
+
+TEST(ViewPolicy, CanSpecifyDisallowViewPolicyDefaultValues) {
+    BSONObj spec = BSON("$testStage" << BSONObj());
+    auto lp = TestLiteParsed(spec.firstElement(), DisallowViewsPolicy{});
+
+    auto viewPolicy = lp.getViewPolicy();
+    ASSERT_EQ(viewPolicy.policy, ViewPolicy::kFirstStageApplicationPolicy::kDoNothing);
+
+    ASSERT_THROWS_CODE_AND_WHAT(viewPolicy.callback({}, "$test"),
+                                DBException,
+                                ErrorCodes::CommandNotSupportedOnView,
+                                "$test is not supported on views.");
+}
+
+TEST(ViewPolicy, CanSpecifyDisallowViewPolicyCustomValues) {
+    BSONObj spec = BSON("$testStage" << BSONObj());
+
+    const int kCustomErrorCode = 11505700;
+    const std::string kCustomErrorMsg = "test error message";
+    auto lp = TestLiteParsed(spec.firstElement(), DisallowViewsPolicy{[&](const auto&, auto) {
+                                 uasserted(kCustomErrorCode, kCustomErrorMsg);
+                             }});
+
+    auto viewPolicy = lp.getViewPolicy();
+    ASSERT_EQ(viewPolicy.policy, ViewPolicy::kFirstStageApplicationPolicy::kDoNothing);
+
+    ASSERT_THROWS_CODE_AND_WHAT(
+        viewPolicy.callback({}, "$test"), DBException, kCustomErrorCode, kCustomErrorMsg);
 }
 
 }  // namespace mongo

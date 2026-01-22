@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2021-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -27,25 +27,33 @@
  *    it in the license file.
  */
 
-#include "mongo/db/pipeline/change_stream_topology_change_info.h"
+#pragma once
 
-#include "mongo/base/init.h"  // IWYU pragma: keep
-#include "mongo/bson/bsonelement.h"
-#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/pipeline/aggregation_context_fixture.h"
+#include "mongo/db/query/compiler/optimizer/join/agg_join_model.h"
 
-namespace mongo {
-namespace {
+namespace mongo::join_ordering {
+class AggJoinModelFixture : public AggregationContextFixture {
+public:
+    static constexpr size_t kMaxNumberNodesConsideredForImplicitEdges = 4;
 
-MONGO_INIT_REGISTER_ERROR_EXTRA_INFO(ChangeStreamTopologyChangeInfo);
+    static std::string toString(const BSONObj& bson) {
+        return bson.jsonString(
+            /*format*/ ExtendedCanonicalV2_0_0,
+            /*pretty*/ true);
+    }
 
-}  // namespace
+    static std::string toString(const std::unique_ptr<Pipeline>& pipeline);
+    static std::vector<BSONObj> pipelineFromJsonArray(StringData jsonArray);
 
-std::shared_ptr<const ErrorExtraInfo> ChangeStreamTopologyChangeInfo::parse(const BSONObj& obj) {
-    return std::make_shared<ChangeStreamTopologyChangeInfo>(obj["topologyChangeEvent"].Obj());
-}
+    std::unique_ptr<Pipeline> makePipeline(std::vector<BSONObj> bsonStages,
+                                           std::vector<StringData> collNames);
 
-void ChangeStreamTopologyChangeInfo::serialize(BSONObjBuilder* bob) const {
-    bob->append("topologyChangeEvent", _topologyChangeEvent);
-}
+    std::unique_ptr<Pipeline> makePipeline(StringData query, std::vector<StringData> collNames);
 
-}  // namespace mongo
+    std::unique_ptr<Pipeline> makePipelineOfSize(size_t numJoins);
+
+    const AggModelBuildParams defaultBuildParams{.maxNumberNodesConsideredForImplicitEdges =
+                                                     kMaxNumberNodesConsideredForImplicitEdges};
+};
+}  // namespace mongo::join_ordering

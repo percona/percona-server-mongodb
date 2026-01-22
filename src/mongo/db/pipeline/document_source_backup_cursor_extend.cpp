@@ -38,20 +38,21 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 
+// We only link this file into mongod so this stage doesn't exist in mongos
 namespace mongo {
-
-ALLOCATE_STAGE_PARAMS_ID(backupCursorExtend, BackupCursorExtendStageParams::id);
 
 namespace {
 constexpr StringData kBackupId = "backupId"_sd;
 constexpr StringData kTimestamp = "timestamp"_sd;
-
-// We only link this file into mongod so this stage doesn't exist in mongos
-REGISTER_DOCUMENT_SOURCE(backupCursorExtend,
-                         DocumentSourceBackupCursorExtend::LiteParsed::parse,
-                         DocumentSourceBackupCursorExtend::createFromBson,
-                         AllowedWithApiStrict::kAlways);
 }  // namespace
+
+REGISTER_LITE_PARSED_DOCUMENT_SOURCE(backupCursorExtend,
+                                     DocumentSourceBackupCursorExtend::LiteParsed::parse,
+                                     AllowedWithApiStrict::kAlways);
+
+REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(backupCursorExtend,
+                                                   DocumentSourceBackupCursorExtend,
+                                                   BackupCursorExtendStageParams);
 
 ALLOCATE_DOCUMENT_SOURCE_ID(backupCursorExtend, DocumentSourceBackupCursorExtend::id)
 

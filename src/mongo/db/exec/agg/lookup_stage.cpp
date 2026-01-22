@@ -356,16 +356,20 @@ std::unique_ptr<mongo::Pipeline> LookUpStage::buildPipelineFromViewDefinition(
     // Update the expression context with any new namespaces the resolved pipeline has
     // introduced.
     LiteParsedPipeline liteParsedPipeline(resolvedNs, viewPipeline);
-    _fromExpCtx = makeCopyFromExpressionContext(
-        _fromExpCtx, resolvedNs, boost::none, boost::none, std::make_pair(_fromNs, viewPipeline));
+    _fromExpCtx = makeCopyFromExpressionContext(_fromExpCtx,
+                                                resolvedNs,
+                                                boost::none,
+                                                boost::none,
+                                                ViewInfo(_fromNs, resolvedNs, viewPipeline));
     _fromExpCtx->addResolvedNamespaces(liteParsedPipeline.getInvolvedNamespaces());
 
     // Parse the new pipeline and prepare it again. We must resolve the view before entering
     // 'finalizeAndMaybePreparePipelineForExecution', since that function requires accessing
     // collection catalog data.
-    std::unique_ptr<mongo::Pipeline> parsedPipeline = mongo::Pipeline::parse(
-        _sharedState->resolvedPipeline, _fromExpCtx, mongo::lookupPipeValidator);
-    _fromExpCtx->initializeReferencedSystemVariables();
+    pipeline_factory::MakePipelineOptions pipelineOpts = pipeline_factory::kOptionsMinimal;
+    pipelineOpts.validator = mongo::lookupPipeValidator;
+    std::unique_ptr<mongo::Pipeline> parsedPipeline = mongo::pipeline_factory::makePipeline(
+        _sharedState->resolvedPipeline, _fromExpCtx, pipelineOpts);
 
     return pExpCtx->getMongoProcessInterface()->finalizeAndMaybePreparePipelineForExecution(
         _fromExpCtx,
@@ -436,9 +440,10 @@ std::unique_ptr<mongo::Pipeline> LookUpStage::buildPipeline(
         : ShardTargetingPolicy::kNotAllowed;
 
     // Parse the pipeline.
-    std::unique_ptr<mongo::Pipeline> parsedPipeline = mongo::Pipeline::parse(
-        _sharedState->resolvedPipeline, fromExpCtx, mongo::lookupPipeValidator);
-    fromExpCtx->initializeReferencedSystemVariables();
+    pipeline_factory::MakePipelineOptions pipelineOpts = pipeline_factory::kOptionsMinimal;
+    pipelineOpts.validator = mongo::lookupPipeValidator;
+    std::unique_ptr<mongo::Pipeline> parsedPipeline = mongo::pipeline_factory::makePipeline(
+        _sharedState->resolvedPipeline, fromExpCtx, pipelineOpts);
 
     // If we don't have a cache, optimize and translate, and attach a cursor to the pipeline
     // immediately.

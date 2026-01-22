@@ -68,12 +68,14 @@
 
 namespace mongo {
 
-ALLOCATE_STAGE_PARAMS_ID(unionWith, UnionWithStageParams::id);
+REGISTER_LITE_PARSED_DOCUMENT_SOURCE(unionWith,
+                                     DocumentSourceUnionWith::LiteParsed::parse,
+                                     AllowedWithApiStrict::kAlways);
 
-REGISTER_DOCUMENT_SOURCE(unionWith,
-                         DocumentSourceUnionWith::LiteParsed::parse,
-                         DocumentSourceUnionWith::createFromBson,
-                         AllowedWithApiStrict::kAlways);
+REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(unionWith,
+                                                   DocumentSourceUnionWith,
+                                                   UnionWithStageParams);
+
 ALLOCATE_DOCUMENT_SOURCE_ID(unionWith, DocumentSourceUnionWith::id)
 
 namespace {
@@ -447,8 +449,9 @@ Value DocumentSourceUnionWith::serialize(const SerializationOptions& opts) const
                     std::move(recoveredPipeline),
                     _userNss);
             } else {
-                pipeCopy =
-                    Pipeline::parse(recoveredPipeline, _sharedState->_pipeline->getContext());
+                pipeCopy = pipeline_factory::makePipeline(recoveredPipeline,
+                                                          _sharedState->_pipeline->getContext(),
+                                                          pipeline_factory::kOptionsMinimal);
             }
         } else {
             // The plan does not require reading from the sub-pipeline, so just include the
@@ -535,7 +538,9 @@ Value DocumentSourceUnionWith::serialize(const SerializationOptions& opts) const
         // return the current (optimized) pipeline for introspection with explain, etc.
         // TODO SERVER-94227: we don't need to do any validation as part of this parsing pass.
         const auto serializedPipeline =
-            Pipeline::parse(_userPipeline, _sharedState->_pipeline->getContext())
+            pipeline_factory::makePipeline(_userPipeline,
+                                           _sharedState->_pipeline->getContext(),
+                                           pipeline_factory::kOptionsMinimal)
                 ->serializeToBson(opts);
         auto spec = collectionless ? DOC("pipeline" << serializedPipeline)
                                    : DOC("coll" << opts.serializeIdentifier(_userNss.coll())

@@ -46,6 +46,7 @@
 #include "mongo/db/pipeline/pipeline_split_state.h"
 #include "mongo/db/pipeline/shard_role_transaction_resources_stasher_for_pipeline.h"
 #include "mongo/db/pipeline/stage_constraints.h"
+#include "mongo/db/pipeline/stage_params_to_document_source_registry.h"
 #include "mongo/db/pipeline/variables.h"
 #include "mongo/db/query/compiler/dependency_analysis/dependencies.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
@@ -74,77 +75,58 @@
 namespace mongo {
 
 /**
- * Registers a DocumentSource to have the name 'key'.
+ * Macros to register the LiteParsedDocumentSource parser.
  *
- * 'liteParser' takes an AggregateCommandRequest and a BSONElement and returns a
- * LiteParsedDocumentSource. This is used for checks that need to happen before a full parse,
- * such as checks about which namespaces are referenced by this aggregation.
- *
- * 'fullParser' is either a DocumentSource::SimpleParser or a DocumentSource::Parser.
- * In both cases, it takes a BSONElement and an ExpressionContext and returns fully-executable
- * DocumentSource(s), for optimization and execution. In the common case it's a SimpleParser,
- * which returns a single DocumentSource; in the general case it's a Parser, which returns a whole
- * std::list to support "multi-stage aliases" like $bucket.
- *
- * Stages that do not require any special pre-parse checks can use
- * LiteParsedDocumentSourceDefault::parse as their 'liteParser'.
- *
- * As an example, if your stage DocumentSourceFoo looks like {$foo: <args>} and does *not* require
- * any special pre-parse checks, you should implement a static parser like
- * DocumentSourceFoo::createFromBson(), and register it like so:
- * REGISTER_DOCUMENT_SOURCE(foo,
- *                          LiteParsedDocumentSourceDefault::parse,
- *                          DocumentSourceFoo::createFromBson);
+ * Example usage pattern for default stages:
+ *   REGISTER_LITE_PARSED_DOCUMENT_SOURCE(stageName, liteParser, allowedWithApiStrict);
+ *   REGISTER_STAGE_PARAMS_TO_DOCUMENT_SOURCE_MAPPING(stageName, kStageName, StageParams::id,
+ * mappingFn);
  */
-#define REGISTER_DOCUMENT_SOURCE(key, liteParser, fullParser, allowedWithApiStrict) \
-    REGISTER_DOCUMENT_SOURCE_CONDITIONALLY(key,                                     \
-                                           liteParser,                              \
-                                           fullParser,                              \
-                                           allowedWithApiStrict,                    \
-                                           AllowedWithClientType::kAny,             \
-                                           nullptr, /* featureFlag */               \
-                                           true)
+#define REGISTER_LITE_PARSED_DOCUMENT_SOURCE(key, liteParser, allowedWithApiStrict) \
+    REGISTER_LITE_PARSED_DOCUMENT_SOURCE_CONDITIONALLY(                             \
+        key, liteParser, allowedWithApiStrict, AllowedWithClientType::kAny, nullptr, true)
 
-#define REGISTER_DOCUMENT_SOURCE_WITH_CLIENT_TYPE(                    \
-    key, liteParser, fullParser, allowedWithApiStrict, clientType)    \
-    REGISTER_DOCUMENT_SOURCE_CONDITIONALLY(key,                       \
-                                           liteParser,                \
-                                           fullParser,                \
-                                           allowedWithApiStrict,      \
-                                           clientType,                \
-                                           nullptr, /* featureFlag */ \
-                                           true)
+#define REGISTER_LITE_PARSED_DOCUMENT_SOURCE_WITH_CLIENT_TYPE( \
+    key, liteParser, allowedWithApiStrict, clientType)         \
+    REGISTER_LITE_PARSED_DOCUMENT_SOURCE_CONDITIONALLY(        \
+        key, liteParser, allowedWithApiStrict, clientType, nullptr, true)
 
 /**
- * Like REGISTER_DOCUMENT_SOURCE, except the parser will only be registered when featureFlag is
- * enabled. We store featureFlag in the parserMap, so that it can be checked at runtime
- * to correctly enable/disable the parser.
+ * Like REGISTER_LITE_PARSED_DOCUMENT_SOURCE, except the parser will only be registered when
+ * featureFlag is enabled. We store featureFlag in the parserMap, so that it can be checked at
+ * runtime to correctly enable/disable the parser.
  */
-#define REGISTER_DOCUMENT_SOURCE_WITH_FEATURE_FLAG(                     \
-    key, liteParser, fullParser, allowedWithApiStrict, featureFlag)     \
-    REGISTER_DOCUMENT_SOURCE_CONDITIONALLY(key,                         \
-                                           liteParser,                  \
-                                           fullParser,                  \
-                                           allowedWithApiStrict,        \
-                                           AllowedWithClientType::kAny, \
-                                           featureFlag,                 \
-                                           true)
+#define REGISTER_LITE_PARSED_DOCUMENT_SOURCE_WITH_FEATURE_FLAG( \
+    key, liteParser, allowedWithApiStrict, featureFlag)         \
+    REGISTER_LITE_PARSED_DOCUMENT_SOURCE_CONDITIONALLY(         \
+        key, liteParser, allowedWithApiStrict, AllowedWithClientType::kAny, featureFlag, true)
 
 /**
- * Registers a DocumentSource which cannot be exposed to the users.
+ * Registers a LiteParsedDocumentSource which cannot be exposed to the users.
  */
-#define REGISTER_INTERNAL_DOCUMENT_SOURCE(key, liteParser, fullParser, condition) \
-    REGISTER_DOCUMENT_SOURCE_CONDITIONALLY(key,                                   \
-                                           liteParser,                            \
-                                           fullParser,                            \
-                                           AllowedWithApiStrict::kInternal,       \
-                                           AllowedWithClientType::kInternal,      \
-                                           nullptr, /* featureFlag*/              \
-                                           condition)
+#define REGISTER_INTERNAL_LITE_PARSED_DOCUMENT_SOURCE(key, liteParser)                   \
+    REGISTER_LITE_PARSED_DOCUMENT_SOURCE_CONDITIONALLY(key,                              \
+                                                       liteParser,                       \
+                                                       AllowedWithApiStrict::kInternal,  \
+                                                       AllowedWithClientType::kInternal, \
+                                                       nullptr,                          \
+                                                       true)
 
 /**
- * You can specify a condition, evaluated during startup,
- * that decides whether to register the parser.
+ * Like REGISTER_LITE_PARSED_DOCUMENT_SOURCE, except the parser is only enabled when test-commands
+ * are enabled.
+ */
+#define REGISTER_TEST_LITE_PARSED_DOCUMENT_SOURCE(key, liteParser)                             \
+    REGISTER_LITE_PARSED_DOCUMENT_SOURCE_CONDITIONALLY(key,                                    \
+                                                       liteParser,                             \
+                                                       AllowedWithApiStrict::kNeverInVersion1, \
+                                                       AllowedWithClientType::kAny,            \
+                                                       nullptr,                                \
+                                                       ::mongo::getTestCommandsEnabled())
+
+/**
+ * You can specify a condition, evaluated during startup, that decides whether to register the
+ * parser.
  *
  * For example, you could check a feature flag, and register the parser only when it's enabled.
  *
@@ -152,65 +134,73 @@ namespace mongo {
  * a condition that can change at runtime, such as FCV. (Feature flags are ok, because they
  * cannot be toggled at runtime.)
  *
- * This is the most general REGISTER_DOCUMENT_SOURCE* macro, which all others should delegate to.
+ * This is the most general REGISTER_LITE_PARSED_DOCUMENT_SOURCE* macro, which all others should
+ * delegate to.
  */
-#define REGISTER_DOCUMENT_SOURCE_CONDITIONALLY(                                                   \
-    key, liteParser, fullParser, allowedWithApiStrict, clientType, featureFlag, ...)              \
-    MONGO_INITIALIZER_GENERAL(addToDocSourceParserMap_##key,                                      \
-                              ("BeginDocumentSourceRegistration"),                                \
-                              ("EndDocumentSourceRegistration"))                                  \
-    (InitializerContext*) {                                                                       \
-        /* Require 'featureFlag' to be a constexpr. */                                            \
-        constexpr FeatureFlag* constFeatureFlag{featureFlag};                                     \
-        /* This non-constexpr variable works around a bug in GCC when 'featureFlag' is null. */   \
-        FeatureFlag* featureFlagValue{constFeatureFlag};                                          \
-        bool evaluatedCondition{__VA_ARGS__};                                                     \
-        if (!evaluatedCondition || (featureFlagValue && !featureFlagValue->canBeEnabled())) {     \
-            DocumentSource::registerParser("$" #key, DocumentSource::parseDisabled, featureFlag); \
-            LiteParsedDocumentSource::registerParser("$" #key,                                    \
-                                                     LiteParsedDocumentSource::parseDisabled,     \
-                                                     allowedWithApiStrict,                        \
-                                                     clientType);                                 \
-            return;                                                                               \
-        }                                                                                         \
-        LiteParsedDocumentSource::registerParser(                                                 \
-            "$" #key, liteParser, allowedWithApiStrict, clientType);                              \
-        DocumentSource::registerParser("$" #key, fullParser, featureFlag);                        \
+#define REGISTER_LITE_PARSED_DOCUMENT_SOURCE_CONDITIONALLY(                                     \
+    key, liteParser, allowedWithApiStrict, clientType, featureFlag, ...)                        \
+    MONGO_INITIALIZER_GENERAL(addToLiteParsedParserMap_##key,                                   \
+                              ("EndDocumentSourceFallbackRegistration"),                        \
+                              ("EndDocumentSourceRegistration"))                                \
+    (InitializerContext*) {                                                                     \
+        /* Require 'featureFlag' to be a constexpr. */                                          \
+        constexpr FeatureFlag* constFeatureFlag{featureFlag};                                   \
+        /* This non-constexpr variable works around a bug in GCC when 'featureFlag' is null. */ \
+        FeatureFlag* featureFlagValue{constFeatureFlag};                                        \
+        bool evaluatedCondition{__VA_ARGS__};                                                   \
+        if (!evaluatedCondition || (featureFlagValue && !featureFlagValue->canBeEnabled())) {   \
+            LiteParsedDocumentSource::registerParser("$" #key,                                  \
+                                                     LiteParsedDocumentSource::parseDisabled,   \
+                                                     allowedWithApiStrict,                      \
+                                                     clientType);                               \
+            return;                                                                             \
+        }                                                                                       \
+        LiteParsedDocumentSource::registerParser(                                               \
+            "$" #key, liteParser, allowedWithApiStrict, clientType);                            \
     }
 
-/**
- * Like REGISTER_DOCUMENT_SOURCE, except the parser is only enabled when test-commands are enabled.
- */
-#define REGISTER_TEST_DOCUMENT_SOURCE(key, liteParser, fullParser)                 \
-    REGISTER_DOCUMENT_SOURCE_CONDITIONALLY(key,                                    \
-                                           liteParser,                             \
-                                           fullParser,                             \
-                                           AllowedWithApiStrict::kNeverInVersion1, \
-                                           AllowedWithClientType::kAny,            \
-                                           nullptr, /* featureFlag */              \
-                                           ::mongo::getTestCommandsEnabled())
+#define ALLOCATE_AND_REGISTER_STAGE_PARAMS(registrationName, StageParamsClass) \
+    ALLOCATE_STAGE_PARAMS_ID(registrationName, StageParamsClass::id);          \
+    REGISTER_STAGE_PARAMS_TO_DOCUMENT_SOURCE_MAPPING(                          \
+        registrationName, StageParamsClass::id, registrationName##StageParamsToDocumentSourceFn)
 
 /**
- * Registers ONLY the LiteParsedDocumentSource parser, without registering a DocumentSource parser
- * in the old parserMap.
+ * Convenience macros to register a DocumentSource with its corresponding StageParams.
  *
- * Use this macro for stages that have been migrated to use the new StageParams->DocumentSource
- * registry (via REGISTER_STAGE_PARAMS_TO_DOCUMENT_SOURCE_MAPPING). These stages should NOT be
- * registered in the old parserMap.
+ * This macro:
+ * 1. Allocates the StageParams::Id.
+ * 2. Defines a helper function to create the DocumentSource from StageParams.
+ * 3. Registers the mapping between StageParams and DocumentSource.
  *
- * Usage pattern for migrated stages:
- *   REGISTER_LITE_PARSED_DOCUMENT_SOURCE(stageName, liteParser, allowedWithApiStrict);
- *   REGISTER_STAGE_PARAMS_TO_DOCUMENT_SOURCE_MAPPING(stageName, kStageName, StageParams::id,
- * mappingFn);
+ * Assumptions:
+ * - DocSourceClass has a static member `kStageName` of type StringData.
+ * - DocSourceClass has a static method `createFromBson(BSONElement,
+ * intrusive_ptr<ExpressionContext>)`.
+ * - StageParamsClass has a static member `id` of type StageParams::Id.
+ * - StageParamsClass has a method `getOriginalBson()` returning BSONElement (e.g. derived from
+ * DefaultStageParams).
  */
-#define REGISTER_LITE_PARSED_DOCUMENT_SOURCE(key, liteParser, allowedWithApiStrict)   \
-    MONGO_INITIALIZER_GENERAL(addToLiteParsedParserMap_##key,                         \
-                              ("BeginDocumentSourceRegistration"),                    \
-                              ("EndDocumentSourceRegistration"))                      \
-    (InitializerContext*) {                                                           \
-        LiteParsedDocumentSource::registerParser(                                     \
-            "$" #key, liteParser, allowedWithApiStrict, AllowedWithClientType::kAny); \
-    }
+#define REGISTER_DOCUMENT_SOURCE_CONTAINER_WITH_STAGE_PARAMS_DEFAULT(                  \
+    registrationName, DocSourceClass, StageParamsClass)                                \
+    DocumentSourceContainer registrationName##StageParamsToDocumentSourceFn(           \
+        const std::unique_ptr<StageParams>& stageParams,                               \
+        const boost::intrusive_ptr<ExpressionContext>& expCtx) {                       \
+        auto* typedParams = dynamic_cast<StageParamsClass*>(stageParams.get());        \
+        return DocSourceClass::createFromBson(typedParams->getOriginalBson(), expCtx); \
+    }                                                                                  \
+    ALLOCATE_AND_REGISTER_STAGE_PARAMS(registrationName, StageParamsClass)
+
+
+#define REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(                              \
+    registrationName, DocSourceClass, StageParamsClass)                                  \
+    DocumentSourceContainer registrationName##StageParamsToDocumentSourceFn(             \
+        const std::unique_ptr<StageParams>& stageParams,                                 \
+        const boost::intrusive_ptr<ExpressionContext>& expCtx) {                         \
+        auto* typedParams = dynamic_cast<StageParamsClass*>(stageParams.get());          \
+        return {DocSourceClass::createFromBson(typedParams->getOriginalBson(), expCtx)}; \
+    }                                                                                    \
+    ALLOCATE_AND_REGISTER_STAGE_PARAMS(registrationName, StageParamsClass)
+
 
 /**
  * Registers a fallback LiteParsedDocumentSource parser that will be used when no primary parser is
@@ -219,8 +209,8 @@ namespace mongo {
 #define REGISTER_LITE_PARSED_DOCUMENT_SOURCE_FALLBACK(                                             \
     key, liteParser, allowedWithApiStrict, featureFlag)                                            \
     MONGO_INITIALIZER_GENERAL(addToLiteParsedFallbackParserMap_##key,                              \
-                              ("BeginDocumentSourceRegistration"),                                 \
-                              ("EndDocumentSourceRegistration"))                                   \
+                              ("BeginDocumentSourceFallbackRegistration"),                         \
+                              ("EndDocumentSourceFallbackRegistration"))                           \
     (InitializerContext*) {                                                                        \
         LiteParsedDocumentSource::registerFallbackParser(                                          \
             "$" #key, liteParser, featureFlag, allowedWithApiStrict, AllowedWithClientType::kAny); \
@@ -451,32 +441,6 @@ public:
                           << " is not allowed with the current configuration. You may need to "
                              "enable the corresponding feature flag");
     }
-
-    /**
-     * Returns true if a stage with the given name is registered in the parserMap.
-     * Used for validation that stages are not registered in both the old and new registries.
-     * TODO SERVER-114343: Remove once parserMap no longer exists.
-     */
-    static bool isInParserMap(StringData stageName);
-
-    /**
-     * Registers a DocumentSource with a parsing function, so that when a stage with the given name
-     * is encountered, it will call 'parser' to construct that stage.
-     *
-     * DO NOT call this method directly. Instead, use the REGISTER_DOCUMENT_SOURCE macro defined in
-     * this file.
-     */
-    static void registerParser(std::string name, Parser parser, FeatureFlag* featureFlag = nullptr);
-    /**
-     * Convenience wrapper for the common case, when DocumentSource::Parser returns a list of one
-     * DocumentSource.
-     *
-     * DO NOT call this method directly. Instead, use the REGISTER_DOCUMENT_SOURCE macro defined in
-     * this file.
-     */
-    static void registerParser(std::string name,
-                               SimpleParser simpleParser,
-                               FeatureFlag* featureFlag = nullptr);
 
     /**
      * Allocate and return a new, unique DocumentSource::Id value.
@@ -750,29 +714,7 @@ protected:
         return shardId;
     }};
 
-    /**
-     * unregisterParser_forTest is only meant to be used in the context of unit tests. This is
-     * because the parserMap is not thread safe, so modifying it at runtime is unsafe.
-     */
-
-    MONGO_MOD_NEEDS_REPLACEMENT static void unregisterParser_forTest(const std::string& name);
-
 private:
-    // Give access to 'getParserMap()' for the implementation of $listMqlEntities but hiding
-    // it from all other stages.
-    friend class exec::agg::ListMqlEntitiesStage;
-
-    // Used to keep track of which DocumentSources are registered under which name. Initialized
-    // during process initialization and const thereafter.
-    static StringMap<ParserRegistration> parserMap;
-
-    /**
-     * Return the map of currently registered parsers.
-     */
-    static const StringMap<ParserRegistration>& getParserMap() {
-        return parserMap;
-    }
-
     /**
      * Create a Value that represents the document source.
      *

@@ -74,7 +74,7 @@ void ExtensionStage::setSource(Stage* source) {
 
     // Remove any reference to the pointer in the extension before deleting the old handle.
     if (_sourceAggStageHandle.isValid()) {
-        _execAggStageHandle.setSource(nullptr);
+        _execAggStageHandle->setSource(nullptr);
     }
 
     if (pSource) {
@@ -84,7 +84,7 @@ void ExtensionStage::setSource(Stage* source) {
         // would have likely oomed/bad_alloc.
         tassert(10957205, "_sourceAggStageHandle is invalid", _sourceAggStageHandle.isValid());
         // Attach the reference on extension side.
-        _execAggStageHandle.setSource(_sourceAggStageHandle);
+        _execAggStageHandle->setSource(_sourceAggStageHandle);
     }
 }
 
@@ -94,7 +94,7 @@ GetNextResult ExtensionStage::doGetNext() {
         std::make_unique<host::QueryExecutionContext>(pExpCtx.get());
     host_connector::QueryExecutionContextAdapter ctxAdapter(std::move(wrappedCtx));
     tassert(11357601, "_execAggStageHandle is invalid", _execAggStageHandle.isValid());
-    _lastGetNextResult = _execAggStageHandle.getNext(&ctxAdapter);
+    _lastGetNextResult = _execAggStageHandle->getNext(&ctxAdapter);
     switch (_lastGetNextResult.code) {
         case GetNextCode::kAdvanced: {
             tassert(11357602,
@@ -104,10 +104,10 @@ GetNextResult ExtensionStage::doGetNext() {
             auto nextDocument = [&]() {
                 if (_lastGetNextResult.resultMetadata.has_value()) {
                     return Document::createDocumentWithMetadata(
-                        _lastGetNextResult.resultDocument->getUnownedBSONObj(),
-                        _lastGetNextResult.resultMetadata->getUnownedBSONObj());
+                        _lastGetNextResult.resultDocument->getUnownedBSONObj().getOwned(),
+                        _lastGetNextResult.resultMetadata->getUnownedBSONObj().getOwned());
                 }
-                return Document{_lastGetNextResult.resultDocument->getUnownedBSONObj()};
+                return Document{_lastGetNextResult.resultDocument->getUnownedBSONObj().getOwned()};
             }();
             return GetNextResult(std::move(nextDocument));
         }
@@ -125,7 +125,7 @@ GetNextResult ExtensionStage::doGetNext() {
 Document ExtensionStage::getExplainOutput(const SerializationOptions& opts) const {
     MutableDocument output(Stage::getExplainOutput(opts));
 
-    BSONObj explainSerialization = _execAggStageHandle.explain(*opts.verbosity);
+    BSONObj explainSerialization = _execAggStageHandle->explain(*opts.verbosity);
     for (auto elem : explainSerialization) {
         output.addField(elem.fieldName(), Value(elem));
     }

@@ -39,6 +39,7 @@
 #include "mongo/db/pipeline/expression.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
+#include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/pipeline/process_interface/mongo_process_interface.h"
 #include "mongo/db/pipeline/sort_reorder_helpers.h"
 #include "mongo/db/query/allowed_contexts.h"
@@ -99,12 +100,15 @@ std::unique_ptr<DocumentSourceGraphLookUp::LiteParsed> DocumentSourceGraphLookUp
         spec, parseGraphLookupFromAndResolveNamespace(fromElement, nss.dbName()));
 }
 
-ALLOCATE_STAGE_PARAMS_ID(graphLookUp, GraphLookUpStageParams::id);
 
-REGISTER_DOCUMENT_SOURCE(graphLookup,
-                         DocumentSourceGraphLookUp::LiteParsed::parse,
-                         DocumentSourceGraphLookUp::createFromBson,
-                         AllowedWithApiStrict::kAlways);
+REGISTER_LITE_PARSED_DOCUMENT_SOURCE(graphLookup,
+                                     DocumentSourceGraphLookUp::LiteParsed::parse,
+                                     AllowedWithApiStrict::kAlways);
+
+REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(graphLookup,
+                                                   DocumentSourceGraphLookUp,
+                                                   GraphLookUpStageParams);
+
 ALLOCATE_DOCUMENT_SOURCE_ID(graphLookup, DocumentSourceGraphLookUp::id)
 
 const char* DocumentSourceGraphLookUp::getSourceName() const {
@@ -480,7 +484,8 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceGraphLookUp::clone(
 void DocumentSourceGraphLookUp::addInvolvedCollections(
     stdx::unordered_set<NamespaceString>* collectionNames) const {
     collectionNames->insert(_fromExpCtx->getNamespaceString());
-    auto introspectionPipeline = Pipeline::parse(_fromPipeline, _fromExpCtx);
+    auto introspectionPipeline = pipeline_factory::makePipeline(
+        _fromPipeline, _fromExpCtx, pipeline_factory::kOptionsMinimal);
     for (auto&& stage : introspectionPipeline->getSources()) {
         stage->addInvolvedCollections(collectionNames);
     }

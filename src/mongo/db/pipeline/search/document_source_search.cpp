@@ -34,6 +34,7 @@
 #include "mongo/db/pipeline/document_source_limit.h"
 #include "mongo/db/pipeline/document_source_replace_root.h"
 #include "mongo/db/pipeline/expression_context.h"
+#include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_mongot_remote.h"
 #include "mongo/db/pipeline/search/lite_parsed_search.h"
@@ -65,21 +66,21 @@ StringData removePrefixWorkaround(StringData key, StringData pre) {
 }
 }  // namespace
 
-ALLOCATE_STAGE_PARAMS_ID(search, SearchStageParams::id);
-
-REGISTER_DOCUMENT_SOURCE(search,
-                         SearchLiteParsed::parse,
-                         DocumentSourceSearch::createFromBson,
-                         AllowedWithApiStrict::kNeverInVersion1);
-
-ALLOCATE_DOCUMENT_SOURCE_ID(search, DocumentSourceSearch::id)
+REGISTER_LITE_PARSED_DOCUMENT_SOURCE(search,
+                                     SearchLiteParsed::parse,
+                                     AllowedWithApiStrict::kNeverInVersion1);
 
 // $searchBeta is supported as an alias for $search for compatibility with applications that used
 // search during its beta period.
-REGISTER_DOCUMENT_SOURCE(searchBeta,
-                         SearchLiteParsed::parse,
-                         DocumentSourceSearch::createFromBson,
-                         AllowedWithApiStrict::kNeverInVersion1);
+REGISTER_LITE_PARSED_DOCUMENT_SOURCE(searchBeta,
+                                     SearchLiteParsed::parse,
+                                     AllowedWithApiStrict::kNeverInVersion1);
+
+// This allocates SearchStageStageParams::id, which is shared by $search, $searchBeta,
+// $searchMeta, and $vectorSearch.
+REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(search, DocumentSourceSearch, SearchStageParams);
+
+ALLOCATE_DOCUMENT_SOURCE_ID(search, DocumentSourceSearch::id);
 
 const char* DocumentSourceSearch::getSourceName() const {
     return kStageName.data();
@@ -112,8 +113,8 @@ intrusive_ptr<DocumentSource> DocumentSourceSearch::createFromBson(
     // router.
     // We need to make sure that the mongotQuery BSONObj in the InternalSearchMongotRemoteSpec is
     // owned so that it persists safely to GetMores. Since the IDL type is object_owned, using the
-    // parse() function will make sure it's owned. Manually constructing the spec does _not_ ensure
-    // the owned is owned, which is why we call specObj.getOwned().
+    // parseOwned() function will make sure it's owned. Manually constructing the spec does _not_
+    // ensure the owned is owned, which is why we call specObj.getOwned().
     InternalSearchMongotRemoteSpec spec =
         specObj.hasField(InternalSearchMongotRemoteSpec::kMongotQueryFieldName)
         ? InternalSearchMongotRemoteSpec::parseOwned(specObj.getOwned(),
@@ -255,7 +256,8 @@ boost::optional<DocumentSource::DistributedPlanLogic> DocumentSourceSearch::dist
     if (_spec.getMergingPipeline() && _spec.getRequiresSearchMetaCursor()) {
         logic.mergingStages = {DocumentSourceSetVariableFromSubPipeline::create(
             getExpCtx(),
-            Pipeline::parse(*_spec.getMergingPipeline(), getExpCtx()),
+            pipeline_factory::makePipeline(
+                *_spec.getMergingPipeline(), getExpCtx(), pipeline_factory::kOptionsMinimal),
             Variables::kSearchMetaId)};
     }
 

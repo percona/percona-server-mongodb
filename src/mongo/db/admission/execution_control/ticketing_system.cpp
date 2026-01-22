@@ -564,6 +564,11 @@ void TicketingSystem::appendStats(BSONObjBuilder& b) const {
         bbb.done();
     }
 
+    {
+        BSONObjBuilder histogramBuilder(b.subobjStart("admissions"));
+        _admissionsHistogram.appendStats(histogramBuilder);
+    }
+
     // Report finalized stats (CPU, elapsed, load shed) by short/long running classification.
     // These are independent of read/write operation type.
     {
@@ -620,6 +625,22 @@ void TicketingSystem::finalizeOperationStats(OperationContext* opCtx,
     if (wasDeprioritized) {
         _opsDeprioritized.fetchAndAddRelaxed(1);
     }
+
+    bool hadReadAdmissions = finalizedStats.readShort.totalAdmissions.loadRelaxed() > 0 ||
+        finalizedStats.readLong.totalAdmissions.loadRelaxed() > 0;
+    if (hadReadAdmissions) {
+        auto& bucket = wasDeprioritized ? _operationStats.readLong : _operationStats.readShort;
+        bucket.totalOpsFinished.fetchAndAddRelaxed(1);
+    }
+
+    bool hadWriteAdmissions = finalizedStats.writeShort.totalAdmissions.loadRelaxed() > 0 ||
+        finalizedStats.writeLong.totalAdmissions.loadRelaxed() > 0;
+    if (hadWriteAdmissions) {
+        auto& bucket = wasDeprioritized ? _operationStats.writeLong : _operationStats.writeShort;
+        bucket.totalOpsFinished.fetchAndAddRelaxed(1);
+    }
+
+    _admissionsHistogram.record(ExecutionAdmissionContext::get(opCtx).getAdmissions());
 }
 
 boost::optional<Ticket> TicketingSystem::waitForTicketUntil(OperationContext* opCtx,

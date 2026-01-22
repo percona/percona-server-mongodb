@@ -61,8 +61,8 @@ public:
 
     void setUp() override {
         AggregationContextFixture::setUp();
-        extension::sdk::HostServicesHandle::setHostServices(
-            extension::host_connector::HostServicesAdapter::get());
+        extension::sdk::HostServicesAPI::setHostServices(
+            &extension::host_connector::HostServicesAdapter::get());
     }
 
     /**
@@ -78,17 +78,6 @@ public:
 
     BSONObj createDummySpecFromStageName(std::string_view stageName) {
         return BSON(std::string(stageName) << BSONObj());
-    }
-
-    // Runs after each individual test
-    void tearDown() override {
-        DocumentSourceExtensionTest::unregisterParsers();
-    }
-
-    static void unregisterParsers() {
-        host::DocumentSourceExtension::unregisterParser_forTest(
-            sdk::shared_test_stages::TransformAggStageDescriptor::kStageName);
-        host::DocumentSourceExtension::unregisterParser_forTest("$noOp2");
     }
 
 protected:

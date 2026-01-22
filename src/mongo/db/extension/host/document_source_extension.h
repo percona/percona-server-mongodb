@@ -49,8 +49,44 @@ using LiteParsedList = std::list<std::unique_ptr<LiteParsedDocumentSource>>;
 class LoadExtensionsTest;
 class LoadNativeVectorSearchTest;
 
-DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(Expandable);
-DECLARE_STAGE_PARAMS_DERIVED_DEFAULT(Expanded);
+// Custom StageParams classes for LPDSExpandable and LPDSExpanded that own a parseNode and astNode
+// respectively.
+class ExpandableStageParams : public StageParams {
+public:
+    ExpandableStageParams(AggStageParseNodeHandle parseNode) : _parseNode(std::move(parseNode)) {}
+
+    static const Id& id;
+
+    Id getId() const override {
+        return id;
+    }
+
+    AggStageParseNodeHandle releaseParseNode() {
+        return std::move(_parseNode);
+    }
+
+private:
+    AggStageParseNodeHandle _parseNode;
+};
+
+
+class ExpandedStageParams : public StageParams {
+public:
+    ExpandedStageParams(AggStageAstNodeHandle astNode) : _astNode(std::move(astNode)) {}
+
+    static const Id& id;
+
+    Id getId() const override {
+        return id;
+    }
+
+    AggStageAstNodeHandle releaseAstNode() {
+        return std::move(_astNode);
+    }
+
+private:
+    AggStageAstNodeHandle _astNode;
+};
 
 /**
  * A DocumentSource implementation for an extension aggregation stage. DocumentSourceExtension is a
@@ -70,7 +106,7 @@ public:
                                                                const NamespaceString& nss,
                                                                const BSONElement& spec,
                                                                const LiteParserOptions& options) {
-            auto parseNode = descriptor.parse(spec.wrap());
+            auto parseNode = descriptor->parse(spec.wrap());
             return std::make_unique<LiteParsedExpandable>(spec, std::move(parseNode), nss, options);
         }
 
@@ -93,7 +129,8 @@ public:
               }()) {}
 
         std::unique_ptr<StageParams> getStageParams() const override {
-            return std::make_unique<ExpandableStageParams>(_originalBson);
+            // TODO SERVER-115655: Clone instead of moving the node.
+            return std::make_unique<ExpandableStageParams>(std::move(_parseNode));
         }
 
         /**
@@ -160,7 +197,8 @@ public:
                                          const NamespaceString& nss,
                                          const LiteParserOptions& options);
 
-        const AggStageParseNodeHandle _parseNode;
+        // TODO SERVER-115655: Revert back to const.
+        mutable AggStageParseNodeHandle _parseNode;
         const NamespaceString _nss;
         const LiteParserOptions _options;
         const StageSpecs _expanded;
@@ -185,11 +223,12 @@ public:
             // LiteParsedPipeline.
             : LiteParsedDocumentSource(BSON(stageName << BSONObj()).firstElement()),
               _astNode(std::move(astNode)),
-              _properties(_astNode.getProperties()),
+              _properties(_astNode->getProperties()),
               _nss(nss) {}
 
         std::unique_ptr<StageParams> getStageParams() const override {
-            return std::make_unique<ExpandedStageParams>(_originalBson);
+            // TODO SERVER-115655: Clone instead of moving the node.
+            return std::make_unique<ExpandedStageParams>(std::move(_astNode));
         }
 
         stdx::unordered_set<NamespaceString> getInvolvedNamespaces() const override {
@@ -236,7 +275,8 @@ public:
         }
 
     private:
-        const AggStageAstNodeHandle _astNode;
+        // TODO SERVER-115655: Revert back to const.
+        mutable AggStageAstNodeHandle _astNode;
         const MongoExtensionStaticProperties _properties;
         const NamespaceString _nss;
     };
@@ -254,18 +294,6 @@ public:
 
     // Declare DocumentSourceExtension to be pure virtual.
     ~DocumentSourceExtension() override = 0;
-
-private:
-    /**
-     * Give access to DocumentSourceExtensionTest/LoadExtensionsTest to unregister parser.
-     * unregisterParser_forTest is only meant to be used in the context of unit
-     * tests. This is because the parserMap is not thread safe, so modifying it at runtime is
-     * unsafe.
-     */
-    friend class mongo::extension::DocumentSourceExtensionTest;
-    friend class mongo::extension::host::LoadExtensionsTest;
-    friend class mongo::extension::host::LoadNativeVectorSearchTest;
-    static void unregisterParser_forTest(const std::string& name);
 
 protected:
     DocumentSourceExtension(StringData name,
