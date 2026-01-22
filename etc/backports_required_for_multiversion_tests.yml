@@ -93,12 +93,16 @@ last-continuous:
       ticket: SERVER-114005
     - test_file: jstests/sharding/move_collection_stale_mongos.js
       ticket: SERVER-109322
+    - test_file: jstests/core_sharding/ddl/cannot_track_temporary_collection.js
+      ticket: SERVER-114666
     - test_file: jstests/sharding/unshard_collection_stale_mongos.js
       ticket: SERVER-109322
     - test_file: jstests/sharding/reshard_collection_with_zones_stale_mongos.js
       ticket: SERVER-109322
     - test_file: jstests/core/query/regex/regex_max_pattern_length.js
       ticket: SERVER-86326
+    - test_file: jstests/core/query/boolean_simplifier_stress.js
+      ticket: SERVER-114126
   suites: null
 last-lts:
   all:
@@ -694,10 +698,14 @@ last-lts:
       ticket: SERVER-114005
     - test_file: jstests/sharding/move_collection_stale_mongos.js
       ticket: SERVER-109322
+    - test_file: jstests/core_sharding/ddl/cannot_track_temporary_collection.js
+      ticket: SERVER-114666
     - test_file: jstests/sharding/unshard_collection_stale_mongos.js
       ticket: SERVER-109322
     - test_file: jstests/sharding/reshard_collection_with_zones_stale_mongos.js
       ticket: SERVER-109322
     - test_file: jstests/core/query/regex/regex_max_pattern_length.js
       ticket: SERVER-86326
+    - test_file: jstests/core/query/boolean_simplifier_stress.js
+      ticket: SERVER-114126
   suites: null
