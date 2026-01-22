@@ -860,6 +860,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/core/timeseries/libs/**/viewless_timeseries_util.js @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 /jstests/core/timeseries/libs/**/timeseries.js @10gen/server-collection-write-path @svc-auto-approve-bot
 
+# The following patterns are parsed from ./jstests/core/timeseries/pbt/OWNERS.yml
+/jstests/core/timeseries/pbt/**/* @10gen/query-integration-timeseries @svc-auto-approve-bot
+
 # The following patterns are parsed from ./jstests/core/timeseries/query/OWNERS.yml
 /jstests/core/timeseries/query/**/* @10gen/query-integration-timeseries @svc-auto-approve-bot
 /jstests/core/timeseries/query/**/timeseries_block_explain.js @10gen/query-execution-sbe @svc-auto-approve-bot
@@ -1061,6 +1064,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/libs/unique_indexes/OWNERS.yml
 /jstests/libs/unique_indexes/**/* @10gen/server-index-builds @svc-auto-approve-bot
+
+# The following patterns are parsed from ./jstests/libs/util/change_stream/OWNERS.yml
+/jstests/libs/util/change_stream/**/* @10gen/query-execution-change-streams @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/libunwind/OWNERS.yml
 /jstests/libunwind/**/* @10gen/server-programmability @svc-auto-approve-bot
@@ -2281,6 +2287,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/db/modules/enterprise/jstests/selinux/OWNERS.yml
 /src/mongo/db/modules/enterprise/jstests/selinux/**/* @10gen/server-security @svc-auto-approve-bot
 
+# The following patterns are parsed from ./src/mongo/db/modules/enterprise/jstests/sharding/OWNERS.yml
+/src/mongo/db/modules/enterprise/jstests/sharding/**/* @10gen/server-cluster-scalability @svc-auto-approve-bot
+
 # The following patterns are parsed from ./src/mongo/db/modules/enterprise/jstests/streams/OWNERS.yml
 /src/mongo/db/modules/enterprise/jstests/streams/**/* @10gen/streams-engine @svc-auto-approve-bot
 
@@ -2714,6 +2723,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/query/util/**/* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/util/**/OWNERS.yml @10gen/query-execution-staff-leads @10gen/query-optimization-staff-leads @svc-auto-approve-bot
 /src/mongo/db/query/util/**/field_set* @10gen/query-execution-sbe @svc-auto-approve-bot
+/src/mongo/db/query/util/**/rank_fusion* @10gen/query-integration-search @svc-auto-approve-bot
+/src/mongo/db/query/util/**/retry* @10gen/query-integration @svc-auto-approve-bot
 /src/mongo/db/query/util/**/spill_util* @10gen/query-execution-classic @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/query/virtual_collection/OWNERS.yml

@@ -29,29 +29,35 @@
 
 #pragma once
 
-#include "mongo/util/modules.h"
-
-#include <bitset>
-#include <climits>
+#include "mongo/base/error_codes.h"
+#include "mongo/logv2/log.h"
+#include "mongo/logv2/log_detail.h"
+#include "mongo/util/assert_util.h"
 
 namespace mongo {
 /**
- * Returns true if the lhs bitset is smaller than the rhs in lexicographical order.
+ * Retries a callable up to `maxNumRetries` times if it throws ExceptionFor<E>. Returns the result
+ * of the callable or propagates the exception once retries are exhausted.
  */
-template <size_t N>
-bool bitsetLess(const std::bitset<N>& lhs, const std::bitset<N>& rhs) {
-    if constexpr (N <= sizeof(unsigned long long) * CHAR_BIT) {
-        return lhs.to_ullong() < rhs.to_ullong();
-    } else {
-        if (lhs == rhs) {
-            return false;
-        }
-        for (size_t i = N - 1; i >= 0; --i) {
-            if (lhs[i] ^ rhs[i]) {
-                return rhs[i];
+template <ErrorCodes::Error E, typename Fn>
+auto retryOn(Fn&& fn, size_t maxNumRetries = 10) {
+    for (size_t attempt = 0; attempt <= maxNumRetries; ++attempt) {
+        try {
+            return fn();
+        } catch (const ExceptionFor<E>& ex) {
+            if (attempt == maxNumRetries) {
+                throw;
             }
+            logv2::detail::doLog(11486800,
+                                 logv2::LogSeverity::Debug(1),
+                                 {logv2::LogComponent::kQuery},
+                                 "Retrying after retryable error",
+                                 "errorCode"_attr = E,
+                                 "attempt"_attr = attempt,
+                                 "maxRetries"_attr = maxNumRetries,
+                                 "reason"_attr = ex.reason());
         }
-        return false;
     }
+    MONGO_UNREACHABLE;
 }
 }  // namespace mongo

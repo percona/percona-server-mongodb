@@ -39,6 +39,7 @@
 #include "mongo/db/extension/shared/get_next_result.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/executable_agg_stage.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/modules.h"
 
 namespace mongo::extension::sdk {
 inline StringData stringViewToStringData(std::string_view sv) {
@@ -68,13 +69,17 @@ public:
 
     ExtensionGetNextResult getNext(const sdk::QueryExecutionContextHandle& execCtx,
                                    ::MongoExtensionExecAggStage* execStage) override {
-        if (_currentIndex >= _documents.size()) {
+        if (_currentIndex >= _documentsWithMetadata.size()) {
             return ExtensionGetNextResult::eof();
         }
         // Note, here we can create the result as a byte view, since this stage guarantees to keep
         // the results valid.
-        return ExtensionGetNextResult::advanced(
-            ExtensionBSONObj::makeAsByteView(_documents[_currentIndex++]));
+        auto documentResult =
+            ExtensionBSONObj::makeAsByteView(_documentsWithMetadata[_currentIndex].first);
+        auto metaDataResult =
+            ExtensionBSONObj::makeAsByteView(_documentsWithMetadata[_currentIndex++].second);
+        return ExtensionGetNextResult::advanced(std::move(documentResult),
+                                                std::move(metaDataResult));
     }
 
     // Allow this to be public for visibility in unit tests.
@@ -98,12 +103,15 @@ public:
 
 private:
     // Every FruitsAsDocumentsExecAggStage object will have access to the same test document suite.
-    static inline const std::vector<BSONObj> _documents = {
-        BSON("_id" << 1 << "apples" << "red"),
-        BSON("_id" << 2 << "oranges" << 5),
-        BSON("_id" << 3 << "bananas" << false),
-        BSON("_id" << 4 << "tropical fruits" << BSON_ARRAY("rambutan" << "durian" << "lychee")),
-        BSON("_id" << 5 << "pie" << 3.14159)};
+    static inline const std::vector<std::pair<BSONObj, BSONObj>> _documentsWithMetadata = {
+        {BSON("_id" << 1 << "apples" << "red"), BSON("$textScore" << 5.0)},
+        {BSON("_id" << 2 << "oranges" << 5), BSON("$searchScore" << 1.5)},
+        {BSON("_id" << 3 << "bananas" << false), BSON("$searchScore" << 2.0)},
+        {BSON("_id" << 4 << "tropical fruits"
+                    << BSON_ARRAY("rambutan" << "durian"
+                                             << "lychee")),
+         BSON("$textScore" << 4.0)},
+        {BSON("_id" << 5 << "pie" << 3.14159), BSON("$searchScore" << 5.0)}};
     size_t _currentIndex = 0;
 };
 
@@ -214,8 +222,13 @@ public:
         bob.append("existingDoc", input.resultDocument->getUnownedBSONObj());
         // Transform the returned input document by adding a new field.
         bob.append("addedFields", _documents[_currentIndex++]);
-        // We need to return the result as a ByteBuf, since we are returning a temporary.
-        return ExtensionGetNextResult::advanced(ExtensionBSONObj::makeAsByteBuf(bob.done()));
+        // We need to preserve metadata from source stage if present and return the result as a
+        // ByteBuf, since we are returning a temporary.
+        return input.resultMetadata.has_value()
+            ? ExtensionGetNextResult::advanced(
+                  ExtensionBSONObj::makeAsByteBuf(bob.done()),
+                  ExtensionBSONObj::makeAsByteBuf(input.resultMetadata->getUnownedBSONObj()))
+            : ExtensionGetNextResult::advanced(ExtensionBSONObj::makeAsByteBuf(bob.done()));
     }
 
     void open() override {}
@@ -333,24 +346,23 @@ public:
 
     extension::ExtensionGetNextResult getNext(const sdk::QueryExecutionContextHandle& execCtx,
                                               ::MongoExtensionExecAggStage* execStage) override {
-        // TODO SERVER-113905: once we support metadata, we should only support returning both
-        // document and metadata.
-        if (_results.empty()) {
+        if (_documentsWithMetadata.empty()) {
             return extension::ExtensionGetNextResult::eof();
         }
-        if (_results.size() == 2) {
+        if (_documentsWithMetadata.size() == 2) {
             // The result at the front of the queue is removed so that the size doesn't stay at 2.
             // This needs to be done so that the EOF case can be tested. Note that the behavior of
             // removing from the results queue for a "pause execution" state does not accurately
             // represent a "paused execution" state in a getNext() function.
-            _results.pop_front();
+            _documentsWithMetadata.pop_front();
             return extension::ExtensionGetNextResult::pauseExecution();
         } else {
             // We need to return the result as a ByteBuf, since we are popping results off our
             // results deque.
             auto result = extension::ExtensionGetNextResult::advanced(
-                ExtensionBSONObj::makeAsByteBuf(_results.front()));
-            _results.pop_front();
+                ExtensionBSONObj::makeAsByteBuf(_documentsWithMetadata.front().first),
+                ExtensionBSONObj::makeAsByteBuf(_documentsWithMetadata.front().second));
+            _documentsWithMetadata.pop_front();
             return result;
         }
     }
@@ -370,8 +382,10 @@ public:
     }
 
 private:
-    std::deque<BSONObj> _results = {
-        BSON("meow" << "adithi"), BSON("meow" << "josh"), BSON("meow" << "cedric")};
+    std::deque<std::pair<BSONObj, BSONObj>> _documentsWithMetadata = {
+        {BSON("meow" << "adithi"), BSON("$searchScore" << 1.0)},
+        {BSON("meow" << "josh"), BSON("$vectorSearchScore" << 1.5)},
+        {BSON("meow" << "cedric"), BSON("$textScore" << 2.0)}};
 };
 
 class TestLogicalStageCompile : public LogicalAggStage {

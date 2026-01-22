@@ -27,38 +27,75 @@
  *    it in the license file.
  */
 
-#include "mongo/db/query/util/bitset_compare.h"
+#include "src/mongo/db/query/util/stop_token.h"
 
 #include "mongo/unittest/unittest.h"
 
-namespace mongo {
-namespace {
-template <size_t N>
-void assertLess(std::string_view lhs, std::string_view rhs) {
-    std::bitset<N> lhb{lhs.data(), lhs.size()};
-    std::bitset<N> lhb2{lhs.data(), lhs.size()};
-    std::bitset<N> rhb{rhs.data(), rhs.size()};
-    ASSERT_TRUE(bitsetLess(lhb, rhb));
-    ASSERT_FALSE(bitsetLess(rhb, lhb));
-    ASSERT_FALSE(bitsetLess(lhb, lhb));
-    ASSERT_FALSE(bitsetLess(lhb, lhb2));
+
+TEST(StopToken, CallbackInvokedImmediately) {
+    mongo::stop_source ss;
+    auto token = ss.get_token();
+    // Token stop requested before callback constructed.
+    ss.request_stop();
+
+    bool called = false;
+
+    mongo::stop_callback cb(token, [&]() { called = true; });
+
+    ASSERT_TRUE(called);
 }
-}  // namespace
 
-TEST(BitsetCompareTest, Less) {
-    assertLess<8>("0", "1");
-    assertLess<32>("0", "1");
-    assertLess<64>("0", "1");
-    assertLess<100>("0", "1");
+TEST(StopToken, CallbackInvokedOnStop) {
+    mongo::stop_source ss;
+    auto token = ss.get_token();
 
+    bool called = false;
 
-    assertLess<8>("10", "11");
-    assertLess<32>("10", "11");
-    assertLess<64>("10", "11");
-    assertLess<100>("10", "11");
+    mongo::stop_callback cb(token, [&]() { called = true; });
 
-    assertLess<32>("1000000000010", "1000000000011");
-    assertLess<64>("1000000000010", "1000000000011");
-    assertLess<100>("1000000000010", "1000000000011");
+    ASSERT_FALSE(called);
+    ss.request_stop();
+    ASSERT_TRUE(called);
 }
-}  // namespace mongo
+
+TEST(StopToken, CallbackInvokedOnce) {
+    int called = 0;
+    {
+        mongo::stop_source ss;
+        auto token = ss.get_token();
+
+        mongo::stop_callback cb(token, [&]() { ++called; });
+
+        ASSERT_EQ(called, 0);
+        ss.request_stop();
+        ASSERT_EQ(called, 1);
+    }
+    ASSERT_EQ(called, 1);
+}
+
+TEST(StopToken, CallbackNotInvoked) {
+    int called = 0;
+    {
+        mongo::stop_source ss;
+        auto token = ss.get_token();
+
+        mongo::stop_callback cb(token, [&]() { ++called; });
+
+        ASSERT_EQ(called, 0);
+        // ss not stopped!
+    }
+    ASSERT_EQ(called, 0);
+}
+
+TEST(StopToken, CallbackNotInvokedWhenNotPossible) {
+    int called = 0;
+    {
+        mongo::stop_token token;
+        ASSERT_FALSE(token.stop_possible());
+
+        mongo::stop_callback cb(token, [&]() { ++called; });
+
+        ASSERT_EQ(called, 0);
+    }
+    ASSERT_EQ(called, 0);
+}

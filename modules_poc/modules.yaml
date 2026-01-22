@@ -260,6 +260,7 @@ catalog_and_routing:
       topology modules.
     slack: server-catalog-and-routing
     jira: Catalog and Routing
+    fully_marked: true
   files:
     - src/mongo/db/sharding_environment/**
     - src/mongo/db/versioning_protocol/**
@@ -281,6 +282,8 @@ catalog_and_routing.shard_role:
       bearing on the global catalog.
     slack: server-catalog-and-routing
     jira: Catalog and Routing
+    # TODO (SERVER-114537): Set this to `true` once all command definitions are tagged as `open`.
+    fully_marked: false
   files:
     - src/mongo/db/shard_role/**
     - src/mongo/db/service_entry_point_shard_role[._]*
@@ -294,6 +297,7 @@ catalog_and_routing.global_catalog:
       the cluster commit protocol.
     slack: server-catalog-and-routing
     jira: Catalog and Routing
+    fully_marked: true
   files:
     - src/mongo/db/global_catalog/**
 
@@ -305,6 +309,7 @@ catalog_and_routing.router_role:
       consistency level.
     slack: server-catalog-and-routing
     jira: Catalog and Routing
+    fully_marked: true
   files:
     - src/mongo/db/router_role/**
     - src/mongo/s/service_entry_point_router_role[._]*
@@ -319,6 +324,7 @@ catalog_and_routing.topology:
       consistency level.
     slack: server-catalog-and-routing
     jira: Catalog and Routing
+    fully_marked: true
   files:
     - src/mongo/db/topology/**
 
@@ -499,6 +505,7 @@ catalog_and_routing.topology.causal_consistency:
   meta:
     slack: server-sharding
     jira: Cluster Scalability
+    fully_marked: true
   files:
     - src/mongo/db/keys_collection*
     - src/mongo/db/key_generator*

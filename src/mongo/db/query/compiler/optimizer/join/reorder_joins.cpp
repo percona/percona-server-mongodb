@@ -34,7 +34,7 @@
 #include "mongo/db/query/compiler/optimizer/join/plan_enumerator.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/random_utils.h"
-#include "mongo/db/query/util/bitset_iterator.h"
+#include "mongo/db/query/util/bitset_util.h"
 #include "mongo/util/assert_util.h"
 
 namespace mongo::join_ordering {
@@ -403,8 +403,6 @@ ReorderedJoinSolution constructSolutionWithRandomOrder(
                     std::make_unique<IndexProbeNode>(currentNode.collectionName,
                                                      std::move(indexEntry.value())),
                     currentNode.collectionName);
-                // TODO SERVER-111222: Write an end-to-end test exercising this codepath, once we
-                // can lower INLJ nodes to SBE.
                 if (auto matchExpr = currentNode.accessPath->getPrimaryMatchExpression();
                     matchExpr != nullptr && !matchExpr->isTriviallyTrue()) {
                     rhs->filter = matchExpr->clone();

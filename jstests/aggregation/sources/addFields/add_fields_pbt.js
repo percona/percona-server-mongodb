@@ -3,7 +3,6 @@
  *
  * @tags: [
  * query_intensive_pbt,
- * requires_timeseries,
  * # Runs queries that may return many results, requiring getmores.
  * requires_getmore,
  * # This test runs commands that are not allowed with security token: setParameter.
@@ -13,18 +12,13 @@
 
 import {createCorrectnessProperty} from "jstests/libs/property_test_helpers/common_properties.js";
 import {getCollectionModel} from "jstests/libs/property_test_helpers/models/collection_models.js";
-import {
-    addFieldsConstArb,
-    addFieldsVarArb,
-    getAggPipelineArb,
-} from "jstests/libs/property_test_helpers/models/query_models.js";
 import {makeWorkloadModel} from "jstests/libs/property_test_helpers/models/workload_models.js";
 import {testProperty} from "jstests/libs/property_test_helpers/property_testing_utils.js";
 import {isSlowBuild} from "jstests/libs/query/aggregation_pipeline_utils.js";
-import {fc} from "jstests/third_party/fast_check/fc-3.1.0.js";
+import {addFieldsFirstStageAggModel} from "jstests/libs/property_test_helpers/common_models.js";
 
 if (isSlowBuild(db)) {
-    jsTestLog("Returning early because debug is on, opt is off, or a sanitizer is enabled.");
+    jsTest.log.info("Returning early because debug is on, opt is off, or a sanitizer is enabled.");
     quit();
 }
 
@@ -35,13 +29,7 @@ const controlColl = db.add_fields_pbt_control;
 const experimentColl = db.add_fields_pbt_experiment;
 
 const correctnessProperty = createCorrectnessProperty(controlColl, experimentColl);
-
-const addFieldsArb = fc.oneof(addFieldsConstArb, addFieldsVarArb);
-const aggModel = fc
-    .record({addFieldsStage: addFieldsArb, restOfPipeline: getAggPipelineArb()})
-    .map(({addFieldsStage, restOfPipeline}) => {
-        return {"pipeline": [addFieldsStage, ...restOfPipeline], "options": {}};
-    });
+const aggModel = addFieldsFirstStageAggModel();
 
 testProperty(
     correctnessProperty,
@@ -49,5 +37,3 @@ testProperty(
     makeWorkloadModel({collModel: getCollectionModel(), aggModel, numQueriesPerRun}),
     numRuns,
 );
-
-// TODO SERVER-103381 implement time-series PBT testing.
