@@ -161,7 +161,6 @@ std::unique_ptr<sbe::PlanStage> makeScanStage(const CollectionPtr& collection,
                                               PlanYieldPolicy* sbeYieldPolicy) {
     sbe::value::SlotVector scanFieldSlots;
     std::vector<std::string> scanFieldNames;
-    sbe::ScanCallbacks callbacks{};
     if (useRandomCursor) {
         return sbe::makeS<sbe::RandomScanStage>(collection->uuid(),
                                                 collection->ns().dbName(),
@@ -174,9 +173,9 @@ std::unique_ptr<sbe::PlanStage> makeScanStage(const CollectionPtr& collection,
                                                 scanFieldNames,
                                                 scanFieldSlots,
                                                 sbeYieldPolicy,
-                                                0 /* nodeId */,
-                                                callbacks);
+                                                0 /* nodeId */);
     }
+    sbe::ScanOpenCallback scanOpenCallback{};
     return sbe::makeS<sbe::ScanStage>(collection->uuid(),
                                       collection->ns().dbName(),
                                       recordSlot,
@@ -192,7 +191,7 @@ std::unique_ptr<sbe::PlanStage> makeScanStage(const CollectionPtr& collection,
                                       true /* forward */,
                                       sbeYieldPolicy,
                                       0 /* nodeId */,
-                                      callbacks);
+                                      std::move(scanOpenCallback));
 }
 
 /**
@@ -421,10 +420,12 @@ void SamplingEstimatorImpl::executeSamplingQueryAndSample(
     std::pair<std::unique_ptr<sbe::PlanStage>, mongo::stage_builder::PlanStageData>& plan,
     std::unique_ptr<CanonicalQuery> cq,
     std::unique_ptr<PlanYieldPolicySBE> sbeYieldPolicy) {
+    sbe::DebugPrintInfo debugPrintInfo{};
     LOGV2_DEBUG(10670302,
                 5,
                 "SamplingCE Sampling SBE plan",
-                "SBE Plan"_attr = sbe::DebugPrinter{}.print(plan.first.get()->debugPrint()));
+                "SBE Plan"_attr =
+                    sbe::DebugPrinter{}.print(plan.first.get()->debugPrint(debugPrintInfo)));
     // Prepare the SBE plan for execution.
     prepareSlotBasedExecutableTree(_opCtx,
                                    plan.first.get(),

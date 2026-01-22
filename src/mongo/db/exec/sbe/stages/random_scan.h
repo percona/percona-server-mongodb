@@ -83,7 +83,6 @@ public:
                     value::SlotVector scanFieldSlots,
                     PlanYieldPolicy* yieldPolicy,
                     PlanNodeId nodeId,
-                    ScanCallbacks scanCallbacks,
                     // Optional arguments:
                     bool participateInTrialRunTracking = true);
     /**
@@ -104,7 +103,7 @@ public:
         prepareShared(ctx);
     }
     std::unique_ptr<PlanStageStats> getStats(bool includeDebugInfo) const final;
-    std::vector<DebugPrinter::Block> debugPrint() const final;
+    std::vector<DebugPrinter::Block> debugPrint(const DebugPrintInfo& debugPrintInfo) const final;
 
 private:
     void scanResetState(bool reOpen) {

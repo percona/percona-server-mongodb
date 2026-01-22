@@ -303,20 +303,20 @@ def linux_extraction(ctx, cc_toolchain, inputs):
             ctx.actions.run(
                 executable = cc_toolchain.objcopy_executable,
                 outputs = [debug_info],
-                inputs = [input_bin],
+                inputs = depset([input_bin], transitive = [cc_toolchain.all_files]),
                 resource_set = linux_extract_resource_set if ctx.attr.type == "program" else None,
                 arguments = [
                     "--only-keep-debug",
                     input_bin.path,
                     debug_info.path,
                 ],
-                mnemonic = "ExtractDebuginfo",
+                mnemonic = "ExtractDebugInfo",
             )
 
             ctx.actions.run(
                 executable = cc_toolchain.objcopy_executable,
                 outputs = [output_bin],
-                inputs = depset([debug_info]),
+                inputs = depset([input_bin, debug_info], transitive = [cc_toolchain.all_files]),
                 resource_set = linux_strip_resource_set if ctx.attr.type == "program" else None,
                 arguments = [
                     "--strip-debug",
@@ -325,7 +325,7 @@ def linux_extraction(ctx, cc_toolchain, inputs):
                     input_bin.path,
                     output_bin.path,
                 ],
-                mnemonic = "StripDebuginfo",
+                mnemonic = "StripDebugInfo",
             )
             outputs += [output_bin, debug_info]
         else:
@@ -397,7 +397,7 @@ def macos_extraction(ctx, cc_toolchain, inputs):
                     "-o",
                     debug_info.path,
                 ],
-                mnemonic = "ExtractDebuginfo",
+                mnemonic = "ExtractDebugInfo",
             )
 
             ctx.actions.run(
@@ -410,7 +410,7 @@ def macos_extraction(ctx, cc_toolchain, inputs):
                     output_bin.path,
                     input_bin.path,
                 ],
-                mnemonic = "StripDebuginfo",
+                mnemonic = "StripDebugInfo",
             )
             outputs += [output_bin, debug_info]
         else:

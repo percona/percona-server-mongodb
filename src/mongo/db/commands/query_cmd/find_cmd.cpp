@@ -73,6 +73,7 @@
 #include "mongo/db/query/client_cursor/cursor_response.h"
 #include "mongo/db/query/collation/collator_factory_interface.h"
 #include "mongo/db/query/collation/collator_interface.h"
+#include "mongo/db/query/collection_query_info.h"
 #include "mongo/db/query/compiler/parsers/matcher/expression_parser.h"
 #include "mongo/db/query/explain.h"
 #include "mongo/db/query/explain_diagnostic_printer.h"
@@ -188,10 +189,13 @@ std::unique_ptr<CanonicalQuery> parseQueryAndBeginOperation(
 
     const auto& collection = collOrViewAcquisition.getCollectionPtr();
     const auto* collator = collection ? collection->getDefaultCollator() : nullptr;
-    auto expCtx = ExpressionContextBuilder{}
-                      .fromRequest(opCtx, *findCommand, collator, allowDiskUseByDefault.load())
-                      .tmpDir(boost::filesystem::path(storageGlobalParams.dbpath) / "_tmp")
-                      .build();
+    auto expCtx =
+        ExpressionContextBuilder{}
+            .fromRequest(opCtx, *findCommand, collator, allowDiskUseByDefault.load())
+            .tmpDir(boost::filesystem::path(storageGlobalParams.dbpath) / "_tmp")
+            .mainCollPathArrayness(
+                collection ? CollectionQueryInfo::get(collection).getPathArrayness() : nullptr)
+            .build();
     expCtx->startExpressionCounters();
     auto parsedRequest = uassertStatusOK(parsed_find_command::parse(
         expCtx,
@@ -440,6 +444,12 @@ public:
         void explain(OperationContext* opCtx,
                      ExplainOptions::Verbosity verbosity,
                      rpc::ReplyBuilderInterface* replyBuilder) override {
+#ifdef MONGO_CONFIG_DEBUG_BUILD
+            // TODO SERVER-115113: This writeConflictRetry loop shouldn't exist as the operation is
+            // exclusively performing a read. Temporarily disable the consistent collection checker
+            // until this gets resolved.
+            DisableCollectionConsistencyChecks disableChecks{opCtx};
+#endif
             writeConflictRetry(
                 opCtx, "find explain cmd WriteConflictException loop", _ns, [&]() -> void {
                     this->explainFind(opCtx, verbosity, replyBuilder);
@@ -521,6 +531,9 @@ public:
                     .fromRequest(opCtx, *_cmdRequest, collator, allowDiskUseByDefault.load())
                     .explain(verbosity)
                     .tmpDir(boost::filesystem::path(storageGlobalParams.dbpath) / "_tmp")
+                    .mainCollPathArrayness(
+                        collectionPtr ? CollectionQueryInfo::get(collectionPtr).getPathArrayness()
+                                      : nullptr)
                     .build();
             expCtx->startExpressionCounters();
 
@@ -630,6 +643,12 @@ public:
          * information in 'getExecutorFind' invocation.
          */
         void run(OperationContext* opCtx, rpc::ReplyBuilderInterface* replyBuilder) override {
+#ifdef MONGO_CONFIG_DEBUG_BUILD
+            // TODO SERVER-115113: This writeConflictRetry loop shouldn't exist as the operation is
+            // exclusively performing a read. Temporarily disable the consistent collection checker
+            // until this gets resolved.
+            DisableCollectionConsistencyChecks disableChecks{opCtx};
+#endif
             writeConflictRetry(opCtx, "find cmd WriteConflictException loop", _ns, [&]() -> void {
                 this->runFind(opCtx, replyBuilder);
             });

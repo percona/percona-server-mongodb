@@ -70,7 +70,6 @@ RandomScanStage::RandomScanStage(UUID collUuid,
                                  value::SlotVector scanFieldSlots,
                                  PlanYieldPolicy* yieldPolicy,
                                  PlanNodeId nodeId,
-                                 ScanCallbacks scanCallbacks,
                                  // Optional arguments:
                                  bool participateInTrialRunTracking)
     : ScanStageBaseImpl<RandomScanStage>(collUuid,
@@ -85,7 +84,7 @@ RandomScanStage::RandomScanStage(UUID collUuid,
                                          scanFieldSlots,
                                          yieldPolicy,
                                          nodeId,
-                                         scanCallbacks,
+                                         nullptr /* scanOpenCallback */,
                                          false /* forward */,
                                          // Optional arguments:
                                          participateInTrialRunTracking) {}
@@ -117,18 +116,6 @@ PlanState RandomScanStage::getNext() {
         return trackPlanState(PlanState::IS_EOF);
     }
 
-    // Return EOF if the index key is found to be inconsistent.
-    if (_state->scanCallbacks.indexKeyConsistencyCheckCallback &&
-        !_state->scanCallbacks.indexKeyConsistencyCheckCallback(_opCtx,
-                                                                _indexCatalogEntryMap,
-                                                                _snapshotIdAccessor,
-                                                                _indexIdentAccessor,
-                                                                _indexKeyAccessor,
-                                                                _coll.getPtr(),
-                                                                *nextRecord)) {
-        return trackPlanState(PlanState::IS_EOF);
-    }
-
     resetRecordId(nextRecord);
     if (_state->recordIdSlot) {
         _recordId = std::move(nextRecord->id);
@@ -157,8 +144,9 @@ std::unique_ptr<PlanStageStats> RandomScanStage::getStats(bool includeDebugInfo)
     return ret;
 }
 
-std::vector<DebugPrinter::Block> RandomScanStage::debugPrint() const {
-    std::vector<DebugPrinter::Block> ret = PlanStage::debugPrint();
+std::vector<DebugPrinter::Block> RandomScanStage::debugPrint(
+    const DebugPrintInfo& debugPrintInfo) const {
+    std::vector<DebugPrinter::Block> ret = PlanStage::debugPrint(debugPrintInfo);
     DebugPrinter::addKeyword(ret, "random");
     debugPrintShared(ret);
 

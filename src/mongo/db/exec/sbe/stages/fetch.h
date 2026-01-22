@@ -58,6 +58,20 @@
 
 namespace mongo {
 namespace sbe {
+
+struct FetchCallbacks {
+    FetchCallbacks(IndexKeyCorruptionCheckCallback indexKeyCorruptionCheck = nullptr,
+                   IndexKeyConsistencyCheckCallback indexKeyConsistencyCheck = nullptr,
+                   ScanOpenCallback scanOpen = nullptr)
+        : indexKeyCorruptionCheckCallback(std::move(indexKeyCorruptionCheck)),
+          indexKeyConsistencyCheckCallback(std::move(indexKeyConsistencyCheck)),
+          scanOpenCallback(std::move(scanOpen)) {}
+
+    IndexKeyCorruptionCheckCallback indexKeyCorruptionCheckCallback = nullptr;
+    IndexKeyConsistencyCheckCallback indexKeyConsistencyCheckCallback = nullptr;
+    ScanOpenCallback scanOpenCallback = nullptr;
+};
+
 struct FetchStageState {
     // Input slots
     value::SlotId seekSlot;
@@ -72,7 +86,7 @@ struct FetchStageState {
     StringListSet scanFieldNames;
     value::SlotVector scanFieldSlots;
 
-    ScanCallbacks scanCallbacks;
+    FetchCallbacks fetchCallbacks;
 };
 
 /**
@@ -113,7 +127,8 @@ public:
     void close() override;
     std::unique_ptr<PlanStageStats> getStats(bool includeDebugInfo) const override;
     const SpecificStats* getSpecificStats() const override;
-    std::vector<DebugPrinter::Block> debugPrint() const override;
+    std::vector<DebugPrinter::Block> debugPrint(
+        const DebugPrintInfo& debugPrintInfo) const override;
     size_t estimateCompileTimeSize() const override;
 
 protected:

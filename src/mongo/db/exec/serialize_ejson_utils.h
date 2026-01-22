@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2018-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,53 +29,18 @@
 
 #pragma once
 
-#include <algorithm>
-#include <iomanip>
+#include "mongo/db/exec/document_value/value.h"
+#include "mongo/util/modules.h"
 
-namespace mongo {
+namespace mongo::exec::expression::serialize_ejson_utils {
 
 /**
- * A tool to shape data into a table. Input may be any iterable type T of another
- * iterable type U of a string-like type S, for example, a vector of vectors of
- * std::strings. Type S must support an ostream overload and a size() method.
- *
- * Example usage:
- *     std::vector<std::vector<std::string>> rows;
- *
- *     rows.push_back({ "X_VALUE", "Y_VALUE" });
- *     rows.push_back({ "0", "0" });
- *     rows.push_back({ "10.3", "0" });
- *     rows.push_back({ "-0.5", "2" });
- *
- *     std::cout << toTable(rows) << std::endl;
+ * Transform a BSON value to the equivalent Extended JSON, represented in BSON.
+ * The 'value' is mapped to Extended JSON following the Extended JSON v2 specification.
+ * The 'value' cannot be missing/BSONType::eoo. The parameter 'relaxed' selects between the Relaxed
+ * and Canonical specification.
+ * Note: In Relaxed mode, the types of numeric values are preserved in the result.
  */
-template <typename T>
-std::string toTable(const T& rows) {
-    const int kDefaultColumnSpacing = 3;
-    std::vector<std::size_t> widths;
+Value serializeToExtendedJson(const Value& value, bool relaxed);
 
-    for (auto&& row : rows) {
-        size_t i = 0;
-        for (auto&& value : row) {
-            widths.resize(std::max(widths.size(), i + 1));
-            widths[i] = std::max(widths[i], value.size());
-            i++;
-        }
-    }
-
-    std::stringstream ss;
-    ss << std::left;
-
-    for (auto&& row : rows) {
-        size_t i = 0;
-        for (auto&& value : row) {
-            ss << std::setw(widths[i++] + kDefaultColumnSpacing);
-            ss << value;
-        }
-        ss << "\n";
-    }
-
-    return ss.str();
-}
-
-}  // namespace mongo
+}  // namespace mongo::exec::expression::serialize_ejson_utils

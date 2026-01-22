@@ -77,7 +77,7 @@ ScanStageBase::ScanStageBase(UUID collUuid,
                              value::SlotVector scanFieldSlots,
                              PlanYieldPolicy* yieldPolicy,
                              PlanNodeId nodeId,
-                             ScanCallbacks scanCallbacks,
+                             ScanOpenCallback scanOpenCallback,
                              bool forward,
                              // Optional arguments:
                              bool participateInTrialRunTracking)
@@ -96,7 +96,7 @@ ScanStageBase::ScanStageBase(UUID collUuid,
                                                   indexKeyPatternSlot,
                                                   scanFieldNames,
                                                   scanFieldSlots,
-                                                  scanCallbacks,
+                                                  scanOpenCallback,
                                                   forward)) {}  // ScanStageBase regular constructor
 
 /**
@@ -434,8 +434,8 @@ void ScanStageBaseImpl<Derived>::open(bool reOpen) {
         tassert(5959701, "restoreCollection() unexpectedly returned null in ScanStageBase", _coll);
     }
 
-    if (_state->scanCallbacks.scanOpenCallback) {
-        _state->scanCallbacks.scanOpenCallback(_opCtx, _coll.getPtr());
+    if (_state->scanOpenCallback) {
+        _state->scanOpenCallback(_opCtx, _coll.getPtr());
     }
 
     self()->scanResetState(reOpen);
@@ -455,7 +455,7 @@ ScanStageBaseImpl<Derived>::ScanStageBaseImpl(UUID collUuid,
                                               value::SlotVector scanFieldSlots,
                                               PlanYieldPolicy* yieldPolicy,
                                               PlanNodeId nodeId,
-                                              ScanCallbacks scanCallbacks,
+                                              ScanOpenCallback scanOpenCallback,
                                               bool forward,
                                               // Optional arguments:
                                               bool participateInTrialRunTracking)
@@ -471,7 +471,7 @@ ScanStageBaseImpl<Derived>::ScanStageBaseImpl(UUID collUuid,
                     scanFieldSlots,
                     yieldPolicy,
                     nodeId,
-                    scanCallbacks,
+                    scanOpenCallback,
                     forward,
                     // Optional arguments:
                     participateInTrialRunTracking){};
@@ -499,7 +499,7 @@ ScanStage::ScanStage(UUID collUuid,
                      bool forward,
                      PlanYieldPolicy* yieldPolicy,
                      PlanNodeId nodeId,
-                     ScanCallbacks scanCallbacks,
+                     ScanOpenCallback scanOpenCallback,
                      // Optional arguments:
                      bool participateInTrialRunTracking,
                      bool includeScanStartRecordId,
@@ -516,7 +516,7 @@ ScanStage::ScanStage(UUID collUuid,
                         scanFieldSlots,
                         yieldPolicy,
                         nodeId,
-                        scanCallbacks,
+                        scanOpenCallback,
                         forward,
                         participateInTrialRunTracking),
       _includeScanStartRecordId(includeScanStartRecordId),
@@ -604,18 +604,6 @@ PlanState ScanStage::getNext() {
         return trackPlanState(PlanState::IS_EOF);
     }
 
-    // Return EOF if the index key is found to be inconsistent.
-    if (_state->scanCallbacks.indexKeyConsistencyCheckCallback &&
-        !_state->scanCallbacks.indexKeyConsistencyCheckCallback(_opCtx,
-                                                                _indexCatalogEntryMap,
-                                                                _snapshotIdAccessor,
-                                                                _indexIdentAccessor,
-                                                                _indexKeyAccessor,
-                                                                _coll.getPtr(),
-                                                                *nextRecord)) {
-        return trackPlanState(PlanState::IS_EOF);
-    }
-
     if (_state->recordSlot) {
         _recordAccessor.reset(false,
                               value::TypeTags::bsonObject,
@@ -693,8 +681,8 @@ std::unique_ptr<PlanStageStats> ScanStage::getStats(bool includeDebugInfo) const
     return ret;
 }
 
-std::vector<DebugPrinter::Block> ScanStage::debugPrint() const {
-    std::vector<DebugPrinter::Block> ret = PlanStage::debugPrint();
+std::vector<DebugPrinter::Block> ScanStage::debugPrint(const DebugPrintInfo& debugPrintInfo) const {
+    std::vector<DebugPrinter::Block> ret = PlanStage::debugPrint(debugPrintInfo);
     bool first = true;
     if (_minRecordIdSlot) {
         DebugPrinter::addIdentifier(ret, _minRecordIdSlot.value());

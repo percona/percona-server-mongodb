@@ -1,5 +1,5 @@
 /**
- *    Copyright (C) 2021-present MongoDB, Inc.
+ *    Copyright (C) 2025-present MongoDB, Inc.
  *
  *    This program is free software: you can redistribute it and/or modify
  *    it under the terms of the Server Side Public License, version 1,
@@ -29,31 +29,33 @@
 
 #pragma once
 
-#include "mongo/platform/atomic_word.h"
+#include "mongo/db/repl/replica_set_aware_service.h"
 
 namespace mongo {
 
 /**
- * This class increments an AtomicWord counter on construction, and decrements it when it goes out
- * of scope.
+ * Drops temporary collections on step-up.
  */
-template <typename T>
-class ScopedCounter {
-    ScopedCounter(const ScopedCounter&) = delete;
-    ScopedCounter& operator=(const ScopedCounter&) = delete;
-
+class TempCollectionsCleanupMongoD : public ReplicaSetAwareService<TempCollectionsCleanupMongoD> {
 public:
-    ScopedCounter(ScopedCounter&& other) = default;
-    ScopedCounter(mongo::AtomicWord<T>& counter) : _counter(counter) {
-        _counter.addAndFetch(1);
+    static TempCollectionsCleanupMongoD* get(ServiceContext* sc);
+
+    std::string getServiceName() const final {
+        return "TempCollectionsCleanupMongoD";
     }
 
-    ~ScopedCounter() {
-        _counter.fetchAndSubtract(1);
-    }
+    // unused no-ops
+    void onStepUpBegin(OperationContext*, long long) final {}
+    void onShutdown() final {}
+    void onStartup(OperationContext*) final {}
+    void onStepDown() final {}
+    void onRollbackBegin() final {}
+    void onConsistentDataAvailable(OperationContext*, bool, bool) final {}
+    void onBecomeArbiter() final {}
+    void onSetCurrentConfig(OperationContext*) final {}
 
-private:
-    mongo::AtomicWord<T>& _counter;
+    // used
+    void onStepUpComplete(OperationContext* opCtx, long long term) final;
 };
 
 }  // namespace mongo

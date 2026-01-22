@@ -57,7 +57,9 @@ namespace otlp = opentelemetry::exporter::otlp;
 namespace metrics_api = opentelemetry::metrics;
 namespace metrics_sdk = opentelemetry::sdk::metrics;
 
-Status initializeHttp(const std::string& name, const std::string& endpoint) {
+Status initializeHttp(const std::string& name,
+                      const std::string& endpoint,
+                      const std::string& compression) {
     LOGV2(10500901,
           "Initializing OpenTelemetry metrics using HTTP exporter",
           "name"_attr = name,
@@ -65,14 +67,14 @@ Status initializeHttp(const std::string& name, const std::string& endpoint) {
 
     opentelemetry::exporter::otlp::OtlpHttpMetricExporterOptions hmeOpts;
     hmeOpts.url = endpoint;
+    hmeOpts.compression = compression;
 
     auto exporter = otlp::OtlpHttpMetricExporterFactory::Create(hmeOpts);
 
     // Initialize and set the global MeterProvider
     metrics_sdk::PeriodicExportingMetricReaderOptions pemOpts;
-    // TODO SERVER-105803 add a configurable knob for these
-    pemOpts.export_interval_millis = stdx::chrono::milliseconds(1000);
-    pemOpts.export_timeout_millis = stdx::chrono::milliseconds(500);
+    pemOpts.export_interval_millis = stdx::chrono::milliseconds(gOpenTelemetryExportIntervalMillis);
+    pemOpts.export_timeout_millis = stdx::chrono::milliseconds(gOpenTelemetryExportTimeoutMillis);
 
     auto reader =
         metrics_sdk::PeriodicExportingMetricReaderFactory::Create(std::move(exporter), pemOpts);
@@ -103,9 +105,8 @@ Status initializeFile(const std::string& name, const std::string& directory) {
 
     // Initialize and set the global MeterProvider
     metrics_sdk::PeriodicExportingMetricReaderOptions pemOpts;
-    // TODO SERVER-105803 add a configurable knob for these
-    pemOpts.export_interval_millis = stdx::chrono::milliseconds(1000);
-    pemOpts.export_timeout_millis = stdx::chrono::milliseconds(500);
+    pemOpts.export_interval_millis = stdx::chrono::milliseconds(gOpenTelemetryExportIntervalMillis);
+    pemOpts.export_timeout_millis = stdx::chrono::milliseconds(gOpenTelemetryExportTimeoutMillis);
 
     auto reader =
         metrics_sdk::PeriodicExportingMetricReaderFactory::Create(std::move(exporter), pemOpts);
@@ -119,24 +120,35 @@ Status initializeFile(const std::string& name, const std::string& directory) {
     return Status::OK();
 }
 
-}  // namespace
+void validateOptions() {
+    uassert(
+        ErrorCodes::InvalidOptions,
+        "featureFlagOtelMetrics must be enabled in order to export OpenTelemetry metrics",
+        gFeatureFlagOtelMetrics.isEnabled() ||
+            (gOpenTelemetryMetricsHttpEndpoint.empty() && gOpenTelemetryMetricsDirectory.empty()));
 
-Status initialize(const std::string& name) {
-    try {
-        uassert(ErrorCodes::InvalidOptions,
-                "featureFlagOtelMetrics must be enabled in order to export OpenTelemetry metrics",
-                gFeatureFlagOtelMetrics.isEnabled() ||
-                    (gOpenTelemetryMetricsHttpEndpoint.empty() &&
-                     gOpenTelemetryMetricsDirectory.empty()));
-
-        uassert(
-            ErrorCodes::InvalidOptions,
+    uassert(ErrorCodes::InvalidOptions,
             "gOpenTelemetryMetricsHttpEndpoint and gOpenTelemetryMetricsDirectory cannot be set "
             "simultaneously",
             gOpenTelemetryMetricsHttpEndpoint.empty() || gOpenTelemetryMetricsDirectory.empty());
 
+    uassert(ErrorCodes::InvalidOptions,
+            "gOpenTelemetryMetricsCompression must be either `none` or `gzip`",
+            gOpenTelemetryMetricsCompression == "none" ||
+                gOpenTelemetryMetricsCompression == "gzip");
+
+    uassert(ErrorCodes::InvalidOptions,
+            "gOpenTelemetryMetricsCompression must be `none` for metrics file exporter",
+            gOpenTelemetryMetricsDirectory.empty() || gOpenTelemetryMetricsCompression == "none");
+}
+}  // namespace
+
+Status initialize(const std::string& name) {
+    try {
+        validateOptions();
         if (!gOpenTelemetryMetricsHttpEndpoint.empty()) {
-            return initializeHttp(name, gOpenTelemetryMetricsHttpEndpoint);
+            return initializeHttp(
+                name, gOpenTelemetryMetricsHttpEndpoint, gOpenTelemetryMetricsCompression);
         } else if (!gOpenTelemetryMetricsDirectory.empty()) {
             return initializeFile(name, gOpenTelemetryMetricsDirectory);
         }

@@ -195,6 +195,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/aggregation_facet_unwind_passthrough.yml @10gen/query-execution-classic @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/aggregation_sharded_collections_causally_consistent_passthrough.yml @10gen/query-execution-classic @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/aggregation_secondary_reads.yml @10gen/query-execution-classic @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/backup_restore.yml @10gen/server-backup-restore @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/benchmarks_abt_lowering.yml @10gen/query-execution-sbe @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/benchmarks_expression.yml @10gen/query-execution-classic @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/benchmarks_expression_sbe.yml @10gen/query-execution-sbe @svc-auto-approve-bot
@@ -2022,6 +2023,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/exec/**/trial_run_tracker.h @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/exec/**/trial_stage* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/exec/**/scoped_timer* @10gen/server-programmability @svc-auto-approve-bot
+/src/mongo/db/exec/**/serialize_ejson* @10gen/query-optimization @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/exec/agg/OWNERS.yml
 /src/mongo/db/exec/agg/**/* @10gen/query-execution-classic @svc-auto-approve-bot
