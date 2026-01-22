@@ -879,14 +879,34 @@ bool TransactionParticipant::Participant::_shouldRestartTransactionOnReuseActive
                               << " in state " << txnParticipant.o().txnState,
                 txnParticipant.transactionIsAbortedWithoutPrepare());
         }
-
+        LOGV2_DEBUG(
+            11362500,
+            3,
+            "Restarting transaction and reusing active txnNumber because transaction state is "
+            "None.",
+            "sessionId"_attr = _sessionId(),
+            "txnNumber"_attr = o().activeTxnNumberAndRetryCounter.getTxnNumber());
         return true;
     } else if (o().txnState.isInSet(TransactionState::kAbortedWithoutPrepare)) {
+        LOGV2_DEBUG(
+            11362501,
+            3,
+            "Restarting transaction and reusing active txnNumber because transaction was aborted "
+            "and not part of a two phase transaction.",
+            "sessionId"_attr = _sessionId(),
+            "txnNumber"_attr = o().activeTxnNumberAndRetryCounter.getTxnNumber());
         return true;
     } else if (_isInternalSessionForRetryableWrite() &&
                o().txnState.isInSet(TransactionState::kCommitted)) {
         // We won't actually restart the transaction, we'll early return later on and skip resetting
         // any state and metrics
+        LOGV2_DEBUG(
+            11362502,
+            3,
+            "Restarting transaction and reusing active txnNumber because transaction participant "
+            "is in retryable write mode and TransactionState is Committed.",
+            "sessionId"_attr = _sessionId(),
+            "txnNumber"_attr = o().activeTxnNumberAndRetryCounter.getTxnNumber());
         return true;
     } else {
         uassert(
@@ -1994,6 +2014,73 @@ TransactionParticipant::Participant::prepareTransaction(
     invariant(unlocked || gFeatureFlagIntentRegistration.isEnabled());
 
     return {prepareOplogSlot.getTimestamp(), o().affectedNamespaces};
+}
+
+void TransactionParticipant::Participant::refreshPreparedTransactionFromTxnRecord(
+    OperationContext* opCtx, SessionTxnRecord txnRecord) {
+    // This should only be called during replication recovery after both checking out the prepared
+    // transaction's session, reclaiming its storage engine transaction, and retaking the
+    // appropriate locks.
+    invariant(shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
+    invariant(shard_role_details::getLocker(opCtx)->isRSTLLocked());
+    invariant(opCtx->getTxnNumber() == txnRecord.getTxnNum());
+    invariant(txnRecord.getState());
+    invariant(*txnRecord.getState() == DurableTxnStateEnum::kPrepared);
+    invariant(!o().txnResourceStash);
+
+    // These should always have their default value.
+    invariant(p().overwrittenStatus);
+    invariant(!p().inShutdown);
+
+    // We always need to write an abort entry for a prepared transaction.
+    p().needToWriteAbortEntry = true;
+
+    // A prepared transaction must always have used autocommit=false.
+    p().autoCommit = false;
+
+    // TODO SERVER-113740: These will be unset and we need a way to ensure callers can handle that
+    // and won't introduce new dependencies on it.
+    // p().transactionOperations
+
+    {
+        stdx::lock_guard<Client> lg(*opCtx->getClient());
+        o(lg).txnState.transitionTo(TransactionState::kPrepared);
+        o(lg).activeTxnNumberAndRetryCounter.setTxnNumber(txnRecord.getTxnNum());
+        o(lg).activeTxnNumberAndRetryCounter.setTxnRetryCounter([&] {
+            if (txnRecord.getState()) {
+                if (txnRecord.getTxnRetryCounter().has_value()) {
+                    return *txnRecord.getTxnRetryCounter();
+                }
+                return 0;
+            }
+            return kUninitializedTxnRetryCounter;
+        }());
+        o(lg).lastWriteOpTime = txnRecord.getLastWriteOpTime();
+
+        o(lg).prepareOpTime = txnRecord.getLastWriteOpTime();
+        shard_role_details::getRecoveryUnit(opCtx)->setPrepareTimestamp(
+            o(lg).prepareOpTime.getTimestamp());
+        shard_role_details::getRecoveryUnit(opCtx)->setPreparedId(
+            o(lg).prepareOpTime.getTimestamp().asULL());
+
+        uassert(11372600,
+                "Can't reclaim a prepared transaction without affectedNamespaces",
+                txnRecord.getAffectedNamespaces());
+        for (auto&& ns : *txnRecord.getAffectedNamespaces()) {
+            o(lg).affectedNamespaces.emplace(std::move(ns));
+        }
+
+        // TODO SERVER-113731: Handle recovering history when we support retryable transactions.
+        p().activeTxnCommittedStatements = {};
+        o(lg).hasIncompleteHistory = true;
+
+        // This should be called after checking out the session without refresh, which already sets
+        // isValid.
+        invariant(o().isValid);
+    }
+
+    const bool unlocked = shard_role_details::getLocker(opCtx)->unlockRSTLforPrepare();
+    invariant(unlocked || gFeatureFlagIntentRegistration.isEnabled());
 }
 
 void TransactionParticipant::Participant::setPrepareOpTimeForRecovery(OperationContext* opCtx,

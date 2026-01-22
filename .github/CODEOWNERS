@@ -36,6 +36,7 @@ README.third_party.md @10gen/code-review-team-ssdlc @svc-auto-approve-bot
 sbom.json @10gen/code-review-team-ssdlc @svc-auto-approve-bot
 MODULE.bazel* @10gen/devprod-build @svc-auto-approve-bot
 WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
+.tmp/* @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./.cursor/rules/OWNERS.yml
 /.cursor/rules/**/cs-* @10gen/server-cluster-scalability @svc-auto-approve-bot
@@ -358,6 +359,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /docs/owners/** @10gen/devprod-correctness @svc-auto-approve-bot
 /docs/**/poetry_execution.md @10gen/devprod-correctness @svc-auto-approve-bot
 /docs/**/server_parameters.md @10gen/server-programmability @svc-auto-approve-bot
+
+# The following patterns are parsed from ./docs/antithesis/OWNERS.yml
+/docs/antithesis/ @10gen/devprod-correctness @svc-auto-approve-bot
 
 # The following patterns are parsed from ./docs/branching/OWNERS.yml
 /docs/branching/**/* @10gen/server-release @svc-auto-approve-bot
@@ -1937,6 +1941,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/commands/**/killoperations* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/db/commands/**/shutdown* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/db/commands/**/sleep_command.* @10gen/server-programmability @svc-auto-approve-bot
+/src/mongo/db/commands/**/test_commands.* @10gen/server-storage-engine-integration @svc-auto-approve-bot
 /src/mongo/db/commands/**/test_commands_enabled.* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/db/commands/**/user_management_commands* @10gen/server-security @svc-auto-approve-bot
 /src/mongo/db/commands/**/search_* @10gen/query-integration-search @svc-auto-approve-bot

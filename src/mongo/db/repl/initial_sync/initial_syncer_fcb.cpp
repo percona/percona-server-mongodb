@@ -2179,7 +2179,8 @@ void InitialSyncerFCB::_compareLastAppliedCallback(
                 "Comparing last applied timestamps",
                 "local"_attr = _lastApplied.opTime.getSecs(),
                 "remote"_attr = lastAppliedTS.getSecs());
-    if (_lastApplied.opTime.getSecs() + fileBasedInitialSyncMaxLagSec >= lastAppliedTS.getSecs()) {
+    if (_lastApplied.opTime.getSecs() + fileBasedInitialSyncMaxLagSec.load() >=
+        lastAppliedTS.getSecs()) {
         // The lag is OK, we can conclude the backup cursor loop
         // file cloning is completed - close backup cursor
         LOGV2_DEBUG(128453, 1, "The lag is acceptable. Switching to downloaded files");
@@ -2202,7 +2203,7 @@ void InitialSyncerFCB::_compareLastAppliedCallback(
         return;
     }
     // The lag is too big, we need to extend the backup cursor
-    if (!(extensionsUsed < fileBasedInitialSyncMaxCyclesWithoutProgress)) {
+    if (!(extensionsUsed < fileBasedInitialSyncMaxCyclesWithoutProgress.load())) {
         LOGV2_DEBUG(128454, 1, "The lag is too big and no backup cursor extensions left");
         onCompletionGuard->setResultAndCancelRemainingWork(
             lock,
@@ -2212,7 +2213,7 @@ void InitialSyncerFCB::_compareLastAppliedCallback(
                                str::stream() << "No backup cursor extensions left. Node is still "
                                                 "behind sync source more than the allowed lag: "
                                              << _lastApplied.opTime.getSecs() << " + "
-                                             << fileBasedInitialSyncMaxLagSec << " < "
+                                             << fileBasedInitialSyncMaxLagSec.load() << " < "
                                              << lastAppliedTS.getSecs()));
         return;
     }
