@@ -32,6 +32,7 @@
 #include "mongo/base/data_type_endian.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/exec/document_value/document.h"
+#include "mongo/db/exec/document_value/value_comparator.h"
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/query/query_knobs_gen.h"
@@ -605,6 +606,44 @@ Value DocumentMetadataFields::deserializeSortKey(bool isSingleElementKey,
         return keys[0];
     }
     return Value{std::move(keys)};
+}
+
+bool DocumentMetadataFields::MetadataHolder::operator==(const MetadataHolder& other) const {
+    if (metaFields != other.metaFields)
+        return false;
+
+    const auto equalTo = ValueComparator::kInstance.getEqualTo();
+
+    return isSingleElementKey == other.isSingleElementKey && textScore == other.textScore &&
+        randVal == other.randVal && equalTo(sortKey, other.sortKey) &&
+        geoNearDistance == other.geoNearDistance && equalTo(geoNearPoint, other.geoNearPoint) &&
+        searchScore == other.searchScore && equalTo(searchHighlights, other.searchHighlights) &&
+        indexKey.woCompare(other.indexKey) == 0 && recordId == other.recordId &&
+        searchScoreDetails.woCompare(other.searchScoreDetails) == 0 &&
+        equalTo(searchRootDocumentId, other.searchRootDocumentId) &&
+        timeseriesBucketMinTime == other.timeseriesBucketMinTime &&
+        timeseriesBucketMaxTime == other.timeseriesBucketMaxTime &&
+        searchSortValues.woCompare(other.searchSortValues) == 0 &&
+        vectorSearchScore == other.vectorSearchScore &&
+        equalTo(searchSequenceToken, other.searchSequenceToken) && score == other.score &&
+        equalTo(scoreDetails, other.scoreDetails) && equalTo(stream, other.stream);
+}
+
+bool operator==(const DocumentMetadataFields& lhs, const DocumentMetadataFields& rhs) {
+    // If both uninitialized return true.
+    if (!lhs && !rhs)
+        return true;
+
+    // If one initialized, one not then return false.
+    if (!lhs || !rhs)
+        return false;
+
+    // If both are initialized then use MetadataHolder comparison.
+    return *lhs._holder == *rhs._holder;
+}
+
+bool operator!=(const DocumentMetadataFields& lhs, const DocumentMetadataFields& rhs) {
+    return !(lhs == rhs);
 }
 
 const char* DocumentMetadataFields::typeNameToDebugString(DocumentMetadataFields::MetaType type) {

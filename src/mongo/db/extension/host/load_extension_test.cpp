@@ -237,19 +237,15 @@ TEST_F(LoadExtensionsTest, LoadMatchTopNDesugarExtensionSucceeds) {
         const auto& expanded = liteParsedExpandable->getExpandedPipeline();
         ASSERT_EQ(expanded.size(), 3U);
 
-        const auto it0 = expanded.begin();
-        const auto it1 = std::next(expanded.begin(), 1);
-        const auto it2 = std::next(expanded.begin(), 2);
-
-        auto* first = dynamic_cast<LiteParsedDocumentSource*>(it0->get());
+        auto* first = expanded[0].get();
         ASSERT(first);
         ASSERT_EQ(first->getParseTimeName(), DocumentSourceMatch::kStageName);
 
-        auto* second = dynamic_cast<LiteParsedDocumentSource*>(it1->get());
+        auto* second = expanded[1].get();
         ASSERT(second);
         ASSERT_EQ(second->getParseTimeName(), DocumentSourceSort::kStageName);
 
-        auto* third = dynamic_cast<LiteParsedDocumentSource*>(it2->get());
+        auto* third = expanded[2].get();
         ASSERT(third);
         ASSERT_EQ(third->getParseTimeName(), DocumentSourceLimit::kStageName);
     }
@@ -451,13 +447,12 @@ TEST_F(LoadExtensionsTest, LoadStubParser) {
     ASSERT_THROWS_WHAT(Pipeline::parse(pipeline, expCtx), AssertionException, errorMsg);
 }
 
-TEST_F(LoadExtensionsTest, LoadStubParserSilentlySkipsIfExists) {
-    // Register stub parsers for $match. This should silently skip the registration since $match is
-    // already registered.
-    registerStubParser("$match", "This should not work since $match is already registered.");
-
-    std::vector<BSONObj> pipeline = {BSON("$match" << BSON("x" << 1))};
-    ASSERT_DOES_NOT_THROW(Pipeline::parse(pipeline, expCtx));
+DEATH_TEST_F(LoadExtensionsTestDeathTest,
+             LoadStubParserFailsIfPrimaryAlreadyRegistered,
+             "11395100") {
+    // Attempting to register a fallback stub parser for $match should fail because fallback parsers
+    // must be registered before primary parsers.
+    registerStubParser("$match", "This should fail since $match is already registered.");
 }
 
 /*

@@ -32,9 +32,11 @@
 #include "mongo/db/query/compiler/optimizer/cost_based_ranker/estimates.h"
 #include "mongo/db/query/compiler/optimizer/join/join_graph.h"
 #include "mongo/db/query/compiler/optimizer/join/single_table_access.h"
+#include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/util/modules.h"
 
 #include <cstdint>
+#include <memory>
 
 namespace mongo::join_ordering {
 
@@ -69,29 +71,37 @@ private:
  */
 uint64_t combinations(int n, int k);
 
-using BaseTableCardinalityMap =
-    stdx::unordered_map<NamespaceString, cost_based_ranker::CardinalityEstimate>;
+/**
+ * Represent sargable predicate that can be the RHS of an indexed nested loop join.
+ */
+struct IndexedJoinPredicate {
+    QSNJoinPredicate::ComparisonOp op;
+    FieldPath field;
+};
 
 /**
- * Container for all objects necessary to estimate the selectivity of join predicates.
+ * Returns true if the given join predicates can be satisfied by an "index probe" (RHS of INLJ) on
+ * the given index 'keyPattern'.
  */
-class JoinPredicateEstimator {
-public:
-    JoinPredicateEstimator(const JoinGraph& graph,
-                           const std::vector<ResolvedPath>& resolvedPaths,
-                           const SamplingEstimatorMap& samplingEstimators,
-                           const BaseTableCardinalityMap& tableCards);
+bool indexSatisfiesJoinPredicates(const BSONObj& keyPattern,
+                                  const std::vector<IndexedJoinPredicate>& joinPreds);
 
-    /**
-     * Returns an estimate of the selectivity of the given 'JoinEdge' using sampling.
-     */
-    cost_based_ranker::SelectivityEstimate joinPredicateSel(const JoinEdge& edge);
+/**
+ * Returns the best index that can satify the indexed predicates by "index probe". If there is
+ * no index that can satisfy it then return boost::none. If multiple indexes can satisfy the
+ * join predicates, this function selects one using deterministic heuristics:
+ *  1. Prefer the index with fewer fields.
+ *  2. If tied, prefer the index whose key pattern is lexicographically earlier.
+ */
+std::shared_ptr<const IndexCatalogEntry> bestIndexSatisfyingJoinPredicates(
+    const std::vector<std::shared_ptr<const IndexCatalogEntry>>& ies,
+    const std::vector<IndexedJoinPredicate>& joinPreds);
 
-private:
-    const JoinGraph& _graph;
-    const std::vector<ResolvedPath>& _resolvedPaths;
-    const SamplingEstimatorMap& _samplingEstimators;
-    const BaseTableCardinalityMap& _tableCards;
-};
+/**
+ * Same as above, but picks from indexes in 'ctx' that can be applied to the current node with id
+ * 'nodeId' and the specified 'edge'.
+ */
+std::shared_ptr<const IndexCatalogEntry> bestIndexSatisfyingJoinPredicates(
+    const JoinReorderingContext& ctx, NodeId nodeId, const JoinEdge& edge);
 
 }  // namespace mongo::join_ordering

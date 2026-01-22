@@ -46,7 +46,6 @@
 #include "mongo/db/query/client_cursor/cursor_response.h"
 #include "mongo/db/query/collation/collator_factory_interface.h"
 #include "mongo/db/query/collation/collator_interface.h"
-#include "mongo/db/query/query_planner_common.h"
 #include "mongo/db/read_concern_support_result.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/read_concern_gen.h"
@@ -362,16 +361,12 @@ std::vector<AsyncRequestsSender::Response> gatherResponsesImpl(
     Shard::RetryPolicy retryPolicy,
     const std::vector<AsyncRequestsSender::Request>& requests,
     bool throwOnStaleShardVersionErrors,
+    const std::shared_ptr<executor::TaskExecutor>& executor,
     RoutingContext* routingCtx = nullptr) {
 
     // Send the requests.
     MultiStatementTransactionRequestsSender ars(
-        opCtx,
-        Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(),
-        dbName,
-        requests,
-        readPref,
-        retryPolicy);
+        opCtx, executor, dbName, requests, readPref, retryPolicy);
 
     if (routingCtx && routingCtx->hasNss(nss)) {
         routingCtx->onRequestSentForNss(nss);
@@ -438,15 +433,18 @@ std::vector<AsyncRequestsSender::Response> gatherResponses(
     const ReadPreferenceSetting& readPref,
     Shard::RetryPolicy retryPolicy,
     const std::vector<AsyncRequestsSender::Request>& requests,
-    RoutingContext* routingCtx) {
-    return gatherResponsesImpl(opCtx,
-                               dbName,
-                               nss,
-                               readPref,
-                               retryPolicy,
-                               requests,
-                               true /* throwOnStaleShardVersionErrors */,
-                               routingCtx);
+    RoutingContext* routingCtx,
+    std::shared_ptr<executor::TaskExecutor> executor) {
+    return gatherResponsesImpl(
+        opCtx,
+        dbName,
+        nss,
+        readPref,
+        retryPolicy,
+        requests,
+        true /* throwOnStaleShardVersionErrors */,
+        executor ? executor : Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(),
+        routingCtx);
 }
 
 BSONObj appendDbVersionIfPresent(BSONObj cmdObj, const CachedDatabaseInfo& dbInfo) {
@@ -607,7 +605,8 @@ std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRouting
     const BSONObj& collation,
     const boost::optional<BSONObj>& letParameters,
     const boost::optional<LegacyRuntimeConstants>& runtimeConstants,
-    bool eligibleForSampling) {
+    bool eligibleForSampling,
+    std::shared_ptr<executor::TaskExecutor> executor) {
     auto expCtx =
         makeExpressionContextWithDefaultsForTargeter(opCtx,
                                                      nss,
@@ -624,7 +623,8 @@ std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRouting
                                                       retryPolicy,
                                                       query,
                                                       collation,
-                                                      eligibleForSampling);
+                                                      eligibleForSampling,
+                                                      std::move(executor));
 }
 
 [[nodiscard]] std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRoutingTable(
@@ -636,7 +636,8 @@ std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRouting
     Shard::RetryPolicy retryPolicy,
     const BSONObj& query,
     const BSONObj& collation,
-    bool eligibleForSampling) {
+    bool eligibleForSampling,
+    std::shared_ptr<executor::TaskExecutor> executor) {
     const auto requests =
         buildVersionedRequestsForTargetedShards(expCtx,
                                                 nss,
@@ -652,7 +653,8 @@ std::vector<AsyncRequestsSender::Response> scatterGatherVersionedTargetByRouting
                            readPref,
                            retryPolicy,
                            requests,
-                           &routingCtx);
+                           &routingCtx,
+                           std::move(executor));
 }
 
 std::vector<AsyncRequestsSender::Response>
@@ -686,6 +688,7 @@ scatterGatherVersionedTargetByRoutingTableNoThrowOnStaleShardVersionErrors(
                                retryPolicy,
                                requests,
                                false /* throwOnStaleShardVersionErrors */,
+                               Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(),
                                &routingCtx);
 }
 
@@ -712,6 +715,7 @@ scatterGatherVersionedTargetByRoutingTableNoThrowOnStaleShardVersionErrors(
                                retryPolicy,
                                requests,
                                false /* throwOnStaleShardVersionErrors */,
+                               Grid::get(opCtx)->getExecutorPool()->getArbitraryExecutor(),
                                &routingCtx);
 }
 
@@ -923,7 +927,7 @@ bool appendEmptyResultSet(OperationContext* opCtx,
                           const NamespaceString& nss) {
     invariant(!status.isOK());
 
-    CurOp::get(opCtx)->debug().additiveMetrics.nreturned = 0;
+    CurOp::get(opCtx)->debug().getAdditiveMetrics().nreturned = 0;
     CurOp::get(opCtx)->debug().nShards = 0;
 
     if (status == ErrorCodes::NamespaceNotFound) {
@@ -935,67 +939,6 @@ bool appendEmptyResultSet(OperationContext* opCtx,
 
     uassertStatusOK(status);
     return true;
-}
-
-std::set<ShardId> getTargetedShardsForQuery(boost::intrusive_ptr<ExpressionContext> expCtx,
-                                            const CollectionRoutingInfo& cri,
-                                            const BSONObj& query,
-                                            const BSONObj& collation) {
-    if (cri.hasRoutingTable()) {
-        // The collection has a routing table. Use it to decide which shards to target based on the
-        // query and collation.
-        std::set<ShardId> shardIds;
-        getShardIdsForQuery(expCtx, query, collation, cri.getChunkManager(), &shardIds);
-        return shardIds;
-    }
-
-    // The collection does not have a routing table. Target only the primary shard for the database.
-    return {cri.getDbPrimaryShardId()};
-}
-
-std::set<ShardId> getTargetedShardsForCanonicalQuery(const CanonicalQuery& query,
-                                                     const CollectionRoutingInfo& cri) {
-    if (cri.hasRoutingTable()) {
-        const auto& cm = cri.getChunkManager();
-
-        // The collection has a routing table. Use it to decide which shards to target based on the
-        // query and collation.
-
-        // If the query has a hint or geo expression, fall back to re-creating a find command from
-        // scratch. Hint can interfere with query planning, which we rely on for targeting. Shard
-        // targeting modifies geo queries and this helper shouldn't have a side effect on 'query'.
-        const auto& findCommand = query.getFindCommandRequest();
-        if (!findCommand.getHint().isEmpty() ||
-            QueryPlannerCommon::hasNode(query.getPrimaryMatchExpression(),
-                                        MatchExpression::GEO_NEAR)) {
-            return getTargetedShardsForQuery(
-                query.getExpCtx(), cri, findCommand.getFilter(), findCommand.getCollation());
-        }
-
-        query.getExpCtx()->setUUID(cm.getUUID());
-
-        // 'getShardIdsForCanonicalQuery' assumes that the ExpressionContext has the appropriate
-        // collation set. Here, if the query collation is empty, we use the collection default
-        // collation for targeting.
-        const auto& collation = query.getFindCommandRequest().getCollation();
-        if (collation.isEmpty() && cm.getDefaultCollator()) {
-            auto defaultCollator = cm.getDefaultCollator();
-            query.getExpCtx()->setCollator(defaultCollator->clone());
-        }
-
-        std::set<ShardId> shardIds;
-        getShardIdsForCanonicalQuery(query, cm, &shardIds);
-        return shardIds;
-    }
-
-    // In the event of an untracked collection, we will discover the collection default collation on
-    // the primary shard. As such, we don't forward the simple collation.
-    if (query.getFindCommandRequest().getCollation().isEmpty()) {
-        query.getExpCtx()->setIgnoreCollator();
-    }
-
-    // The collection does not have a routing table. Target only the primary shard for the database.
-    return {cri.getDbPrimaryShardId()};
 }
 
 std::vector<AsyncRequestsSender::Request> getVersionedRequestsForTargetedShards(

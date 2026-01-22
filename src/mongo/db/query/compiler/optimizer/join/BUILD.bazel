@@ -9,7 +9,6 @@ exports_files([
     "executor.cpp",
     "single_table_access.cpp",
     "single_table_access.h",
-    "solution_storage.h",
 ])
 
 exports_files(
@@ -37,11 +36,13 @@ mongo_cc_library(
 mongo_cc_library(
     name = "plan_enumerator",
     srcs = [
+        "cardinality_estimator.cpp",
         "join_plan.cpp",
         "plan_enumerator.cpp",
         "plan_enumerator_helpers.cpp",
     ],
     hdrs = [
+        "cardinality_estimator.h",
         "join_plan.h",
         "plan_enumerator.h",
         "plan_enumerator_helpers.h",
@@ -60,6 +61,7 @@ mongo_cc_unit_test(
     srcs = [
         "adjacency_matrix_test.cpp",
         "agg_join_model_test.cpp",
+        "cardinality_estimator_join_test.cpp",
         "graph_cycle_breaker_test.cpp",
         "join_graph_test.cpp",
         "path_resolver_test.cpp",
@@ -79,7 +81,6 @@ mongo_cc_unit_test(
         ":unit_test_helpers",
         "//src/mongo/db:query_exec",
         "//src/mongo/db/pipeline:aggregation_context_fixture",
-        "//src/mongo/db/shard_role/shard_catalog:index_catalog_mock",
     ],
 )
 

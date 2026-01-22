@@ -32,8 +32,13 @@
 #include "mongo/db/query/compiler/ce/sampling/sampling_estimator.h"
 #include "mongo/db/query/compiler/optimizer/cost_based_ranker/estimates.h"
 #include "mongo/db/query/compiler/optimizer/join/join_graph.h"
+#include "mongo/db/query/compiler/optimizer/join/join_reordering_context.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_test_fixture.h"
+#include "mongo/db/shard_role/shard_catalog/index_catalog_entry.h"
+#include "mongo/db/shard_role/shard_catalog/index_catalog_entry_mock.h"
+#include "mongo/db/shard_role/shard_catalog/index_catalog_mock.h"
+#include "mongo/unittest/golden_test_base.h"
 #include "mongo/util/modules.h"
 
 namespace mongo::join_ordering {
@@ -45,11 +50,25 @@ MultipleCollectionAccessor multipleCollectionAccessor(OperationContext* opCtx,
                                                       std::vector<NamespaceString> namespaces);
 
 /**
+ * Helpers used to mock index information for unit tests without requiring a
+ * MultipleCollectionAccessor.
+ */
+IndexDescriptor makeIndexDescriptor(BSONObj indexSpec);
+IndexCatalogEntryMock makeIndexCatalogEntry(BSONObj indexSpec);
+IndexCatalogMock makeIndexCatalog(const std::vector<BSONObj>& keyPatterns);
+std::vector<std::shared_ptr<const IndexCatalogEntry>> makeIndexCatalogEntries(
+    const std::vector<BSONObj>& keyPatterns);
+
+/**
  * Text fixture with helpful functions for manipulating the catalog, constructing samples and
  * queries/QSNs.
  */
 class JoinOrderingTestFixture : public CatalogTestFixture {
 public:
+    JoinOrderingTestFixture()
+        : goldenTestConfig{"src/mongo/db/test_output/query/join"},
+          jCtx{.joinGraph = graph, .resolvedPaths = resolvedPaths} {}
+
     std::unique_ptr<CanonicalQuery> makeCanonicalQuery(NamespaceString nss,
                                                        BSONObj filter = BSONObj::kEmptyObject);
 
@@ -63,6 +82,16 @@ public:
     std::unique_ptr<ce::SamplingEstimator> samplingEstimator(const MultipleCollectionAccessor& mca,
                                                              NamespaceString nss,
                                                              double sampleProportion = 0.1);
+
+protected:
+    unittest::GoldenTestConfig goldenTestConfig;
+
+    JoinGraph graph;
+    std::vector<ResolvedPath> resolvedPaths;
+
+    std::vector<int> seeds;
+    std::vector<NamespaceString> namespaces;
+    JoinReorderingContext jCtx;
 };
 
 using namespace cost_based_ranker;
@@ -73,6 +102,8 @@ using namespace cost_based_ranker;
  */
 class FakeNdvEstimator : public ce::SamplingEstimator {
 public:
+    FakeNdvEstimator(CardinalityEstimate collCard) : _collCard(collCard) {};
+
     CardinalityEstimate estimateCardinality(const MatchExpression* expr) const override {
         MONGO_UNREACHABLE;
     }
@@ -115,7 +146,12 @@ public:
         return _fakeEstimates.at(fieldNames);
     }
 
+    double getCollCard() const override {
+        return _collCard.toDouble();
+    }
+
 private:
+    CardinalityEstimate _collCard;
     stdx::unordered_map<std::vector<FieldPath>, CardinalityEstimate> _fakeEstimates;
 };
 

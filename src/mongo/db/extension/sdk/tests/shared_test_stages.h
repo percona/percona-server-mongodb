@@ -75,10 +75,9 @@ public:
         }
         // Note, here we can create the result as a byte view, since this stage guarantees to keep
         // the results valid.
-        auto documentResult =
-            ExtensionBSONObj::makeAsByteView(_documentsWithMetadata[_currentIndex].first);
-        auto metaDataResult =
-            ExtensionBSONObj::makeAsByteView(_documentsWithMetadata[_currentIndex++].second);
+        auto& currentDocumentWithMetadata = _documentsWithMetadata[_currentIndex++];
+        auto documentResult = ExtensionBSONObj::makeAsByteView(currentDocumentWithMetadata.first);
+        auto metaDataResult = ExtensionBSONObj::makeAsByteView(currentDocumentWithMetadata.second);
         return ExtensionGetNextResult::advanced(std::move(documentResult),
                                                 std::move(metaDataResult));
     }
@@ -96,6 +95,12 @@ public:
 
     BSONObj explain(::MongoExtensionExplainVerbosity verbosity) const override {
         return BSONObj();
+    }
+
+    // Helper func that return input result for easy expected-vs-actual comparisons without
+    // requiring a static test dataset.
+    static inline auto getInputResults() {
+        return _documentsWithMetadata;
     }
 
     static inline std::unique_ptr<FruitsAsDocumentsExecAggStage> make() {
@@ -1186,6 +1191,8 @@ static constexpr std::string_view kMergeOnlyDPLStageName = "$mergeOnlyDPL";
  */
 class MergeOnlyDPLLogicalStage : public TransformLogicalAggStage {
 public:
+    MergeOnlyDPLLogicalStage() : TransformLogicalAggStage(kMergeOnlyDPLStageName, BSONObj()) {}
+
     boost::optional<sdk::DistributedPlanLogic> getDistributedPlanLogic() const override {
         sdk::DistributedPlanLogic dpl;
 
@@ -1206,21 +1213,9 @@ public:
 
         return dpl;
     }
-};
 
-/**
- * MergeOnlyDPLAstNode is an AST node that binds to MergeOnlyDPLLogicalStage.
- */
-class MergeOnlyDPLAstNode : public sdk::AggStageAstNode {
-public:
-    MergeOnlyDPLAstNode() : sdk::AggStageAstNode(kMergeOnlyDPLStageName) {}
-
-    std::unique_ptr<sdk::LogicalAggStage> bind() const override {
+    static inline std::unique_ptr<LogicalAggStage> make() {
         return std::make_unique<MergeOnlyDPLLogicalStage>();
-    }
-
-    static inline std::unique_ptr<sdk::AggStageAstNode> make() {
-        return std::make_unique<MergeOnlyDPLAstNode>();
     }
 };
 

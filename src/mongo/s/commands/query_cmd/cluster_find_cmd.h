@@ -61,6 +61,7 @@
 #include "mongo/s/commands/query_cmd/cluster_explain.h"
 #include "mongo/s/query/planner/cluster_aggregate.h"
 #include "mongo/s/query/planner/cluster_find.h"
+#include "mongo/s/query/shard_targeting_helpers.h"
 #include "mongo/util/modules.h"
 
 #include <boost/optional.hpp>
@@ -207,7 +208,7 @@ public:
             Impl::checkCanExplainHere(opCtx);
 
             auto curOp = CurOp::get(opCtx);
-            curOp->debug().queryStatsInfo.disableForSubqueryExecution = true;
+            curOp->debug().getQueryStatsInfo().disableForSubqueryExecution = true;
 
             setReadConcern(opCtx);
             doFLERewriteIfNeeded(opCtx);

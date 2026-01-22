@@ -66,7 +66,7 @@ render_template(
     output = "feature_flag_test.idl",
     python_libs = [
         dependency(
-            "cheetah3",
+            "ct3",
             group = "compile",
         ),
         dependency(
@@ -1766,6 +1766,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/expression:evaluate_math.cpp",
         "//src/mongo/db/exec/expression:evaluate_meta.cpp",
         "//src/mongo/db/exec/expression:evaluate_regex.cpp",
+        "//src/mongo/db/exec/expression:evaluate_serialize_ejson.cpp",
         "//src/mongo/db/exec/expression:evaluate_string.cpp",
         "//src/mongo/db/exec/matcher:match_details.cpp",
         "//src/mongo/db/exec/matcher:matcher.cpp",
@@ -2511,7 +2512,7 @@ mongo_cc_library(
         "//src/mongo/db/ttl:ttl_collection_cache",
         "//src/mongo/db/ttl:ttl_d",
         "//src/mongo/db/update:update_driver",
-        "//src/mongo/otel/metrics:otel_metrics",
+        "//src/mongo/otel/metrics:metrics_initialization",
         "//src/mongo/otel/traces:tracing_initialization",
         "update_index_data",
     ] + select({
@@ -2694,6 +2695,7 @@ mongo_cc_library(
         "//src/mongo/db/repl:topology_coordinator",
         "//src/mongo/db/repl:wait_for_majority_service",
         "//src/mongo/db/rss:replicated_storage_service",
+        "//src/mongo/db/stats:system_buckets_metrics",
         "//src/mongo/db/s:query_analysis_writer",
         "//src/mongo/db/global_catalog/ddl:sessions_collection_config_server",
         "//src/mongo/db/s:sharding_commands_d",

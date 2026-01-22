@@ -52,19 +52,6 @@ idl_generator(
 )
 
 mongo_cc_library(
-    name = "sharding_helpers",
-    srcs = [
-        "shard_targeting_helpers.cpp",
-    ],
-    no_undefined_ref_DO_NOT_USE = False,
-    deps = [
-        "//src/mongo:base",
-        "//src/mongo/db:common",
-        "//src/mongo/db/query/collation:collator_interface",
-    ],
-)
-
-mongo_cc_library(
     name = "sharding_router_api",
     srcs = [
         "multi_statement_transaction_requests_sender.cpp",
@@ -75,24 +62,21 @@ mongo_cc_library(
         ":router_transactions_stats_gen",
         "//src/mongo/db/global_catalog/ddl:cluster_ddl.cpp",
         "//src/mongo/db/router_role:cluster_commands_helpers.cpp",
-        "//src/mongo/db/router_role:collection_routing_info_targeter.cpp",
+        "//src/mongo/db/router_role:collection_routing_info_targeter_impl.cpp",
         "//src/mongo/db/router_role:collection_uuid_mismatch.cpp",
         "//src/mongo/db/router_role:router_role.cpp",
         "//src/mongo/db/router_role:routing_context.cpp",
         "//src/mongo/db/topology/cluster_parameters:set_cluster_server_parameter_router_impl.cpp",
-        "//src/mongo/s/query:shard_key_pattern_query_util.cpp",
     ],
     deps = [
         ":async_requests_sender",
         ":grid",
         ":query_analysis_sampler",
-        ":sharding_helpers",
         "//src/mongo/db:internal_transactions_feature_flag",
         "//src/mongo/db:mongohasher",
         "//src/mongo/db:shared_request_handling",
         "//src/mongo/db/commands:txn_cmd_request",
         "//src/mongo/db/pipeline/process_interface:mongo_process_interface",
-        "//src/mongo/db/query:query_planner",
         "//src/mongo/db/query/query_settings:query_settings_service_dependencies",
         "//src/mongo/db/query/query_stats",
         "//src/mongo/db/repl:read_concern_args",
@@ -105,6 +89,8 @@ mongo_cc_library(
         "//src/mongo/db/stats:transaction_stats",
         "//src/mongo/db/timeseries:timeseries_metadata",
         "//src/mongo/rpc:command_status",
+        "//src/mongo/s/query:sharding_helpers",
+        "//src/mongo/s/query/exec:target_write_op",
         "//src/mongo/util/concurrency:spin_lock",
     ],
 )
@@ -350,7 +336,6 @@ mongo_cc_library(
     deps = [
         ":add_shard_idl",
         ":analyze_shard_key_common",
-        ":sharding_helpers",
         "//src/mongo/client:connection_string",
         "//src/mongo/client:read_preference",
         "//src/mongo/db:common",
@@ -373,6 +358,7 @@ mongo_cc_library(
         "//src/mongo/executor:async_rpc_error_info",
         "//src/mongo/executor:scoped_task_executor",
         "//src/mongo/rpc:command_status",
+        "//src/mongo/s/query:sharding_helpers",
         "//src/mongo/util:caching",
     ],
 )
@@ -632,6 +618,7 @@ mongo_cc_library(
         "//src/mongo/db/session:logical_session_cache_impl",
         "//src/mongo/db/session:session_catalog",
         "//src/mongo/db:startup_warnings_common",
+        "//src/mongo/db/stats:system_buckets_metrics",
         "//src/mongo/db/telemetry:telemetry_s",
         "//src/mongo/db/topology/cluster_parameters:cluster_server_parameter_refresher",
         "//src/mongo/otel/traces:tracing_initialization",

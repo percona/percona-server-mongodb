@@ -40,9 +40,9 @@ feature_flags:
     featureFlagSbeAccumulators:
         description: "Feature flag to enable single-purpose SBE $group accumulators."
         cpp_varname: gFeatureFlagSbeAccumulators
-        default: false
+        default: true
         fcv_gated: false
-        incremental_rollout_phase: in_development
+        incremental_rollout_phase: rollout
 
     featureFlagSbeFull:
         description:
@@ -276,6 +276,12 @@ feature_flags:
         description: "Feature flag to enable loading extensions via the Extensions API."
         cpp_varname: gFeatureFlagExtensionsAPI
         default: false
+        fcv_gated: false
+
+    featureFlagExtensionStubParsers:
+        description: "Test feature flag for extension stub parser fallback registration. Used to test incremental rollout of extension stage parsers."
+        cpp_varname: gFeatureFlagExtensionStubParsers
+        incremental_rollout_phase: in_development
         fcv_gated: false
 
     featureFlagMqlJsEngineGap:

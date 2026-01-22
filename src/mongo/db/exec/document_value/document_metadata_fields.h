@@ -495,6 +495,8 @@ public:
         _modified = newValue;
     }
 
+    friend bool operator==(const DocumentMetadataFields& lhs, const DocumentMetadataFields& rhs);
+
 private:
     inline void _setCommon(MetaType mt) {
         if (!_holder) {
@@ -535,6 +537,8 @@ private:
         Value scoreDetails;
         // Stream processing related metadata. Only set in Atlas Stream Processing.
         Value stream;
+
+        bool operator==(const MetadataHolder& other) const;
     };
 
     // Null until the first setter is called, at which point a MetadataHolder struct is allocated.
@@ -545,6 +549,10 @@ private:
     // can directly return the underlying BSON.
     bool _modified{false};
 };
+
+bool operator==(const DocumentMetadataFields& lhs, const DocumentMetadataFields& rhs);
+
+bool operator!=(const DocumentMetadataFields& lhs, const DocumentMetadataFields& rhs);
 
 using QueryMetadataBitSet = std::bitset<DocumentMetadataFields::MetaType::kNumFields>;
 

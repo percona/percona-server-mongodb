@@ -294,7 +294,6 @@ public:
             }
         }
 
-        typedef std::function<bool(const DocumentSource&)> movePastFunctionType;
         // A stage which executes on each shard in parallel, or nullptr if nothing can be done in
         // parallel. For example, a partial $group before a subsequent global $group.
         boost::intrusive_ptr<DocumentSource> shardsStage = nullptr;
@@ -317,11 +316,9 @@ public:
         // If needsSplit is false and this plan has anything that must run on the merging half of
         // the pipeline, it will be deferred until the next stage that sets any non-default value on
         // 'DistributedPlanLogic' or until a following stage causes the given validation
-        // function to return false. By default this will not allow swapping with any
-        // following stages.
-        movePastFunctionType canMovePast = [](const DocumentSource&) {
-            return false;
-        };
+        // function to return false. This function defaults to unset.
+        typedef std::function<bool(const DocumentSource&)> movePastFunctionType;
+        movePastFunctionType canMovePast = {};
     };
 
     /**
@@ -452,16 +449,10 @@ public:
      * Registers a DocumentSource with a parsing function, so that when a stage with the given name
      * is encountered, it will call 'parser' to construct that stage.
      *
-     * If skipIfExists is true, and there is already a parser registered with the given name, the
-     * registration is silently skipped.
-     *
      * DO NOT call this method directly. Instead, use the REGISTER_DOCUMENT_SOURCE macro defined in
      * this file.
      */
-    static void registerParser(std::string name,
-                               Parser parser,
-                               FeatureFlag* featureFlag = nullptr,
-                               bool skipIfExists = false);
+    static void registerParser(std::string name, Parser parser, FeatureFlag* featureFlag = nullptr);
     /**
      * Convenience wrapper for the common case, when DocumentSource::Parser returns a list of one
      * DocumentSource.
@@ -471,8 +462,7 @@ public:
      */
     static void registerParser(std::string name,
                                SimpleParser simpleParser,
-                               FeatureFlag* featureFlag = nullptr,
-                               bool skipIfExists = false);
+                               FeatureFlag* featureFlag = nullptr);
 
     /**
      * Allocate and return a new, unique DocumentSource::Id value.

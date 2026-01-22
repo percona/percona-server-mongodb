@@ -97,7 +97,6 @@ variables:
       --bolt_profile_use=False
       --opt=on
       --build_otel=True
-      --build_enterprise=False
       --jobs=1600
     unittest_library_compile_flags: >-
       --linkstatic=False
@@ -794,7 +793,7 @@ buildvariants:
       - name: .multi_shard .common
       - name: .query_fuzzer
       - name: .read_write_concern
-      - name: replica_sets_large_txns_format_jscore_passthrough_gen
+      - name: replica_sets_large_txns_format_jscore_passthrough
       - name: .replica_sets !.multi_oplog !.uninitialized_fcv
       - name: .replica_sets .encrypt
       - name: .resharding_fuzzer

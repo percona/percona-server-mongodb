@@ -41,16 +41,18 @@
 #include "mongo/db/query/compiler/physical_model/query_solution/stage_types.h"
 #include "mongo/db/query/query_knobs_gen.h"
 #include "mongo/platform/atomic_word.h"
+#include "mongo/util/modules.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <deque>
-#include <functional>
 #include <memory>
 #include <string>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
+
+// TODO SERVER-115240. Rename and maybe move it to a separate plan scoring directory.
 namespace mongo::plan_ranker {
 
 // Constant used for tie breakers.

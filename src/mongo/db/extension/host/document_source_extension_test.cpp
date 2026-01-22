@@ -145,7 +145,7 @@ TEST_F(DocumentSourceExtensionTest, ExpandToExtAst) {
 
     // Expanded pipeline contains LiteParsedExpanded.
     auto* first =
-        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded.front().get());
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[0].get());
     ASSERT_TRUE(first != nullptr);
     ASSERT_EQ(first->getParseTimeName(), std::string(sdk::shared_test_stages::kTransformName));
 }
@@ -164,7 +164,7 @@ TEST_F(DocumentSourceExtensionTest, ExpandToExtParse) {
 
     // Expanded pipeline contains LiteParsedExpanded.
     auto* first =
-        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded.front().get());
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[0].get());
     ASSERT_TRUE(first != nullptr);
     ASSERT_EQ(first->getParseTimeName(), std::string(sdk::shared_test_stages::kTransformName));
 }
@@ -183,13 +183,13 @@ TEST_F(DocumentSourceExtensionTest, ExpandToHostParse) {
     ASSERT_EQUALS(expanded.size(), 1);
 
     // Expanded pipeline contains LiteParsedDocumentSource.
-    auto* lpds = dynamic_cast<LiteParsedDocumentSource*>(expanded.front().get());
+    auto* lpds = dynamic_cast<LiteParsedDocumentSource*>(expanded[0].get());
     ASSERT_TRUE(lpds != nullptr);
     ASSERT_EQ(lpds->getParseTimeName(), std::string(DocumentSourceMatch::kStageName));
 
     // It is not an instance of LiteParsedExpanded.
     auto* notExpanded =
-        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded.front().get());
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[0].get());
     ASSERT_TRUE(notExpanded == nullptr);
 }
 
@@ -204,24 +204,20 @@ TEST_F(DocumentSourceExtensionTest, ExpandToMixed) {
     const auto& expanded = lp.getExpandedPipeline();
     ASSERT_EQUALS(expanded.size(), 4);
 
-    const auto it0 = expanded.begin();
-    const auto it1 = std::next(expanded.begin(), 1);
-    const auto it2 = std::next(expanded.begin(), 2);
-    const auto it3 = std::next(expanded.begin(), 3);
-
-    auto* first = dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it0->get());
+    auto* first =
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[0].get());
     ASSERT_TRUE(first != nullptr);
 
-    auto* second = dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it1->get());
+    auto* second =
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[1].get());
     ASSERT_TRUE(second != nullptr);
 
-    auto* third = dynamic_cast<LiteParsedDocumentSource*>(it2->get());
+    // This one is NOT LiteParsedExpanded.
+    auto* third = expanded[2].get();
     ASSERT_TRUE(third != nullptr);
-    auto* notExpanded =
-        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it2->get());
-    ASSERT_TRUE(notExpanded == nullptr);
+    ASSERT_TRUE(dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(third) == nullptr);
 
-    auto* fourth = dynamic_cast<LiteParsedDocumentSource*>(it3->get());
+    auto* fourth = expanded[3].get();
     ASSERT_TRUE(fourth != nullptr);
 
     ASSERT_EQ(first->getParseTimeName(), std::string(sdk::shared_test_stages::kTransformName));
@@ -296,7 +292,7 @@ TEST_F(DocumentSourceExtensionTest, ExpandToHostAst) {
     ASSERT_EQUALS(expanded.size(), 1);
 
     // Expanded pipeline contains LiteParsedDocumentSource.
-    auto* lpds = dynamic_cast<LiteParsedDocumentSource*>(expanded.front().get());
+    auto* lpds = dynamic_cast<LiteParsedDocumentSource*>(expanded[0].get());
     ASSERT_TRUE(lpds != nullptr);
     ASSERT_EQ(lpds->getParseTimeName(),
               std::string(DocumentSourceInternalSearchIdLookUp::kStageName));
@@ -328,24 +324,23 @@ TEST_F(DocumentSourceExtensionTest, ExpandRecursesMultipleLevels) {
     const auto& expanded = lp.getExpandedPipeline();
     ASSERT_EQUALS(expanded.size(), 4);
 
-    const auto it0 = expanded.begin();
-    const auto it1 = std::next(expanded.begin(), 1);
-    const auto it2 = std::next(expanded.begin(), 2);
-    const auto it3 = std::next(expanded.begin(), 3);
-
-    auto* first = dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it0->get());
+    auto* first =
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[0].get());
     ASSERT_TRUE(first != nullptr);
     ASSERT_EQ(first->getParseTimeName(), std::string(sdk::shared_test_stages::kLeafAName));
 
-    auto* second = dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it1->get());
+    auto* second =
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[1].get());
     ASSERT_TRUE(second != nullptr);
     ASSERT_EQ(second->getParseTimeName(), std::string(sdk::shared_test_stages::kLeafBName));
 
-    auto* third = dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it2->get());
+    auto* third =
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[2].get());
     ASSERT_TRUE(third != nullptr);
     ASSERT_EQ(third->getParseTimeName(), std::string(sdk::shared_test_stages::kLeafCName));
 
-    auto* fourth = dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it3->get());
+    auto* fourth =
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[3].get());
     ASSERT_TRUE(fourth != nullptr);
     ASSERT_EQ(fourth->getParseTimeName(), std::string(sdk::shared_test_stages::kLeafDName));
 }
@@ -514,7 +509,7 @@ TEST_F(DocumentSourceExtensionTest, ExpandToMaxDepthSucceeds) {
     // Final expansion produces exactly one AST leaf.
     ASSERT_EQUALS(expanded.size(), 1);
     auto* leaf =
-        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded.front().get());
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[0].get());
     ASSERT_TRUE(leaf != nullptr);
     ASSERT_EQ(leaf->getParseTimeName(), std::string(kDepthLeafName));
 }
@@ -588,11 +583,10 @@ TEST_F(DocumentSourceExtensionTest, ExpandSameStageOnDifferentBranchesSucceeds) 
     const auto& expanded = lp.getExpandedPipeline();
     ASSERT_EQUALS(expanded.size(), 2);
 
-    auto it0 = expanded.begin();
-    auto it1 = std::next(expanded.begin(), 1);
-
-    auto* first = dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it0->get());
-    auto* second = dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(it1->get());
+    auto* first =
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[0].get());
+    auto* second =
+        dynamic_cast<host::DocumentSourceExtension::LiteParsedExpanded*>(expanded[1].get());
     ASSERT_TRUE(first != nullptr);
     ASSERT_TRUE(second != nullptr);
 
@@ -840,11 +834,14 @@ public:
     }
 };
 
-static constexpr std::string_view kSourceName = "$invalidMetadataSource";
-class InvalidMetadataExecAggStage : public sdk::ExecAggStageSource {
+static constexpr std::string_view kSourceName = "$sortKeySource";
+class ValidateSortKeyMetadataExecStage : public sdk::ExecAggStageSource {
 public:
-    InvalidMetadataExecAggStage(std::string_view name, BSONObj arguments)
+    ValidateSortKeyMetadataExecStage() : sdk::ExecAggStageSource(kSourceName) {}
+
+    ValidateSortKeyMetadataExecStage(std::string_view name, const mongo::BSONObj& arguments)
         : sdk::ExecAggStageSource(name) {}
+
     ExtensionGetNextResult getNext(const sdk::QueryExecutionContextHandle& execCtx,
                                    ::MongoExtensionExecAggStage* execStage) override {
         if (_currentIndex >= _documentsWithMetadata.size()) {
@@ -870,34 +867,43 @@ public:
     void reopen() override {}
     void close() override {}
 
+    static inline auto getInputResults() {
+        return _documentsWithMetadata;
+    }
+
     static inline std::unique_ptr<sdk::ExecAggStageSource> make() {
-        return std::make_unique<InvalidMetadataExecAggStage>(kSourceName, BSONObj());
+        return std::make_unique<ValidateSortKeyMetadataExecStage>();
     }
 
 private:
     static inline const std::vector<std::pair<BSONObj, BSONObj>> _documentsWithMetadata = {
-        {BSON("_id" << 1 << "field1" << "val1"), BSON("$customScore" << 5.0)},
-        {BSON("_id" << 2 << "field2" << "val2"), BSON("searchScore" << 1.5)},
-        {BSON("_id" << 3 << "field2" << "val3"), BSON("$" << 2.0)}};
+        {BSON("_id" << 1 << "field1" << "val1"),
+         BSON("$sortKey" << BSON("val1" << 5.0))},  // SingleElement $sortKey.
+        {BSON("_id" << 2 << "field2" << "val2"),
+         BSON("$sortKey" << BSON("val1" << 1.0 << "val2"
+                                        << 2.0))},  // MultiElement $sortKey passed in a obj type.
+        {BSON("_id" << 3 << "field3" << "val3"),
+         BSON("$sortKey" << BSON_ARRAY(3.0
+                                       << 4.0))},  // MultiElement $sortKey passed in a array type.
+        {BSON("_id" << 4 << "field4" << "val4"), BSON("$sortKey" << BSONObj())},  // Empty $sortKey.
+        {BSON("_id" << 4 << "field4" << "val4"),
+         BSON("$sortKey" << 1.0)}};  // $sortKey is not an obj.
     size_t _currentIndex = 0;
 };
-class InvalidMetadataLogicalAggStage : public sdk::TestLogicalStage<InvalidMetadataExecAggStage> {
-public:
-    InvalidMetadataLogicalAggStage()
-        : sdk::TestLogicalStage<InvalidMetadataExecAggStage>(kSourceName, BSONObj()) {}
-};
-class InvalidMetadataAstNode : public sdk::AggStageAstNode {
-public:
-    InvalidMetadataAstNode() : sdk::AggStageAstNode(kSourceName) {}
 
-    std::unique_ptr<sdk::LogicalAggStage> bind() const override {
-        return std::make_unique<InvalidMetadataLogicalAggStage>();
-    }
+DEFAULT_LOGICAL_STAGE(ValidateSortKeyMetadata);
+
+class ValidateSortKeyMetadataAstStage
+    : public sdk::TestAstNode<ValidateSortKeyMetadataLogicalStage> {
+public:
+    ValidateSortKeyMetadataAstStage()
+        : sdk::TestAstNode<ValidateSortKeyMetadataLogicalStage>(kSourceName, BSONObj()) {}
 
     static inline std::unique_ptr<sdk::AggStageAstNode> make() {
-        return std::make_unique<InvalidMetadataAstNode>();
+        return std::make_unique<ValidateSortKeyMetadataAstStage>();
     }
 };
+
 }  // namespace
 
 TEST_F(DocumentSourceExtensionTest, TransformAstNodeWithDefaultGetPropertiesSucceeds) {
@@ -1142,68 +1148,6 @@ DEATH_TEST_F(DocumentSourceExtensionTestDeathTest,
 
     [[maybe_unused]] auto privileges =
         lp.requiredPrivileges(/*isMongos*/ false, /*bypassDocumentValidation*/ false);
-}
-
-TEST_F(DocumentSourceExtensionTest, ShouldPropagateValidGetNextResultsForSourceExtensionStage) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(
-        sdk::shared_test_stages::FruitsAsDocumentsAstNode::make());
-    auto astHandle = AggStageAstNodeHandle(astNode);
-
-    auto optimizable =
-        host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(astHandle));
-
-    auto extensionStage = exec::agg::buildStage(optimizable);
-
-    // See sdk::shared_test_stages::SourceExecAggStage for the full test document suite.
-    {
-        auto next = extensionStage->getNext();
-        ASSERT_TRUE(next.isAdvanced());
-        MutableDocument md(Document{BSON("_id" << 1 << "apples" << "red")});
-        DocumentMetadataFields metadata;
-        metadata.setTextScore(5.0);
-        md.setMetadata(std::move(metadata));
-        ASSERT_DOCUMENT_EQ(next.releaseDocument(), md.freeze());
-    }
-    {
-        auto next = extensionStage->getNext();
-        ASSERT_TRUE(next.isAdvanced());
-        MutableDocument md(Document{BSON("_id" << 2 << "oranges" << 5)});
-        DocumentMetadataFields metadata;
-        metadata.setSearchScore(1.5);
-        md.setMetadata(std::move(metadata));
-        ASSERT_DOCUMENT_EQ(next.releaseDocument(), md.freeze());
-    }
-    {
-        auto next = extensionStage->getNext();
-        ASSERT_TRUE(next.isAdvanced());
-        MutableDocument md(Document{BSON("_id" << 3 << "bananas" << false)});
-        DocumentMetadataFields metadata;
-        metadata.setSearchScore(2.0);
-        md.setMetadata(std::move(metadata));
-        ASSERT_DOCUMENT_EQ(next.releaseDocument(), md.freeze());
-    }
-    {
-        auto next = extensionStage->getNext();
-        ASSERT_TRUE(next.isAdvanced());
-        MutableDocument md(Document{BSON("_id" << 4 << "tropical fruits"
-                                               << BSON_ARRAY("rambutan" << "durian" << "lychee"))});
-        DocumentMetadataFields metadata;
-        metadata.setTextScore(4.0);
-        md.setMetadata(std::move(metadata));
-        ASSERT_DOCUMENT_EQ(next.releaseDocument(), md.freeze());
-    }
-    {
-        auto next = extensionStage->getNext();
-        ASSERT_TRUE(next.isAdvanced());
-        MutableDocument md(Document{BSON("_id" << 5 << "pie" << 3.14159)});
-        DocumentMetadataFields metadata;
-        metadata.setSearchScore(5.0);
-        md.setMetadata(std::move(metadata));
-        ASSERT_DOCUMENT_EQ(next.releaseDocument(), md.freeze());
-    }
-    // Verify that the next result after all the documents have been exhausted has a status of EOF.
-    auto eof = extensionStage->getNext();
-    ASSERT_TRUE(eof.isEOF());
 }
 
 TEST_F(DocumentSourceExtensionTest, ShouldPropagateValidGetNextResultsForTransformExtensionStage) {
@@ -1522,23 +1466,6 @@ TEST_F(DocumentSourceExtensionTest,
     ASSERT_TRUE(secondTransformStage->getNext().isEOF());
 }
 
-TEST_F(DocumentSourceExtensionTest, GetNextResultsForSourceExtensionStageFailsForUnknownMetadata) {
-    auto astNode = new sdk::ExtensionAggStageAstNode(InvalidMetadataAstNode::make());
-    auto astHandle = AggStageAstNodeHandle(astNode);
-
-    auto optimizable =
-        host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(astHandle));
-
-    auto extensionStage = exec::agg::buildStage(optimizable);
-    // Verify that error code 17308 is thrown if metadata field is unknown.
-    ASSERT_THROWS_CODE(extensionStage->getNext(), DBException, 17308);
-    // Verify that error code 11390602 is thrown if metadata field doesn't begin with $.
-    ASSERT_THROWS_CODE(extensionStage->getNext(), DBException, 11390602);
-    // Verify that error code 11390602 is thrown if metadata field has only '$' (no name).
-    ASSERT_THROWS_CODE(extensionStage->getNext(), DBException, 11390602);
-    ASSERT_TRUE(extensionStage->getNext().isEOF());
-}
-
 TEST_F(DocumentSourceExtensionTest, ShouldPropagateSourceMetadata) {
     auto sourceAstNode = new sdk::ExtensionAggStageAstNode(
         sdk::shared_test_stages::FruitsAsDocumentsAstNode::make());
@@ -1548,23 +1475,27 @@ TEST_F(DocumentSourceExtensionTest, ShouldPropagateSourceMetadata) {
         host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(sourceAstHandle));
     auto sourceStage = exec::agg::buildStage(sourceOptimizable);
 
-    std::array<std::pair<const char*, double>, 5> expected = {
-        std::pair{"$textScore", 5.0},
-        std::pair{"$searchScore", 1.5},
-        std::pair{"$searchScore", 2.0},
-        std::pair{"$textScore", 4.0},
-        std::pair{"$searchScore", 5.0},
-    };
+    const auto& inputResults =
+        sdk::shared_test_stages::FruitsAsDocumentsExecAggStage::getInputResults();
+    std::vector<Document> expectedDocuments;
+    for (const auto& inputResult : inputResults) {
+        expectedDocuments.emplace_back(
+            Document::createDocumentWithMetadata(inputResult.first, inputResult.second));
+    }
 
     // Verify metadata is present on output documents.
-    for (size_t i = 0; i < 5; ++i) {
+    for (const auto& expectedDocument : expectedDocuments) {
         auto nextResult = sourceStage->getNext();
         ASSERT_TRUE(nextResult.isAdvanced());
-        BSONObj docWithMeta = nextResult.releaseDocument().toBsonWithMetaData();
 
-        auto [fieldName, expectedVal] = expected[i];
-        ASSERT_TRUE(docWithMeta.hasField(fieldName));
-        ASSERT_EQ(expectedVal, docWithMeta.getField(fieldName).numberDouble());
+        auto actualDoc = nextResult.releaseDocument();
+        const auto& actualMetadata = actualDoc.metadata();
+        const auto& expectedMetadata = expectedDocument.metadata();
+
+        // Verify documents match.
+        ASSERT_DOCUMENT_EQ(actualDoc, expectedDocument);
+        // Verify metadata match.
+        ASSERT_EQ(actualMetadata, expectedMetadata);
     }
     ASSERT_TRUE(sourceStage->getNext().isEOF());
 }
@@ -1587,25 +1518,62 @@ TEST_F(DocumentSourceExtensionTest, TransformReceivesSourceMetadata) {
 
     auto transformStage = exec::agg::buildStageAndStitch(transformOptimizable, sourceStage);
 
-    std::array<std::pair<const char*, double>, 5> expected = {
-        std::pair{"$textScore", 5.0},
-        std::pair{"$searchScore", 1.5},
-        std::pair{"$searchScore", 2.0},
-        std::pair{"$textScore", 4.0},
-        std::pair{"$searchScore", 5.0},
-    };
-
-    // Verify transform stage output has metadata.
-    for (size_t i = 0; i < 5; ++i) {
-        auto nextResult = transformStage->getNext();
-        ASSERT_TRUE(nextResult.isAdvanced());
-        BSONObj docWithMeta = nextResult.releaseDocument().toBsonWithMetaData();
-
-        auto [fieldName, expectedVal] = expected[i];
-        ASSERT_TRUE(docWithMeta.hasField(fieldName));
-        ASSERT_EQ(expectedVal, docWithMeta.getField(fieldName).numberDouble());
+    const auto& inputResults =
+        sdk::shared_test_stages::FruitsAsDocumentsExecAggStage::getInputResults();
+    std::vector<Document> expectedDocuments;
+    for (const auto& inputResult : inputResults) {
+        const BSONObj& transformedDocBson =
+            BSON("existingDoc" << inputResult.first << "addedFields" << inputResult.first);
+        expectedDocuments.emplace_back(
+            Document::createDocumentWithMetadata(transformedDocBson, inputResult.second));
     }
 
+    // Verify transform stage output has metadata.
+    for (const auto& expectedDocument : expectedDocuments) {
+        auto nextResult = transformStage->getNext();
+        ASSERT_TRUE(nextResult.isAdvanced());
+
+        auto actualDoc = nextResult.releaseDocument();
+        const auto& actualMetadata = actualDoc.metadata();
+        const auto& expectedMetadata = expectedDocument.metadata();
+
+        // Verify documents match.
+        ASSERT_DOCUMENT_EQ(actualDoc, expectedDocument);
+        // Verify metadata match.
+        ASSERT_EQ(actualMetadata, expectedMetadata);
+    }
     ASSERT_TRUE(transformStage->getNext().isEOF());
+}
+
+TEST_F(DocumentSourceExtensionTest, ShouldPropagateSortKeyMetadata) {
+    auto sourceAstNode = new sdk::ExtensionAggStageAstNode(ValidateSortKeyMetadataAstStage::make());
+    auto sourceAstHandle = AggStageAstNodeHandle(sourceAstNode);
+
+    auto sourceOptimizable =
+        host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(sourceAstHandle));
+    auto sourceStage = exec::agg::buildStage(sourceOptimizable);
+    const auto& inputResults = ValidateSortKeyMetadataExecStage::getInputResults();
+
+    // Verify $sortKey is present on first three documents.
+    for (auto index = 0; index < 3; ++index) {
+        auto next = sourceStage->getNext();
+        ASSERT_TRUE(next.isAdvanced());
+        // Take the returned Document by value.
+        const auto& actualDocument = next.releaseDocument();
+        const auto& expectedDocument = Document::createDocumentWithMetadata(
+            inputResults[index].first, inputResults[index].second);
+        ASSERT_DOCUMENT_EQ(actualDocument, expectedDocument);
+        ASSERT_EQ(actualDocument.metadata(), expectedDocument.metadata());
+    }
+    // Verify that an error is thrown if the sort key value is empty.
+    {
+        ASSERT_THROWS_CODE(sourceStage->getNext(), DBException, 31282);
+    }
+    // Verify an error is thrown when the sort key has an invalid type (neither an object nor an
+    // array).
+    {
+        ASSERT_THROWS_CODE(sourceStage->getNext(), DBException, 11503701);
+    }
+    ASSERT_TRUE(sourceStage->getNext().isEOF());
 }
 }  // namespace mongo::extension

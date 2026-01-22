@@ -233,7 +233,7 @@ void finishCurOp(OperationContext* opCtx, CurOp* curOp) {
     try {
         curOp->done();
         auto executionTimeMicros = curOp->elapsedTimeExcludingPauses();
-        curOp->debug().additiveMetrics.executionTime = executionTimeMicros;
+        curOp->debug().getAdditiveMetrics().executionTime = executionTimeMicros;
 
         recordCurOpMetrics(opCtx);
         Top::getDecoration(opCtx).record(opCtx,
@@ -689,7 +689,7 @@ bool insertBatchAndHandleErrors(OperationContext* opCtx,
                 if (source != OperationSource::kTimeseriesInsert) {
                     ServerWriteConcernMetrics::get(opCtx)->recordWriteConcernForInserts(
                         opCtx->getWriteConcern(), batch.size());
-                    curOp.debug().additiveMetrics.incrementNinserted(batch.size());
+                    curOp.debug().getAdditiveMetrics().incrementNinserted(batch.size());
                 }
                 return true;
             }
@@ -724,7 +724,7 @@ bool insertBatchAndHandleErrors(OperationContext* opCtx,
                     result.setN(1);
                     out->results.emplace_back(std::move(result));
                     if (source != OperationSource::kTimeseriesInsert) {
-                        curOp.debug().additiveMetrics.incrementNinserted(1);
+                        curOp.debug().getAdditiveMetrics().incrementNinserted(1);
                     }
                 } catch (...) {
                     // Release the lock following any error if we are not in multi-statement
@@ -902,7 +902,7 @@ UpdateResult performUpdate(OperationContext* opCtx,
 
     if (updateRequest->shouldReturnAnyDocs()) {
         docFound = exec->executeFindAndModify();
-        curOp->debug().additiveMetrics.nreturned = docFound ? 1 : 0;
+        curOp->debug().getAdditiveMetrics().nreturned = docFound ? 1 : 0;
     } else {
         // The 'UpdateResult' object will be obtained later, so discard the return value.
         (void)exec->executeUpdate();
@@ -1036,7 +1036,7 @@ long long performDelete(OperationContext* opCtx,
 
     if (deleteRequest->getReturnDeleted()) {
         docFound = exec->executeFindAndModify();
-        curOp->debug().additiveMetrics.nreturned = docFound ? 1 : 0;
+        curOp->debug().getAdditiveMetrics().nreturned = docFound ? 1 : 0;
     } else {
         // The number of deleted documents will be obtained from the plan executor later, so discard
         // the return value.
@@ -1059,7 +1059,7 @@ long long performDelete(OperationContext* opCtx,
 
     // Fill out OpDebug with the number of deleted docs.
     auto nDeleted = exec->getDeleteResult();
-    curOp->debug().additiveMetrics.ndeleted = nDeleted;
+    curOp->debug().getAdditiveMetrics().ndeleted = nDeleted;
 
     if (curOp->shouldDBProfile()) {
         auto&& explainer = exec->getPlanExplainer();
@@ -1233,7 +1233,7 @@ WriteResult performInserts(
         curOp.setLogicalOp(lk, LogicalOp::opInsert);
         curOp.ensureStarted();
         // Initialize 'ninserted' for the operation if is not yet.
-        curOp.debug().additiveMetrics.incrementNinserted(0);
+        curOp.debug().getAdditiveMetrics().incrementNinserted(0);
     }
 
     uassertStatusOK(userAllowedWriteNS(opCtx, actualNs));
@@ -1417,7 +1417,7 @@ static SingleWriteResult performSingleUpdateOpNoRetry(OperationContext* opCtx,
     // Collect query stats for the update operation if a QueryStats key was generated during
     // registration. This ensures that we minimize the overhead of query stats collection for
     // updates even if it does not have query stats enabled.
-    auto key = std::move(curOp.debug().queryStatsInfo.key);
+    auto key = std::move(curOp.debug().getQueryStatsInfo().key);
     if (key) {
         curOp.setEndOfOpMetrics(0 /* no documents returned */);
         collectQueryStatsMongod(opCtx, canonicalUpdate.expCtx(), std::move(key));
@@ -1439,13 +1439,6 @@ void registerRequestForQueryStats(OperationContext* opCtx,
         return;
     }
 
-    // TODO(SERVER-111930): Support recording query stats for updates with simple ID query
-    // Skip if the parse query is unavailable. This could happen if the query is a simple Id query:
-    // an exact-match query on _id.
-    if (!parsedUpdate.hasParsedFindCommand()) {
-        return;
-    }
-
     // Skip registering the request with encrypted fields as indicated by the inclusion of
     // encryptionInformation. It is important to do this before canonicalizing and optimizing the
     // query, each of which would alter the query shape.
@@ -1453,19 +1446,28 @@ void registerRequestForQueryStats(OperationContext* opCtx,
         return;
     }
 
-    // Skip unsupported update types.
-    // TODO(SERVER-110344) Support modifier updates.
-    if (parsedUpdate.getRequest()->getUpdateModification().type() !=
-            write_ops::UpdateModification::Type::kReplacement &&
-        parsedUpdate.getRequest()->getUpdateModification().type() !=
-            write_ops::UpdateModification::Type::kPipeline) {
-        return;
+    // Skip unsupported update types, such as delta and transform.
+    auto modType = parsedUpdate.getRequest()->getUpdateModification().type();
+    switch (modType) {
+        case write_ops::UpdateModification::Type::kReplacement:
+        case write_ops::UpdateModification::Type::kModifier:
+        case write_ops::UpdateModification::Type::kPipeline:
+            break;
+        default:
+            return;
+    }
+
+    // TODO (SERVER-113907): Implement query shape for update with array filters.
+    if (modType == write_ops::UpdateModification::Type::kModifier) {
+        // Skip modifier updates that contains array filters.
+        if (!parsedUpdate.getRequest()->getArrayFilters().empty()) {
+            return;
+        }
     }
 
     // TODO(SERVER-113688): Support recording query stats for pipeline updates containing
     // $_internalApplyOplogUpdate.
-    if (parsedUpdate.getRequest()->getUpdateModification().type() ==
-        write_ops::UpdateModification::Type::kPipeline) {
+    if (modType == write_ops::UpdateModification::Type::kPipeline) {
         if (parsedUpdate.getDriver()
                 ->getUpdateExecutor()
                 ->getCheckExistenceForDiffInsertOperations()) {
@@ -1496,8 +1498,6 @@ void registerRequestForQueryStats(OperationContext* opCtx,
                                                         std::move(deferredShape->getValue()),
                                                         collection.getCollectionType());
     });
-
-    // TODO(SERVER-110348) Support collecting data-bearing node metrics here.
 }
 
 /**
@@ -1936,7 +1936,7 @@ WriteResult performUpdates(
             curOp.emplace(cmd);
             curOp->push(opCtx);
             if (singleOp.getIncludeQueryStatsMetrics()) {
-                curOp->debug().queryStatsInfo.metricsRequested = true;
+                curOp->debug().getQueryStatsInfo().metricsRequested = true;
             }
         }
         ON_BLOCK_EXIT([&] {
@@ -1944,7 +1944,8 @@ WriteResult performUpdates(
                 finishCurOp(opCtx, &*curOp);
                 // The last SingleWriteResult will be for the operation we just executed. If it
                 // succeeded, and metrics were requested, set them now.
-                if (curOp->debug().queryStatsInfo.metricsRequested && out.results.back().isOK()) {
+                if (curOp->debug().getQueryStatsInfo().metricsRequested &&
+                    out.results.back().isOK()) {
                     out.results.back().getValue().setQueryStatsMetrics(
                         curOp->debug().getCursorMetrics());
                 }
@@ -2153,7 +2154,7 @@ static SingleWriteResult performSingleDeleteOp(
     }
 
     auto nDeleted = exec->executeDelete();
-    curOp.debug().additiveMetrics.ndeleted = nDeleted;
+    curOp.debug().getAdditiveMetrics().ndeleted = nDeleted;
 
     PlanSummaryStats summary;
     auto&& explainer = exec->getPlanExplainer();
@@ -2312,9 +2313,10 @@ WriteResult performDeletes(
 
 void recordUpdateResultInOpDebug(const UpdateResult& updateResult, OpDebug* opDebug) {
     tassert(11052015, "Expected non-null OpDebug pointer", opDebug);
-    opDebug->additiveMetrics.nMatched = updateResult.numMatched;
-    opDebug->additiveMetrics.nModified = updateResult.numDocsModified;
-    opDebug->additiveMetrics.nUpserted = static_cast<long long>(!updateResult.upsertedId.isEmpty());
+    opDebug->getAdditiveMetrics().nMatched = updateResult.numMatched;
+    opDebug->getAdditiveMetrics().nModified = updateResult.numDocsModified;
+    opDebug->getAdditiveMetrics().nUpserted =
+        static_cast<long long>(!updateResult.upsertedId.isEmpty());
 }
 
 namespace {

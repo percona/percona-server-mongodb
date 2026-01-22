@@ -34,18 +34,12 @@
 #include "mongo/db/query/compiler/optimizer/join/plan_enumerator_helpers.h"
 #include "mongo/logv2/log.h"
 
-#include <sstream>
-
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo::join_ordering {
 namespace {
 static constexpr size_t kBaseLevel = 0;
 }
-
-PlanEnumeratorContext::PlanEnumeratorContext(const JoinGraph& joinGraph,
-                                             const QuerySolutionMap& map)
-    : _joinGraph(joinGraph), _cqsToQsns(map) {}
 
 const std::vector<JoinSubset>& PlanEnumeratorContext::getSubsets(int level) {
     return _joinSubsets[level];
@@ -56,9 +50,10 @@ bool PlanEnumeratorContext::canPlanBeEnumerated(PlanTreeShape type,
                                                 const JoinSubset& left,
                                                 const JoinSubset& right,
                                                 const JoinSubset& subset) const {
-    if (method == JoinMethod::NLJ && !right.isBaseCollectionAccess()) {
-        // NLJ plans perform poorly when the right hand side is not a collection access- don't
-        // enumerate this plan.
+    if ((method == JoinMethod::NLJ || method == JoinMethod::INLJ) &&
+        !right.isBaseCollectionAccess()) {
+        // NLJ plans perform poorly when the right hand side is not a collection access, while INLJ
+        // requires the right side to be a base table access. Don't enumerate this plan.
         return false;
     }
 
@@ -107,8 +102,8 @@ bool PlanEnumeratorContext::canPlanBeEnumerated(PlanTreeShape type,
                  */
                 const auto& leftJoin = _registry.getAs<JoiningNode>(left.bestPlan());
                 return _registry.isOfType<JoiningNode>(leftJoin.right) ||
-                    (_registry.isOfType<BaseNode>(leftJoin.right) &&
-                     _registry.isOfType<BaseNode>(leftJoin.left));
+                    (!_registry.isOfType<JoiningNode>(leftJoin.right) &&
+                     !_registry.isOfType<JoiningNode>(leftJoin.left));
 
             } else if (!right.isBaseCollectionAccess()) {
                 /**
@@ -130,8 +125,8 @@ bool PlanEnumeratorContext::canPlanBeEnumerated(PlanTreeShape type,
                  */
                 const auto& rightJoin = _registry.getAs<JoiningNode>(right.bestPlan());
                 return _registry.isOfType<JoiningNode>(rightJoin.left) ||
-                    (_registry.isOfType<BaseNode>(rightJoin.right) &&
-                     _registry.isOfType<BaseNode>(rightJoin.left));
+                    (!_registry.isOfType<JoiningNode>(rightJoin.right) &&
+                     !_registry.isOfType<JoiningNode>(rightJoin.left));
             }
             break;
 
@@ -151,15 +146,33 @@ void PlanEnumeratorContext::addJoinPlan(PlanTreeShape type,
     if (!canPlanBeEnumerated(type, method, left, right, subset)) {
         return;
     }
-    // TODO SERVER-113059: Rudimentary cost metric/tracking.
-    subset.plans.push_back(
-        _registry.registerJoinNode(subset, method, left.bestPlan(), right.bestPlan()));
+
+    if (method == JoinMethod::INLJ) {
+        // TODO SERVER-115093: Change this to an equality tassert once we break cycles.
+        tassert(11371701, "Expected at least one edge", edges.size() >= 1);
+        auto edge = edges[0];
+        auto ie = bestIndexSatisfyingJoinPredicates(
+            _ctx, (NodeId)*begin(right.subset), _ctx.joinGraph.getEdge(edge));
+        if (ie) {
+            const auto nodeId = right.getNodeId();
+            const auto& nss = _ctx.joinGraph.accessPathAt(nodeId)->nss();
+            auto rhs = _registry.registerINLJRHSNode(nodeId, ie, nss);
+            subset.plans.push_back(
+                _registry.registerJoinNode(subset, method, left.bestPlan(), rhs));
+        } else {
+            return;
+        }
+    } else {
+        // TODO SERVER-113059: Rudimentary cost metric/tracking.
+        subset.plans.push_back(
+            _registry.registerJoinNode(subset, method, left.bestPlan(), right.bestPlan()));
+    }
 
     LOGV2_DEBUG(11336912,
                 5,
                 "Enumerating plan for join subset",
                 "plan"_attr =
-                    _registry.joinPlanNodeToBSON(subset.plans.back(), _joinGraph.numNodes()));
+                    _registry.joinPlanNodeToBSON(subset.plans.back(), _ctx.joinGraph.numNodes()));
 }
 
 void PlanEnumeratorContext::enumerateJoinPlans(PlanTreeShape type,
@@ -178,18 +191,18 @@ void PlanEnumeratorContext::enumerateJoinPlans(PlanTreeShape type,
             "Expected left and right subsets to be disjoint",
             (left.subset & right.subset).none());
 
-    auto joinEdges = _joinGraph.getJoinEdges(left.subset, right.subset);
+    auto joinEdges = _ctx.joinGraph.getJoinEdges(left.subset, right.subset);
     if (joinEdges.empty()) {
         return;
     }
 
-    // TODO SERVER-113717: enumerate INLJ plans.
+    addJoinPlan(type, JoinMethod::INLJ, left, right, joinEdges, cur);
     addJoinPlan(type, JoinMethod::HJ, left, right, joinEdges, cur);
     addJoinPlan(type, JoinMethod::NLJ, left, right, joinEdges, cur);
 }
 
 void PlanEnumeratorContext::enumerateJoinSubsets(PlanTreeShape type) {
-    int numNodes = _joinGraph.numNodes();
+    int numNodes = _ctx.joinGraph.numNodes();
     // Use CombinationSequence to efficiently calculate the final size of each level of the dynamic
     // programming table.
     CombinationSequence cs(numNodes);
@@ -199,16 +212,16 @@ void PlanEnumeratorContext::enumerateJoinSubsets(PlanTreeShape type) {
 
     // Initialize base level of joinSubsets, representing single collections (no joins).
     for (int i = 0; i < numNodes; ++i) {
-        const auto* cq = _joinGraph.getNode((NodeId)i).accessPath.get();
-        const auto* qsn = _cqsToQsns.at(cq).get();
+        const auto* cq = _ctx.joinGraph.getNode((NodeId)i).accessPath.get();
+        const auto* qsn = _ctx.cbrCqQsns.at(cq).get();
         _joinSubsets[kBaseLevel].push_back(JoinSubset(NodeSet{}.set(i)));
         _joinSubsets[kBaseLevel].back().plans = {
-            _registry.registerBaseNode(_joinSubsets[kBaseLevel].back(), qsn, cq->nss())};
+            _registry.registerBaseNode((NodeId)i, qsn, cq->nss())};
     }
 
     // Initialize the rest of the joinSubsets.
     for (int level = 1; level < numNodes; ++level) {
-        const auto& joinSubsetsPrevLevel = _joinSubsets[level - 1];
+        auto& joinSubsetsPrevLevel = _joinSubsets[level - 1];
         auto& joinSubsetsCurrLevel = _joinSubsets[level];
         // Preallocate entries for all subsets in the current level.
         joinSubsetsCurrLevel.reserve(cs.next());
@@ -259,7 +272,7 @@ void PlanEnumeratorContext::enumerateJoinSubsets(PlanTreeShape type) {
 }
 
 std::string PlanEnumeratorContext::toString() const {
-    const auto numNodes = _joinGraph.numNodes();
+    const auto numNodes = _ctx.joinGraph.numNodes();
     std::stringstream ss;
     for (size_t level = 0; level < _joinSubsets.size(); level++) {
         ss << "Level " << level << ":\n";

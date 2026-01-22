@@ -91,6 +91,11 @@ public:
     std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> makeExecutor(
         std::unique_ptr<CanonicalQuery> canonicalQuery) final;
 
+    /**
+     * Extracts the WorkingSet used by this planner.
+     */
+    std::unique_ptr<WorkingSet> extractWorkingSet();
+
 protected:
     std::unique_ptr<PlanStage> buildExecutableTree(const QuerySolution& qs);
 
@@ -192,6 +197,11 @@ public:
      * Returns the specific stats from the multi-planner stage.
      */
     const MultiPlanStats* getSpecificStats() const;
+
+    /**
+     * Picks the best plan among the candidate plans after the trial period has been run.
+     */
+    Status pickBestPlan() const;
 
 private:
     Status doPlan(PlanYieldPolicy* planYieldPolicy) override;

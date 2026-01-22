@@ -100,21 +100,16 @@ GetNextResult ExtensionStage::doGetNext() {
             tassert(11357602,
                     "No result BSONObj returned even though the result is in the advanced state.",
                     _lastGetNextResult.resultDocument.has_value());
-            MutableDocument mutableDoc(
-                Document{_lastGetNextResult.resultDocument->getUnownedBSONObj()});
-            if (_lastGetNextResult.resultMetadata.has_value()) {
-                for (const auto& elem : _lastGetNextResult.resultMetadata->getUnownedBSONObj()) {
-                    auto const fieldName = elem.fieldNameStringData();
-                    uassert(11390602,
-                            str::stream() << "Metadata field must begin with '$' and contain a "
-                                             "field name after it: "
-                                          << fieldName,
-                            fieldName.starts_with('$') && fieldName.size() > 1);
-                    auto metaType = DocumentMetadataFields::parseMetaType(fieldName.substr(1));
-                    mutableDoc.metadata().setMetaFieldFromValue(metaType, Value(elem));
+
+            auto nextDocument = [&]() {
+                if (_lastGetNextResult.resultMetadata.has_value()) {
+                    return Document::createDocumentWithMetadata(
+                        _lastGetNextResult.resultDocument->getUnownedBSONObj(),
+                        _lastGetNextResult.resultMetadata->getUnownedBSONObj());
                 }
-            }
-            return GetNextResult(mutableDoc.freeze());
+                return Document{_lastGetNextResult.resultDocument->getUnownedBSONObj()};
+            }();
+            return GetNextResult(std::move(nextDocument));
         }
         case GetNextCode::kPauseExecution:
             return GetNextResult::makePauseExecution();

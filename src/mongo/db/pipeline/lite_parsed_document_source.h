@@ -72,6 +72,10 @@ struct LiteParserOptions {
     bool allowGenericForeignDbLookup = false;
 };
 
+namespace exec::agg {
+class ListMqlEntitiesStage;
+}  // namespace exec::agg
+
 /**
  * A lightly parsed version of a DocumentSource. It is not executable and not guaranteed to return a
  * parse error when encountering an invalid specification. Instead, the purpose of this class is to
@@ -103,7 +107,7 @@ public:
      */
     class LiteParserRegistration {
     public:
-        const LiteParserInfo& getParser() const;
+        const LiteParserInfo& getParserInfo() const;
 
         void setPrimaryParser(LiteParserInfo&& lpi);
 
@@ -134,6 +138,8 @@ public:
         // Whether or not the fallback parser has been registered or not.
         bool _fallbackIsSet = false;
     };
+
+    using ParserMap = StringMap<LiteParsedDocumentSource::LiteParserRegistration>;
 
     /**
      * Constructs a LiteParsedDocumentSource from the user-supplied BSON.
@@ -181,10 +187,20 @@ public:
                              "enable the corresponding feature flag");
     }
 
-    /**
-     * Returns the 'LiteParserInfo' for the specified stage name.
-     */
-    static const LiteParserInfo& getInfo(const std::string& stageName);
+    void setApiStrict(AllowedWithApiStrict& apiStrict) {
+        _apiStrict = apiStrict;
+    }
+
+    void setClientType(AllowedWithClientType& clientType) {
+        _clientType = clientType;
+    }
+
+    const AllowedWithApiStrict& getApiStrict() {
+        return _apiStrict;
+    };
+    const AllowedWithClientType& getClientType() {
+        return _clientType;
+    };
 
     /**
      * Constructs a LiteParsedDocumentSource from the user-supplied BSON, or throws a
@@ -391,15 +407,40 @@ protected:
 
 private:
     /**
-     * Give access to 'parserMap' so we can remove a registered parser. unregisterParser_forTest is
-     * only meant to be used in the context of unit tests. This is because the parserMap is not
-     * thread safe, so modifying it at runtime is unsafe.
+     * Give access to 'parserMap' so we can remove a registered parser with
+     * 'unregisterParser_forTest'.
      */
     friend class LiteParserRegistrationTest;
     friend class LiteParsedDocumentSourceParseTest;
+
+    /**
+     * Give access to 'getParserMap()' for the implementation of $listMqlEntities but hiding
+     * it from all other stages.
+     */
+    friend class exec::agg::ListMqlEntitiesStage;
+
+    /**
+     * 'unregisterParser_forTest' is only meant to be used in the context of unit tests. This is
+     * because the 'parserMap' is not thread safe, so modifying it at runtime is unsafe.
+     */
     static void unregisterParser_forTest(const std::string& name);
+    /**
+     * 'getParserInfo_forTest' is only meant to be used in the context of unit tests as well,
+     * since the 'FirstFallbackParserTakesPrecedence*' tests do assertions with the 'apiStrict'
+     * and 'clientType' members directly from the 'LiteParserRegistration' in the 'parserMap'.
+     * The normal getters rely on a constructed instance of a 'LiteParsedDocumentSource' which
+     * doesn't exist in the tests.
+     */
+    static const LiteParserInfo& getParserInfo_forTest(const std::string& name);
+
+    /**
+     * Returns the map of registered lite parsers.
+     */
+    static const ParserMap& getParserMap();
 
     std::string _parseTimeName;
+    AllowedWithApiStrict _apiStrict;
+    AllowedWithClientType _clientType;
 };
 
 /**

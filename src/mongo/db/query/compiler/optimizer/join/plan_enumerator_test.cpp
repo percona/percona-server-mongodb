@@ -33,7 +33,6 @@
 #include "mongo/db/query/compiler/optimizer/join/unit_test_helpers.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/golden_test.h"
-#include "mongo/unittest/golden_test_base.h"
 #include "mongo/unittest/unittest.h"
 
 namespace mongo::join_ordering {
@@ -86,35 +85,41 @@ DEATH_TEST(PlanEnumeratorHelpersDeathTest, TooManyInvocationsOfCombinationSequen
 
 class JoinPlanEnumeratorTest : public JoinOrderingTestFixture {
 public:
-    JoinPlanEnumeratorTest() : config{"src/mongo/db/test_output/query/join"} {}
-
-    void initGraph(size_t numNodes) {
+    void initGraph(size_t numNodes, bool withIndexes = false) {
         for (size_t i = 0; i < numNodes; i++) {
             auto nss =
                 NamespaceString::createNamespaceString_forTest("test", str::stream() << "nss" << i);
             std::string fieldName = str::stream() << "a" << i;
             auto filterBSON = BSON(fieldName << BSON("$gt" << 0));
             auto cq = makeCanonicalQuery(nss, filterBSON);
-            solnsPerQuery.insert(
+            jCtx.cbrCqQsns.insert(
                 {cq.get(), makeCollScanPlan(nss, cq->getPrimaryMatchExpression()->clone())});
             ASSERT_TRUE(graph.addNode(nss, std::move(cq), boost::none).has_value());
+
+            if (withIndexes) {
+                jCtx.perCollIdxs.emplace(
+                    nss, makeIndexCatalogEntries({BSON(fieldName << (i % 2 ? 1 : -1))}));
+            }
+
+            resolvedPaths.emplace_back(ResolvedPath{(NodeId)i, FieldPath(fieldName)});
         }
     }
 
     void testLargeSubset(unittest::GoldenTestContext* goldenCtx,
                          PlanTreeShape shape,
-                         size_t numNodes) {
-        initGraph(numNodes);
+                         size_t numNodes,
+                         bool withIndexes = false) {
+        initGraph(numNodes, withIndexes);
 
         for (size_t i = 1; i < numNodes; ++i) {
             // Make the graph fully connected in order to ensure we generate as many plans as
             // possible.
             for (size_t j = 0; j < i; ++j) {
-                ASSERT_TRUE(graph.addSimpleEqualityEdge((NodeId)j, (NodeId)i, 0, 1).has_value());
+                ASSERT_TRUE(graph.addSimpleEqualityEdge((NodeId)j, (NodeId)i, j, i).has_value());
             }
         }
 
-        PlanEnumeratorContext ctx{graph, solnsPerQuery};
+        PlanEnumeratorContext ctx{jCtx};
         ctx.enumerateJoinSubsets(shape);
         ASSERT_EQ(numNodes, ctx.getSubsets(0).size());
         for (size_t k = 1; k < numNodes; ++k) {
@@ -132,20 +137,16 @@ public:
             goldenCtx->outStream() << ctx.toString() << std::endl;
         }
     }
-
-    unittest::GoldenTestConfig config;
-    QuerySolutionMap solnsPerQuery;
-    JoinGraph graph;
 };
 
 TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsTwo) {
-    unittest::GoldenTestContext goldenCtx(&config);
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
 
     initGraph(2);
     graph.addSimpleEqualityEdge((NodeId)0, (NodeId)1, 0, 1);
 
     {
-        PlanEnumeratorContext ctx{graph, solnsPerQuery};
+        PlanEnumeratorContext ctx{jCtx};
         ctx.enumerateJoinSubsets(PlanTreeShape::LEFT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -162,7 +163,7 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsTwo) {
     }
 
     {
-        PlanEnumeratorContext ctx{graph, solnsPerQuery};
+        PlanEnumeratorContext ctx{jCtx};
         ctx.enumerateJoinSubsets(PlanTreeShape::RIGHT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -180,7 +181,7 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsTwo) {
 }
 
 TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThree) {
-    unittest::GoldenTestContext goldenCtx(&config);
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
 
     initGraph(3);
     graph.addSimpleEqualityEdge(NodeId(0), NodeId(1), 0, 1);
@@ -188,7 +189,7 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThree) {
     graph.addSimpleEqualityEdge(NodeId(1), NodeId(2), 1, 2);
 
     {
-        PlanEnumeratorContext ctx{graph, solnsPerQuery};
+        PlanEnumeratorContext ctx{jCtx};
         ctx.enumerateJoinSubsets(PlanTreeShape::LEFT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -212,7 +213,7 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThree) {
     }
 
     {
-        PlanEnumeratorContext ctx{graph, solnsPerQuery};
+        PlanEnumeratorContext ctx{jCtx};
         ctx.enumerateJoinSubsets(PlanTreeShape::RIGHT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -237,14 +238,14 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThree) {
 }
 
 TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThreeNoCycle) {
-    unittest::GoldenTestContext goldenCtx(&config);
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
 
     initGraph(3);
     graph.addSimpleEqualityEdge(NodeId(0), NodeId(1), 0, 1);
     graph.addSimpleEqualityEdge(NodeId(0), NodeId(2), 0, 2);
 
     {
-        PlanEnumeratorContext ctx{graph, solnsPerQuery};
+        PlanEnumeratorContext ctx{jCtx};
         ctx.enumerateJoinSubsets(PlanTreeShape::LEFT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -268,7 +269,7 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThreeNoCycle) {
     }
 
     {
-        PlanEnumeratorContext ctx{graph, solnsPerQuery};
+        PlanEnumeratorContext ctx{jCtx};
         ctx.enumerateJoinSubsets(PlanTreeShape::RIGHT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -293,149 +294,37 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThreeNoCycle) {
 }
 
 TEST_F(JoinPlanEnumeratorTest, LeftDeep8Nodes) {
-    unittest::GoldenTestContext goldenCtx(&config);
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
     testLargeSubset(&goldenCtx, PlanTreeShape::LEFT_DEEP, 8);
 }
 
+TEST_F(JoinPlanEnumeratorTest, LeftDeep8NodesINLJ) {
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
+    testLargeSubset(&goldenCtx, PlanTreeShape::LEFT_DEEP, 8, true /* withIndexes */);
+}
+
 TEST_F(JoinPlanEnumeratorTest, RightDeep8Nodes) {
-    unittest::GoldenTestContext goldenCtx(&config);
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
     testLargeSubset(&goldenCtx, PlanTreeShape::RIGHT_DEEP, 8);
 }
 
+TEST_F(JoinPlanEnumeratorTest, RightDeep8NodesINLJ) {
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
+    testLargeSubset(&goldenCtx, PlanTreeShape::RIGHT_DEEP, 8, true /* withIndexes */);
+}
+
 TEST_F(JoinPlanEnumeratorTest, ZigZag8Nodes) {
-    unittest::GoldenTestContext goldenCtx(&config);
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
     testLargeSubset(&goldenCtx, PlanTreeShape::ZIG_ZAG, 8);
+}
+
+TEST_F(JoinPlanEnumeratorTest, ZigZag8NodesINLJ) {
+    unittest::GoldenTestContext goldenCtx(&goldenTestConfig);
+    testLargeSubset(&goldenCtx, PlanTreeShape::ZIG_ZAG, 8, true /* withIndexes */);
 }
 
 TEST_F(JoinPlanEnumeratorTest, InitialzeLargeSubsets) {
     testLargeSubset(nullptr /* No golden test here. */, PlanTreeShape::LEFT_DEEP, 15);
-}
-
-using JoinPredicateEstimatorFixture = JoinOrderingTestFixture;
-using namespace cost_based_ranker;
-
-// Join graph: A -- B with edge A.foo = B.foo and 'A' being the main collection
-// The cardinality estimate for 'A' is smaller, so we assert that we use NDV(A.foo) for the join
-// predicate selectivity estimate.
-TEST_F(JoinPredicateEstimatorFixture, NDVSmallerCollection) {
-    JoinGraph graph;
-    auto aNss = NamespaceString::createNamespaceString_forTest("a");
-    auto bNss = NamespaceString::createNamespaceString_forTest("b");
-    auto aCQ = makeCanonicalQuery(aNss);
-    auto bCQ = makeCanonicalQuery(bNss);
-    auto aNodeId = *graph.addNode(aNss, std::move(aCQ), boost::none);
-    auto bNodeId = *graph.addNode(bNss, std::move(bCQ), FieldPath{"b"});
-
-    std::vector<ResolvedPath> paths;
-    paths.push_back(ResolvedPath{.nodeId = aNodeId, .fieldName = "foo"});
-    paths.push_back(ResolvedPath{.nodeId = bNodeId, .fieldName = "foo"});
-
-    graph.addSimpleEqualityEdge(aNodeId, bNodeId, 0, 1);
-
-    SamplingEstimatorMap samplingEstimators;
-    auto aSamplingEstimator = std::make_unique<FakeNdvEstimator>();
-    aSamplingEstimator->addFakeNDVEstimate(
-        {FieldPath("foo")}, CardinalityEstimate{CardinalityType{5}, EstimationSource::Sampling});
-    samplingEstimators[aNss] = std::move(aSamplingEstimator);
-    samplingEstimators[bNss] = std::make_unique<FakeNdvEstimator>();
-
-    BaseTableCardinalityMap tableCards;
-    tableCards.emplace(aNss, CardinalityEstimate{CardinalityType{10}, EstimationSource::Sampling});
-    tableCards.emplace(bNss, CardinalityEstimate{CardinalityType{20}, EstimationSource::Sampling});
-
-    JoinPredicateEstimator predEstimator{graph, paths, samplingEstimators, tableCards};
-
-    auto selEst = predEstimator.joinPredicateSel(graph.getEdge(0));
-    // The selectivity estimate comes from 1 / NDV(A.foo) = 1 / 5 = 0.2
-    auto expectedSel = SelectivityEstimate{SelectivityType{0.2}, EstimationSource::Sampling};
-    ASSERT_EQ(expectedSel, selEst);
-}
-
-// Join graph: A -- B with edge A.foo = B.foo and 'A' being the main collection
-// The cardinality estimate for 'B' is smaller, so we assert that we use NDV(B.foo) for the join
-// predicate selectivity estimate. This verifies that an embedded node can still be used for join
-// predicate estimatation.
-TEST_F(JoinPredicateEstimatorFixture, NDVSmallerCollectionEmbedPath) {
-    JoinGraph graph;
-    auto aNss = NamespaceString::createNamespaceString_forTest("a");
-    auto bNss = NamespaceString::createNamespaceString_forTest("b");
-    auto aCQ = makeCanonicalQuery(aNss);
-    auto bCQ = makeCanonicalQuery(bNss);
-    auto aNodeId = *graph.addNode(aNss, std::move(aCQ), boost::none);
-    auto bNodeId = *graph.addNode(bNss, std::move(bCQ), FieldPath{"b"});
-
-    std::vector<ResolvedPath> paths;
-    paths.push_back(ResolvedPath{.nodeId = aNodeId, .fieldName = "foo"});
-    paths.push_back(ResolvedPath{.nodeId = bNodeId, .fieldName = "foo"});
-
-    graph.addSimpleEqualityEdge(aNodeId, bNodeId, 0, 1);
-
-    SamplingEstimatorMap samplingEstimators;
-    samplingEstimators[aNss] = std::make_unique<FakeNdvEstimator>();
-    // Only add fake estimates for "b" estimator
-    auto bSamplingEstimator = std::make_unique<FakeNdvEstimator>();
-    bSamplingEstimator->addFakeNDVEstimate(
-        {FieldPath("foo")}, CardinalityEstimate{CardinalityType{5}, EstimationSource::Sampling});
-    samplingEstimators[bNss] = std::move(bSamplingEstimator);
-
-    BaseTableCardinalityMap tableCards;
-    tableCards.emplace(aNss, CardinalityEstimate{CardinalityType{20}, EstimationSource::Sampling});
-    // Ensure "b" collection has smaller CE
-    tableCards.emplace(bNss, CardinalityEstimate{CardinalityType{10}, EstimationSource::Sampling});
-
-    JoinPredicateEstimator predEstimator{graph, paths, samplingEstimators, tableCards};
-
-    auto selEst = predEstimator.joinPredicateSel(graph.getEdge(0));
-    // The selectivity estimate comes from 1 / NDV(B.foo) = 1 / 5 = 0.2
-    auto expectedSel = SelectivityEstimate{SelectivityType{0.2}, EstimationSource::Sampling};
-    ASSERT_EQ(expectedSel, selEst);
-}
-
-// Join graph: A -- B with compound edge A.foo = B.foo && A.bar = B.bar and 'A' being the main
-// collection. The cardinality estimate for 'A' is smaller, so we assert that we use the tuple
-// NDV(A.foo, A.bar) for the join predicate selectivity estimate.
-TEST_F(JoinPredicateEstimatorFixture, NDVCompoundJoinKey) {
-    JoinGraph graph;
-    auto aNss = NamespaceString::createNamespaceString_forTest("a");
-    auto bNss = NamespaceString::createNamespaceString_forTest("b");
-    auto aCQ = makeCanonicalQuery(aNss);
-    auto bCQ = makeCanonicalQuery(bNss);
-    auto aNodeId = *graph.addNode(aNss, std::move(aCQ), boost::none);
-    auto bNodeId = *graph.addNode(bNss, std::move(bCQ), FieldPath{"b"});
-
-    std::vector<ResolvedPath> paths;
-    paths.push_back(ResolvedPath{.nodeId = aNodeId, .fieldName = "foo"});
-    paths.push_back(ResolvedPath{.nodeId = bNodeId, .fieldName = "foo"});
-    paths.push_back(ResolvedPath{.nodeId = aNodeId, .fieldName = "bar"});
-    paths.push_back(ResolvedPath{.nodeId = bNodeId, .fieldName = "bar"});
-
-    // a.foo = b.foo && a.bar = b.bar
-    graph.addSimpleEqualityEdge(aNodeId, bNodeId, 0, 1);
-    graph.addSimpleEqualityEdge(aNodeId, bNodeId, 2, 3);
-
-    SamplingEstimatorMap samplingEstimators;
-    auto aSamplingEstimator = std::make_unique<FakeNdvEstimator>();
-    // We shoudl end up using the NDV from (foo, bar) and not from foo or bar.
-    aSamplingEstimator->addFakeNDVEstimate(
-        {FieldPath("foo"), FieldPath("bar")},
-        CardinalityEstimate{CardinalityType{5}, EstimationSource::Sampling});
-    aSamplingEstimator->addFakeNDVEstimate(
-        {FieldPath("foo")}, CardinalityEstimate{CardinalityType{2}, EstimationSource::Sampling});
-    aSamplingEstimator->addFakeNDVEstimate(
-        {FieldPath("bar")}, CardinalityEstimate{CardinalityType{3}, EstimationSource::Sampling});
-    samplingEstimators[aNss] = std::move(aSamplingEstimator);
-    samplingEstimators[bNss] = std::make_unique<FakeNdvEstimator>();
-
-    BaseTableCardinalityMap tableCards;
-    tableCards.emplace(aNss, CardinalityEstimate{CardinalityType{10}, EstimationSource::Sampling});
-    tableCards.emplace(bNss, CardinalityEstimate{CardinalityType{20}, EstimationSource::Sampling});
-
-    JoinPredicateEstimator predEstimator{graph, paths, samplingEstimators, tableCards};
-
-    auto selEst = predEstimator.joinPredicateSel(graph.getEdge(0));
-    // The selectivity estimate comes from 1 / NDV(A.foo, A.bar) = 1 / 5 = 0.2
-    auto expectedSel = SelectivityEstimate{SelectivityType{0.2}, EstimationSource::Sampling};
-    ASSERT_EQ(expectedSel, selEst);
 }
 
 }  // namespace mongo::join_ordering

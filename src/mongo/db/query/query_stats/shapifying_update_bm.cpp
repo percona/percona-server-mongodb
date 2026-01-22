@@ -182,15 +182,14 @@ void BM_PipelineUpdate_ShapifyAndSHA256Hash(benchmark::State& state) {
                  state);
 }
 
-// TODO SERVER-111930: Enable this benchmark once recording query stats for
-// updates with simple ID query.
-// static_cast<int>(query_benchmark_constants::QueryComplexity::kIDHack),
+// TODO SERVER-110351: Evaluate the performance of using the query stats for modifier updates
 
 // We do not add a complexity dimension for replacement updates because the 'u' statement will
 // always get shapified into '?object'. In other words, the shapification work done for the 'u'
 // field for replacement updates is O(1).
 #define REPLACEMENT_ARGS()                                                                     \
     ArgNames({"queryComplexity"})                                                              \
+        ->Args({static_cast<int>(query_benchmark_constants::QueryComplexity::kIDHack)})        \
         ->Args({static_cast<int>(query_benchmark_constants::QueryComplexity::kMildlyComplex)}) \
         ->Args({static_cast<int>(query_benchmark_constants::QueryComplexity::kMkComplex)})     \
         ->Args({static_cast<int>(query_benchmark_constants::QueryComplexity::kVeryComplex)})   \
@@ -199,7 +198,8 @@ void BM_PipelineUpdate_ShapifyAndSHA256Hash(benchmark::State& state) {
 #define PIPELINE_ARGS()                                                                        \
     ArgNames({"queryComplexity", "pipelineComplexity"})                                        \
         ->ArgsProduct(                                                                         \
-            {{static_cast<int>(query_benchmark_constants::QueryComplexity::kMildlyComplex),    \
+            {{static_cast<int>(query_benchmark_constants::QueryComplexity::kIDHack),           \
+              static_cast<int>(query_benchmark_constants::QueryComplexity::kMildlyComplex),    \
               static_cast<int>(query_benchmark_constants::QueryComplexity::kMkComplex),        \
               static_cast<int>(query_benchmark_constants::QueryComplexity::kVeryComplex)},     \
              {static_cast<int>(query_benchmark_constants::PipelineComplexity::kSimple),        \
@@ -214,8 +214,6 @@ BENCHMARK(BM_ReplacementUpdate_ShapifyAndGenerateKey)->REPLACEMENT_ARGS();
 BENCHMARK(BM_ReplacementUpdate_ShapifyAndSHA256Hash)->REPLACEMENT_ARGS();
 BENCHMARK(BM_PipelineUpdate_ShapifyAndGenerateKey)->PIPELINE_ARGS();
 BENCHMARK(BM_PipelineUpdate_ShapifyAndSHA256Hash)->PIPELINE_ARGS();
-
-// TODO SERVER-110344: Add benchmarks for modifier-style updates.
 
 }  // namespace
 }  // namespace mongo

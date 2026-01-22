@@ -3213,6 +3213,10 @@ void ReplicationCoordinatorImpl::appendSecondaryInfoData(BSONObjBuilder* result)
     _topCoord->fillMemberData(result);
 }
 
+ThreadPool* ReplicationCoordinatorImpl::getDbWorkThreadPool() const noexcept {
+    return _externalState->getDbWorkThreadPool();
+}
+
 ReplSetConfig ReplicationCoordinatorImpl::getConfig() const {
     return _getReplSetConfig();
 }

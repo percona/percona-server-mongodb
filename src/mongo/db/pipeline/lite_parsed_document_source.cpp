@@ -40,20 +40,35 @@
 namespace mongo {
 
 using Parser = LiteParsedDocumentSource::Parser;
+using ParserMap = LiteParsedDocumentSource::ParserMap;
 
 namespace {
 
 // Empty vector used by LiteParsedDocumentSources which do not have a sub pipeline.
 inline static std::vector<LiteParsedPipeline> kNoSubPipeline = {};
 
-StringMap<LiteParsedDocumentSource::LiteParserRegistration> parserMap;
+ParserMap parserMap;
 
 }  // namespace
 
 const LiteParsedDocumentSource::LiteParserInfo&
-LiteParsedDocumentSource::LiteParserRegistration::getParser() const {
-    // If there's no feature flag toggle, or the feature flag toggle exists and the feature is
-    // enabled in this context, use the primary parser. Otherwise, use the fallback parser.
+LiteParsedDocumentSource::LiteParserRegistration::getParserInfo() const {
+    // If no fallback is set, use the primary parser. This is the standard case for most stages.
+    if (!_fallbackIsSet) {
+        tassert(11395400, "Primary parser must be set if no fallback parser exists", _primaryIsSet);
+        return _primaryParser;
+    }
+
+    // If no primary is set, use the fallback parser. This typically occurs when an extension has
+    // not been loaded. See aggregation_stage_fallback_parsers.json.
+    if (!_primaryIsSet) {
+        tassert(
+            11395401, "Fallback parser must be set if no primary parser exists", _fallbackIsSet);
+        return _fallbackParser;
+    }
+
+    // Both a primary and fallback parser have been set. Check the value of the associated feature
+    // flag to evaluate which parser we should use.
     if (_primaryParserFeatureFlag == nullptr || _primaryParserFeatureFlag->checkEnabled()) {
         return _primaryParser;
     } else {
@@ -124,12 +139,17 @@ void LiteParsedDocumentSource::registerFallbackParser(const std::string& name,
     // Create a new registration and save the parser as the fallback parser.
     auto& registration = parserMap[name];
 
-    // TODO SERVER-114028 Remove the following dynamic cast and tassert when fallback parsing
-    // supports all feature flags.
-    auto* ifrFeatureFlag = dynamic_cast<IncrementalRolloutFeatureFlag*>(parserFeatureFlag);
-    tassert(11395101,
-            "Fallback parsing only supports IncrementalRolloutFeatureFlags.",
-            ifrFeatureFlag != nullptr);
+    IncrementalRolloutFeatureFlag* ifrFeatureFlag = nullptr;
+    // If parserFeatureFlag is not set, we are adding a fallback parser for a stub stage that isn't
+    // associated with a feature flag.
+    if (parserFeatureFlag != nullptr) {
+        // TODO SERVER-114028 Remove the following dynamic cast and tassert when fallback parsing
+        // supports all feature flags.
+        ifrFeatureFlag = dynamic_cast<IncrementalRolloutFeatureFlag*>(parserFeatureFlag);
+        tassert(11395101,
+                "Fallback parsing only supports IncrementalRolloutFeatureFlags.",
+                ifrFeatureFlag != nullptr);
+    }
 
     registration.setFallbackParser({parser, allowedWithApiStrict, allowedWithClientType},
                                    ifrFeatureFlag);
@@ -137,6 +157,11 @@ void LiteParsedDocumentSource::registerFallbackParser(const std::string& name,
 
 void LiteParsedDocumentSource::unregisterParser_forTest(const std::string& name) {
     parserMap.erase(name);
+}
+
+const LiteParsedDocumentSource::LiteParserInfo& LiteParsedDocumentSource::getParserInfo_forTest(
+    const std::string& name) {
+    return parserMap.find(name)->second.getParserInfo();
 }
 
 std::unique_ptr<LiteParsedDocumentSource> LiteParsedDocumentSource::parse(
@@ -153,17 +178,11 @@ std::unique_ptr<LiteParsedDocumentSource> LiteParsedDocumentSource::parse(
             str::stream() << "Unrecognized pipeline stage name: '" << stageName << "'",
             it != parserMap.end());
 
-    return it->second.getParser().parser(nss, specElem, options);
-}
-
-const LiteParsedDocumentSource::LiteParserInfo& LiteParsedDocumentSource::getInfo(
-    const std::string& stageName) {
-    const auto it = parserMap.find(stageName);
-    uassert(5407200,
-            str::stream() << "Unrecognized pipeline stage name: '" << stageName << "'",
-            it != parserMap.end());
-
-    return it->second.getParser();
+    auto lpInfo = it->second.getParserInfo();
+    auto lpds = lpInfo.parser(nss, specElem, options);
+    lpds->setApiStrict(lpInfo.allowedWithApiStrict);
+    lpds->setClientType(lpInfo.allowedWithClientType);
+    return lpds;
 }
 
 const std::vector<LiteParsedPipeline>& LiteParsedDocumentSource::getSubPipelines() const {
@@ -254,6 +273,10 @@ PrivilegeVector LiteParsedDocumentSourceNestedPipelines::requiredPrivilegesBasic
             &requiredPrivileges, pipeline.requiredPrivileges(isMongos, bypassDocumentValidation));
     }
     return requiredPrivileges;
+}
+
+const ParserMap& LiteParsedDocumentSource::getParserMap() {
+    return parserMap;
 }
 
 }  // namespace mongo
