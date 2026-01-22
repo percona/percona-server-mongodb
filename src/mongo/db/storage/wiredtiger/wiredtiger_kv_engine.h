@@ -51,6 +51,7 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_event_handler.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_extensions.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_oplog_manager.h"
+#include "mongo/db/storage/wiredtiger/wiredtiger_prepared_transactions_iterator.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_record_store.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_session.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_size_storer.h"
@@ -327,6 +328,9 @@ public:
         }
         return boost::none;
     }
+
+    std::unique_ptr<PreparedTransactionsIterator>
+    getUnclaimedPreparedTransactionsForStartupRecovery(OperationContext* opCtx) const override;
 
 protected:
     /**
