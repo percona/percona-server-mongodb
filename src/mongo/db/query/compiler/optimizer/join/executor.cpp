@@ -34,6 +34,7 @@
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_lookup.h"
 #include "mongo/db/query/compiler/optimizer/join/agg_join_model.h"
+#include "mongo/db/query/compiler/optimizer/join/cardinality_estimator.h"
 #include "mongo/db/query/compiler/optimizer/join/join_reordering_context.h"
 #include "mongo/db/query/compiler/optimizer/join/reorder_joins.h"
 #include "mongo/db/query/compiler/optimizer/join/single_table_access.h"
@@ -213,17 +214,18 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
     ReorderedJoinSolution reordered;
     switch (qkc.getJoinReorderMode()) {
-        case JoinReorderModeEnum::kBottomUp:
+        case JoinReorderModeEnum::kBottomUp: {
             // Optimize join order using bottom-up Sellinger-style algorithm.
-            reordered = constructSolutionBottomUp(std::move(ctx),
-                                                  getPlanTreeShape(qkc.getJoinPlanTreeShape()));
+            JoinCardinalityEstimator estimator = JoinCardinalityEstimator::make(
+                ctx, swAccessPlans.getValue().estimate, samplingEstimators);
+            reordered = constructSolutionBottomUp(
+                ctx, std::move(estimator), getPlanTreeShape(qkc.getJoinPlanTreeShape()));
             break;
+        }
         case JoinReorderModeEnum::kRandom:
             // Randomly reorder joins.
-            reordered =
-                constructSolutionWithRandomOrder(std::move(ctx),
-                                                 qkc.getRandomJoinOrderSeed(),
-                                                 qkc.getRandomJoinReorderDefaultToHashJoin());
+            reordered = constructSolutionWithRandomOrder(
+                ctx, qkc.getRandomJoinOrderSeed(), qkc.getRandomJoinReorderDefaultToHashJoin());
             break;
         default:
             MONGO_UNREACHABLE_TASSERT(11336911);

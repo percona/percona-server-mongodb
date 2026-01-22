@@ -31,17 +31,19 @@
 
 #include "mongo/db/exec/disk_use_options_gen.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
-#include "mongo/db/pipeline/initialize_auto_get_helper.h"
 #include "mongo/db/pipeline/search/search_helper.h"
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 #include "mongo/db/query/query_request_helper.h"
 #include "mongo/db/query/query_settings/query_settings_service.h"
+#include "mongo/db/shard_role/initialize_auto_get_helper.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_catalog/collection_uuid_mismatch.h"
+#include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
 #include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/timeseries/timeseries_request_util.h"
+#include "mongo/db/topology/sharding_state.h"
 #include "mongo/db/version_context.h"
 #include "mongo/db/views/view_catalog_helpers.h"
 
@@ -469,7 +471,7 @@ void AggExState::performValidationChecks() const {
     auto& liteParsedPipeline = _aggReqDerivatives->liteParsedPipeline;
 
     liteParsedPipeline.validate(_opCtx);
-    aggregation_request_helper::validateRequestForAPIVersion(_opCtx, request);
+    aggregation_request_helper::validateRequestWithClient(_opCtx, request);
     aggregation_request_helper::validateRequestFromClusterQueryWithoutShardKey(request);
 
     // If we are in a transaction, check whether the parsed pipeline supports being in
@@ -485,17 +487,26 @@ bool AggExState::canReadUnderlyingCollectionLocally(const CollectionRoutingInfo&
     const auto myShardId = ShardingState::get(_opCtx)->shardId();
     const auto atClusterTime = repl::ReadConcernArgs::get(_opCtx).getArgsAtClusterTime();
 
-    const auto chunkManagerMaybeAtClusterTime = atClusterTime
-        ? ChunkManager::makeAtTime(cri.getChunkManager(), atClusterTime->asTimestamp())
-        : cri.getChunkManager();
+    auto isNssLocalFunc = [&](const auto& cm) {
+        if (cm.isSharded()) {
+            return false;
+        } else if (cm.isUnsplittable()) {
+            return cm.getMinKeyShardIdWithSimpleCollation() == myShardId;
+        } else {
+            return cri.getDbPrimaryShardId() == myShardId;
+        }
+    };
 
-    if (chunkManagerMaybeAtClusterTime.isSharded()) {
-        return false;
-    } else if (chunkManagerMaybeAtClusterTime.isUnsplittable()) {
-        return chunkManagerMaybeAtClusterTime.getMinKeyShardIdWithSimpleCollation() == myShardId;
+    bool isNssLocal;
+    if (atClusterTime) {
+        auto pitChunkManager =
+            PointInTimeChunkManager::make(cri.getChunkManager(), atClusterTime->asTimestamp());
+        isNssLocal = isNssLocalFunc(pitChunkManager);
     } else {
-        return cri.getDbPrimaryShardId() == myShardId;
+        isNssLocal = isNssLocalFunc(cri.getChunkManager());
     }
+
+    return isNssLocal;
 }
 
 Status AggExState::collatorCompatibleWithPipeline(const CollatorInterface* collator) const {
@@ -769,6 +780,7 @@ boost::intrusive_ptr<ExpressionContext> AggCatalogState::createExpressionContext
                       .collationMatchesDefault(collationMatchesDefault)
                       .canBeRejected(canPipelineBeRejected)
                       .explain(_aggExState.getVerbosity())
+                      .ifrContext(_aggExState.getIfrContext())
                       .build();
 
     if (_aggExState.getRequest().getIsHybridSearch()) {

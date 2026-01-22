@@ -1199,6 +1199,7 @@ mongo_cc_unit_test(
         "expression_field_path_test.cpp",
         "expression_find_internal_test.cpp",
         "expression_function_test.cpp",
+        "expression_hash_test.cpp",
         "expression_hasher_test.cpp",
         "expression_let_test.cpp",
         "expression_map_reduce_filter_test.cpp",
@@ -1220,6 +1221,7 @@ mongo_cc_unit_test(
         "lookup_set_cache_test.cpp",
         "monotonic_expression_test.cpp",
         "partition_key_comparator_test.cpp",
+        "pipeline_factory_test.cpp",
         "pipeline_metadata_tree_test.cpp",
         "pipeline_test.cpp",
         "plan_executor_pipeline_test.cpp",
@@ -1381,23 +1383,6 @@ mongo_cc_unit_test(
         ":aggregation_context_fixture",
         ":pipeline",
         "//src/mongo/db/query:query_test_service_context",
-    ],
-)
-
-mongo_cc_unit_test(
-    name = "initialize_auto_get_helper_test",
-    srcs = [
-        "initialize_auto_get_helper_test.cpp",
-    ],
-    private_hdrs = [
-        "initialize_auto_get_helper.h",
-    ],
-    tags = ["mongo_unittest_eighth_group"],
-    deps = [
-        "//src/mongo/db:shard_role_api",
-        "//src/mongo/db/s:sharding_runtime_d",
-        "//src/mongo/db/sharding_environment:shard_server_test_fixture",
-        "//src/mongo/s:sharding_router_api",
     ],
 )
 

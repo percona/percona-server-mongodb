@@ -32,11 +32,15 @@
 #include "mongo/base/string_data.h"
 #include "mongo/config.h"
 #include "mongo/db/service_context.h"
+#include "mongo/otel/metrics/metric_units.h"
+#include "mongo/otel/metrics/metrics_counter.h"
 #include "mongo/util/modules.h"
+
+#include <absl/container/btree_map.h>
 
 #ifdef MONGO_CONFIG_OTEL
 #include <opentelemetry/metrics/meter.h>
-
+#include <opentelemetry/metrics/provider.h>
 
 namespace mongo::otel::metrics {
 
@@ -51,21 +55,47 @@ public:
 
     static MetricsService& get(ServiceContext*);
 
-    MetricsService();
+    /**
+     * Creates a counter with the provided parameters. The result is never null but will throw an
+     * exception if the counter would collide with an existing metric (i.e., same name but different
+     * type or other parameters).
+     */
+    Counter<int64_t>* createInt64Counter(std::string name,
+                                         std::string description,
+                                         MetricUnit unit);
 
-    // TODO SERVER-114945 Remove this method once we can validate meter construction succeeded via
-    // the Instruments it produces
-    opentelemetry::metrics::Meter* getMeter_forTest() const {
-        return _meter.get();
-    }
-
-    // TODO SERVER-114945 Add MetricsService::createUInt64Counter method
     // TODO SERVER-114954 Implement MetricsService::createUInt64Gauge
     // TODO SERVER-114955 Implement MetricsService::createDoubleGauge
     // TODO SERVER-115164 Implement MetricsService::createHistogram method
 
 private:
-    std::shared_ptr<opentelemetry::metrics::Meter> _meter{nullptr};
+    enum class MetricType { kCounter };
+
+    // Identifies metrics to help prevent conflicting registrations.
+    struct MetricIdentifier {
+        std::string name;
+        std::string description;
+        MetricUnit unit;
+        MetricType type;
+
+        auto operator<=>(const MetricIdentifier& other) const = default;
+    };
+
+    struct IdentifierAndMetric {
+        MetricIdentifier identifier;
+        std::unique_ptr<Counter<int64_t>> metric;
+    };
+
+    // Guards `_observableInstruments` and `_metrics`
+    stdx::mutex _mutex;
+
+    // Pointers to all observable instruments. These are not directly used, but must be kept alive
+    // while the instruments they back are still in use. Guarded by `_mutex`.
+    std::vector<std::shared_ptr<opentelemetry::metrics::ObservableInstrument>>
+        _observableInstruments;
+
+    // Map from metric name to its definition and implementation. Guarded by `_mutex`.
+    absl::btree_map<std::string, IdentifierAndMetric> _metrics;
 };
 }  // namespace mongo::otel::metrics
 #else
@@ -76,7 +106,13 @@ public:
 
     static MetricsService& get(ServiceContext*);
 
-    MetricsService();
+    Counter<int64_t>* createInt64Counter(std::string name,
+                                         std::string description,
+                                         MetricUnit unit);
+
+private:
+    stdx::mutex _mutex;
+    std::vector<std::unique_ptr<Counter<int64_t>>> _counters;
 };
 }  // namespace mongo::otel::metrics
 #endif

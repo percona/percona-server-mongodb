@@ -47,11 +47,17 @@ echo "${antithesis_repo_key}" >mongodb.key.json
 cat mongodb.key.json | sudo docker login -u _json_key https://us-central1-docker.pkg.dev --password-stdin
 rm mongodb.key.json
 
+extra_args=""
+
+if [ -n "${antithesis_test_composer_dir:-}" ]; then
+    extra_args="--dockerComposeTestComposerDirs ${antithesis_test_composer_dir}"
+fi
+
 # Build Image
 cd src
 activate_venv
 setup_db_contrib_tool
-$python buildscripts/resmoke.py run --suite ${suite} ${resmoke_args} --dockerComposeTag $tag --dockerComposeBuildImages workload,config,mongo-binaries --dockerComposeBuildEnv evergreen
+$python buildscripts/resmoke.py run --suite ${suite} ${resmoke_args} --dockerComposeTag $tag --dockerComposeBuildImages workload,config,mongo-binaries --dockerComposeBuildEnv evergreen ${extra_args}
 
 # Test Image
 docker-compose -f docker_compose/${suite}/docker-compose.yml up -d
@@ -75,15 +81,29 @@ if [ $RET -ne 0 ]; then
     exit $RET
 fi
 
-# Push Image
+# Push Config Image
 sudo docker tag "${suite}:$tag" "$antithesis_repo/${task_name}:$tag"
 sudo docker push "$antithesis_repo/${task_name}:$tag"
 
-sudo docker tag "mongo-binaries:$tag" "$antithesis_repo/mongo-binaries:$tag"
-sudo docker push "$antithesis_repo/mongo-binaries:$tag"
+# Push workload and binary images with s3 lock to prevent multiple pushes across different tasks
+set +o errexit
+$python buildscripts/s3_lock.py --bucket mciuploads --key ${project}/${version_id}/${build_variant}/antithesis_lock
+RET=$?
+set -o errexit
 
-sudo docker tag "workload:$tag" "$antithesis_repo/workload:$tag"
-sudo docker push "$antithesis_repo/workload:$tag"
+if [ $RET -eq 0 ]; then
+    echo "Aquired lock for workload and binary images, pushing to antithesis."
+    sudo docker tag "mongo-binaries:$tag" "$antithesis_repo/mongo-binaries:$tag"
+    sudo docker push "$antithesis_repo/mongo-binaries:$tag"
+
+    sudo docker tag "workload:$tag" "$antithesis_repo/workload:$tag"
+    sudo docker push "$antithesis_repo/workload:$tag"
+elif [ $RET -eq 1 ]; then
+    echo "Failed to acquire lock for workload and binary images, skipping push."
+else
+    echo "Error occurred when attempting to acquire s3 lock, exiting."
+    exit 1
+fi
 
 # Logout
 sudo docker logout https://us-central1-docker.pkg.dev

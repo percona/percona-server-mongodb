@@ -52,7 +52,7 @@ public:
     StatusWith<QueryPlanner::PlanRankingResult> rankPlans(
         OperationContext* opCtx,
         CanonicalQuery& query,
-        const QueryPlannerParams& plannerParams,
+        QueryPlannerParams& plannerParams,
         PlanYieldPolicy::YieldPolicy yieldPolicy,
         const MultipleCollectionAccessor& collections,
         // PlannerData for classic multiplanner. We only need the classic one since multiplanning

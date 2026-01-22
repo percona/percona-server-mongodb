@@ -29,54 +29,33 @@
 
 #include "mongo/otel/metrics/metrics_service.h"
 
-#include "mongo/config.h"
 #include "mongo/db/service_context_test_fixture.h"
-#include "mongo/idl/server_parameter_test_controller.h"
-#include "mongo/otel/metrics/metrics_initialization.h"
-#include "mongo/unittest/temp_dir.h"
+#include "mongo/otel/metrics/metrics_test_util.h"
 #include "mongo/unittest/unittest.h"
 
 #include <opentelemetry/metrics/provider.h>
 #include <opentelemetry/sdk/metrics/meter.h>
+#include <opentelemetry/sdk/metrics/meter_provider.h>
+#include <opentelemetry/sdk/metrics/meter_provider_factory.h>
 
 namespace mongo::otel::metrics {
 namespace {
 
-/**
- * Helper class that initializes OpenTelemetry metrics before ServiceContextTest
- * creates the ServiceContext. This ensures MetricsService decoration gets a real
- * SDK MeterProvider instead of a NoopMeterProvider.
- */
-class MetricsInitializationHelper {
-public:
-    MetricsInitializationHelper()
-        : _featureFlagController("featureFlagOtelMetrics", true),
-          _directoryController("openTelemetryMetricsDirectory", _tempMetricsDir.path()) {
-        // Initialize metrics before ServiceContext is created
-        auto status = metrics::initialize();
-        invariant(status.isOK(), status.reason());
-    }
 
-    ~MetricsInitializationHelper() {
-        metrics::shutdown();
-    }
+class MetricsServiceTest : public ServiceContextTest {};
 
-private:
-    unittest::TempDir _tempMetricsDir{"otel_metrics_test"};
-    RAIIServerParameterControllerForTest _featureFlagController;
-    RAIIServerParameterControllerForTest _directoryController;
-};
-
-// MetricsInitializationHelper must come before ServiceContextTest in inheritance
-// so that metrics are initialized before ServiceContext is created.
-class MetricsServiceTest : public MetricsInitializationHelper, public ServiceContextTest {};
-
+// Assert that when a valid MeterProvider in place, we create a working Meter implementation with
+// the expected metadata.
 TEST_F(MetricsServiceTest, MeterIsInitialized) {
-    const auto& metricsService = MetricsService::get(getServiceContext());
-    auto* meter = metricsService.getMeter_forTest();
-    ASSERT_TRUE(meter);
+    // Set up a valid MeterProvider.
+    OtelMetricsCapturer metricsCapturer;
 
-    // Cast to SDK Meter to access GetInstrumentationScope
+    std::shared_ptr<opentelemetry::metrics::MeterProvider> meterProvider =
+        opentelemetry::metrics::Provider::GetMeterProvider();
+    ASSERT_TRUE(meterProvider);
+
+    auto* meter =
+        meterProvider->GetMeter(toStdStringViewForInterop(MetricsService::kMeterName)).get();
     auto* sdkMeter = dynamic_cast<opentelemetry::sdk::metrics::Meter*>(meter);
     ASSERT_TRUE(sdkMeter);
 
@@ -85,18 +64,60 @@ TEST_F(MetricsServiceTest, MeterIsInitialized) {
     ASSERT_EQ(scope->GetName(), std::string{MetricsService::kMeterName});
 }
 
-// Assert that we create a NoopMeter if the global MeterProvider hasn't been set before
-// initialization.
-class MetricsServiceBadInitializationTest : public ServiceContextTest {};
-
-bool isNoop(opentelemetry::metrics::Meter* provider) {
-    return !!dynamic_cast<opentelemetry::metrics::NoopMeter*>(provider);
+// Assert that we create a NoopMeter if the global MeterProvider hasn't been set.
+TEST_F(MetricsServiceTest, ServiceContextInitBeforeMeterProvider) {
+    std::shared_ptr<opentelemetry::metrics::MeterProvider> meterProvider =
+        opentelemetry::metrics::Provider::GetMeterProvider();
+    ASSERT(meterProvider != nullptr);
+    ASSERT_TRUE(isNoopMeter(
+        meterProvider->GetMeter(toStdStringViewForInterop(MetricsService::kMeterName)).get()));
 }
 
-TEST_F(MetricsServiceBadInitializationTest, ServiceContextInitBeforeMeterProvider) {
-    const auto& metricsService = MetricsService::get(getServiceContext());
-    auto* meter = metricsService.getMeter_forTest();
-    ASSERT_TRUE(isNoop(meter));
+using CreateInt64CounterTest = MetricsServiceTest;
+
+TEST_F(CreateInt64CounterTest, SameCounterReturnedOnSameCreate) {
+    auto& metricsService = MetricsService::get(getServiceContext());
+    Counter<int64_t>* counter_1 =
+        metricsService.createInt64Counter("counter", "description", MetricUnit::kSeconds);
+    Counter<int64_t>* counter_2 =
+        metricsService.createInt64Counter("counter", "description", MetricUnit::kSeconds);
+    ASSERT_EQ(counter_1, counter_2);
+}
+
+TEST_F(CreateInt64CounterTest, ExceptionWhenSameNameButDifferentParameters) {
+    auto& metricsService = MetricsService::get(getServiceContext());
+    metricsService.createInt64Counter("name", "description", MetricUnit::kSeconds);
+    ASSERT_THROWS_CODE(
+        metricsService.createInt64Counter("name", "different_description", MetricUnit::kSeconds),
+        DBException,
+        ErrorCodes::ObjectAlreadyExists);
+    ASSERT_THROWS_CODE(metricsService.createInt64Counter("name", "description", MetricUnit::kBytes),
+                       DBException,
+                       ErrorCodes::ObjectAlreadyExists);
+}
+
+// TODO SERVER-115164 or SERVER-114955 or SERVER-114954 add a test that verifies that creating
+// duplicate metrics with different types fails.
+
+TEST_F(CreateInt64CounterTest, RecordsValues) {
+    OtelMetricsCapturer metricsCapturer;
+    auto& metricsService = MetricsService::get(getServiceContext());
+    Counter<int64_t>* counter_1 =
+        metricsService.createInt64Counter("counter_1", "description1", MetricUnit::kSeconds);
+    Counter<int64_t>* counter_2 =
+        metricsService.createInt64Counter("counter_2", "description2", MetricUnit::kBytes);
+
+    counter_1->add(10);
+    counter_2->add(1);
+    counter_1->add(5);
+    counter_2->add(1);
+    counter_2->add(1);
+
+    ASSERT_EQ(metricsCapturer.readInt64Counter("counter_1"), 15);
+    ASSERT_EQ(metricsCapturer.readInt64Counter("counter_2"), 3);
+
+    counter_1->add(5);
+    ASSERT_EQ(metricsCapturer.readInt64Counter("counter_1"), 20);
 }
 
 }  // namespace

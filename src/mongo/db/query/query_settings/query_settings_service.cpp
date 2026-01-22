@@ -268,11 +268,6 @@ RepresentativeQueryInfo createRepresentativeInfoAgg(OperationContext* opCtx,
     expCtx->addResolvedNamespaces(
         stdx::unordered_set<NamespaceString>{involvedNamespaces.begin(), involvedNamespaces.end()});
 
-    // In order to parse a change stream request, 'inRouter' needs to be set to true.
-    if (parsedPipeline.hasChangeStream()) {
-        expCtx->setInRouter(true);
-    }
-
     auto pipeline = Pipeline::parse(aggregateCommandRequest.getPipeline(), expCtx);
 
     const auto serializationContext = aggregateCommandRequest.getSerializationContext();
@@ -295,10 +290,6 @@ RepresentativeQueryInfo createRepresentativeInfoAgg(OperationContext* opCtx,
         .systemStage = getStageExemptedFromRejection(aggregateCommandRequest.getPipeline()),
         .isRawDataQuery = aggregateCommandRequest.getRawData().value_or(false),
     };
-}
-
-bool requestComesFromRouterOrSentDirectlyToShard(Client* client) {
-    return client->isInternalClient() || client->isInDirectClient();
 }
 
 void validateIndexKeyPatternStructure(const IndexHint& hint) {
@@ -563,7 +554,7 @@ public:
         }
 
         auto* opCtx = expCtx->getOperationContext();
-        if (requestComesFromRouterOrSentDirectlyToShard(opCtx->getClient()) ||
+        if (isInternalOrDirectClient(opCtx->getClient()) ||
             querySettingsFromOriginalCommand.has_value()) {
             return querySettingsFromOriginalCommand.get_value_or(QuerySettings());
         }
@@ -849,7 +840,7 @@ bool allowQuerySettingsFromClient(Client* client) {
     // - comes from router (internal client), which has already performed the query settings lookup
     // or
     // - has been created interally and is executed via DBDirectClient.
-    return requestComesFromRouterOrSentDirectlyToShard(client);
+    return isInternalOrDirectClient(client);
 }
 
 bool isDefault(const QuerySettings& settings) {

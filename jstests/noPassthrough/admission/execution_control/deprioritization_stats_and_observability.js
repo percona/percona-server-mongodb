@@ -13,9 +13,10 @@
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {findMatchingLogLine} from "jstests/libs/log.js";
 import {after, before, describe, it} from "jstests/libs/mochalite.js";
-import {funWithArgs} from "jstests/libs/parallel_shell_helpers.js";
-import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {Thread} from "jstests/libs/parallelTester.js";
+import {funWithArgs} from "jstests/libs/parallel_shell_helpers.js";
+import {getQueryExecMetrics, getQueryStats} from "jstests/libs/query/query_stats_utils.js";
+import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {
     getExecutionControlStats,
     getTotalDeprioritizationCount,
@@ -404,6 +405,58 @@ describe("Execution control statistics and observability", function () {
             );
         });
     });
+    describe("deprioritization reporting in query execution metrics", function () {
+        let replTest, mongod, db, coll;
+        const findComment = "deprioritized_find_test";
+
+        before(function () {
+            replTest = new ReplSetTest({
+                nodes: 1,
+                nodeOptions: {
+                    setParameter: {
+                        // Force the query to yield frequently to better expose the low-priority
+                        // behavior.
+                        internalQueryExecYieldIterations: 1,
+                        executionControlDeprioritizationGate: true,
+                        executionControlHeuristicNumAdmissionsDeprioritizeThreshold: 1,
+                        logComponentVerbosity: {command: 2},
+                        internalQueryStatsRateLimit: -1,
+                    },
+                    slowms: 0,
+                },
+            });
+            replTest.startSet();
+            replTest.initiate();
+            mongod = replTest.getPrimary();
+            db = mongod.getDB(jsTestName());
+            coll = db.coll;
+
+            insertTestDocuments(coll, 100);
+        });
+
+        after(function () {
+            replTest.stopSet();
+        });
+
+        // TODO SERVER-112150: Once all versions support QueryStatsMetricsSubsections feature flag, simply check metrics["queryExec"].
+        function verifyQueryStatsMetrics(metrics) {
+            let statsObj = metrics.hasOwnProperty("queryExec") ? metrics["queryExec"] : metrics;
+            assert.gte(statsObj.totalTimeQueuedMicros.sum, 0);
+            assert.gte(statsObj.totalAdmissions.sum, 0);
+            assert.gte(statsObj.wasLoadShed.false, 0);
+            assert.gte(statsObj.wasDeprioritized.false, 0);
+        }
+
+        it("should report deprioritization in query execution metrics", function () {
+            runDeprioritizedFind(coll, findComment + "_totalization");
+            const queryStats = getQueryStats(mongod, {collName: coll.getName()});
+            assert(
+                queryStats.length === 1,
+                "Expected to find exactly one query stats entry for '" + coll.getName() + "' " + tojson(queryStats),
+            );
+            verifyQueryStatsMetrics(queryStats[0].metrics);
+        });
+    });
 
     describe("Delinquent operation statistics", function () {
         let replTest, mongod, db, coll;
@@ -475,25 +528,37 @@ describe("Execution control statistics and observability", function () {
         const kBusyTimeMs = 2000;
         let replTest, mongod, db, coll;
 
-        function assertExecutionStatsPresent(stats) {
-            const requiredKeys = [
-                "totalElapsedTimeMicros",
-                "totalCPUUsageMicros",
-                "totalTimeProcessingMicros",
-                "totalTimeQueuedMicros",
-                "totalAdmissions",
-                "newAdmissions",
-                "newAdmissionsLoadShed",
-                "totalElapsedTimeMicrosLoadShed",
-                "totalCPUUsageLoadShed",
-                "totalQueuedTimeMicrosLoadShed",
-                "totalDelinquentAcquisitions",
-                "totalAcquisitionDelinquencyMillis",
-                "maxAcquisitionDelinquencyMillis",
-            ];
+        // Keys for per-acquisition stats (in read/write shortRunning/longRunning).
+        const perAcquisitionKeys = [
+            "totalTimeProcessingMicros",
+            "totalTimeQueuedMicros",
+            "totalAdmissions",
+            "newAdmissions",
+            "totalDelinquentAcquisitions",
+            "totalAcquisitionDelinquencyMillis",
+            "maxAcquisitionDelinquencyMillis",
+        ];
 
-            requiredKeys.forEach((key) => {
-                assert(stats.hasOwnProperty(key), `Missing ${key} in execution stats: ` + tojson(stats));
+        // Keys for finalized stats (in top-level shortRunning/longRunning).
+        const finalizedStatsKeys = [
+            "totalCPUUsageMicros",
+            "totalElapsedTimeMicros",
+            "newAdmissionsLoadShed",
+            "totalCPUUsageLoadShed",
+            "totalElapsedTimeMicrosLoadShed",
+            "totalAdmissionsLoadShed",
+            "totalQueuedTimeMicrosLoadShed",
+        ];
+
+        function assertPerAcquisitionStatsPresent(stats) {
+            perAcquisitionKeys.forEach((key) => {
+                assert(stats.hasOwnProperty(key), `Missing ${key} in per-acquisition stats: ` + tojson(stats));
+            });
+        }
+
+        function assertFinalizedStatsPresent(stats) {
+            finalizedStatsKeys.forEach((key) => {
+                assert(stats.hasOwnProperty(key), `Missing ${key} in finalized stats: ` + tojson(stats));
             });
         }
 
@@ -558,16 +623,15 @@ describe("Execution control statistics and observability", function () {
 
         function assertExecutionShedStatsCorrect(executionStats) {
             assert.gt(
-                executionStats.read.shortRunning.newAdmissionsLoadShed +
-                    executionStats.read.longRunning.newAdmissionsLoadShed,
+                executionStats.shortRunning.newAdmissionsLoadShed + executionStats.longRunning.newAdmissionsLoadShed,
                 0,
-                "Read newAdmissionsLoadShed mismatch: " + tojson(executionStats),
+                "newAdmissionsLoadShed mismatch: " + tojson(executionStats),
             );
             assert.gt(
-                executionStats.read.shortRunning.totalElapsedTimeMicrosLoadShed +
-                    executionStats.read.longRunning.totalElapsedTimeMicrosLoadShed,
+                executionStats.shortRunning.totalElapsedTimeMicrosLoadShed +
+                    executionStats.longRunning.totalElapsedTimeMicrosLoadShed,
                 0,
-                "Read totalElapsedTimeMicrosLoadShed mismatch: " + tojson(executionStats),
+                "totalElapsedTimeMicrosLoadShed mismatch: " + tojson(executionStats),
             );
         }
 
@@ -637,26 +701,42 @@ describe("Execution control statistics and observability", function () {
             insertTestDocuments(coll, kNumDocs);
 
             let executionStats = db.serverStatus().queues.execution;
+
+            // Check top-level shortRunning/longRunning finalized stats.
+            assert(
+                executionStats.hasOwnProperty("shortRunning"),
+                "Missing top-level shortRunning stats: " + tojson(executionStats),
+            );
+            assertFinalizedStatsPresent(executionStats.shortRunning);
+            assert(
+                executionStats.hasOwnProperty("longRunning"),
+                "Missing top-level longRunning stats: " + tojson(executionStats),
+            );
+            assertFinalizedStatsPresent(executionStats.longRunning);
+
+            // Check per-acquisition stats in read shortRunning/longRunning.
             assert(
                 executionStats.read.hasOwnProperty("shortRunning"),
-                "Missing shortRunning stats :" + tojson(executionStats.read),
+                "Missing read shortRunning stats: " + tojson(executionStats.read),
             );
-            assertExecutionStatsPresent(executionStats.read.shortRunning);
+            assertPerAcquisitionStatsPresent(executionStats.read.shortRunning);
             assert(
                 executionStats.read.hasOwnProperty("longRunning"),
-                "Missing longRunning stats :" + tojson(executionStats.read),
+                "Missing read longRunning stats: " + tojson(executionStats.read),
             );
-            assertExecutionStatsPresent(executionStats.read.longRunning);
+            assertPerAcquisitionStatsPresent(executionStats.read.longRunning);
+
+            // Check per-acquisition stats in write shortRunning/longRunning.
             assert(
                 executionStats.write.hasOwnProperty("shortRunning"),
-                "Missing shortRunning stats :" + tojson(executionStats.write),
+                "Missing write shortRunning stats: " + tojson(executionStats.write),
             );
-            assertExecutionStatsPresent(executionStats.write.shortRunning);
+            assertPerAcquisitionStatsPresent(executionStats.write.shortRunning);
             assert(
                 executionStats.write.hasOwnProperty("longRunning"),
-                "Missing longRunning stats :" + tojson(executionStats.write),
+                "Missing write longRunning stats: " + tojson(executionStats.write),
             );
-            assertExecutionStatsPresent(executionStats.write.longRunning);
+            assertPerAcquisitionStatsPresent(executionStats.write.longRunning);
         });
         function configureExecutionControlState(enableDeprioritization, shedding) {
             setExecutionControlAlgorithm(mongod, kFixedConcurrentTransactionsAlgorithm);

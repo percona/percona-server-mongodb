@@ -1033,8 +1033,8 @@ export class ShardingTest {
             return new ShardingTest(params);
         }
 
-        if (this.constructor === ReplSetTest && this.constructor[kOverrideConstructor]) {
-            return new this.constructor[kOverrideConstructor]();
+        if (this.constructor === ShardingTest && this.constructor[kOverrideConstructor]) {
+            return new this.constructor[kOverrideConstructor](params);
         }
 
         // Ensure we don't mutate the passed-in parameters.
@@ -1541,6 +1541,10 @@ export class ShardingTest {
             };
 
             const isParallelSupported = (() => {
+                if(TestData.supportsParallelReplSetInitiateAndStop === false) {
+                    return false;
+                }
+
                 for (let {rst} of replicaSetsToInitiate) {
                     if (rst.startOptions && rst.startOptions.clusterAuthMode === "x509") {
                         // The mongo shell performing X.509 authentication as a cluster member
@@ -2140,6 +2144,11 @@ function isShutdownParallelSupported(st, opts = {}) {
 
     if (opts.parallelSupported !== undefined && opts.parallelSupported === false) {
         // The test has chosen to opt out of parallel shutdown
+        return false;
+    }
+
+    if(TestData.supportsParallelReplSetInitiateAndStop === false) {
+        // The suite has chosen to opt out of parallel shutdown
         return false;
     }
 

@@ -27,7 +27,6 @@
  *    it in the license file.
  */
 
-
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
@@ -75,6 +74,7 @@
 #include "mongo/db/query/query_shape/query_shape.h"
 #include "mongo/db/query/query_stats/distinct_key.h"
 #include "mongo/db/query/query_stats/query_stats.h"
+#include "mongo/db/query/query_utils.h"
 #include "mongo/db/query/shard_key_diagnostic_printer.h"
 #include "mongo/db/query/timeseries/timeseries_translation.h"
 #include "mongo/db/query/view_response_formatter.h"
@@ -87,6 +87,7 @@
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_catalog/db_raii.h"
+#include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
 #include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 #include "mongo/db/shard_role/shard_catalog/scoped_collection_metadata.h"
 #include "mongo/db/shard_role/shard_role.h"
@@ -118,7 +119,6 @@
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
-
 namespace mongo {
 namespace {
 
@@ -142,12 +142,7 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
     // Start the query planning timer right after parsing.
     CurOp::get(opCtx)->beginQueryPlanningTimer();
 
-    // Forbid users from passing 'querySettings' explicitly.
-    uassert(7923000,
-            "BSON field 'querySettings' is an unknown field",
-            query_settings::allowQuerySettingsFromClient(opCtx->getClient()) ||
-                !distinctCommand->getQuerySettings().has_value());
-
+    assertInternalParamsAreSetByInternalClients(opCtx->getClient(), *distinctCommand);
     auto expCtx = ExpressionContextBuilder{}
                       .fromRequest(opCtx, *distinctCommand, defaultCollator)
                       .ns(nss)
@@ -197,7 +192,6 @@ std::unique_ptr<CanonicalQuery> parseDistinctCmd(
 
 namespace mdps = multikey_dotted_path_support;
 
-namespace {
 // This function might create a classic or SBE plan executor. It relies on some assumptions that are
 // specific to the distinct() command and shouldn't be blindly reused in other "distinct" contexts.
 std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> createExecutorForDistinctCommand(
@@ -319,7 +313,6 @@ BSONObj translateCmdObjForRawData(OperationContext* opCtx,
 
     return cmdObj;
 }
-}  // namespace
 
 class DistinctCommand : public BasicCommand {
 public:

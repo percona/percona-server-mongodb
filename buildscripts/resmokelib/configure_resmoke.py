@@ -405,12 +405,18 @@ be invoked as either:
         raise RuntimeError(err)
 
     def set_up_feature_flags():
-        # These logging messages start with # becuase the output of this file must produce
+        # These logging messages start with # because the output of this file must produce
         # valid yaml. This comments out these print statements when the output is parsed.
         print("# Fetching feature flags...")
         if os.path.exists(BAZEL_GENERATED_OFF_FEATURE_FLAGS):
-            default_disabled_feature_flags = set(
-                process_feature_flag_file(BAZEL_GENERATED_OFF_FEATURE_FLAGS)
+            with open(
+                "buildscripts/resmokeconfig/fully_disabled_feature_flags.yml", encoding="utf8"
+            ) as fully_disabled_ffs:
+                force_disabled_flags = yaml.safe_load(fully_disabled_ffs)
+
+            default_disabled_feature_flags = list(
+                set(process_feature_flag_file(BAZEL_GENERATED_OFF_FEATURE_FLAGS))
+                - set(force_disabled_flags)
             )
         else:
             default_disabled_feature_flags = set(
@@ -537,6 +543,11 @@ flags in common: {common_set}
     _config.DOCKER_COMPOSE_BUILD_IMAGES = config.pop("docker_compose_build_images")
     if _config.DOCKER_COMPOSE_BUILD_IMAGES is not None:
         _config.DOCKER_COMPOSE_BUILD_IMAGES = _config.DOCKER_COMPOSE_BUILD_IMAGES.split(",")
+    _config.DOCKER_COMPOSE_TEST_COMPOSER_DIRS = config.pop("docker_compose_test_composer_dirs")
+    if _config.DOCKER_COMPOSE_TEST_COMPOSER_DIRS is not None:
+        _config.DOCKER_COMPOSE_TEST_COMPOSER_DIRS = _config.DOCKER_COMPOSE_TEST_COMPOSER_DIRS.split(
+            ","
+        )
     _config.DOCKER_COMPOSE_BUILD_ENV = config.pop("docker_compose_build_env")
     _config.DOCKER_COMPOSE_TAG = config.pop("docker_compose_tag")
     _config.EXTERNAL_SUT = config.pop("external_sut")

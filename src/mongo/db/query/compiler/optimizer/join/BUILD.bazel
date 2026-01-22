@@ -20,7 +20,6 @@ exports_files(
 mongo_cc_library(
     name = "join_ordering",
     srcs = [
-        "adjacency_matrix.cpp",
         "graph_cycle_breaker.cpp",
         "join_graph.cpp",
         "path_resolver.cpp",
@@ -28,6 +27,7 @@ mongo_cc_library(
     deps = [
         "//src/mongo/db:server_base",
         "//src/mongo/db/query:canonical_query_base",
+        "//src/mongo/db/query/compiler/optimizer/cost_based_ranker:estimates",
         "//src/mongo/db/query/util:query_util_bitset",
         "//src/mongo/db/query/util:query_util_disjoint_set",
     ],
@@ -41,13 +41,6 @@ mongo_cc_library(
         "plan_enumerator.cpp",
         "plan_enumerator_helpers.cpp",
     ],
-    hdrs = [
-        "cardinality_estimator.h",
-        "join_plan.h",
-        "plan_enumerator.h",
-        "plan_enumerator_helpers.h",
-        "single_table_access.h",
-    ],
     deps = [
         ":join_ordering",
         ":solution_storage",
@@ -59,7 +52,6 @@ mongo_cc_library(
 mongo_cc_unit_test(
     name = "join_ordering_test",
     srcs = [
-        "adjacency_matrix_test.cpp",
         "agg_join_model_test.cpp",
         "cardinality_estimator_join_test.cpp",
         "graph_cycle_breaker_test.cpp",

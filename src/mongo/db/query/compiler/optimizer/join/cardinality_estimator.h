@@ -30,32 +30,24 @@
 #pragma once
 
 #include "mongo/db/query/compiler/optimizer/cost_based_ranker/estimates.h"
+#include "mongo/db/query/compiler/optimizer/join/cardinality_estimation_types.h"
+#include "mongo/db/query/compiler/optimizer/join/graph_cycle_breaker.h"
 #include "mongo/db/query/compiler/optimizer/join/join_graph.h"
 #include "mongo/db/query/compiler/optimizer/join/single_table_access.h"
 #include "mongo/util/modules.h"
 
 namespace mongo::join_ordering {
 /**
- * Tracks for each node ID the cardinality estimate (with all single-table predicates applied).
- * It's important that the key is NodeId rather than namespace, since a single namespace may be
- * present multiple times in the graph and associated with different predicates/cardinalities.
- */
-using NodeCardinalities = std::vector<cost_based_ranker::CardinalityEstimate>;
-/**
- * Tracks for each edge ID the selectivity estimate.
- */
-using EdgeSelectivities = std::vector<cost_based_ranker::SelectivityEstimate>;
-
-/**
  * Contains logic necessary to do selectivity and cardinality estimation for joins.
  */
 class JoinCardinalityEstimator {
 public:
-    JoinCardinalityEstimator(EdgeSelectivities edgeSelectivities,
+    JoinCardinalityEstimator(const JoinReorderingContext& ctx,
+                             EdgeSelectivities edgeSelectivities,
                              NodeCardinalities nodeCardinalities);
 
     static JoinCardinalityEstimator make(const JoinReorderingContext& ctx,
-                                         const SingleTableAccessPlansResult& singleTablePlansRes,
+                                         const cost_based_ranker::EstimateMap& estimates,
                                          const SamplingEstimatorMap& samplingEstimators);
 
     /**
@@ -70,10 +62,24 @@ public:
         const JoinReorderingContext& ctx, const SamplingEstimatorMap& samplingEstimators);
 
     static NodeCardinalities extractNodeCardinalities(
-        const JoinReorderingContext& ctx, const SingleTableAccessPlansResult& singleTablePlansRes);
+        const JoinReorderingContext& ctx, const cost_based_ranker::EstimateMap& estimates);
+
+    /**
+     * Estimates the cardinality of a join plan over the given subset of nodes. This method
+     * constructs a spanning tree from the edges in the graph induced by 'nodes', and combines the
+     * edge selectivities, base table cardinalities, and single-table predicate selectivities to
+     * produce an estimate. Populates `_subsetCardinalities` with the result.
+     */
+    cost_based_ranker::CardinalityEstimate getOrEstimateSubsetCardinality(const NodeSet& nodes);
 
 private:
-    EdgeSelectivities _edgeSelectivities;
-    NodeCardinalities _nodeCardinalities;
+    const JoinReorderingContext& _ctx;
+    const EdgeSelectivities _edgeSelectivities;
+    const NodeCardinalities _nodeCardinalities;
+
+    GraphCycleBreaker _cycleBreaker;
+
+    // Populated over the course of subset enumeration.
+    SubsetCardinalities _subsetCardinalities;
 };
 }  // namespace mongo::join_ordering

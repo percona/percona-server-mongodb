@@ -214,6 +214,37 @@ TEST_F(CollectionDbPresentStateEventHandlerFixture,
 
 TEST_F(
     CollectionDbPresentStateEventHandlerFixture,
+    Given_NamespacePlacementChangedControlEventWithPlacementNotAvailable_When_HandleEventIsCalled_Then_ReturnSwitchToV1) {
+    Timestamp clusterTime(20, 1);
+    NamespacePlacementChangedControlEvent event{clusterTime};
+
+    std::vector<HistoricalPlacementFetcherMock::Response> responses{
+        {clusterTime, HistoricalPlacement({}, HistoricalPlacementStatus::NotAvailable)}};
+    fetcher().bufferResponses(responses);
+
+    auto result = handler().handleEvent(opCtx(), event, ctx(), readerCtx());
+    ASSERT_EQ(result, ShardTargeterDecision::kSwitchToV1);
+    ASSERT_TRUE(readerCtx().closeCursorsOnDataShardsCalls.empty());
+    ASSERT_TRUE(readerCtx().openCursorsOnDataShardsCalls.empty());
+    ASSERT_TRUE(ctx().setHandlerCalls.empty());
+}
+
+DEATH_TEST_REGEX_F(
+    CollectionDbPresentStateEventHandlerFixture,
+    Given_NamespacePlacementChangedControlEventWithPlacementInFuture_When_HandleEventIsCalled_Then_Throws,
+    "Tripwire assertion.*10917001") {
+    Timestamp clusterTime(101, 0);
+    NamespacePlacementChangedControlEvent event{clusterTime};
+
+    std::vector<HistoricalPlacementFetcherMock::Response> responses{
+        {clusterTime, HistoricalPlacement({}, HistoricalPlacementStatus::FutureClusterTime)}};
+    fetcher().bufferResponses(responses);
+
+    handler().handleEvent(opCtx(), event, ctx(), readerCtx());
+}
+
+TEST_F(
+    CollectionDbPresentStateEventHandlerFixture,
     Given_NamespacePlacementChangedControlEventWithShards_When_HandleEventIsCalled_Then_CursorsAreUpdated) {
     Timestamp clusterTime(60, 10);
     NamespacePlacementChangedControlEvent event{clusterTime, makeTestNss()};

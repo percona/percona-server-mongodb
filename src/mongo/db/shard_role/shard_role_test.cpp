@@ -56,7 +56,6 @@
 #include "mongo/db/shard_role/shard_catalog/collection_options.h"
 #include "mongo/db/shard_role/shard_catalog/collection_sharding_runtime.h"
 #include "mongo/db/shard_role/shard_catalog/collection_uuid_mismatch_info.h"
-#include "mongo/db/shard_role/shard_catalog/create_collection.h"
 #include "mongo/db/shard_role/shard_catalog/database.h"
 #include "mongo/db/shard_role/shard_catalog/database_holder.h"
 #include "mongo/db/shard_role/shard_catalog/database_sharding_state_mock.h"
@@ -234,8 +233,7 @@ void ShardRoleTest::installShardedCollectionMetadata(
         RoutingTableHistoryValueHandle(std::make_shared<RoutingTableHistory>(std::move(rt)),
                                        ComparableChunkVersion::makeComparableChunkVersion(version));
 
-    const auto collectionMetadata =
-        CollectionMetadata(ChunkManager(rtHandle, boost::none), kMyShardName);
+    const auto collectionMetadata = CollectionMetadata(CurrentChunkManager(rtHandle), kMyShardName);
 
     AutoGetCollection coll(opCtx, nss, MODE_IX);
     CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss)

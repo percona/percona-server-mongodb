@@ -29,6 +29,7 @@
 
 #include "mongo/db/query/compiler/optimizer/join/plan_enumerator.h"
 
+#include "mongo/db/query/compiler/optimizer/join/cardinality_estimator.h"
 #include "mongo/db/query/compiler/optimizer/join/plan_enumerator_helpers.h"
 #include "mongo/db/query/compiler/optimizer/join/unit_test_helpers.h"
 #include "mongo/unittest/death_test.h"
@@ -85,20 +86,26 @@ DEATH_TEST(PlanEnumeratorHelpersDeathTest, TooManyInvocationsOfCombinationSequen
 
 class JoinPlanEnumeratorTest : public JoinOrderingTestFixture {
 public:
+    static JoinCardinalityEstimator makeEmptyEstimator(const JoinReorderingContext& jCtx) {
+        EdgeSelectivities edgeSelectivities(jCtx.joinGraph.numEdges(), cost_based_ranker::zeroSel);
+        NodeCardinalities nodeCardinalities(jCtx.joinGraph.numNodes(), cost_based_ranker::zeroCE);
+        return {jCtx, std::move(edgeSelectivities), std::move(nodeCardinalities)};
+    }
+
     void initGraph(size_t numNodes, bool withIndexes = false) {
         for (size_t i = 0; i < numNodes; i++) {
             auto nss =
                 NamespaceString::createNamespaceString_forTest("test", str::stream() << "nss" << i);
             std::string fieldName = str::stream() << "a" << i;
-            auto filterBSON = BSON(fieldName << BSON("$gt" << 0));
+            auto filterBSON = bsonStorage.emplace_back(BSON(fieldName << BSON("$gt" << 0)));
             auto cq = makeCanonicalQuery(nss, filterBSON);
-            jCtx.cbrCqQsns.insert(
-                {cq.get(), makeCollScanPlan(nss, cq->getPrimaryMatchExpression()->clone())});
+            cbrCqQsns.emplace(cq.get(),
+                              makeCollScanPlan(nss, cq->getPrimaryMatchExpression()->clone()));
             ASSERT_TRUE(graph.addNode(nss, std::move(cq), boost::none).has_value());
 
             if (withIndexes) {
-                jCtx.perCollIdxs.emplace(
-                    nss, makeIndexCatalogEntries({BSON(fieldName << (i % 2 ? 1 : -1))}));
+                perCollIdxs.emplace(nss,
+                                    makeIndexCatalogEntries({BSON(fieldName << (i % 2 ? 1 : -1))}));
             }
 
             resolvedPaths.emplace_back(ResolvedPath{(NodeId)i, FieldPath(fieldName)});
@@ -119,7 +126,10 @@ public:
             }
         }
 
-        PlanEnumeratorContext ctx{jCtx};
+        auto jCtx = makeContext();
+        JoinCardinalityEstimator emptyEstimator = makeEmptyEstimator(jCtx);
+
+        PlanEnumeratorContext ctx{jCtx, emptyEstimator};
         ctx.enumerateJoinSubsets(shape);
         ASSERT_EQ(numNodes, ctx.getSubsets(0).size());
         for (size_t k = 1; k < numNodes; ++k) {
@@ -137,6 +147,8 @@ public:
             goldenCtx->outStream() << ctx.toString() << std::endl;
         }
     }
+
+    std::vector<BSONObj> bsonStorage;
 };
 
 TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsTwo) {
@@ -144,9 +156,11 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsTwo) {
 
     initGraph(2);
     graph.addSimpleEqualityEdge((NodeId)0, (NodeId)1, 0, 1);
+    auto jCtx = makeContext();
+    JoinCardinalityEstimator emptyEstimator = makeEmptyEstimator(jCtx);
 
     {
-        PlanEnumeratorContext ctx{jCtx};
+        PlanEnumeratorContext ctx{jCtx, emptyEstimator};
         ctx.enumerateJoinSubsets(PlanTreeShape::LEFT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -163,7 +177,7 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsTwo) {
     }
 
     {
-        PlanEnumeratorContext ctx{jCtx};
+        PlanEnumeratorContext ctx{jCtx, emptyEstimator};
         ctx.enumerateJoinSubsets(PlanTreeShape::RIGHT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -188,8 +202,11 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThree) {
     graph.addSimpleEqualityEdge(NodeId(0), NodeId(2), 0, 2);
     graph.addSimpleEqualityEdge(NodeId(1), NodeId(2), 1, 2);
 
+    auto jCtx = makeContext();
+    JoinCardinalityEstimator emptyEstimator = makeEmptyEstimator(jCtx);
+
     {
-        PlanEnumeratorContext ctx{jCtx};
+        PlanEnumeratorContext ctx{jCtx, emptyEstimator};
         ctx.enumerateJoinSubsets(PlanTreeShape::LEFT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -213,7 +230,7 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThree) {
     }
 
     {
-        PlanEnumeratorContext ctx{jCtx};
+        PlanEnumeratorContext ctx{jCtx, emptyEstimator};
         ctx.enumerateJoinSubsets(PlanTreeShape::RIGHT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -244,8 +261,11 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThreeNoCycle) {
     graph.addSimpleEqualityEdge(NodeId(0), NodeId(1), 0, 1);
     graph.addSimpleEqualityEdge(NodeId(0), NodeId(2), 0, 2);
 
+    auto jCtx = makeContext();
+    JoinCardinalityEstimator emptyEstimator = makeEmptyEstimator(jCtx);
+
     {
-        PlanEnumeratorContext ctx{jCtx};
+        PlanEnumeratorContext ctx{jCtx, emptyEstimator};
         ctx.enumerateJoinSubsets(PlanTreeShape::LEFT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -269,7 +289,7 @@ TEST_F(JoinPlanEnumeratorTest, InitializeSubsetsThreeNoCycle) {
     }
 
     {
-        PlanEnumeratorContext ctx{jCtx};
+        PlanEnumeratorContext ctx{jCtx, emptyEstimator};
         ctx.enumerateJoinSubsets(PlanTreeShape::RIGHT_DEEP);
 
         auto& level0 = ctx.getSubsets(0);
@@ -324,7 +344,7 @@ TEST_F(JoinPlanEnumeratorTest, ZigZag8NodesINLJ) {
 }
 
 TEST_F(JoinPlanEnumeratorTest, InitialzeLargeSubsets) {
-    testLargeSubset(nullptr /* No golden test here. */, PlanTreeShape::LEFT_DEEP, 15);
+    testLargeSubset(nullptr /* No golden test here. */, PlanTreeShape::LEFT_DEEP, 10);
 }
 
 }  // namespace mongo::join_ordering

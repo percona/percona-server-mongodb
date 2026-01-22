@@ -806,7 +806,32 @@ tasks:
       - func: "run tests"
 
   - <<: *task_template
+    name: change_streams_whole_db_passthrough_v2
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
     name: change_streams_whole_db_secondary_reads_sharded_collections
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "change_streams",
+        "secondary_reads",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+
+  - <<: *task_template
+    name: change_streams_whole_db_secondary_reads_sharded_collections_v2
     tags:
       [
         "assigned_to_jira_team_server_query_execution",
@@ -1147,8 +1172,8 @@ tasks:
       [
         "assigned_to_jira_team_server_query_execution",
         "development_critical",
+        "no_commit_queue",
         "requires_large_host",
-        "requires_large_host_commit_queue",
         "jscore",
         "common",
       ]

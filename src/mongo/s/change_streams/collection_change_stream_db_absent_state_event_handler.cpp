@@ -39,4 +39,8 @@ CollectionChangeStreamShardTargeterDbAbsentStateEventHandler::buildDbPresentStat
     const {
     return std::make_unique<CollectionChangeStreamShardTargeterDbPresentStateEventHandler>();
 }
+
+std::string CollectionChangeStreamShardTargeterDbAbsentStateEventHandler::toString() const {
+    return "CollectionChangeStreamShardTargeterDbAbsentStateEventHandler";
+}
 }  // namespace mongo

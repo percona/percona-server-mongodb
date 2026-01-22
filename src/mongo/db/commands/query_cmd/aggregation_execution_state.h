@@ -40,6 +40,7 @@
 #include "mongo/db/router_role/routing_cache/catalog_cache.h"
 #include "mongo/db/shard_role/shard_catalog/db_raii.h"
 #include "mongo/db/shard_role/shard_catalog/external_data_source_scope_guard.h"
+#include "mongo/db/shard_role/shard_catalog/operation_sharding_state.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/db/views/view.h"
 #include "mongo/util/modules.h"
@@ -77,6 +78,10 @@ class AggExState {
 public:
     /**
      * Upon construction, the context always references the initial request it is constructed with.
+     *
+     * Creates a new IFRContext for the aggregation, which will be shared among the root
+     * ExpressionContext and any child ExpressionContexts that are created, for example, as part
+     * of sub-pipeline execution.
      */
     AggExState(OperationContext* opCtx,
                AggregateCommandRequest& request,
@@ -90,7 +95,8 @@ public:
           _opCtx(opCtx),
           _executionNss(request.getNamespace()),
           _privileges(privileges),
-          _verbosity(verbosity) {
+          _verbosity(verbosity),
+          _ifrContext(std::make_shared<IncrementalFeatureRolloutContext>()) {
         // Create virtual collections and drop them when aggregate command is done.
         // If a cursor is registered, the ExternalDataSourceScopeGuard will be stored in the cursor;
         // when the cursor is later destroyed, the scope guard will also be destroyed, and any
@@ -157,6 +163,10 @@ public:
 
     boost::optional<ExplainOptions::Verbosity> getVerbosity() const {
         return _verbosity;
+    }
+
+    std::shared_ptr<IncrementalFeatureRolloutContext> getIfrContext() const {
+        return _ifrContext;
     }
 
     /**
@@ -334,7 +344,8 @@ protected:
           _executionNss(std::move(other._executionNss)),
           _privileges(other._privileges),
           _externalDataSourceGuard(std::move(other._externalDataSourceGuard)),
-          _verbosity(other._verbosity) {
+          _verbosity(other._verbosity),
+          _ifrContext(std::move(other._ifrContext)) {
         other._opCtx = nullptr;
     }
 
@@ -360,6 +371,9 @@ private:
     // Has a value if the aggregation has explain: true, to be used in
     // AggCatalogState::createExpressionContext to populate verbosity on the expression context.
     boost::optional<ExplainOptions::Verbosity> _verbosity;
+
+    // _ifrContext is shared among all copies of the ExpressionContext.
+    std::shared_ptr<IncrementalFeatureRolloutContext> _ifrContext;
 
     /**
      * Upconverts the read concern for a change stream aggregation, if necessary.

@@ -741,7 +741,7 @@ void checkLocalCatalogCollectionOptions(OperationContext* opCtx,
 void checkShardingCatalogCollectionOptions(OperationContext* opCtx,
                                            const NamespaceString& targetNss,
                                            const ShardsvrCreateCollectionRequest& request,
-                                           const ChunkManager& cm) {
+                                           const CurrentChunkManager& cm) {
     if (request.getRegisterExistingCollectionInGlobalCatalog()) {
         // No need for checking the sharding catalog when tracking a collection for the first time
         return;
@@ -1133,20 +1133,6 @@ void exitCriticalSectionsOnCoordinator(OperationContext* opCtx,
         defaultMajorityWriteConcernDoNotUse(),
         ShardingRecoveryService::FilteringMetadataClearer(),
         throwIfReasonDiffers);
-}
-
-/*
- * Check the requested shardKey is a timefield, then convert it to a shardKey compatible for the
- * bucket collection.
- */
-BSONObj validateAndTranslateShardKey(OperationContext* opCtx,
-                                     const TypeCollectionTimeseriesFields& timeseriesFields,
-                                     const BSONObj& shardKey) {
-    shardkeyutil::validateTimeseriesShardKey(
-        timeseriesFields.getTimeField(), timeseriesFields.getMetaField(), shardKey);
-
-    return uassertStatusOK(timeseries::createBucketsShardKeySpecFromTimeseriesShardKeySpec(
-        timeseriesFields.getTimeseriesOptions(), shardKey));
 }
 
 /**
@@ -1798,8 +1784,8 @@ void CreateCollectionCoordinator::_translateRequestParameters(OperationContext* 
     // Assign the correct shard key: in case of timeseries, the shard key must be converted.
     KeyPattern keyPattern;
     if (optExtendedTimeseriesFields && isSharded(_request)) {
-        keyPattern = validateAndTranslateShardKey(
-            opCtx, *optExtendedTimeseriesFields, *_request.getShardKey());
+        keyPattern = shardkeyutil::validateAndTranslateTimeseriesShardKey(
+            optExtendedTimeseriesFields->getTimeseriesOptions(), *_request.getShardKey());
     } else {
         keyPattern = *_request.getShardKey();
     }
