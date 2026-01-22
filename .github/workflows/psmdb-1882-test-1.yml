@@ -18,7 +18,7 @@ jobs:
           mode: create
           github_token: ${{ secrets.PSMDB_HCLOUD_BOT_PAT }}
           hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          server_type: ccx63
+          server_type: cpx62
           location: nbg1  # Nuremberg, Germany
           image: ubuntu-24.04
 
