@@ -30,7 +30,6 @@
 #include "mongo/s/write_ops/unified_write_executor/unified_write_executor.h"
 
 #include "mongo/db/fle_crud.h"
-#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/s/commands/query_cmd/populate_cursor.h"
 #include "mongo/s/write_ops/fle.h"
 #include "mongo/s/write_ops/unified_write_executor/stats.h"
@@ -42,6 +41,11 @@
 
 namespace mongo {
 namespace unified_write_executor {
+
+// Decorator used to cache the value of 'gFeatureFlagUnifiedWriteExecutor' so that it remains
+// constant across a query.
+const OperationContext::Decoration<boost::optional<bool>> useUweForOpCtx =
+    OperationContext::declareDecoration<boost::optional<bool>>();
 
 namespace {
 bool isNonVerboseWriteCommand(OperationContext* opCtx, WriteCommandRef cmdRef) {
@@ -111,19 +115,19 @@ BatchedCommandResponse write(OperationContext* opCtx,
         executeWriteCommand(opCtx, WriteCommandRef{request}, BSONObj(), targetEpoch));
 }
 
-BulkWriteCommandReply bulkWrite(OperationContext* opCtx,
-                                const BulkWriteCommandRequest& request,
-                                BSONObj originalCommand) {
+bulk_write_exec::BulkWriteReplyInfo bulkWrite(OperationContext* opCtx,
+                                              const BulkWriteCommandRequest& request,
+                                              BSONObj originalCommand) {
     if (request.getNsInfo()[0].getEncryptionInformation().has_value()) {
         auto [result, replyInfo] = attemptExecuteFLE(opCtx, request);
         if (result == FLEBatchResult::kProcessed) {
-            return populateCursorReply(opCtx, request, originalCommand, std::move(replyInfo));
+            return std::move(replyInfo);
         }
         // When FLE logic determines there is no need of processing, we fall through to the normal
         // case.
     }
 
-    return std::get<BulkWriteCommandReply>(
+    return std::get<bulk_write_exec::BulkWriteReplyInfo>(
         executeWriteCommand(opCtx, WriteCommandRef{request}, originalCommand));
 }
 
@@ -158,7 +162,11 @@ FindAndModifyCommandResponse findAndModify(
 }
 
 bool isEnabled(OperationContext* opCtx) {
-    return feature_flags::gFeatureFlagUnifiedWriteExecutor.checkEnabled();
+    // Cache the value on an opCtx decorator so that the value remains consistent accross a query.
+    if (!useUweForOpCtx(opCtx).has_value()) {
+        useUweForOpCtx(opCtx) = feature_flags::gFeatureFlagUnifiedWriteExecutor.checkEnabled();
+    }
+    return *useUweForOpCtx(opCtx);
 }
 
 }  // namespace unified_write_executor

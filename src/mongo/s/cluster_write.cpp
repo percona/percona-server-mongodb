@@ -35,7 +35,6 @@
 #include "mongo/db/query/shard_key_diagnostic_printer.h"
 #include "mongo/db/router_role/collection_routing_info_targeter.h"
 #include "mongo/db/router_role/ns_targeter.h"
-#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/logv2/log.h"
 #include "mongo/s/write_ops/bulk_write_exec.h"
 #include "mongo/s/write_ops/fle.h"
@@ -44,7 +43,6 @@
 
 #include <memory>
 
-#include <boost/move/utility_core.hpp>
 #include <boost/optional/optional.hpp>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
@@ -103,14 +101,18 @@ bulk_write_exec::BulkWriteReplyInfo bulkWrite(
     const BulkWriteCommandRequest& request,
     const std::vector<std::unique_ptr<NSTargeter>>& targeters,
     bulk_write_exec::BulkWriteExecStats& execStats) {
-    if (request.getNsInfo()[0].getEncryptionInformation().has_value()) {
-        auto [result, replies] = attemptExecuteFLE(opCtx, request);
-        if (result == FLEBatchResult::kProcessed) {
-            return replies;
-        }  // else fallthrough.
+    if (unified_write_executor::isEnabled(opCtx)) {
+        execStats.markIgnore();
+        return unified_write_executor::bulkWrite(opCtx, request);
+    } else {
+        if (request.getNsInfo()[0].getEncryptionInformation().has_value()) {
+            auto [result, replies] = attemptExecuteFLE(opCtx, request);
+            if (result == FLEBatchResult::kProcessed) {
+                return replies;
+            }  // else fallthrough.
+        }
+        return bulk_write_exec::execute(opCtx, targeters, request, execStats);
     }
-
-    return bulk_write_exec::execute(opCtx, targeters, request, execStats);
 }
 
 }  // namespace cluster
