@@ -28,7 +28,8 @@
  */
 
 #include "mongo/bson/json.h"
-#include "mongo/db/extension/host/document_source_extension.h"
+#include "mongo/db/extension/host/document_source_extension_for_query_shape.h"
+#include "mongo/db/extension/host/document_source_extension_optimizable.h"
 #include "mongo/db/extension/host/load_extension.h"
 #include "mongo/db/extension/host/load_extension_test_util.h"
 #include "mongo/db/pipeline/document_source.h"
@@ -107,9 +108,13 @@ protected:
     static std::vector<BSONObj> desugarAndSerialize(
         const boost::intrusive_ptr<ExpressionContext>& expCtx, const BSONObj& stageSpec) {
         std::vector<BSONObj> spec{stageSpec};
-        auto pipe = pipeline_factory::makePipeline(spec, expCtx, pipeline_factory::kOptionsMinimal);
+        auto pipe = pipeline_factory::makePipeline(spec,
+                                                   expCtx,
+                                                   {.optimize = false,
+                                                    .alreadyOptimized = false,
+                                                    .attachCursorSource = false,
+                                                    .desugar = true});
         ASSERT_TRUE(pipe);
-        Desugarer(pipe.get())();
         return pipe->serializeToBson();
     }
 
@@ -124,8 +129,8 @@ protected:
                                       const BSONObj& stageSpec,
                                       std::initializer_list<const StringData> names) {
         auto liteParsed = LiteParsedDocumentSource::parse(nss, stageSpec);
-        auto* lpExpanded =
-            dynamic_cast<DocumentSourceExtension::LiteParsedExpandable*>(liteParsed.get());
+        auto* lpExpanded = dynamic_cast<DocumentSourceExtensionOptimizable::LiteParsedExpandable*>(
+            liteParsed.get());
         ASSERT_TRUE(lpExpanded);
         const auto& expanded = lpExpanded->getExpandedPipeline();
         ASSERT_EQ(expanded.size(), names.size());
@@ -163,7 +168,8 @@ TEST_F(LoadNativeVectorSearchTest, ExtensionRegistration) {
     auto sourceList = DocumentSource::parse(expCtx, stageSpec);
     ASSERT_EQ(sourceList.size(), 1U);
 
-    auto* extensionStage = dynamic_cast<DocumentSourceExtension*>(sourceList.front().get());
+    auto* extensionStage =
+        dynamic_cast<DocumentSourceExtensionForQueryShape*>(sourceList.front().get());
     ASSERT_TRUE(extensionStage);
     ASSERT_EQ(std::string(extensionStage->getSourceName()), kNativeVectorSearchStageName);
 
@@ -173,8 +179,8 @@ TEST_F(LoadNativeVectorSearchTest, ExtensionRegistration) {
     ASSERT(parsedPipeline);
     ASSERT_EQUALS(parsedPipeline->getSources().size(), 2U);
 
-    auto* firstStage =
-        dynamic_cast<DocumentSourceExtension*>(parsedPipeline->getSources().front().get());
+    auto* firstStage = dynamic_cast<DocumentSourceExtensionForQueryShape*>(
+        parsedPipeline->getSources().front().get());
     ASSERT(firstStage);
     ASSERT_EQUALS(std::string(firstStage->getSourceName()), kNativeVectorSearchStageName);
 }

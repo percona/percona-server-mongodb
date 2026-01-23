@@ -1046,6 +1046,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/libs/override_methods/**/send_command_to_initial_sync_node* @10gen/server-initial-sync @svc-auto-approve-bot
 /jstests/libs/override_methods/**/txn_passthrough_cmd_massage.js @10gen/server-transactions @svc-auto-approve-bot
 /jstests/libs/override_methods/**/implicitly_retry_on_fcv_upgrade_downgrade.js @10gen/query-execution-query-settings @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-replication-reviewers @svc-auto-approve-bot
+/jstests/libs/override_methods/**/implicitly_retry_on_shard_transition_errors.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/libs/override_methods/**/implicit_identity_views.js @10gen/query-optimization @svc-auto-approve-bot
 /jstests/libs/override_methods/**/implicitly_retry_on_conflicting_operation_during_fuzztest.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/libs/override_methods/**/validate_collections_on_shutdown.js @10gen/server-validate @svc-auto-approve-bot
@@ -1135,6 +1136,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./jstests/multiVersion/genericBinVersion/query-integration-search/OWNERS.yml
 /jstests/multiVersion/genericBinVersion/query-integration-search/ @10gen/query-integration-search @svc-auto-approve-bot
 
+# The following patterns are parsed from ./jstests/multiVersion/genericBinVersion/query-integration-timeseries/OWNERS.yml
+/jstests/multiVersion/genericBinVersion/query-integration-timeseries/ @10gen/query-integration-timeseries @svc-auto-approve-bot
+
 # The following patterns are parsed from ./jstests/multiVersion/genericBinVersion/query-optimization/OWNERS.yml
 /jstests/multiVersion/genericBinVersion/query-optimization/ @10gen/query-optimization @svc-auto-approve-bot
 
@@ -1182,6 +1186,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/fcv_transition_fails_during_is_cleaning_server_metadata.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/can_transition_to_originalFCV_after_failed_upgrade_or_downgrade.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/authoritative_database_metadata_on_FCV_transition.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/cluster_parameters_disabled_correctly_after_downgrade.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-fcv @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/collection_write_path/OWNERS.yml
 /jstests/multiVersion/genericSetFCVUsage/collection_write_path/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -1260,7 +1265,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/noPassthrough/crud/**/bulk_write_currentop.js @10gen/query-integration-observability @svc-auto-approve-bot
 /jstests/noPassthrough/crud/**/*capped_deletes* @10gen/server-collection-write-path @svc-auto-approve-bot
 /jstests/noPassthrough/crud/**/replset_writes_during_restarts_keep_fast_count_correct.js @10gen/server-storage-engine-integration @svc-auto-approve-bot
-/jstests/noPassthrough/crud/**/insert_docs_larger_than_max_user_size_standalone.js @10gen/query-optimization-parsers @svc-auto-approve-bot
+/jstests/noPassthrough/crud/**/insert_docs_larger_than_max_user_size_standalone.js @10gen/query-optimization @svc-auto-approve-bot
 /jstests/noPassthrough/crud/**/vectored_insert_no_oplog_hole.js @10gen/server-replication-reviewers @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/noPassthrough/data_consistency/OWNERS.yml
@@ -3205,8 +3210,11 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/scripting/OWNERS.yml
 /src/mongo/scripting/**/* @10gen/query-integration-features @svc-auto-approve-bot
 
-# The following patterns are parsed from ./src/mongo/scripting/mozjs/OWNERS.yml
-/src/mongo/scripting/mozjs/**/* @10gen/query-integration-features @svc-auto-approve-bot
+# The following patterns are parsed from ./src/mongo/scripting/mozjs/common/OWNERS.yml
+/src/mongo/scripting/mozjs/common/**/* @10gen/query-integration-features @svc-auto-approve-bot
+
+# The following patterns are parsed from ./src/mongo/scripting/mozjs/shell/OWNERS.yml
+/src/mongo/scripting/mozjs/shell/**/* @10gen/query-integration-features @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/shell/OWNERS.yml
 /src/mongo/shell/**/* @10gen/devprod-correctness @svc-auto-approve-bot

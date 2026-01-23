@@ -644,7 +644,7 @@ server_parameters:
         set_at: [startup, runtime]
         cpp_vartype: "AtomicWord<long long>"
         cpp_varname: gInternalMaxGroupAccumulatorsInSbe
-        default: 16
+        default: 25
         validator:
             gte: 0
         redact: false
@@ -655,6 +655,14 @@ server_parameters:
         cpp_varname: "internalEnableJoinEnumerationHJOrderPruning"
         cpp_vartype: AtomicWord<bool>
         default: true
+        redact: false
+
+    internalEnablePipelineOptimizationAdditionalTestingRules:
+        description: "Whether or not to enable pipeline optimization rules with Testing tag."
+        set_at: [startup, runtime]
+        cpp_varname: "internalEnablePipelineOptimizationAdditionalTestingRules"
+        cpp_vartype: AtomicWord<bool>
+        default: false
         redact: false
 
     #

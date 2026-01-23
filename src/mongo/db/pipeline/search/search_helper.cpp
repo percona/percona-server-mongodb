@@ -39,6 +39,7 @@
 #include "mongo/db/pipeline/search/document_source_list_search_indexes.h"
 #include "mongo/db/pipeline/search/document_source_search.h"
 #include "mongo/db/pipeline/search/document_source_search_meta.h"
+#include "mongo/db/pipeline/search/document_source_vector_search.h"
 #include "mongo/db/pipeline/search/plan_sharded_search_gen.h"
 #include "mongo/db/pipeline/search/search_helper_bson_obj.h"
 #include "mongo/db/pipeline/variables.h"
@@ -177,6 +178,15 @@ parseMongotResponseCursors(std::vector<std::unique_ptr<executor::TaskExecutorCur
 
 void planShardedSearch(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                        InternalSearchMongotRemoteSpec* remoteSpec) {
+    // The parsed pipeline won't be executed so we don't need the planShardedSearch result.
+    if (!expCtx->getMongoProcessInterface()->isExpectedToExecuteQueries()) {
+        LOGV2_DEBUG(11507801,
+                    5,
+                    "Skipping planShardedSearch while parsing only for query shape",
+                    "ns"_attr = expCtx->getNamespaceString().coll());
+        return;
+    }
+
     LOGV2_DEBUG(9497008,
                 5,
                 "planShardedSearch",
@@ -306,7 +316,8 @@ bool isMongotStage(DocumentSource* stage) {
 
 // TODO SERVER-116021 Remove this function when the extension can do this through ViewPolicy.
 bool isExtensionVectorSearchStage(std::string stageName) {
-    return stageName == kExtensionVectorSearchStageName;
+    return stageName == kExtensionVectorSearchStageName ||
+        stageName == DocumentSourceVectorSearch::kStageName;
 }
 
 void assertSearchMetaAccessValid(const DocumentSourceContainer& pipeline,

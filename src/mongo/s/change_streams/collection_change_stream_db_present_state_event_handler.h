@@ -41,7 +41,7 @@ protected:
      * if all its chunks have been migrated away.
      */
     ShardTargeterDecision handleMoveChunk(OperationContext* opCtx,
-                                          const MoveChunkControlEvent& e,
+                                          const MoveChunkControlEvent& event,
                                           ChangeStreamShardTargeterStateEventHandlingContext& ctx,
                                           ChangeStreamReaderContext& readerCtx) override;
 
