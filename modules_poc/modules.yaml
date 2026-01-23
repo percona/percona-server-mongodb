@@ -87,6 +87,7 @@ core.service:
     - src/mongo/db/dbdirectclient[._]*
     - src/mongo/dbtests/directclienttests.cpp
     - src/mongo/db/feature_flag*
+    - src/mongo/db/ifr_flag_retry_info*
     - src/mongo/db/error_labels*
     - src/mongo/db/server_feature_flags.idl
     - src/mongo/db/windows_options.idl
@@ -792,7 +793,6 @@ index_builds: # authoritative: @10gen/server-index-builds
     - src/mongo/db/index/index_access_method*
     - src/mongo/db/index_key_validate*
     - src/mongo/db/index_spec_validate*
-    - src/mongo/db/commands/create_indexes*
     - src/mongo/db/commands/set_index_commit_quorum*
     - src/mongo/db/commands/vote*index_build*
     - src/mongo/dbtests/indexupdatetests.cpp

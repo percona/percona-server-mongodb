@@ -38,10 +38,17 @@ namespace mongo::otel::metrics {
  */
 class Metric {
 public:
+    virtual ~Metric() = default;
+
     /**
      * Serializes the derived class to BSON.
      *
-     * This is useful for reporting metrics through server status.
+     * This is useful for reporting metrics through server status. Implementations MUST use the
+     * provided key to generate a BSONOBj with the following structure:
+     *
+     * {key: ...}
+     *
+     * For example, {"a": 1} or {"b": {...}}.
      */
     virtual BSONObj serializeToBson(const std::string& key) const = 0;
 };

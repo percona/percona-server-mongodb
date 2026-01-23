@@ -45,6 +45,8 @@
 #include <stdio.h>
 #else
 #include <unistd.h>
+
+#include <sys/resource.h>
 #endif
 
 namespace mongo::unittest::details {
@@ -56,6 +58,16 @@ static const auto stderrFileNo = _fileno(stdout);
 static const auto stdoutFileNo = STDOUT_FILENO;
 static const auto stderrFileNo = STDERR_FILENO;
 #endif
+
+MONGO_MOD_PUBLIC inline void suppressCoreDumps() {
+#ifndef _WIN32
+    const struct rlimit zero{0, 0};
+    if (int res = setrlimit(RLIMIT_CORE, &zero); res == -1) {
+        auto ec = lastSystemError();
+        invariant(res != -1, errorMessage(ec));
+    }
+#endif
+}
 
 /**
  * This is useful for DEATH_TEST because GTest ASSERT_DEATH captures

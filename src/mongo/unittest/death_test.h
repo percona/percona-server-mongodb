@@ -116,8 +116,6 @@
         void TestBody() override;                                                           \
                                                                                             \
         void _executeInChildForDeathTest() noexcept {                                       \
-            ::mongo::unittest::details::redirectStdoutToStderr();                           \
-            ::testing::UnitTest::GetInstance()->listeners().SuppressEventForwarding(false); \
             SetUp();                                                                        \
             TestBody();                                                                     \
             TearDown();                                                                     \

@@ -52,6 +52,7 @@
 #include "mongo/util/pcre.h"
 #include "mongo/util/signal_handlers.h"
 #include "mongo/util/signal_handlers_synchronous.h"
+#include "mongo/util/stacktrace.h"
 #include "mongo/util/testing_proctor.h"
 
 #include <algorithm>
@@ -219,6 +220,10 @@ void initializeDeathTestChild() {
     // (Generic FCV reference): test-only
     serverGlobalParams.mutableFCV.setVersion(multiversion::GenericFCV::kLatest);
 
+#ifdef MONGO_CONFIG_DEV_STACKTRACE
+    disableDevStackTrace();
+#endif
+    details::suppressCoreDumps();
     details::redirectStdoutToStderr();
     ::testing::UnitTest::GetInstance()->listeners().SuppressEventForwarding(false);
 }

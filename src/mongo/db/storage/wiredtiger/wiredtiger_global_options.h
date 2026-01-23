@@ -74,7 +74,6 @@ public:
     std::string liveRestoreSource;
     int liveRestoreThreads;
     double liveRestoreReadSizeMB;
-    int flattenLeafPageDelta;
 
     std::string collectionBlockCompressor;
     bool useIndexPrefixCompression;

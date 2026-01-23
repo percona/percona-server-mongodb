@@ -27,38 +27,31 @@
  *    it in the license file.
  */
 
-#include "mongo/otel/metrics/metric_units.h"
+#include "mongo/db/ifr_flag_retry_info.h"
 
-#include "mongo/logv2/log.h"
+#include "mongo/base/init.h"
+#include "mongo/bson/bsonelement.h"
+#include "mongo/bson/bsonobjbuilder.h"
 
-namespace mongo::otel::metrics {
+namespace mongo {
+namespace {
 
-#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
+constexpr StringData kDisabledFlagFieldName = "disabledFlagName";
+MONGO_INIT_REGISTER_ERROR_EXTRA_INFO(IFRFlagRetryInfo);
 
-StringData toString(MetricUnit unit) {
-    switch (unit) {
-        // Time
-        case MetricUnit::kMicroseconds:
-            return "microseconds";
-        case MetricUnit::kMilliseconds:
-            return "milliseconds";
-        case MetricUnit::kSeconds:
-            return "seconds";
+}  // namespace
 
-        // Space
-        case MetricUnit::kBytes:
-            return "bytes";
-
-        // Database
-        case MetricUnit::kOperations:
-            return "operations";
-        case MetricUnit::kQueries:
-            return "queries";
-
-        // Networking
-        case MetricUnit::kConnections:
-            return "connections";
-    }
-    LOGV2_FATAL(11494600, "Unknown MetricUnit value", "value"_attr = static_cast<int>(unit));
+void IFRFlagRetryInfo::serialize(BSONObjBuilder* bob) const {
+    bob->append(kDisabledFlagFieldName, _disabledFlagName);
 }
-}  // namespace mongo::otel::metrics
+
+std::shared_ptr<const ErrorExtraInfo> IFRFlagRetryInfo::parse(const BSONObj& obj) {
+    const auto& disabledFlagElement = obj.getField(kDisabledFlagFieldName);
+    uassert(11577000,
+            fmt::format("IFRFlagRetryInfo was missing '{}' field", kDisabledFlagFieldName),
+            !disabledFlagElement.eoo());
+    return std::make_shared<IFRFlagRetryInfo>(
+        std::string(disabledFlagElement.checkAndGetStringData()));
+}
+
+}  // namespace mongo
