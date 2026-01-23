@@ -2451,6 +2451,50 @@
           "value": "https://github.com/wbond/oscrypto"
         }
       ]
+    },
+    {
+      "supplier": {
+        "name": "Organization: github"
+      },
+      "name": "libarchive",
+      "version": "3.8.4",
+      "licenses": [
+        {
+          "license": {
+            "name": "A mix of BSD-2-Clasue and others",
+            "url": "https://github.com/libarchive/libarchive/blob/v3.4.0/COPYING"
+          }
+        }
+      ],
+      "purl": "pkg:github/libarchive/libarchive@v3.8.4",
+      "properties": [
+        {
+          "name": "internal:team_responsible",
+          "value": "Percona Server for MongoDB Team"
+        },
+        {
+          "name": "emits_persisted_data",
+          "value": "true"
+        },
+        {
+          "name": "info_link",
+          "value": "https://www.libarchive.org"
+        },
+        {
+          "name": "import_script_path",
+          "value": "src/third_party/libarchive/scripts/import.sh"
+        }
+      ],
+      "type": "library",
+      "bom-ref": "pkg:github/libarchive/libarchive@v3.8.4",
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/third_party/libarchive"
+          }
+        ]
+      },
+      "scope": "required"
     }
   ],
   "dependencies": [
@@ -2497,7 +2541,8 @@
         "pkg:github/snowballstem/snowball@7b264ffa0f767c579d052fd8142558dc8264d795",
         "pkg:github/unicode-org/icu@release-57-1",
         "pkg:github/wiredtiger/wiredtiger@mongodb-8.0.12",
-        "pkg:pypi/ocspresponder@0.5.0"
+        "pkg:pypi/ocspresponder@0.5.0",
+        "pkg:github/libarchive/libarchive@v3.8.4"
       ]
     },
     {
@@ -2723,6 +2768,10 @@
     },
     {
       "ref": "wiredtiger:pkg:github/nlohmann/json@3.10.5",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:github/libarchive/libarchive@v3.8.4",
       "dependsOn": []
     }
   ]
