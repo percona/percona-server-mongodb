@@ -171,6 +171,12 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
         return status;
     }
 
+    // TODO SERVER-111798: Support cycles in the join graph.
+    if (swModel.getValue().graph.numEdges() >= swModel.getValue().graph.numNodes()) {
+        return Status(ErrorCodes::QueryFeatureNotAllowed,
+                      "Join reordering does not support cycles");
+    }
+
     // Validate we have all the collection acquisitions we need here.
     bool missingAcquisitions = std::any_of(swModel.getValue().prefix->getSources().begin(),
                                            swModel.getValue().prefix->getSources().end(),
@@ -218,10 +224,13 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     switch (qkc.getJoinReorderMode()) {
         case JoinReorderModeEnum::kBottomUp: {
             // Optimize join order using bottom-up Sellinger-style algorithm.
-            JoinCardinalityEstimator estimator = JoinCardinalityEstimator::make(
-                ctx, swAccessPlans.getValue().estimate, samplingEstimators);
-            reordered = constructSolutionBottomUp(
-                ctx, std::move(estimator), getPlanTreeShape(qkc.getJoinPlanTreeShape()));
+            auto estimator =
+                std::make_unique<JoinCardinalityEstimator>(JoinCardinalityEstimator::make(
+                    ctx, swAccessPlans.getValue().estimate, samplingEstimators));
+            reordered = constructSolutionBottomUp(ctx,
+                                                  std::move(estimator),
+                                                  getPlanTreeShape(qkc.getJoinPlanTreeShape()),
+                                                  qkc.getEnableJoinEnumerationHJOrderPruning());
             break;
         }
         case JoinReorderModeEnum::kRandom:

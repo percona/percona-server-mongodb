@@ -6,7 +6,7 @@
  * ]
  */
 import {assertArrayEq} from "jstests/aggregation/extras/utils.js";
-import {line, linebreak, section, subSection} from "jstests/libs/pretty_md.js";
+import {line, linebreak, section, subSection} from "jstests/libs/query/pretty_md.js";
 import {outputAggregationPlanAndResults} from "jstests/libs/query/golden_test_utils.js";
 import {getQueryPlanner} from "jstests/libs/query/analyze_plan.js";
 import {checkSbeFullFeatureFlagEnabled} from "jstests/libs/query/sbe_util.js";
@@ -329,6 +329,15 @@ section("Basic example with a $project reducing the documents of the base collec
 runBasicJoinTest([
     {$project: {a: true}},
     {$lookup: {from: foreignColl1.getName(), as: "x", localField: "a", foreignField: "a"}},
+    {$unwind: "$x"},
+    {$lookup: {from: foreignColl3.getName(), as: "z", localField: "x.c", foreignField: "c"}},
+    {$unwind: "$z"},
+]);
+
+section("Basic example with a $project adding synthetic fields");
+runBasicJoinTest([
+    {$project: {a: true, extra: "$a"}},
+    {$lookup: {from: foreignColl1.getName(), as: "x", localField: "extra", foreignField: "a"}},
     {$unwind: "$x"},
     {$lookup: {from: foreignColl3.getName(), as: "z", localField: "x.c", foreignField: "c"}},
     {$unwind: "$z"},

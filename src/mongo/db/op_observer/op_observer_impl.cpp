@@ -1208,12 +1208,8 @@ void _onContainerInsert(OperationContext* opCtx,
         txnParticipant && !oplogDisabled && txnParticipant.transactionIsOpen();
     auto inBatchedWrite = BatchedWriteContext::get(opCtx).writesAreBatched();
 
-    uassert(10942700,
-            "Cannot insert into a container in a multi-document transaction",
-            !inMultiDocumentTransaction);
-
-    if (inBatchedWrite) {
-        BatchedWriteContext::BatchedOperation op;
+    auto makeOp = [&] {
+        repl::ReplOperation op;
         op.setOpType(repl::OpTypeEnum::kContainerInsert);
         op.setVersionContextIfHasOperationFCV(VersionContext::getDecoration(opCtx));
         op.setTid(ns.tenantId());
@@ -1221,7 +1217,16 @@ void _onContainerInsert(OperationContext* opCtx,
         op.setUuid(collUUID);
         op.setContainer(ident);
         op.setObject(buildContainerOpObject(key, value));
-        BatchedWriteContext::get(opCtx).addBatchedOperation(opCtx, op);
+        return op;
+    };
+
+    if (inBatchedWrite) {
+        BatchedWriteContext::get(opCtx).addBatchedOperation(opCtx, makeOp());
+        return;
+    }
+
+    if (inMultiDocumentTransaction) {
+        txnParticipant.addTransactionOperation(opCtx, makeOp());
         return;
     }
 
@@ -1274,12 +1279,8 @@ void _onContainerDelete(OperationContext* opCtx,
         txnParticipant && !oplogDisabled && txnParticipant.transactionIsOpen();
     auto inBatchedWrite = BatchedWriteContext::get(opCtx).writesAreBatched();
 
-    uassert(10942702,
-            "Cannot delete from a container in a multi-document transaction",
-            !inMultiDocumentTransaction);
-
-    if (inBatchedWrite) {
-        BatchedWriteContext::BatchedOperation op;
+    auto makeOp = [&] {
+        repl::ReplOperation op;
         op.setOpType(repl::OpTypeEnum::kContainerDelete);
         op.setVersionContextIfHasOperationFCV(VersionContext::getDecoration(opCtx));
         op.setTid(ns.tenantId());
@@ -1287,7 +1288,16 @@ void _onContainerDelete(OperationContext* opCtx,
         op.setUuid(collUUID);
         op.setContainer(ident);
         op.setObject(buildContainerOpObject(key));
-        BatchedWriteContext::get(opCtx).addBatchedOperation(opCtx, op);
+        return op;
+    };
+
+    if (inBatchedWrite) {
+        BatchedWriteContext::get(opCtx).addBatchedOperation(opCtx, makeOp());
+        return;
+    }
+
+    if (inMultiDocumentTransaction) {
+        txnParticipant.addTransactionOperation(opCtx, makeOp());
         return;
     }
 
@@ -2032,6 +2042,51 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
 
     if (batchedOps->isEmpty()) {
         return;
+    } else if (batchedOps->numOperations() == 1) {
+        MutableOplogEntry oplogEntry;
+        oplogEntry.setDurableReplOperation(batchedOps->getOperationsForOpObserver().front());
+
+        // TODO (SERVER-114338): Pull commonalities out of switch cases if possible.
+        switch (oplogEntry.getOpType()) {
+            case repl::OpTypeEnum::kInsert: {
+                if (!oplogEntry.getStatementIds().empty()) {
+                    repl::OplogLink oplogLink;
+                    _operationLogger->appendOplogEntryChainInfo(
+                        opCtx, &oplogEntry, &oplogLink, oplogEntry.getStatementIds());
+                }
+
+                auto opTime = logOperation(
+                    opCtx, &oplogEntry, true /*assignCommonFields*/, _operationLogger.get());
+
+                std::vector<StmtId> stmtIdsWritten;
+                stmtIdsWritten.insert(stmtIdsWritten.end(),
+                                      oplogEntry.getStatementIds().begin(),
+                                      oplogEntry.getStatementIds().end());
+
+                SessionTxnRecord sessionTxnRecord;
+                sessionTxnRecord.setLastWriteOpTime(opTime);
+                sessionTxnRecord.setLastWriteDate(oplogEntry.getWallClockTime());
+                onWriteOpCompleted(
+                    opCtx, std::move(stmtIdsWritten), sessionTxnRecord, oplogEntry.getNss());
+
+                return;
+            }
+            // // TODO (SERVER-114444): Handle single update ops
+            // case repl::OpTypeEnum::kUpdate: {
+            //     OpTimeBundle opTimes;
+            //     opTimes.writeOpTime = logOperation(
+            //         opCtx, &oplogEntry, true /*assignCommonFields*/, _operationLogger.get());
+            //     opTimes.wallClockTime = oplogEntry.getWallClockTime();
+            // }
+            // // TODO (SERVER-114445): Handle single delete ops
+            // case repl::OpTypeEnum::kDelete:
+            // // TODO (SERVER-114446): Handle single container insert
+            // case repl::OpTypeEnum::kContainerInsert:
+            // // TODO (SERVER-114447): Handle single container delete
+            // case repl::OpTypeEnum::kContainerDelete:
+            default:
+                break;
+        }
     }
 
     // Serialize batched statements to BSON and determine their assignment to "applyOps"
@@ -2378,7 +2433,8 @@ void OpObserverImpl::onTruncateRange(OperationContext* opCtx,
 
 void OpObserverImpl::onUpgradeDowngradeViewlessTimeseries(OperationContext* opCtx,
                                                           const NamespaceString& nss,
-                                                          const UUID& uuid) {
+                                                          const UUID& uuid,
+                                                          bool skipViewCreation) {
     tassert(11450500,
             "Expecting the main namespace for timeseries upgrade/downgrade ops",
             !nss.isTimeseriesBucketsCollection());
@@ -2391,6 +2447,9 @@ void OpObserverImpl::onUpgradeDowngradeViewlessTimeseries(OperationContext* opCt
     }
 
     UpgradeDowngradeViewlessTimeseriesOplogEntry objectEntry(std::string{nss.coll()});
+    if (skipViewCreation) {
+        objectEntry.setSkipViewCreation(true);
+    }
 
     repl::MutableOplogEntry oplogEntry;
     oplogEntry.setOpType(repl::OpTypeEnum::kCommand);

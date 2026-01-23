@@ -33,6 +33,7 @@
 #include "mongo/db/commands/query_cmd/bulk_write_crud_op.h"
 #include "mongo/db/commands/query_cmd/bulk_write_parser.h"
 #include "mongo/s/write_ops/write_command_ref.h"
+#include "mongo/util/modules.h"
 
 namespace mongo {
 namespace write_op_helpers {
@@ -131,6 +132,11 @@ ItemType getFirstNonRetryableError(const std::vector<ItemType>& items, GetCodeFn
     tassert(10412307, "No non-retryable error found", nonRetryableError != items.end());
     return *nonRetryableError;
 }
+
+/**
+ * Fetch and return the value of the "onlyTargetDataOwningShardsForMultiWrites" cluster param.
+ */
+bool isOnlyTargetDataOwningShardsForMultiWritesEnabled();
 
 /**
  * Returns whether an operation should target all shards with ShardVersion::IGNORED(). This is

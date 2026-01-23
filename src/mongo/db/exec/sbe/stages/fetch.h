@@ -45,6 +45,7 @@
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/record_id.h"
 #include "mongo/db/storage/record_store.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/string_listset.h"
 #include "mongo/util/string_map.h"
 #include "mongo/util/uuid.h"
@@ -127,8 +128,8 @@ public:
     void close() override;
     std::unique_ptr<PlanStageStats> getStats(bool includeDebugInfo) const override;
     const SpecificStats* getSpecificStats() const override;
-    std::vector<DebugPrinter::Block> debugPrint(
-        const DebugPrintInfo& debugPrintInfo) const override;
+    void doDebugPrint(std::vector<DebugPrinter::Block>& ret,
+                      DebugPrintInfo& debugPrintInfo) const final;
     size_t estimateCompileTimeSize() const override;
 
 protected:

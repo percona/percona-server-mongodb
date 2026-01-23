@@ -141,21 +141,20 @@ function runModifierUpdateKeyTests(topologyName, setupFn, teardownFn) {
             });
         });
 
-        // TODO (SERVER-113907): Add tests for update with array filters.
-        // For now, this is a negative test to ensure that updates with array filters are skipped.
         it("should validate modifier update with array filters", function () {
             const modifierUpdateCommandObjSimple = {
                 update: collName,
                 updates: [{q: {v: 3}, u: {$set: {"myArray.$[element]": 10}}, arrayFilters: [{element: 0}]}],
             };
 
-            resetQueryStatsStore(testDB.getMongo(), "1MB");
-            assert.commandWorked(testDB.runCommand(modifierUpdateCommandObjSimple));
-            let sortedEntries = getQueryStats(
-                testDB.getMongo(),
-                Object.merge({customSort: {"metrics.latestSeenTimestamp": -1}}, {collName: coll.getName()}),
-            );
-            assert.eq([], sortedEntries);
+            const queryShapeUpdateFieldsRequiredWithArrayFilters = [...queryShapeUpdateFieldsRequired, "arrayFilters"];
+            runCommandAndValidateQueryStats({
+                coll: coll,
+                commandName: "update",
+                commandObj: modifierUpdateCommandObjSimple,
+                shapeFields: queryShapeUpdateFieldsRequiredWithArrayFilters,
+                keyFields: updateKeyFieldsRequired,
+            });
         });
 
         it("should validate modifier update with no-op operators", function () {
@@ -188,6 +187,73 @@ function runModifierUpdateKeyTests(topologyName, setupFn, teardownFn) {
                 coll: coll,
                 commandName: "update",
                 commandObj: modifierUpdateCommandObjNoop,
+                shapeFields: queryShapeUpdateFieldsRequired,
+                keyFields: updateKeyFieldsRequired,
+            });
+        });
+
+        it("should validate modifier update on dollar-prefixed fields", function () {
+            // Similar query to modifierUpdateCommandObjComplex but with a $ prefix on every field name where one should be supported
+            const modifierUpdateCommandObjComplexDollarPrefix = {
+                update: collName,
+                updates: [
+                    {
+                        q: {v: {$gt: 5}},
+                        u: {
+                            $set: {
+                                "$item": "ABC123",
+                                "$info.publisher": "2222",
+                                "info.$publisher2": "3333",
+                                "$tags": ["software"],
+                                "ratings.1": {by: "xyz", "$rating": 3},
+                                "ratings.$2": {by: "uvw", rating: 4},
+                            },
+                            $unset: {"$tagsToRemove": 1},
+                            $rename: {"$oldName": "newName"},
+                            $setOnInsert: {"$newInsert": true},
+                            $currentDate: {"$lastModified": {$type: "timestamp"}},
+                            $bit: {"$expdata": {and: NumberInt(10)}},
+                            $min: {"$minPrice": 5},
+                            $max: {"$maxPrice": 500},
+                            $mul: {"$quantity": 2},
+                            $addToSet: {
+                                "$scores": {
+                                    $each: [50, 60, 70],
+                                },
+                            },
+                            $push: {
+                                "$scoresSingleAdd": 89,
+                                "$tests": {$each: [40, 60], $sort: 1},
+                                "$scoresWithPostion": {$each: [50, 60, 70], $position: 0},
+                                "$scoresToSlice": {$each: [80, 78, 86], $slice: -5},
+                                "$quizzes": {
+                                    $each: [
+                                        {id: 3, "$score": 8},
+                                        {id: 4, "$score": 7},
+                                        {id: 5, "$score": 6},
+                                    ],
+                                    $sort: {"$score": 1},
+                                },
+                            },
+                            $pop: {"$tagsToPop": -1},
+                            $pull: {
+                                "$instock": {$elemMatch: {qty: {$gt: 10, $lte: 20}}},
+                                "$pulledObjects": {testField: 6},
+                                "$arrayToPullFrom": 6,
+                                "$results": {answers: {$elemMatch: {q: 2, a: {$gte: 8}}}}, // note: $answers isn't expected to work here
+                                "$resultsWithoutPredicate": {q: 2, a: 8},
+                                "where.to.$begin": {"$regex": "^thestart", "$options": ""},
+                            },
+                            $pullAll: {"$colorsToRemove": ["red", "blue"]},
+                        },
+                    },
+                ],
+            };
+
+            runCommandAndValidateQueryStats({
+                coll: coll,
+                commandName: "update",
+                commandObj: modifierUpdateCommandObjComplexDollarPrefix,
                 shapeFields: queryShapeUpdateFieldsRequired,
                 keyFields: updateKeyFieldsRequired,
             });

@@ -71,6 +71,7 @@ enums:
         type: string
         values:
             kCBRForNoMultiplanningResults: "CBRForNoMultiplanningResults"
+            kCBRCostBasedRankerChoice: "CBRCostBasedRankerChoice"
             kHistogramCEWithHeuristicFallback: "HistogramCEWithHeuristicFallback"
 
     SamplingCEMethod:
@@ -386,7 +387,7 @@ server_parameters:
     #
 
     internalPipelineLengthLimit:
-        description: "The maximum length allowed for an an aggregation pipeline."
+        description: "The maximum length allowed for an aggregation pipeline."
         set_at: [startup, runtime]
         cpp_varname: "internalPipelineLengthLimit"
         cpp_vartype: AtomicWord<int>
@@ -397,7 +398,7 @@ server_parameters:
         redact: false
 
     internalMaxSubPipelineViewDepth:
-        description: "The maximum length allowed for an an aggregation sub-pipeline view."
+        description: "The maximum length allowed for an aggregation sub-pipeline view."
         set_at: [startup, runtime]
         cpp_varname: "internalMaxSubPipelineViewDepth"
         cpp_vartype: AtomicWord<long long>
@@ -646,6 +647,14 @@ server_parameters:
         default: 16
         validator:
             gte: 0
+        redact: false
+
+    internalEnableJoinEnumerationHJOrderPruning:
+        description: "Whether or not to prune un-promising HJ orders during join plan enumeration"
+        set_at: [startup, runtime]
+        cpp_varname: "internalEnableJoinEnumerationHJOrderPruning"
+        cpp_vartype: AtomicWord<bool>
+        default: true
         redact: false
 
     #
@@ -1742,6 +1751,32 @@ server_parameters:
         default: false
         redact: false
 
+    internalQueryNumWorksPerPlanForMPEstimation:
+        description: >-
+            Number of works per plan that the cost-based plan ranker choice should do to evaluate
+            the cost of multi-planning.
+        set_at: [startup, runtime]
+        cpp_varname: "internalQueryNumWorksPerPlanForMPEstimation"
+        cpp_vartype: AtomicWord<int>
+        default: 384
+        validator:
+            gt: 100
+            lt: 10000
+        redact: false
+
+    internalQueryMinRequiredImprovementRatioForCostBasedRankerChoice:
+        description: >-
+            The minimum ratio by which the cost of CBR should be better than the remaining
+            multi-planning cost while choosing between them during AutomaticCE.
+        set_at: [startup, runtime]
+        cpp_varname: "internalQueryMinRequiredImprovementRatioForCostBasedRankerChoice"
+        cpp_vartype: AtomicWord<double>
+        default: 2.0
+        validator:
+            gte: 1.0
+            lte: 10.0
+        redact: false
+
     internalQueryGetMoreMaxCursorPinRetryAttempts:
         description: >-
             Max number of attempts to pin cursor by getMore command before failing in cases where
@@ -1856,6 +1891,27 @@ server_parameters:
         cpp_varname: bypassRankFusionFCVGate
         cpp_vartype: bool
         default: false
+        redact: false
+
+    internalQueryMergeMinInsertAttempts:
+        description: >-
+            When $merge stage is using a insert with backup strategy, a minimal number of insert
+            attempts before it can switch to update permamently.
+        set_at: [startup, runtime]
+        cpp_varname: internalQueryMergeMinInsertAttempts
+        cpp_vartype: AtomicWord<long long>
+        default: 1000
+        redact: false
+
+    internalQueryMergeMaxInsertErrorRate:
+        description: >-
+            When $merge stage is using a insert with backup strategy, a max allowed insert error
+            rate. If insert error rate is higher, than the stage will use update without trying
+            insert first.
+        set_at: [startup, runtime]
+        cpp_varname: internalQueryMergeMaxInsertErrorRate
+        cpp_vartype: AtomicWord<double>
+        default: 0.7
         redact: false
 # Note for adding additional query knobs:
 #

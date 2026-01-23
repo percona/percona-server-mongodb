@@ -133,6 +133,11 @@ bool isLookupEligible(const DocumentSourceLookUp& lookup) {
         return false;
     }
 
+    // TODO SERVER-116033: Support absorbed single-table additional filter predicates.
+    if (lookup.hasAdditionalFilter()) {
+        return false;
+    }
+
     if (!lookup.hasPipeline()) {
         // A $lookup with no sub-pipeline is eligible.
         return true;
@@ -317,6 +322,13 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
             // then this extraction failed due to an inelgible stage/expression.
             auto swPreds = extractPredicatesFromLookup(lookup, lookup->getSubpipelineExpCtx());
             if (!swPreds.isOK()) {
+                break;
+            }
+
+            // Each $lookup must have a join predicate, as we currently don't support enumerating
+            // cross-product plans.
+            if (!lookup->hasLocalFieldForeignFieldJoin() &&
+                swPreds.getValue().joinPredicates.empty()) {
                 break;
             }
 

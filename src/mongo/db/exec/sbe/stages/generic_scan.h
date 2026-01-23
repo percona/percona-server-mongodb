@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/db/exec/sbe/stages/scan.h"
+#include "mongo/util/modules.h"
 #include "mongo/util/uuid.h"
 
 #include <memory>
@@ -78,7 +79,8 @@ public:
         _cursor.reset();
     }
     std::unique_ptr<PlanStageStats> getStats(bool includeDebugInfo) const final;
-    std::vector<DebugPrinter::Block> debugPrint(const DebugPrintInfo& debugPrintInfo) const final;
+    void doDebugPrint(std::vector<DebugPrinter::Block>& ret,
+                      DebugPrintInfo& debugPrintInfo) const final;
 
 private:
     inline void scanResetState(bool reOpen) {

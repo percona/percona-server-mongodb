@@ -34,3 +34,9 @@ filters:
   - "system_buckets_metrics*":
     approvers:
       - 10gen/server-catalog-and-routing
+  - "timer_stats*":
+    approvers:
+      - 10gen/server-programmability
+  - "counter_ops.h":
+    approvers:
+      - 10gen/server-programmability

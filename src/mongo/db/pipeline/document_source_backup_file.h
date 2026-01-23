@@ -53,9 +53,9 @@ class DocumentSourceBackupFile final : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$_backupFile"_sd;
 
-    class LiteParsed final : public LiteParsedDocumentSource {
+    class LiteParsed final : public LiteParsedDocumentSourceDefault<LiteParsed> {
     public:
-        using LiteParsedDocumentSource::LiteParsedDocumentSource;
+        using LiteParsedDocumentSourceDefault::LiteParsedDocumentSourceDefault;
 
         static std::unique_ptr<LiteParsed> parse(const NamespaceString& nss,
                                                  const BSONElement& spec,

@@ -759,7 +759,8 @@ connection_runtime_config = [
                 type='boolean', undoc=True),
             Config('legacy_page_visit_strategy', 'false', r'''
                 Use legacy page visit strategy for eviction. Using this option is highly discouraged
-                as it will re-introduce the bug described in WT-9121.''',
+                as it will re-introduce a bug where eviction can fail to find older cache
+                content.''',
                 type='boolean'),
             Config('app_eviction_min_cache_fill_ratio', '0', r'''
                 This setting establishes a minimum cache fill ratio that must be met before
@@ -2086,6 +2087,11 @@ methods = {
             checkpoint process. Lower values will trigger crashes in the initial phase of
             checkpoint, while higher values will result in crashes in the final phase of the
             checkpoint process''',
+            type='int'),
+        Config('key_provider_trigger_crash_points', '0', r'''
+            non-negative number between 1 and 3 will trigger a controlled crash during the
+            key provider process. A lower value would trigger crashes in the initial phase of
+            key provider, while a higher value would result in crashes in a later phase.''',
             type='int'),
         ]),
     Config('drop', '', r'''

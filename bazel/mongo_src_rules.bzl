@@ -32,6 +32,7 @@ load("//bazel/toolchains/cc/mongo_windows:mongo_windows_cc_toolchain_config.bzl"
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//bazel/config:generate_config_header.bzl", "generate_config_header")
 load("//bazel/auto_header:auto_header.bzl", "binary_srcs_with_all_headers", "build_selects_and_flat_files", "concat_selects", "dedupe_preserve_order", "maybe_all_headers", "maybe_compute_auto_headers", "strings_only")
+load("//bazel:test_exec_properties.bzl", "test_exec_properties")
 
 # These will throw an error if the following condition is not met:
 # (libunwind == on && os == linux) || libunwind == off || libunwind == auto
@@ -849,7 +850,6 @@ def mongo_cc_test(
         exec_properties = {},
         skip_global_deps = [],
         env = {},
-        minimum_test_resources = {},
         **kwargs):
     """Wrapper around cc_test.
 
@@ -878,25 +878,9 @@ def mongo_cc_test(
         dependency (options: "libunwind", "allocator").
       env: environment variables to pass to the binary when running through
         bazel.
-      minimum_test_resources: a dict of key/value pairs defining execution
-        requirements for the test. The only currently supported key is "cpu_cores".
     """
-    minimum_core_count = 1
-    if "cpu_cores" in minimum_test_resources:
-        minimum_core_count = minimum_test_resources["cpu_cores"]
 
-    if minimum_core_count == 2:
-        exec_properties = exec_properties | select({
-            "@platforms//cpu:x86_64": {
-                "test.Pool": "large_mem_2core_x86_64",
-            },
-            "@platforms//cpu:aarch64": {
-                "test.Pool": "large_memory_2core_arm64",
-            },
-            "//conditions:default": {},
-        })
-    elif minimum_core_count > 2:
-        fail("minimum_test_resources[\"cpu_cores\"] > 2 is not supported")
+    exec_properties = exec_properties | test_exec_properties(tags)
 
     _mongo_cc_binary_and_test(
         name,
@@ -1262,14 +1246,10 @@ def mongo_cc_grpc_library(
     generate_cc(
         name = codegen_grpc_target,
         srcs = srcs,
-        plugin = "//src/third_party/grpc:grpc_cpp_plugin",
+        plugin = "@com_github_grpc_grpc//src/compiler:grpc_cpp_plugin",
         well_known_protos = well_known_protos,
         generate_mocks = generate_mocks,
         tags = tags + ["gen_source"],
-        disable_sandbox = select({
-            "//bazel/config:tsan_enabled": True,
-            "//conditions:default": False,
-        }),
         **kwargs
     )
 
@@ -1287,7 +1267,7 @@ def mongo_cc_grpc_library(
         srcs = [":" + codegen_grpc_target],
         hdrs = [":" + codegen_grpc_target],
         deps = deps +
-               ["//src/third_party/grpc:grpc++_codegen_proto"],
+               ["@com_github_grpc_grpc//:grpc++_codegen_proto"],
         cc_deps = [":" + cc_proto_target],
         no_undefined_ref_DO_NOT_USE = no_undefined_ref_DO_NOT_USE,
         **kwargs

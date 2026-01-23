@@ -34,6 +34,7 @@
 #include "mongo/db/query/client_cursor/cursor_server_params_gen.h"
 #include "mongo/db/router_role/collection_uuid_mismatch.h"
 #include "mongo/db/shard_role/shard_catalog/collection_uuid_mismatch_info.h"
+#include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/s/commands/query_cmd/populate_cursor.h"
 #include "mongo/s/transaction_router.h"
@@ -135,7 +136,7 @@ std::shared_ptr<const CollectionUUIDMismatchInfo> getCollectionUUIDMismatchInfo(
 
 // Helper function that prints the contents of 'opsToRetry' to the log if appropriate.
 void logOpsToRetry(const std::vector<WriteOp>& opsToRetry) {
-    if (opsToRetry.empty() &&
+    if (!opsToRetry.empty() &&
         shouldLog(MONGO_LOGV2_DEFAULT_COMPONENT, logv2::LogSeverity::Debug(4))) {
         std::stringstream opsStream;
         size_t numOpsInStream = 0;
@@ -148,6 +149,32 @@ void logOpsToRetry(const std::vector<WriteOp>& opsToRetry) {
             10411404, 4, "re-enqueuing ops that didn't complete", "ops"_attr = opsStream.str());
     }
 }
+
+bool isTimeseriesInsert(OperationContext* opCtx,
+                        const RoutingContext& routingCtx,
+                        const WriteOp& op) {
+    if (getWriteOpType(op) != WriteType::kInsert) {
+        return false;
+    }
+
+    if (isRawDataOperation(opCtx)) {
+        return false;
+    }
+
+    const auto& nss = op.getNss();
+    const auto& bucketsNss = nss.makeTimeseriesBucketsNamespace();
+    const bool hasBucketsNss = routingCtx.hasNss(bucketsNss);
+    const bool isViewfulTimeseries = nss.isTimeseriesBucketsCollection() || hasBucketsNss;
+    bool isTrackedTimeseries = false;
+    if (routingCtx.hasNss(nss)) {
+        const auto& cri = routingCtx.getCollectionRoutingInfo(nss);
+        isTrackedTimeseries =
+            cri.hasRoutingTable() && cri.getChunkManager().isTimeseriesCollection();
+    }
+
+    return isViewfulTimeseries || isTrackedTimeseries;
+}
+
 }  // namespace
 
 ProcessorResult WriteBatchResponseProcessor::onWriteBatchResponse(
@@ -200,7 +227,7 @@ ProcessorResult WriteBatchResponseProcessor::_onWriteBatchResponse(
                     // calling queueOpForRetry().
                     queueOpForRetry(op, getItemStatus(itemVar), toRetry, collsToCreate);
                 } else {
-                    // Otherwise, call queueOpForRetry() without a Stauts.
+                    // Otherwise, call queueOpForRetry() without a Status.
                     queueOpForRetry(op, toRetry);
                 }
             }
@@ -324,9 +351,62 @@ ProcessorResult WriteBatchResponseProcessor::_onWriteBatchResponse(
     result.collsToCreate = std::move(collsToCreate);
     result.successfulShardSet = std::move(successfulShardSet);
 
-    // For "RetryableWriteWithId" batches, if the "hangAfterCompletingWriteWithoutShardKeyWithId"
-    // failpoint is set, call pauseWhileSet().
+    const auto batchSize = itemsByOp.size();
     if (response.isRetryableWriteWithId) {
+        // In the event of a retryable write with id with a batch size of 1, we can ignore any
+        // errors from the shards as long as one shard has reported a successful write. This is
+        // because for this write type, we broadcast the write to all shards with the shard version
+        // attached. As such, a successful write on a single shard means that the write succeeded on
+        // the intended shard.
+        if (batchSize == 1) {
+            const auto opIt = itemsByOp.begin();
+            tassert(11472500, "Expected a non empty 'itemsByOp' map", opIt != itemsByOp.end());
+            const auto& [op, _] = *opIt;
+            const auto opId = getWriteOpId(op);
+            auto resIt = _results.find(opId);
+            tassert(11472501,
+                    "Should have a write op result for single write op",
+                    resIt != _results.end());
+            auto& res = *resIt;
+            const auto* opResults = get_if<BulkWriteOpResults>(&res.second);
+            tassert(11472502, "Expected BulkWriteOpResults", opResults != nullptr);
+
+            if (opResults->hasSuccess && opResults->hasError) {
+                auto& items = opResults->items;
+                std::vector<BulkWriteReplyItem> noErrorItems;
+                auto foundWCOSError = false;
+                for (auto& item : items) {
+                    // One exception to the above rule: if we've encountered a WCOS error, we should
+                    // surface this to the user.
+                    const bool isWCOS = item.getStatus() == ErrorCodes::WouldChangeOwningShard;
+                    if (item.getOk() || isWCOS) {
+                        noErrorItems.emplace_back(std::move(item));
+                        if (isWCOS) {
+                            foundWCOSError = true;
+                        }
+                    } else {
+                        LOGV2_DEBUG(11472503,
+                                    4,
+                                    "Ignoring write without shard key with id op error, as at "
+                                    "least one shard has reported success",
+                                    "error"_attr = redact(item.toBSON()));
+                    }
+                }
+                BulkWriteOpResults newResult;
+                newResult.items = std::move(noErrorItems);
+                newResult.hasError = foundWCOSError;
+                newResult.hasSuccess = true;
+                tassert(11472504, "nErrors should be non-zero", _nErrors > 0);
+                if (!foundWCOSError) {
+                    _nErrors--;
+                }
+
+                res.second = std::move(newResult);
+            }
+        }
+
+        // For "RetryableWriteWithId" batches, if the
+        // "hangAfterCompletingWriteWithoutShardKeyWithId" failpoint is set, call pauseWhileSet().
         auto& fp = getHangAfterCompletingWriteWithoutShardKeyWithIdFailPoint();
         if (MONGO_unlikely(fp.shouldFail())) {
             fp.pauseWhileSet();
@@ -803,8 +883,17 @@ void WriteBatchResponseProcessor::retrieveReplyItemsImpl(
 
             result.items.emplace_back(op, std::move(item));
         } else {
-            // Handle the case where we don't have a reply item for 'shardOpId'.
-            if (finalErrorForBatch.isOK()) {
+            // Handle the case where we don't have a reply item for 'shardOpId'. Note that if we are
+            // executing an unordered timeseries insert, then any item beyond the final error must
+            // have succeeded (otherwise, we would have recieved an error for that item). This is
+            // because unlike other writes, unordered timeseries inserts will continue in the face
+            // of stale config errors.
+            // TODO SERVER-80796: This logic can be removed once it is the case that unordered
+            // timeseries inserts stop on the first stale config.
+            if (finalErrorForBatch.isOK() ||
+                (write_op_helpers::isRetryErrCode(finalErrorForBatch.code()) &&
+                 !_cmdRef.getOrdered() && isTimeseriesInsert(opCtx, routingCtx, op))) {
+
                 result.items.emplace_back(op, SucceededWithoutItem{});
             } else {
                 result.items.emplace_back(op, Unexecuted{});
@@ -1137,6 +1226,12 @@ WriteBatchResponseProcessor::finalizeRepliesForOps(OperationContext* opCtx) {
 
             auto reply = boost::make_optional(combineErrorReplies(opId, std::move(errorReplies)));
 
+            // We must never ignore a WCOS error. Instead, we will surface it here.
+            if (reply->getStatus() == ErrorCodes::WouldChangeOwningShard) {
+                aggregatedReplies.emplace_back(opId, std::move(reply));
+                continue;
+            }
+
             // There are errors that are safe to ignore if they were correctly applied to other
             // shards and we're using ShardVersion::IGNORED. They are safe to ignore as they can be
             // interpreted as no-ops if the shard response had been instead a successful result
@@ -1229,7 +1324,7 @@ WriteBatchResponseProcessor::generateClientResponseForBulkWriteCommand(Operation
 
     for (auto& [id, item] : finalResults) {
         // Check to see if we've recieved a WCOS error. If we have, then we should skip incrementing
-        // the relevant op counters as this will doulbe count our update. Instead, we will increment
+        // the relevant op counters as this will double count our update. Instead, we will increment
         // this as part of the WCOS handling in the command layer.
         const bool isNotAWCOSError = !item || item->getStatus().isOK() ||
             item->getStatus() != ErrorCodes::WouldChangeOwningShard || _cmdRef.getNumOps() > 1;

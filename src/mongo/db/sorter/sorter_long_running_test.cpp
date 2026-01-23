@@ -75,7 +75,6 @@ private:
         };
 
         int currentBufSize = 0;
-        // TODO(SERVER-114085): Remove after adding SorterStorage to SortOptions.
         // TODO(SERVER-114080): Ensure testing of non-file-based sorter storage is comprehensive.
         FileBasedSorterStorage<IntWrapper, IntWrapper> sorterStorage(makeFile(), *opts->tempDir);
         std::unique_ptr<SortedStorageWriter<IntWrapper, IntWrapper>> sorter =
@@ -106,7 +105,8 @@ public:
         {  // test empty (no inputs)
             std::vector<std::shared_ptr<IWIterator>> vec;
             std::shared_ptr<IWIterator> mergeIter(
-                IWIterator::merge(vec, SortOptions(), IWComparator()));
+                sorter::merge<IntWrapper, IntWrapper, IWComparator>(
+                    vec, SortOptions(), IWComparator()));
             ASSERT_ITERATORS_EQUIVALENT(mergeIter, std::make_shared<EmptyIterator>());
         }
         {  // test empty (only empty inputs)
@@ -329,7 +329,13 @@ public:
 private:
     // Make a new sorter with desired opts and comp. Opts may be ignored but not comp
     std::shared_ptr<IWSorter> makeSorter(SortOptions opts, IWComparator comp = IWComparator(ASC)) {
-        return std::shared_ptr<IWSorter>(IWSorter::make(adjustSortOptions(opts), comp));
+        return std::shared_ptr<IWSorter>(IWSorter::template make<IWComparator>(
+            adjustSortOptions(opts),
+            comp,
+            opts.tempDir
+                ? std::make_unique<FileBasedSorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
+                      *opts.tempDir, opts.sorterFileStats)
+                : nullptr));
     }
 
     void assertRangeInfo(const std::shared_ptr<IWSorter>& sorter, const SortOptions& opts) {
@@ -340,7 +346,7 @@ private:
         auto numSpilledRangesOccurred = correctSpilledRanges();
         auto state = sorter->persistDataForShutdown();
         if (opts.tempDir) {
-            ASSERT_NE(state.fileName, "");
+            ASSERT_NE(state.storageIdentifier, "");
         }
         ASSERT_EQ(state.ranges.size(), numRanges);
         ASSERT_EQ(sorter->stats().spilledRanges(), numSpilledRangesOccurred);

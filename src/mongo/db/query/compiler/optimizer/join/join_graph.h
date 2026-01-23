@@ -57,6 +57,8 @@ constexpr size_t kHardMaxPredicatesInJoin = std::numeric_limits<PredicateId>::ma
  */
 using NodeSet = std::bitset<kHardMaxNodesInJoin>;
 
+std::string nodeSetToString(const NodeSet& set, size_t numNodesToPrint = kHardMaxNodesInJoin);
+
 /**
  * Creates NodeSet from the list of node ids.
  */
@@ -302,7 +304,6 @@ public:
     /** Get neighbors of the given node.
      */
     NodeSet getNeighbors(NodeId nodeIndex) const;
-
 
     const JoinNode& getNode(NodeId nodeId) const {
         if constexpr (kDebugBuild) {

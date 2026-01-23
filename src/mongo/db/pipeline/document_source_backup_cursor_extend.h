@@ -44,9 +44,9 @@ class DocumentSourceBackupCursorExtend : public DocumentSource {
 public:
     static constexpr StringData kStageName = "$backupCursorExtend"_sd;
 
-    class LiteParsed final : public LiteParsedDocumentSource {
+    class LiteParsed final : public LiteParsedDocumentSourceDefault<LiteParsed> {
     public:
-        using LiteParsedDocumentSource::LiteParsedDocumentSource;
+        using LiteParsedDocumentSourceDefault::LiteParsedDocumentSourceDefault;
 
         static std::unique_ptr<LiteParsed> parse(const NamespaceString& nss,
                                                  const BSONElement& spec,

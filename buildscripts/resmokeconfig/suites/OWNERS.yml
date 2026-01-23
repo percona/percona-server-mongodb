@@ -141,9 +141,6 @@ filters:
   - "write_concern*":
     approvers:
       - 10gen/server-rw-concerns
-  - "unified_write_executor*":
-    approvers:
-      - 10gen/query-execution-router
   - "*config_transitions_and_add_remove_shard.yml":
     approvers:
       - 10gen/server-catalog-and-routing-routing-and-topology
@@ -201,3 +198,6 @@ filters:
   - "*rate_limited.yml":
     approvers:
       - 10gen/server-workload-resilience
+  - "secondary_reads_passthrough_with_replica_set_endpoint.yml":
+    approvers:
+      - 10gen/server-cluster-scalability

@@ -60,6 +60,7 @@ core:
     - src/mongo/executor/task_executor[._]*
     - src/mongo/executor/thread_pool[._]*
     - src/mongo/db/exec/scoped_timer*
+    - src/mongo/db/stats/counter_ops.h
 
 core.bson:
   files:
@@ -256,7 +257,6 @@ query:
     - src/mongo/db/s/shardsvr_resolve_view_command_test.cpp
     - src/mongo/dbtests/commandtests.cpp
     - src/mongo/s/would_change_owning_shard_exception*
-    - src/mongo/db/op_observer/fallback_op_observer*
 
 catalog_and_routing:
   meta:
@@ -274,6 +274,7 @@ catalog_and_routing:
     - src/mongo/db/rs_local_client*
     - src/mongo/db/database_name[._]*
     - src/mongo/db/namespace_string[._]*
+    - src/mongo/db/stats/system_buckets_metrics*
     - src/mongo/util/namespace_string[._]*
     - src/mongo/util/database_name[._]*
 
@@ -376,6 +377,7 @@ transactions:
     - src/mongo/db/commands/*session*
     - src/mongo/dbtests/logical_sessions_tests.cpp
     - src/mongo/s/client_transport_observer_mongos*
+    - src/mongo/db/stats/read_preference_metrics.idl
 
 fcv:
   meta:
@@ -791,6 +793,7 @@ index_builds: # authoritative: @10gen/server-index-builds
   files:
     - src/mongo/db/index_builds
     - src/mongo/db/index/index_access_method*
+    - src/mongo/db/index/preallocated_container_pool*
     - src/mongo/db/index_key_validate*
     - src/mongo/db/index_spec_validate*
     - src/mongo/db/commands/set_index_commit_quorum*
@@ -1038,6 +1041,7 @@ replication.oplog:
     - src/mongo/db/commands/apply_ops*
     - src/mongo/db/commands/oplog*
     - src/mongo/db/op_observer/op_observer*
+    - src/mongo/db/op_observer/fallback_op_observer*
     - src/mongo/db/op_observer/operation_logger*
     - src/mongo/db/repl/*apply_ops*
     - src/mongo/db/repl/*bgsync*
@@ -1073,6 +1077,7 @@ replication.server_rw_concerns:
     - src/mongo/db/repl/*speculative_majority_read_info*
     - src/mongo/db/stats/server_write_concern*
     - src/mongo/db/stats/server_read_concern*
+    - src/mongo/db/stats/read_concern_stats.idl
     - src/mongo/db/write_concern*
 
 replication.rs_aware_service:

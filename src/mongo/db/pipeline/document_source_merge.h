@@ -50,6 +50,7 @@
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/field_path.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
+#include "mongo/db/pipeline/lite_parsed_document_source_nested_pipelines.h"
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
 #include "mongo/db/pipeline/merge_processor.h"
 #include "mongo/db/pipeline/pipeline.h"
@@ -100,7 +101,7 @@ public:
      * collection is unsharded. This ensures that the unique index verification happens once on
      * mongos and can be bypassed on the shards.
      */
-    class LiteParsed final : public LiteParsedDocumentSourceNestedPipelines {
+    class LiteParsed final : public LiteParsedDocumentSourceNestedPipelines<LiteParsed> {
     public:
         LiteParsed(const BSONElement& spec,
                    NamespaceString foreignNss,
@@ -179,7 +180,8 @@ public:
     Value serialize(const SerializationOptions& opts = SerializationOptions{}) const final;
 
     /**
-     * Creates a new $merge stage from the given arguments.
+     * Creates a new $merge stage from the given arguments. AllowInsertWithUpdateBackupStrategies is
+     * set according to the feature flag.
      */
     static boost::intrusive_ptr<DocumentSource> create(
         NamespaceString outputNs,
@@ -191,6 +193,22 @@ public:
         std::set<FieldPath> mergeOnFields,
         boost::optional<ChunkVersion> collectionPlacementVersion,
         bool allowMergeOnNullishValues);
+
+    /**
+     * Creates a new $merge stage from the given arguments.
+     */
+    static boost::intrusive_ptr<DocumentSource> create(
+        NamespaceString outputNs,
+        const boost::intrusive_ptr<ExpressionContext>& expCtx,
+        MergeStrategyDescriptor::WhenMatched whenMatched,
+        MergeStrategyDescriptor::WhenNotMatched whenNotMatched,
+        boost::optional<BSONObj> letVariables,
+        boost::optional<std::vector<BSONObj>> pipeline,
+        std::set<FieldPath> mergeOnFields,
+        boost::optional<ChunkVersion> collectionPlacementVersion,
+        bool allowMergeOnNullishValues,
+        MergeProcessor::AllowInsertWithUpdateBackupStrategies
+            allowInsertWithUpdateBackupStrategies);
 
     /**
      * Parses a $merge stage from the user-supplied BSON.
@@ -210,6 +228,9 @@ public:
         }
     }
 
+    const std::set<FieldPath>& getMergeOnFields() const {
+        return *_mergeOnFields;
+    }
 
 private:
     friend boost::intrusive_ptr<exec::agg::Stage> documentSourceMergeToStageFn(
@@ -229,7 +250,9 @@ private:
                         boost::optional<std::vector<BSONObj>> pipeline,
                         std::set<FieldPath> mergeOnFields,
                         boost::optional<ChunkVersion> collectionPlacementVersion,
-                        bool allowMergeOnNullishValues);
+                        bool allowMergeOnNullishValues,
+                        MergeProcessor::AllowInsertWithUpdateBackupStrategies
+                            allowInsertWithUpdateBackupStrategies);
 
 
     // Holds the fields used for uniquely identifying documents. There must exist a unique index
