@@ -1049,6 +1049,7 @@ def _parse_config_option(ctxt, spec, name, node):
                 "scalar_or_mapping", mapping_parser_func=_parse_expression
             ),
             "redact": _RuleDesc("bool_scalar"),
+            "ignoreIfDuplicate": _RuleDesc("bool_scalar"),
             "default": _RuleDesc("scalar_or_mapping", mapping_parser_func=_parse_expression),
             "implicit": _RuleDesc("scalar_or_mapping", mapping_parser_func=_parse_expression),
             "source": _RuleDesc("scalar_or_sequence"),

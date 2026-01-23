@@ -32,8 +32,10 @@
 #include "mongo/base/string_data.h"
 #include "mongo/config.h"
 #include "mongo/db/service_context.h"
+#include "mongo/otel/metrics/metric_names.h"
 #include "mongo/otel/metrics/metric_units.h"
 #include "mongo/otel/metrics/metrics_counter.h"
+#include "mongo/otel/metrics/metrics_histogram.h"
 #include "mongo/util/modules.h"
 
 #include <absl/container/btree_map.h>
@@ -59,35 +61,39 @@ public:
      * Creates a counter with the provided parameters. The result is never null but will throw an
      * exception if the counter would collide with an existing metric (i.e., same name but different
      * type or other parameters).
+     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
      */
-    Counter<int64_t>* createInt64Counter(std::string name,
-                                         std::string description,
-                                         MetricUnit unit);
+    Counter<int64_t>* createInt64Counter(MetricName name, std::string description, MetricUnit unit);
 
     // TODO SERVER-114954 Implement MetricsService::createUInt64Gauge
     // TODO SERVER-114955 Implement MetricsService::createDoubleGauge
     // TODO SERVER-115164 Implement MetricsService::createHistogram method
 
-private:
-    enum class MetricType { kCounter };
+    /**
+     * Serializes the created metrics to BSON for server status reporting.
+     */
+    BSONObj serializeMetrics() const;
 
+private:
     // Identifies metrics to help prevent conflicting registrations.
     struct MetricIdentifier {
-        std::string name;
         std::string description;
         MetricUnit unit;
-        MetricType type;
 
         auto operator<=>(const MetricIdentifier& other) const = default;
     };
 
+    using OwnedMetric = std::variant<std::unique_ptr<Counter<int64_t>>,
+                                     std::unique_ptr<Histogram<double>>,
+                                     std::unique_ptr<Histogram<int64_t>>>;
+
     struct IdentifierAndMetric {
         MetricIdentifier identifier;
-        std::unique_ptr<Counter<int64_t>> metric;
+        OwnedMetric metric;
     };
 
     // Guards `_observableInstruments` and `_metrics`
-    stdx::mutex _mutex;
+    mutable stdx::mutex _mutex;
 
     // Pointers to all observable instruments. These are not directly used, but must be kept alive
     // while the instruments they back are still in use. Guarded by `_mutex`.
@@ -106,9 +112,7 @@ public:
 
     static MetricsService& get(ServiceContext*);
 
-    Counter<int64_t>* createInt64Counter(std::string name,
-                                         std::string description,
-                                         MetricUnit unit);
+    Counter<int64_t>* createInt64Counter(MetricName name, std::string description, MetricUnit unit);
 
 private:
     stdx::mutex _mutex;

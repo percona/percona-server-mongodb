@@ -39,8 +39,9 @@ class OtelMetricsCapturerTest : public ServiceContextTest {};
 
 TEST_F(OtelMetricsCapturerTest, ReadInt64ThrowsExceptionIfMetricNotFound) {
     OtelMetricsCapturer metricsCapturer;
-    ASSERT_THROWS_CODE(
-        metricsCapturer.readInt64Counter("does_not_exist"), DBException, ErrorCodes::KeyNotFound);
+    ASSERT_THROWS_CODE(metricsCapturer.readInt64Counter(MetricNames::kTest1),
+                       DBException,
+                       ErrorCodes::KeyNotFound);
 }
 
 // TODO SERVER-115164 or SERVER-114955 or SERVER-114954 Add some tests for if the name is correct

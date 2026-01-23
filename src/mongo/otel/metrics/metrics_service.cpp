@@ -55,48 +55,69 @@ void observableCounterCallback(opentelemetry::metrics::ObserverResult observer_r
 }
 }  // namespace
 
-Counter<int64_t>* MetricsService::createInt64Counter(std::string name,
+Counter<int64_t>* MetricsService::createInt64Counter(MetricName name,
                                                      std::string description,
                                                      MetricUnit unit) {
-    MetricIdentifier identifier{
-        .name = name, .description = description, .unit = unit, .type = MetricType::kCounter};
+    std::string nameStr{name.getName()};
+    MetricIdentifier identifier{.description = description, .unit = unit};
     stdx::lock_guard lock(_mutex);
-    if (auto it = _metrics.find(name); it != _metrics.end()) {
+    if (auto it = _metrics.find(nameStr); it != _metrics.end()) {
         massert(ErrorCodes::ObjectAlreadyExists,
                 fmt::format("Tried to create a metric with the name: {} but different definition "
                             "already exists.",
-                            name),
+                            nameStr),
                 it->second.identifier == identifier);
-        return it->second.metric.get();
+        massert(ErrorCodes::ObjectAlreadyExists,
+                "Tried to create an int64_t counter, but a metric with a different type parameter"
+                "already exists.",
+                std::holds_alternative<std::unique_ptr<Counter<int64_t>>>(it->second.metric));
+
+        return std::get<std::unique_ptr<Counter<int64_t>>>(it->second.metric).get();
     }
 
     // Make the raw counter.
-    auto counter =
-        std::make_unique<CounterImpl<int64_t>>(name, description, std::string(toString(unit)));
+    auto counter = std::make_unique<CounterImpl<int64_t>>(
+        std::string(nameStr), description, std::string(toString(unit)));
     Counter<int64_t>* const counter_ptr = counter.get();
-    _metrics[name] = {.identifier = std::move(identifier), .metric = std::move(counter)};
+    _metrics[nameStr] = {.identifier = std::move(identifier), .metric = std::move(counter)};
 
     // Observe the raw counter.
     std::shared_ptr<opentelemetry::metrics::ObservableInstrument> observableCounter =
         opentelemetry::metrics::Provider::GetMeterProvider()
             ->GetMeter(std::string{kMeterName})
-            ->CreateInt64ObservableCounter(
-                name, description, toStdStringViewForInterop(toString(unit)));
+            ->CreateInt64ObservableCounter(toStdStringViewForInterop(nameStr),
+                                           description,
+                                           toStdStringViewForInterop(toString(unit)));
     tassert(ErrorCodes::InternalError,
-            fmt::format("Could not create observable counter for metric: {}", name),
+            fmt::format("Could not create observable counter for metric: {}", nameStr),
             observableCounter != nullptr);
     observableCounter->AddCallback(observableCounterCallback, counter_ptr);
     _observableInstruments.push_back(std::move(observableCounter));
 
     return counter_ptr;
 }
+
+BSONObj MetricsService::serializeMetrics() const {
+    BSONObjBuilder builder;
+    stdx::lock_guard lock(_mutex);
+    for (const auto& [name, identifierAndMetric] : _metrics) {
+        std::visit(
+            [&](const auto& metric) {
+                builder.append("otelMetrics",
+                               metric->serializeToBson(fmt::format(
+                                   "{}_{}", name, toString(identifierAndMetric.identifier.unit))));
+            },
+            identifierAndMetric.metric);
+    }
+    return builder.obj();
+}
 #else
-Counter<int64_t>* MetricsService::createInt64Counter(std::string name,
+Counter<int64_t>* MetricsService::createInt64Counter(MetricName name,
                                                      std::string description,
                                                      MetricUnit unit) {
     stdx::lock_guard lock(_mutex);
     _counters.push_back(std::make_unique<CounterImpl<int64_t>>(
-        std::move(name), std::move(description), std::string(toString(unit))));
+        std::string(name.getName()), std::move(description), std::string(toString(unit))));
     return _counters.back().get();
 }
 #endif

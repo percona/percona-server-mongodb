@@ -26,6 +26,9 @@
  *    exception statement from all source files in the program, then also delete
  *    it in the license file.
  */
+
+#pragma once
+
 #include "mongo/base/string_data.h"
 #include "mongo/util/modules.h"
 
