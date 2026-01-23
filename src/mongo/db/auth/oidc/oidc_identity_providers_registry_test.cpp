@@ -72,8 +72,10 @@ protected:
     JWKSFetcherFactoryMock _jwksFetcherFactoryMock;
 };
 
+using OidcIdentityProvidersRegistryTestDeathTest = OidcIdentityProvidersRegistryTest;
+
 // Death test for getting the OIDC identity providers registry without setting it first.
-DEATH_TEST_REGEX_F(OidcIdentityProvidersRegistryTest,
+DEATH_TEST_REGEX_F(OidcIdentityProvidersRegistryTestDeathTest,
                    Invariant_GetWithoutSet,
                    "Invariant failure") {
     auto serviceContext = ServiceContext::make();
@@ -82,7 +84,7 @@ DEATH_TEST_REGEX_F(OidcIdentityProvidersRegistryTest,
 }
 
 // Death test for creating the OIDC identity providers registry with nullptr as the periodic runner.
-DEATH_TEST_REGEX_F(OidcIdentityProvidersRegistryTest,
+DEATH_TEST_REGEX_F(OidcIdentityProvidersRegistryTestDeathTest,
                    Invariant_PeriodicRunner,
                    "Invariant failure") {
     JWKSFetcherFactoryMock jwksFetcherFactoryMock;
