@@ -63,6 +63,8 @@
 #define GTEST_FATAL_FAILURE_(message) \
     GTEST_FATAL_FAILURE_RETURN_ GTEST_MESSAGE_(message, ::testing::TestPartResult::kFatalFailure)
 
+#include "mongo/base/status.h"
+#include "mongo/base/status_with.h"
 #include "mongo/platform/source_location.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
@@ -242,7 +244,41 @@ struct AutoUpdateConfig {
 
 AutoUpdateConfig& getAutoUpdateConfig();
 
+/**
+ * Expose an interface to Googletest's universal printer,
+ * which is necessary for composition of its `PrintTo` hook,
+ * but is unfortunately "internal". We should always use this
+ * wrapper instead of directly calling that internal function.
+ */
+void universalPrint(const auto& v, std::ostream& os) {
+    testing::internal::UniversalTersePrint(v, &os);
+}
+
 }  // namespace mongo::unittest
+
+namespace mongo {
+/**
+ * A gtest printer for `mongo::StringData`.
+ * Renders it as if it was a `std::string_view`.
+ * https://google.github.io/googletest/advanced.html#teaching-googletest-how-to-print-your-values
+ */
+inline void PrintTo(StringData s, std::ostream* os) {
+    unittest::universalPrint(toStdStringViewForInterop(s), *os);
+}
+
+inline void PrintTo(const Status& s, std::ostream* os) {
+    *os << s.toString();
+}
+
+template <typename T>
+inline void PrintTo(const StatusWith<T>& s, std::ostream* os) {
+    if (s.isOK()) {
+        *os << ::testing::PrintToString(s.getValue());
+    } else {
+        *os << ::testing::PrintToString(s.getStatus());
+    }
+}
+}  // namespace mongo
 
 /**
  * Defines a gtest-compatible printer for boost::optional in the boost namespace so that it's

@@ -203,17 +203,6 @@ void abortAllReshardCollection(OperationContext* opCtx) {
     }
 }
 
-void _setShardedClusterCardinalityParameter(OperationContext* opCtx, const FCV requestedVersion) {
-    // If the replica set endpoint is not active, then it isn't safe to allow direct connections
-    // again after a second shard has been added. The replica set endpoint requires the cluster
-    // parameter to be correct (go back to false when the second shard is removed) so we will need
-    // to update the cluster parameter whenever replica set endpoint is enabled.
-    if (feature_flags::gFeatureFlagReplicaSetEndpoint.isEnabledOnVersion(requestedVersion)) {
-        uassertStatusOK(
-            ShardingCatalogManager::get(opCtx)->updateClusterCardinalityParameterIfNeeded(opCtx));
-    }
-}
-
 void uassertStatusOKIgnoreNSNotFound(Status status) {
     if (status.isOK() || status == ErrorCodes::NamespaceNotFound) {
         return;
@@ -740,7 +729,7 @@ public:
             1034131,
             "'phase' field must be present on shards",
             !feature_flags::gUseTopologyChangeCoordinators.isEnabledOnVersion(requestedVersion) ||
-                request.getPhase() || (!role || !role->hasExclusively(ClusterRole::ShardServer)));
+                isDryRun || request.getPhase() || (!role || !role->isShardOnly()));
 
         if (isDryRun) {
             processDryRun(opCtx, request, requestedVersion, actualVersion);
@@ -1234,10 +1223,6 @@ private:
             getTransitionFCVInfo(
                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot().getVersion())
                 .from;
-
-        if (role && role->has(ClusterRole::ConfigServer)) {
-            _setShardedClusterCardinalityParameter(opCtx, requestedVersion);
-        }
 
         // TODO SERVER-103046: Remove once 9.0 becomes last lts.
         if (role && role->has(ClusterRole::ShardServer) &&
@@ -2017,21 +2002,10 @@ private:
         if ((isReplSet || isConfigsvr) &&
             feature_flags::gFeatureFlagPQSBackfill.isEnabledOnVersion(requestedVersion)) {
             auto& service = query_settings::QuerySettingsService::get(opCtx);
-            try {
-                service.createQueryShapeRepresentativeQueriesCollection(opCtx);
-                service
-                    .migrateRepresentativeQueriesFromQuerySettingsClusterParameterToDedicatedCollection(
-                        opCtx);
-            } catch (const ExceptionFor<ErrorCodes::Interrupted>&) {
-                throw;
-            } catch (const ExceptionFor<ErrorCodes::InterruptedDueToOverload>&) {
-                throw;
-            } catch (const DBException& ex) {
-                uasserted(ErrorCodes::TemporarilyUnavailable,
-                          str::stream()
-                              << "Cannot upgrade to the new FCV due to QuerySettingsService issue: "
-                              << ex.reason());
-            }
+            service.createQueryShapeRepresentativeQueriesCollection(opCtx);
+            service
+                .migrateRepresentativeQueriesFromQuerySettingsClusterParameterToDedicatedCollection(
+                    opCtx);
         }
     }
 
@@ -2077,20 +2051,10 @@ private:
         if ((isReplSet || isConfigsvr) &&
             !feature_flags::gFeatureFlagPQSBackfill.isEnabledOnVersion(requestedVersion)) {
             auto& service = query_settings::QuerySettingsService::get(opCtx);
-            try {
-                service
-                    .migrateRepresentativeQueriesFromDedicatedCollectionToQuerySettingsClusterParameter(
-                        opCtx);
-                service.dropQueryShapeRepresentativeQueriesCollection(opCtx);
-            } catch (const ExceptionFor<ErrorCodes::Interrupted>&) {
-                throw;
-            } catch (const DBException& ex) {
-                uasserted(
-                    ErrorCodes::TemporarilyUnavailable,
-                    str::stream()
-                        << "Cannot downgrade to the old FCV due to QuerySettingsService issue: "
-                        << ex.reason());
-            }
+            service
+                .migrateRepresentativeQueriesFromDedicatedCollectionToQuerySettingsClusterParameter(
+                    opCtx);
+            service.dropQueryShapeRepresentativeQueriesCollection(opCtx);
         }
     }
     void _forwardDryRunRequestToShards(OperationContext* opCtx,

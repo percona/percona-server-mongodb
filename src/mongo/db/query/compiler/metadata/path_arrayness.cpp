@@ -39,8 +39,37 @@ using namespace mongo::multikey_paths;
 
 namespace mongo {
 
+const PathArrayness& PathArrayness::emptyPathArrayness() {
+    static const PathArrayness kEmptyPathArrayness;
+    return kEmptyPathArrayness;
+}
+
+bool PathArrayness::isIndexEligibleToAddToPathArrayness(const IndexDescriptor& descriptor) {
+    return (descriptor.getIndexType() != INDEX_WILDCARD) && !descriptor.isPartial() &&
+        !descriptor.hidden();
+}
+
 void PathArrayness::addPath(const FieldPath& path, const MultikeyComponents& multikeyPath) {
     _root.insertPath(path, multikeyPath, 0);
+}
+
+void PathArrayness::addPathsFromIndexKeyPattern(const BSONObj& indexKeyPattern,
+                                                const MultikeyPaths& multikeyPaths) {
+    if (indexKeyPattern.isEmpty()) {
+        // No paths to add if indexKeyPattern is empty.
+        return;
+    } else {
+        tassert(11480900,
+                "multikeyPaths must be non-empty when indexKeyPattern is non-empty",
+                !multikeyPaths.empty());
+    }
+
+    size_t indexCounter = 0;
+    for (const auto& key : indexKeyPattern) {
+        FieldPath path(key.fieldNameStringData());
+        addPath(path, multikeyPaths[indexCounter]);
+        ++indexCounter;
+    }
 }
 
 bool PathArrayness::isPathArray(const FieldPath& path) const {
@@ -48,6 +77,18 @@ bool PathArrayness::isPathArray(const FieldPath& path) const {
     LOGV2_DEBUG(
         11467800, 5, "Checking path arrayness", "path"_attr = path, "isPathArray"_attr = arrayness);
     return arrayness;
+}
+
+bool PathArrayness::isPathArray(const FieldRef& path) const {
+    StringData pathString = path.dottedField(0);
+    StatusWith<FieldPath> maybeFieldPath = fieldPathWithValidationStatus(std::string(pathString));
+
+    // If FieldPath validation fails, conservatively assume this path is an array.
+    if (!maybeFieldPath.isOK()) {
+        return true;
+    }
+
+    return isPathArray(maybeFieldPath.getValue());
 }
 
 bool PathArrayness::TrieNode::isPathArray(const FieldPath& path) const {
@@ -122,7 +163,9 @@ void PathArrayness::TrieNode::insertPath(const FieldPath& path,
         _children.insert({fieldNameToInsert, TrieNode(multikeyPath.count(depth))});
     } else {
         // This path component already exists in trie so resolve conflicts in arrayness information.
-        maybeChild->second._isArray &= (multikeyPath.count(depth) > 0);
+        // We take the conservative approach, i.e. prefer multikey in case of conflict.
+        // TODO: SERVER-115000: Improve PathArrayness multikey information merge strategy.
+        maybeChild->second._isArray |= (multikeyPath.count(depth) > 0);
     }
 
     // Recursively invoke the remaining path.

@@ -30,10 +30,8 @@
 #pragma once
 
 #include "mongo/base/status.h"
-#include "mongo/base/string_data.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonobj.h"
-#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/client/read_preference.h"
 #include "mongo/db/global_catalog/ddl/sharded_ddl_commands_gen.h"
 #include "mongo/db/global_catalog/ddl/sharding_ddl_util_detail.h"
@@ -104,6 +102,19 @@ sendAuthenticatedCommandToShards(
         boost::none /* shardVersions */,
         ReadPreferenceSetting{ReadPreference::PrimaryOnly},
         throwOnError);
+}
+
+template <typename CommandType>
+MONGO_MOD_NEEDS_REPLACEMENT std::vector<AsyncRequestsSender::Response>
+sendAuthenticatedVersionedCommandTargetedByRoutingTable(
+    OperationContext* opCtx,
+    std::shared_ptr<async_rpc::AsyncRPCOptions<CommandType>> originalOpts,
+    RoutingContext& routingCtx,
+    const NamespaceString& nss,
+    const ReadPreferenceSetting readPref = ReadPreferenceSetting{ReadPreference::PrimaryOnly},
+    bool throwOnError = true) {
+    return sharding_ddl_util_detail::sendAuthenticatedVersionedCommandTargetedByRoutingTable(
+        opCtx, originalOpts, routingCtx, nss, readPref, throwOnError);
 }
 
 /**
@@ -388,6 +399,49 @@ getGrantedAuthoritativeMetadataAccessLevel(const VersionContext& vCtx,
  */
 MONGO_MOD_NEEDS_REPLACEMENT boost::optional<ShardId> pickShardOwningCollectionChunks(
     OperationContext* opCtx, const UUID& collUuid);
+
+/**
+ * Returns the list of shards that currently own chunks for the given collection UUID.
+ * Queries config.chunks to determine the current placement.
+ */
+MONGO_MOD_PRIVATE std::vector<ShardId> getListOfShardsOwningChunksForCollection(
+    OperationContext* opCtx, const UUID& collUuid);
+
+/**
+ * Upserts a placement history entry within a transaction. This should be called from within
+ * a transaction chain passed to runTransactionOnShardingCatalog().
+ */
+MONGO_MOD_PRIVATE void upsertPlacementHistoryDocInTransaction(
+    const txn_api::TransactionClient& txnClient,
+    const NamespaceString& nss,
+    const boost::optional<UUID>& uuid,
+    const Timestamp& timestamp,
+    std::vector<ShardId>&& shards,
+    int stmtId);
+
+/**
+ * Deletes the collection entry from config.collections within a transaction.
+ * Returns whether the deletion was actually executed (true) or was a no-op (false).
+ */
+MONGO_MOD_PRIVATE bool deleteTrackedCollectionInTransaction(
+    const txn_api::TransactionClient& txnClient,
+    const NamespaceString& nss,
+    const boost::optional<UUID>& uuid,
+    int stmtId);
+
+/**
+ * Updates zone assignments (config.tags) from old namespace to new namespace within a transaction.
+ */
+MONGO_MOD_PRIVATE void updateZonesInTransaction(const txn_api::TransactionClient& txnClient,
+                                                const NamespaceString& oldNss,
+                                                const NamespaceString& newNss);
+
+/**
+ * Upserts a collection entry in config.collections within a transaction.
+ * This is used when creating or updating tracked collection metadata.
+ */
+MONGO_MOD_PRIVATE void upsertTrackedCollectionInTransaction(
+    const txn_api::TransactionClient& txnClient, const CollectionType& collType, int stmtId);
 
 /**
  * Request to the specified shard the generation of a 'namespacePlacementChange' notification

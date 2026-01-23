@@ -44,6 +44,7 @@
 #ifdef MONGO_CONFIG_OTEL
 #include <opentelemetry/metrics/meter.h>
 #include <opentelemetry/metrics/provider.h>
+#endif  // MONGO_CONFIG_OTEL
 
 namespace mongo::otel::metrics {
 
@@ -69,6 +70,16 @@ public:
     Counter<int64_t>* createInt64Counter(MetricName name, std::string description, MetricUnit unit);
 
     /**
+     * Creates a counter with the provided parameters. The result is never null but will throw an
+     * exception if the counter would collide with an existing metric (i.e., same name but different
+     * type or other parameters). Metrics should be stashed once they are created to avoid taking a
+     * lock on the global list of metrics in performance-sensitive codepaths.
+     *
+     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
+     */
+    Counter<double>* createDoubleCounter(MetricName name, std::string description, MetricUnit unit);
+
+    /**
      * Creates or returns an existing gauge with the provided parameters. The result is never null
      * but will throw an exception if the gauge would collide with an different metric (i.e., same
      * name but different type or other parameters).
@@ -77,7 +88,14 @@ public:
      */
     Gauge<int64_t>* createInt64Gauge(MetricName name, std::string description, MetricUnit unit);
 
-    // TODO SERVER-114955 Implement MetricsService::createDoubleGauge
+    /**
+     * Creates or returns an existing gauge with the provided parameters. The result is never null
+     * but will throw an exception if the gauge would collide with an different metric (i.e., same
+     * name but different type or other parameters).
+     *
+     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
+     */
+    Gauge<double>* createDoubleGauge(MetricName name, std::string description, MetricUnit unit);
 
     /**
      * Creates an int64_t histogram with the provided parameters. The result is never null but will
@@ -86,10 +104,31 @@ public:
      * taking a lock on the global list of metrics in performance-sensitive codepaths.
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
+     *
+     * The optional explicit bucket boundaries parameter allows users to specify custom buckets. The
+     * vector elements denote the upper and lower bounds for the histogram buckets.
+     *
+     * Bucket upper-bounds are inclusive (except when the upper-bound is +inf), and bucket
+     * lower-bounds are exclusive. The implicit first boundary is -inf and the implicit last
+     * boundary is +inf. Given a list of n boundaries, there are n + 1 buckets. For example,
+     *
+     * boundaries = {2, 4}
+     * buckets = (-inf, 2], (2, 4], (4, +inf)
+     *
+     * If, for example, the value 2 is recorded, the corresponding counts for each bucket would be
+     * {1, 0, 0}.
+     *
+     * If a value is not provided, the default bucket boundaries will be used: {0, 5, 10, 25, 50,
+     * 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000}.
+     *
+     * See https://opentelemetry.io/docs/specs/otel/metrics/data-model/#histogram for more
+     * information.
      */
-    Histogram<int64_t>* createInt64Histogram(MetricName name,
-                                             std::string description,
-                                             MetricUnit unit);
+    Histogram<int64_t>* createInt64Histogram(
+        MetricName name,
+        std::string description,
+        MetricUnit unit,
+        boost::optional<std::vector<double>> explicitBucketBoundaries = boost::none);
 
     /**
      * Creates a double histogram with the provided parameters. The result is never null but will
@@ -98,15 +137,20 @@ public:
      * taking a lock on the global list of metrics in performance-sensitive codepaths.
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
+     *
+     * See the documentation for createInt64Histogram for an explanation of the explict bucket
+     * boundaries parameter.
      */
-    Histogram<double>* createDoubleHistogram(MetricName name,
-                                             std::string description,
-                                             MetricUnit unit);
+    Histogram<double>* createDoubleHistogram(
+        MetricName name,
+        std::string description,
+        MetricUnit unit,
+        boost::optional<std::vector<double>> explicitBucketBoundaries = boost::none);
 
     /**
-     * Serializes the created metrics to BSON for server status reporting.
+     * Appends all the created metrics for server status reporting.
      */
-    BSONObj serializeMetrics() const;
+    void appendMetricsForServerStatus(BSONObjBuilder& bsonBuilder) const;
 
 private:
     // Identifies metrics to help prevent conflicting registrations.
@@ -130,8 +174,16 @@ private:
     template <typename T>
     T* getDuplicateMetric(WithLock, const std::string& name, MetricIdentifier identifier);
 
+    template <typename T>
+    Counter<T>* createCounter(MetricName name, std::string description, MetricUnit unit);
+
+    template <typename T>
+    Gauge<T>* createGauge(MetricName name, std::string description, MetricUnit unit);
+
     using OwnedMetric = std::variant<std::unique_ptr<Counter<int64_t>>,
+                                     std::unique_ptr<Counter<double>>,
                                      std::unique_ptr<Gauge<int64_t>>,
+                                     std::unique_ptr<Gauge<double>>,
                                      std::unique_ptr<Histogram<double>>,
                                      std::unique_ptr<Histogram<int64_t>>>;
 
@@ -143,36 +195,14 @@ private:
     // Guards `_observableInstruments` and `_metrics`.
     mutable stdx::mutex _mutex;
 
+#ifdef MONGO_CONFIG_OTEL
     // Pointers to all observable instruments. These are not directly used, but must be kept alive
     // while the instruments they back are still in use. Guarded by `_mutex`.
     std::vector<std::shared_ptr<opentelemetry::metrics::ObservableInstrument>>
         _observableInstruments;
+#endif  // MONGO_CONFIG_OTEL
 
     // Map from metric name to its definition and implementation. Guarded by `_mutex`.
     absl::btree_map<std::string, IdentifierAndMetric> _metrics;
 };
 }  // namespace mongo::otel::metrics
-#else
-namespace mongo::otel::metrics {
-class MONGO_MOD_PUBLIC MetricsService {
-public:
-    static constexpr StringData kMeterName = "mongodb";
-
-    static MetricsService& get(ServiceContext*);
-
-    Counter<int64_t>* createInt64Counter(MetricName name, std::string description, MetricUnit unit);
-
-    Histogram<int64_t>* createInt64Histogram(MetricName name,
-                                             std::string description,
-                                             MetricUnit unit);
-
-    Histogram<double>* createDoubleHistogram(MetricName name,
-                                             std::string description,
-                                             MetricUnit unit);
-
-private:
-    stdx::mutex _mutex;
-    std::vector<std::unique_ptr<Metric>> _metrics;
-};
-}  // namespace mongo::otel::metrics
-#endif

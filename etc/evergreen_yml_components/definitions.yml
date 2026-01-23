@@ -1292,16 +1292,18 @@ functions:
       binary: bash
       env:
         build_id: ${build_id}
+        build_variant: ${build_variant}
         distro_id: ${distro_id}
         execution: ${execution}
+        otel_parent_id: ${otel_parent_id}
+        otel_trace_id: ${otel_trace_id}
         project: ${project}
+        requester: ${requester}
         revision: ${revision}
         revision_order_id: ${revision_order_id}
         task_id: ${task_id}
         task_name: ${task_name}
-        build_variant: ${build_variant}
         version_id: ${version_id}
-        requester: ${requester}
       args:
         - "./src/evergreen/resmoke_tests_execute_bazel.sh"
 
@@ -1310,6 +1312,24 @@ functions:
     - *apply_version_expansions
     - *f_expansions_write
     - *execute_resmoke_tests_via_bazel_sh
+
+  "download build events json":
+    - command: s3.get
+      display_name: "download build events json"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        bucket: mciuploads
+        remote_file: ${project}/${version_id}/${build_variant}/resmoke_tests/build_events.json
+        local_file: "build_events.json"
+
+  "fetch remote test results":
+    - command: subprocess.exec
+      params:
+        binary: bash
+        add_expansions_to_env: true
+        args:
+          - "./src/evergreen/fetch_remote_test_results.sh"
 
   "assume ECR role": &assume_ecr_role
     command: ec2.assume_role
@@ -3303,7 +3323,7 @@ functions:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
       local_file: src/bazel-invocation.txt
-      remote_file: ${project}/${build_variant}/${revision}/bazel-invocation-${task_id}-${execution}.txt
+      remote_file: ${project}/${build_variant}/${revision}/bazel-invocation-${task_name}-${execution}.txt
       bucket: mciuploads
       permissions: public-read
       content_type: text/plain

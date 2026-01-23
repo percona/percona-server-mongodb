@@ -16,7 +16,7 @@ import textwrap
 import traceback
 from functools import cache
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import git
 import pymongo.uri_parser
@@ -34,6 +34,7 @@ from buildscripts.resmokelib.run import TestRunner
 from buildscripts.resmokelib.utils import autoloader
 from buildscripts.resmokelib.utils.batched_baggage_span_processor import BatchedBaggageSpanProcessor
 from buildscripts.resmokelib.utils.file_span_exporter import FileSpanExporter
+from buildscripts.resmokelib.utils.otel_id_generator import ResmokeOtelIdGenerator
 from buildscripts.util.read_config import read_config_file
 from buildscripts.util.taskname import determine_task_base_name
 from buildscripts.util.teststats import HistoricTaskData
@@ -286,6 +287,8 @@ def _set_up_tracing(
     trace_id: Optional[str],
     parent_span_id: Optional[str],
     extra_context: Dict[str, object],
+    suite_files: Optional[List[str]] = None,
+    shard_index: Optional[int] = None,
 ) -> bool:
     """Try to set up otel tracing. On success return True. On failure return False.
 
@@ -306,7 +309,9 @@ def _set_up_tracing(
     # Service name is required for most backends
     resource = Resource(attributes={SERVICE_NAME: "resmoke"})
 
-    provider = TracerProvider(resource=resource)
+    # Use custom ID generator to prevent span ID collisions in parallel resmoke invocations
+    id_generator = ResmokeOtelIdGenerator(suite_files=suite_files, shard_index=shard_index)
+    provider = TracerProvider(resource=resource, id_generator=id_generator)
     if otel_collector_dir:
         try:
             otel_collector_dir = Path(otel_collector_dir)
@@ -597,6 +602,22 @@ flags in common: {common_set}
     _config.ENABLE_EVERGREEN_API_TEST_SELECTION = config.pop("enable_evergreen_api_test_selection")
     _config.EVERGREEN_TEST_SELECTION_STRATEGY = config.pop("test_selection_strategies_array")
 
+    # Read TSS_ENABLED from Evergreen expansions if available
+    _config.TSS_ENABLED = None
+    if os.path.exists(EVERGREEN_EXPANSIONS_FILE):
+        try:
+            expansions = read_config_file(EVERGREEN_EXPANSIONS_FILE)
+            tss_enabled_value = expansions.get("tss_enabled", None)
+            if tss_enabled_value is not None:
+                # Handle various boolean representations from YAML
+                if isinstance(tss_enabled_value, bool):
+                    _config.TSS_ENABLED = tss_enabled_value
+                elif isinstance(tss_enabled_value, str):
+                    _config.TSS_ENABLED = tss_enabled_value.lower() in ("true", "1", "yes")
+        except Exception:
+            # If we can't read expansions, default to None (TSS disabled)
+            pass
+
     shard_index = config.pop("shard_index")
     shard_count = config.pop("shard_count")
     _config.SHARD_INDEX = int(shard_index) if shard_index is not None else None
@@ -861,6 +882,8 @@ flags in common: {common_set}
                 _config.OTEL_TRACE_ID,
                 _config.OTEL_PARENT_ID,
                 extra_context=extra_context,
+                suite_files=_config.SUITE_FILES,
+                shard_index=_config.SHARD_INDEX,
             )
             if not setup_success:
                 print(

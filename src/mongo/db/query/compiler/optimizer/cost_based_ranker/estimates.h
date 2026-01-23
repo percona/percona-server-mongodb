@@ -36,6 +36,7 @@
 #include "mongo/util/fixed_string.h"
 #include "mongo/util/modules.h"
 
+#include <compare>
 #include <limits>
 
 #include <boost/functional/hash.hpp>
@@ -79,8 +80,8 @@ QUERY_UTIL_NAMED_ENUM_DEFINE(EstimationUnit, ESTIMATION_UNITS_NAMES);
  * Heuristics  - the estimate is computed via heuristic CE
  * Mixed  - the estimate is a result of some computation that mixes estimates of different types
  * Metadata - the estimate comes from database metadata like collection cardinality
- * Code - the estimate is computed directly in C++, for instance a constant, or expression.
- *         Most often used for internal testing.
+ * Code - the estimate is computed directly in C++, for instance a constant, expression, or
+ *         computation via exactCE. Most often used for internal testing.
  */
 #define ESTIMATION_SOURCE_NAMES(F) \
     F(Histogram)                   \
@@ -205,6 +206,8 @@ public:
 
     bool operator==(const StrongDouble<TypeTag>& other) const = default;
 
+    auto operator<=>(const StrongDouble& other) const = default;
+
     // The minimum and maximum values of this type, inclusive.
     static StrongDouble<TypeTag> minValue() {
         static StrongDouble<TypeTag> theValue(TypeTag::kMinValue);
@@ -250,6 +253,8 @@ public:
 
     friend CardinalityEstimate operator*(const SelectivityEstimate& s,
                                          const CardinalityEstimate& ce);
+    friend CardinalityEstimate operator/(const CardinalityEstimate& ce,
+                                         const SelectivityEstimate& s);
 
 private:
     double _v;
@@ -364,20 +369,9 @@ public:
         return !(*this == e);
     }
 
-    bool operator>(const OptimizerEstimate<ValueType, EstimateType>& e) const {
-        return (*this != e) && this->_estimate._v > e._estimate._v;
-    }
-
-    bool operator>=(const OptimizerEstimate<ValueType, EstimateType>& e) const {
-        return (*this == e) || this->_estimate._v > e._estimate._v;
-    }
-
-    bool operator<(const OptimizerEstimate<ValueType, EstimateType>& e) const {
-        return (*this != e) && this->_estimate._v < e._estimate._v;
-    }
-
-    bool operator<=(const OptimizerEstimate<ValueType, EstimateType>& e) const {
-        return (*this == e) || this->_estimate._v < e._estimate._v;
+    auto operator<=>(const OptimizerEstimate<ValueType, EstimateType>& e) const {
+        return *this == e ? std::partial_ordering::equivalent
+                          : this->_estimate._v <=> e._estimate._v;
     }
 
     // Arithmetic operators.
@@ -456,6 +450,9 @@ public:
                                          const CardinalityEstimate& ce);
 
     friend CardinalityEstimate operator*(const CardinalityEstimate& ce,
+                                         const SelectivityEstimate& s);
+
+    friend CardinalityEstimate operator/(const CardinalityEstimate& ce,
                                          const SelectivityEstimate& s);
 };
 
@@ -546,6 +543,9 @@ public:
                                          const CardinalityEstimate& ce);
 
     friend CardinalityEstimate operator*(const CardinalityEstimate& ce,
+                                         const SelectivityEstimate& s);
+
+    friend CardinalityEstimate operator/(const CardinalityEstimate& ce,
                                          const SelectivityEstimate& s);
 };
 

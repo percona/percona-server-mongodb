@@ -33,6 +33,7 @@
 #include "mongo/db/extension/host/document_source_extension_expandable.h"
 #include "mongo/db/extension/host/document_source_extension_optimizable.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/db/pipeline/search/search_helper.h"
 
 namespace mongo::extension::host {
 
@@ -160,6 +161,35 @@ LiteParsedList DocumentSourceExtension::LiteParsedExpandable::expandImpl(
     return outExpanded;
 }
 
+LiteParsedDesugarer::StageExpander DocumentSourceExtension::LiteParsedExpandable::stageExpander =
+    [](LiteParsedPipeline* pipeline, size_t index, LiteParsedDocumentSource& stage) {
+        auto& expandable = static_cast<DocumentSourceExtension::LiteParsedExpandable&>(stage);
+        auto expanded = expandable.getExpandedPipeline();
+
+        // Replace the one LPDS with its desugared form; return next index.
+        return pipeline->replaceStageWith(index, std::move(expanded));
+    };
+
+MONGO_INITIALIZER_WITH_PREREQUISITES(RegisterStageExpanderForLiteParsedExtensionExpandable,
+                                     ("EndStageIdAllocation"))
+(InitializerContext*) {
+    tassert(11533001,
+            "ExpandableStageParams::id must be allocated before registering expander",
+            ExpandableStageParams::id != StageParams::kUnallocatedId);
+    LiteParsedDesugarer::registerStageExpander(
+        ExpandableStageParams::id, DocumentSourceExtension::LiteParsedExpandable::stageExpander);
+}
+
+// TODO SERVER-116021 Remove this check when the extension can do this through ViewPolicy.
+bool DocumentSourceExtension::LiteParsedExpandable::isExtensionVectorSearchStage() const {
+    return search_helpers::isExtensionVectorSearchStage(getParseTimeName());
+}
+
+// TODO SERVER-116021 Remove this check when the extension can do this through ViewPolicy.
+bool DocumentSourceExtension::LiteParsedExpanded::isExtensionVectorSearchStage() const {
+    return search_helpers::isExtensionVectorSearchStage(getParseTimeName());
+}
+
 // static
 void DocumentSourceExtension::registerStage(AggStageDescriptorHandle descriptor) {
     auto nameStringData = descriptor->getName();
@@ -178,7 +208,11 @@ void DocumentSourceExtension::registerStage(AggStageDescriptorHandle descriptor)
     }();
 
     LiteParsedDocumentSource::registerParser(
-        stageName, std::move(parser), AllowedWithApiStrict::kAlways, AllowedWithClientType::kAny);
+        stageName,
+        {.parser = std::move(parser),
+         .fromExtension = true,
+         .allowedWithApiStrict = AllowedWithApiStrict::kAlways,
+         .allowedWithClientType = AllowedWithClientType::kAny});
 }
 
 DocumentSourceExtension::DocumentSourceExtension(

@@ -94,7 +94,6 @@ SortOptions BucketAutoStage::makeSortOptions() {
     opts.MaxMemoryUsageBytes(_memoryTracker.maxAllowedMemoryUsageBytes());
     if (pExpCtx->getAllowDiskUse() && !pExpCtx->getInRouter()) {
         opts.TempDir(pExpCtx->getTempDir());
-        opts.FileStats(&_sorterFileStats);
     }
     return opts;
 }
@@ -102,11 +101,15 @@ SortOptions BucketAutoStage::makeSortOptions() {
 GetNextResult BucketAutoStage::populateSorter() {
     if (!_sorter) {
         auto opts = makeSortOptions();
-        _sorter = Sorter<Value, Document>::template make<Comparator>(
+        std::function<int(const Value&, const Value&)> comparator =
+            [valueComp = pExpCtx->getValueComparator()](const Value& lhs, const Value& rhs) -> int {
+            return valueComp.compare(lhs, rhs);
+        };
+        _sorter = Sorter<Value, Document>::make(
             opts,
-            Comparator(pExpCtx->getValueComparator()),
-            (opts.tempDir) ? std::make_unique<FileBasedSorterSpiller<Value, Document, Comparator>>(
-                                 *opts.tempDir, opts.sorterFileStats)
+            comparator,
+            (opts.tempDir) ? std::make_shared<FileBasedSorterSpiller<Value, Document>>(
+                                 *opts.tempDir, &_sorterFileStats)
                            : nullptr);
     }
 

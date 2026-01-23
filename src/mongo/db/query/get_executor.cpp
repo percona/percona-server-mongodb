@@ -1243,7 +1243,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
     tassert(11321303, "canonicalQuery must not be null", canonicalQuery);
 
     // Ensure that the shard filter option is set if this is a shard.
-    if (OperationShardingState::isComingFromRouter(opCtx)) {
+    if (collections.getMainCollectionAcquisition().getShardingDescription().isSharded()) {
         plannerOptions |= QueryPlannerParams::INCLUDE_SHARD_FILTER;
     }
 
@@ -1328,7 +1328,13 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
         // Add the stages that are candidates for SBE lowering from the 'pipeline' into the
         // 'canonicalQuery'. This must be done _before_ checking shouldUseRegularSbe() or
         // creating the planner.
-        auto plannerParams = makeQueryPlannerParams(plannerOptions);
+        auto plannerParams =
+            std::make_unique<QueryPlannerParams>(QueryPlannerParams::ArgsForPushDownStagesDecision{
+                .opCtx = opCtx,
+                .canonicalQuery = *canonicalQuery,
+                .collections = collections,
+                .plannerOptions = plannerOptions,
+            });
         attachPipelineStages(
             collections, pipeline, needsMerge, canonicalQuery.get(), std::move(plannerParams));
 
@@ -1956,7 +1962,7 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorCoun
     }
 
     size_t plannerOptions = QueryPlannerParams::DEFAULT;
-    if (OperationShardingState::isComingFromRouter(opCtx)) {
+    if (coll.getShardingDescription().isSharded()) {
         plannerOptions |= QueryPlannerParams::INCLUDE_SHARD_FILTER;
     }
 

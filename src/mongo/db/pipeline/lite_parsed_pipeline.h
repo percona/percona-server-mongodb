@@ -67,10 +67,12 @@ public:
      * validation happens later, during Pipeline construction.
      */
     LiteParsedPipeline(const AggregateCommandRequest& request,
-                       const bool isRunningAgainstView_ForHybridSearch = false)
-        : LiteParsedPipeline(
-              request.getNamespace(), request.getPipeline(), isRunningAgainstView_ForHybridSearch) {
-    }
+                       const bool isRunningAgainstView_ForHybridSearch = false,
+                       const LiteParserOptions& options = LiteParserOptions{})
+        : LiteParsedPipeline(request.getNamespace(),
+                             request.getPipeline(),
+                             isRunningAgainstView_ForHybridSearch,
+                             options) {}
     /**
      * Constructs a LiteParsedPipeline from the raw BSON stages in 'pipelineStages'.
      *
@@ -207,6 +209,15 @@ public:
     }
 
     /**
+     * Returns true if the pipeline has a vector search stage.
+     */
+    bool hasExtensionVectorSearchStage() const {
+        return std::any_of(_stageSpecs.begin(), _stageSpecs.end(), [](auto&& spec) {
+            return spec->isExtensionVectorSearchStage();
+        });
+    }
+
+    /**
      * Returns true iff the pipeline has a $rankFusion or $scoreFusion stage.
      */
     bool hasHybridSearchStage() const {
@@ -332,6 +343,23 @@ public:
 
     const StageSpecs& getStages() const {
         return _stageSpecs;
+    }
+
+    /**
+     * Replaces the stage at 'index' with the stages in 'newSources'. Returns the index after the
+     * inserted block.
+     */
+    size_t replaceStageWith(size_t index,
+                            std::vector<std::unique_ptr<LiteParsedDocumentSource>>&& newSources);
+
+    /**
+     * Resets the deferred caches for hasChangeStream and involvedNamespaces. Should be called after
+     * _stageSpecs has been modified.
+     */
+    void resetDeferredCaches() {
+        _hasChangeStream = Deferred<bool (*)(const StageSpecs&)>(&computeHasChangeStream);
+        _involvedNamespaces = Deferred<stdx::unordered_set<NamespaceString> (*)(const StageSpecs&)>(
+            &computeInvolvedNamespaces);
     }
 
 private:

@@ -45,19 +45,19 @@ public:
         unittest::TempDir tempDir("sortedFileWriterTests");
         SorterTracker sorterTracker;
         SorterFileStats sorterFileStats(&sorterTracker);
-        const SortOptions opts = SortOptions().TempDir(tempDir.path()).FileStats(&sorterFileStats);
+        const SortOptions opts = SortOptions().TempDir(tempDir.path());
 
         int currentFileSize = 0;
 
         // small
-        currentFileSize = _appendToFile(&opts, currentFileSize, 5);
+        currentFileSize = _appendToFile(&opts, &sorterFileStats, currentFileSize, 5);
 
         ASSERT_EQ(sorterFileStats.opened.load(), 1);
         ASSERT_EQ(sorterFileStats.closed.load(), 1);
         ASSERT_LTE(sorterTracker.bytesSpilled.load(), currentFileSize);
 
         // big
-        currentFileSize = _appendToFile(&opts, currentFileSize, 10 * 1000 * 1000);
+        currentFileSize = _appendToFile(&opts, &sorterFileStats, currentFileSize, 10 * 1000 * 1000);
 
         ASSERT_EQ(sorterFileStats.opened.load(), 2);
         ASSERT_EQ(sorterFileStats.closed.load(), 2);
@@ -68,10 +68,13 @@ public:
     }
 
 private:
-    int _appendToFile(const SortOptions* opts, int currentFileSize, int range) {
+    int _appendToFile(const SortOptions* opts,
+                      SorterFileStats* sorterFileStats,
+                      int currentFileSize,
+                      int range) {
         auto makeFile = [&] {
             return std::make_shared<SorterFile>(sorter::nextFileName(*(opts->tempDir)),
-                                                opts->sorterFileStats);
+                                                sorterFileStats);
         };
 
         int currentBufSize = 0;
@@ -105,8 +108,7 @@ public:
         {  // test empty (no inputs)
             std::vector<std::shared_ptr<IWIterator>> vec;
             std::shared_ptr<IWIterator> mergeIter(
-                sorter::merge<IntWrapper, IntWrapper, IWComparator>(
-                    vec, SortOptions(), IWComparator()));
+                sorter::merge<IntWrapper, IntWrapper>(vec, SortOptions(), IWComparator()));
             ASSERT_ITERATORS_EQUIVALENT(mergeIter, std::make_shared<EmptyIterator>());
         }
         {  // test empty (only empty inputs)
@@ -183,21 +185,24 @@ public:
         const SortOptions opts = SortOptions().TempDir(tempDir.path()).Tracker(&sorterTracker);
 
         {  // test empty (no limit)
-            ASSERT_ITERATORS_EQUIVALENT(makeSorter(opts)->done(),
+            ASSERT_ITERATORS_EQUIVALENT(makeSorter(opts, /*fileStats=*/nullptr)->done(),
                                         std::make_unique<EmptyIterator>());
         }
         {  // test empty (limit 1)
-            ASSERT_ITERATORS_EQUIVALENT(makeSorter(SortOptions(opts).Limit(1))->done(),
-                                        std::make_unique<EmptyIterator>());
+            ASSERT_ITERATORS_EQUIVALENT(
+                makeSorter(SortOptions(opts).Limit(1), /*fileStats=*/nullptr)->done(),
+                std::make_unique<EmptyIterator>());
         }
         {  // test empty (limit 10)
-            ASSERT_ITERATORS_EQUIVALENT(makeSorter(SortOptions(opts).Limit(10))->done(),
-                                        std::make_unique<EmptyIterator>());
+            ASSERT_ITERATORS_EQUIVALENT(
+                makeSorter(SortOptions(opts).Limit(10), /*fileStats=*/nullptr)->done(),
+                std::make_unique<EmptyIterator>());
         }
 
         const auto runTests = [this, &opts, &tempDir](bool assertRanges) {
             {  // test all data ASC
-                std::shared_ptr<IWSorter> sorter = makeSorter(opts, IWComparator(ASC));
+                std::shared_ptr<IWSorter> sorter =
+                    makeSorter(opts, /*filesStats=*/nullptr, IWComparator(ASC));
                 addData(sorter.get());
                 ASSERT_ITERATORS_EQUIVALENT(sorter->done(), correct());
                 ASSERT_EQ(numAdded(), sorter->stats().numSorted());
@@ -206,7 +211,8 @@ public:
                 }
             }
             {  // test all data DESC
-                std::shared_ptr<IWSorter> sorter = makeSorter(opts, IWComparator(DESC));
+                std::shared_ptr<IWSorter> sorter =
+                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(DESC));
                 addData(sorter.get());
                 ASSERT_ITERATORS_EQUIVALENT(sorter->done(), correctReverse());
                 ASSERT_EQ(numAdded(), sorter->stats().numSorted());
@@ -219,8 +225,9 @@ public:
 // Among other things, MSVC++ makes all heap functions O(N) not O(logN).
 #if !defined(MONGO_CONFIG_DEBUG_BUILD)
             {  // merge all data ASC
-                std::shared_ptr<IWSorter> sorters[] = {makeSorter(opts, IWComparator(ASC)),
-                                                       makeSorter(opts, IWComparator(ASC))};
+                std::shared_ptr<IWSorter> sorters[] = {
+                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(ASC)),
+                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(ASC))};
 
                 addData(sorters[0].get());
                 addData(sorters[1].get());
@@ -236,8 +243,9 @@ public:
                 }
             }
             {  // merge all data DESC and use multiple threads to insert
-                std::shared_ptr<IWSorter> sorters[] = {makeSorter(opts, IWComparator(DESC)),
-                                                       makeSorter(opts, IWComparator(DESC))};
+                std::shared_ptr<IWSorter> sorters[] = {
+                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(DESC)),
+                    makeSorter(opts, /*fileStats=*/nullptr, IWComparator(DESC))};
 
                 stdx::thread inBackground(&Basic::addData, this, sorters[0].get());
                 addData(sorters[1].get());
@@ -328,14 +336,15 @@ public:
 
 private:
     // Make a new sorter with desired opts and comp. Opts may be ignored but not comp
-    std::shared_ptr<IWSorter> makeSorter(SortOptions opts, IWComparator comp = IWComparator(ASC)) {
-        return std::shared_ptr<IWSorter>(IWSorter::template make<IWComparator>(
+    std::shared_ptr<IWSorter> makeSorter(SortOptions opts,
+                                         SorterFileStats* fileStats,
+                                         IWComparator comp = IWComparator(ASC)) {
+        return std::shared_ptr<IWSorter>(IWSorter::make(
             adjustSortOptions(opts),
             comp,
-            opts.tempDir
-                ? std::make_unique<FileBasedSorterSpiller<IntWrapper, IntWrapper, IWComparator>>(
-                      *opts.tempDir, opts.sorterFileStats)
-                : nullptr));
+            opts.tempDir ? std::make_shared<FileBasedSorterSpiller<IntWrapper, IntWrapper>>(
+                               *opts.tempDir, fileStats)
+                         : nullptr));
     }
 
     void assertRangeInfo(const std::shared_ptr<IWSorter>& sorter, const SortOptions& opts) {
@@ -558,7 +567,7 @@ public:
             (NUM_ITEMS * sizeof(IWPair)) / DATA_MEM_LIMIT <
             std::max(static_cast<std::size_t>(
                          (MEM_LIMIT - DATA_MEM_LIMIT) /
-                         MergeableSorter<IntWrapper, IntWrapper, IWComparator>::kFileIteratorSize),
+                         MergeableSorter<IntWrapper, IntWrapper>::kFileIteratorSize),
                      static_cast<std::size_t>(1)));
 
         return opts.MaxMemoryUsageBytes(MEM_LIMIT);
@@ -664,18 +673,17 @@ class LotsOfSpillsLittleMemory : public LotsOfDataLittleMemory<Random> {
             (Parent::NUM_ITEMS * sizeof(IWPair)) / DATA_MEM_LIMIT >
             std::max(static_cast<std::size_t>(
                          (MEM_LIMIT - DATA_MEM_LIMIT) /
-                         MergeableSorter<IntWrapper, IntWrapper, IWComparator>::kFileIteratorSize),
+                         MergeableSorter<IntWrapper, IntWrapper>::kFileIteratorSize),
                      static_cast<std::size_t>(1)));
 
         return opts.MaxMemoryUsageBytes(MEM_LIMIT);
     }
 
     size_t correctSpilledRanges() const override {
-        std::size_t maximumNumberOfIterators =
-            std::max(static_cast<std::size_t>(
-                         (MEM_LIMIT - DATA_MEM_LIMIT) /
-                         MergeableSorter<IntWrapper, IntWrapper, IWComparator>::kFileIteratorSize),
-                     static_cast<std::size_t>(1));
+        std::size_t maximumNumberOfIterators = std::max(
+            static_cast<std::size_t>((MEM_LIMIT - DATA_MEM_LIMIT) /
+                                     MergeableSorter<IntWrapper, IntWrapper>::kFileIteratorSize),
+            static_cast<std::size_t>(1));
         // It spills when the data in memory is more than the maximum allowed memory.
         std::size_t recordsPerRange = DATA_MEM_LIMIT / sizeof(IWPair) + 1;
         std::size_t documentsToAdd = Parent::NUM_ITEMS;

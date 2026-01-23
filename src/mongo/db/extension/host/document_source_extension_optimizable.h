@@ -28,6 +28,7 @@
  */
 #pragma once
 
+#include "mongo/db/extension/host/catalog_context.h"
 #include "mongo/db/extension/host/document_source_extension.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/ast_node.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/distributed_plan_logic.h"
@@ -47,6 +48,16 @@ public:
             new DocumentSourceExtensionOptimizable(expCtx, std::move(astNode)));
     }
 
+    /**
+     * Construct directly from a parse node handle.
+     *
+     * NOTE: This should only be used when the parse node handle expands into a *single
+     * extension-allocated AST node* (e.g. when parsing on a shard after the router has already
+     * expanded and serialized the parse node).
+     */
+    static boost::intrusive_ptr<DocumentSourceExtensionOptimizable> create(
+        const boost::intrusive_ptr<ExpressionContext>& expCtx,
+        const AggStageParseNodeHandle& parseNodeHandle);
 
     /**
      * Construct a DocumentSourceExtensionOptimizable from a logical stage handle.
@@ -92,7 +103,13 @@ protected:
                                        AggStageAstNodeHandle astNode)
         : DocumentSourceExtension(astNode->getName(), expCtx),
           _properties(astNode->getProperties()),
-          _logicalStage(astNode->bind()) {}
+          _logicalStage([&]() {
+              tassert(11647800,
+                      "DocumentSourceExtensionOptimizable received invalid expression context",
+                      expCtx.get() != nullptr);
+              auto catalogContext = CatalogContext(*expCtx);
+              return astNode->bind(catalogContext.getAsBoundaryType());
+          }()) {}
 
     DocumentSourceExtensionOptimizable(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                        LogicalAggStageHandle logicalStage,

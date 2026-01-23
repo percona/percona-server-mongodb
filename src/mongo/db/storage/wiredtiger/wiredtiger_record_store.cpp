@@ -340,7 +340,6 @@ Status WiredTigerRecordStore::wtInsertRecord(OperationContext* opCtx,
 
     if (ret == WT_DUPLICATE_KEY) {
         invariant(!_overwrite);
-        invariant(keyFormat() == KeyFormat::String);
 
         BSONObj foundValueObj;
         if (TestingProctor::instance().isEnabled()) {
@@ -352,7 +351,7 @@ Status WiredTigerRecordStore::wtInsertRecord(OperationContext* opCtx,
         return Status{
             DuplicateKeyErrorInfo{
                 BSONObj(), BSONObj(), BSONObj(), std::move(foundValueObj), std::move(record.id)},
-            "Duplicate cluster key found"};
+            "Duplicate key found"};
     }
 
     if (ret)
@@ -730,7 +729,7 @@ int64_t WiredTigerRecordStore::storageSize(RecoveryUnit& ru,
     }
     WiredTigerSession* session = WiredTigerRecoveryUnit::get(ru).getSessionNoTxn();
     auto result = WiredTigerUtil::getStatisticsValue(
-        *session, "statistics:" + getURI(), "statistics=(size)", WT_STAT_DSRC_BLOCK_SIZE);
+        *session, "statistics:" + getURI(), "statistics=(fast)", WT_STAT_DSRC_BLOCK_SIZE);
     uassertStatusOK(result.getStatus());
 
     return result.getValue();

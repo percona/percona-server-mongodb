@@ -60,11 +60,12 @@ std::unique_ptr<LiteParsedDocumentSource> createMockParser(const NamespaceString
 class LiteParserRegistrationTest : public unittest::Test {
 protected:
     void setUp() override {
-        primaryParser = {
-            createMockParser, AllowedWithApiStrict::kAlways, AllowedWithClientType::kAny};
-        fallbackParser = {createMockParser,
-                          AllowedWithApiStrict::kNeverInVersion1,
-                          AllowedWithClientType::kInternal};
+        primaryParser = {.parser = createMockParser,
+                         .allowedWithApiStrict = AllowedWithApiStrict::kAlways,
+                         .allowedWithClientType = AllowedWithClientType::kAny};
+        fallbackParser = {.parser = createMockParser,
+                          .allowedWithApiStrict = AllowedWithApiStrict::kNeverInVersion1,
+                          .allowedWithClientType = AllowedWithClientType::kInternal};
     }
 
     void assertParserIsPrimary(const LiteParsedDocumentSource::LiteParserInfo& parserInfo) {
@@ -75,6 +76,22 @@ protected:
     void assertParserIsFallback(const LiteParsedDocumentSource::LiteParserInfo& parserInfo) {
         ASSERT_EQ(parserInfo.allowedWithApiStrict, AllowedWithApiStrict::kNeverInVersion1);
         ASSERT_EQ(parserInfo.allowedWithClientType, AllowedWithClientType::kInternal);
+    }
+
+    std::pair<LiteParsedDocumentSource::LiteParserRegistration, LiteParserOptions>
+    makeRegistrationWithOptions(IncrementalRolloutFeatureFlag& mockFlag,
+                                const boost::optional<bool> ifrFlagValue = boost::none) {
+        LiteParsedDocumentSource::LiteParserRegistration registration;
+        mockFlag.registerFlag();
+        registration.setFallbackParser(std::move(fallbackParser), &mockFlag);
+        registration.setPrimaryParser(std::move(primaryParser));
+        LiteParserOptions options;
+        if (ifrFlagValue) {
+            std::vector<BSONObj> flagValues{
+                BSON("name" << mockFlag.getName() << "value" << *ifrFlagValue)};
+            options.ifrContext = std::make_shared<IncrementalFeatureRolloutContext>(flagValues);
+        }
+        return {std::move(registration), std::move(options)};
     }
 
     LiteParsedDocumentSource::LiteParserInfo primaryParser;
@@ -153,21 +170,53 @@ TEST_F(LiteParserRegistrationTest, GetParserWithChangingFeatureFlag) {
     assertParserIsFallback(registration.getParserInfo());
 }
 
+TEST_F(LiteParserRegistrationTest, GetParserWithIfrContextFlagEnabled) {
+    static IncrementalRolloutFeatureFlag mockFlag(
+        "testFlag1"_sd, RolloutPhase::inDevelopment, false);
+    const auto& [registration, options] = makeRegistrationWithOptions(mockFlag, true);
+
+    // Should return primary parser because ifrContext overrides to enabled.
+    const auto& parserInfo = registration.getParserInfo(options);
+    assertParserIsPrimary(parserInfo);
+}
+
+TEST_F(LiteParserRegistrationTest, GetParserWithIfrContextFlagDisabled) {
+    static IncrementalRolloutFeatureFlag mockFlag(
+        "testFlag2"_sd, RolloutPhase::inDevelopment, true);
+    const auto& [registration, options] = makeRegistrationWithOptions(mockFlag, false);
+
+    // Should return fallback parser because ifrContext overrides to disabled.
+    const auto& parserInfo = registration.getParserInfo(options);
+    assertParserIsFallback(parserInfo);
+}
+
+TEST_F(LiteParserRegistrationTest, GetParserWithEmptyIfrContextFlag) {
+    static IncrementalRolloutFeatureFlag mockFlag(
+        "testFlag3"_sd, RolloutPhase::inDevelopment, true);
+    const auto& [registration, options] = makeRegistrationWithOptions(mockFlag);
+
+    // Should use checkEnabled() and return fallback parser.
+    const auto& parserInfo = registration.getParserInfo(options);
+    assertParserIsPrimary(parserInfo);
+}
+
 class LiteParsedDocumentSourceParseTest : public unittest::Test {
 protected:
     void registerPrimaryParser() {
-        LiteParsedDocumentSource::registerParser(_stageName,
-                                                 createMockParser,
-                                                 AllowedWithApiStrict::kAlways,
-                                                 AllowedWithClientType::kAny);
+        LiteParsedDocumentSource::registerParser(
+            _stageName,
+            {.parser = createMockParser,
+             .allowedWithApiStrict = AllowedWithApiStrict::kAlways,
+             .allowedWithClientType = AllowedWithClientType::kAny});
     }
 
     void registerFallbackParser(FeatureFlag* ff) {
-        LiteParsedDocumentSource::registerFallbackParser(_stageName,
-                                                         createMockParser,
-                                                         ff,
-                                                         AllowedWithApiStrict::kNeverInVersion1,
-                                                         AllowedWithClientType::kInternal);
+        LiteParsedDocumentSource::registerFallbackParser(
+            _stageName,
+            ff,
+            {.parser = createMockParser,
+             .allowedWithApiStrict = AllowedWithApiStrict::kNeverInVersion1,
+             .allowedWithClientType = AllowedWithClientType::kInternal});
     }
 
     void tearDown() override {
@@ -220,11 +269,12 @@ TEST_F(LiteParsedDocumentSourceParseTest, FirstFallbackParserTakesPrecedence) {
     registerPrimaryParser();
 
     // Try creating another fallback parser.
-    LiteParsedDocumentSource::registerFallbackParser(_stageName,
-                                                     createMockParser,
-                                                     &mockFlag,
-                                                     AllowedWithApiStrict::kNeverInVersion1,
-                                                     AllowedWithClientType::kAny);
+    LiteParsedDocumentSource::registerFallbackParser(
+        _stageName,
+        &mockFlag,
+        {.parser = createMockParser,
+         .allowedWithApiStrict = AllowedWithApiStrict::kNeverInVersion1,
+         .allowedWithClientType = AllowedWithClientType::kAny});
 
     // Ensure that the parser info is the original fallback parser.
     auto parserInfo = getParserInfo();
@@ -240,11 +290,12 @@ TEST_F(LiteParsedDocumentSourceParseTest, FirstFallbackParserTakesPrecedenceWith
     registerFallbackParser(&mockFlag);
 
     // Try creating another fallback parser.
-    LiteParsedDocumentSource::registerFallbackParser(_stageName,
-                                                     createMockParser,
-                                                     &mockFlag,
-                                                     AllowedWithApiStrict::kNeverInVersion1,
-                                                     AllowedWithClientType::kAny);
+    LiteParsedDocumentSource::registerFallbackParser(
+        _stageName,
+        &mockFlag,
+        {.parser = createMockParser,
+         .allowedWithApiStrict = AllowedWithApiStrict::kNeverInVersion1,
+         .allowedWithClientType = AllowedWithClientType::kAny});
 
     // Ensure that the parser info is the original fallback parser.
     auto parserInfo = getParserInfo();

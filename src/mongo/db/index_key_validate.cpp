@@ -203,6 +203,9 @@ Status validateKeyPattern(const BSONObj& key, IndexDescriptor::IndexVersion inde
             return {
                 ErrorCodes::CannotCreateIndex,
                 str::stream() << "GeoHaystack indexes cannot be created in version 5.0 and above"};
+        if (pluginName == IndexNames::ENCRYPTED_RANGE)
+            return {ErrorCodes::CannotCreateIndex,
+                    str::stream() << "EncryptedRange indexes cannot be created"};
         if (!IndexNames::isKnownName(pluginName))
             return Status(code, str::stream() << "Unknown index plugin '" << pluginName << '\'');
     }
@@ -1071,7 +1074,7 @@ Status validateIndexSpecTTL(const BSONObj& indexSpec) {
 bool isIndexAllowedInAPIVersion1(const IndexDescriptor& indexDesc) {
     const auto indexName = IndexNames::findPluginName(indexDesc.keyPattern());
     return indexName != IndexNames::TEXT && indexName != IndexNames::GEO_HAYSTACK &&
-        !indexDesc.isSparse();
+        !indexDesc.isSetSparseByUser();
 }
 
 BSONObj parseAndValidateIndexSpecs(OperationContext* opCtx, const BSONObj& indexSpecObj) {

@@ -45,7 +45,10 @@ public:
 
 Follow [OpenTelemetry naming conventions](https://opentelemetry.io/docs/specs/semconv/general/naming/):
 
-- Use lowercase with dots as separators for namespaces (e.g., `connections.active`), and underscores to separate words within namespaces (`slow_queries`)
+- Use lowercase with dots as separators for namespaces (e.g., `network.connections.active`), and
+  underscores to separate words within namespaces (`slow_queries`)
+- Put every metric within a namespace related to the context of the metric (e.g.,
+  `network.connections.active`, rather than just `connections.active`)
 - Be descriptive but concise, there is no need to restate the units as part of the metric name
 
 `mongodb.` will be automatically prepended to all metric names because it is the service name provided to OTel.
@@ -101,6 +104,12 @@ counter->add(10); // Increment by 10
 
 - Operation latencies
 - Request sizes
+
+#### Explicit Bucket Boundaries
+
+Histograms can optionally be created with a list of explicit bucket boundaries. See the
+documentation for `createInt64Histogram` in [`metrics_service.h`](metrics_service.h) for more
+information.
 
 ## Testing Metrics
 

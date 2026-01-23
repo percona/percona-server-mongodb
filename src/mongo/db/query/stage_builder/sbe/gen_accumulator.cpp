@@ -2080,6 +2080,9 @@ SbHashAggAccumulator AccumOp::buildSinglePurposeAccumulator(StageBuilderState& s
                                                             std::string fieldName,
                                                             SbSlot outSlot,
                                                             SbSlot spillSlot) const {
+    uassert(11618600,
+            str::stream() << "Unsupported Accumulator in SBE accumulator builder: " << _opName,
+            _opInfo != nullptr);
     return _opInfo->buildSinglePurposeAccum(
         *this,
         std::make_unique<AddSingleInput>(std::move(inputExpression)),
@@ -2094,6 +2097,9 @@ SbHashAggAccumulator AccumOp::buildSinglePurposeAccumulatorForMerge(StageBuilder
                                                                     std::string fieldName,
                                                                     SbSlot outSlot,
                                                                     SbSlot spillSlot) const {
+    uassert(11618700,
+            str::stream() << "Unsupported Accumulator in SBE accumulator builder: " << _opName,
+            _opInfo != nullptr);
     auto& builderFunction = _opInfo->buildSinglePurposeAccumForMerge
         ? _opInfo->buildSinglePurposeAccumForMerge
         : _opInfo->buildSinglePurposeAccum;

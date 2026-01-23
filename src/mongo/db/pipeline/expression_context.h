@@ -185,6 +185,12 @@ public:
         bool where = false;
     };
 
+    enum class PlanCacheOptions {
+        kDisablePlanCache,  // Query is not being cached
+        kEnablePlanCache,   // Query is being cached if it has alternative plans
+        kForcePlanCache,    // Query is being cached even if it has a single plan
+    };
+
     // TODO: variables are heavily used everywhere, move these inside ExpressionContextParams at
     // some point
     Variables variables;
@@ -743,11 +749,15 @@ public:
     }
 
     bool getForcePlanCache() const {
-        return _params.forcePlanCache;
+        return _params.planCache == PlanCacheOptions::kForcePlanCache;
     }
 
-    void setForcePlanCache(bool forcePlanCache) {
-        _params.forcePlanCache = forcePlanCache;
+    PlanCacheOptions getPlanCache() const {
+        return _params.planCache;
+    }
+
+    void setPlanCache(PlanCacheOptions planCache) {
+        _params.planCache = planCache;
     }
 
     bool getAllowGenericForeignDbLookup() const {
@@ -1014,10 +1024,20 @@ public:
         // e.g. if running on a 'mongos'. In this case, we return an empty instance of
         // 'PathArrayness' that denotes all paths as arrays.
         if (!_params.mainCollPathArrayness) {
-            static const auto kEmptyPathArrayness = PathArrayness();
-            return kEmptyPathArrayness;
+            return PathArrayness::emptyPathArrayness();
         }
         return *_params.mainCollPathArrayness;
+    }
+
+    const PathArrayness& getSecondaryCollPathArrayness(const NamespaceString& nss) const {
+        auto it = _params.secondaryCollsPathArrayness.find(nss);
+        // If we do not find a PathArrayness mapped to the secondary namespace we return a
+        // conservative guarantee. This could happen if running on a 'mongos'.
+        if (it == _params.secondaryCollsPathArrayness.end()) {
+            return PathArrayness::emptyPathArrayness();
+        }
+        tassert(11344300, "PathArrayness should not be a nullptr", it->second);
+        return *it->second;
     }
 
 protected:
@@ -1137,9 +1157,9 @@ protected:
         // False if another context is created for the same pipeline. Used to disable duplicate
         // expression counting.
         bool enabledCounters = true;
-        // Forces the plan cache to be used even if there's only one solution available. Queries
-        // that are ineligible will still not be cached.
-        bool forcePlanCache = false;
+        // Indicates if the plan cache will be used. Queries that are ineligible will still not be
+        // cached.
+        PlanCacheOptions planCache = PlanCacheOptions::kEnablePlanCache;
 
         // Indicates if query is IDHACK query.
         bool isIdHackQuery = false;
@@ -1168,6 +1188,8 @@ protected:
         // The PathArrayness information for the main collection. This may remain unset if a
         // collection acquisition is not possible, e.g. when running on mongos.
         std::shared_ptr<const PathArrayness> mainCollPathArrayness = nullptr;
+        stdx::unordered_map<NamespaceString, std::shared_ptr<const PathArrayness>>
+            secondaryCollsPathArrayness;
     };
 
     ExpressionContextParams _params;

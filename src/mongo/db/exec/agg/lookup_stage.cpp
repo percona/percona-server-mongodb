@@ -391,7 +391,7 @@ void LookUpStage::prepareStateToBuildPipeline(
 
     // Copy all 'let' variables into the foreign pipeline's expression context.
     _variables.copyToExpCtx(_variablesParseState, fromExpCtx.get());
-    fromExpCtx->setForcePlanCache(true);
+    fromExpCtx->setPlanCache(ExpressionContext::PlanCacheOptions::kForcePlanCache);
 
     // Query settings are looked up after parsing and therefore are not populated in the
     // 'fromExpCtx' as part of DocumentSourceLookUp constructor. Assign query settings to the
@@ -541,12 +541,11 @@ GetNextResult LookUpStage::unwindResult() {
         _input = nextInput.releaseDocument();
 
         _sharedState->pipeline = buildPipeline(_fromExpCtx, *_input);
-        _sharedState->execPipeline = exec::agg::buildPipeline(_sharedState->pipeline->freeze());
 
         // The $lookup stage takes responsibility for disposing of its Pipeline, since it will
         // potentially be used by multiple OperationContexts, and the $lookup stage is part of an
         // outer Pipeline that will propagate dispose() calls before being destroyed.
-        _sharedState->execPipeline->dismissDisposal();
+        _sharedState->execPipeline = exec::agg::buildPipeline(_sharedState->pipeline->freeze());
 
         _cursorIndex = 0;
         _nextValue = _sharedState->execPipeline->getNext();

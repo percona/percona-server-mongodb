@@ -133,27 +133,23 @@ err:
 }
 
 /*
- * __layered_create_missing_stable_tables --
+ * __layered_create_missing_stable_tables_helper --
  *     Create missing stable tables.
  */
 static int
-__layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
+__layered_create_missing_stable_tables_helper(WT_SESSION_IMPL *session)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor_check, *cursor_scan;
     WT_DECL_RET;
-    WT_SESSION_IMPL *internal_session;
     char *stable_uri;
     const char *layered_uri, *layered_cfg;
 
-    conn = S2C(session);
     cursor_check = cursor_scan = NULL;
     stable_uri = NULL;
 
-    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
-    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_check));
-    WT_ERR(__wt_metadata_cursor(internal_session, &cursor_scan));
+    WT_ERR(__wt_metadata_cursor(session, &cursor_check));
+    WT_ERR(__wt_metadata_cursor(session, &cursor_scan));
 
     cursor_scan->set_key(cursor_scan, "layered:");
     WT_ERR(cursor_scan->bound(cursor_scan, "bound=lower"));
@@ -174,11 +170,11 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
         /* Create the stable table if it does not exist. */
         if (ret == WT_NOTFOUND) {
             WT_ERR_MSG_CHK(session,
-              __layered_create_missing_stable_table(internal_session, stable_uri, layered_cfg),
+              __layered_create_missing_stable_table(session, stable_uri, layered_cfg),
               "Failed to create missing stable table \"%s\" from \"%s\"", stable_uri, layered_cfg);
             /* Ensure that we properly handle empty tables. */
             WT_ERR(__wt_disagg_copy_metadata_later(
-              internal_session, stable_uri, layered_uri + strlen("layered:")));
+              session, stable_uri, layered_uri + strlen("layered:")));
             __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
               "Created missing stable table \"%s\" from \"%s\"", stable_uri, layered_uri);
         }
@@ -189,8 +185,30 @@ __layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
 
 err:
     __wt_free(session, stable_uri);
-    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_check));
-    WT_TRET(__wt_metadata_cursor_release(internal_session, &cursor_scan));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor_check));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor_scan));
+    return (ret);
+}
+
+/*
+ * __layered_create_missing_stable_tables --
+ *     Create missing stable tables.
+ */
+static int
+__layered_create_missing_stable_tables(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *internal_session;
+
+    conn = S2C(session);
+
+    WT_ERR(__wt_open_internal_session(conn, "disagg-step-up", false, 0, 0, &internal_session));
+    WT_WITH_SCHEMA_LOCK(
+      internal_session, ret = __layered_create_missing_stable_tables_helper(internal_session));
+    WT_ERR(ret);
+
+err:
     WT_TRET(__wt_session_close_internal(internal_session));
     return (ret);
 }
@@ -466,7 +484,7 @@ __wt_disagg_put_crypt_helper(WT_SESSION_IMPL *session)
     if (ret == 0) {
         /* Point to the same encryption data on callback. */
         crypt.keys.data = (uint8_t *)crypt.keys.mem + sizeof(WT_CRYPT_HEADER);
-        crypt.keys.size = crypt_header.crypt_size;
+        crypt.keys.size -= sizeof(WT_CRYPT_HEADER);
         crypt.r.lsn = lsn;
     } else {
         crypt.r.error = ret;
@@ -729,32 +747,87 @@ __disagg_fetch_shared_meta(
         }
     }
 
-    /* !!!
-     * FIXME-WT-16386 Config parser reads beyond config length limit
-     * Add a zero terminator to the metadata buffer for safe parsing.
-     */
-    WT_ERR(__wt_buf_grow(session, item, item->size + 1));
-    ((char *)item->data)[item->size] = '\0';
+err:
+    return (ret);
+}
+
+/* !!!
+ * __disagg_parse_legacy_meta --
+ *     Parse legacy metadata pulled from the shared metadata buffer. Note: No allocations performed
+ *     during the parsing. Resulting WT_DISAGG_METADATA fields will point into meta_buf.
+ *
+ *     The legacy format is a new-line-separated pair of records:
+ *
+ *     (WiredTigerCheckpoint.1=(...))\n
+ *     timestamp=hhhh
+ */
+static int
+__disagg_parse_legacy_meta(
+  WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
+{
+    WT_CONFIG_ITEM timestamp;
+    WT_DECL_RET;
+    const char *s = (const char *)meta_buf->data;
+    const char *meta_end = NULL;
+
+    WT_CLEAR(timestamp);
+    WT_CLEAR(*metadata);
+    metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
+
+    /* Find the end of the first line. */
+    meta_end = strchr(s, '\n');
+    if (meta_end == NULL) {
+        WT_ERR_MSG(session, EINVAL,
+          "Disaggregated checkpoint legacy metadata missing timestamp entry: \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+    }
+    metadata->checkpoint = s;
+    metadata->checkpoint_len = (size_t)(meta_end - s);
+
+    s = meta_end + 1; /* Move past the newline */
+
+    /* Parse the timestamp line. */
+    if (!WT_PREFIX_MATCH(s, "timestamp=")) {
+        WT_ERR_MSG(session, EINVAL,
+          "Disaggregated checkpoint legacy metadata invalid timestamp entry: \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+    }
+
+    WT_PREFIX_SKIP_REQUIRED(session, s, "timestamp=");
+    timestamp.str = s;
+    timestamp.len = meta_buf->size - (size_t)(s - (const char *)meta_buf->data);
+
+    if (timestamp.len == 0)
+        WT_ERR_MSG(session, EINVAL,
+          "Disaggregated checkpoint legacy metadata missing timestamp value: \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+
+    WT_ERR(__wt_conf_parse_hex(
+      session, "checkpoint timestamp", &metadata->checkpoint_timestamp, &timestamp));
 
 err:
     return (ret);
 }
 
-/*
- * __wti_disagg_parse_meta --
+/* !!!
+ * __disagg_parse_meta --
  *     Parse metadata pulled from the shared metadata buffer. Note: No allocations performed during
  *     the parsing. Resulting WT_DISAGG_METADATA fields will point into meta_buf.
+ *
+ *     Metadata format follows the regular config format. Example:
+ *
+ *     checkpoint=(WiredTigerCheckpoint.1=(addr="00c025808282bd21596019", order=1, ...)),
+ *     timestamp=0,
+ *     key_provider=(page.1=(page_id=1,lsn=123),version=1)
  */
-int
-__wti_disagg_parse_meta(
-  WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
+static int
+__disagg_parse_meta(WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
 {
     WT_CONFIG meta_cfg;
     WT_CONFIG_ITEM cfg_key, cfg_value;
     WT_DECL_RET;
 
     WT_CLEAR(meta_cfg);
-
     WT_CLEAR(*metadata);
     metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
 
@@ -791,6 +864,42 @@ __wti_disagg_parse_meta(
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    return (ret);
+}
+
+/*
+ * __wti_disagg_parse_meta --
+ *     Parse metadata pulled from the shared metadata buffer. Note: No allocations performed during
+ *     the parsing. Resulting WT_DISAGG_METADATA fields will point into meta_buf.
+ */
+int
+__wti_disagg_parse_meta(
+  WT_SESSION_IMPL *session, const WT_ITEM *meta_buf, WT_DISAGG_METADATA *metadata)
+{
+    WT_DECL_RET;
+
+    if (meta_buf->size == 0)
+        WT_ERR_MSG(session, EINVAL, "Disaggregated checkpoint metadata is empty");
+
+    WT_CLEAR(*metadata);
+    metadata->checkpoint_timestamp = WT_TS_MAX; /* Invalid timestamp by default. */
+
+    if (WT_PREFIX_MATCH((const char *)meta_buf->data, "checkpoint=")) {
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Disaggregated checkpoint metadata starts with \"checkpoint=\";"
+          "Parsing regular format. Found \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+        WT_ERR(__disagg_parse_meta(session, meta_buf, metadata));
+
+    } else {
+        __wt_verbose_debug2(session, WT_VERB_DISAGGREGATED_STORAGE,
+          "Disaggregated checkpoint metadata does not start with \"checkpoint=\";"
+          "Parsing legacy format. Found \"%.*s\"",
+          (int)meta_buf->size, (const char *)meta_buf->data);
+        WT_ERR(__disagg_parse_legacy_meta(session, meta_buf, metadata));
+    }
 
     if (metadata->checkpoint == NULL)
         WT_ERR_MSG(session, EINVAL, "Missing checkpoint entry in disaggregated storage metadata");
@@ -1608,6 +1717,12 @@ __disagg_begin_checkpoint(WT_SESSION_IMPL *session)
     if (disagg->npage_log == NULL || !conn->layered_table_manager.leader)
         return (0);
 
+    /* On fresh startup, load an empty key to key provider. */
+    if (conn->key_provider != NULL) {
+        WT_DISAGG_METADATA metadata = {0};
+        WT_RET(__disagg_load_crypt_key(session, &metadata));
+    }
+
     WT_RET(disagg->npage_log->page_log->pl_begin_checkpoint(
       disagg->npage_log->page_log, &session->iface, 0));
 
@@ -1871,10 +1986,6 @@ __wti_disagg_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconf
             WT_WITH_CHECKPOINT_LOCK(session, ret = __disagg_begin_checkpoint(session));
             WT_ERR_MSG_CHK(session, ret, "Failed to begin a new checkpoint");
         }
-
-        WT_ERR(__wt_config_gets(session, cfg, "page_delta.flatten_leaf_page_delta", &cval));
-        if (cval.val != 0)
-            F_SET(&conn->page_delta, WT_FLATTEN_LEAF_PAGE_DELTA);
 
         WT_ERR(__wt_config_gets(session, cfg, "page_delta.internal_page_delta", &cval));
         if (cval.val != 0)

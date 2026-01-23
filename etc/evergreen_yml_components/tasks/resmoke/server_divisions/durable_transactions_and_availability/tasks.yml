@@ -989,6 +989,7 @@ tasks:
         vars:
           suite: backup_restore
           resmoke_jobs_max: 1
+          use_large_distro: "true"
 
   - <<: *task_template
     name: queryableWT
@@ -1410,8 +1411,32 @@ tasks:
           use_large_distro: "true"
 
   - <<: *gen_task_template
+    name: replica_sets_reconfig_jscore_passthrough_maintenance_ports_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "requires_all_feature_flags",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
     name: replica_sets_reconfig_jscore_stepdown_passthrough_gen
     tags: ["assigned_to_jira_team_server_repl", "default"]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
+    name: replica_sets_reconfig_jscore_stepdown_passthrough_maintenance_ports_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "requires_all_feature_flags",
+      ]
     commands:
       - func: "generate resmoke tasks"
 
@@ -1422,8 +1447,41 @@ tasks:
       - func: "generate resmoke tasks"
 
   - <<: *gen_task_template
+    name: replica_sets_reconfig_kill_primary_jscore_passthrough_maintenance_ports_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "requires_all_feature_flags",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
+    name: replica_sets_reconfig_terminate_primary_jscore_passthrough_maintenance_ports_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "requires_all_feature_flags",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
     name: replica_sets_reconfig_kill_stepdown_terminate_jscore_passthrough_gen
     tags: ["assigned_to_jira_team_server_repl", "default"]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
+    name: replica_sets_reconfig_kill_stepdown_terminate_jscore_passthrough_maintenance_ports_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "requires_all_feature_flags",
+      ]
     commands:
       - func: "generate resmoke tasks"
 

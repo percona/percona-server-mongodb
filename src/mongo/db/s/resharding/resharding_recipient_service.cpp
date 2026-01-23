@@ -135,6 +135,8 @@ MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientBeforeWaitingForCriticalSection)
 MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientBeforeEnteringStrictConsistency);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientBeforeTransitionToCreateCollection);
 MONGO_FAIL_POINT_DEFINE(reshardingRecipientFailInPhase);
+MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientBeforeCleanup);
+MONGO_FAIL_POINT_DEFINE(reshardingPauseRecipientAfterInitCancelState);
 
 namespace {
 
@@ -1265,7 +1267,7 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
 
                                .commitQuorum =
                                    (isPrimaryDrivenIndexBuild
-                                        ? CommitQuorumOptions(CommitQuorumOptions::kDisabled)
+                                        ? CommitQuorumOptions(CommitQuorumOptions::kPrimarySelfVote)
                                         : CommitQuorumOptions(
                                               CommitQuorumOptions::kVotingMembers))};
 
@@ -1463,6 +1465,8 @@ void ReshardingRecipientService::RecipientStateMachine::_renameTemporaryReshardi
 
 void ReshardingRecipientService::RecipientStateMachine::_cleanupReshardingCollections(
     const CancelableOperationContextFactory& factory) {
+    reshardingPauseRecipientBeforeCleanup.pauseWhileSet();
+
     auto opCtx = factory.makeOperationContext(&cc());
     resharding::data_copy::ensureOplogCollectionsDropped(
         opCtx.get(), _metadata.getReshardingUUID(), _metadata.getSourceUUID(), _donorShards);
@@ -2054,16 +2058,18 @@ void ReshardingRecipientService::RecipientStateMachine::_updateContextMetrics(
 
     if (coll.exists()) {
         auto totalDocumentCount = [&]() -> long long {
-            if (_metadata.getPerformVerification() && _changeStreamsMonitorCtx) {
-                uassert(9858303,
-                        "Donor failed to record total number of documents copied "
-                        "despite performVerification being enabled",
-                        _recipientCtx.getTotalNumDocuments() != boost::none);
-                return *_recipientCtx.getTotalNumDocuments() +
-                    _changeStreamsMonitorCtx->getDocumentsDelta();
-            } else {
-                return coll.getCollectionPtr()->numRecords(opCtx);
+            if (_metadata.getPerformVerification()) {
+                stdx::lock_guard<stdx::mutex> lk(_mutex);
+                if (_changeStreamsMonitorCtx) {
+                    uassert(9858303,
+                            "Donor failed to record total number of documents copied "
+                            "despite performVerification being enabled",
+                            _recipientCtx.getTotalNumDocuments() != boost::none);
+                    return *_recipientCtx.getTotalNumDocuments() +
+                        _changeStreamsMonitorCtx->getDocumentsDelta();
+                }
             }
+            return coll.getCollectionPtr()->numRecords(opCtx);
         }();
         _recipientCtx.setTotalNumDocuments(totalDocumentCount);
         _recipientCtx.setTotalDocumentSize(coll.getCollectionPtr()->dataSize(opCtx));
@@ -2099,6 +2105,8 @@ void ReshardingRecipientService::RecipientStateMachine::_initCancelState(
             _cancelState->abort();
         }
     }
+
+    reshardingPauseRecipientAfterInitCancelState.pauseWhileSet();
 }
 
 void ReshardingRecipientService::RecipientStateMachine::_tryFetchBuildIndexMetrics(

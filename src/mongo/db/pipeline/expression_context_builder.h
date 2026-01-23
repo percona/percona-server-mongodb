@@ -86,7 +86,7 @@ public:
     ExpressionContextBuilder& exprUnstableForApiV1(bool);
     ExpressionContextBuilder& exprDeprecatedForApiV1(bool);
     ExpressionContextBuilder& enabledCounters(bool);
-    ExpressionContextBuilder& forcePlanCache(bool);
+    ExpressionContextBuilder& planCache(ExpressionContext::PlanCacheOptions);
     ExpressionContextBuilder& allowGenericForeignDbLookup(bool);
     ExpressionContextBuilder& requiresTimeseriesExtendedRangeSupport(bool);
     ExpressionContextBuilder& jsHeapLimitMB(boost::optional<int>);
@@ -107,6 +107,10 @@ public:
     ExpressionContextBuilder& isHybridSearch(bool);
     ExpressionContextBuilder& mainCollPathArrayness(
         std::shared_ptr<const PathArrayness> mainCollPathArrayness);
+    ExpressionContextBuilder& secondaryCollsPathArrayness(
+        stdx::unordered_map<NamespaceString, std::shared_ptr<const PathArrayness>>
+            secondaryCollsPathArrayness);
+    ExpressionContextBuilder& pathArraynessFrom(const ExpressionContext& other);
 
     /**
      * Add kSessionTransactionsTableNamespace, and kRsOplogNamespace

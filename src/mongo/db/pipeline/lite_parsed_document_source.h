@@ -70,6 +70,12 @@ struct LiteParserOptions {
     // to use foreign db syntax for $lookup beyond the exempted internal collections during lite
     // parsing since lite parsing doesn't have an expressionContext.
     bool allowGenericForeignDbLookup = false;
+
+    // Optional IFR context to use for parser selection. When provided, parser selection will use
+    // per-request flag values from this context instead of querying the flag directly. This ensures
+    // consistent parser selection across the query execution, especially when flag values are
+    // modified mid-query.
+    std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext = nullptr;
 };
 
 namespace exec::agg {
@@ -212,6 +218,11 @@ public:
 
     struct LiteParserInfo {
         Parser parser;
+        // True if this stage is implemented by an extension.
+        bool fromExtension = false;
+        // Stub parsers are registered just to give a better error message if a stage is not loaded
+        // that might otherwise be available.
+        bool isStub = false;
         AllowedWithApiStrict allowedWithApiStrict;
         AllowedWithClientType allowedWithClientType;
     };
@@ -222,14 +233,13 @@ public:
      */
     class LiteParserRegistration {
     public:
-        const LiteParserInfo& getParserInfo() const;
+        const LiteParserInfo& getParserInfo(
+            const LiteParserOptions& options = LiteParserOptions{}) const;
 
         void setPrimaryParser(LiteParserInfo&& lpi);
 
         // TODO SERVER-114028 Update when fallback parsing supports all feature flags.
-        void setFallbackParser(LiteParserInfo&& lpi,
-                               IncrementalRolloutFeatureFlag* ff,
-                               bool isStub = false);
+        void setFallbackParser(LiteParserInfo&& lpi, IncrementalRolloutFeatureFlag* ff);
 
         bool isPrimarySet() const;
 
@@ -238,7 +248,7 @@ public:
         // Returns true if the parser is executable, meaning it has either a primary or a non-stub
         // fallback.
         bool isExecutable() const {
-            return _primaryIsSet || !_isStub;
+            return _primaryIsSet || !_fallbackParser.isStub;
         }
 
     private:
@@ -260,9 +270,6 @@ public:
 
         // Whether or not the fallback parser has been registered or not.
         bool _fallbackIsSet = false;
-
-        // Whether the fallback parser is a stub parser that just throws an error.
-        bool _isStub = false;
     };
 
     using ParserMap = StringMap<LiteParsedDocumentSource::LiteParserRegistration>;
@@ -280,24 +287,18 @@ public:
 
     /**
      * Registers a DocumentSource with a spec parsing function, so that when a stage with the given
-     * name is encountered, it will call 'parser' to construct that stage's specification object.
-     * The flag 'allowedWithApiStrict' is used to control the allowance of the stage when
-     * 'apiStrict' is set to true.
+     * name is encountered, it will call 'parserInfo.parser' to construct that stage's specification
+     * object. The flag 'parserInfo.allowedWithApiStrict' is used to control the allowance of the
+     * stage when 'apiStrict' is set to true.
      *
      * DO NOT call this method directly. Instead, use the REGISTER_DOCUMENT_SOURCE macro defined in
      * document_source.h.
      */
-    static void registerParser(const std::string& name,
-                               Parser parser,
-                               AllowedWithApiStrict allowedWithApiStrict,
-                               AllowedWithClientType allowedWithClientType);
+    static void registerParser(const std::string& name, LiteParserInfo parserInfo);
 
     static void registerFallbackParser(const std::string& name,
-                                       Parser parser,
                                        FeatureFlag* parserFeatureFlag,
-                                       AllowedWithApiStrict allowedWithApiStrict,
-                                       AllowedWithClientType allowedWithClientType,
-                                       bool isStub = false);
+                                       LiteParserInfo);
 
     /**
      * Function that will be used as an alternate parser for a document source that has been
@@ -439,6 +440,14 @@ public:
     }
 
     /**
+     * Returns true if this is a vector search stage ($vectorSearch).
+     * TODO SERVER-116021 Remove this override when extensions can handle views through ViewPolicy.
+     */
+    virtual bool isExtensionVectorSearchStage() const {
+        return false;
+    }
+
+    /**
      * Returns true if this is a $rankFusion pipeline
      */
     virtual bool isHybridSearchStage() const {
@@ -553,6 +562,7 @@ private:
     friend class LiteParsedDocumentSourceParseTest;
     friend class extension::host::LoadExtensionsTest;
     friend class extension::host::LoadNativeVectorSearchTest;
+    friend class LiteParsedDesugarerTest;
 
     /**
      * Give access to 'getParserMap()' for the implementation of $listMqlEntities but hiding
@@ -580,8 +590,8 @@ private:
     static const ParserMap& getParserMap();
 
     std::string _parseTimeName;
-    AllowedWithApiStrict _apiStrict;
-    AllowedWithClientType _clientType;
+    AllowedWithApiStrict _apiStrict = AllowedWithApiStrict::kAlways;
+    AllowedWithClientType _clientType = AllowedWithClientType::kAny;
 };
 
 /**

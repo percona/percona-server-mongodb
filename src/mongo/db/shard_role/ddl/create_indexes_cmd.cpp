@@ -221,7 +221,7 @@ void validateIndexType(OperationContext* opCtx, const CreateIndexesCommand& cmd)
         for (const auto& key : elem.getField("key").Obj()) {
             const auto type = key.str();  // will return "" for btree
             if (IndexNames::isInternalOnly(type)) {
-                uassert(ErrorCodes::IndexOptionsConflict,
+                uassert(ErrorCodes::CannotCreateIndex,
                         fmt::format("Index Type {} is for internal use only", type),
                         isAuthForInternal);
             }
@@ -299,7 +299,7 @@ boost::optional<CommitQuorumOptions> parseAndGetCommitQuorum(OperationContext* o
             LOGV2_WARNING(11302400,
                           "commitQuorum is not supported for primary-driven index builds.");
         }
-        return CommitQuorumOptions(CommitQuorumOptions::kDisabled);
+        return CommitQuorumOptions(CommitQuorumOptions::kPrimarySelfVote);
     }
 
     if (commitQuorum) {
@@ -307,17 +307,17 @@ boost::optional<CommitQuorumOptions> parseAndGetCommitQuorum(OperationContext* o
                 str::stream() << "Standalones can't specify commitQuorum",
                 replCoord->getSettings().isReplSet());
         uassert(ErrorCodes::BadValue,
-                str::stream() << "commitQuorum is supported only for two phase index builds with "
-                                 "commit quorum support enabled ",
-                (IndexBuildProtocol::kTwoPhase == protocol && enableIndexBuildCommitQuorum));
+                str::stream() << "commitQuorum is supported only for two phase index builds",
+                IndexBuildProtocol::kTwoPhase == protocol);
         return commitQuorum;
     }
 
     if (IndexBuildProtocol::kTwoPhase == protocol) {
-        // Setting CommitQuorum to 0 will make the index build to opt out of voting proces.
+        // Setting CommitQuorum to 1 will make the index build commit as soon as the primary is
+        // finished.
         return (replCoord->getSettings().isReplSet() && enableIndexBuildCommitQuorum)
             ? CommitQuorumOptions(CommitQuorumOptions::kVotingMembers)
-            : CommitQuorumOptions(CommitQuorumOptions::kDisabled);
+            : CommitQuorumOptions(CommitQuorumOptions::kPrimarySelfVote);
     }
 
     return boost::none;
