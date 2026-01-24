@@ -1112,7 +1112,7 @@ error_codes:
   - {
       code: 470,
       name: StreamProcessorAtlasConnectionErrorDuringFirstStart,
-      categories: [StreamProcessorUserError, StreamProcessorRetryableError],
+      categories: [StreamProcessorRetryableError],
     }
   - {
       code: 471,
@@ -1149,6 +1149,9 @@ error_codes:
       name: StreamProcessorBadChangeStreamPipeline,
       categories: [StreamProcessorUserError, StreamProcessorRetryableError],
     }
+
+  # Planner errors
+  - {code: 482, name: MaxNumberOfOrPlansExceeded}
 
   # ^^^^
   # Add new codes, sequentially numbered, above.

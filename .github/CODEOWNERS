@@ -108,7 +108,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/modules/atlas/OWNERS.yml
 /buildscripts/modules/atlas/ @10gen/server-disagg-storage @svc-auto-approve-bot
-/buildscripts/modules/atlas/suites/*sharding*.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
+/buildscripts/modules/atlas/suites/*shard*.yml @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/monitor_build_status/OWNERS.yml
 /buildscripts/monitor_build_status/ @10gen/devprod-correctness @svc-auto-approve-bot
@@ -186,7 +186,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/replica_sets_kill_secondary.yml @10gen/server-replication-reviewers @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/recordids_replicated.yml @10gen/server-collection-write-path @svc-auto-approve-bot
 /buildscripts/resmokeconfig/matrix_suites/overrides/**/execution_control_params.yml @10gen/server-workload-resilience @svc-auto-approve-bot
-/buildscripts/resmokeconfig/matrix_suites/overrides/**/maintenance_ports.yml @10gen/server-replication-reviewers @svc-auto-approve-bot
+/buildscripts/resmokeconfig/matrix_suites/overrides/**/priority_ports.yml @10gen/server-replication-reviewers @svc-auto-approve-bot
 
 # The following patterns are parsed from ./buildscripts/resmokeconfig/suites/OWNERS.yml
 /buildscripts/resmokeconfig/suites/**/* @10gen/mongo-default-approvers @svc-auto-approve-bot
@@ -252,8 +252,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharding_jscore_passthrough_with_config_shard.yml @10gen/server-cluster-scalability @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/sharded_collections_jscore_passthrough_with_config_shard.yml @10gen/server-cluster-scalability @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/concurrency_simultaneous_replication.yml @10gen/server-replication-reviewers @svc-auto-approve-bot
-/buildscripts/resmokeconfig/suites/**/change_streams* @10gen/query-execution-change-streams @svc-auto-approve-bot
-/buildscripts/resmokeconfig/suites/**/sharding_change_streams_v2.yml @10gen/query-execution-change-streams @svc-auto-approve-bot
+/buildscripts/resmokeconfig/suites/**/*change_streams* @10gen/query-execution-change-streams @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/*rate_limited.yml @10gen/server-workload-resilience @svc-auto-approve-bot
 /buildscripts/resmokeconfig/suites/**/secondary_reads_passthrough_with_replica_set_endpoint.yml @10gen/server-cluster-scalability @svc-auto-approve-bot
 
@@ -1057,6 +1056,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/libs/override_methods/**/implicitly_retry_on_conflicting_operation_during_fuzztest.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/libs/override_methods/**/validate_collections_on_shutdown.js @10gen/server-validate @svc-auto-approve-bot
 /jstests/libs/override_methods/**/implicit_change_stream_v2.js @10gen/query-execution-change-streams @svc-auto-approve-bot
+/jstests/libs/override_methods/**/implicit_change_stream_v2_ignore_removed_shards.js @10gen/query-execution-change-streams @svc-auto-approve-bot
 /jstests/libs/override_methods/**/implicitly_retry_on_config_stepdowns.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-cluster-scalability @svc-auto-approve-bot
 /jstests/libs/override_methods/**/sharding_csrs_continuous_config_stepdown.js @10gen/server-cluster-scalability @svc-auto-approve-bot
 
@@ -1195,6 +1195,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/authoritative_database_metadata_on_FCV_transition.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/upgrade_downgrade_sharded_cluster_remove_shard_state.js @10gen/server-catalog-and-routing-ddl @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/cluster_parameters_disabled_correctly_after_downgrade.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-fcv @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/priority_port_downgrade_checks.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/collection_write_path/OWNERS.yml
 /jstests/multiVersion/genericSetFCVUsage/collection_write_path/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -3115,7 +3116,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/s/**/mongos.cpp @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/s/**/mongos_main* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/s/**/mongos_options_* @10gen/server-programmability @svc-auto-approve-bot
-/src/mongo/s/**/service_entry_point* @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-programmability @svc-auto-approve-bot
+/src/mongo/s/**/service_entry_point* @10gen/server-programmability @svc-auto-approve-bot
 /src/mongo/s/**/balancer_configuration* @10gen/server-cluster-scalability @svc-auto-approve-bot
 /src/mongo/s/**/cluster_cursor_stats.cpp @10gen/query-execution-router @svc-auto-approve-bot
 /src/mongo/s/**/cluster_write* @10gen/query-execution-router @svc-auto-approve-bot
@@ -3131,9 +3132,6 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/s/change_streams/OWNERS.yml
 /src/mongo/s/change_streams/**/* @10gen/query-execution-change-streams @10gen/server-catalog-and-routing @svc-auto-approve-bot
-
-# The following patterns are parsed from ./src/mongo/s/client/OWNERS.yml
-/src/mongo/s/client/**/* @10gen/server-catalog-and-routing @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/s/commands/OWNERS.yml
 /src/mongo/s/commands/**/cluster_build_info.cpp @10gen/server-programmability @svc-auto-approve-bot
@@ -3162,6 +3160,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/s/commands/**/cluster_rwc_defaults_commands.cpp @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /src/mongo/s/commands/**/cluster_set_feature_compatibility_version_cmd.cpp @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /src/mongo/s/commands/**/*read_write_concern_defaults* @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
+/src/mongo/s/commands/**/cluster_validate_cmd.cpp @10gen/server-validate @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/s/commands/commit_quorum/OWNERS.yml
 /src/mongo/s/commands/commit_quorum/**/* @10gen/server-index-builds @svc-auto-approve-bot

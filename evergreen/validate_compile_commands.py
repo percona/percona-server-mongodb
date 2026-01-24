@@ -3,9 +3,12 @@ import hashlib
 import heapq
 import json
 import os
+import platform
+import re
 import shlex
 import subprocess
 import sys
+import tempfile
 from typing import Any, Dict, Iterator, List, Tuple
 
 default_dir = os.environ.get("BUILD_WORKSPACE_DIRECTORY")
@@ -21,6 +24,115 @@ if not os.path.exists("compile_commands.json"):
     sys.stderr.write("The 'compile_commands.json' file was not found.\n")
     sys.stderr.write("Attempting to run 'bazel build compiledb' to generate it.\n")
     subprocess.run(["bazel", "build", "compiledb"], check=True)
+
+
+def _parse_repo_env_from_bazelrc(bazelrc_path: str, var_name: str) -> str | None:
+    """Extract --repo_env=FOO=... from a .bazelrc file (best-effort)."""
+    if not os.path.exists(bazelrc_path):
+        return None
+    # Example: common:windows --repo_env=BAZEL_VC="C:/Program Files/.../VC"
+    pat = re.compile(rf"--repo_env={re.escape(var_name)}=(?:\"([^\"]+)\"|'([^']+)'|(\S+))")
+    with open(bazelrc_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = pat.search(line)
+            if not m:
+                continue
+            val = m.group(1) or m.group(2) or m.group(3)
+            if not val:
+                continue
+            # Bazelrc often uses forward slashes on Windows; normalize.
+            return os.path.normpath(val)
+    return None
+
+
+def _capture_msvc_env(vs_vc_dir: str, arch: str) -> Dict[str, str]:
+    """Run vcvarsall.bat and capture the environment it sets."""
+    # Some environments may include surrounding quotes in BAZEL_VC/BAZEL_VS.
+    vs_vc_dir = vs_vc_dir.strip().strip('"').strip("'")
+    candidates = [
+        os.path.join(vs_vc_dir, "Auxiliary", "Build", "vcvarsall.bat"),
+        # If caller gave VS install root instead of VC root.
+        os.path.join(vs_vc_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat"),
+    ]
+    vcvarsall = next((p for p in candidates if os.path.exists(p)), None)
+    if not vcvarsall:
+        raise FileNotFoundError(f"vcvarsall.bat not found under: {vs_vc_dir}")
+
+    vcvarsall = os.path.normpath(vcvarsall).strip().strip('"').strip("'")
+
+    def _run_cmd_capture_env(cmd: List[str]) -> Dict[str, str]:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"Failed to run vcvarsall.bat (rc={proc.returncode}). stderr:\n{proc.stderr}"
+            )
+        env: Dict[str, str] = {}
+        for line in proc.stdout.splitlines():
+            if "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            if k:
+                env[k] = v
+        return env
+
+    # Use cmd.exe to run the batch file and then dump environment.
+    # Avoid /s here because it changes quoting semantics in edge cases.
+    try:
+        return _run_cmd_capture_env(
+            ["cmd.exe", "/d", "/c", f'call "{vcvarsall}" {arch} >nul && set']
+        )
+    except RuntimeError:
+        # Fallback: write a small .cmd file to avoid tricky quoting issues.
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".cmd", delete=False, encoding="utf-8"
+        ) as tf:
+            tf.write("@echo off\n")
+            tf.write(f'call "{vcvarsall}" {arch} >nul\n')
+            tf.write("set\n")
+            script_path = tf.name
+        try:
+            return _run_cmd_capture_env(["cmd.exe", "/d", "/c", script_path])
+        finally:
+            try:
+                os.remove(script_path)
+            except OSError:
+                pass
+
+
+def _maybe_add_windows_toolchain_env(base_env: Dict[str, str], repo_root: str) -> Dict[str, str]:
+    """On Windows, ensure INCLUDE/LIB/PATH are set by loading a VS developer env."""
+    if platform.system() != "Windows":
+        return base_env
+
+    bazelrc = os.path.join(repo_root, ".bazelrc")
+    vc_root = base_env.get("BAZEL_VC") or _parse_repo_env_from_bazelrc(bazelrc, "BAZEL_VC")
+    vs_root = base_env.get("BAZEL_VS") or _parse_repo_env_from_bazelrc(bazelrc, "BAZEL_VS")
+
+    # Prefer explicit VC root, but fall back to VS root if that's what we have.
+    vs_vc_dir = vc_root or vs_root
+    if not vs_vc_dir:
+        return base_env
+
+    arch = "amd64"
+    proc_arch = (base_env.get("PROCESSOR_ARCHITECTURE") or "").upper()
+    if proc_arch and proc_arch != "AMD64":
+        arch = "x86"
+
+    print(f"Loading Visual Studio environment for test compiles (arch={arch})...", flush=True)
+    try:
+        msvc_env = _capture_msvc_env(vs_vc_dir, arch=arch)
+    except Exception as e:
+        sys.stderr.write(
+            f"WARNING: Failed to load MSVC env from BAZEL_VC/BAZEL_VS ({vs_vc_dir}): {e}\n"
+        )
+        return base_env
+
+    merged = dict(base_env)
+    merged.update(msvc_env)
+    return merged
 
 
 def _iter_compiledb_entries(path: str) -> Iterator[Dict[str, Any]]:
@@ -124,10 +236,44 @@ def _make_test_compile_args(args: List[str]) -> List[str]:
 
 
 def _map_writable_output_path(out_root: str, original_path: str) -> str:
-    # Mirror the original relative path under out_root. For absolute paths, strip leading '/'.
-    rel = original_path[1:] if os.path.isabs(original_path) else original_path
-    rel = rel.lstrip("/\\")
-    return os.path.normpath(os.path.join(out_root, rel))
+    """Map an output path from compile_commands.json into a writable tree under out_root.
+
+    Must be robust on Windows where absolute paths include a drive prefix like `C:\\...`
+    (we cannot embed `:` as a path component under out_root).
+    """
+
+    def _sanitize_component(comp: str) -> str:
+        # Windows-invalid characters: <>:"/\|?* (also avoid path separators).
+        trans = str.maketrans({c: "_" for c in '<>:"/\\|?*'})
+        comp = comp.translate(trans)
+        # Windows: components cannot end with '.' or ' '.
+        comp = comp.rstrip(". ")
+        if comp in ("", ".", ".."):
+            return "_"
+        return comp
+
+    drive, tail = os.path.splitdrive(original_path)
+    parts: List[str] = []
+
+    if drive:
+        # Drive may be "C:" or a UNC prefix like "\\\\server\\share".
+        drive_tag = drive.rstrip(":")
+        drive_tag = drive_tag.lstrip("\\/").replace("\\", "_").replace("/", "_")
+        drive_tag = _sanitize_component(drive_tag) if drive_tag else "DRIVE"
+        parts.append(drive_tag)
+        tail = tail.lstrip("\\/")
+    else:
+        tail = original_path.lstrip("\\/") if os.path.isabs(original_path) else original_path
+
+    tail = tail.replace("\\", "/")
+    for p in tail.split("/"):
+        if p:
+            parts.append(_sanitize_component(p))
+
+    if not parts:
+        parts = ["out"]
+
+    return os.path.normpath(os.path.join(out_root, *parts))
 
 
 def _rewrite_output_paths_to_writable_dir(
@@ -138,79 +284,117 @@ def _rewrite_output_paths_to_writable_dir(
         return args
 
     rewritten = list(args)
-    orig_out: str | None = None
 
-    # Prefer the JSON "output" field if it exists; otherwise parse -o.
-    if entry_output:
-        orig_out = entry_output
-    else:
-        for i, a in enumerate(rewritten):
-            if a == "-o" and i + 1 < len(rewritten):
-                orig_out = rewritten[i + 1]
-                break
-            if a.startswith("-o") and len(a) > 2:
-                orig_out = a[2:]
-                break
-            if a.startswith("/Fo") and len(a) > 3:
-                orig_out = a[3:]
-                break
+    def _norm_abs(p: str) -> str:
+        # Normalize both Windows and POSIX-ish paths from compile_commands.json.
+        abs_p = p if os.path.isabs(p) else os.path.join(cwd, p)
+        return os.path.normcase(os.path.normpath(abs_p))
 
-    dest_out: str | None = None
-    orig_dep: str | None = None
-    dest_dep: str | None = None
+    # Collect all plausible output paths (compile_commands "output" can differ from actual /Fo).
+    orig_outs: List[str] = []
+    if isinstance(entry_output, str) and entry_output:
+        orig_outs.append(entry_output)
 
-    if orig_out:
-        dest_out = _map_writable_output_path(out_root, orig_out)
-        root, _ext = os.path.splitext(orig_out)
-        orig_dep = root + ".d"
-        dest_dep = os.path.splitext(dest_out)[0] + ".d"
+    i = 0
+    while i < len(rewritten):
+        a = rewritten[i]
+        if a == "-o" and i + 1 < len(rewritten):
+            orig_outs.append(rewritten[i + 1])
+            i += 2
+            continue
+        if a.startswith("-o") and len(a) > 2:
+            orig_outs.append(a[2:])
+        if a == "/Fo" and i + 1 < len(rewritten):
+            orig_outs.append(rewritten[i + 1])
+            i += 2
+            continue
+        if a.startswith("/Fo") and len(a) > 3:
+            orig_outs.append(a[3:])
+        i += 1
 
+    # Build mapping by normalized absolute path to destination.
+    out_map: Dict[str, str] = {}
+    dep_map: Dict[str, str] = {}
+    for o in orig_outs:
+        if not o:
+            continue
+        o_abs = _norm_abs(o)
+        if o_abs in out_map:
+            continue
+        dest_out = _map_writable_output_path(out_root, o_abs)
         # Ensure the output directory exists.
         os.makedirs(os.path.dirname(dest_out), exist_ok=True)
+        out_map[o_abs] = dest_out
+
+        dep_abs = os.path.splitext(o_abs)[0] + ".d"
+        dest_dep = os.path.splitext(dest_out)[0] + ".d"
         os.makedirs(os.path.dirname(dest_dep), exist_ok=True)
+        dep_map[dep_abs] = dest_dep
 
     i = 0
     while i < len(rewritten):
         a = rewritten[i]
 
         # Rewrite -o <path>
-        if dest_out and a == "-o" and i + 1 < len(rewritten):
-            if rewritten[i + 1] == orig_out:
-                rewritten[i + 1] = dest_out
+        if a == "-o" and i + 1 < len(rewritten):
+            cand = _norm_abs(rewritten[i + 1])
+            if cand in out_map:
+                rewritten[i + 1] = out_map[cand]
             i += 2
             continue
 
         # Rewrite combined -o<path>
-        if dest_out and a.startswith("-o") and len(a) > 2 and a[2:] == orig_out:
-            rewritten[i] = "-o" + dest_out
+        if a.startswith("-o") and len(a) > 2:
+            cand = _norm_abs(a[2:])
+            if cand in out_map:
+                rewritten[i] = "-o" + out_map[cand]
             i += 1
             continue
 
         # Rewrite depfile -MF <path> (if it matches the common "<outbase>.d" pattern).
-        if dest_dep and a == "-MF" and i + 1 < len(rewritten):
-            if orig_dep and rewritten[i + 1] == orig_dep:
-                rewritten[i + 1] = dest_dep
+        if a == "-MF" and i + 1 < len(rewritten):
+            cand = _norm_abs(rewritten[i + 1])
+            if cand in dep_map:
+                rewritten[i + 1] = dep_map[cand]
             i += 2
             continue
 
         # Rewrite combined -MF<path>
-        if dest_dep and a.startswith("-MF") and len(a) > 3 and orig_dep and a[3:] == orig_dep:
-            rewritten[i] = "-MF" + dest_dep
+        if a.startswith("-MF") and len(a) > 3:
+            cand = _norm_abs(a[3:])
+            if cand in dep_map:
+                rewritten[i] = "-MF" + dep_map[cand]
             i += 1
             continue
 
-        # Rewrite MSVC combined /Fo<path>
-        if dest_out and a.startswith("/Fo") and len(a) > 3 and a[3:] == orig_out:
-            rewritten[i] = "/Fo" + dest_out
+        # Rewrite MSVC /Fo forms.
+        if a == "/Fo" and i + 1 < len(rewritten):
+            cand = _norm_abs(rewritten[i + 1])
+            if cand in out_map:
+                rewritten[i + 1] = out_map[cand]
+            i += 2
+            continue
+        if a.startswith("/Fo") and len(a) > 3:
+            cand = _norm_abs(a[3:])
+            if cand in out_map:
+                rewritten[i] = "/Fo" + out_map[cand]
             i += 1
             continue
 
         # Generic token replacement for exact matches (helps with toolchains that also
         # reference the output path elsewhere on the command line).
-        if dest_out and a == orig_out:
-            rewritten[i] = dest_out
-        if dest_dep and orig_dep and a == orig_dep:
-            rewritten[i] = dest_dep
+        if (
+            ("/" in a)
+            or ("\\" in a)
+            or (":" in a)
+            or a.startswith("bazel-out")
+            or a.startswith("external")
+        ):
+            cand = _norm_abs(a)
+            if cand in out_map:
+                rewritten[i] = out_map[cand]
+            elif cand in dep_map:
+                rewritten[i] = dep_map[cand]
 
         i += 1
 
@@ -366,11 +550,14 @@ def main() -> int:
     max_workers = max(1, min(max_workers, len(work)))
 
     print(f"Running {len(work)} test compiles...", flush=True)
+    compile_env = _maybe_add_windows_toolchain_env(os.environ.copy(), repo_root=default_dir)
 
     def _run_one(item: Tuple[str, str, List[str]]) -> Tuple[str, int, List[str], str, str]:
         file_name, directory, test_args = item
         _ensure_parent_dirs_exist_for_outputs(test_args, cwd=directory, repo_root=default_dir)
-        proc = subprocess.run(test_args, cwd=directory, capture_output=True, text=True)
+        proc = subprocess.run(
+            test_args, cwd=directory, env=compile_env, capture_output=True, text=True
+        )
         return (file_name, proc.returncode, test_args, proc.stdout, proc.stderr)
 
     failures = 0

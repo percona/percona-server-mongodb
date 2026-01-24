@@ -160,6 +160,10 @@ function assertIsSupportedCommand(cmd) {
     }
     if (cmd.aggregate && Array.isArray(cmd.pipeline)) {
         for (const stage of cmd.pipeline) {
+            // stages might be null if the pipeline is malformed.
+            if (!stage) {
+                continue;
+            }
             if (stage.$currentOp && stage.$currentOp.localOps === true) {
                 throwCommandNotSupportedError(
                     "'$currentOp' with 'localOps: true'",
@@ -182,6 +186,9 @@ function assertIsSupportedCommand(cmd) {
     if (cmd.getDatabaseVersion) {
         throwCommandNotSupportedError("getDatabaseVersion", "It targets a specific mongos instance", cmd);
     }
+    if (cmd.getLog) {
+        throwCommandNotSupportedError("getLog", "It targets a specific mongos instance", cmd);
+    }
 }
 
 // Returns whether the command either set or remove a query settings commands.
@@ -192,6 +199,9 @@ function isQuerySettingsCommand(cmd) {
 // Returns whether the command must be broadcasted to all mongoses instead of just one.
 function requiresBroadcast(cmd) {
     if (cmd.refreshLogicalSessionCacheNow) {
+        return true;
+    }
+    if (cmd.flushRouterConfig) {
         return true;
     }
     // setParameter is node-specific and in every core test the command sets the parameter on a mongos.
