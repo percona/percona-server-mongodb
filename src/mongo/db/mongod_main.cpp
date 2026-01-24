@@ -486,7 +486,7 @@ MONGO_FAIL_POINT_DEFINE(shutdownAtStartup);
 ExitCode _initAndListen(ServiceContext* serviceContext) {
     // TODO(SERVER-74659): Please revisit if this thread could be made killable.
     Client::initThread("initandlisten",
-                       serviceContext->getService(ClusterRole::ShardServer),
+                       serviceContext->getService(),
                        Client::noSession(),
                        ClientOperationKillableByStepdown{false});
 
@@ -540,8 +540,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
 
     ProfileFilterImpl::initializeDefaults(serviceContext);
 
-    serviceContext->getService(ClusterRole::ShardServer)
-        ->setServiceEntryPoint(std::make_unique<ServiceEntryPointShardRole>());
+    serviceContext->getService()->setServiceEntryPoint(
+        std::make_unique<ServiceEntryPointShardRole>());
 
     {
         // Set up the periodic runner for background job execution. This is required to be running
@@ -817,8 +817,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     {
         // The instance of AuthorizationManager should always be available since it is created in
         // 'CreateAuthorizationManager' constructor.
-        auto authzManager =
-            AuthorizationManager::get(serviceContext->getService(ClusterRole::ShardServer));
+        auto authzManager = AuthorizationManager::get(serviceContext->getService());
         invariant(authzManager != nullptr);
         uassertStatusOK(authzManager->initialize(startupOpCtx.get()));
     }
@@ -832,8 +831,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     // This is for security on certain platforms (nonce generation)
     srand((unsigned)(curTimeMicros64()) ^ (unsigned(uintptr_t(&startupOpCtx))));  // NOLINT
 
-    auto const authzManagerShard =
-        AuthorizationManager::get(serviceContext->getService(ClusterRole::ShardServer));
+    auto const authzManagerShard = AuthorizationManager::get(serviceContext->getService());
 
     if (authzManagerShard->shouldValidateAuthSchemaOnStartup()) {
         Status status = verifySystemIndexes(startupOpCtx.get(), &startupTimeElapsedBuilder);
@@ -1065,7 +1063,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
 
     PeriodicTask::startRunningPeriodicTasks();
 
-    auto shardService = serviceContext->getService(ClusterRole::ShardServer);
+    auto shardService = serviceContext->getService();
     SessionKiller::set(shardService,
                        std::make_shared<SessionKiller>(shardService, killSessionsLocal));
 
@@ -1161,8 +1159,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
     }
 
     auto cacheLoader = std::make_unique<stats::StatsCacheLoaderImpl>();
-    auto catalog = std::make_unique<stats::StatsCatalog>(
-        serviceContext->getService(ClusterRole::ShardServer), std::move(cacheLoader));
+    auto catalog =
+        std::make_unique<stats::StatsCatalog>(serviceContext->getService(), std::move(cacheLoader));
     stats::StatsCatalog::set(serviceContext, std::move(catalog));
 
     // Startup options are written to the audit log at the end of startup so that cluster server
@@ -1346,7 +1344,7 @@ auto makeReplicaSetNodeExecutor(ServiceContext* serviceContext) {
     tpOptions.maxThreads = ThreadPool::Options::kUnlimited;
     tpOptions.onCreateThread = [serviceContext](const std::string& threadName) {
         Client::initThread(threadName,
-                           serviceContext->getService(ClusterRole::ShardServer),
+                           serviceContext->getService(),
                            Client::noSession(),
                            ClientOperationKillableByStepdown{false});
     };
@@ -1573,10 +1571,8 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
     if (Client::getCurrent()) {
         oldClient = Client::releaseCurrent();
     }
-    Client::setCurrent(serviceContext->getService(ClusterRole::ShardServer)
-                           ->makeClient("shutdownTask",
-                                        Client::noSession(),
-                                        ClientOperationKillableByStepdown{false}));
+    Client::setCurrent(serviceContext->getService()->makeClient(
+        "shutdownTask", Client::noSession(), ClientOperationKillableByStepdown{false}));
     const auto client = Client::getCurrent();
 
     // The new client and opCtx are stashed in the ServiceContext, will survive past this
@@ -2004,7 +2000,7 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
 #if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
     // SessionKiller relies on the network stack being cleanly shutdown which only occurs under
     // sanitizers
-    SessionKiller::shutdown(serviceContext->getService(ClusterRole::ShardServer));
+    SessionKiller::shutdown(serviceContext->getService());
     if (serverGlobalParams.clusterRole.has(ClusterRole::RouterServer)) {
         SessionKiller::shutdown(serviceContext->getService(ClusterRole::RouterServer));
     }

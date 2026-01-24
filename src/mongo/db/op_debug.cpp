@@ -1393,6 +1393,7 @@ CursorMetrics OpDebug::getCursorMetrics() const {
     metrics.setNUpserted(additiveMetrics.nUpserted.value_or(0));
 
     metrics.setPlanningTimeMicros(additiveMetrics.planningTime.value_or(Microseconds(0)).count());
+    metrics.setNDocsSampled(additiveMetrics.nDocsSampled.value_or(0));
     return metrics;
 }
 
@@ -1542,6 +1543,7 @@ void OpDebug::AdditiveMetrics::add(const AdditiveMetrics& otherMetrics) {
     *fromPlanCache = *fromPlanCache && otherMetrics.fromPlanCache.value_or(true);
 
     planningTime = addOptionals(planningTime, otherMetrics.planningTime);
+    nDocsSampled = addOptionals(nDocsSampled, otherMetrics.nDocsSampled);
 }
 
 void OpDebug::AdditiveMetrics::aggregateDataBearingNodeMetrics(
@@ -1586,6 +1588,7 @@ void OpDebug::AdditiveMetrics::aggregateDataBearingNodeMetrics(
     *fromPlanCache = *fromPlanCache && metrics.fromPlanCache;
 
     planningTime = planningTime.value_or(Microseconds(0)) + metrics.planningTime;
+    nDocsSampled = nDocsSampled.value_or(0) + metrics.nDocsSampled;
 }
 
 void OpDebug::AdditiveMetrics::aggregateDataBearingNodeMetrics(
@@ -1621,7 +1624,8 @@ void OpDebug::AdditiveMetrics::aggregateCursorMetrics(const CursorMetrics& metri
         static_cast<uint64_t>(metrics.getTotalAdmissions()),
         metrics.getWasLoadShed(),
         metrics.getWasDeprioritized(),
-        Microseconds(metrics.getPlanningTimeMicros())});
+        Microseconds(metrics.getPlanningTimeMicros()),
+        static_cast<uint64_t>(metrics.getNDocsSampled())});
 }
 
 void OpDebug::AdditiveMetrics::aggregateStorageStats(const StorageStats& stats) {
