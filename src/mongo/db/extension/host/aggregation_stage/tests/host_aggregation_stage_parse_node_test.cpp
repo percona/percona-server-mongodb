@@ -29,6 +29,7 @@
 
 #include "mongo/db/extension/host/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
+#include "mongo/db/extension/sdk/query_shape_opts_handle.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
@@ -56,7 +57,7 @@ public:
         MONGO_UNIMPLEMENTED;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts*) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
         MONGO_UNIMPLEMENTED;
     }
 
@@ -135,14 +136,6 @@ DEATH_TEST(HostParseNodeVTableTestDeathTest, InvalidParseNodeVTableFailsExpand, 
     vtable.expand = nullptr;
     AggStageParseNodeAPI::assertVTableConstraints(vtable);
 };
-
-DEATH_TEST(HostParseNodeTestDeathTest, HostGetQueryShapeUnimplemented, "10977800") {
-    auto noOpParseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make({}));
-    auto handle = AggStageParseNodeHandle{noOpParseNode};
-
-    ::MongoExtensionByteBuf* shape = {};
-    handle->vtable().get_query_shape(noOpParseNode, nullptr, &shape);
-}
 
 DEATH_TEST(HostParseNodeTestDeathTest, HostGetExpandedSizeUnimplemented, "11113803") {
     auto noOpParseNode = new host::HostAggStageParseNode(NoOpHostParseNode::make({}));

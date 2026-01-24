@@ -48,7 +48,6 @@
 #include "mongo/util/assert_util.h"
 
 #include <algorithm>
-
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo::join_ordering {
@@ -74,7 +73,13 @@ bool anySecondaryNamespacesDontExist(const MultipleCollectionAccessor& mca) {
 
 bool isAggEligibleForJoinReordering(const MultipleCollectionAccessor& mca,
                                     const Pipeline& pipeline) {
-    if (!pipeline.getContext()->getQueryKnobConfiguration().isJoinOrderingEnabled()) {
+    const auto& queryKnob = pipeline.getContext()->getQueryKnobConfiguration();
+
+    if (!queryKnob.isJoinOrderingEnabled()) {
+        return false;
+    }
+
+    if (queryKnob.isForceClassicEngineEnabled()) {
         return false;
     }
 
@@ -86,6 +91,15 @@ bool isAggEligibleForJoinReordering(const MultipleCollectionAccessor& mca,
     if (mca.getMainCollectionAcquisition().getShardingDescription().isSharded()) {
         // We don't permit a sharded base collection.
         return false;
+    }
+
+    // Check that no foreign collection is sharded.
+    for (const auto& [_, collAcq] : mca.getSecondaryCollectionAcquisitions()) {
+        if (collAcq.collectionExists() &&
+            collAcq.getCollection().getShardingDescription().isSharded()) {
+            // We don't permit sharded foreign collections.
+            return false;
+        }
     }
 
     if (mca.isAnySecondaryNamespaceAViewOrNotFullyLocal() || anySecondaryNamespacesDontExist(mca)) {
@@ -210,12 +224,11 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
     // Pre-process indexes per collection to facilitate INLJ enumeration.
     auto indexesPerColl = extractINLJEligibleIndexes(solns, mca);
-    JoinReorderingContext ctx{
-        .joinGraph = model.graph,
-        .resolvedPaths = model.resolvedPaths,
-        .cbrCqQsns = std::move(solns),
-        .perCollIdxs = std::move(indexesPerColl),
-    };
+    JoinReorderingContext ctx{.joinGraph = model.graph,
+                              .resolvedPaths = model.resolvedPaths,
+                              .cbrCqQsns = std::move(solns),
+                              .perCollIdxs = std::move(indexesPerColl),
+                              .explain = expCtx->getExplain().has_value()};
 
     ReorderedJoinSolution reordered;
     switch (qkc.getJoinReorderMode()) {
@@ -270,6 +283,9 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
         plannerOptions |= QueryPlannerParams::RETURN_OWNED_DATA;
     }
 
+    // TODO SERVER-111913: Once we are no-longer cloning QSN for single-table plans, the estimate
+    // map from join-reordering 'reordered.estimates' can be combined with the estimate map from
+    // CBR 'swAccessPlans.getValue().estimate' before creating the executor below.
     // We actually have several canonical queries, so we don't try to pass one in.
     auto exec = uassertStatusOK(plan_executor_factory::make(opCtx,
                                                             nullptr /* cq */,
@@ -281,7 +297,8 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                                                             std::move(sbeYieldPolicy),
                                                             false /* isFromPlanCache */,
                                                             false /* cachedPlanHash */,
-                                                            true /*usedJoinOpt*/));
+                                                            true /*usedJoinOpt*/,
+                                                            std::move(reordered.estimates)));
 
     return JoinReorderedExecutorResult{.executor = std::move(exec), .model = std::move(model)};
 }

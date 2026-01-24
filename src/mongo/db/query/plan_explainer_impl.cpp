@@ -810,8 +810,12 @@ const PlanExplainer::ExplainVersion& PlanExplainerImpl::getVersion() const {
     return kExplainVersion;
 }
 
-bool PlanExplainerImpl::isMultiPlan() const {
-    return getStageByType(_root, STAGE_MULTI_PLAN) != nullptr;
+bool PlanExplainerImpl::areThereRejectedPlansToExplain() const {
+    return _explainData.rejectedPlansWithStages.size() > 0 ||
+        // TODO SERVER-117371. This shouldn't be needed if backup plan were considered rejected.
+        _explainData.multiPlannerWinningPlanTrialStats ||
+        getStageByType(_root, STAGE_MULTI_PLAN) != nullptr;
+    ;
 }
 
 std::string PlanExplainerImpl::getPlanSummary() const {
@@ -993,22 +997,18 @@ void PlanExplainerImpl::getSummaryStats(PlanSummaryStats* statsOut) const {
     }
 }
 
-PlanExplainer::PlanStatsDetails PlanExplainerImpl::getWinningPlanStats(
-    ExplainOptions::Verbosity verbosity) const {
-    const auto winningPlanIdx = getWinningPlanIdx(_root);
-    auto&& [stats, summary] = [&]()
-        -> std::pair<std::unique_ptr<PlanStageStats>, const boost::optional<PlanSummaryStats>> {
-        auto stats = _root->getStats();
-        if (verbosity >= ExplainOptions::Verbosity::kExecStats) {
-            auto summary = collectExecutionStatsSummary(stats.get(), winningPlanIdx);
-            if (verbosity >= ExplainOptions::Verbosity::kExecAllPlans) {
-                summary.score = getWinningPlanScore(_root);
-            }
-            return {std::move(stats), summary};
+PlanExplainer::PlanStatsDetails PlanExplainerImpl::_formatPlanStats(
+    const PlanStageStats* stats,
+    ExplainOptions::Verbosity verbosity,
+    boost::optional<size_t> planIdx,
+    boost::optional<double> score) const {
+    boost::optional<PlanSummaryStats> summary;
+    if (verbosity >= ExplainOptions::Verbosity::kExecStats) {
+        summary = collectExecutionStatsSummary(stats, planIdx);
+        if (verbosity >= ExplainOptions::Verbosity::kExecAllPlans && score) {
+            summary->score = *score;
         }
-
-        return {std::move(stats), boost::none};
-    }();
+    }
 
     const auto candidateSolutionHash = _solution ? _solution->hash() : 0;
     bool isCached = _cachedPlanHash && _solution && (*_cachedPlanHash == candidateSolutionHash);
@@ -1016,24 +1016,44 @@ PlanExplainer::PlanStatsDetails PlanExplainerImpl::getWinningPlanStats(
     if (internalQueryAllowForcedPlanByHash.load() && _solution) {
         bob.append("solutionHashUnstable", (long long)candidateSolutionHash);
     }
-    statsToBSON(_planStageQsnMap,
-                _planRankingResult.estimates,
+    statsToBSON(_explainData.planStageQsnMap,
+                _explainData.estimates,
                 *stats,
                 verbosity,
-                winningPlanIdx,
+                planIdx,
                 &bob,
                 &bob,
                 isCached);
     return {bob.obj(), std::move(summary)};
 }
 
+PlanExplainer::PlanStatsDetails PlanExplainerImpl::getWinningPlanStats(
+    ExplainOptions::Verbosity verbosity) const {
+    const auto winningPlanIdx = getWinningPlanIdx(_root);
+    auto stats = _root->getStats();
+    boost::optional<double> score;
+    if (verbosity >= ExplainOptions::Verbosity::kExecAllPlans) {
+        score = getWinningPlanScore(_root);
+    }
+
+    return _formatPlanStats(stats.get(), verbosity, winningPlanIdx, score);
+}
+
 PlanExplainer::PlanStatsDetails PlanExplainerImpl::getWinningPlanTrialStats() const {
+    if (_explainData.multiPlannerWinningPlanTrialStats) {
+        return _formatPlanStats(_explainData.multiPlannerWinningPlanTrialStats.get(),
+                                ExplainOptions::Verbosity::kExecAllPlans,
+                                boost::none,
+                                _explainData.multiPlannerWinningPlanScore);
+    }
     return getWinningPlanStats(ExplainOptions::Verbosity::kExecAllPlans);
 }
 
 std::vector<PlanExplainer::PlanStatsDetails> PlanExplainerImpl::getRejectedPlansStats(
     ExplainOptions::Verbosity verbosity) const {
     std::vector<PlanStatsDetails> res;
+    // TODO SERVER-117119. Delete to make plan explainer multiplanner unaware. Leverage
+    // _explainsData's contents.
     auto mps = getMultiPlanStage(_root);
     if (mps) {
         auto bestPlanIdx = mps->bestPlanIdx();
@@ -1054,8 +1074,8 @@ std::vector<PlanExplainer::PlanStatsDetails> PlanExplainerImpl::getRejectedPlans
                     bob.append("solutionHashUnstable", (long long)candidateSolutionHash);
                 }
                 auto stats = _root->getStats();
-                statsToBSON(_planStageQsnMap,
-                            _planRankingResult.estimates,
+                statsToBSON(_explainData.planStageQsnMap,
+                            _explainData.estimates,
                             *stats,
                             verbosity,
                             i,
@@ -1077,13 +1097,9 @@ std::vector<PlanExplainer::PlanStatsDetails> PlanExplainerImpl::getRejectedPlans
         }
     }
 
-    // For each rejected plan via CBR, explain it, and look up the corresponding cost and CE.
-    tassert(10872501,
-            "CBR PlanStage and QuerySolution vectors must have equal length.",
-            _cbrRejectedPlanStages.size() == _planRankingResult.rejectedPlans.size());
-    for (size_t i = 0; i < _cbrRejectedPlanStages.size(); ++i) {
-        auto&& rejectedPlan = _cbrRejectedPlanStages[i];
-        auto&& rejectedSoln = _planRankingResult.rejectedPlans[i];
+    for (size_t i = 0; i < _explainData.rejectedPlansWithStages.size(); ++i) {
+        auto&& rejectedPlan = _explainData.rejectedPlansWithStages[i].planStage;
+        auto&& rejectedSoln = _explainData.rejectedPlansWithStages[i].solution;
         const auto candidateSolutionHash = rejectedSoln->hash();
         bool isCached = _cachedPlanHash && (*_cachedPlanHash == candidateSolutionHash);
         BSONObjBuilder bob;
@@ -1091,15 +1107,25 @@ std::vector<PlanExplainer::PlanStatsDetails> PlanExplainerImpl::getRejectedPlans
             bob.append("solutionHashUnstable", (long long)candidateSolutionHash);
         }
         auto stats = rejectedPlan->getStats();
-        statsToBSON(_planStageQsnMap,
-                    _planRankingResult.estimates,
+        statsToBSON(_explainData.planStageQsnMap,
+                    _explainData.estimates,
                     *stats,
                     verbosity,
                     i,
                     &bob,
                     &bob,
                     isCached);
-        res.push_back({bob.obj(), boost::none /*summary*/});
+        auto summary = [&]() -> boost::optional<PlanSummaryStats> {
+            if (verbosity >= ExplainOptions::Verbosity::kExecStats) {
+                auto summary = collectExecutionStatsSummary(stats.get(), i);
+                if (verbosity >= ExplainOptions::Verbosity::kExecAllPlans) {
+                    summary.score = rejectedSoln->score;
+                }
+                return summary;
+            }
+            return {};
+        }();
+        res.push_back({bob.obj(), summary});
     }
 
     return res;

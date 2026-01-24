@@ -155,9 +155,7 @@ public:
                      NamespaceString nss,
                      PlanYieldPolicy::YieldPolicy yieldPolicy,
                      boost::optional<size_t> cachedPlanHash,
-                     QueryPlanner::PlanRankingResult planRankingResult,
-                     stage_builder::PlanStageToQsnMap planStageQsnMap,
-                     std::vector<std::unique_ptr<PlanStage>> cbrRejectedPlanStages);
+                     boost::optional<PlanExplainerData> maybeExplainData);
 
     ~PlanExecutorImpl() override;
     CanonicalQuery* getCanonicalQuery() const final;
@@ -275,6 +273,7 @@ private:
 
     // Performs any waiting that's needed after locks and resources are released during yield.
     void doWaitDuringYield();
+    void logWriteConflictAndBackoff(size_t numAttempts);
 
     std::unique_ptr<insert_listener::Notifier> makeNotifier();
 

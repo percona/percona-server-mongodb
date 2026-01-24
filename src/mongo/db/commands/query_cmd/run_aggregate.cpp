@@ -958,18 +958,19 @@ void computeShapeAndRegisterQueryStats(const AggExState& aggExState,
 }
 
 /**
- * Indicates whether and how a pipeline needs to be reparsed after view processing.
+ * Indicates whether and how a pipeline needs to undergo its second parse after view processing.
  * TODO SPM-4488 This can be removed once query shape generation is moved to LiteParsed.
  */
-enum class ReparseRequirement { kNone, kReparseFromLPP, kReparseFromBson };
+enum class SecondParseRequirement { kNone, kReparseFromLPP, kReparseFromBson };
 
 /**
  * Applies the desugared view pipeline to the user's pipeline if this is a view aggregation.
- * Returns the reparse requirement indicating whether and how the pipeline needs to be reparsed.
+ * Returns the second parse requirement indicating whether and how the pipeline needs to undergo its
+ * second parse.
  */
-ReparseRequirement maybeApplyViewPipeline(const AggExState& aggExState,
-                                          LiteParsedPipeline* desugaredLPP,
-                                          const ReparseRequirement& currentRequirement) {
+SecondParseRequirement maybeApplyViewPipeline(const AggExState& aggExState,
+                                              LiteParsedPipeline* desugaredLPP,
+                                              const SecondParseRequirement& currentRequirement) {
     if (!aggExState.isView()) {
         return currentRequirement;
     }
@@ -980,7 +981,7 @@ ReparseRequirement maybeApplyViewPipeline(const AggExState& aggExState,
     // TODO SERVER-101599 remove this code once 9.0 becomes last LTS. By then only viewless
     // timeseries collections will exist.
     if (aggExState.getResolvedView().timeseries()) {
-        return ReparseRequirement::kReparseFromBson;
+        return SecondParseRequirement::kReparseFromBson;
     }
 
     // For search queries on views don't do any of the pipeline stitching that is done for
@@ -996,7 +997,7 @@ ReparseRequirement maybeApplyViewPipeline(const AggExState& aggExState,
     LiteParsedDesugarer::desugar(viewInfo.viewPipeline.get());
 
     desugaredLPP->handleView(viewInfo);
-    return ReparseRequirement::kReparseFromLPP;
+    return SecondParseRequirement::kReparseFromLPP;
 }
 
 /**
@@ -1017,14 +1018,14 @@ std::unique_ptr<Pipeline> buildFinalPipeline(const AggExState& aggExState,
                                              const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                              std::unique_ptr<Pipeline> pipeline,
                                              const LiteParsedPipeline& desugaredLPP,
-                                             const ReparseRequirement& reparseRequirement) {
-    switch (reparseRequirement) {
-        case ReparseRequirement::kReparseFromBson:
+                                             const SecondParseRequirement& secondParseRequirement) {
+    switch (secondParseRequirement) {
+        case SecondParseRequirement::kReparseFromBson:
             return pipeline_factory::makePipeline(
                 aggExState.getRequest().getPipeline(), expCtx, pipeline_factory::kOptionsMinimal);
-        case ReparseRequirement::kReparseFromLPP:
+        case SecondParseRequirement::kReparseFromLPP:
             return Pipeline::parseFromLiteParsed(desugaredLPP, expCtx);
-        case ReparseRequirement::kNone:
+        case SecondParseRequirement::kNone:
             return pipeline;
     }
     MONGO_UNREACHABLE;
@@ -1040,9 +1041,9 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     const auto& userRequest = aggExState.getOriginalRequest();
 
     // Clone and desugar the LiteParsedPipeline. If the pipeline is modified by desugaring, we
-    // initialize the reparse requirement to indicate a reparse from the desugared
+    // initialize the second parse requirement to indicate a reparse from the desugared
     // LiteParsedPipeline will be needed. This is because query shape generation required a
-    // full-parsed pipeline to occur. The reparse requirement may be further updated by view
+    // full-parsed pipeline to occur. The second parse requirement may be further updated by view
     // processing (e.g., timeseries views require rebuilding from request BSON, regular views
     // require reparse from the modified LPP).
     // TODO SPM-4488: Once query shape can be generated from LiteParsed, a reparse will no
@@ -1053,8 +1054,8 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     // the pipeline is already desugared.
     const auto desugaredHere =
         !expCtx->getFromRouter() && LiteParsedDesugarer::desugar(&desugaredLPP);
-    auto reparseRequirement =
-        desugaredHere ? ReparseRequirement::kReparseFromLPP : ReparseRequirement::kNone;
+    auto secondParseRequirement =
+        desugaredHere ? SecondParseRequirement::kReparseFromLPP : SecondParseRequirement::kNone;
 
     // Parse the user's original pipeline pre-desugar to capture query stats. If the pipeline was
     // desugared (and thus will need a reparse), this initial parse will be executed with a
@@ -1071,11 +1072,12 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
         pipeline->setTranslated();
     }
 
-    reparseRequirement = maybeApplyViewPipeline(aggExState, &desugaredLPP, reparseRequirement);
+    secondParseRequirement =
+        maybeApplyViewPipeline(aggExState, &desugaredLPP, secondParseRequirement);
 
     expCtx->startExpressionCounters();
     pipeline = buildFinalPipeline(
-        aggExState, expCtx, std::move(pipeline), desugaredLPP, reparseRequirement);
+        aggExState, expCtx, std::move(pipeline), desugaredLPP, secondParseRequirement);
     expCtx->stopExpressionCounters();
 
     // Validate the entire pipeline with the view definition.
@@ -1193,23 +1195,6 @@ Status executeResolvedAggregate(const AggExState& aggExState,
         !aggExState.startsWithCollStats()) {
         uasserted(ErrorCodes::CollectionBecameView,
                   "Namespace changed from collection to view during aggregation planning");
-    }
-
-    // TODO SERVER-116021 Remove this check when the extension itself can check and uassert
-    // in its ViewPolicy function, rather than doing it here in the runAggregate
-    // infrastructure. $vectorSearch-as-an-extension is not allowed to run against views, at
-    // least in v8.3. If we see that a $vectorSearch stage exists in the pipeline AND a view
-    // exists, then we throw the IFRFlagRetry to disable the vector search extension flag
-    // and use legacy vector search instead.
-    // TODO SERVER-116994 Remove this check either from here or SERVER-116021 when
-    // $vectorSearch-as-an-extension is allowed against views.
-    if (aggExState.isView() &&
-        aggExState.getIfrContext()->getSavedFlagValue(
-            feature_flags::gFeatureFlagVectorSearchExtension) &&
-        aggExState.getOriginalLiteParsedPipeline().hasExtensionVectorSearchStage()) {
-        uassertStatusOK(
-            Status(IFRFlagRetryInfo(feature_flags::gFeatureFlagVectorSearchExtension.getName()),
-                   "$vectorSearch-as-an-extension is not allowed against views."));
     }
 
     // Create an RAII object that prints the collection's shard key in the case of a tassert
@@ -1519,7 +1504,7 @@ Status runAggregate(
     auto onIFRError =
         [&](const ExceptionFor<ErrorCodes::IFRFlagRetry>& ex,
             stdx::unordered_set<IncrementalRolloutFeatureFlag*>& ifrFlagsToDisableOnRetries) {
-            sVectorSearchMetrics.onViewKickbackRetryCount.addAndFetch(1);
+            vector_search_metrics::onViewKickbackRetryCount.increment(1);
             ifrFlagsToDisableOnRetries.insert(IncrementalRolloutFeatureFlag::findByName(
                 ex.extraInfo<IFRFlagRetryInfo>()->getDisabledFlagName()));
         };

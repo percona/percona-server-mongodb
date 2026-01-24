@@ -107,10 +107,7 @@ TEST_F(ServiceContextTest, ValidateConfigForInitiate_memberId) {
         validateConfigForInitiate(&rses, validConfig, makeOperationContext().get()).getStatus());
 }
 
-// TODO (SERVER-112863): Remove feature flag controller and FF Disabled test
 TEST_F(ServiceContextTest, ValidateConfigForInitiate_PriorityPortFFEnabled) {
-    RAIIServerParameterControllerForTest featureFlagController(
-        "featureFlagReplicationUsageOfPriorityPort", true);
     ReplicationCoordinatorExternalStateMock rses;
     rses.addSelf(HostAndPort("h1"));
 
@@ -125,6 +122,7 @@ TEST_F(ServiceContextTest, ValidateConfigForInitiate_PriorityPortFFEnabled) {
         validateConfigForInitiate(&rses, validConfig, makeOperationContext().get()).getStatus());
 }
 
+// TODO (SERVER-112863): Remove feature flag controller and FF Disabled test
 TEST_F(ServiceContextTest, ValidateConfigForInitiate_PriorityPortFFDisabled) {
     RAIIServerParameterControllerForTest featureFlagController(
         "featureFlagReplicationUsageOfPriorityPort", false);
@@ -830,6 +828,131 @@ TEST_F(ServiceContextTest, ValidateConfigForReconfig_NonDefaultGetLastErrorDefau
         validateConfigForReconfig(kNoVersionContext, oldConfig, newConfig, true, false),
         AssertionException,
         5624102);
+}
+
+TEST_F(ServiceContextTest, ValidateConfigForReconfig_PriorityPortFCVEnabled) {
+    ReplicationCoordinatorExternalStateMock externalState;
+    externalState.addSelf(HostAndPort("h1"));
+
+    ReplSetConfig oldConfig;
+    ReplSetConfig newConfig;
+
+    oldConfig =
+        ReplSetConfig::parse(BSON("_id" << "rs0"
+                                        << "version" << 1 << "protocolVersion" << 1 << "members"
+                                        << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                                                 << "h1"))));
+    newConfig = ReplSetConfig::parse(
+        BSON("_id" << "rs0"
+                   << "version" << 2 << "protocolVersion" << 1 << "members"
+                   << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                            << "h1" << "priorityPort" << 20))));
+    ASSERT_OK(oldConfig.validate());
+    ASSERT_OK(newConfig.validate());
+    ASSERT_OK(validateConfigForReconfig(kNoVersionContext, oldConfig, newConfig, false, false));
+}
+
+// TODO (SERVER-112863): Remove feature flag disabled test once the feature flag is enabled on
+// lastLTS.
+TEST_F(ServiceContextTest, ValidateConfigForReconfig_PriorityPortFCVDisabled) {
+    RAIIServerParameterControllerForTest featureFlagController(
+        "featureFlagReplicationUsageOfPriorityPort", false);
+
+    ReplicationCoordinatorExternalStateMock externalState;
+    externalState.addSelf(HostAndPort("h1"));
+
+    ReplSetConfig oldConfig;
+    ReplSetConfig newConfig;
+
+    oldConfig =
+        ReplSetConfig::parse(BSON("_id" << "rs0"
+                                        << "version" << 1 << "protocolVersion" << 1 << "members"
+                                        << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                                                 << "h1"))));
+    newConfig = ReplSetConfig::parse(
+        BSON("_id" << "rs0"
+                   << "version" << 2 << "protocolVersion" << 1 << "members"
+                   << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                            << "h1" << "priorityPort" << 20))));
+    ASSERT_OK(oldConfig.validate());
+    ASSERT_OK(newConfig.validate());
+    ASSERT_EQUALS(
+        ErrorCodes::InvalidOptions,
+        validateConfigForReconfig(kNoVersionContext, oldConfig, newConfig, false, false).code());
+}
+
+TEST_F(ServiceContextTest, ValidateConfigForReconfig_PriorityPortForceAddPortDisallowed) {
+    ReplicationCoordinatorExternalStateMock externalState;
+    externalState.addSelf(HostAndPort("h1"));
+
+    ReplSetConfig oldConfig;
+    ReplSetConfig newConfig;
+
+    oldConfig =
+        ReplSetConfig::parse(BSON("_id" << "rs0"
+                                        << "version" << 1 << "protocolVersion" << 1 << "members"
+                                        << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                                                 << "h1"))));
+    newConfig = ReplSetConfig::parse(
+        BSON("_id" << "rs0"
+                   << "version" << 2 << "protocolVersion" << 1 << "members"
+                   << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                            << "h1" << "priorityPort" << 20))));
+    ASSERT_OK(oldConfig.validate());
+    ASSERT_OK(newConfig.validate());
+    ASSERT_EQUALS(
+        ErrorCodes::InvalidOptions,
+        validateConfigForReconfig(kNoVersionContext, oldConfig, newConfig, true, false).code());
+}
+
+TEST_F(ServiceContextTest, ValidateConfigForReconfig_PriorityPortForceAddNodeDisallowed) {
+    ReplicationCoordinatorExternalStateMock externalState;
+    externalState.addSelf(HostAndPort("h1"));
+
+    ReplSetConfig oldConfig;
+    ReplSetConfig newConfig;
+
+    oldConfig =
+        ReplSetConfig::parse(BSON("_id" << "rs0"
+                                        << "version" << 1 << "protocolVersion" << 1 << "members"
+                                        << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                                                 << "h1"))));
+    newConfig = ReplSetConfig::parse(
+        BSON("_id" << "rs0"
+                   << "version" << 2 << "protocolVersion" << 1 << "members"
+                   << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                            << "h1")
+                                 << BSON("_id" << 2 << "host"
+                                               << "h2" << "priorityPort" << 20))));
+    ASSERT_OK(oldConfig.validate());
+    ASSERT_OK(newConfig.validate());
+    ASSERT_EQUALS(
+        ErrorCodes::InvalidOptions,
+        validateConfigForReconfig(kNoVersionContext, oldConfig, newConfig, true, false).code());
+}
+
+TEST_F(ServiceContextTest, ValidateConfigForReconfig_PriorityPortForceAllowed) {
+    ReplicationCoordinatorExternalStateMock externalState;
+    externalState.addSelf(HostAndPort("h1"));
+
+    ReplSetConfig oldConfig;
+    ReplSetConfig newConfig;
+
+    oldConfig = ReplSetConfig::parse(
+        BSON("_id" << "rs0"
+                   << "version" << 1 << "protocolVersion" << 1 << "members"
+                   << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                            << "h1" << "priorityPort" << 20))));
+    newConfig =
+        ReplSetConfig::parse(BSON("_id" << "rs0"
+                                        << "version" << 2 << "protocolVersion" << 1 << "members"
+                                        << BSON_ARRAY(BSON("_id" << 1 << "host"
+                                                                 << "h1" << "priorityPort" << 20)
+                                                      << BSON("_id" << 2 << "host"
+                                                                    << "h2"))));
+    ASSERT_OK(oldConfig.validate());
+    ASSERT_OK(newConfig.validate());
+    ASSERT_OK(validateConfigForReconfig(kNoVersionContext, oldConfig, newConfig, true, false));
 }
 
 TEST_F(ServiceContextTest, ValidateConfigForStartUp_NewConfigInvalid) {

@@ -34,6 +34,7 @@
 #include "mongo/db/service_context_d_test_fixture.h"
 #include "mongo/db/shard_role/shard_catalog/collection_mock.h"
 #include "mongo/db/shard_role/transaction_resources.h"
+#include "mongo/db/sorter/container_test_utils.h"
 #include "mongo/db/sorter/sorter_test_utils.h"
 #include "mongo/db/storage/container.h"
 #include "mongo/db/storage/ident.h"
@@ -49,70 +50,6 @@
 
 namespace mongo::sorter {
 namespace {
-
-class ViewableIntegerKeyedContainer final : public IntegerKeyedContainer {
-public:
-    using Entry = std::pair<int64_t, std::string>;
-
-    class Cursor : public IntegerKeyedContainer::Cursor {
-    public:
-        explicit Cursor(const std::vector<ViewableIntegerKeyedContainer::Entry>& entries)
-            : _entries(entries) {}
-
-        boost::optional<std::span<const char>> find(int64_t key) override {
-            for (auto&& [entryKey, entryValue] : _entries) {
-                if (entryKey == key) {
-                    return {{entryValue.data(), entryValue.size()}};
-                }
-            }
-            return boost::none;
-        }
-
-    private:
-        const std::vector<ViewableIntegerKeyedContainer::Entry>& _entries;
-    };
-
-    ViewableIntegerKeyedContainer() = default;
-
-    explicit ViewableIntegerKeyedContainer(std::shared_ptr<Ident> ident)
-        : _ident(std::move(ident)) {}
-
-    std::shared_ptr<Ident> ident() const override {
-        return _ident;
-    }
-
-    void setIdent(std::shared_ptr<Ident> ident) override {
-        _ident = std::move(ident);
-    }
-
-    Status insert(RecoveryUnit&, int64_t key, std::span<const char> value) override {
-        _entries.emplace_back(key, std::string(value.begin(), value.end()));
-        return Status::OK();
-    }
-
-    Status remove(RecoveryUnit&, int64_t key) override {
-        _entries.erase(std::find_if(_entries.begin(), _entries.end(), [key](const Entry& entry) {
-            return entry.first == key;
-        }));
-        return Status::OK();
-    }
-
-    std::unique_ptr<IntegerKeyedContainer::Cursor> getCursor(RecoveryUnit&) const override {
-        return std::make_unique<Cursor>(_entries);
-    }
-
-    std::shared_ptr<IntegerKeyedContainer::Cursor> getSharedCursor(RecoveryUnit&) const override {
-        return std::make_shared<Cursor>(_entries);
-    }
-
-    const std::vector<Entry>& entries() const {
-        return _entries;
-    }
-
-private:
-    std::shared_ptr<Ident> _ident;
-    std::vector<Entry> _entries;
-};
 
 TEST(ContainerIteratorTest, Iterate) {
     RecoveryUnitNoop ru;
@@ -621,6 +558,154 @@ TEST_F(ContainerBasedSpillerTest, Spill) {
     EXPECT_EQ(it2->next().first, 75);
     ASSERT_TRUE(it2->more());
     EXPECT_EQ(it2->next().first, 125);
+}
+
+TEST_F(ContainerBasedSpillerTest, MergeSpills) {
+    auto opCtx = makeOperationContext();
+
+    auto replCoord = dynamic_cast<repl::ReplicationCoordinatorMock*>(
+        repl::ReplicationCoordinator::get(opCtx.get()));
+    ASSERT(replCoord);
+    replCoord->alwaysAllowWrites(true);
+
+    auto ns = NamespaceString::createNamespaceString_forTest("test", "container_based_spiller");
+    CollectionMock coll{ns};
+    CollectionPtr collPtr{&coll};
+    ViewableIntegerKeyedContainer container{std::make_shared<Ident>("ident")};
+    SorterContainerStats containerStats{nullptr};
+
+    ContainerBasedSpiller<IntWrapper, NullValue> spiller{
+        *opCtx,
+        *shard_role_details::getRecoveryUnit(opCtx.get()),
+        collPtr,
+        container,
+        containerStats,
+        ns.dbName(),
+        SorterChecksumVersion::v2};
+
+    std::vector<std::pair<IntWrapper, NullValue>> data{
+        {50, {}}, {100, {}}, {75, {}}, {125, {}}, {25, {}}};
+    std::span<std::pair<IntWrapper, NullValue>> span{data};
+
+    std::vector<std::shared_ptr<sorter::Iterator<IntWrapper, NullValue>>> iterators;
+    iterators.push_back(spiller.spill(
+        SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(0, 2), 0));
+    iterators.push_back(spiller.spill(
+        SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(2, 2), 0));
+    iterators.push_back(spiller.spill(
+        SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(4, 1), 0));
+
+    SorterStats sorterStats{nullptr};
+    auto storage = spiller.mergeSpills(
+        SortOptions{},
+        SorterSpiller<IntWrapper, NullValue>::Settings{},
+        sorterStats,
+        iterators,
+        [](const IntWrapper& left, const IntWrapper& right) { return IWComparator{}(left, right); },
+        2,
+        2);
+    spiller.setStorage(std::move(storage));
+
+    EXPECT_EQ(iterators.size(), 2);
+    EXPECT_EQ(container.entries().size(), data.size());
+
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 50);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 75);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 100);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 125);
+    EXPECT_FALSE(iterators[0]->more());
+
+    ASSERT_TRUE(iterators[1]->more());
+    EXPECT_EQ(iterators[1]->next().first, 25);
+    EXPECT_FALSE(iterators[1]->more());
+}
+
+TEST_F(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
+    auto opCtx = makeOperationContext();
+
+    auto replCoord = dynamic_cast<repl::ReplicationCoordinatorMock*>(
+        repl::ReplicationCoordinator::get(opCtx.get()));
+    ASSERT(replCoord);
+    replCoord->alwaysAllowWrites(true);
+
+    auto ns = NamespaceString::createNamespaceString_forTest("test", "container_based_spiller");
+    CollectionMock coll{ns};
+    CollectionPtr collPtr{&coll};
+    ViewableIntegerKeyedContainer container{std::make_shared<Ident>("ident")};
+    SorterContainerStats containerStats{nullptr};
+
+    ContainerBasedSpiller<IntWrapper, NullValue> spiller{
+        *opCtx,
+        *shard_role_details::getRecoveryUnit(opCtx.get()),
+        collPtr,
+        container,
+        containerStats,
+        ns.dbName(),
+        SorterChecksumVersion::v2};
+
+    std::vector<std::pair<IntWrapper, NullValue>> data{{50, {}},
+                                                       {100, {}},
+                                                       {75, {}},
+                                                       {125, {}},
+                                                       {120, {}},
+                                                       {115, {}},
+                                                       {110, {}},
+                                                       {150, {}},
+                                                       {175, {}},
+                                                       {105, {}}};
+    std::span<std::pair<IntWrapper, NullValue>> span{data};
+
+    std::vector<std::shared_ptr<sorter::Iterator<IntWrapper, NullValue>>> iterators;
+    for (size_t i = 0; i < data.size(); ++i) {
+        iterators.push_back(spiller.spill(SortOptions{},
+                                          SorterSpiller<IntWrapper, NullValue>::Settings{},
+                                          span.subspan(i, 1),
+                                          0));
+    }
+
+    SorterStats sorterStats{nullptr};
+    auto storage = spiller.mergeSpills(
+        SortOptions{},
+        SorterSpiller<IntWrapper, NullValue>::Settings{},
+        sorterStats,
+        iterators,
+        [](const IntWrapper& left, const IntWrapper& right) { return IWComparator{}(left, right); },
+        3,
+        2);
+    spiller.setStorage(std::move(storage));
+
+    EXPECT_EQ(iterators.size(), 3);
+    EXPECT_EQ(container.entries().size(), data.size());
+
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 50);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 75);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 100);
+    ASSERT_TRUE(iterators[0]->more());
+    EXPECT_EQ(iterators[0]->next().first, 125);
+    EXPECT_FALSE(iterators[0]->more());
+
+    ASSERT_TRUE(iterators[1]->more());
+    EXPECT_EQ(iterators[1]->next().first, 110);
+    ASSERT_TRUE(iterators[1]->more());
+    EXPECT_EQ(iterators[1]->next().first, 115);
+    ASSERT_TRUE(iterators[1]->more());
+    EXPECT_EQ(iterators[1]->next().first, 120);
+    ASSERT_TRUE(iterators[1]->more());
+    EXPECT_EQ(iterators[1]->next().first, 150);
+    EXPECT_FALSE(iterators[1]->more());
+
+    ASSERT_TRUE(iterators[2]->more());
+    EXPECT_EQ(iterators[2]->next().first, 105);
+    ASSERT_TRUE(iterators[2]->more());
+    EXPECT_EQ(iterators[2]->next().first, 175);
+    EXPECT_FALSE(iterators[2]->more());
 }
 
 }  // namespace

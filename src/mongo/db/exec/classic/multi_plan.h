@@ -204,10 +204,31 @@ public:
      */
     bool hasBackupPlan() const;
 
-protected:
-    void doSaveStateRequiresCollection() final {}
+    /**
+     * Extracts all rejected plans along with their PlanStages for explain purposes.
+     * Also extracts multiplanning stats of the winning plan, if any.
+     */
+    [[nodiscard]] PlanExplainerData extractPlanExplainerData();
 
-    void doRestoreStateRequiresCollection() final {}
+    /**
+     * Rejects all candidate plans without picking a best plan. Needed before extracting rejected
+     * plans for explain when no best plan was chosen. Also cannot be used if a best plan was
+     * already chosen.
+     */
+    void abandonTrials();
+
+    bool isStateSaved() {
+        return _isStateSaved;
+    }
+
+protected:
+    void doSaveStateRequiresCollection() final {
+        _isStateSaved = true;
+    }
+
+    void doRestoreStateRequiresCollection() final {
+        _isStateSaved = false;
+    }
 
 private:
     //
@@ -292,6 +313,8 @@ private:
 
     // Stats
     MultiPlanStats _specificStats;
+
+    bool _isStateSaved = false;
 };
 
 }  // namespace mongo

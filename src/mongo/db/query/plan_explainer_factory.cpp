@@ -40,23 +40,13 @@
 namespace mongo::plan_explainer_factory {
 
 std::unique_ptr<PlanExplainer> make(PlanStage* root, boost::optional<size_t> cachedPlanHash) {
-    return make(root,
-                cachedPlanHash,
-                QueryPlanner::PlanRankingResult{},
-                stage_builder::PlanStageToQsnMap{},
-                {} /* cbrRejectedPlanStages */);
+    return make(root, cachedPlanHash, boost::none);
 }
 
 std::unique_ptr<PlanExplainer> make(PlanStage* root,
                                     boost::optional<size_t> cachedPlanHash,
-                                    QueryPlanner::PlanRankingResult planRankingResult,
-                                    stage_builder::PlanStageToQsnMap planStageQsnMap,
-                                    std::vector<std::unique_ptr<PlanStage>> cbrRejectedPlanStages) {
-    return std::make_unique<PlanExplainerImpl>(root,
-                                               cachedPlanHash,
-                                               std::move(planRankingResult),
-                                               std::move(planStageQsnMap),
-                                               std::move(cbrRejectedPlanStages));
+                                    boost::optional<PlanExplainerData> maybeExplainData) {
+    return std::make_unique<PlanExplainerImpl>(root, cachedPlanHash, std::move(maybeExplainData));
 }
 
 std::unique_ptr<PlanExplainer> make(PlanStage* root, const PlanEnumeratorExplainInfo& explainInfo) {
@@ -74,7 +64,8 @@ std::unique_ptr<PlanExplainer> make(
     std::shared_ptr<const plan_cache_debug_info::DebugInfoSBE> debugInfoSBE,
     std::unique_ptr<PlanStage> classicRuntimePlannerStage,
     RemoteExplainVector* remoteExplains,
-    bool usedJoinOpt) {
+    bool usedJoinOpt,
+    cost_based_ranker::EstimateMap estimates) {
     if (!debugInfoSBE) {
         debugInfoSBE = std::make_shared<const plan_cache_debug_info::DebugInfoSBE>(
             plan_cache_util::buildDebugInfo(nss, solution));
@@ -89,6 +80,7 @@ std::unique_ptr<PlanExplainer> make(
         debugInfoSBE,
         std::move(classicRuntimePlannerStage),
         remoteExplains,
-        usedJoinOpt);
+        usedJoinOpt,
+        std::move(estimates));
 }
 }  // namespace mongo::plan_explainer_factory

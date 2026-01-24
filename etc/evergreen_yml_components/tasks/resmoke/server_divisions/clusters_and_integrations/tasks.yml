@@ -251,8 +251,8 @@ tasks:
           local_file: src/bazel-bin/first_half_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/first_half_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: ${mciuploads_binary_permissions|public-read}
-          visibility: ${mciuploads_binary_visibility|public}
+          permissions: ${mciuploads_binary_permissions|private}
+          visibility: ${mciuploads_binary_visibility|signed}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -288,8 +288,8 @@ tasks:
           local_file: src/bazel-bin/second_half_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/second_half_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: ${mciuploads_binary_permissions|public-read}
-          visibility: ${mciuploads_binary_visibility|public}
+          permissions: ${mciuploads_binary_permissions|private}
+          visibility: ${mciuploads_binary_visibility|signed}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -325,8 +325,8 @@ tasks:
           local_file: src/bazel-bin/sep_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/sep_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: ${mciuploads_binary_permissions|public-read}
-          visibility: ${mciuploads_binary_visibility|public}
+          permissions: ${mciuploads_binary_permissions|private}
+          visibility: ${mciuploads_binary_visibility|signed}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -1216,8 +1216,8 @@ tasks:
           local_file: src/bazel-bin/sharding_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/sharding_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: ${mciuploads_binary_permissions|public-read}
-          visibility: ${mciuploads_binary_visibility|public}
+          permissions: ${mciuploads_binary_permissions|private}
+          visibility: ${mciuploads_binary_visibility|signed}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -1252,8 +1252,8 @@ tasks:
           local_file: src/bazel-bin/bsoncolumn_bm.${ext|tgz}
           remote_file: ${project}/${compile_variant}/${version_id}/binaries/bsoncolumn_bm-${revision_order_id}.${ext|tgz}
           bucket: mciuploads
-          permissions: ${mciuploads_binary_permissions|public-read}
-          visibility: ${mciuploads_binary_visibility|public}
+          permissions: ${mciuploads_binary_permissions|private}
+          visibility: ${mciuploads_binary_visibility|signed}
           content_type: application/tar
           display_name: Benchmarks
 
@@ -1864,6 +1864,20 @@ tasks:
       - func: "generate resmoke tasks"
 
   - <<: *gen_task_template
+    name: sharding_jscore_passthrough_priority_ports_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "incompatible_mac",
+        "sharding",
+        "jscore",
+        "common",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+
+  - <<: *gen_task_template
     name: sharding_kill_stepdown_terminate_jscore_passthrough_gen
     tags:
       [
@@ -2386,14 +2400,8 @@ tasks:
 
   - <<: *gen_task_template
     name: fcv_upgrade_downgrade_replica_sets_jscore_passthrough_gen
-    # TODO (SERVER-88964): Remove exclude_when_record_ids_replicated.
     tags:
-      [
-        "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
-        "jscore",
-        "exclude_when_record_ids_replicated",
-      ]
+      ["assigned_to_jira_team_server_catalog_and_routing", "default", "jscore"]
     commands:
       - func: "generate resmoke tasks"
         vars:
@@ -2403,14 +2411,8 @@ tasks:
 
   - <<: *gen_task_template
     name: fcv_upgrade_downgrade_primary_step_down_passthrough_gen
-    # TODO (SERVER-88964): Remove exclude_when_record_ids_replicated.
     tags:
-      [
-        "assigned_to_jira_team_server_catalog_and_routing",
-        "default",
-        "jscore",
-        "exclude_when_record_ids_replicated",
-      ]
+      ["assigned_to_jira_team_server_catalog_and_routing", "default", "jscore"]
     commands:
       - func: "generate resmoke tasks"
         vars:
@@ -2666,13 +2668,11 @@ tasks:
 
   - <<: *gen_task_template
     name: fcv_upgrade_downgrade_sharded_collections_jscore_passthrough_gen
-    # TODO (SERVER-88964): Remove exclude_when_record_ids_replicated.
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
         "default",
         "sharding",
-        "exclude_when_record_ids_replicated",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2684,13 +2684,11 @@ tasks:
 
   - <<: *gen_task_template
     name: fcv_upgrade_downgrade_sharding_jscore_passthrough_gen
-    # TODO (SERVER-88964): Remove exclude_when_record_ids_replicated.
     tags:
       [
         "assigned_to_jira_team_server_catalog_and_routing",
         "default",
         "sharding",
-        "exclude_when_record_ids_replicated",
       ]
     commands:
       - func: "generate resmoke tasks"

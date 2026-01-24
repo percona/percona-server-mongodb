@@ -29,6 +29,7 @@
 #pragma once
 
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/query/compiler/optimizer/join/join_estimates.h"
 #include "mongo/db/query/compiler/optimizer/join/join_graph.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/util/bitset_util.h"
@@ -71,8 +72,12 @@ struct JoinSubset {
         return (NodeId)*begin(subset);
     }
 
+    inline bool hasPlans() const {
+        return !plans.empty();
+    }
+
     inline JoinPlanNodeId bestPlan() const {
-        tassert(11566600, "Failed to find a plan", !plans.empty());
+        tassert(11566600, "Failed to find a plan", hasPlans());
         tassert(11336908, "Expected bestPlanIndex < plans.size()", bestPlanIndex < plans.size());
         return plans[bestPlanIndex];
     }
@@ -114,6 +119,9 @@ struct BaseNode {
     // Corresponds to node in the graph this represents a base table access to.
     const NodeId node;
 
+    // Cost of base collection access.
+    JoinCostEstimate cost;
+
     std::string toString(size_t numNodesToPrint = kHardMaxNodesInJoin,
                          std::string indentStr = "") const;
 };
@@ -146,11 +154,44 @@ struct JoiningNode {
     // Keeps a copy of the bitset representing the subgraph this originated from.
     const NodeSet bitset;
 
+    // Cost of join.
+    JoinCostEstimate cost;
+
     std::string toString(size_t numNodesToPrint = kHardMaxNodesInJoin,
                          std::string indentStr = "") const;
 };
 
 std::ostream& operator<<(std::ostream& os, const JoinSubset& subset);
+
+/**
+ * Get the cost estimate of the given 'JoinPlanNode'. This operation is only defined for 'BaseNode'
+ * and 'JoiningNode'.
+ */
+inline JoinCostEstimate getNodeCost(const JoinPlanNode& node) {
+    return std::visit(OverloadedVisitor{[](const JoiningNode& join) { return join.cost; },
+                                        [](const INLJRHSNode& ip) {
+                                            // These nodes don't have their own cost.
+                                            MONGO_UNREACHABLE_TASSERT(11727800);
+                                            return JoinCostEstimate(zeroCE, zeroCE, zeroCE, zeroCE);
+                                        },
+                                        [](const BaseNode& base) {
+                                            return base.cost;
+                                        }},
+                      node);
+}
+
+/**
+ * Get the node subset which this given 'JoinPlanNode' contains the solution for.
+ */
+inline NodeSet getNodeBitset(const JoinPlanNode& node) {
+    return std::visit(
+        OverloadedVisitor{[](const JoiningNode& join) { return join.bitset; },
+                          [](const INLJRHSNode& ip) { return NodeSet().set(ip.node); },
+                          [](const BaseNode& base) {
+                              return NodeSet().set(base.node);
+                          }},
+        node);
+}
 
 /**
  * We don't want to reallocate memory for every node we reuse for some other subtree. This means
@@ -171,10 +212,12 @@ public:
     JoinPlanNodeId registerJoinNode(const JoinSubset& subset,
                                     JoinMethod method,
                                     JoinPlanNodeId left,
-                                    JoinPlanNodeId right);
+                                    JoinPlanNodeId right,
+                                    JoinCostEstimate cost);
     JoinPlanNodeId registerBaseNode(NodeId node,
                                     const QuerySolution* soln,
-                                    const NamespaceString& nss);
+                                    const NamespaceString& nss,
+                                    JoinCostEstimate cost);
     JoinPlanNodeId registerINLJRHSNode(NodeId node,
                                        std::shared_ptr<const IndexCatalogEntry> entry,
                                        const NamespaceString& nss);
@@ -184,6 +227,8 @@ public:
     }
 
     NodeSet getBitset(JoinPlanNodeId id) const;
+    // Note: not all node types have an associated cost.
+    JoinCostEstimate getCost(JoinPlanNodeId id) const;
 
     template <typename T>
     const T& getAs(JoinPlanNodeId id) const {

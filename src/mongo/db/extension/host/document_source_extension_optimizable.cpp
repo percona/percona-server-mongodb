@@ -32,10 +32,12 @@
 #include "mongo/base/init.h"  // IWYU pragma: keep
 #include "mongo/db/extension/host/document_source_extension_for_query_shape.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/db/ifr_flag_retry_info.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
+#include "mongo/db/pipeline/optimization/rule_based_rewriter.h"
 #include "mongo/db/pipeline/search/search_helper.h"
-#include "mongo/util/namespace_string_util.h"
-#include "mongo/util/serialization_context.h"
+#include "mongo/db/pipeline/search/vector_search_helper.h"
+#include "mongo/util/assert_util.h"
 
 namespace mongo::extension::host {
 
@@ -210,6 +212,20 @@ bool DocumentSourceExtensionOptimizable::LiteParsedExpanded::isExtensionVectorSe
 }
 
 ViewPolicy DocumentSourceExtensionOptimizable::LiteParsedExpanded::getViewPolicy() const {
+    if (!feature_flags::gFeatureFlagExtensionViewsAndUnionWith.isEnabled()) {
+        // If this is not a $vectorSearch stage, views are banned entirely with the feature flag
+        // disabled.
+        uassert(ErrorCodes::NotImplemented,
+                str::stream() << "Extension stages are not allowed to run on a view namespace.",
+                isExtensionVectorSearchStage());
+
+        // If this is a $vectorSearch stage, we perform the IFR flag retry kickback to use legacy
+        // $vectorSearch instead.
+        uassertStatusOK(
+            Status(IFRFlagRetryInfo(feature_flags::gFeatureFlagVectorSearchExtension.getName()),
+                   "$vectorSearch-as-an-extension is not allowed against views."));
+    }
+
     return ViewPolicy{.policy = view_util::toFirstStageApplicationPolicy(
                           _astNode->getFirstStageViewApplicationPolicy()),
                       .callback = [this](const ViewInfo& viewInfo, StringData stageName) {
@@ -266,9 +282,9 @@ StageConstraints DocumentSourceExtensionOptimizable::constraints(
                                         PositionRequirement::kNone,
                                         HostTypeRequirement::kNone,
                                         DiskUseRequirement::kNoDiskUse,
-                                        FacetRequirement::kAllowed,
+                                        FacetRequirement::kNotAllowed,
                                         TransactionRequirement::kNotAllowed,
-                                        LookupRequirement::kAllowed,
+                                        LookupRequirement::kNotAllowed,
                                         UnionRequirement::kAllowed,
                                         ChangeStreamRequirement::kDenylist);
     constraints.canRunOnTimeseries = false;
@@ -286,12 +302,15 @@ StageConstraints DocumentSourceExtensionOptimizable::constraints(
     if (!_properties.getAllowedInUnionWith()) {
         constraints.unionRequirement = StageConstraints::UnionRequirement::kNotAllowed;
     }
-    if (!_properties.getAllowedInLookup()) {
-        constraints.lookupRequirement = StageConstraints::LookupRequirement::kNotAllowed;
-    }
-    if (!_properties.getAllowedInFacet()) {
-        constraints.facetRequirement = StageConstraints::FacetRequirement::kNotAllowed;
-    }
+    // TODO SERVER-117259 Enable extension stages in $lookup; change the default back to 'kAllowed'.
+    // if (!_properties.getAllowedInLookup()) {
+    //     constraints.lookupRequirement = StageConstraints::LookupRequirement::kNotAllowed;
+    // }
+
+    // TODO SERVER-117260 Enable extension stages in $facet; change the default back to 'kAllowed'.
+    // if (!_properties.getAllowedInFacet()) {
+    //     constraints.facetRequirement = StageConstraints::FacetRequirement::kNotAllowed;
+    // }
 
     return constraints;
 }
@@ -460,4 +479,25 @@ boost::intrusive_ptr<DocumentSource> DocumentSourceExtensionOptimizable::clone(
     return create(newExpCtx, _logicalStage->clone(), _properties);
 }
 
+DocumentSourceContainer::iterator DocumentSourceExtensionOptimizable::optimizeAt(
+    DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
+    // Attempt to remove a $sort on metadata if the extension stage is sorted by vector search
+    // score.
+    if (_logicalStage->isSortedByVectorSearchScore()) {
+        if (auto result = search_helpers::applyVectorSearchSortOptimization(itr, container)) {
+            return *result;
+        }
+    }
+    _limit = search_helpers::setVectorSearchLimitForOptimization(itr, container, _limit);
+    _logicalStage->setExtractedLimitVal(_limit);
+    return std::next(itr);
+}
 }  // namespace mongo::extension::host
+
+namespace mongo::rule_based_rewrites::pipeline {
+using DocumentSourceExtensionOptimizable =
+    mongo::extension::host::DocumentSourceExtensionOptimizable;
+REGISTER_RULES(DocumentSourceExtensionOptimizable,
+               OPTIMIZE_AT_RULE(DocumentSourceExtensionOptimizable));
+
+}  // namespace mongo::rule_based_rewrites::pipeline

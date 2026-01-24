@@ -56,7 +56,7 @@ typedef struct {
 } MongoExtensionAPIVersion;
 
 #define MONGODB_EXTENSION_API_MAJOR_VERSION 0
-#define MONGODB_EXTENSION_API_MINOR_VERSION 0
+#define MONGODB_EXTENSION_API_MINOR_VERSION 1
 
 // The current API version of the MongoDB extension.
 #define MONGODB_EXTENSION_API_VERSION                                            \
@@ -409,6 +409,21 @@ typedef struct MongoExtensionLogicalAggStageVTable {
      */
     MongoExtensionStatus* (*clone)(const MongoExtensionLogicalAggStage* logicalStage,
                                    MongoExtensionLogicalAggStage** output);
+
+    /**
+     * Populates outIsSortedByVectorSearchScore with true if the extension stage sorts by vector
+     * search score, false otherwise. Intended to be used by the extension $vectorSearch stage.
+     */
+    MongoExtensionStatus* (*is_stage_sorted_by_vector_search_score)(
+        const MongoExtensionLogicalAggStage* logicalStage, bool* outIsSortedByVectorSearchScore);
+
+    /**
+     * Populates extractedLimitVal with the extracted limit value for the $vectorSearch extension
+     * stage to use in its optimizations.
+     */
+    MongoExtensionStatus* (*set_vector_search_limit_for_optimization)(
+        MongoExtensionLogicalAggStage* logicalStage, long long* extractedLimitVal);
+
 } MongoExtensionLogicalAggStageVTable;
 
 /**
@@ -1128,6 +1143,15 @@ typedef struct MongoExtensionVTable {
  *
  * NOTE: You must define this symbol in your extension shared library and avoid name mangling (for
  * example, with 'extern "C"') so that the MongoDB server can find it at loadtime.
+ *
+ * IMPORTANT: We require that extensions throw exceptions using the HostServices' user_asserted()
+ * and tripwire_asserted() functions instead of throwing C++ exceptions across the API boundary.
+ * However, the HostServices is only initialized after this function is called (during the call
+ * to MongoExtension::initialize). Attempting to use HostServices in the body of
+ * get_mongodb_extension would result in a crash. Therefore, if your extension needs to report
+ * errors during get_mongodb_extension, you must build a "hand-crafted" MongoExtensionStatus object
+ * and return it directly from this function.
+ * TODO SERVER-115700: Fix this design limitation.
  */
 #define GET_MONGODB_EXTENSION_SYMBOL "get_mongodb_extension"
 typedef MongoExtensionStatus* (*get_mongo_extension_t)(

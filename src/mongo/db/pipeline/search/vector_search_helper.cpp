@@ -28,8 +28,13 @@
  */
 #include "mongo/db/pipeline/search/vector_search_helper.h"
 
+#include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/pipeline/document_source_single_document_transformation.h"
+#include "mongo/db/pipeline/document_source_sort.h"
 #include "mongo/db/pipeline/search/search_helper.h"
+#include "mongo/db/pipeline/skip_and_limit.h"
 #include "mongo/db/query/search/mongot_cursor.h"
+#include "mongo/db/transaction/internal_transaction_metrics.h"
 
 namespace mongo {
 namespace {
@@ -92,6 +97,105 @@ BSONObj getVectorSearchExplainResponse(const boost::intrusive_ptr<ExpressionCont
                                        executor::TaskExecutor* taskExecutor) {
     auto request = getRemoteCommandRequestForVectorSearchQuery(expCtx, spec);
     return mongot_cursor::getExplainResponse(expCtx.get(), request, taskExecutor);
+}
+
+bool findAndRemoveSortStage(DocumentSourceContainer::iterator idLookupReplaceRootItr,
+                            DocumentSourceContainer* container) {
+    auto isSortOnVectorSearchMeta = [](const SortPattern& sortPattern) -> bool {
+        return isSortOnSingleMetaField(sortPattern,
+                                       (1 << DocumentMetadataFields::MetaType::kVectorSearchScore));
+    };
+
+    auto sortItr = std::next(idLookupReplaceRootItr);
+    if (sortItr == container->end()) {
+        return false;
+    }
+
+    auto sortStage = dynamic_cast<DocumentSourceSort*>(sortItr->get());
+    if (!sortStage) {
+        return false;
+    }
+
+    // A $sort stage has been found directly after the desugared
+    // vectorSearch pipeline. $vectorSearch results are always sorted by
+    // 'vectorSearchScore', so if the $sort stage is also sorted by
+    // 'vectorSearchScore', the $sort stage is redundant and can safely be
+    // removed.
+    if (!(isSortOnVectorSearchMeta(sortStage->getSortKeyPattern()))) {
+        return false;
+    }
+    // Optimization successful.
+    container->remove(*sortItr);
+    return true;
+}
+
+bool findIdLookupOrReplaceRootStage(DocumentSource* currStage) {
+    if (dynamic_cast<DocumentSourceInternalSearchIdLookUp*>(currStage)) {
+        return true;
+    }
+    if (auto replaceRootStage =
+            dynamic_cast<DocumentSourceSingleDocumentTransformation*>(currStage);
+        replaceRootStage &&
+        replaceRootStage->getTransformerType() ==
+            TransformerInterface::TransformerType::kReplaceRoot) {
+        return true;
+    }
+    return false;
+}
+
+boost::optional<DocumentSourceContainer::iterator> applyVectorSearchSortOptimization(
+    DocumentSourceContainer::iterator itr, DocumentSourceContainer* container) {
+    // Attempt to remove a $sort stage that sorts by 'vectorSearchScore' directly after the
+    // $vectorSearch stage.
+    if (findAndRemoveSortStage(itr, container)) {
+        return itr;  // Return the same pointer in case there are other optimizations to still be
+                     // applied.
+    }
+
+    auto nextStageItr =
+        std::next(itr);  // The iterator `itr` is pointed at the $vectorSearch extension stage so
+    // when it is advanced, the returned iterator will point at the next
+    // stage (most likely either an idLookup or replaceRoot stage).
+
+    if (nextStageItr == container->end()) {
+        return boost::none;
+    }
+
+    // Attempt to remove a $sort stage that sorts by 'vectorSearchScore' directly after the
+    // desugared $vectorSearch stage.
+    if (findIdLookupOrReplaceRootStage(nextStageItr->get()) &&
+        findAndRemoveSortStage(nextStageItr, container)) {
+        return itr;  // Return the same pointer in case there are other optimizations to still be
+                     // applied.
+    }
+
+    return boost::none;
+}
+
+boost::optional<long long> setVectorSearchLimitForOptimization(
+    DocumentSourceContainer::iterator itr,
+    DocumentSourceContainer* container,
+    boost::optional<long long> currentLimit) {
+    auto nextStageItr =
+        std::next(itr);  // The iterator `itr` is pointed at the $vectorSearch extension stage
+                         // so when it is advanced, the returned iterator will point at the next
+                         // stage (most likely either an idLookup or replaceRoot stage).
+
+    // Only attempt to get the limit from the query if there are further stages in the pipeline.
+    if (nextStageItr == container->end()) {
+        return boost::none;
+    }
+
+    // Move past the $internalSearchIdLookup/$replaceRoot stage, if it is next.
+    if (findIdLookupOrReplaceRootStage(nextStageItr->get())) {
+        ++nextStageItr;
+    }
+
+    // Calculate the extracted limit without modifying the rest of the pipeline.
+    if (auto userLimit = getUserLimit(nextStageItr, container)) {
+        return currentLimit ? std::min(*currentLimit, *userLimit) : *userLimit;
+    }
+    return currentLimit;
 }
 }  // namespace search_helpers
 }  // namespace mongo

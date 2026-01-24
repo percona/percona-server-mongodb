@@ -39,6 +39,7 @@
 #include "mongo/db/extension/host_connector/adapter/host_services_adapter.h"
 #include "mongo/db/extension/sdk/aggregation_stage.h"
 #include "mongo/db/extension/sdk/host_services.h"
+#include "mongo/db/extension/sdk/query_shape_opts_handle.h"
 #include "mongo/db/extension/sdk/tests/fruits_test_stage.h"
 #include "mongo/db/extension/sdk/tests/shared_test_stages.h"
 #include "mongo/db/pipeline/aggregation_context_fixture.h"
@@ -46,6 +47,7 @@
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
+#include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/namespace_string_util.h"
@@ -267,7 +269,7 @@ public:
         return out;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts*) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
         return BSONObj();
     }
 
@@ -396,7 +398,7 @@ public:
         return out;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts*) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
         return {};
     }
 
@@ -425,7 +427,7 @@ public:
         return out;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts*) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
         return {};
     }
 
@@ -445,7 +447,7 @@ public:
 
     std::vector<VariantNodeHandle> expand() const override;
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts*) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
         return {};
     }
 
@@ -464,7 +466,7 @@ public:
 
     std::vector<VariantNodeHandle> expand() const override;
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts*) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
         return {};
     }
 
@@ -507,7 +509,7 @@ public:
         return out;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts*) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
         return {};
     }
 
@@ -552,49 +554,29 @@ DEATH_TEST_F(DocumentSourceExtensionOptimizableTestDeathTest,
         stageBson.firstElement(), std::move(rootHandle), _nss, LiteParserOptions{});
 }
 
-TEST_F(DocumentSourceExtensionOptimizableTest, ExpandAdjacentCycleFails) {
+DEATH_TEST_REGEX_F(DocumentSourceExtensionOptimizableTestDeathTest,
+                   ExpandAdjacentCycleFails,
+                   "10955801.*Cycle detected during stage expansion for "
+                   "stage.*\\$adjacentCycle.*\\$adjacentCycle -> \\$adjacentCycle") {
     auto* rootParseNode =
         new sdk::ExtensionAggStageParseNode(std::make_unique<AdjacentCycleParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(kAdjCycleName);
 
-    ASSERT_THROWS_WITH_CHECK(
-        [&] {
-            [[maybe_unused]] host::DocumentSourceExtensionOptimizable::LiteParsedExpandable lp(
-                stageBson.firstElement(), std::move(rootHandle), _nss, LiteParserOptions{});
-        }(),
-        AssertionException,
-        [](const AssertionException& ex) {
-            ASSERT_EQ(ex.code(), 10955801);
-            ASSERT_STRING_CONTAINS(ex.reason(),
-                                   str::stream()
-                                       << "Cycle detected during stage expansion for stage "
-                                       << std::string(kAdjCycleName));
-            ASSERT_STRING_CONTAINS(ex.reason(), "$adjacentCycle -> $adjacentCycle");
-            assertionCount.tripwire.subtractAndFetch(1);
-        });
+    [[maybe_unused]] host::DocumentSourceExtensionOptimizable::LiteParsedExpandable lp(
+        stageBson.firstElement(), std::move(rootHandle), _nss, LiteParserOptions{});
 }
 
-TEST_F(DocumentSourceExtensionOptimizableTest, ExpandNonAdjacentCycleFails) {
+DEATH_TEST_REGEX_F(DocumentSourceExtensionOptimizableTestDeathTest,
+                   ExpandNonAdjacentCycleFails,
+                   "10955801.*Cycle detected during stage expansion for "
+                   "stage.*\\$nodeB.*\\$nodeB -> \\$nodeA -> \\$nodeB") {
     auto* rootParseNode = new sdk::ExtensionAggStageParseNode(std::make_unique<NodeAParseNode>());
     AggStageParseNodeHandle rootHandle{rootParseNode};
     BSONObj stageBson = createDummySpecFromStageName(kNodeAName);
 
-    ASSERT_THROWS_WITH_CHECK(
-        [&] {
-            [[maybe_unused]] host::DocumentSourceExtensionOptimizable::LiteParsedExpandable lp(
-                stageBson.firstElement(), std::move(rootHandle), _nss, LiteParserOptions{});
-        }(),
-        AssertionException,
-        [](const AssertionException& ex) {
-            ASSERT_EQ(ex.code(), 10955801);
-            ASSERT_STRING_CONTAINS(ex.reason(),
-                                   str::stream()
-                                       << "Cycle detected during stage expansion for stage "
-                                       << std::string(kNodeBName));
-            ASSERT_STRING_CONTAINS(ex.reason(), "$nodeB -> $nodeA -> $nodeB");
-            assertionCount.tripwire.subtractAndFetch(1);
-        });
+    [[maybe_unused]] host::DocumentSourceExtensionOptimizable::LiteParsedExpandable lp(
+        stageBson.firstElement(), std::move(rootHandle), _nss, LiteParserOptions{});
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, ExpandSameStageOnDifferentBranchesSucceeds) {
@@ -647,7 +629,7 @@ public:
         return expanded;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts* ctx) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle& ctx) const override {
         return BSONObj();
     }
 
@@ -681,7 +663,7 @@ public:
         return expanded;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts* ctx) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle& ctx) const override {
         return BSONObj();
     }
 
@@ -712,7 +694,7 @@ public:
         return expanded;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts* ctx) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle& ctx) const override {
         return BSONObj();
     }
 
@@ -839,7 +821,7 @@ public:
         return expanded;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts* ctx) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle& ctx) const override {
         return BSONObj();
     }
 
@@ -2008,6 +1990,10 @@ TEST_F(DocumentSourceExtensionOptimizableTest, StageWithDefaultStaticProperties)
     ASSERT_FALSE(staticProperties.getRequiredMetadataFields().has_value());
     ASSERT_FALSE(staticProperties.getProvidedMetadataFields().has_value());
     ASSERT_TRUE(staticProperties.getAllowedInUnionWith());
+    // MongoExtensionStaticProperties has these as 'default: true' in the IDL even though we're
+    // disabling them by default in constraints(). This is because we don't want to be making
+    // changes to the API regarding enabling/disabling these subpipeline stages, rather we handle it
+    // on the host side.
     ASSERT_TRUE(staticProperties.getAllowedInLookup());
     ASSERT_TRUE(staticProperties.getAllowedInFacet());
 
@@ -2018,8 +2004,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, StageWithDefaultStaticProperties)
     ASSERT_TRUE(constraints.requiresInputDocSource);
     ASSERT_TRUE(constraints.consumesLogicalCollectionData);
     ASSERT_EQ(constraints.unionRequirement, StageConstraints::UnionRequirement::kAllowed);
-    ASSERT_EQ(constraints.lookupRequirement, StageConstraints::LookupRequirement::kAllowed);
-    ASSERT_EQ(constraints.facetRequirement, StageConstraints::FacetRequirement::kAllowed);
+    ASSERT_EQ(constraints.lookupRequirement, StageConstraints::LookupRequirement::kNotAllowed);
+    ASSERT_EQ(constraints.facetRequirement, StageConstraints::FacetRequirement::kNotAllowed);
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, SearchLikeStageWithSourceStageStaticProperties) {
@@ -2306,7 +2292,7 @@ public:
         return out;
     }
 
-    BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts*) const override {
+    BSONObj getQueryShape(const sdk::QueryShapeOptsHandle&) const override {
         return BSON(std::string(kStageName) << BSONObj());
     }
 
@@ -2451,6 +2437,8 @@ void testViewPolicyHelper(const NamespaceString& nss,
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        LiteParsedExpandedGetViewPolicyWithDefaultPrependAndCallback) {
+    RAIIServerParameterControllerForTest featureFlag{"featureFlagExtensionViewsAndUnionWith", true};
+
     const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"_sd);
     testViewPolicyHelper(
         _nss,
@@ -2461,6 +2449,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        LiteParsedExpandedGetViewPolicyWithDoNothingAndCallback) {
+    RAIIServerParameterControllerForTest featureFlag{"featureFlagExtensionViewsAndUnionWith", true};
+
     const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"_sd);
     testViewPolicyHelper(
         _nss,

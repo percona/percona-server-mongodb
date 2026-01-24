@@ -33,6 +33,7 @@
 #include "mongo/db/extension/sdk/distributed_plan_logic.h"
 #include "mongo/db/extension/sdk/operation_metrics_adapter.h"
 #include "mongo/db/extension/sdk/query_execution_context_handle.h"
+#include "mongo/db/extension/sdk/query_shape_opts_handle.h"
 #include "mongo/db/extension/sdk/raii_vector_to_abi_array.h"
 #include "mongo/db/extension/shared/byte_buf.h"
 #include "mongo/db/extension/shared/extension_status.h"
@@ -75,12 +76,34 @@ public:
     virtual std::unique_ptr<ExecAggStageBase> compile() const = 0;
     virtual boost::optional<DistributedPlanLogic> getDistributedPlanLogic() const = 0;
     virtual std::unique_ptr<LogicalAggStage> clone() const = 0;
+    // Extension stages (like $vectorSearch) that do sort by vector search score should override
+    // this and return true.
+    virtual bool isSortedByVectorSearchScore() const {
+        return false;
+    }
+
+    void setExtractedLimitVal(boost::optional<long long> extractedLimitVal) {
+        _limit = extractedLimitVal;
+    }
+
+    /**
+     * This is only intended to be used by the $vectorSearch extension stage for the following 2
+     * purposes:
+     * 1. The extension $vectorSearch should add a $limit to its DistributedPlanLogic’s merging
+     * pipeline.
+     * 2. The extension $vectorSearch can use the limit to compute the numCandidates:limit ratio
+     * metric.
+     */
+    boost::optional<long long> getExtractedLimitVal() const {
+        return _limit;
+    }
 
 protected:
     LogicalAggStage() = delete;  // No default constructor.
     explicit LogicalAggStage(std::string_view name) : _name(name) {}
 
     const std::string _name;
+    boost::optional<long long> _limit;
 };
 
 /**
@@ -109,7 +132,7 @@ public:
     ExtensionLogicalAggStage(ExtensionLogicalAggStage&&) = delete;
     ExtensionLogicalAggStage& operator=(ExtensionLogicalAggStage&&) = delete;
 
-    const LogicalAggStage& getImpl() const noexcept {
+    LogicalAggStage& getImpl() const noexcept {
         return *_stage;
     }
 
@@ -181,6 +204,25 @@ private:
         });
     }
 
+    static ::MongoExtensionStatus* _extIsStageSortedByVectorSearchScore(
+        const ::MongoExtensionLogicalAggStage* extLogicalStage,
+        bool* outIsSortedByVectorSearchScore) {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            const auto& impl =
+                static_cast<const ExtensionLogicalAggStage*>(extLogicalStage)->getImpl();
+            *outIsSortedByVectorSearchScore = impl.isSortedByVectorSearchScore();
+        });
+    }
+
+    static ::MongoExtensionStatus* _extSetVectorSearchLimitForOptimization(
+        ::MongoExtensionLogicalAggStage* extLogicalStage, long long* extractedLimitVal) {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            auto& impl = static_cast<ExtensionLogicalAggStage*>(extLogicalStage)->getImpl();
+            impl.setExtractedLimitVal(
+                extractedLimitVal ? boost::optional<long long>(*extractedLimitVal) : boost::none);
+        });
+    }
+
     static constexpr ::MongoExtensionLogicalAggStageVTable VTABLE = {
         .destroy = &_extDestroy,
         .get_name = &_extGetName,
@@ -188,7 +230,9 @@ private:
         .explain = &_extExplain,
         .compile = &_extCompile,
         .get_distributed_plan_logic = &_extGetDistributedPlanLogic,
-        .clone = &_extClone};
+        .clone = &_extClone,
+        .is_stage_sorted_by_vector_search_score = &_extIsStageSortedByVectorSearchScore,
+        .set_vector_search_limit_for_optimization = &_extSetVectorSearchLimitForOptimization};
     std::unique_ptr<LogicalAggStage> _stage;
 };
 
@@ -364,7 +408,7 @@ public:
         return _name;
     }
 
-    virtual BSONObj getQueryShape(const ::MongoExtensionHostQueryShapeOpts* ctx) const = 0;
+    virtual BSONObj getQueryShape(const QueryShapeOptsHandle& ctx) const = 0;
 
     virtual size_t getExpandedSize() const = 0;
 

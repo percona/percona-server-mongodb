@@ -33,6 +33,7 @@
 #include "mongo/db/query/compiler/optimizer/join/catalog_stats.h"
 #include "mongo/db/query/compiler/optimizer/join/join_cost_estimator.h"
 #include "mongo/db/query/compiler/optimizer/join/join_estimates.h"
+#include "mongo/db/query/compiler/optimizer/join/join_plan.h"
 
 namespace mongo::join_ordering {
 
@@ -49,8 +50,16 @@ public:
     JoinCostEstimatorImpl& operator=(JoinCostEstimatorImpl&&) = delete;
 
     JoinCostEstimate costCollScanFragment(NodeId nodeId) override;
+    JoinCostEstimate costIndexScanFragment(NodeId nodeId) override;
+    JoinCostEstimate costHashJoinFragment(const JoinPlanNode& left,
+                                          const JoinPlanNode& right) override;
+    JoinCostEstimate costINLJFragment(const JoinPlanNode& left,
+                                      NodeId right,
+                                      std::shared_ptr<const IndexCatalogEntry> indexProbe) override;
 
 private:
+    double estimateDocSize(NodeSet subset) const;
+
     const JoinReorderingContext& _jCtx;
     JoinCardinalityEstimator& _cardinalityEstimator;
     const CatalogStats& _catalogStats;

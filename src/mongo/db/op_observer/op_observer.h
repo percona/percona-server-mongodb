@@ -86,13 +86,17 @@ struct OpTimeBundle {
 struct OpStateAccumulator : Decorable<OpStateAccumulator> {
     OpStateAccumulator() = default;
 
-    // Use either 'opTime' for non-insert operations or 'insertOpTimes', but not both.
+    // Use either 'opTime' for single operations or 'batchOpTimes' for operations wrapped in
+    // applyOps.
     OpTimeBundle opTime;
-    std::vector<repl::OpTime> insertOpTimes;
+    std::vector<repl::OpTime> batchOpTimes;
 
     // Temporary pre/post image information for a retryable findAndModify operation to be written
     // to the image collection (config.image_collection).
     boost::optional<repl::ReplOperation::ImageBundle> retryableFindAndModifyImageToWrite;
+
+    // ApplyOpsEntries used for changestreams with batched writes.
+    std::vector<TransactionOperations::ApplyOpsInfo::ApplyOpsEntry> applyOpsEntries;
 
 private:
     OpStateAccumulator(const OpStateAccumulator&) = delete;
@@ -752,12 +756,10 @@ public:
      * Logs an single oplog entry, so that all changes done for the upgrade/downgrade (create/drop
      * view, rename system.buckets, metadata fixup) are replicated and applied atomically.
      *
-     * The resulting format is the one consistent with the FCV; i.e. it is an upgrade if the
-     * viewless timeseries feature flag is enabled, and a downgrade if it is disabled.
-     *
      * `nss` is the main namespace (i.e. without the 'system.buckets' prefix).
      * `uuid` is the UUID associated of the time series collection.
      * For viewful time series collections, that is the UUID of the system.buckets collection.
+     * `isUpgrade` is true when upgrading to viewless, false when downgrading to viewful.
      * `skipViewCreation` when true, indicates that the view should not be created during
      * downgrade. This is used for non-primary shards in a sharded cluster, where only the
      * primary shard of the database should have the view.
@@ -767,6 +769,7 @@ public:
     virtual void onUpgradeDowngradeViewlessTimeseries(OperationContext* opCtx,
                                                       const NamespaceString& nss,
                                                       const UUID& uuid,
+                                                      bool isUpgrade,
                                                       bool skipViewCreation = false) = 0;
 
     struct Times;

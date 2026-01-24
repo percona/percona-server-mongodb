@@ -80,6 +80,18 @@ public:
      */
     LogicalAggStageHandle clone() const;
 
+    /**
+     * Returns true if the stage sorts by vector search score, false otherwise.
+     */
+    bool isSortedByVectorSearchScore() const;
+
+    /**
+     * Propagates the extracted limit value if it exists across the boundary, otherwise propagates
+     * nullptr. This is needed by the $vectorSearch extension stage in order for it to apply its
+     * optimizations requiring a limit value.
+     */
+    void setExtractedLimitVal(boost::optional<long long> extractedLimitVal);
+
     static void assertVTableConstraints(const VTable_t& vtable) {
         tassert(
             11420603, "ExtensionLogicalAggStage 'get_name' is null", vtable.get_name != nullptr);
@@ -91,6 +103,12 @@ public:
                 "ExtensionLogicalAggStage 'get_distributed_plan_logic' is null",
                 vtable.get_distributed_plan_logic != nullptr);
         tassert(11713400, "ExtensionLogicalAggStage 'clone' is null", vtable.clone != nullptr);
+        tassert(11543600,
+                "ExtensionLogicalAggStage 'is_stage_sorted_by_vector_search_score' is null",
+                vtable.is_stage_sorted_by_vector_search_score != nullptr);
+        tassert(11553300,
+                "ExtensionLogicalAggStage 'set_vector_search_limit_for_optimization' is null",
+                vtable.set_vector_search_limit_for_optimization != nullptr);
     }
 };
 

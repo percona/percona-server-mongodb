@@ -195,10 +195,18 @@ export function normalizePlan(plan, flatten = true) {
     }
 
     // Expand this array if you find new fields which are inconsistent across different test runs.
-    const ignoreFields = ["isCached", "indexVersion", "planNodeId"];
+    const ignoreFields = [
+        "isCached",
+        "indexVersion",
+        "planNodeId",
+        "cardinalityEstimate",
+        "costEstimate",
+        "estimatesMetadata",
+    ];
 
     // Iterates over the plan while ignoring the `ignoreFields`, to create flattened stages whenever
     // `kExplainChildFieldNames` are encountered.
+    ignoreFields.forEach((field) => delete plan[field]);
     const stack = [["root", {...plan}]];
     while (stack.length > 0) {
         const [name, next] = stack.pop();
@@ -655,6 +663,29 @@ export function getShardQueryPlans(root) {
     }
 
     return result;
+}
+
+/**
+ * Returns a boolean that indicates if the explain showed that join optimization was used.
+ */
+export function joinOptUsed(explain) {
+    const winningPlanStats = getQueryPlanner(explain).winningPlan;
+
+    if (winningPlanStats.usedJoinOptimization === false) {
+        return false;
+    }
+    /**
+     * TODO SERVER-116227 remove stage checking logic once usedJoinOptimization flag is present in express-eligible queries
+     */
+    const stages = getAllPlanStages(getWinningPlanFromExplain(explain)).map((stage) => stage.stage);
+    const joinOptimzierStages = [
+        "NESTED_LOOP_JOIN_EMBEDDING",
+        "HASH_JOIN_EMBEDDING",
+        "INDEXED_NESTED_LOOP_JOIN_EMBEDDING",
+    ];
+    return (
+        winningPlanStats.usedJoinOptimization === true && stages.some((stage) => joinOptimzierStages.includes(stage))
+    );
 }
 
 /**

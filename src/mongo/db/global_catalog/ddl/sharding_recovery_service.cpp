@@ -135,7 +135,8 @@ void ShardingRecoveryService::acquireRecoverableCriticalSectionBlockWrites(
     const NamespaceString& nss,
     const BSONObj& reason,
     const WriteConcernOptions& writeConcern,
-    bool clearDbMetadata) {
+    bool clearDbMetadata,
+    boost::optional<Milliseconds> lockAcquisitionTimeout) {
     LOGV2_DEBUG(5656600,
                 3,
                 "Acquiring recoverable critical section blocking writes",
@@ -151,20 +152,25 @@ void ShardingRecoveryService::acquireRecoverableCriticalSectionBlockWrites(
             !shard_role_details::getLocker(opCtx)->isLocked());
 
     {
-        Lock::GlobalLock lk(opCtx, MODE_IX);
+        const auto lockAcquisitionDeadline = lockAcquisitionTimeout
+            ? opCtx->getServiceContext()->getPreciseClockSource()->now() + *lockAcquisitionTimeout
+            : Date_t::max();
+
+        Lock::GlobalLock lk(
+            opCtx, MODE_IX, lockAcquisitionDeadline, Lock::InterruptBehavior::kThrow);
         boost::optional<Lock::DBLock> dbLock;
         boost::optional<Lock::CollectionLock> collLock;
         if (nss.isDbOnly()) {
             tassert(8096300,
                     "Cannot acquire critical section on the config database",
                     !nss.isConfigDB());
-            dbLock.emplace(opCtx, nss.dbName(), MODE_S);
+            dbLock.emplace(opCtx, nss.dbName(), MODE_S, lockAcquisitionDeadline);
         } else {
             // Take the 'config' database lock in mode IX to prevent lock upgrade when we later
             // write to kCollectionCriticalSectionsNamespace.
-            dbLock.emplace(opCtx, nss.dbName(), nss.isConfigDB() ? MODE_IX : MODE_IS);
-
-            collLock.emplace(opCtx, nss, MODE_S);
+            dbLock.emplace(
+                opCtx, nss.dbName(), nss.isConfigDB() ? MODE_IX : MODE_IS, lockAcquisitionDeadline);
+            collLock.emplace(opCtx, nss, MODE_S, lockAcquisitionDeadline);
         }
 
         DBDirectClient dbClient(opCtx);
@@ -256,7 +262,8 @@ void ShardingRecoveryService::promoteRecoverableCriticalSectionToBlockAlsoReads(
     OperationContext* opCtx,
     const NamespaceString& nss,
     const BSONObj& reason,
-    const WriteConcernOptions& writeConcern) {
+    const WriteConcernOptions& writeConcern,
+    boost::optional<Milliseconds> lockAcquisitionTimeout) {
     LOGV2_DEBUG(5656603,
                 3,
                 "Promoting recoverable critical section to also block reads",
@@ -272,13 +279,17 @@ void ShardingRecoveryService::promoteRecoverableCriticalSectionToBlockAlsoReads(
             !shard_role_details::getLocker(opCtx)->isLocked());
 
     {
+        const auto lockAcquisitionDeadline = lockAcquisitionTimeout
+            ? opCtx->getServiceContext()->getPreciseClockSource()->now() + *lockAcquisitionTimeout
+            : Date_t::max();
+
         boost::optional<Lock::DBLock> dbLock;
         boost::optional<Lock::CollectionLock> collLock;
         if (nss.isDbOnly()) {
-            dbLock.emplace(opCtx, nss.dbName(), MODE_X);
+            dbLock.emplace(opCtx, nss.dbName(), MODE_X, lockAcquisitionDeadline);
         } else {
-            dbLock.emplace(opCtx, nss.dbName(), MODE_IX);
-            collLock.emplace(opCtx, nss, MODE_X);
+            dbLock.emplace(opCtx, nss.dbName(), MODE_IX, lockAcquisitionDeadline);
+            collLock.emplace(opCtx, nss, MODE_X, lockAcquisitionDeadline);
         }
 
         DBDirectClient dbClient(opCtx);
@@ -568,9 +579,9 @@ void ShardingRecoveryService::_recoverRecoverableCriticalSections(OperationConte
                 Lock::DBLock dbLock{opCtx, nss.dbName(), MODE_X, Date_t::max(), dbLockOptions};
                 auto scopedDsr =
                     DatabaseShardingRuntime::assertDbLockedAndAcquireExclusive(opCtx, nss.dbName());
-                scopedDsr->enterCriticalSectionCatchUpPhase(doc.getReason());
+                scopedDsr->enterCriticalSectionCatchUpPhase(opCtx, doc.getReason());
                 if (doc.getBlockReads()) {
-                    scopedDsr->enterCriticalSectionCommitPhase(doc.getReason());
+                    scopedDsr->enterCriticalSectionCommitPhase(opCtx, doc.getReason());
                 }
             } else {
                 Lock::DBLock dbLock{opCtx, nss.dbName(), MODE_IX, Date_t::max(), dbLockOptions};
@@ -578,9 +589,9 @@ void ShardingRecoveryService::_recoverRecoverableCriticalSections(OperationConte
                 auto scopedCsr =
                     CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx,
                                                                                          nss);
-                scopedCsr->enterCriticalSectionCatchUpPhase(doc.getReason());
+                scopedCsr->enterCriticalSectionCatchUpPhase(opCtx, doc.getReason());
                 if (doc.getBlockReads()) {
-                    scopedCsr->enterCriticalSectionCommitPhase(doc.getReason());
+                    scopedCsr->enterCriticalSectionCommitPhase(opCtx, doc.getReason());
                 }
             }
 
@@ -633,7 +644,7 @@ void ShardingRecoveryService::_resetInMemoryStates(OperationContext* opCtx) {
         Lock::CollectionLock collLock{opCtx, nss, MODE_IX};
         auto scopedCsr =
             CollectionShardingRuntime::assertCollectionLockedAndAcquireExclusive(opCtx, nss);
-        scopedCsr->exitCriticalSectionNoChecks();
+        scopedCsr->exitCriticalSectionNoChecks(opCtx);
     }
 
     // ShardingRecoveryService can bypass the critical section to recover database metadata as there
@@ -644,7 +655,7 @@ void ShardingRecoveryService::_resetInMemoryStates(OperationContext* opCtx) {
     for (const auto& dbName : DatabaseShardingState::getDatabaseNames(opCtx)) {
         Lock::DBLock dbLock{opCtx, dbName, MODE_X, Date_t::max(), dbLockOptions};
         auto scopedDsr = DatabaseShardingRuntime::assertDbLockedAndAcquireExclusive(opCtx, dbName);
-        scopedDsr->exitCriticalSectionNoChecks();
+        scopedDsr->exitCriticalSectionNoChecks(opCtx);
         scopedDsr->clearDbMetadata(opCtx);
     }
 

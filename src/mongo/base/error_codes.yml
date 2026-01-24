@@ -813,7 +813,7 @@ error_codes:
       categories: [InternalOnly],
     }
   - {code: 375, name: TransactionAPIMustRetryCommit, categories: [InternalOnly]}
-  - {code: 376, name: ChangeStreamNotEnabled}
+  # - {code: 376, name: ChangeStreamNotEnabled} # Removed in v8.3
   - {code: 377, name: FLEMaxTagLimitExceeded}
   - {code: 378, name: NonConformantBSON, categories: [ValidationError]}
 
@@ -870,7 +870,7 @@ error_codes:
 
   - {code: 400, name: CannotUpgrade}
 
-  - {code: 401, name: ResumeTenantChangeStream}
+  # - {code: 401, name: ResumeTenantChangeStream} # Removed in v8.3
 
   - {code: 402, name: ResourceExhausted, categories: [RetriableError]}
 
@@ -1152,6 +1152,12 @@ error_codes:
 
   # Planner errors
   - {code: 482, name: MaxNumberOfOrPlansExceeded}
+
+  - {
+      code: 483,
+      name: OpCtxKilledOnMarkKillOpsExempt,
+      categories: [CancellationError, InternalOnly],
+    }
 
   # ^^^^
   # Add new codes, sequentially numbered, above.

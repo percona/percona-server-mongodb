@@ -30,6 +30,7 @@
 #pragma once
 
 #include "mongo/db/query/compiler/optimizer/join/join_estimates.h"
+#include "mongo/db/query/compiler/optimizer/join/join_plan.h"
 #include "mongo/db/query/compiler/optimizer/join/logical_defs.h"
 
 namespace mongo::join_ordering {
@@ -51,6 +52,30 @@ public:
      * collection scan; it is the caller's responsibility to ensure this is the case.
      */
     virtual JoinCostEstimate costCollScanFragment(NodeId) = 0;
+
+    /**
+     * Estimate the cost of a single table index scan plan fragment. This function assumes that the
+     * given 'NodeId' corresponds to a node in the JoinGraph whose single table access path is an
+     * index scan followed by a fetch; it is caller's responsibility to ensure this is the case.
+     *
+     * TODO SERVER-117506: Once we support projections and start producing covered plans, we will
+     * need to modify this function.
+     */
+    virtual JoinCostEstimate costIndexScanFragment(NodeId) = 0;
+
+    /**
+     * Estimate the cost of a hash join plan fragment.
+     */
+    virtual JoinCostEstimate costHashJoinFragment(const JoinPlanNode& left,
+                                                  const JoinPlanNode& right) = 0;
+
+    /**
+     * Estimate the cost of an indexed nested loop join plan fragment.
+     */
+    virtual JoinCostEstimate costINLJFragment(
+        const JoinPlanNode& left,
+        NodeId right,
+        std::shared_ptr<const IndexCatalogEntry> indexProbe) = 0;
 };
 
 }  // namespace mongo::join_ordering

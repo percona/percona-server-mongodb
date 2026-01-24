@@ -34,6 +34,7 @@
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/database_name.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/op_observer/batched_write_context.h"
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/oplog.h"
@@ -513,13 +514,16 @@ public:
         const ApplyOpsOplogSlotAndOperationAssignment& applyOpsOperationAssignment,
         OpStateAccumulator* opAccumulator = nullptr) override {
         ReservedTimes times{opCtx};
-        OpStateAccumulator opStateAccumulator;
+        OpStateAccumulator fallbackOpStateAccumulator;
+        if (!opAccumulator) {
+            opAccumulator = &fallbackOpStateAccumulator;
+        }
         for (auto& o : _observers)
             o->onUnpreparedTransactionCommit(opCtx,
                                              reservedSlots,
                                              transactionOperations,
                                              applyOpsOperationAssignment,
-                                             &opStateAccumulator);
+                                             opAccumulator);
     }
 
     void onPreparedTransactionCommit(OperationContext* opCtx,
@@ -604,6 +608,16 @@ public:
                               OpStateAccumulator* opAccumulator = nullptr) override {
         ReservedTimes times{opCtx};
         OpStateAccumulator opStateAccumulator;
+
+        auto& batchedWriteContext = BatchedWriteContext::get(opCtx);
+        // After the commit, make sure the batch is clear so we don't attempt to commit the same
+        // operations twice.  The BatchedWriteContext is attached to the operation context, so
+        // multiple sequential WriteUnitOfWork blocks can use the same batch context.
+        ON_BLOCK_EXIT([&] {
+            batchedWriteContext.clearBatchedOperations(opCtx);
+            batchedWriteContext.setWritesAreBatched(false);
+        });
+
         for (auto& o : _observers) {
             o->onBatchedWriteCommit(opCtx, oplogGroupingFormat, &opStateAccumulator);
         }
@@ -655,10 +669,11 @@ public:
     void onUpgradeDowngradeViewlessTimeseries(OperationContext* opCtx,
                                               const NamespaceString& nss,
                                               const UUID& uuid,
+                                              bool isUpgrade,
                                               bool skipViewCreation = false) override {
         ReservedTimes times{opCtx};
         for (auto& o : _observers)
-            o->onUpgradeDowngradeViewlessTimeseries(opCtx, nss, uuid, skipViewCreation);
+            o->onUpgradeDowngradeViewlessTimeseries(opCtx, nss, uuid, isUpgrade, skipViewCreation);
     }
 
 private:

@@ -30,12 +30,16 @@ variables:
       - rhel-8-arm64
       - rhel93
       - rhel93-arm64
+      - rhel10-64-bit
+      - rhel10-arm64
       - enterprise-rhel-8-64-bit
       - enterprise-rhel-8-64-bit-suggested # For testing selinux.
       - enterprise-rhel-8-arm64
       - enterprise-rhel-83-s390x
       - enterprise-rhel-93-64-bit
       - enterprise-rhel-93-arm64
+      - enterprise-rhel-10-64-bit
+      - enterprise-rhel-10-arm64
       - suse15
       - enterprise-suse15-64
       - ubuntu2004-arm64
@@ -320,7 +324,7 @@ functions:
       aws_secret: ${aws_secret}
       remote_file: ${mongo_binaries}
       bucket: mciuploads
-      local_file: src/mongo-binaries.tgz
+      local_file: ${local_file|src/mongo-binaries.tgz}
 
   "fetch binaries zstd": &fetch_binaries_zstd
     command: s3.get
@@ -641,8 +645,8 @@ functions:
       local_file: src/bazel-bin/dist-test-debug.${ext|tgz}
       remote_file: ${mongo_debugsymbols}
       bucket: mciuploads
-      permissions: ${mciuploads_binary_permissions|public-read}
-      visibility: ${mciuploads_binary_visibility|public}
+      permissions: ${mciuploads_binary_permissions|private}
+      visibility: ${mciuploads_binary_visibility|signed}
       content_type: ${content_type|application/gzip}
       display_name: mongo-debugsymbols.${ext|tgz}
 
@@ -1171,6 +1175,44 @@ functions:
           - "../expansions.yml"
           - "--output-file=../streams_build_and_push.json"
           - "--push=true"
+    - command: s3.put
+      display_name: "upload streams_build_and_push.json"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: streams_build_and_push.json
+        remote_file: ${project}/${build_variant}/${revision}/streams_build_and_push/${task_name}-${build_id}.json
+        bucket: mciuploads
+        permissions: public-read
+        content_type: application/gzip
+        display_name: Generated Task Config - Execution ${execution}
+    - command: generate.tasks
+      display_name: "generate.tasks streams_build_and_push.json"
+      params:
+        files:
+          - streams_build_and_push.json
+
+  "streams skip tests build and push":
+    - command: manifest.load
+    - *git_get_shallow_project
+    - *f_expansions_write
+    - *restore_git_history_and_tags
+    - *add_git_tag
+    - *kill_processes
+    - *cleanup_environment
+    - *set_up_venv
+    - *upload_pip_requirements
+    - *configure_evergreen_api_credentials
+    - command: subprocess.exec
+      params:
+        binary: bash
+        args:
+          - "src/evergreen/run_python_script.sh"
+          - "buildscripts/evergreen_gen_streams_build_and_push_task.py"
+          - "../expansions.yml"
+          - "--output-file=../streams_build_and_push.json"
+          - "--push=true"
+          - "--skip-tests=true"
     - command: s3.put
       display_name: "upload streams_build_and_push.json"
       params:
@@ -2959,8 +3001,8 @@ functions:
       local_file: mongo-tests.tgz
       remote_file: ${project}/${build_variant}/${revision}/tests/mongo-tests-${build_id}-${task_name}-${execution}.tgz
       bucket: mciuploads
-      permissions: ${mciuploads_binary_permissions|public-read}
-      visibility: ${mciuploads_binary_visibility|public}
+      permissions: ${mciuploads_binary_permissions|private}
+      visibility: ${mciuploads_binary_visibility|signed}
       content_type: application/gzip
       display_name: Test binaries and libraries - Execution ${execution}
       optional: true
@@ -3073,8 +3115,8 @@ functions:
       local_file: src/mongo-hanganalyzer.tgz
       remote_file: ${project}/${build_variant}/${revision}/hanganalyzer/mongo-hanganalyzer-${build_id}-${task_name}-${execution}.tgz
       bucket: mciuploads
-      permissions: ${mciuploads_binary_permissions|public-read}
-      visibility: ${mciuploads_binary_visibility|public}
+      permissions: ${mciuploads_binary_permissions|private}
+      visibility: ${mciuploads_binary_visibility|signed}
       content_type: application/gzip
       display_name: Hang Analyzer Output - Execution ${execution}
       optional: true
