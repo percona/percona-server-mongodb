@@ -34,6 +34,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/sorter/sorter.h"
 #include "mongo/db/storage/container.h"
+#include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/recovery_unit.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/util/assert_util.h"
@@ -58,8 +59,15 @@ public:
     ContainerIterator(std::shared_ptr<IntegerKeyedContainer::Cursor> cursor,
                       int64_t start,
                       int64_t end,
-                      Iterator<Key, Value>::Settings settings)
-        : _cursor(std::move(cursor)), _position(start), _end(end), _settings(std::move(settings)) {}
+                      Iterator<Key, Value>::Settings settings,
+                      const size_t checksum,
+                      const SorterChecksumVersion checksumVersion)
+        : _cursor(std::move(cursor)),
+          _position(start),
+          _end(end),
+          _settings(std::move(settings)),
+          _checksumCalculator(checksumVersion),
+          _originalChecksum(checksum) {}
 
     bool more() override {
         return _position < _end;
@@ -73,6 +81,9 @@ public:
         ++_position;
 
         BufReader reader{result->data(), static_cast<unsigned>(result->size())};
+        _checksumCalculator.addData(result->data(), result->size());
+        _compareChecksums();
+
         return {Key::deserializeForSorter(reader, _settings.first),
                 Value::deserializeForSorter(reader, _settings.second)};
     }
@@ -86,6 +97,9 @@ public:
                 result);
 
         BufReader reader{result->data(), static_cast<unsigned>(result->size())};
+        _checksumCalculator.addData(result->data(), result->size());
+        _compareChecksums();
+
         auto key = Key::deserializeForSorter(reader, _settings.first);
         _keySize = reader.offset();
 
@@ -125,11 +139,30 @@ public:
     }
 
 private:
+    void _compareChecksums() {
+        if (_position >= _end && _originalChecksum != _checksumCalculator.checksum()) {
+            fassert(11605900,
+                    Status(ErrorCodes::Error::ChecksumMismatch,
+                           "Data read from container does not match what was written to container. "
+                           "Possible corruption of data."));
+        }
+    }
+
     std::shared_ptr<IntegerKeyedContainer::Cursor> _cursor;
     int64_t _position;
     int64_t _end;
     Iterator<Key, Value>::Settings _settings;
     boost::optional<size_t> _keySize;
+
+    // Checksum value that is updated with each read of a data object from a container. We can
+    // compare this value with _originalChecksum to check for data corruption if and only if the
+    // ContainerIterator is exhausted.
+    SorterChecksumCalculator _checksumCalculator;
+
+    // Checksum value retrieved from SortedContainerWriter that was calculated as data was spilled
+    // to disk. This is not modified, and is only used for comparison against _afterReadChecksum
+    // when the ContainerIterator is exhausted to ensure no data corruption.
+    const size_t _originalChecksum;
 };
 
 /**
@@ -139,9 +172,7 @@ template <typename Key, typename Value>
 class SortedContainerWriter final : public SortedStorageWriter<Key, Value> {
 public:
     typedef sorter::Iterator<Key, Value> Iterator;
-    typedef std::pair<typename Key::SorterDeserializeSettings,
-                      typename Value::SorterDeserializeSettings>
-        Settings;
+    using Settings = SortedStorageWriter<Key, Value>::Settings;
 
     SortedContainerWriter(OperationContext& opCtx,
                           RecoveryUnit& ru,
@@ -150,7 +181,7 @@ public:
                           SorterContainerStats& containerStats,
                           const SortOptions& opts,
                           int64_t nextKey,
-                          const Settings& settings = Settings())
+                          const Settings& settings)
         : SortedStorageWriter<Key, Value>(opts, settings),
           _opCtx(opCtx),
           _ru(ru),
@@ -186,12 +217,20 @@ public:
     }
 
     std::shared_ptr<Iterator> done() override {
-        return std::make_shared<ContainerIterator<Key, Value>>(
-            _container.getSharedCursor(_ru), _rangeStartKey, _nextKey, this->_settings);
+        return std::make_shared<ContainerIterator<Key, Value>>(_container.getSharedCursor(_ru),
+                                                               _rangeStartKey,
+                                                               _nextKey,
+                                                               this->_settings,
+                                                               this->_checksumCalculator.checksum(),
+                                                               this->_checksumCalculator.version());
     }
     std::unique_ptr<Iterator> doneUnique() override {
-        return std::make_unique<ContainerIterator<Key, Value>>(
-            _container.getSharedCursor(_ru), _rangeStartKey, _nextKey, this->_settings);
+        return std::make_unique<ContainerIterator<Key, Value>>(_container.getSharedCursor(_ru),
+                                                               _rangeStartKey,
+                                                               _nextKey,
+                                                               this->_settings,
+                                                               this->_checksumCalculator.checksum(),
+                                                               this->_checksumCalculator.version());
     }
 
     void writeChunk() override {};
@@ -204,6 +243,75 @@ private:
     SorterContainerStats& _containerStats;
     int64_t _nextKey;
     int64_t _rangeStartKey;
+};
+
+template <typename Key, typename Value>
+class ContainerBasedSorterStorage : public SorterStorageBase<Key, Value> {
+public:
+    using Settings = SorterStorageBase<Key, Value>::Settings;
+
+    ContainerBasedSorterStorage(OperationContext& opCtx,
+                                RecoveryUnit& ru,
+                                const CollectionPtr& collection,
+                                IntegerKeyedContainer& container,
+                                int64_t currKey,
+                                boost::optional<DatabaseName> dbName = boost::none,
+                                SorterChecksumVersion checksumVersion = SorterChecksumVersion::v2)
+        : SorterStorageBase<Key, Value>(std::move(dbName), checksumVersion),
+          _opCtx(opCtx),
+          _ru(ru),
+          _collection(collection),
+          _container(container),
+          _currKey(currKey) {}
+
+    std::unique_ptr<SortedStorageWriter<Key, Value>> makeWriter(const SortOptions& opts,
+                                                                const Settings& settings) override {
+        return std::make_unique<sorter::SortedContainerWriter<Key, Value>>(
+            _opCtx, _ru, _collection, _container, opts, _currKey, settings);
+    };
+
+    std::shared_ptr<sorter::Iterator<Key, Value>> makeIterator(
+        std::unique_ptr<SortedStorageWriter<Key, Value>> writer) override {
+        return writer->doneUnique();
+    }
+
+    std::unique_ptr<sorter::Iterator<Key, Value>> makeIteratorUnique(
+        std::unique_ptr<SortedStorageWriter<Key, Value>> writer) override;
+
+    size_t getIteratorSize() override {
+        return sizeof(sorter::ContainerIterator<Key, Value>);
+    };
+
+    std::shared_ptr<sorter::Iterator<Key, Value>> getSortedIterator(
+        const SorterRange& range, const Settings& settings) override {
+        MONGO_UNIMPLEMENTED_TASSERT(11374700);
+    };
+
+    std::string getStorageIdentifier() override {
+        MONGO_UNIMPLEMENTED_TASSERT(11374701);
+    };
+
+    void keep() override {
+        MONGO_UNIMPLEMENTED_TASSERT(11374702);
+    };
+
+    boost::optional<boost::filesystem::path> getSpillDirPath() override {
+        return boost::filesystem::path(ident::getDirectory(_container.ident()->getIdent()));
+    };
+
+    /**
+     * Updates the key assigned for a KV pair for SortedContainerWriter creation.
+     */
+    void updateCurrKey(int64_t newKey) {
+        _currKey = newKey;
+    }
+
+private:
+    OperationContext& _opCtx;
+    RecoveryUnit& _ru;
+    const CollectionPtr& _collection;
+    IntegerKeyedContainer& _container;
+    int64_t _currKey;
 };
 
 }  // namespace mongo::sorter
