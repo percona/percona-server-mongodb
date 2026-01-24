@@ -1401,6 +1401,21 @@ tasks:
         vars:
           use_large_distro: "true"
 
+  # TODO(SERVER-108818): Remove this temporary suite.
+  - <<: *gen_task_template
+    name: retryable_writes_jscore_passthrough_primary_driven_index_builds_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_execution",
+        "default",
+        "retry",
+        "primary_driven_index_builds",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
+
   - <<: *task_template
     name: retryable_writes_jscore_stepdown_passthrough
     tags:
@@ -1408,6 +1423,19 @@ tasks:
     commands:
       - func: "do setup"
       - func: "run tests"
+
+  # TODO(SERVER-108818): Remove this temporary suite.
+  - <<: *gen_task_template
+    name: retryable_writes_jscore_stepdown_passthrough_primary_driven_index_builds_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_execution",
+        "default",
+        "retry",
+        "primary_driven_index_builds",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
 
   ## resharding generational fuzzer ##
   - <<: *jstestfuzz_template
@@ -2420,8 +2448,9 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
+        "default",
+        "incompatible_mac",
         "sharding",
         "jscore",
       ]
@@ -2430,35 +2459,51 @@ tasks:
 
   - <<: *gen_task_template
     name: replica_sets_jscore_passthrough_with_dynamic_execution_control_gen
+    # TODO(SERVER-69951) remove "incompatible_debug_mode" tag
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
-        "jscore",
+        "default",
+        "incompatible_debug_mode",
+        "replica_sets",
+        "common",
+        "san",
+        "large",
       ]
     commands:
       - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
 
   - <<: *gen_task_template
     name: sharding_execution_control_with_prioritization_gen
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
+        "default",
+        "incompatible_mac",
         "sharding",
+        "common",
       ]
     commands:
       - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
 
   - <<: *gen_task_template
     name: replica_sets_execution_control_with_prioritization_gen
+    # TODO(SERVER-69951) remove "incompatible_debug_mode" tag
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
+        "default",
+        "incompatible_debug_mode",
+        "replica_sets",
+        "san",
+        "large",
       ]
     commands:
       - func: "generate resmoke tasks"
@@ -2468,67 +2513,104 @@ tasks:
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
+        "execution_control_with_prioritization",
         "default",
+        "incompatible_mac",
         "sharding",
         "jscore",
-        "execution_control_with_prioritization",
+        "common",
       ]
     commands:
       - func: "generate resmoke tasks"
 
   - <<: *gen_task_template
     name: replica_sets_jscore_passthrough_execution_control_with_prioritization_gen
+    # TODO(SERVER-69951) remove "incompatible_debug_mode" tag
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
-        "jscore",
+        "default",
+        "incompatible_debug_mode",
+        "replica_sets",
+        "common",
+        "san",
+        "large",
       ]
     commands:
       - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
 
   - <<: *gen_task_template
     name: no_passthrough_execution_control_with_prioritization_gen
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
+        "default",
+        "incompatible_mac",
+        "incompatible_ppc",
+        "incompatible_s390x",
+        "incompatible_debug_mode",
+        "misc_js",
+        "requires_execution_on_windows_patch_build",
+        "requires_large_host",
       ]
     commands:
       - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
 
   - <<: *gen_task_template
     name: concurrency_sharded_replication_execution_control_with_prioritization_gen
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
-        "sharding",
+        "default",
+        "incompatible_mac",
+        "incompatible_ppc",
+        "incompatible_s390x",
+        "incompatible_debug_mode",
+        "concurrency",
+        "common",
+        "read_concern_maj",
+        "large",
+        "sharded",
       ]
     commands:
       - func: "generate resmoke tasks"
+        vars:
+          use_large_distro: "true"
+          resmoke_jobs_max: 1
 
   - <<: *gen_task_template
     name: concurrency_replication_execution_control_with_prioritization_gen
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
+        "default",
+        "incompatible_mac",
+        "incompatible_ppc",
+        "incompatible_s390x",
+        "concurrency",
+        "common",
+        "repl",
       ]
     commands:
       - func: "generate resmoke tasks"
+        vars:
+          resmoke_jobs_max: 1
 
   - <<: *gen_task_template
     name: auth_execution_control_with_prioritization_gen
     tags:
       [
         "assigned_to_jira_team_server_workload_scheduling",
-        "default",
         "execution_control_with_prioritization",
+        "default",
         "auth",
       ]
     commands:

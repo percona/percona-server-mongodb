@@ -39,9 +39,10 @@ public:
 
     AggJoinModelGoldenTest() : _cfg{"src/mongo/db/test_output/query/compiler/optimizer/join"} {}
 
-    void runVariation(std::unique_ptr<Pipeline> pipeline,
-                      StringData variationName,
-                      boost::optional<AggModelBuildParams> buildParams = boost::none) {
+    StatusWith<AggJoinModel> runVariation(
+        std::unique_ptr<Pipeline> pipeline,
+        StringData variationName,
+        boost::optional<AggModelBuildParams> buildParams = boost::none) {
         unittest::GoldenTestContext ctx(&_cfg);
 
         ctx.outStream() << "VARIATION " << variationName << std::endl;
@@ -58,6 +59,16 @@ public:
         }
 
         ctx.outStream() << std::endl;
+
+        return joinModel;
+    }
+
+    size_t numPredicates(const JoinGraph& joinGraph) {
+        size_t numPredicates = 0;
+        for (const auto& edge : joinGraph.edges()) {
+            numPredicates += edge.predicates.size();
+        }
+        return numPredicates;
     }
 
     unittest::GoldenTestConfig _cfg;
@@ -74,12 +85,14 @@ TEST_F(AggJoinModelGoldenTest, longPrefix) {
             {$unwind: "$fromB"}
         ])";
     auto pipeline = makePipeline(query, {"A", "B"});
-    runVariation(std::move(pipeline), "longPrefix");
+    auto joinModel = runVariation(std::move(pipeline), "longPrefix");
+    ASSERT_OK(joinModel);
 }
 
 TEST_F(AggJoinModelGoldenTest, veryLargePipeline) {
     auto pipeline = makePipelineOfSize(/*numJoins*/ kHardMaxNodesInJoin + 3);
-    runVariation(std::move(pipeline), "veryLargePipeline");
+    auto joinModel = runVariation(std::move(pipeline), "veryLargePipeline");
+    ASSERT_OK(joinModel);
 }
 
 /**
@@ -94,7 +107,10 @@ TEST_F(AggJoinModelGoldenTest, addImplicitEdges_OneImplictEdge) {
             {$unwind: "$fromB"}
         ])";
     auto pipeline = makePipeline(query, {"A", "B"});
-    runVariation(std::move(pipeline), "addImplicitEdges_OneImplictEdge");
+    auto joinModel = runVariation(std::move(pipeline), "addImplicitEdges_OneImplictEdge");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 3);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 3);
 }
 
 /**
@@ -111,7 +127,10 @@ TEST_F(AggJoinModelGoldenTest, addImplicitEdges_MultipleImplictEdges) {
             {$unwind: "$fromC"}
         ])";
     auto pipeline = makePipeline(query, {"A", "B", "C"});
-    runVariation(std::move(pipeline), "addImplicitEdges_MultipleImplictEdges");
+    auto joinModel = runVariation(std::move(pipeline), "addImplicitEdges_MultipleImplictEdges");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 4);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 6);
 }
 
 /**
@@ -136,7 +155,10 @@ TEST_F(AggJoinModelGoldenTest, addImplicitEdges_TwoConnectedComponents) {
             {$unwind: "$fromE"}
         ])";
     auto pipeline = makePipeline(query, {"A", "B", "C", "D", "E"});
-    runVariation(std::move(pipeline), "addImplicitEdges_TwoConnectedComponents");
+    auto joinModel = runVariation(std::move(pipeline), "addImplicitEdges_TwoConnectedComponents");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 6);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 9);
 }
 
 /**
@@ -158,6 +180,202 @@ TEST_F(AggJoinModelGoldenTest, addImplicitEdges_NoImplicitEdges) {
             {$unwind: "$fromE"}
         ])";
     auto pipeline = makePipeline(query, {"A", "B", "C", "D", "E"});
-    runVariation(std::move(pipeline), "addImplicitEdges_NoImplicitEdges");
+    auto joinModel = runVariation(std::move(pipeline), "addImplicitEdges_NoImplicitEdges");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 6);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 5);
 }
+
+/**
+ * local/foreignFields specify edges: base -- A, base -- B, base -- C, base -- D;
+ * $expr predicates specify edges: A -- B, B -- B, C -- C, D -- D;
+ * all $expr's are defined in one big $match at the end of the pipeline.
+ */
+TEST_F(AggJoinModelGoldenTest, addEdgesFromExpr_predicatesAtEnd) {
+    const auto query = R"([
+            {$lookup: {from: "A", localField: "s1", foreignField: "s1", as: "fromA"}},
+            {$unwind: "$fromA"},
+            {$lookup: {from: "B", localField: "s2", foreignField: "s2", as: "fromB"}},
+            {$unwind: "$fromB"},
+            {$lookup: {from: "C", localField: "s3", foreignField: "s3", as: "fromC"}},
+            {$unwind: "$fromC"},
+            {$lookup: {from: "D", localField: "s4", foreignField: "s4", as: "fromD"}},
+            {$unwind: "$fromD"},
+            {$match: {$and: [
+                {$expr: {$eq: ["$fromA.a", "$fromB.a"]}},
+                {$expr: {$eq: ["$fromB.b", "$fromC.b"]}},
+                {$expr: {$eq: ["$fromC.c", "$fromD.c"]}},
+                {$expr: {$eq: ["$fromD.d", "$fromA.d"]}}
+                ]}
+            }
+        ])";
+    auto pipeline = makePipeline(query, {"A", "B", "C", "D"});
+    auto joinModel = runVariation(std::move(pipeline), "addEdgesFromExpr_predicatesAtEnd");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 5);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 8);
+}
+
+/**
+ * local/foreignFields specify edges: base -- A, base -- B, base -- C, base -- D;
+ * $expr predicates specify edges: A -- B, B -- B, C -- C, D -- D;
+ * $expr's are defined in separate $match stages inside and at the end of the pipeline.
+ */
+TEST_F(AggJoinModelGoldenTest, addEdgesFromExpr_predicatesInBetween) {
+    const auto query = R"([
+            {$lookup: {from: "A", localField: "s1", foreignField: "s1", as: "fromA"}},
+            {$unwind: "$fromA"},
+            {$lookup: {from: "B", localField: "s2", foreignField: "s2", as: "fromB"}},
+            {$unwind: "$fromB"},
+            {$match: {$expr: {$eq: ["$fromA.a", "$fromB.a"]}}},
+            {$lookup: {from: "C", localField: "s3", foreignField: "s3", as: "fromC"}},
+            {$unwind: "$fromC"},
+            {$match: {$expr: {$eq: ["$fromB.b", "$fromC.b"]}}},
+            {$lookup: {from: "D", localField: "s4", foreignField: "s4", as: "fromD"}},
+            {$unwind: "$fromD"},
+            {$match: {$expr: {$eq: ["$fromC.c", "$fromD.c"]}}},
+            {$match: {$expr: {$eq: ["$fromD.d", "$fromA.d"]}}}
+        ])";
+    auto pipeline = makePipeline(query, {"A", "B", "C", "D"});
+    auto joinModel = runVariation(std::move(pipeline), "addEdgesFromExpr_predicatesInBetween");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 5);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 8);
+}
+
+/**
+ * local/foreignFields define two edges: base -- A, base -- B
+ * $expr define one edge: B - C;
+ * $expr specifies an edge between the same node, which cannot be absorbed, so we stop building
+ * graph earlier.
+ */
+TEST_F(AggJoinModelGoldenTest, addEdgesFromExpr_earlyEnd) {
+    const auto query = R"([
+            {$lookup: {from: "A", localField: "s1", foreignField: "s1", as: "fromA"}},
+            {$unwind: "$fromA"},
+            {$lookup: {from: "B", localField: "s2", foreignField: "s2", as: "fromB"}},
+            {$unwind: "$fromB"},
+            {$match: {$and: [
+                {$expr: {$eq: ["$fromA.a", "$fromB.a"]}},
+                {$expr: {$eq: ["$fromB.b", "$fromB.s2"]}}
+                ]}
+            },
+            {$lookup: {from: "C", localField: "s3", foreignField: "s3", as: "fromC"}},
+            {$unwind: "$fromC"},
+            {$lookup: {from: "D", localField: "s4", foreignField: "s4", as: "fromD"}},
+            {$unwind: "$fromD"}
+        ])";
+    auto pipeline = makePipeline(query, {"A", "B", "C", "D"});
+    auto joinModel = runVariation(std::move(pipeline), "addEdgesFromExpr_earlyEnd");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 3);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 3);
+}
+
+/**
+ * Combined test of $expr and implicit edges.
+ * Legend: '==' - local/foreignField edge; '--' - $expr edge.
+ * Connected Component 1:  base.a == A.a -- D.a. 1 implicit predicate is expected.
+ * Connected Component 2: A.b == B.b -- C.c == D.d. 2 Implicit predicates are expected.
+ * Standalone predicate: B.s == C.s
+ * Total: 5 nodes; 5 local/foreignFields predicates + 2 $expr predicates + 3 implicit predicates =
+ * 10 total predicates.
+ */
+TEST_F(AggJoinModelGoldenTest, addEdgesFromExpr_addImplicitEdge) {
+    const auto query = R"([
+            {$lookup: {from: "A", localField: "a", foreignField: "a", as: "fromA"}},
+            {$unwind: "$fromA"},
+            {$lookup: {from: "B", localField: "fromA.b", foreignField: "b", as: "fromB"}},
+            {$unwind: "$fromB"},
+            {$lookup: {from: "C", localField: "fromB.s", foreignField: "s", as: "fromC"}},
+            {$unwind: "$fromC"},
+            {$lookup: {from: "D", localField: "fromC.c", foreignField: "d", as: "fromD"}},
+            {$unwind: "$fromD"},
+            {$match: {$expr: {$eq: ["$fromA.a", "$fromD.a"]}}},
+            {$match: {$expr: {$eq: ["$fromB.b", "$fromC.c"]}}}
+        ])";
+    auto pipeline = makePipeline(query, {"A", "B", "C", "D"});
+    auto joinModel = runVariation(std::move(pipeline), "addEdgesFromExpr_addImplicitEdge");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 5);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 8);
+    ASSERT_EQ(numPredicates(joinModel.getValue().graph), 10);
+}
+
+/**
+ * Combined test of $expr and implicit edges.
+ * Legend: '==' - local/foreignField edge; '**' - subpipeline $expr edge.
+ * Connected Component 1:  base.a == A.a ** D.a. 1 implicit predicate is expected.
+ * Connected Component 2: A.b == B.b ** C.c == D.d. 2 Implicit predicates are expected.
+ * Standalone predicate: B.s == C.s
+ * Total: 5 nodes; 5 local/foreignFields predicates + 2 subpieline predicates + 3 implicit
+ * predicates = 10 total predicates.
+ */
+TEST_F(AggJoinModelGoldenTest, subPipelineEdge_addImplicitEdge) {
+    const auto query = R"([
+            {$lookup: { from: "A", localField: "a", foreignField: "a", as: "fromA"} },
+            {$unwind: "$fromA"},
+            {$lookup: { from: "B", localField: "fromA.b", foreignField: "b", as: "fromB"} },
+            {$unwind: "$fromB"},
+            {$lookup: { from: "C",
+                        localField: "fromB.s",
+                        foreignField: "s",
+                        as: "fromC",
+                        let: {bb: "$fromB.b"},
+                        pipeline: [ {$match: {$expr: {$eq: ["$$bb", "$c"]}}} ]
+                      } 
+            },
+            {$unwind: "$fromC"},
+            {$lookup: { from: "D",
+                        localField: "fromC.c",
+                        foreignField: "d",
+                        as: "fromD",
+                        let: {aa: "$fromA.a"},
+                        pipeline: [ {$match: {$expr: {$eq: ["$a", "$$aa"]}}} ]
+                      }
+            },
+            {$unwind: "$fromD"}
+        ])";
+    auto pipeline = makePipeline(query, {"A", "B", "C", "D"});
+    auto joinModel = runVariation(std::move(pipeline), "subPipelineEdge_addImplicitEdge");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 5);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 8);
+    ASSERT_EQ(numPredicates(joinModel.getValue().graph), 10);
+}
+
+/**
+ * Combined test of $expr, subpipeline $expr, and implicit edges.
+ * Legend: '==' - local/foreignField edge; '--' - $expr edge, '**' - subpipelines $expr.
+ * Connected Component:  base.a == A.a -- B.a ** C.a. 3 implicit predicates are expected.
+ * Standalone predicates: A.b == B.b, B.c == C.c
+ * Total: 4 nodes; 3 local/foreignField predicates + 1 $expr predicate + 1 subpipeline predicate + 3
+ * implicit predicates = 8 total predicates.
+ */
+TEST_F(AggJoinModelGoldenTest, addEdgesFromExpr_subPipelineEdge_addImplicitEdge) {
+    const auto query = R"([
+            {$lookup: { from: "A", localField: "a", foreignField: "a", as: "fromA"} },
+            {$unwind: "$fromA"},
+            {$lookup: { from: "B", localField: "fromA.b", foreignField: "b", as: "fromB"} },
+            {$unwind: "$fromB"},
+            {$lookup: { from: "C",
+                        localField: "fromB.c",
+                        foreignField: "c",
+                        as: "fromC",
+                        let: {ba: "$fromB.a"},
+                        pipeline: [ {$match: {$expr: {$eq: ["$$ba", "$a"]}}} ]
+                      }
+            },
+            {$unwind: "$fromC"},
+            {$match: {$expr: {$eq: ["$fromA.a", "$fromB.a"]}}}
+        ])";
+    auto pipeline = makePipeline(query, {"A", "B", "C"});
+    auto joinModel =
+        runVariation(std::move(pipeline), "addEdgesFromExpr_subPipelineEdge_addImplicitEdge");
+    ASSERT_OK(joinModel);
+    ASSERT_EQ(joinModel.getValue().graph.numNodes(), 4);
+    ASSERT_EQ(joinModel.getValue().graph.numEdges(), 6);
+    ASSERT_EQ(numPredicates(joinModel.getValue().graph), 8);
+}
+
 }  // namespace mongo::join_ordering

@@ -100,6 +100,8 @@ core.service:
 
 # stuff that is part of a *specific* mongo server (eg mongos, mongod)
 core.servers:
+  meta:
+    fully_marked: true
   files:
     - src/mongo/db/mongod.cpp
     - src/mongo/db/mongod_main.*
@@ -144,6 +146,8 @@ core.commands:
     - src/mongo/s/commands/cluster_shutdown_cmd.cpp
 
 core.unittest:
+  meta:
+    fully_marked: true
   files:
     - src/mongo/unittest/
     - src/mongo/dbtests/framework[._]*

@@ -138,6 +138,7 @@ void throwAppropriateException(bool txnTooLargeEnabled,
 }
 
 void dumpErrorLog() {
+    LOGV2(11720300, "Gathering WiredTiger error log");
     int ret = wiredtiger_dump_error_log([](const char* message) -> int {
         LOGV2_FATAL_CONTINUE(11131000, "WiredTiger dump error log", "message"_attr = message);
         return 0;
@@ -177,6 +178,12 @@ Status wtRCToStatus_slow(int retCode, WT_SESSION* session, StringData prefix) {
     std::string errContext = std::string(strerror) + (reason ? " - " : "") + reason;
     auto s = generateContextStrStream(prefix, errContext.c_str(), retCode);
 
+    if (retCode == WT_DUPLICATE_KEY) {
+        return Status(ErrorCodes::DuplicateKey, s);
+    }
+    if (retCode == WT_NOTFOUND) {
+        return Status(ErrorCodes::NoSuchKey, s);
+    }
     if (retCode == EINVAL) {
         return Status(ErrorCodes::BadValue, s);
     }

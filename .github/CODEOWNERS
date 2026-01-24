@@ -859,6 +859,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/core/testing/OWNERS.yml
 /jstests/core/testing/**/* @10gen/server-programmability @svc-auto-approve-bot
+/jstests/core/testing/**/certs_are_generated.js @10gen/server-security @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/core/timeseries/OWNERS.yml
 /jstests/core/timeseries/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -1011,6 +1012,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/libs/**/*.pfx @10gen/server-security @svc-auto-approve-bot
 /jstests/libs/**/fixture_helpers.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/libs/**/index_utils.js @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
+/jstests/libs/**/cluster_server_parameter_utils.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/libs/clustered_collections/OWNERS.yml
 /jstests/libs/clustered_collections/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -1191,6 +1193,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/fcv_transition_fails_during_is_cleaning_server_metadata.js @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/can_transition_to_originalFCV_after_failed_upgrade_or_downgrade.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/authoritative_database_metadata_on_FCV_transition.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/upgrade_downgrade_sharded_cluster_remove_shard_state.js @10gen/server-catalog-and-routing-ddl @10gen/server-fcv @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/cluster_parameters_disabled_correctly_after_downgrade.js @10gen/server-catalog-and-routing-routing-and-topology @10gen/server-fcv @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/collection_write_path/OWNERS.yml
@@ -1957,6 +1960,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/**/cleanup_structured* @10gen/server-catalog-and-routing-ddl @10gen/server-security @svc-auto-approve-bot
 /src/mongo/db/**/compact_structured* @10gen/server-catalog-and-routing-ddl @10gen/server-security @svc-auto-approve-bot
 /src/mongo/db/**/partitioned* @10gen/server-programmability @svc-auto-approve-bot
+/src/mongo/db/**/logical_session_cache_factory_mongod* @10gen/server-transactions @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/admission/OWNERS.yml
 /src/mongo/db/admission/**/* @10gen/server-workload-resilience @svc-auto-approve-bot
@@ -2583,6 +2587,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/query/**/point_query_bm.cpp @10gen/query-execution @svc-auto-approve-bot
 /src/mongo/db/query/**/query_bm_* @10gen/query-execution @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/query_knob_* @10gen/query-optimization @svc-auto-approve-bot
+/src/mongo/db/query/**/query_execution_knobs* @10gen/query-execution @svc-auto-approve-bot
+/src/mongo/db/query/**/query_integration_knobs* @10gen/query-integration @svc-auto-approve-bot
+/src/mongo/db/query/**/query_optimization_knobs* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/query_request* @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/query_test_service_context.* @10gen/query-execution @10gen/query-integration @10gen/query-optimization @svc-auto-approve-bot
 /src/mongo/db/query/**/query_utils* @10gen/query-optimization @svc-auto-approve-bot

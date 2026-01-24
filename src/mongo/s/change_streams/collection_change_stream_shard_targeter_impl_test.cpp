@@ -92,13 +92,13 @@ public:
     }
 
     bool isInDbAbsentState() const {
-        return dynamic_cast<ChangeStreamShardTargeterDbAbsentStateEventHandler*>(
-            targeter().getEventHandler());
+        return targeter().getEventHandler_forTest().getDbPresenceState() ==
+            ChangeStreamShardTargeterStateEventHandler::DbPresenceState::kDbAbsent;
     }
 
     bool isInDbPresentState() const {
-        return dynamic_cast<ChangeStreamShardTargeterDbPresentStateEventHandler*>(
-            targeter().getEventHandler());
+        return targeter().getEventHandler_forTest().getDbPresenceState() ==
+            ChangeStreamShardTargeterStateEventHandler::DbPresenceState::kDbPresent;
     }
 
 private:
@@ -201,8 +201,8 @@ TEST_F(CollectionChangeStreamShardTargeterImplStrictModeFixture,
        Given_HandlerSet_When_HandleEvent_Then_ParsesEventAndDelegatesToHandler) {
     targeter().setEventHandler(std::make_unique<ChangeStreamShardTargeterEventHandlerMock>(
         ShardTargeterDecision::kContinue, ShardTargeterDecision::kContinue));
-    auto& eventHandlerMock =
-        dynamic_cast<ChangeStreamShardTargeterEventHandlerMock&>(*targeter().getEventHandler());
+    auto& eventHandlerMock = dynamic_cast<ChangeStreamShardTargeterEventHandlerMock&>(
+        targeter().getEventHandler_forTest());
 
     Document moveChunkEvent = Document(
         BSON("operationType" << MoveChunkControlEvent::opType << "clusterTime" << Timestamp()
@@ -539,8 +539,8 @@ TEST_F(CollectionChangeStreamShardTargeterImplIgnoreRemovedShardsModeFixture,
        Given_HandlerSet_When_HandleEvent_Then_ParsesEventAndDelegatesToHandler) {
     targeter().setEventHandler(std::make_unique<ChangeStreamShardTargeterEventHandlerMock>(
         ShardTargeterDecision::kContinue, ShardTargeterDecision::kContinue));
-    auto& eventHandlerMock =
-        dynamic_cast<ChangeStreamShardTargeterEventHandlerMock&>(*targeter().getEventHandler());
+    auto& eventHandlerMock = dynamic_cast<ChangeStreamShardTargeterEventHandlerMock&>(
+        targeter().getEventHandler_forTest());
 
     Document moveChunkEvent = Document(
         BSON("operationType" << MoveChunkControlEvent::opType << "clusterTime" << Timestamp()

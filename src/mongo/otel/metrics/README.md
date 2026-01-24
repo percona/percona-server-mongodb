@@ -7,20 +7,18 @@ utilities. For now, this is only supported in mongod, SERVER-116960 will add thi
 ## Creating Metrics
 
 Metrics are created by calling the `create*` functions on the
-[`MetricsService`](metrics_service.h), which is accessed via the `ServiceContext`:
+[`MetricsService`](metrics_service.h), which is accessed via the `MetricService` instance:
 
 ```cpp
 #include "mongo/otel/metrics/metric_names.h"
 #include "mongo/otel/metrics/metrics_service.h"
 
-void initializeMetrics(ServiceContext* svcCtx) {
-    auto& metricsService = otel::metrics::MetricsService::get(svcCtx);
-
-    auto* operationsCounter = metricsService.createInt64Counter(
-        otel::metrics::MetricNames::kQueryCount,        // name
-        "Number of queries executed",   // description
-        otel::metrics::MetricUnit::kQueries);          // unit
-}
+namespace {
+Counter<int64_t>& operationsCounter = otel::metrics::MetricsService::instance().createInt64Counter(
+    otel::metrics::MetricNames::kQueryCount,  // name
+    "Number of queries executed",             // description
+    otel::metrics::MetricUnit::kQueries);     // unit
+}  // namespace
 ```
 
 Metrics should be stashed once they are created to avoid taking a lock on the global list of
@@ -93,7 +91,7 @@ typically be run on these metrics.
 - Query count
 
 ```cpp
-auto* counter = otel::metrics::MetricsService::get(svcCtx).createInt64Counter(
+auto& counter = otel::metrics::MetricsService::instance().createInt64Counter(
     otel::metrics::MetricNames::kOperationsTotal,
     "Total number of operations performed",
     otel::metrics::MetricUnit::kOperations);
@@ -177,23 +175,20 @@ Creating metrics via `MetricsService::create*()` acquires a mutex. **Always stas
 rather than calling `create*()` on each use:
 
 ```cpp
-// GOOD: Create once, reuse the pointer
-class MyClass {
-    Counter<int64_t>* _counter;  // Stashed pointer
+// GOOD: Create static metric once, reuse in the file.
+namespace {
+Counter<int64_t>& counter = MetricsService::instance().createInt64Counter(...);
+}  // namespace
 
-public:
-    void init(ServiceContext* svc) {
-        _counter = MetricsService::get(svc).createInt64Counter(...);
-    }
+void doWork() {
+    counter->add(1);
+}
+```
 
-    void doWork() {
-        _counter->add(1);  // Fast: no lock
-    }
-};
-
+```cpp
 // BAD: Creates/looks up metric on every call
-void doWork(ServiceContext* svc) {
-    auto* counter = MetricsService::get(svc).createInt64Counter(...);  // Slow: acquires lock
+void doWork() {
+    auto& counter = MetricsService::instance().createInt64Counter(...);  // Slow: acquires lock
     counter->add(1);
 }
 ```
@@ -220,7 +215,7 @@ namespace mongo::otel::metrics {
 TEST(MyFeatureTest, RecordsMetrics) {
     otel::metrics::OtelMetricsCapturer capturer;
 
-    auto* counter = otel::metrics::MetricsService::get(getServiceContext()).createInt64Counter(
+    auto& counter = otel::metrics::MetricsService::instance().createInt64Counter(
         otel::metrics::MetricNames::kMyFeatureEvents,
         "Number of events processed",
         otel::metrics::MetricUnit::kOperations);
@@ -245,7 +240,7 @@ mongo_cc_library(
     name = "my_library",
     # ...
     deps = [
-        "//src/mongo/otel/metrics:metrics_service",
+        "//src/mongo/otel/metrics:otel_metrics_service",
     ],
 )
 ```
@@ -310,6 +305,4 @@ Additional export methods (such as Prometheus Pull) are in development.
 
 ## Feature Flag
 
-Metrics are gated behind the `featureFlagOtelMetrics` feature flag. The `OtelMetricsCapturer`
-automatically enables this flag in tests. In production, ensure the flag is enabled for metrics
-to be collected.
+Metrics are gated behind the `featureFlagOtelMetrics` feature flag, which is enabled by default.

@@ -43,6 +43,10 @@
 {  "a" : 2,  "b" : 3,  "base" : 33,  "x" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 22 } }
 {  "a" : 2,  "b" : 3,  "base" : 33,  "x" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 33 } }
 ```
+### Total indexes on the collection
+```json
+[ "_id_" ]
+```
 ### Summarized explain
 Execution Engine: sbe
 ```json
@@ -215,6 +219,10 @@ rightEmbeddingField: "x"
 {  "a" : 2,  "b" : 3,  "base" : 33,  "x" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 22 } }
 {  "a" : 2,  "b" : 3,  "base" : 33,  "x" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 33 } }
 ```
+### Total indexes on the collection
+```json
+[ "_id_" ]
+```
 ### Summarized explain
 Execution Engine: sbe
 ```json
@@ -381,6 +389,10 @@ rightEmbeddingField: "none"
 {  "a" : 2,  "b" : -11,  "base" : 22,  "x" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 22 } }
 {  "a" : 2,  "b" : 3,  "base" : 22,  "x" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 22 } }
 {  "a" : 2,  "b" : 3,  "base" : 33,  "x" : {  "a" : -1,  "b" : -1,  "base" : 33 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 33 } }
+```
+### Total indexes on the collection
+```json
+[ "_id_" ]
 ```
 ### Summarized explain
 Execution Engine: sbe
@@ -615,6 +627,10 @@ rightEmbeddingField: "x"
 {  "a" : 2,  "b" : 3,  "base" : 22,  "x" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "z" : {  "a" : 2,  "b" : 3,  "base" : 22 } }
 {  "a" : 2,  "b" : 3,  "base" : 33,  "x" : {  "a" : -1,  "b" : -1,  "base" : 33 },  "y" : {  "a" : 2,  "b" : 3,  "base" : 33 },  "z" : {  "a" : 2,  "b" : 3,  "base" : 33 } }
 ```
+### Total indexes on the collection
+```json
+[ "_id_" ]
+```
 ### Summarized explain
 Execution Engine: sbe
 ```json
@@ -698,12 +714,19 @@ Execution Engine: sbe
 
 ### Random reordering with seed 0
 ```
-HASH_JOIN_EMBEDDING [y.base = base]
+HASH_JOIN_EMBEDDING [y.base = base,base = base,x.base = base]
 leftEmbeddingField: "none"
 rightEmbeddingField: "z"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_base]
   |  filter: {  "base" : {  "$gt" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base,y.base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "x"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_a]
   |  direction: "forward"
   |
   HASH_JOIN_EMBEDDING [base = base]
@@ -713,20 +736,13 @@ rightEmbeddingField: "z"
   |  COLLSCAN [test.base_coll_reorder_md_b]
   |  direction: "forward"
   |
-  HASH_JOIN_EMBEDDING [base = base]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "x"
-  |  |
-  |  COLLSCAN [test.base_coll_reorder_md_a]
-  |  direction: "forward"
-  |
   COLLSCAN [test.base_coll_reorder_md_base]
   filter: {  "b" : {  "$eq" : 3 } }
   direction: "forward"
 ```
 ### Random reordering with seed 1
 ```
-HASH_JOIN_EMBEDDING [y.base = base]
+HASH_JOIN_EMBEDDING [y.base = base,base = base,x.base = base]
 leftEmbeddingField: "none"
 rightEmbeddingField: "z"
   |  |
@@ -734,7 +750,7 @@ rightEmbeddingField: "z"
   |  filter: {  "base" : {  "$gt" : 3 } }
   |  direction: "forward"
   |
-  HASH_JOIN_EMBEDDING [base = base]
+  HASH_JOIN_EMBEDDING [base = base,x.base = base]
   leftEmbeddingField: "none"
   rightEmbeddingField: "y"
   |  |
@@ -752,16 +768,73 @@ rightEmbeddingField: "z"
   COLLSCAN [test.base_coll_reorder_md_a]
   direction: "forward"
 ```
-### Random reordering with seed 3
+### Random reordering with seed 2
 ```
-HASH_JOIN_EMBEDDING [base = base]
+HASH_JOIN_EMBEDDING [base = base,y.base = base,z.base = base]
 leftEmbeddingField: "none"
 rightEmbeddingField: "x"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_a]
   |  direction: "forward"
   |
-  HASH_JOIN_EMBEDDING [y.base = base]
+  HASH_JOIN_EMBEDDING [y.base = base,base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "z"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "y"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.base_coll_reorder_md_base]
+  filter: {  "b" : {  "$eq" : 3 } }
+  direction: "forward"
+```
+### Random reordering with seed 3
+```
+HASH_JOIN_EMBEDDING [base = base,y.base = base,z.base = base]
+leftEmbeddingField: "none"
+rightEmbeddingField: "x"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_a]
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [y.base = base,base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "z"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "y"
+  rightEmbeddingField: "none"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "b" : {  "$eq" : 3 } }
+  |  direction: "forward"
+  |
+  COLLSCAN [test.base_coll_reorder_md_b]
+  direction: "forward"
+```
+### Random reordering with seed 4
+```
+HASH_JOIN_EMBEDDING [y.base = base,base = base,x.base = base]
+leftEmbeddingField: "none"
+rightEmbeddingField: "z"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [x.base = base,y.base = base]
   leftEmbeddingField: "none"
   rightEmbeddingField: "none"
   |  |
@@ -771,10 +844,9 @@ rightEmbeddingField: "x"
   |
   HASH_JOIN_EMBEDDING [base = base]
   leftEmbeddingField: "y"
-  rightEmbeddingField: "z"
+  rightEmbeddingField: "x"
   |  |
-  |  COLLSCAN [test.base_coll_reorder_md_base]
-  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  COLLSCAN [test.base_coll_reorder_md_a]
   |  direction: "forward"
   |
   COLLSCAN [test.base_coll_reorder_md_b]
@@ -782,14 +854,70 @@ rightEmbeddingField: "x"
 ```
 ### Random reordering with seed 5
 ```
-HASH_JOIN_EMBEDDING [base = base]
+HASH_JOIN_EMBEDDING [x.base = base,y.base = base,z.base = base]
+leftEmbeddingField: "none"
+rightEmbeddingField: "none"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "b" : {  "$eq" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [z.base = base,x.base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "y"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "z"
+  rightEmbeddingField: "x"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_a]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.base_coll_reorder_md_base]
+  filter: {  "base" : {  "$gt" : 3 } }
+  direction: "forward"
+```
+### Random reordering with seed 6
+```
+HASH_JOIN_EMBEDDING [x.base = base,y.base = base,z.base = base]
+leftEmbeddingField: "none"
+rightEmbeddingField: "none"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "b" : {  "$eq" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [y.base = base,x.base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "z"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "y"
+  rightEmbeddingField: "x"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_a]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.base_coll_reorder_md_b]
+  direction: "forward"
+```
+### Random reordering with seed 7
+```
+HASH_JOIN_EMBEDDING [base = base,y.base = base,z.base = base]
 leftEmbeddingField: "none"
 rightEmbeddingField: "x"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_a]
   |  direction: "forward"
   |
-  HASH_JOIN_EMBEDDING [y.base = base]
+  HASH_JOIN_EMBEDDING [y.base = base,z.base = base]
   leftEmbeddingField: "none"
   rightEmbeddingField: "none"
   |  |
@@ -808,17 +936,17 @@ rightEmbeddingField: "x"
   filter: {  "base" : {  "$gt" : 3 } }
   direction: "forward"
 ```
-### Random reordering with seed 6
+### Random reordering with seed 9
 ```
-HASH_JOIN_EMBEDDING [y.base = base]
+HASH_JOIN_EMBEDDING [x.base = base,y.base = base,z.base = base]
 leftEmbeddingField: "none"
-rightEmbeddingField: "z"
+rightEmbeddingField: "none"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_base]
-  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  filter: {  "b" : {  "$eq" : 3 } }
   |  direction: "forward"
   |
-  HASH_JOIN_EMBEDDING [base = base]
+  HASH_JOIN_EMBEDDING [y.base = base,z.base = base]
   leftEmbeddingField: "none"
   rightEmbeddingField: "x"
   |  |
@@ -827,13 +955,69 @@ rightEmbeddingField: "z"
   |
   HASH_JOIN_EMBEDDING [base = base]
   leftEmbeddingField: "y"
+  rightEmbeddingField: "z"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  direction: "forward"
+  |
+  COLLSCAN [test.base_coll_reorder_md_b]
+  direction: "forward"
+```
+### Random reordering with seed 10
+```
+HASH_JOIN_EMBEDDING [x.base = base,y.base = base,z.base = base]
+leftEmbeddingField: "none"
+rightEmbeddingField: "none"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "b" : {  "$eq" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [y.base = base,x.base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "z"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "x"
+  rightEmbeddingField: "y"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.base_coll_reorder_md_a]
+  direction: "forward"
+```
+### Random reordering with seed 11
+```
+HASH_JOIN_EMBEDDING [y.base = base,base = base,x.base = base]
+leftEmbeddingField: "none"
+rightEmbeddingField: "z"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_base]
+  |  filter: {  "base" : {  "$gt" : 3 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [x.base = base,y.base = base]
+  leftEmbeddingField: "none"
   rightEmbeddingField: "none"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_base]
   |  filter: {  "b" : {  "$eq" : 3 } }
   |  direction: "forward"
   |
-  COLLSCAN [test.base_coll_reorder_md_b]
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "x"
+  rightEmbeddingField: "y"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  direction: "forward"
+  |
+  COLLSCAN [test.base_coll_reorder_md_a]
   direction: "forward"
 ```
 
@@ -949,6 +1133,10 @@ rightEmbeddingField: "z"
 {  "a" : 2,  "aaa" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "b" : 3,  "base" : 22,  "bbb" : {  "a" : 2,  "b" : 3,  "base" : 33 },  "ccc" : {  "a" : 2,  "b" : -11,  "base" : 22 },  "ddd" : {  "a" : 2,  "b" : 3,  "base" : 22 } }
 {  "a" : 2,  "aaa" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "b" : 3,  "base" : 33,  "bbb" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "ccc" : {  "a" : 2,  "b" : -11,  "base" : 22 },  "ddd" : {  "a" : 2,  "b" : 3,  "base" : 33 } }
 {  "a" : 2,  "aaa" : {  "a" : 2,  "b" : 3,  "base" : 22 },  "b" : 3,  "base" : 33,  "bbb" : {  "a" : 2,  "b" : 3,  "base" : 33 },  "ccc" : {  "a" : 2,  "b" : -11,  "base" : 22 },  "ddd" : {  "a" : 2,  "b" : 3,  "base" : 33 } }
+```
+### Total indexes on the collection
+```json
+[ "_id_" ]
 ```
 ### Summarized explain
 Execution Engine: sbe
@@ -1166,20 +1354,20 @@ rightEmbeddingField: "ddd"
 ```
 ### Random reordering with seed 2
 ```
-HASH_JOIN_EMBEDDING [base = base]
+HASH_JOIN_EMBEDDING [b = b]
 leftEmbeddingField: "none"
-rightEmbeddingField: "ddd"
-  |  |
-  |  COLLSCAN [test.base_coll_reorder_md_b]
-  |  filter: {  "b" : {  "$gt" : 0 } }
-  |  direction: "forward"
-  |
-  HASH_JOIN_EMBEDDING [b = b]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "bbb"
+rightEmbeddingField: "bbb"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_b]
   |  filter: {  "base" : {  "$gt" : 20 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "ddd"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  filter: {  "b" : {  "$gt" : 0 } }
   |  direction: "forward"
   |
   HASH_JOIN_EMBEDDING [aaa.a = a]
@@ -1204,20 +1392,20 @@ rightEmbeddingField: "ddd"
 ```
 ### Random reordering with seed 3
 ```
-HASH_JOIN_EMBEDDING [base = base]
+HASH_JOIN_EMBEDDING [b = b]
 leftEmbeddingField: "none"
-rightEmbeddingField: "ddd"
-  |  |
-  |  COLLSCAN [test.base_coll_reorder_md_b]
-  |  filter: {  "b" : {  "$gt" : 0 } }
-  |  direction: "forward"
-  |
-  HASH_JOIN_EMBEDDING [b = b]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "bbb"
+rightEmbeddingField: "bbb"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_b]
   |  filter: {  "base" : {  "$gt" : 20 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "ddd"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  filter: {  "b" : {  "$gt" : 0 } }
   |  direction: "forward"
   |
   HASH_JOIN_EMBEDDING [aaa.a = a]
@@ -1318,20 +1506,20 @@ rightEmbeddingField: "bbb"
 ```
 ### Random reordering with seed 8
 ```
-HASH_JOIN_EMBEDDING [b = b]
+HASH_JOIN_EMBEDDING [base = base]
 leftEmbeddingField: "none"
-rightEmbeddingField: "bbb"
-  |  |
-  |  COLLSCAN [test.base_coll_reorder_md_b]
-  |  filter: {  "base" : {  "$gt" : 20 } }
-  |  direction: "forward"
-  |
-  HASH_JOIN_EMBEDDING [base = base]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "ddd"
+rightEmbeddingField: "ddd"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_b]
   |  filter: {  "b" : {  "$gt" : 0 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [b = b]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "bbb"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  filter: {  "base" : {  "$gt" : 20 } }
   |  direction: "forward"
   |
   HASH_JOIN_EMBEDDING [aaa.a = a]
@@ -1394,17 +1582,9 @@ rightEmbeddingField: "ccc"
 ```
 ### Random reordering with seed 10
 ```
-HASH_JOIN_EMBEDDING [base = base]
+HASH_JOIN_EMBEDDING [aaa.base = base]
 leftEmbeddingField: "none"
-rightEmbeddingField: "ddd"
-  |  |
-  |  COLLSCAN [test.base_coll_reorder_md_b]
-  |  filter: {  "b" : {  "$gt" : 0 } }
-  |  direction: "forward"
-  |
-  HASH_JOIN_EMBEDDING [aaa.base = base]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "ccc"
+rightEmbeddingField: "ccc"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_base]
   |  filter: {  "b" : {  "$lt" : 0 } }
@@ -1416,6 +1596,14 @@ rightEmbeddingField: "ddd"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_a]
   |  filter: {  "base" : {  "$in" : [ 22, 33 ] } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [base = base]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "ddd"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  filter: {  "b" : {  "$gt" : 0 } }
   |  direction: "forward"
   |
   HASH_JOIN_EMBEDDING [b = b]
@@ -1440,20 +1628,20 @@ rightEmbeddingField: "ccc"
   |  filter: {  "b" : {  "$lt" : 0 } }
   |  direction: "forward"
   |
-  HASH_JOIN_EMBEDDING [b = b]
-  leftEmbeddingField: "none"
-  rightEmbeddingField: "bbb"
-  |  |
-  |  COLLSCAN [test.base_coll_reorder_md_b]
-  |  filter: {  "base" : {  "$gt" : 20 } }
-  |  direction: "forward"
-  |
   HASH_JOIN_EMBEDDING [base = base]
   leftEmbeddingField: "none"
   rightEmbeddingField: "ddd"
   |  |
   |  COLLSCAN [test.base_coll_reorder_md_b]
   |  filter: {  "b" : {  "$gt" : 0 } }
+  |  direction: "forward"
+  |
+  HASH_JOIN_EMBEDDING [b = b]
+  leftEmbeddingField: "none"
+  rightEmbeddingField: "bbb"
+  |  |
+  |  COLLSCAN [test.base_coll_reorder_md_b]
+  |  filter: {  "base" : {  "$gt" : 20 } }
   |  direction: "forward"
   |
   HASH_JOIN_EMBEDDING [a = a]

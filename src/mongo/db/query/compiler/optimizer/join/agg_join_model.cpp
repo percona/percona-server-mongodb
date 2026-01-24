@@ -163,7 +163,7 @@ void addImplicitEdges(MutableJoinGraph& graph,
     DisjointSet ds{resolvedPaths.size()};
     for (const auto& edge : graph.edges()) {
         for (const auto& pred : edge.predicates) {
-            if (pred.op == JoinPredicate::Eq) {
+            if (pred.isEquality()) {
                 ds.unite(pred.left, pred.right);
             }
         }
@@ -183,6 +183,8 @@ void addImplicitEdges(MutableJoinGraph& graph,
                 // and the predicate wouldn't be added. This is fine because it doesn't affect the
                 // correctness of the query, only the size of the graph and the number of possible
                 // join plans.
+                // Note: We always add implicit edges as equality edges, then enforce stricter $expr
+                // equality semantics during physical plan generation.
                 graph.addSimpleEqualityEdge(nodeId, currentNodeId, pathId, currentPathId);
             }
             pathSet.push_back(currentPathId);
@@ -220,8 +222,7 @@ void addExprJoinPredicates(MutableJoinGraph& graph,
                            const std::vector<boost::intrusive_ptr<const Expression>>& joinPreds,
                            PathResolver& pathResolver,
                            const std::vector<LetVariable>& letVars,
-                           NodeId localColl,
-                           NodeId foreignColl) {
+                           NodeId foreignNodeId) {
     for (auto&& joinPred : joinPreds) {
         auto eqNode = tassert_cast<const ExpressionCompare*>(joinPred.get());
         auto left = tassert_cast<const ExpressionFieldPath*>(eqNode->getChildren()[0].get());
@@ -231,19 +232,19 @@ void addExprJoinPredicates(MutableJoinGraph& graph,
         boost::optional<PathId> foreignPath;
 
         if (left->isVariableReference()) {
-            // LHS is referencing a field from local collection
+            // LHS is referencing a field from intermediate join result aka local "collection".
             // RHS is referencing a field from the foreign collection
-            localPath = pathResolver.addPath(
-                localColl, localCollectionFieldPath(letVars, left->getVariableId()));
+            localPath =
+                pathResolver.resolve(localCollectionFieldPath(letVars, left->getVariableId()));
             foreignPath =
-                pathResolver.addPath(foreignColl, right->getFieldPathWithoutCurrentPrefix());
+                pathResolver.addPath(foreignNodeId, right->getFieldPathWithoutCurrentPrefix());
         } else if (right->isVariableReference()) {
-            // LHS is referencing a field from the foreign collection
-            // RHS is referencing a field from local collection
-            localPath = pathResolver.addPath(
-                localColl, localCollectionFieldPath(letVars, right->getVariableId()));
+            // LHS is referencing a field from the foreign collection.
+            // RHS is referencing a field from intermediate join result aka local "collection".
+            localPath =
+                pathResolver.resolve(localCollectionFieldPath(letVars, right->getVariableId()));
             foreignPath =
-                pathResolver.addPath(foreignColl, left->getFieldPathWithoutCurrentPrefix());
+                pathResolver.addPath(foreignNodeId, left->getFieldPathWithoutCurrentPrefix());
         } else {
             // We expect one of the children of the ExpressionCompare to be a variable and the other
             // to be a field path.
@@ -252,8 +253,8 @@ void addExprJoinPredicates(MutableJoinGraph& graph,
         tassert(11317204,
                 "expected to resolve both local and foreign paths",
                 localPath.has_value() && foreignPath.has_value());
-        // TODO SERVER-112608: Account for different semantics of $expr equality.
-        graph.addSimpleEqualityEdge(localColl, foreignColl, *localPath, *foreignPath);
+        auto localNodeId = pathResolver[*localPath].nodeId;
+        graph.addExprEqualityEdge(localNodeId, foreignNodeId, *localPath, *foreignPath);
     }
 }
 
@@ -373,7 +374,6 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
                                   swPreds.getValue().joinPredicates,
                                   pathResolver,
                                   lookup->getLetVariables(),
-                                  *baseNodeId,
                                   *foreignNodeId);
 
             auto next = suffix->popFront();
@@ -381,6 +381,25 @@ StatusWith<AggJoinModel> AggJoinModel::constructJoinModel(const Pipeline& pipeli
                 prefix->addInitialSource(std::move(next));
             } else {
                 prefix->pushBack(std::move(next));
+            }
+        } else if (auto* match = dynamic_cast<DocumentSourceMatch*>(stage); match) {
+            tassert(11116400, "unexpected $match", !prefix->getSources().empty());
+
+            auto result = extractExprPredicates(pathResolver, match->getMatchExpression());
+            for (const auto& predicate : result.predicates) {
+                auto leftNodeId = pathResolver[predicate.left].nodeId;
+                auto rightNodeId = pathResolver[predicate.right].nodeId;
+                tassert(11116401,
+                        "Join predicate fields must be from different nodes",
+                        leftNodeId != rightNodeId);
+                graph.addEdge(leftNodeId, rightNodeId, {predicate});
+            }
+
+            if (result.expressionIsFullyAbsorbed) {
+                auto next = suffix->popFront();
+                prefix->pushBack(std::move(next));
+            } else {
+                break;
             }
         } else {
             // Unrecognized stage, give up on building a prefix.

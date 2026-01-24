@@ -61,7 +61,9 @@
 #include "mongo/db/query/compiler/rewrites/matcher/expression_parameterization.h"
 #include "mongo/db/query/explain_options.h"
 #include "mongo/db/query/plan_summary_stats_visitor.h"
-#include "mongo/db/query/query_knobs_gen.h"
+#include "mongo/db/query/query_execution_knobs_gen.h"
+#include "mongo/db/query/query_integration_knobs_gen.h"
+#include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/timeseries/timeseries_translation.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
@@ -113,11 +115,13 @@ void validateTopLevelPipeline(const Pipeline& pipeline) {
                 !(nss.isCollectionlessAggregateNS() &&
                   !firstStageConstraints.isIndependentOfAnyCollection));
 
-        uassert(ErrorCodes::InvalidNamespace,
-                str::stream() << "'" << sources.front()->getSourceName()
-                              << "' can only be run with {aggregate: 1}",
-                !(!nss.isCollectionlessAggregateNS() &&
-                  firstStageConstraints.isIndependentOfAnyCollection));
+        uassert(
+            ErrorCodes::InvalidNamespace,
+            str::stream()
+                << "'" << sources.front()->getSourceName()
+                << "' can only be run with database or cluster-level aggregation {aggregate: 1}",
+            !(!nss.isCollectionlessAggregateNS() &&
+              firstStageConstraints.isIndependentOfAnyCollection));
 
         // If the first stage is a $changeStream stage, then all stages in the pipeline must be
         // either $changeStream stages or allowlisted as being able to run in a change stream.

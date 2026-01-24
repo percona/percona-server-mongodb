@@ -30,12 +30,17 @@
 #pragma once
 
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/config.h"
 #include "mongo/otel/metrics/metrics_metric.h"
 #include "mongo/platform/atomic.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
 
 #include <string>
+
+#ifdef MONGO_CONFIG_OTEL
+#include <opentelemetry/metrics/meter.h>
+#endif
 
 namespace mongo::otel::metrics {
 
@@ -48,54 +53,31 @@ public:
     virtual void add(T value) = 0;
 
     virtual T value() const = 0;
-
-    virtual const std::string& name() const = 0;
-
-    virtual const std::string& description() const = 0;
-
-    virtual const std::string& unit() const = 0;
 };
 
 // A lock free (non-decreasing) counter and metadata about it.
 template <typename T>
 class CounterImpl : public Counter<T> {
 public:
-    CounterImpl(std::string name, std::string description, std::string unit);
-
     void add(T value) override;
 
     T value() const override {
         return _value.load();
     }
 
-    const std::string& name() const override {
-        return _name;
-    }
-
-    const std::string& description() const override {
-        return _description;
-    }
-
-    const std::string& unit() const override {
-        return _unit;
-    }
-
     BSONObj serializeToBson(const std::string& key) const override;
 
+#ifdef MONGO_CONFIG_OTEL
+    void reset(opentelemetry::metrics::Meter* meter) override;
+#endif  // MONGO_CONFIG_OTEL
+
 private:
-    std::string _name;
-    std::string _description;
-    std::string _unit;
     Atomic<T> _value;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // Implementation details
 ///////////////////////////////////////////////////////////////////////////////
-
-template <typename T>
-CounterImpl<T>::CounterImpl(std::string name, std::string description, std::string unit)
-    : _name(std::move(name)), _description(std::move(description)), _unit(std::move(unit)) {}
 
 template <typename T>
 void CounterImpl<T>::add(T value) {
@@ -107,4 +89,12 @@ template <typename T>
 BSONObj CounterImpl<T>::serializeToBson(const std::string& key) const {
     return BSON(key << _value.loadRelaxed());
 }
+
+#ifdef MONGO_CONFIG_OTEL
+template <typename T>
+void CounterImpl<T>::reset(opentelemetry::metrics::Meter* meter) {
+    invariant(!meter);
+    _value.store(0);
+}
+#endif  // MONGO_CONFIG_OTEL
 }  // namespace mongo::otel::metrics

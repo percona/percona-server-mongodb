@@ -85,19 +85,19 @@ TEST(PathArraynessTest, InsertIntoPathArraynessPredefined) {
 
     PathArrayness pathArrayness;
     for (auto&& [fieldPath, multikey] : pathsToInsert) {
-        pathArrayness.addPath(fieldPath, multikey);
+        pathArrayness.addPath(fieldPath, multikey, true);
     }
 
     auto arraynessMapExported = pathArrayness.exportToMap_forTest();
 
     ASSERT_EQ(arraynessMapInitial, arraynessMapExported);
-    ASSERT_EQ(pathArrayness.isPathArray(field_A, &expCtx), true);
-    ASSERT_EQ(pathArrayness.isPathArray(field_ABC, &expCtx), true);
-    ASSERT_EQ(pathArrayness.isPathArray(field_ABD, &expCtx), true);
-    ASSERT_EQ(pathArrayness.isPathArray(field_ABCJ, &expCtx), true);
-    ASSERT_EQ(pathArrayness.isPathArray(field_ABDE, &expCtx), true);
-    ASSERT_EQ(pathArrayness.isPathArray(field_BDE, &expCtx), false);
-    ASSERT_EQ(pathArrayness.isPathArray(field_BDEF, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_A, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_ABC, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_ABD, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_ABCJ, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_ABDE, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_BDE, &expCtx), false);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_BDEF, &expCtx), true);
 }
 
 TEST(PathArraynessTest, InsertIntoPathArraynessGenerated) {
@@ -121,7 +121,7 @@ TEST(PathArraynessTest, InsertIntoPathArraynessGenerated) {
 
     PathArrayness pathArrayness;
     for (auto&& [fieldPath, multikey] : pathsToInsert) {
-        pathArrayness.addPath(fieldPath, multikey);
+        pathArrayness.addPath(fieldPath, multikey, true);
     }
 
     auto arraynessMapExported = pathArrayness.exportToMap_forTest();
@@ -145,13 +145,13 @@ TEST(PathArraynessTest, BuildAndLookupNonExistingFields) {
     PathArrayness pathArrayness;
 
     for (size_t i = 0; i < fields.size(); i++) {
-        pathArrayness.addPath(fields[i], multikeyness[i]);
+        pathArrayness.addPath(fields[i], multikeyness[i], true);
     }
 
-    ASSERT_EQ(pathArrayness.isPathArray(field_ABC, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_ABC, &expCtx), true);
 
     // Path component "d" does not exist but it has prefix "a", "a.b" and "a.b.c" that are
-    ASSERT_EQ(pathArrayness.isPathArray(field_ABCD, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_ABCD, &expCtx), true);
 }
 
 TEST(PathArraynessTest, LookupEmptyTrie) {
@@ -165,11 +165,12 @@ TEST(PathArraynessTest, LookupEmptyTrie) {
     PathArrayness pathArrayness;
 
     // Neither of these fields or their prefixes are in the trie, so assume arrays.
-    ASSERT_EQ(pathArrayness.isPathArray(field_A, &expCtx), true);
-    ASSERT_EQ(pathArrayness.isPathArray(field_ABCD, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_A, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_ABCD, &expCtx), true);
 }
 
-TEST(ArraynessTrie, BuildAndLookupTrieWithConflictingArrayInformation) {
+// When fully rebuilding the trie, we err on the side of non-arrayness when conflicts occur.
+TEST(ArraynessTrie, FullyRebuildAndLookupTrieWithConflictingArrayInformation) {
     ExpressionContextForTest expCtx = ExpressionContextForTest();
 
     // Array: ["a.b"]
@@ -179,25 +180,60 @@ TEST(ArraynessTrie, BuildAndLookupTrieWithConflictingArrayInformation) {
     // Array: ["a.b.c"]. Note in this case "a.b" is not an array.
     FieldPath field_ABC("a.b.c");
     MultikeyComponents multikeyPaths_ABC{2U};
+
     // First add field_AB to trie and then add field_ABC to trie.
     std::vector<FieldPath> fields{field_AB, field_ABC};
     std::vector<MultikeyComponents> multikeyness{multikeyPaths_AB, multikeyPaths_ABC};
 
     PathArrayness pathArrayness;
 
-    pathArrayness.addPath(field_AB, multikeyPaths_AB);
-    pathArrayness.addPath(field_ABC, multikeyPaths_ABC);
+    pathArrayness.addPath(field_AB, multikeyPaths_AB, true);
+    pathArrayness.addPath(field_ABC, multikeyPaths_ABC, true);
 
     // In the case of conflicts, we assume multikeyness.
-    ASSERT_EQ(pathArrayness.isPathArray(field_AB, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_AB, &expCtx), false);
 
     // Now let's flip the insertion order.
     PathArrayness pathArrayness1;
-    pathArrayness1.addPath(field_ABC, multikeyPaths_ABC);
-    pathArrayness1.addPath(field_AB, multikeyPaths_AB);
+    pathArrayness1.addPath(field_ABC, multikeyPaths_ABC, true);
+    pathArrayness1.addPath(field_AB, multikeyPaths_AB, true);
 
     // We should still get the same result.
-    ASSERT_EQ(pathArrayness1.isPathArray(field_AB, &expCtx), true);
+    ASSERT_EQ(pathArrayness1.canPathBeArray(field_AB, &expCtx), false);
+}
+
+// When updating the trie due to an index catalog update following a write operation, we err on the
+// side of arrayness when conflicts occur.
+TEST(ArraynessTrie, UpdateAndLookupTrieWithConflictingArrayInformation) {
+    ExpressionContextForTest expCtx = ExpressionContextForTest();
+
+    // Array: ["a.b"]
+    FieldPath field_AB("a.b");
+    MultikeyComponents multikeyPaths_AB{1U};
+
+    // Array: ["a.b.c"]. Note in this case "a.b" is not an array.
+    FieldPath field_ABC("a.b.c");
+    MultikeyComponents multikeyPaths_ABC{2U};
+
+    // First add field_AB to trie and then add field_ABC to trie.
+    std::vector<FieldPath> fields{field_AB, field_ABC};
+    std::vector<MultikeyComponents> multikeyness{multikeyPaths_AB, multikeyPaths_ABC};
+
+    PathArrayness pathArrayness;
+
+    pathArrayness.addPath(field_AB, multikeyPaths_AB, false);
+    pathArrayness.addPath(field_ABC, multikeyPaths_ABC, false);
+
+    // In the case of conflicts, we assume multikeyness.
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_AB, &expCtx), true);
+
+    // Now let's flip the insertion order.
+    PathArrayness pathArrayness1;
+    pathArrayness1.addPath(field_ABC, multikeyPaths_ABC, false);
+    pathArrayness1.addPath(field_AB, multikeyPaths_AB, false);
+
+    // We should still get the same result.
+    ASSERT_EQ(pathArrayness1.canPathBeArray(field_AB, &expCtx), true);
 }
 
 TEST(ArraynessTrie, BuildAndLookupTrieWithSameArrayInformation) {
@@ -220,13 +256,13 @@ TEST(ArraynessTrie, BuildAndLookupTrieWithSameArrayInformation) {
 
     PathArrayness pathArrayness;
 
-    pathArrayness.addPath(field_AB, multikeyPaths_AB);
-    pathArrayness.addPath(field_ABC, multikeyPaths_ABC);
+    pathArrayness.addPath(field_AB, multikeyPaths_AB, true);
+    pathArrayness.addPath(field_ABC, multikeyPaths_ABC, true);
 
     // Path "a.b" is an array in both of the paths inserted into the trie.
-    ASSERT_EQ(pathArrayness.isPathArray(field_AB, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_AB, &expCtx), true);
     // Path "a" is not an array in either of the paths inserted into the trie.
-    ASSERT_EQ(pathArrayness.isPathArray(field_A, &expCtx), false);
+    ASSERT_EQ(pathArrayness.canPathBeArray(field_A, &expCtx), false);
 }
 
 
@@ -247,7 +283,7 @@ TEST(PathArraynessTest, FieldRefEmptyString) {
     PathArrayness pathArrayness;
 
     // Lookup should conservatively return true for invalid FieldPath.
-    ASSERT_EQ(pathArrayness.isPathArray(emptyFieldRef, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(emptyFieldRef, &expCtx), true);
 }
 
 // FieldRef allows paths ending with a dot, but FieldPath does not.
@@ -260,7 +296,7 @@ TEST(PathArraynessTest, FieldRefEndsWithDot) {
     PathArrayness pathArrayness;
 
     // Lookup should conservatively return true for invalid FieldPath.
-    ASSERT_EQ(pathArrayness.isPathArray(fieldRefWithDot, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(fieldRefWithDot, &expCtx), true);
 }
 
 // FieldRef allows empty field names between dots (e.g., "a..b"), but FieldPath does not.
@@ -273,7 +309,7 @@ TEST(PathArraynessTest, FieldRefEmptyFieldNameBetweenDots) {
     PathArrayness pathArrayness;
 
     // Lookup should conservatively return true for invalid FieldPath.
-    ASSERT_EQ(pathArrayness.isPathArray(fieldRefWithEmpty, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(fieldRefWithEmpty, &expCtx), true);
 }
 
 // FieldRef allows up to 255 components, but FieldPath only allows 200.
@@ -293,7 +329,7 @@ TEST(PathArraynessTest, FieldRefTooManyComponents) {
     PathArrayness pathArrayness;
 
     // Lookup should conservatively return true for invalid FieldPath.
-    ASSERT_EQ(pathArrayness.isPathArray(fieldRefLong, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(fieldRefLong, &expCtx), true);
 }
 
 // FieldRef allows any field name starting with $, but FieldPath only allows certain
@@ -308,85 +344,53 @@ TEST(PathArraynessTest, FieldRefInvalidDollarPrefix) {
     PathArrayness pathArrayness;
 
     // Lookup should conservatively return true for invalid FieldPath.
-    ASSERT_EQ(pathArrayness.isPathArray(fieldRefWithInvalidDollar, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(fieldRefWithInvalidDollar, &expCtx), true);
 }
 
 // Test that a FieldRef that is also a valid FieldPath works correctly.
 TEST(PathArraynessTest, FieldRefValidPath) {
     ExpressionContextForTest expCtx = ExpressionContextForTest();
 
+    // Arrays: ["a.b", "a.b.c"]
     std::string validFieldRefString("a.b.c");
-    MultikeyComponents multikeyPaths{0U, 1U};
+    MultikeyComponents multikeyPaths{1U, 2U};
 
     PathArrayness pathArrayness;
     auto initialState = pathArrayness.exportToMap_forTest();
 
     // Insert valid path - should succeed and be added to trie.
-    pathArrayness.addPath(FieldPath(validFieldRefString), multikeyPaths);
+    pathArrayness.addPath(FieldPath(validFieldRefString), multikeyPaths, true);
     auto afterInsertState = pathArrayness.exportToMap_forTest();
 
     // Trie should have changed since the path is valid and was added.
     ASSERT_NE(initialState, afterInsertState);
     // Should have "a", "a.b", and "a.b.c" entries (all nodes in the path)
     ASSERT_EQ(afterInsertState.size(), 3U);
-    ASSERT_EQ(afterInsertState["a"], true);       // Component 0 is array
-    ASSERT_EQ(afterInsertState["a.b"], true);     // Component 1 is array
-    ASSERT_EQ(afterInsertState["a.b.c"], false);  // Component 2 is not array
+    ASSERT_EQ(afterInsertState["a"], false);     // Component 0 is array
+    ASSERT_EQ(afterInsertState["a.b"], true);    // Component 1 is array
+    ASSERT_EQ(afterInsertState["a.b.c"], true);  // Component 2 is not array
 
     // Lookup should work correctly - "a.b.c" has array prefix, so it's considered an array.
     FieldRef validFieldRef = FieldRef(validFieldRefString);
-    ASSERT_EQ(pathArrayness.isPathArray(validFieldRef, &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(validFieldRef, &expCtx), true);
 
     // Test lookup of a prefix that is an array.
-    FieldRef prefixFieldRef("a");
-    ASSERT_EQ(pathArrayness.isPathArray(prefixFieldRef, &expCtx), true);
+    FieldRef prefixFieldRef("a.b");
+    ASSERT_EQ(pathArrayness.canPathBeArray(prefixFieldRef, &expCtx), true);
+
+    // Test lookup of a prefix that is not an array.
+    FieldRef fieldRef("a");
+    ASSERT_EQ(pathArrayness.canPathBeArray(fieldRef, &expCtx), false);
 }
+
 /**
  * Test that the enablePathArrayness query knob works
  * When disabled, lookups should always conservatively return true.
+ * The value of the knob is cached on first access, so changing the value at runtime should not
+ * affect the value PathArrayness sees for a given query.
  */
 
-TEST(ArraynessTrie, LookupFieldPathInTrieWithQueryKnobDisabled) {
-    ExpressionContextForTest expCtx = ExpressionContextForTest();
-
-    // Disable query knob
-    RAIIServerParameterControllerForTest queryKnobController("internalEnablePathArrayness", false);
-
-    // Array: ["a.b"]
-    FieldPath field_AB("a.b");
-    MultikeyComponents multikeyPaths_AB{1U};
-
-    // Array: ["a.b"]. Note in this case "a.b" is not an array.
-    FieldPath field_ABC("a.b.c");
-    MultikeyComponents multikeyPaths_ABC{1U};
-
-    // Note "a" is not an array in field_AB or field_ABC examples above.
-    FieldPath field_A("a");
-
-    // First add field_AB to trie and then add field_ABC to trie.
-    std::vector<FieldPath> fields{field_AB, field_ABC};
-    std::vector<MultikeyComponents> multikeyness{multikeyPaths_AB, multikeyPaths_ABC};
-
-    PathArrayness pathArrayness;
-
-    pathArrayness.addPath(field_AB, multikeyPaths_AB);
-    pathArrayness.addPath(field_ABC, multikeyPaths_ABC);
-
-    // Path "a" is not an array in either of the paths inserted into the trie, but since the
-    // query knob is disabled PathArrayness should conservatively return true.
-    ASSERT_EQ(pathArrayness.isPathArray(field_A, &expCtx), true);
-
-    // Enable query knob
-    queryKnobController = RAIIServerParameterControllerForTest("internalEnablePathArrayness", true);
-
-    // The original value of the query knob is cached in the ExpressionContext, so even though
-    // the query knob has now been enabled PathArrayness will still use the cached value
-    // (disabled) and conservatively return true. This ensures consistent results during the
-    // lifetime of any given query.
-    ASSERT_EQ(pathArrayness.isPathArray(field_A, &expCtx), true);
-}
-
-TEST(ArraynessTrie, LookupFieldRefInTrieWithQueryKnobDisabled) {
+TEST(ArraynessTrie, LookupTrieWithQueryKnobDisabled) {
     ExpressionContextForTest expCtx = ExpressionContextForTest();
 
     // Disable query knob
@@ -402,7 +406,6 @@ TEST(ArraynessTrie, LookupFieldRefInTrieWithQueryKnobDisabled) {
 
     // Note "a" is not an array in field_AB or field_ABC examples above.
     std::string fieldPathString_A = "a";
-    FieldPath field_A(fieldPathString_A);
 
     // First add field_AB to trie and then add field_ABC to trie.
     std::vector<FieldPath> fields{field_AB, field_ABC};
@@ -410,12 +413,14 @@ TEST(ArraynessTrie, LookupFieldRefInTrieWithQueryKnobDisabled) {
 
     PathArrayness pathArrayness;
 
-    pathArrayness.addPath(field_AB, multikeyPaths_AB);
-    pathArrayness.addPath(field_ABC, multikeyPaths_ABC);
+    pathArrayness.addPath(field_AB, multikeyPaths_AB, true);
+    pathArrayness.addPath(field_ABC, multikeyPaths_ABC, true);
 
     // Path "a" is not an array in either of the paths inserted into the trie, but since the
     // query knob is disabled PathArrayness should conservatively return true.
-    ASSERT_EQ(pathArrayness.isPathArray(FieldRef(fieldPathString_A), &expCtx), true);
+    // Test for both FieldPath and FieldRef.
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath(fieldPathString_A), &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldRef(fieldPathString_A), &expCtx), true);
 
     // Enable query knob
     queryKnobController = RAIIServerParameterControllerForTest("internalEnablePathArrayness", true);
@@ -424,8 +429,54 @@ TEST(ArraynessTrie, LookupFieldRefInTrieWithQueryKnobDisabled) {
     // the query knob has now been enabled PathArrayness will still use the cached value
     // (disabled) and conservatively return true. This ensures consistent results during the
     // lifetime of any given query.
-    ASSERT_EQ(pathArrayness.isPathArray(FieldRef(fieldPathString_A), &expCtx), true);
+    // Test for both FieldPath and FieldRef.
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath(fieldPathString_A), &expCtx), true);
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldRef(fieldPathString_A), &expCtx), true);
 }
 
+TEST(ArraynessTrie, LookupTrieWithQueryKnobEnabled) {
+    ExpressionContextForTest expCtx = ExpressionContextForTest();
+
+    // Disable query knob
+    RAIIServerParameterControllerForTest queryKnobController("internalEnablePathArrayness", true);
+
+    // Array: ["a.b"]
+    FieldPath field_AB("a.b");
+    MultikeyComponents multikeyPaths_AB{1U};
+
+    // Array: ["a.b"]. Note in this case "a.b" is not an array.
+    FieldPath field_ABC("a.b.c");
+    MultikeyComponents multikeyPaths_ABC{1U};
+
+    // Note "a" is not an array in field_AB or field_ABC examples above.
+    std::string fieldPathString_A = "a";
+
+    // First add field_AB to trie and then add field_ABC to trie.
+    std::vector<FieldPath> fields{field_AB, field_ABC};
+    std::vector<MultikeyComponents> multikeyness{multikeyPaths_AB, multikeyPaths_ABC};
+
+    PathArrayness pathArrayness;
+
+    pathArrayness.addPath(field_AB, multikeyPaths_AB, true);
+    pathArrayness.addPath(field_ABC, multikeyPaths_ABC, true);
+
+    // Path "a" is not an array in either of the paths inserted into the trie and the query knob is
+    // enabled so we should see that the path is not an array.
+    // Test for both FieldPath and FieldRef.
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath(fieldPathString_A), &expCtx), false);
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldRef(fieldPathString_A), &expCtx), false);
+
+    // Enable query knob
+    queryKnobController =
+        RAIIServerParameterControllerForTest("internalEnablePathArrayness", false);
+
+    // The original value of the query knob is cached in the ExpressionContext, so even though
+    // the query knob has now been disabled PathArrayness will still use the cached value
+    // (enabled) and search the trie for arrayness values. This ensures consistent results during
+    // the lifetime of any given query.
+    // Test for both FieldPath and FieldRef.
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldPath(fieldPathString_A), &expCtx), false);
+    ASSERT_EQ(pathArrayness.canPathBeArray(FieldRef(fieldPathString_A), &expCtx), false);
+}
 
 }  // namespace mongo

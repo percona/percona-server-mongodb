@@ -32,7 +32,10 @@
 #include "mongo/base/init.h"  // IWYU pragma: keep
 #include "mongo/db/extension/host/document_source_extension_for_query_shape.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
+#include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/search/search_helper.h"
+#include "mongo/util/namespace_string_util.h"
+#include "mongo/util/serialization_context.h"
 
 namespace mongo::extension::host {
 
@@ -206,6 +209,16 @@ bool DocumentSourceExtensionOptimizable::LiteParsedExpanded::isExtensionVectorSe
     return search_helpers::isExtensionVectorSearchStage(getParseTimeName());
 }
 
+ViewPolicy DocumentSourceExtensionOptimizable::LiteParsedExpanded::getViewPolicy() const {
+    return ViewPolicy{.policy = view_util::toFirstStageApplicationPolicy(
+                          _astNode->getFirstStageViewApplicationPolicy()),
+                      .callback = [this](const ViewInfo& viewInfo, StringData stageName) {
+                          const auto viewNameStr = NamespaceStringUtil::serialize(
+                              viewInfo.viewName, SerializationContext::stateDefault());
+                          _astNode->bindViewInfo(viewNameStr);
+                      }};
+}
+
 // static
 void DocumentSourceExtensionOptimizable::registerStage(AggStageDescriptorHandle descriptor) {
     auto nameStringData = descriptor->getName();
@@ -316,7 +329,7 @@ DepsTracker::State DocumentSourceExtensionOptimizable::getDependencies(DepsTrack
 }
 
 boost::optional<DocumentSource::DistributedPlanLogic>
-DocumentSourceExtensionOptimizable::distributedPlanLogic() {
+DocumentSourceExtensionOptimizable::distributedPlanLogic(const DistributedPlanContext* ctx) {
     auto dplHandle = _logicalStage->getDistributedPlanLogic();
 
     if (!dplHandle.isValid()) {
@@ -440,6 +453,11 @@ std::list<boost::intrusive_ptr<DocumentSource>> DocumentSourceExtensionOptimizab
         });
 
     return outExpanded;
+}
+
+boost::intrusive_ptr<DocumentSource> DocumentSourceExtensionOptimizable::clone(
+    const boost::intrusive_ptr<ExpressionContext>& newExpCtx) const {
+    return create(newExpCtx, _logicalStage->clone(), _properties);
 }
 
 }  // namespace mongo::extension::host

@@ -31,6 +31,7 @@
 
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/query/compiler/metadata/path_arrayness_test_helpers.h"
+#include "mongo/db/query/query_fcv_environment_for_test.h"
 
 #include <benchmark/benchmark.h>
 
@@ -96,16 +97,17 @@ void BM_PathArraynessBuild(benchmark::State& state) {
     for (auto _ : state) {
         PathArrayness pathArrayness;
         for (size_t i = 0; i < pathsToInsert.size(); i++) {
-            pathArrayness.addPath(pathsToInsert[i].first, pathsToInsert[i].second);
+            pathArrayness.addPath(pathsToInsert[i].first, pathsToInsert[i].second, true);
         }
     }
 }
 
 void BM_PathArraynessLookup(benchmark::State& state) {
+    QueryFCVEnvironmentForTest::setUp();
+    ExpressionContextForTest expCtx = ExpressionContextForTest();
+
     size_t seed = 1354754;
     size_t seed2 = 3421354754;
-
-    ExpressionContextForTest expCtx = ExpressionContextForTest();
 
     auto pathsToInsert = generatePathsToInsert(state, seed, seed2);
 
@@ -115,7 +117,7 @@ void BM_PathArraynessLookup(benchmark::State& state) {
     // Build the path arrayness data structure.
     PathArrayness pathArrayness;
     for (size_t i = 0; i < pathsToInsert.size(); i++) {
-        pathArrayness.addPath(pathsToInsert[i].first, pathsToInsert[i].second);
+        pathArrayness.addPath(pathsToInsert[i].first, pathsToInsert[i].second, true);
     }
 
     // Number of paths to query.
@@ -149,7 +151,7 @@ void BM_PathArraynessLookup(benchmark::State& state) {
             // numberOfPathsQuery could be larger than the number of paths we have, so we take the
             // modulo of the index in order to wrap back around to the start of the array if that's
             // the case.
-            pathArrayness.isPathArray(pathsToQuery[i % pathsToQuery.size()], &expCtx);
+            pathArrayness.canPathBeArray(pathsToQuery[i % pathsToQuery.size()], &expCtx);
         }
     }
 }
@@ -222,19 +224,19 @@ BENCHMARK(BM_PathArraynessLookup)
         {10, 50, 100},
 #else
         /*numberOfPaths*/
-        {64, 2048},
+        {64},
         /*maxLength*/
-        {10, 100},
+        {10},
         /*maxFieldNameLength: */
-        {5, 250},
+        {5},
         /*trieWidth*/
-        {TrieWidth::kNarrow, TrieWidth::kWide},
+        {TrieWidth::kNarrow},
         /*trieDepth*/
-        {TrieDepth::kShallow, TrieDepth::kDeep},
+        {TrieDepth::kShallow},
         /*numberOfPathsQuery*/
-        {50, 200},
+        {50},
         /*maxLengthQuery*/
-        {10, 100}
+        {10}
 #endif
     })
     ->Unit(benchmark::kMillisecond)

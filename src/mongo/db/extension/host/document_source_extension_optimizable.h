@@ -32,7 +32,7 @@
 #include "mongo/db/extension/host/aggregation_stage/ast_node.h"
 #include "mongo/db/extension/host/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/host/catalog_context.h"
-#include "mongo/db/extension/host/static_properties_util.h"
+#include "mongo/db/extension/host/extension_host_utils.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/ast_node.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/distributed_plan_logic.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/logical.h"
@@ -298,6 +298,8 @@ public:
 
         bool isExtensionVectorSearchStage() const override;
 
+        ViewPolicy getViewPolicy() const override;
+
     private:
         const AggStageAstNodeHandle _astNode;
         const MongoExtensionStaticProperties _properties;
@@ -370,12 +372,16 @@ public:
 
     DepsTracker::State getDependencies(DepsTracker* deps) const override;
 
-    boost::optional<DistributedPlanLogic> distributedPlanLogic() override;
+    boost::optional<DistributedPlanLogic> distributedPlanLogic(
+        const DistributedPlanContext* ctx) override;
 
     // Wrapper around the LogicalAggStageHandle::compile() method. Returns an ExecAggStageHandle.
     ExecAggStageHandle compile() {
         return _logicalStage->compile();
     }
+
+    boost::intrusive_ptr<DocumentSource> clone(
+        const boost::intrusive_ptr<ExpressionContext>& newExpCtx) const override;
 
 protected:
     /**

@@ -116,7 +116,9 @@
 #include "mongo/db/query/client_cursor/clientcursor.h"
 #include "mongo/db/query/compiler/stats/stats_cache_loader_impl.h"
 #include "mongo/db/query/compiler/stats/stats_catalog.h"
-#include "mongo/db/query/query_knobs_gen.h"
+#include "mongo/db/query/query_execution_knobs_gen.h"
+#include "mongo/db/query/query_integration_knobs_gen.h"
+#include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/search/mongot_options.h"
 #include "mongo/db/query/search/search_task_executors.h"
 #include "mongo/db/read_write_concern_defaults.h"
@@ -237,8 +239,6 @@
 #include "mongo/s/analyze_shard_key_role.h"
 #include "mongo/s/query_analysis_client.h"
 #include "mongo/s/query_analysis_sampler.h"
-#include "mongo/s/read_write_concern_defaults_cache_lookup_mongos.h"
-#include "mongo/s/service_entry_point_router_role.h"
 #include "mongo/scripting/dbdirectclient_factory.h"
 #include "mongo/scripting/engine.h"
 #include "mongo/stdx/mutex.h"
@@ -959,12 +959,6 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
             ShardingReady::get(startupOpCtx.get())->setIsReadyIfShardExists(startupOpCtx.get());
         }
 
-        if (serverGlobalParams.clusterRole.has(ClusterRole::RouterServer)) {
-            // Router role should use SEPMongos
-            serviceContext->getService(ClusterRole::RouterServer)
-                ->setServiceEntryPoint(std::make_unique<ServiceEntryPointRouterRole>());
-        }
-
         if (replSettings.isReplSet() &&
             (serverGlobalParams.clusterRole.has(ClusterRole::None) ||
              !Grid::get(startupOpCtx.get())->isShardingInitialized())) {
@@ -1157,8 +1151,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         } else if (replSettings.isReplSet()) {
             kind = LogicalSessionCacheServer::kReplicaSet;
         }
-        return makeLogicalSessionCacheD(
-            kind, serverGlobalParams.clusterRole.has(ClusterRole::RouterServer));
+        return makeLogicalSessionCacheD(kind);
     }();
     LogicalSessionCache::set(serviceContext, std::move(logicalSessionCache));
 
@@ -2123,12 +2116,8 @@ int mongod_main(int argc, char* argv[]) {
 
     startAllocatorThread();
 
-    auto routerService = service->getService(ClusterRole::RouterServer);
-    auto shardService = service->getService(ClusterRole::ShardServer);
-    if (routerService) {
-        ReadWriteConcernDefaults::create(routerService, readWriteConcernDefaultsCacheLookupMongoS);
-    }
-    ReadWriteConcernDefaults::create(shardService, readWriteConcernDefaultsCacheLookupMongoD);
+    ReadWriteConcernDefaults::create(service->getService(),
+                                     readWriteConcernDefaultsCacheLookupMongoD);
 
     ChangeStreamOptionsManager::create(service);
 

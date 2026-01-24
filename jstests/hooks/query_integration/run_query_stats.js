@@ -8,6 +8,7 @@
  */
 import {DiscoverTopology, Topology} from "jstests/libs/discover_topology.js";
 import newMongoWithRetry from "jstests/libs/retryable_mongo.js";
+const {ReplSetTest} = await import("jstests/libs/replsettest.js");
 
 assert.neq(typeof db, "undefined", "No `db` object, is the shell connected to a server?");
 
@@ -91,9 +92,11 @@ if (topology.type === Topology.kShardedCluster) {
             const shard = topology.shards[shardName];
 
             if (shard.type === Topology.kReplicaSet) {
-                shard.nodes.forEach((node) => {
-                    const nodeConn = newMongoWithRetry(node);
-                    takeAction(nodeConn, operation);
+                // Await replication to ensure all of the shards are queryable.
+                const rst = new ReplSetTest(shard.primary);
+                rst.awaitReplication();
+                rst.nodes.forEach((node) => {
+                    takeAction(node, operation);
                 });
             } else if (shard.type === Topology.kStandalone) {
                 const nodeConn = newMongoWithRetry(shard.mongod);

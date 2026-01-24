@@ -381,7 +381,6 @@ class ShardingCommandGenerator {
                 break;
             case Action.UNSHARD_COLLECTION:
                 // Collection becomes unsplittable (single-shard) but still exists.
-                // Old shard key index is explicitly dropped in _appendAction.
                 assert(ctx.shardKeySpec, "Unshard requires existing shard key");
                 ctx.shardKeySpec = null;
                 ctx.isSharded = false;
@@ -485,6 +484,7 @@ class ShardingCommandGenerator {
                 ),
             );
         }
+
         // NOTE: We intentionally do NOT drop indexes before dropping collections.
         // While MongoDB silently removes indexes when dropping a collection (no 'dropIndexes' events),
         // we already get 'dropIndexes' coverage from the post-reshard/unshard cleanup (Step 5).

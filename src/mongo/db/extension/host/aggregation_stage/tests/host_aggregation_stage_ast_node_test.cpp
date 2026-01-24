@@ -133,6 +133,34 @@ DEATH_TEST(HostAstNodeVTableTestDeathTest, InvalidAstNodeVTableFailsBind, "11113
     AggStageAstNodeAPI::assertVTableConstraints(vtable);
 }
 
+DEATH_TEST(HostAstNodeVTableTestDeathTest,
+           InvalidAstNodeVTableFailsGetFirstStageViewApplicationPolicy,
+           "11507400") {
+    auto spec = BSON("$_internalSearchIdLookup" << BSONObj());
+
+    auto noOpAstNode = new host::HostAggStageAstNode(NoOpHostAstNode::make(
+        std::make_unique<mongo::DocumentSourceInternalSearchIdLookUp::LiteParsed>(
+            spec.firstElement(), spec)));
+    auto handle = AggStageAstNodeHandle{noOpAstNode};
+
+    auto vtable = handle->vtable();
+    vtable.get_first_stage_view_application_policy = nullptr;
+    AggStageAstNodeAPI::assertVTableConstraints(vtable);
+}
+
+DEATH_TEST(HostAstNodeVTableTestDeathTest, InvalidAstNodeVTableFailsBindViewInfo, "11507500") {
+    auto spec = BSON("$_internalSearchIdLookup" << BSONObj());
+
+    auto noOpAstNode = new host::HostAggStageAstNode(NoOpHostAstNode::make(
+        std::make_unique<mongo::DocumentSourceInternalSearchIdLookUp::LiteParsed>(
+            spec.firstElement(), spec)));
+    auto handle = AggStageAstNodeHandle{noOpAstNode};
+
+    auto vtable = handle->vtable();
+    vtable.bind_view_info = nullptr;
+    AggStageAstNodeAPI::assertVTableConstraints(vtable);
+}
+
 DEATH_TEST(HostAstNodeTestDeathTest, HostGetPropertiesUnimplemented, "11347801") {
     auto noOpAstNode = new host::HostAggStageAstNode(NoOpHostAstNode::make({}));
     auto handle = AggStageAstNodeHandle{noOpAstNode};
@@ -234,6 +262,29 @@ TEST(HostAstNodeCloneTest, MultipleCloneAreIndependent) {
     ASSERT_EQ(handle->getName(), clone1->getName());
     ASSERT_EQ(handle->getName(), clone2->getName());
     ASSERT_EQ(handle->getName(), clone3->getName());
+}
+
+DEATH_TEST(HostAstNodeViewPolicyTest,
+           HostAstNodeCannotGetFirstStageViewApplicationPolicy,
+           "11507401") {
+    auto spec = BSON("$_internalSearchIdLookup" << BSONObj());
+    auto astNode = new host::HostAggStageAstNode(NoOpHostAstNode::make(
+        std::make_unique<mongo::DocumentSourceInternalSearchIdLookUp::LiteParsed>(
+            spec.firstElement(), spec.getOwned())));
+    auto handle = AggStageAstNodeHandle{astNode};
+    handle->getFirstStageViewApplicationPolicy();
+}
+
+DEATH_TEST(HostAstNodeViewInfoTest, HostAstNodeCannotBindViewInfo, "11507501") {
+    std::string stageName = "$_internalSearchIdLookup";
+    auto spec = BSON(stageName << BSONObj());
+    auto astNode = new host::HostAggStageAstNode(NoOpHostAstNode::make(
+        std::make_unique<mongo::DocumentSourceInternalSearchIdLookUp::LiteParsed>(
+            spec.firstElement(), spec.getOwned())));
+    auto handle = AggStageAstNodeHandle{astNode};
+
+    std::string viewName = "testViewName";
+    handle->bindViewInfo(viewName);
 }
 
 }  // namespace

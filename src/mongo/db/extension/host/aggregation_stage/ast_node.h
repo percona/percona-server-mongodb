@@ -177,12 +177,33 @@ private:
         });
     }
 
-    static constexpr ::MongoExtensionAggStageAstNodeVTable VTABLE{.destroy = &_hostDestroy,
-                                                                  .get_name = &_hostGetName,
-                                                                  .get_properties =
-                                                                      &_hostGetProperties,
-                                                                  .bind = &_hostBind,
-                                                                  .clone = &_hostClone};
+    static ::MongoExtensionStatus* _hostGetFirstStageViewApplicationPolicy(
+        const ::MongoExtensionAggStageAstNode* astNode,
+        ::MongoExtensionFirstStageViewApplicationPolicy* output) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            tasserted(11507401,
+                      "_hostGetFirstStageViewApplicationPolicy should not be called. Ensure that "
+                      "astNode is extension-allocated, not host-allocated");
+        });
+    }
+
+    static ::MongoExtensionStatus* _hostBindViewInfo(const ::MongoExtensionAggStageAstNode* astNode,
+                                                     ::MongoExtensionByteView viewName) noexcept {
+        return wrapCXXAndConvertExceptionToStatus([&]() {
+            tasserted(11507501,
+                      "_hostBindViewInfo should not be called. Ensure that astNode is "
+                      "extension-allocated, not host-allocated.");
+        });
+    }
+
+    static constexpr ::MongoExtensionAggStageAstNodeVTable VTABLE{
+        .destroy = &_hostDestroy,
+        .get_name = &_hostGetName,
+        .get_properties = &_hostGetProperties,
+        .bind = &_hostBind,
+        .clone = &_hostClone,
+        .get_first_stage_view_application_policy = &_hostGetFirstStageViewApplicationPolicy,
+        .bind_view_info = &_hostBindViewInfo};
 
     std::unique_ptr<AggStageAstNode> _astNode;
 };

@@ -45,7 +45,9 @@
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/stage_types.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
-#include "mongo/db/query/query_knobs_gen.h"
+#include "mongo/db/query/query_execution_knobs_gen.h"
+#include "mongo/db/query/query_integration_knobs_gen.h"
+#include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/stage_builder/sbe/abt/comparison_op.h"
 #include "mongo/db/query/stage_builder/sbe/builder.h"
 #include "mongo/db/query/stage_builder/sbe/gen_filter.h"
@@ -1897,9 +1899,8 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildNestedLoopJoinEmb
             }
         }
 
-        tassert(10984704,
-                "Unknown operation in join predicate",
-                predicate.op == QSNJoinPredicate::ComparisonOp::Eq);
+        // TODO SERVER-113276: Support $expr eq.
+        tassert(10984704, "Unknown operation in join predicate", predicate.isEquality());
 
         // Generate an expression for one predicate, which evaluates a path on each document and
         // compares the resulting values. Any path that fails to evaluate, because of a missing or
@@ -1965,9 +1966,8 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildHashJoinEmbedding
 
     SbExprOptSlotVector leftPrj, rightPrj;
     for (const auto& predicate : hashJoinEmbeddingNode->joinPredicates) {
-        tassert(11122104,
-                "Unknown operation in join predicate",
-                predicate.op == QSNJoinPredicate::ComparisonOp::Eq);
+        // TODO SERVER-113276: Support $expr eq.
+        tassert(11122104, "Unknown operation in join predicate", predicate.isEquality());
 
         // Create an expression for each side of the predicate, and add it to a $project stage to be
         // placed on top of the source stages. Any path that fails to evaluate, because of a missing
@@ -2078,9 +2078,8 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildIndexedJoinEmbedd
     std::vector<FieldPath> foreignPaths;
     StringSet dedupForeignPaths;
     for (const auto& predicate : indexedJoinEmbeddingNode->joinPredicates) {
-        tassert(11122204,
-                "Unknown operation in join predicate",
-                predicate.op == QSNJoinPredicate::ComparisonOp::Eq);
+        // TODO SERVER-113276: Support $expr eq.
+        tassert(11122204, "Unknown operation in join predicate", predicate.isEquality());
 
         // Create an expression for the left side of the predicate, and add it to a ProjectStage
         // to be placed on top of the source stages. Any path that fails to evaluate, because of a

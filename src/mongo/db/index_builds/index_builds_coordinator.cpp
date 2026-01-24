@@ -32,7 +32,6 @@
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/admission/execution_control/execution_admission_context.h"
-#include "mongo/db/admission/execution_control/execution_control_parameters_gen.h"
 #include "mongo/db/client.h"
 #include "mongo/db/commands/server_status/server_status.h"
 #include "mongo/db/curop.h"
@@ -2953,6 +2952,8 @@ void IndexBuildsCoordinator::_runIndexBuild(OperationContext* opCtx,
                                             const UUID& buildUUID,
                                             const IndexBuildOptions& indexBuildOptions,
                                             const boost::optional<ResumeIndexInfo>& resumeInfo) {
+    admission::execution_control::ScopedLowPriorityBackgroundTask backgroundTask(opCtx);
+
     activeIndexBuilds.sleepIfNecessary_forTestOnly();
 
     // If the index build does not exist, do not continue building the index. This may happen if an
@@ -3038,6 +3039,18 @@ void IndexBuildsCoordinator::_cleanUpAfterFailure(OperationContext* opCtx,
               "buildUUD"_attr = replState->buildUUID,
               "error"_attr = status);
         activeIndexBuilds.unregisterIndexBuild(&_indexBuildsManager, replState);
+        return;
+    }
+
+    // In primary-driven index builds, when a primary steps down it loses the authority to abort the
+    // index build. Skip the cleanup here and wait for external abort signals (kOplogAbort or
+    // kRollbackAbort).
+    if (status.isA<ErrorCategory::NotPrimaryError>() &&
+        indexBuildOptions.indexBuildMethod == IndexBuildMethodEnum::kPrimaryDriven) {
+        LOGV2(11717000,
+              "Index build: skipping cleanup for primary-driven index build on step down",
+              "buildUUD"_attr = replState->buildUUID,
+              "error"_attr = status);
         return;
     }
 
@@ -3488,12 +3501,6 @@ void IndexBuildsCoordinator::_scanCollectionAndInsertSortedKeysIntoIndex(
     OperationContext* opCtx,
     std::shared_ptr<ReplIndexBuildState> replState,
     const boost::optional<RecordId>& resumeAfterRecordId) {
-    boost::optional<ScopedAdmissionPriority<ExecutionAdmissionContext>>
-        deprioritizeExecutionControl;
-    if (admission::execution_control::gBackgroundTasksDeprioritization.load()) {
-        deprioritizeExecutionControl.emplace(opCtx, AdmissionContext::Priority::kLow);
-    }
-
     invariant(replState->getGenerateTableWrites());
 
     // Collection scan and insert into index.
@@ -3526,12 +3533,6 @@ void IndexBuildsCoordinator::_scanCollectionAndInsertSortedKeysIntoIndex(
 
 void IndexBuildsCoordinator::_insertSortedKeysIntoIndexForResume(
     OperationContext* opCtx, std::shared_ptr<ReplIndexBuildState> replState) {
-    boost::optional<ScopedAdmissionPriority<ExecutionAdmissionContext>>
-        deprioritizeExecutionControl;
-    if (admission::execution_control::gBackgroundTasksDeprioritization.load()) {
-        deprioritizeExecutionControl.emplace(opCtx, AdmissionContext::Priority::kLow);
-    }
-
     {
         tassert(7683109,
                 "Expected readSource to be kNoTimestamp",

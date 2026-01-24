@@ -31,12 +31,12 @@
 
 #include "mongo/base/string_data.h"
 #include "mongo/config.h"
-#include "mongo/db/service_context.h"
 #include "mongo/otel/metrics/metric_names.h"
 #include "mongo/otel/metrics/metric_unit.h"
 #include "mongo/otel/metrics/metrics_counter.h"
 #include "mongo/otel/metrics/metrics_gauge.h"
 #include "mongo/otel/metrics/metrics_histogram.h"
+#include "mongo/util/concurrency/with_lock.h"
 #include "mongo/util/modules.h"
 
 #include <absl/container/btree_map.h>
@@ -50,58 +50,60 @@ namespace mongo::otel::metrics {
 
 /**
  * The MetricsService is the external interface by which API consumers can create Instruments. The
- * global MeterProvider must be set before ServiceContext construction to ensure that the meter can
- * be properly initialized.
+ * MetricsService must be initialized before metrics can record values or be read.
  */
-class MONGO_MOD_PUBLIC MetricsService {
+class MONGO_MOD_PUBLIC MetricsService final {
 public:
     static constexpr StringData kMeterName = "mongodb";
 
-    static MetricsService& get(ServiceContext*);
+    static MetricsService& instance() {
+        static MetricsService metricsService;
+        return metricsService;
+    }
 
     /**
-     * Creates a counter with the provided parameters. The result is never null but will throw an
+     * Creates a counter with the provided parameters. The function will throw an exception if the
+     * counter would collide with an existing metric (i.e., same name but different type or other
+     * parameters). Metrics should be stashed once they are created to avoid taking a lock on the
+     * global list of metrics in performance-sensitive codepaths.
+     *
+     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
+     */
+    Counter<int64_t>& createInt64Counter(MetricName name, std::string description, MetricUnit unit);
+
+    /**
+     * Creates a counter with the provided parameters. The function will throw an exception if the
+     * counter would collide with an existing metric (i.e., same name but different type or other
+     * parameters). Metrics should be stashed once they are created to avoid taking a lock on the
+     * global list of metrics in performance-sensitive codepaths.
+     *
+     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
+     */
+    Counter<double>& createDoubleCounter(MetricName name, std::string description, MetricUnit unit);
+
+    /**
+     * Creates or returns an existing gauge with the provided parameters. The function will throw an
+     * exception if the gauge would collide with an different metric (i.e., same name but different
+     * type or other parameters).
+     *
+     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
+     */
+    Gauge<int64_t>& createInt64Gauge(MetricName name, std::string description, MetricUnit unit);
+
+    /**
+     * Creates or returns an existing gauge with the provided parameters. The function will throw an
+     * exception if the gauge would collide with an different metric (i.e., same name but different
+     * type or other parameters).
+     *
+     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
+     */
+    Gauge<double>& createDoubleGauge(MetricName name, std::string description, MetricUnit unit);
+
+    /**
+     * Creates an int64_t histogram with the provided parameters. The function will throw an
      * exception if the counter would collide with an existing metric (i.e., same name but different
      * type or other parameters). Metrics should be stashed once they are created to avoid taking a
      * lock on the global list of metrics in performance-sensitive codepaths.
-     *
-     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
-     */
-    Counter<int64_t>* createInt64Counter(MetricName name, std::string description, MetricUnit unit);
-
-    /**
-     * Creates a counter with the provided parameters. The result is never null but will throw an
-     * exception if the counter would collide with an existing metric (i.e., same name but different
-     * type or other parameters). Metrics should be stashed once they are created to avoid taking a
-     * lock on the global list of metrics in performance-sensitive codepaths.
-     *
-     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
-     */
-    Counter<double>* createDoubleCounter(MetricName name, std::string description, MetricUnit unit);
-
-    /**
-     * Creates or returns an existing gauge with the provided parameters. The result is never null
-     * but will throw an exception if the gauge would collide with an different metric (i.e., same
-     * name but different type or other parameters).
-     *
-     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
-     */
-    Gauge<int64_t>* createInt64Gauge(MetricName name, std::string description, MetricUnit unit);
-
-    /**
-     * Creates or returns an existing gauge with the provided parameters. The result is never null
-     * but will throw an exception if the gauge would collide with an different metric (i.e., same
-     * name but different type or other parameters).
-     *
-     * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
-     */
-    Gauge<double>* createDoubleGauge(MetricName name, std::string description, MetricUnit unit);
-
-    /**
-     * Creates an int64_t histogram with the provided parameters. The result is never null but will
-     * throw an exception if the counter would collide with an existing metric (i.e., same name but
-     * different type or other parameters). Metrics should be stashed once they are created to avoid
-     * taking a lock on the global list of metrics in performance-sensitive codepaths.
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
      *
@@ -124,24 +126,24 @@ public:
      * See https://opentelemetry.io/docs/specs/otel/metrics/data-model/#histogram for more
      * information.
      */
-    Histogram<int64_t>* createInt64Histogram(
+    Histogram<int64_t>& createInt64Histogram(
         MetricName name,
         std::string description,
         MetricUnit unit,
         boost::optional<std::vector<double>> explicitBucketBoundaries = boost::none);
 
     /**
-     * Creates a double histogram with the provided parameters. The result is never null but will
-     * throw an exception if the counter would collide with an existing metric (i.e., same name but
-     * different type or other parameters). Metrics should be stashed once they are created to avoid
-     * taking a lock on the global list of metrics in performance-sensitive codepaths.
+     * Creates a double histogram with the provided parameters. The function will throw an exception
+     * if the counter would collide with an existing metric (i.e., same name but different type or
+     * other parameters). Metrics should be stashed once they are created to avoid taking a lock on
+     * the global list of metrics in performance-sensitive codepaths.
      *
      * All callers must add an entry in metric_names.h to create a MetricName to pass to the API.
      *
      * See the documentation for createInt64Histogram for an explanation of the explict bucket
      * boundaries parameter.
      */
-    Histogram<double>* createDoubleHistogram(
+    Histogram<double>& createDoubleHistogram(
         MetricName name,
         std::string description,
         MetricUnit unit,
@@ -151,6 +153,18 @@ public:
      * Appends all the created metrics for server status reporting.
      */
     void appendMetricsForServerStatus(BSONObjBuilder& bsonBuilder) const;
+
+#ifdef MONGO_CONFIG_OTEL
+    /**
+     * Initializes the metrics service by registering metrics created before initialization with the
+     * provided meter provider.
+     *
+     * This function enables metrics to be created statically, before the meter provider is
+     * initialized in mongod_main.cpp. Any metrics created before initialization are reset to their
+     * default value.
+     */
+    MONGO_MOD_PRIVATE void initialize(opentelemetry::metrics::MeterProvider& provider);
+#endif  // MONGO_CONFIG_OTEL
 
 private:
     // Identifies metrics to help prevent conflicting registrations.
@@ -175,17 +189,40 @@ private:
     T* getDuplicateMetric(WithLock, const std::string& name, MetricIdentifier identifier);
 
     template <typename T>
-    Counter<T>* createCounter(MetricName name, std::string description, MetricUnit unit);
+    Counter<T>& createCounter(MetricName name, std::string description, MetricUnit unit);
 
     template <typename T>
-    Gauge<T>* createGauge(MetricName name, std::string description, MetricUnit unit);
+    Gauge<T>& createGauge(MetricName name, std::string description, MetricUnit unit);
 
     using OwnedMetric = std::variant<std::unique_ptr<Counter<int64_t>>,
                                      std::unique_ptr<Counter<double>>,
                                      std::unique_ptr<Gauge<int64_t>>,
                                      std::unique_ptr<Gauge<double>>,
-                                     std::unique_ptr<Histogram<double>>,
-                                     std::unique_ptr<Histogram<int64_t>>>;
+                                     std::unique_ptr<Histogram<int64_t>>,
+                                     std::unique_ptr<Histogram<double>>>;
+
+#ifdef MONGO_CONFIG_OTEL
+    /**
+     * Visitor struct used for initializing OwnedMetric variants in MetricsService::initialize().
+     *
+     * The visitor assumes the MetricService mutex is locked, hence the WithLock member variable.
+     */
+    struct OwnedMetricVisitor {
+        WithLock lock;
+        opentelemetry::metrics::MeterProvider& provider;
+        const std::string& name;
+        MetricIdentifier id;
+        std::vector<std::shared_ptr<opentelemetry::metrics::ObservableInstrument>>&
+            newObservableInstruments;
+
+        void operator()(std::unique_ptr<Counter<int64_t>>& counter);
+        void operator()(std::unique_ptr<Counter<double>>& counter);
+        void operator()(std::unique_ptr<Gauge<int64_t>>& gauge);
+        void operator()(std::unique_ptr<Gauge<double>>& gauge);
+        void operator()(std::unique_ptr<Histogram<double>>& histogram);
+        void operator()(std::unique_ptr<Histogram<int64_t>>& histogram);
+    };
+#endif  // MONGO_CONFIG_OTEL
 
     struct IdentifierAndMetric {
         MetricIdentifier identifier;

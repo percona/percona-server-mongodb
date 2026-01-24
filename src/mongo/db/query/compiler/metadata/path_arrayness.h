@@ -63,21 +63,24 @@ public:
     /**
      * Insert a path into the trie.
      */
-    void addPath(const FieldPath& path, const MultikeyComponents& multikeyPath);
+    void addPath(const FieldPath& path, const MultikeyComponents& multikeyPath, bool isFullRebuild);
 
     /**
      * Insert all paths from an index into the trie. This method assumes 'multikeyPaths' is not
      * empty.
+     * The parameter 'isFullRebuild' should be set by the caller if we are building the whole trie
+     * from the full set of indexes.
      */
     void addPathsFromIndexKeyPattern(const BSONObj& indexKeyPattern,
-                                     const MultikeyPaths& multikeyPaths);
+                                     const MultikeyPaths& multikeyPaths,
+                                     bool isFullRebuild);
 
     /**
-     * Given a path return whether any component of it is an array.
+     * Given a path return whether any component of it could be an array.
      * For field paths that are not included in any index, assumes that the path has an array.
      */
-    bool isPathArray(const FieldPath& path, const ExpressionContext* expCtx) const;
-    bool isPathArray(const FieldRef& path, const ExpressionContext* expCtx) const;
+    bool canPathBeArray(const FieldPath& path, const ExpressionContext* expCtx) const;
+    bool canPathBeArray(const FieldRef& path, const ExpressionContext* expCtx) const;
 
     /**
      * Debugging helper to visualize trie.
@@ -108,7 +111,7 @@ private:
      */
     class TrieNode {
     public:
-        TrieNode(bool isArray = true) : _isArray(isArray) {}
+        TrieNode(bool canBeArray = true) : _canBeArray(canBeArray) {}
 
         ~TrieNode() = default;
 
@@ -121,20 +124,21 @@ private:
          */
         void insertPath(const FieldPath& path,
                         const MultikeyComponents& multikeyPath,
-                        size_t depth);
+                        size_t depth,
+                        bool isFullRebuild);
 
         bool hasChildren() const {
             return _children.size();
         }
 
-        bool isArray() const {
-            return _isArray;
+        bool canBeArray() const {
+            return _canBeArray;
         }
 
         /**
-         * Helper function to determine whether any component of a given path is an array.
+         * Helper function to determine whether any component of a given path could be an array.
          */
-        bool isPathArray(const FieldPath& path) const;
+        bool canPathBeArray(const FieldPath& path) const;
 
         /**
          * Debugging helper to visualize trie.
@@ -167,7 +171,7 @@ private:
          *
          * By default assume a field contains array value.
          */
-        bool _isArray = true;
+        bool _canBeArray = true;
     };
 
     /**

@@ -87,12 +87,28 @@ public:
      */
     AggStageAstNodeHandle clone() const;
 
+    /**
+     * Retrieves the FirstStageViewApplication policy for this AST node
+     */
+    MongoExtensionFirstStageViewApplicationPolicy getFirstStageViewApplicationPolicy() const;
+
+    /**
+     * Binds view information to this AST node. The view name is passed to allow the stage to
+     * perform custom handling when a view is encountered.
+     */
+    void bindViewInfo(std::string_view viewName) const;
+
     static void assertVTableConstraints(const VTable_t& vtable) {
         tassert(11217601, "AggStageAstNode 'get_name' is null", vtable.get_name != nullptr);
         tassert(
             11347800, "AggStageAstNode 'get_properties' is null", vtable.get_properties != nullptr);
         tassert(11113700, "AggStageAstNode 'bind' is null", vtable.bind != nullptr);
         tassert(11565501, "AggStageAstNode 'clone' is null", vtable.clone != nullptr);
+        tassert(11507400,
+                "AggStageAstNode 'get_first_stage_view_application_policy` is null",
+                vtable.get_first_stage_view_application_policy != nullptr);
+        tassert(
+            11507500, "AggStageAstNode `bind_view_info` is null", vtable.bind_view_info != nullptr);
     }
 };
 

@@ -61,7 +61,9 @@
 #include "mongo/db/pipeline/sort_reorder_helpers.h"
 #include "mongo/db/pipeline/variable_validation.h"
 #include "mongo/db/query/allowed_contexts.h"
-#include "mongo/db/query/query_knobs_gen.h"
+#include "mongo/db/query/query_execution_knobs_gen.h"
+#include "mongo/db/query/query_integration_knobs_gen.h"
+#include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/db/topology/sharding_state.h"
@@ -1024,7 +1026,8 @@ void DocumentSourceLookUp::addVariableRefs(std::set<Variables::Id>* refs) const 
     }
 }
 
-boost::optional<DocumentSource::DistributedPlanLogic> DocumentSourceLookUp::distributedPlanLogic() {
+boost::optional<DocumentSource::DistributedPlanLogic> DocumentSourceLookUp::distributedPlanLogic(
+    const DistributedPlanContext* ctx) {
     // If $lookup into a sharded foreign collection is allowed and the foreign namespace is sharded,
     // top-level $lookup stages can run in parallel on the shards.
     //

@@ -56,7 +56,9 @@
 #include "mongo/db/pipeline/serverless_aggregation_context_fixture.h"
 #include "mongo/db/pipeline/sharded_agg_helpers_targeting_policy.h"
 #include "mongo/db/query/explain_options.h"
-#include "mongo/db/query/query_knobs_gen.h"
+#include "mongo/db/query/query_execution_knobs_gen.h"
+#include "mongo/db/query/query_integration_knobs_gen.h"
+#include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/stage_memory_limit_knobs/knobs.h"
 #include "mongo/db/repl/member_state.h"
 #include "mongo/db/repl/repl_settings.h"
@@ -1105,7 +1107,7 @@ TEST_F(DocumentSourceLookUpTest, FromDBAndCollDistributedPlanLogic) {
             .firstElement(),
         expCtx);
 
-    ASSERT(!lookupStage->distributedPlanLogic());
+    ASSERT(!lookupStage->distributedPlanLogic(nullptr));
 }
 
 // Tests $lookup distributedPlanLogic() is prohibited from executing on the shardsStage for standard
@@ -1123,9 +1125,9 @@ TEST_F(DocumentSourceLookUpTest, LookupDistributedPlanLogic) {
                                       << "as"))
             .firstElement(),
         expCtx);
-    ASSERT(lookupStage->distributedPlanLogic());
-    ASSERT(lookupStage->distributedPlanLogic()->shardsStage == nullptr);
-    ASSERT_EQ(lookupStage->distributedPlanLogic()->mergingStages.size(), 1);
+    ASSERT(lookupStage->distributedPlanLogic(nullptr));
+    ASSERT(lookupStage->distributedPlanLogic(nullptr)->shardsStage == nullptr);
+    ASSERT_EQ(lookupStage->distributedPlanLogic(nullptr)->mergingStages.size(), 1);
 }
 
 TEST(MakeMatchStageFromInput, NonArrayValueUsesEqQuery) {

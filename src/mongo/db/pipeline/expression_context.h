@@ -52,9 +52,11 @@
 #include "mongo/db/query/compiler/metadata/path_arrayness.h"
 #include "mongo/db/query/datetime/date_time_support.h"
 #include "mongo/db/query/explain_options.h"
+#include "mongo/db/query/query_execution_knobs_gen.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
+#include "mongo/db/query/query_integration_knobs_gen.h"
 #include "mongo/db/query/query_knob_configuration.h"
-#include "mongo/db/query/query_knobs_gen.h"
+#include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/query_settings/query_settings_gen.h"
 #include "mongo/db/query/tailable_mode_gen.h"
 #include "mongo/db/query/util/deferred.h"
@@ -1017,6 +1019,14 @@ public:
 
     bool isFeatureFlagMqlJsEngineGapEnabled() const {
         return _featureFlagMqlJsEngineGap.get(VersionContext::getDecoration(getOperationContext()));
+    }
+
+    void setPathArrayness(const std::shared_ptr<const PathArrayness> pathArrayness) {
+        this->_params.mainCollPathArrayness = pathArrayness;
+    }
+
+    bool hasMainCollPathArrayness() {
+        return (this->_params.mainCollPathArrayness != nullptr);
     }
 
     const PathArrayness& getMainCollPathArrayness() const {
