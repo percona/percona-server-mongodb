@@ -4,6 +4,8 @@ This README explains the process of vendoring third-party libraries into the Mon
 
 This policy applies to [github.com/mongodb/mongo](https://github.com/mongodb/mongo).
 
+Please also see `src/third_party/README.Percona.md`.
+
 ## Adding a new third-party library to the server
 
 1. Fork the third-party library into [github.com/mongodb-forks](https://github.com/mongodb-forks).
