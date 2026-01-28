@@ -39,6 +39,7 @@ a notice will be included in
 | [International Components for Unicode C/C++ (ICU4C)] | Unicode-3.0                       | 57.1                                     | ✗                    | ✗                               |
 | [JSON Schema Store]                                  | Apache-2.0                        | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
 | [JSON-Schema-Test-Suite]                             | MIT                               | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
+| [libarchive]                                         | A mix of BSD-2-Clasue and others  | 3.8.4                                    | ✗                    | ✗                               |
 | [libmongocrypt]                                      | Apache-2.0                        | 1.8.4                                    | ✗                    | ✗                               |
 | [librdkafka - The Apache Kafka C/C++ library]        | BSD-2-Clause                      | 2.0.2                                    |                      | ✗                               |
 | [LibTomCrypt]                                        | Unlicense                         | 1.18.2                                   | ✗                    | ✗                               |
@@ -102,6 +103,7 @@ a notice will be included in
 [gRPC (C++)]: https://github.com/grpc/grpc
 [gperftools]: https://github.com/gperftools/gperftools
 [immer]: https://github.com/arximboldi/immer
+[libarchive]: https://www.libarchive.org
 [libmongocrypt]: https://github.com/mongodb/libmongocrypt
 [librdkafka - The Apache Kafka C/C++ library]: https://github.com/confluentinc/librdkafka
 [libunwind]: http://www.github.com/libunwind/libunwind

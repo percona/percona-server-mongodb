@@ -142,7 +142,7 @@ mongo_cc_library(
         "//src/mongo/util/concurrency:spin_lock",
         "//src/mongo/util/concurrency:ticketholder",
         "//src/mongo/util/options_parser",
-        "//src/third_party/libarchive-3.4.0:libarchive",
+        "//src/third_party/libarchive",
         "//src/third_party/snappy",
         "//src/third_party/wiredtiger",
         "//src/third_party/zlib",
