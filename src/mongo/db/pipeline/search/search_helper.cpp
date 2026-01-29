@@ -325,6 +325,20 @@ bool isExtensionVectorSearchStage(std::string stageName) {
         stageName == DocumentSourceVectorSearch::kStageName;
 }
 
+bool isExtensionVectorSearchPipeline(const Pipeline* pipeline) {
+    if (!pipeline || pipeline->empty()) {
+        return false;
+    }
+    const auto& stages = pipeline->getSources();
+    return std::any_of(stages.begin(), stages.end(), [](const auto& stage) {
+        return isExtensionVectorSearchStage(stage->getSourceName());
+    });
+}
+
+bool shouldPreValidateMetaDependencies(const Pipeline* pipeline) {
+    return isExtensionVectorSearchPipeline(pipeline) || isMongotPipeline(pipeline);
+}
+
 void assertSearchMetaAccessValid(const DocumentSourceContainer& pipeline,
                                  ExpressionContext* expCtx) {
     if (pipeline.empty()) {
@@ -703,8 +717,13 @@ void promoteStoredSourceOrAddIdLookup(
         // an idLookup to go get it.
     } else {
         // idLookup must always be immediately after the first stage in the desugared pipeline
-        auto idLookupStage =
-            make_intrusive<DocumentSourceInternalSearchIdLookUp>(expCtx, limit, view);
+        std::unique_ptr<Pipeline> viewPipeline;
+        if (view) {
+            viewPipeline = pipeline_factory::makePipeline(
+                view->getEffectivePipeline(), expCtx, pipeline_factory::kOptionsMinimal);
+        }
+        auto idLookupStage = make_intrusive<DocumentSourceInternalSearchIdLookUp>(
+            expCtx, limit, std::move(viewPipeline));
         desugaredPipeline.insert(std::next(desugaredPipeline.begin()), idLookupStage);
 
         // Check if the first stage in the pipeline is a mongotRemoteStage (only exists for

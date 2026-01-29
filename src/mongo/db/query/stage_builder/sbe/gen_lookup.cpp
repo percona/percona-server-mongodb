@@ -50,6 +50,7 @@
 #include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/stage_builder/sbe/abt/comparison_op.h"
 #include "mongo/db/query/stage_builder/sbe/builder.h"
+#include "mongo/db/query/stage_builder/sbe/gen_expression.h"
 #include "mongo/db/query/stage_builder/sbe/gen_filter.h"
 #include "mongo/db/query/stage_builder/sbe/gen_helpers.h"
 #include "mongo/db/query/stage_builder/sbe/gen_projection.h"
@@ -1848,7 +1849,10 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildNestedLoopJoinEmb
     auto [leftStage, leftOutputs] =
         build(nestedLoopJoinEmbeddingNode->children[0].get(), leftChildReqs);
 
-    PlanStageReqs rightChildReqs = PlanStageReqs{}.setResultObj().set(std::move(rightRequests));
+    PlanStageReqs rightChildReqs =
+        PlanStageReqs{}
+            .setResultInfo(FieldSet::makeOpenSet(std::vector<std::string>{}), FieldEffects())
+            .set(std::move(rightRequests));
     auto [rightStage, rightOutputs] =
         build(nestedLoopJoinEmbeddingNode->children[1].get(), rightChildReqs);
 
@@ -1859,10 +1863,15 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildNestedLoopJoinEmb
     SbSlotVector outerProjects;
     sbe::value::SlotSet
         outerProjectsSet;  // Used to avoid duplicates in the 'outerProjections' list.
+    // Include the special Nothing slot, so that we avoid referencing it in the projection list.
+    if (auto nothingSlot = _state.env->getSlotIfExists(kNothingEnvSlotName); nothingSlot) {
+        outerProjectsSet.insert(*nothingSlot);
+    }
     if (leftOutputs.has(kResult)) {
         auto resultObj = leftOutputs.get(kResult);
-        outerProjects.emplace_back(resultObj);
-        outerProjectsSet.insert(resultObj.getId());
+        if (outerProjectsSet.insert(resultObj.getId()).second) {
+            outerProjects.emplace_back(resultObj);
+        }
     }
 
     // ensure that requested fields coming from the left side are propagated (the right side is
@@ -1899,20 +1908,34 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildNestedLoopJoinEmb
             }
         }
 
-        // TODO SERVER-113276: Support $expr eq.
-        tassert(10984704, "Unknown operation in join predicate", predicate.isEquality());
-
-        // Generate an expression for one predicate, which evaluates a path on each document and
-        // compares the resulting values. Any path that fails to evaluate, because of a missing or
-        // non-object path component, gets treated as if it evaluated to a null value for the
-        // purposes of this comparison. This behavior matches MQL localField/foreignField $lookup
-        // semantics.
-        equalityPredicates.emplace_back(b.makeBinaryOp(
-            abt::Operations::Eq,
-            b.makeFillEmptyNull(
-                generateArrayObliviousPathEvaluation(b, predicate.leftField, leftOutputs)),
-            b.makeFillEmptyNull(
-                generateArrayObliviousPathEvaluation(b, predicate.rightField, rightOutputs))));
+        // Generate an expression for one predicate, which evaluates a path on each document
+        // and compares the resulting values.
+        switch (predicate.op) {
+            case QSNJoinPredicate::ComparisonOp::Eq:
+                // Any path that fails to evaluate, because of a missing or non-object path
+                // component, gets treated as if it evaluated to a null value for the purposes of
+                // this comparison. This behavior matches MQL localField/foreignField $lookup
+                // semantics.
+                equalityPredicates.emplace_back(
+                    b.makeBinaryOp(abt::Operations::Eq,
+                                   b.makeFillEmptyNull(generateArrayObliviousPathEvaluation(
+                                       b, predicate.leftField, leftOutputs)),
+                                   b.makeFillEmptyNull(generateArrayObliviousPathEvaluation(
+                                       b, predicate.rightField, rightOutputs))));
+                break;
+            case QSNJoinPredicate::ComparisonOp::ExprEq:
+                // Any path that fails to evaluate, because of a missing or non-object path
+                // component, gets treated as missing, and considered equal only to Undefined. This
+                // behavior matches MQL equality rules.
+                equalityPredicates.emplace_back(generateExpressionCompare(
+                    _state,
+                    ExpressionCompare::CmpOp::EQ,
+                    generateArrayObliviousPathEvaluation(b, predicate.leftField, leftOutputs),
+                    generateArrayObliviousPathEvaluation(b, predicate.rightField, rightOutputs)));
+                break;
+            default:
+                tasserted(10984704, "Unknown operation in join predicate");
+        }
     }
 
     // Build the LoopJoin stage that implements the nested loop join, including the equality test.
@@ -1960,20 +1983,25 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildHashJoinEmbedding
             .set(std::move(leftRequests));
     auto [leftStage, leftOutputs] = build(hashJoinEmbeddingNode->children[0].get(), leftChildReqs);
 
-    PlanStageReqs rightChildReqs = PlanStageReqs{}.setResultObj().set(std::move(rightRequests));
+    PlanStageReqs rightChildReqs =
+        PlanStageReqs{}
+            .setResultInfo(FieldSet::makeOpenSet(std::vector<std::string>{}), FieldEffects())
+            .set(std::move(rightRequests));
     auto [rightStage, rightOutputs] =
         build(hashJoinEmbeddingNode->children[1].get(), rightChildReqs);
 
     SbExprOptSlotVector leftPrj, rightPrj;
+    bool hasExprEq = false;
     for (const auto& predicate : hashJoinEmbeddingNode->joinPredicates) {
-        // TODO SERVER-113276: Support $expr eq.
         tassert(11122104, "Unknown operation in join predicate", predicate.isEquality());
+        hasExprEq |= predicate.op == QSNJoinPredicate::ComparisonOp::ExprEq;
 
         // Create an expression for each side of the predicate, and add it to a $project stage to be
         // placed on top of the source stages. Any path that fails to evaluate, because of a missing
         // or non-object path component, gets treated as if it evaluated to a null value for the
         // purposes of this comparison. This behavior matches MQL localField/foreignField $lookup
-        // semantics.
+        // semantics, and it is a false positive for the $expr equality semantics, that can be later
+        // pruned by running the more complex comparison.
         leftPrj.emplace_back(b.makeFillEmptyNull(generateArrayObliviousPathEvaluation(
                                  b, predicate.leftField, leftOutputs)),
                              boost::none);
@@ -1988,6 +2016,10 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildHashJoinEmbedding
     // Propagate all the slots created by the children.
     SbSlotVector leftProjectSlots, rightProjectSlots;
     sbe::value::SlotSet dedupSlotId;  // Used to avoid duplicates in the projection list.
+    // Include the special Nothing slot, so that we avoid referencing it in the projection list.
+    if (auto nothingSlot = _state.env->getSlotIfExists(kNothingEnvSlotName); nothingSlot) {
+        dedupSlotId.insert(*nothingSlot);
+    }
     for (auto& produce : leftOutputs.getAllSlotsInOrder()) {
         if (dedupSlotId.insert(produce.getId()).second) {
             leftProjectSlots.emplace_back(produce);
@@ -2008,6 +2040,29 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildHashJoinEmbedding
                                         leftProjectSlots,
                                         boost::none);
 
+    // If there is at least one $expr equality, insert an extra filter layer that excludes records
+    // matching due to treating missing values equal to 'null'.
+    if (hasExprEq) {
+        SbExpr::Vector equalityPredicates;
+        equalityPredicates.reserve(hashJoinEmbeddingNode->joinPredicates.size());
+        for (const auto& predicate : hashJoinEmbeddingNode->joinPredicates) {
+            switch (predicate.op) {
+                case QSNJoinPredicate::ComparisonOp::ExprEq:
+                    equalityPredicates.emplace_back(generateExpressionCompare(
+                        _state,
+                        ExpressionCompare::CmpOp::EQ,
+                        generateArrayObliviousPathEvaluation(b, predicate.leftField, leftOutputs),
+                        generateArrayObliviousPathEvaluation(
+                            b, predicate.rightField, rightOutputs)));
+                    break;
+                default:
+                    break;
+            }
+        }
+        hashJoinStage =
+            b.makeFilter(std::move(hashJoinStage),
+                         b.makeBooleanOpTree(abt::Operations::And, std::move(equalityPredicates)));
+    }
     return generateJoinResult(hashJoinEmbeddingNode,
                               reqs,
                               std::move(hashJoinStage),
@@ -2078,14 +2133,14 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildIndexedJoinEmbedd
     std::vector<FieldPath> foreignPaths;
     StringSet dedupForeignPaths;
     for (const auto& predicate : indexedJoinEmbeddingNode->joinPredicates) {
-        // TODO SERVER-113276: Support $expr eq.
         tassert(11122204, "Unknown operation in join predicate", predicate.isEquality());
 
         // Create an expression for the left side of the predicate, and add it to a ProjectStage
         // to be placed on top of the source stages. Any path that fails to evaluate, because of a
         // missing or non-object path component, gets treated as if it evaluated to a null value for
         // the purposes of this comparison. This behavior matches MQL localField/foreignField
-        // $lookup semantics.
+        // $lookup semantics, and it is a false positive for the $expr equality semantics, that can
+        // be later pruned by running the more complex comparison.
         leftPrj.emplace_back(b.makeFillEmptyNull(generateArrayObliviousPathEvaluation(
                                  b, predicate.leftField, leftOutputs)),
                              boost::none);
@@ -2151,16 +2206,33 @@ std::pair<SbStage, PlanStageSlots> SlotBasedStageBuilder::buildIndexedJoinEmbedd
     SbExpr::Vector equalityPredicates;
     equalityPredicates.reserve(indexedJoinEmbeddingNode->joinPredicates.size());
     for (const auto& predicate : indexedJoinEmbeddingNode->joinPredicates) {
-        equalityPredicates.emplace_back(b.makeBinaryOp(
-            abt::Operations::Eq,
-            b.makeFillEmptyNull(
-                generateArrayObliviousPathEvaluation(b, predicate.leftField, leftOutputs)),
-            b.makeFillEmptyNull(
-                generateArrayObliviousPathEvaluation(b, predicate.rightField, rightOutputs))));
+        switch (predicate.op) {
+            case QSNJoinPredicate::ComparisonOp::Eq:
+                equalityPredicates.emplace_back(
+                    b.makeBinaryOp(abt::Operations::Eq,
+                                   b.makeFillEmptyNull(generateArrayObliviousPathEvaluation(
+                                       b, predicate.leftField, leftOutputs)),
+                                   b.makeFillEmptyNull(generateArrayObliviousPathEvaluation(
+                                       b, predicate.rightField, rightOutputs))));
+                break;
+            case QSNJoinPredicate::ComparisonOp::ExprEq:
+                equalityPredicates.emplace_back(generateExpressionCompare(
+                    _state,
+                    ExpressionCompare::CmpOp::EQ,
+                    generateArrayObliviousPathEvaluation(b, predicate.leftField, leftOutputs),
+                    generateArrayObliviousPathEvaluation(b, predicate.rightField, rightOutputs)));
+                break;
+            default:
+                break;
+        }
     }
 
     SbSlotVector projectedSlots;
     sbe::value::SlotSet dedupSlotId;  // Used to avoid duplicates in the projection list.
+    // Include the special Nothing slot, so that we avoid referencing it in the projection list.
+    if (auto nothingSlot = _state.env->getSlotIfExists(kNothingEnvSlotName); nothingSlot) {
+        dedupSlotId.insert(*nothingSlot);
+    }
     for (auto& produce : leftOutputs.getAllSlotsInOrder()) {
         if (dedupSlotId.insert(produce.getId()).second) {
             projectedSlots.emplace_back(produce);

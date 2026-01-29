@@ -53,6 +53,7 @@
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/shard_role/shard_catalog/raw_data_operation.h"
 #include "mongo/db/version_context.h"
+#include "mongo/db/views/pipeline_resolver.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/platform/overflow_arithmetic.h"
 #include "mongo/rpc/get_status_from_command_result.h"
@@ -573,13 +574,14 @@ public:
                     auto bodyBuilder = result->getBodyBuilder();
                     // An empty PrivilegeVector is acceptable because these privileges are only
                     // checked on getMore and explain will not open a cursor.
-                    return ClusterAggregate::retryOnViewError(opCtx,
-                                                              aggRequestOnView,
-                                                              *ex.extraInfo<ResolvedView>(),
-                                                              nss,
-                                                              PrivilegeVector(),
-                                                              verbosity,
-                                                              &bodyBuilder);
+                    return ClusterAggregate::retryOnViewOrIFRKickbackError(
+                        opCtx,
+                        aggRequestOnView,
+                        *ex.extraInfo<ResolvedView>(),
+                        nss,
+                        PrivilegeVector(),
+                        verbosity,
+                        &bodyBuilder);
                 }
 
                 long long millisElapsed = timer.millis();

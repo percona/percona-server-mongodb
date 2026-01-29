@@ -26,8 +26,8 @@ export function getPython3Binary() {
         "/opt/mongodbtoolchain/v5/bin/python3",
         "/opt/mongodbtoolchain/v4/bin/python3",
         "/usr/bin/python3",
-        "/cygdrive/c/python/python310/python.exe",
-        "c:/python/python310/python.exe",
+        "/cygdrive/c/python/python313/python.exe",
+        "c:/python/python313/python.exe",
     ];
     for (let p of paths) {
         if (fileExists(p)) {

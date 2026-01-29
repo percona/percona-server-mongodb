@@ -301,6 +301,8 @@ tasks:
     commands:
       - func: "do setup"
       - func: "run tests"
+        vars:
+          resmoke_jobs_max: 1
 
   - <<: *task_template
     name: streams_kinesis
@@ -400,6 +402,21 @@ tasks:
         vars:
           resmoke_jobs_max: 1
 
+  - <<: *task_template
+    name: streams_aspio_pubsub
+    tags:
+      [
+        "assigned_to_jira_team_streams",
+        "default",
+        "streams_release_test",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+        vars:
+          resmoke_jobs_max: 1
+
   - name: streams_build_only_gen
     tags: ["assigned_to_jira_team_streams", "auxiliary"]
     depends_on:
@@ -475,6 +492,7 @@ tasks:
 
   - name: resmoke_tests
     tags: ["assigned_to_jira_team_devprod_correctness", "auxiliary"]
+    priority: 5 # Boost the priority since this is often the longest running task in the merge queue
     depends_on:
       - name: version_expansions_gen
         variant: generate-tasks-for-version

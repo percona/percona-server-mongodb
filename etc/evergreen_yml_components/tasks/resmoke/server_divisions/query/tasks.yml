@@ -1643,6 +1643,37 @@ tasks:
             --mongodSetParameters='{logComponentVerbosity: {command: 2}}'
             --runNoFeatureFlagTests
 
+  ## jstestfuzz run_commands fuzzer generating update runs ##
+  - <<: *jstestfuzz_template
+    name: query_shape_hash_stability_fuzzer_update_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "query_shape_hash_stability_fuzzer",
+        "non_deterministic",
+        "require_npm",
+        "random_name",
+        "multiversion",
+        "incompatible_tsan",
+        "incompatible_aubsan",
+        "incompatible_debug_mode",
+      ]
+    commands:
+      - func: "initialize multiversion tasks"
+        vars:
+          sharded_collections_query_shape_hash_stability_update_fuzzer_last_lts_new_old: last_lts
+          sharded_collections_query_shape_hash_stability_update_fuzzer_last_continuous_new_old: last_continuous
+      - func: "generate resmoke tasks"
+        vars:
+          <<: *jstestfuzz_config_vars
+          num_files: 10
+          num_tasks: 40
+          npm_command: run-command-generator
+          jstestfuzz_vars: --commandType=update
+          resmoke_args: >-
+            --mongodSetParameters='{logComponentVerbosity: {command: 2}}'
+            --runNoFeatureFlagTests
+
   ## jstestfuzz standalone update generational fuzzer ##
   - <<: *jstestfuzz_template
     name: update_fuzzer_gen
@@ -2252,6 +2283,90 @@ tasks:
           suite: query_golden_cbr_automatic
 
   - <<: *task_template
+    name: query_cbr_automatic_cost_choice_jscore_passthrough
+    # Currently disabled until SERVER-x?
+    disable: true
+    tags: [
+        "assigned_to_jira_team_server_query_optimization",
+        "experimental",
+        "blocked_in_query_alias", # We explicitly specify this task in query alias
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+        vars:
+          suite: query_cbr_automatic_cost_choice_jscore_passthrough
+
+  - <<: *task_template
+    name: query_cbr_automatic_cost_choice_aggregation_passthrough
+    # Currently disabled until SERVER-x?
+    disable: true
+    tags: [
+        "assigned_to_jira_team_server_query_optimization",
+        "experimental",
+        "blocked_in_query_alias", # We explicitly specify this task in query alias
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+        vars:
+          suite: query_cbr_automatic_cost_choice_aggregation_passthrough
+
+  - <<: *task_template
+    name: query_golden_cbr_automatic_cost_choice
+    # Currently disabled until SERVER-x?
+    disable: true
+    tags: [
+        "assigned_to_jira_team_server_query_optimization",
+        "experimental",
+        "blocked_in_query_alias", # We explicitly specify this task in query alias
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+        vars:
+          suite: query_golden_cbr_automatic_cost_choice
+
+  - <<: *task_template
+    name: query_cbr_automatic_no_multiplanning_results_jscore_passthrough
+    tags: [
+        "assigned_to_jira_team_server_query_optimization",
+        "default",
+        "blocked_in_query_alias", # We explicitly specify this task in query alias
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+        vars:
+          suite: query_cbr_automatic_no_multiplanning_results_jscore_passthrough
+
+  - <<: *task_template
+    name: query_cbr_automatic_no_multiplanning_results_aggregation_passthrough
+    tags: [
+        "assigned_to_jira_team_server_query_optimization",
+        "default",
+        "blocked_in_query_alias", # We explicitly specify this task in query alias
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+        vars:
+          suite: query_cbr_automatic_no_multiplanning_results_aggregation_passthrough
+
+  - <<: *task_template
+    name: query_golden_cbr_automatic_no_multiplanning_results
+    tags: [
+        "assigned_to_jira_team_server_query_optimization",
+        "default",
+        "blocked_in_query_alias", # We explicitly specify this task in query alias
+      ]
+    commands:
+      - func: "do setup"
+      - func: "run tests"
+        vars:
+          suite: query_golden_cbr_automatic_no_multiplanning_results
+
+  - <<: *task_template
     name: query_cbr_heuristic_jscore_passthrough
     tags: [
         "assigned_to_jira_team_server_query_optimization",
@@ -2488,6 +2603,23 @@ tasks:
             --fuzzRuntimeParams
             --excludeWithAnyTags=does_not_support_config_fuzzer
           use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_aggregation_sharded_collections_passthrough_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_query_execution",
+        "default",
+        "large",
+        "clustered_collections",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_aggregation_sharded_collections_passthrough
+          use_large_distro: "true"
+          resmoke_jobs_max: 10
 
   - <<: *task_template
     name: query_stats_aggregation_passthrough

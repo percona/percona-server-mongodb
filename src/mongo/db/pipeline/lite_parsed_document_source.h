@@ -464,6 +464,13 @@ public:
     }
 
     /**
+     * Returns true if this is the merge stage.
+     */
+    virtual bool isMergeStage() const {
+        return false;
+    }
+
+    /**
      * Returns true if this stage is an initial source and should run just once on the entire
      * cluster.
      */
@@ -590,7 +597,7 @@ public:
      * If '_ownedBson' already has a value, this is a no-op since the BSON data is already
      * guaranteed to remain valid.
      */
-    void makeOwned() {
+    virtual void makeOwned() {
         if (_originalBson.eoo() || _ownedBson) {
             // Nothing to own, or already owned.
             return;

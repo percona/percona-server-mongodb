@@ -27,3 +27,7 @@
 - featureFlagReshardingCloneNoRefresh
 # TODO SERVER-117454: Enable the feature flag in the all-feature-flags variant.
 - featureFlagReplicatedSizeAndCount
+# TODO (SERVER-117324): Remove featureFlagDisallowFindAndModifyImageCollection
+- featureFlagDisallowFindAndModifyImageCollection
+# TODO (SERVER-117924): Re-enable testing coverage for arbitrary updates on timeseries
+- featureFlagTimeseriesUpdatesSupport

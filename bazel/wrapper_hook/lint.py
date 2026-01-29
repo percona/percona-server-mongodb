@@ -47,6 +47,7 @@ SUPPORTED_EXTENSIONS = (
     ".idl",
     ".yml",
     ".yaml",
+    ".md",
 )
 
 
@@ -357,8 +358,8 @@ def get_parsed_args(args):
     parser.add_argument(
         "--origin-branch",
         type=str,
-        default="origin/master",
-        help="Base branch to compare changes against",
+        default="auto",
+        help="Base branch to compare changes against (example: origin/master).",
     )
     parser.add_argument("--large-files", action="store_true", default=False)
     parser.add_argument(
@@ -382,6 +383,14 @@ def run_rules_lint(bazel_bin: str, args: List[str]):
     if platform.system() == "Windows":
         print("eslint not supported on windows")
         raise LinterFail("Unsupported platform")
+
+    if parsed_args.origin_branch == "auto":
+        from git import Repo
+
+        from buildscripts.bazel_rules_mongo.utils.evergreen_git import get_mongodb_remote
+
+        remote = get_mongodb_remote(Repo())
+        parsed_args.origin_branch = f"{remote.name}/master"
 
     if parsed_args.fix:
         create_build_files_in_new_js_dirs()
@@ -447,6 +456,7 @@ def run_rules_lint(bazel_bin: str, args: List[str]):
         lr.run_bazel("//buildscripts:poetry_lock_check")
 
     if lint_all or any(file.endswith(".yml") for file in files_to_lint):
+        print("Linting evergreen yaml...")
         lr.run_bazel(
             "buildscripts:validate_evg_project_config",
             [
@@ -454,6 +464,10 @@ def run_rules_lint(bazel_bin: str, args: List[str]):
             ],
         )
         lr.run_bazel("//buildscripts:yamllinters")
+        print("No errors found in evergreen yaml")
+
+    if lint_all or any(file.endswith(".md") for file in files_to_lint):
+        lr.run_bazel("//buildscripts:markdown_link_linter", ["--root=src/mongo", "--verbose"])
 
     if lint_all or parsed_args.large_files:
         lr.run_bazel("buildscripts:large_file_check", ["--exclude", "src/third_party/*"])

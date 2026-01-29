@@ -46,6 +46,7 @@
 #include "mongo/db/timeseries/timeseries_request_util.h"
 #include "mongo/db/topology/sharding_state.h"
 #include "mongo/db/version_context.h"
+#include "mongo/db/views/pipeline_resolver.h"
 #include "mongo/db/views/view_catalog_helpers.h"
 
 #include <fmt/format.h>
@@ -241,6 +242,30 @@ private:
             [&](const BSONObj& data) {
                 return _aggExState.getExecutionNss().coll() == data["collection"].valueStringData();
             });
+
+        // TODO SERVER-111172: Remove this test once view-ful timeseries are removed and 9.0 is LTS.
+        if (_aggExState.isView() && !_mainAcq->collectionExists() &&
+            executionNss.isTimeseriesBucketsCollection()) {
+            // We resolved a timeseries view, but didn't later find the targeted buckets collection.
+            // If we continue execution, we will return no documents.
+            //
+            // This can happen in multiple ways, such as:
+            // 1. Because the timeseries collection is being converted to viewless timeseries.
+            // 2. Due to the timeseries collection (buckets + view) being concurrently dropped.
+            // 3. Due to a 'orphaned' timeseries view (e.g. because of a stepdown during a drop).
+            //
+            // In scenario (1), it is incorrect to return empty results. Throw CollectionBecameView
+            // to re-resolve the aggregation over the now viewless timeseries collection.
+            //
+            // In scenarios like (2) or (3), preserve the existing (v8.0) behavior of returning
+            // empty results on queries over dropped or incomplete viewful timeseries collections.
+            auto originalNssColl = CollectionCatalog::get(opCtx)->establishConsistentCollection(
+                opCtx, _aggExState.getOriginalNss(), boost::none /* readTimestamp */);
+            if (originalNssColl && originalNssColl->isTimeseriesCollection()) {
+                uasserted(ErrorCodes::CollectionBecameView,
+                          "Timeseries collection upgraded to viewless format while resolving view");
+            }
+        }
     }
 
 
@@ -819,15 +844,19 @@ BSONObj AggCatalogState::getShardKey() const {
 }
 
 void AggCatalogState::validate() const {
+    const bool isTimeseriesQuery = isTimeseries();
     uassert(10557301,
             "$rankFusion and $scoreFusion are unsupported on timeseries collections",
-            !(_aggExState.isHybridSearchPipeline() && isTimeseries()));
+            !(_aggExState.isHybridSearchPipeline() && isTimeseriesQuery));
+    uassert(11574101,
+            "mapReduce on a timeseries collection is not supported",
+            !(_aggExState.getRequest().getIsMapReduceCommand() && isTimeseriesQuery));
 
     if (_aggExState.getRequest().getResumeAfter() || _aggExState.getRequest().getStartAt()) {
         const auto& collectionOrView = getMainCollectionOrView();
         uassert(ErrorCodes::InvalidPipelineOperator,
                 "$_resumeAfter is not supported on timeseries collections",
-                !isTimeseries()
+                !isTimeseriesQuery
                     // Consider special case where user queries directly on underlying bucket ns
                     // for a view-ful timeseries. The $_resumeAfter token should still be allowed
                     // here. This is equivalent to querying on a timeseries coll with 'rawData'

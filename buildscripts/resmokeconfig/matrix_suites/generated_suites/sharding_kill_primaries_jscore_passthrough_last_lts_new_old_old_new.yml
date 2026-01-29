@@ -35,6 +35,7 @@ executor:
             retryOnNetworkErrors: true
           nonClusteredConfigTransactions: true
           overrideRetryAttempts: 3
+          runningWithStepdowns: true
           sessionOptions:
             maybeUseCausalConsistency: true
             readConcern:
@@ -79,6 +80,7 @@ executor:
         global_vars:
           TestData:
             skipEnforceFastCountOnValidate: true
+    - class: CheckShardFilteringMetadata
     - class: CheckOrphansDeleted
     - class: CleanEveryN
       n: 20

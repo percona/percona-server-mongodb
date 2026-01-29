@@ -41,13 +41,11 @@
 #include "mongo/db/basic_types_gen.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/exec/document_value/document.h"
-#include "mongo/db/extension/host/extension_vector_search_server_status.h"
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/fle_crud.h"
 #include "mongo/db/global_catalog/chunk_manager.h"
 #include "mongo/db/global_catalog/ddl/cluster_ddl.h"
 #include "mongo/db/global_catalog/type_collection_common_types_gen.h"
-#include "mongo/db/ifr_flag_retry_info.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/aggregation_hint_translation.h"
@@ -93,6 +91,7 @@
 #include "mongo/db/timeseries/timeseries_options.h"
 #include "mongo/db/version_context.h"
 #include "mongo/db/versioning_protocol/database_version.h"
+#include "mongo/db/views/pipeline_resolver.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/executor/task_executor_pool.h"
 #include "mongo/s/query/exec/cluster_cursor_manager.h"
@@ -185,7 +184,7 @@ Document serializeForPassthrough(const boost::intrusive_ptr<ExpressionContext>& 
 
     // If the featureFlagVectorSearchExtension IFR flag is enabled, all nodes are upgraded and can
     // parse IFR flags.
-    // TODO SERVER-116118: Remove FCV gate once multiversion testing can handle IFR flags.
+    // TODO SERVER-117721: Remove FCV gate once multiversion testing can handle IFR flags.
     if (serverGlobalParams.featureCompatibility.acquireFCVSnapshot().isGreaterThanOrEqualTo(
             multiversion::FeatureCompatibilityVersion::kVersion_8_3)) {  // NOLINT
         // TODO SERVER-116219: Expand IFR flag serialization beyond $vectorSearch.
@@ -452,6 +451,7 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     boost::optional<ResolvedView> resolvedView,
     boost::optional<AggregateCommandRequest> originalRequest,
     boost::optional<ExplainOptions::Verbosity> verbosity,
+    bool alreadyDesugared,
     std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext = nullptr) {
     // Populate the collation. If this is a change stream, take the user-defined collation if one
     // exists, or an empty BSONObj otherwise. Change streams never inherit the collection's default
@@ -564,16 +564,17 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
         }
     }
 
-    // Clone and desugar the pipeline. If the pipeline is modified by desugaring, a reparse
-    // will be required. Otherwise, we can optimize out the reparse.
+    // Clone and desugar the pipeline if it wasn't already desugared earlier during view handling.
+    // If the pipeline is modified by desugaring, a reparse will be required. Otherwise, we can
+    // optimize out the reparse.
     auto clonedLPP = liteParsedPipeline.clone();
-    const auto wasDesugared = LiteParsedDesugarer::desugar(&clonedLPP);
+    const auto wasDesugaredHere = !alreadyDesugared && LiteParsedDesugarer::desugar(&clonedLPP);
 
     // Parse the user's original pipeline pre-desugar to capture query stats. Passing through
-    // wasDesugared will determine whether a StubMongoProcessInterface will be attached to this
+    // wasDesugaredHere will determine whether a StubMongoProcessInterface will be attached to this
     // parse or not.
     auto pipeline =
-        Pipeline::parseFromLiteParsed(liteParsedPipeline, expCtx, nullptr, false, wasDesugared);
+        Pipeline::parseFromLiteParsed(liteParsedPipeline, expCtx, nullptr, false, wasDesugaredHere);
 
     // Compute QueryShapeHash pre-desugar and record it in CurOp.
     query_shape::DeferredQueryShape deferredShape{[&]() {
@@ -614,7 +615,7 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
             hasChangeStream);
     }
 
-    if (wasDesugared) {
+    if (wasDesugaredHere) {
         pipeline = Pipeline::parseFromLiteParsed(clonedLPP, expCtx);
     }
 
@@ -638,7 +639,8 @@ Status _parseQueryStatsAndReturnEmptyResult(
     boost::optional<ResolvedView> resolvedView,
     boost::optional<AggregateCommandRequest> originalRequest,
     boost::optional<ExplainOptions::Verbosity> verbosity,
-    BSONObjBuilder* result) {
+    BSONObjBuilder* result,
+    bool alreadyDesugared = false) {
 
     // By forcing the validation checks to be done explicitly, instead of indirectly via a callback
     // function (runAggregateImpl) in runAggregate(...) that gets passed to
@@ -675,7 +677,8 @@ Status _parseQueryStatsAndReturnEmptyResult(
                                                requiresCollationForParsingUnshardedAggregate,
                                                resolvedView,
                                                originalRequest,
-                                               verbosity);
+                                               verbosity,
+                                               alreadyDesugared);
 
         pipeline->validateCommon(false);
     } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>& ex) {
@@ -701,7 +704,8 @@ Status runAggregateImpl(OperationContext* opCtx,
                         boost::optional<AggregateCommandRequest> originalRequest,
                         boost::optional<ExplainOptions::Verbosity> verbosity,
                         BSONObjBuilder* res,
-                        std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext = nullptr) {
+                        std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext = nullptr,
+                        bool alreadyDesugared = false) {
     const auto pipelineDataSource = sharded_agg_helpers::getPipelineDataSource(liteParsedPipeline);
     if (!originalRoutingCtx.hasNss(namespaces.executionNss) &&
         sharded_agg_helpers::checkIfMustRunOnAllShards(namespaces.executionNss,
@@ -722,7 +726,8 @@ Status runAggregateImpl(OperationContext* opCtx,
                 resolvedView,
                 originalRequest,
                 verbosity,
-                res);
+                res,
+                alreadyDesugared);
         }
     }
 
@@ -816,6 +821,7 @@ Status runAggregateImpl(OperationContext* opCtx,
                                                resolvedView,
                                                originalRequest,
                                                verbosity,
+                                               alreadyDesugared,
                                                std::move(ifrContext));
         const boost::intrusive_ptr<ExpressionContext>& pipelineCtx = pipeline->getContext();
 
@@ -866,6 +872,15 @@ Status runAggregateImpl(OperationContext* opCtx,
             // Validate the pipeline post-optimization.
             const bool alreadyOptimized = true;
             pipeline->validateCommon(alreadyOptimized);
+        } else {
+            LOGV2_INFO(11800100,
+                       "Skipping optimization!",
+                       "routingTableIsAvailable"_attr = routingTableIsAvailable,
+                       "requiresCollation..."_attr = requiresCollationForParsingUnshardedAggregate,
+                       "hasChangeStream"_attr = hasChangeStream,
+                       "shouldDoFLERewrite"_attr = shouldDoFLERewrite,
+                       "collectionLess"_attr =
+                           pipelineCtx->getNamespaceString().isCollectionlessAggregateNS());
         }
 
         // TODO SERVER-89546: Ideally extractDocsNeededBounds should be called internally within
@@ -1054,29 +1069,34 @@ Status runAggregateImpl(OperationContext* opCtx,
 }  // namespace
 
 
-Status ClusterAggregate::runAggregate(OperationContext* opCtx,
-                                      const Namespaces& namespaces,
-                                      AggregateCommandRequest& request,
-                                      const PrivilegeVector& privileges,
-                                      boost::optional<ExplainOptions::Verbosity> verbosity,
-                                      BSONObjBuilder* result,
-                                      StringData comment) {
+Status ClusterAggregate::runAggregate(
+    OperationContext* opCtx,
+    const Namespaces& namespaces,
+    AggregateCommandRequest& request,
+    const PrivilegeVector& privileges,
+    boost::optional<ExplainOptions::Verbosity> verbosity,
+    BSONObjBuilder* result,
+    StringData comment,
+    std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext) {
     return runAggregate(
-        opCtx, namespaces, request, {request}, privileges, verbosity, result, comment);
+        opCtx, namespaces, request, {request}, privileges, verbosity, result, comment, ifrContext);
 }
 
-Status ClusterAggregate::runAggregate(OperationContext* opCtx,
-                                      const Namespaces& namespaces,
-                                      AggregateCommandRequest& request,
-                                      const LiteParsedPipeline& liteParsedPipeline,
-                                      const PrivilegeVector& privileges,
-                                      boost::optional<ExplainOptions::Verbosity> verbosity,
-                                      BSONObjBuilder* result,
-                                      StringData comment) {
-    // Creates a new IFRContext for the aggregation, which will be shared among the root
-    // ExpressionContext and any child ExpressionContexts that are created, for example, as part of
-    // sub-pipeline execution.
-    auto ifrContext = std::make_shared<IncrementalFeatureRolloutContext>();
+Status ClusterAggregate::runAggregate(
+    OperationContext* opCtx,
+    const Namespaces& namespaces,
+    AggregateCommandRequest& request,
+    const LiteParsedPipeline& liteParsedPipeline,
+    const PrivilegeVector& privileges,
+    boost::optional<ExplainOptions::Verbosity> verbosity,
+    BSONObjBuilder* result,
+    StringData comment,
+    std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext) {
+    // Use the provided IFRContext if available, otherwise create a new one. This ensures consistent
+    // flag values throughout the operation, including retries on view errors.
+    if (!ifrContext) {
+        ifrContext = std::make_shared<IncrementalFeatureRolloutContext>();
+    }
 
     const bool requiresCollectionRouter = std::invoke([&]() {
         const auto pipelineDataSource =
@@ -1116,27 +1136,28 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         router.createDbImplicitlyOnRoute();
     }
 
-    // We'll use routerBodyStarted to distinguish whether an error was thrown before or after the
-    // body function was executed.
-    bool routerBodyStarted = false;
+    // We'll use the aggregationStatus to distinguish whether an error was thrown by the
+    // aggregation command or the refresh loop.
+    Status aggregationStatus = Status::OK();
     auto bodyFn = [&](OperationContext* opCtx, RoutingContext& routingCtx) {
-        routerBodyStarted = true;
-        uassertStatusOK(runAggregateImpl(opCtx,
-                                         routingCtx,
-                                         namespaces,
-                                         request,
-                                         liteParsedPipeline,
-                                         privileges,
-                                         boost::none /* resolvedView */,
-                                         boost::none /* originalRequest */,
-                                         verbosity,
-                                         result,
-                                         ifrContext));
+        aggregationStatus = runAggregateImpl(opCtx,
+                                             routingCtx,
+                                             namespaces,
+                                             request,
+                                             liteParsedPipeline,
+                                             privileges,
+                                             boost::none /* resolvedView */,
+                                             boost::none /* originalRequest */,
+                                             verbosity,
+                                             result,
+                                             ifrContext);
+
+        uassertStatusOK(aggregationStatus);
         return Status::OK();
     };
 
     // Route the command and capture the returned status.
-    Status status = std::invoke([&]() -> Status {
+    Status finalStatus = std::invoke([&]() -> Status {
         try {
             return router.routeWithRoutingContext(comment, bodyFn);
         } catch (const DBException& ex) {
@@ -1144,23 +1165,40 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
         }
     });
 
-    // Error handling for exceptions raised prior to executing the runAggregation operation.
-    if (!status.isOK() && !routerBodyStarted) {
+    // Error handling for exceptions raised by the refresh loop.
+    // We can infer this by comparing the 2 status received:
+    // - a failed finalStatus might be either an error from the refresh loop or from the the
+    // aggregate command
+    // - a failed aggregationStatus can only be from the aggregate command (note this includes
+    // StaleDb and StaleConfig)
+    // A refresh error is calculated as follows
+    // - the finalStatus fails but the aggregation doesn't
+    // - both finalStatus and aggregationStatus fails, but they are different
+    bool isRefreshError =
+        !finalStatus.isOK() && (aggregationStatus.isOK() || aggregationStatus != finalStatus);
+    if (isRefreshError) {
         uassert(CollectionUUIDMismatchInfo(request.getDbName(),
                                            *request.getCollectionUUID(),
                                            std::string{request.getNamespace().coll()},
                                            boost::none),
                 "Database does not exist",
-                status != ErrorCodes::NamespaceNotFound || !request.getCollectionUUID());
+                finalStatus != ErrorCodes::NamespaceNotFound || !request.getCollectionUUID());
 
         if (liteParsedPipeline.startsWithCollStats()) {
-            uassertStatusOKWithContext(status,
+            uassertStatusOKWithContext(finalStatus,
                                        "Unable to retrieve information for $collStats stage");
+        }
+
+        // $merge is the only stage that requires to report specifically NamespaceNotFound, instead
+        // of returning an empty batch with status ok.
+        if (finalStatus == ErrorCodes::NamespaceNotFound &&
+            liteParsedPipeline.endsWithMergeStage()) {
+            return finalStatus;
         }
 
         // Return an empty cursor with the given status.
         return _parseQueryStatsAndReturnEmptyResult(opCtx,
-                                                    status,
+                                                    finalStatus,
                                                     namespaces,
                                                     request,
                                                     liteParsedPipeline,
@@ -1170,7 +1208,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                                                     result);
     }
 
-    return status;
+    return finalStatus;
 }
 
 Status ClusterAggregate::runAggregateWithRoutingCtx(
@@ -1184,7 +1222,8 @@ Status ClusterAggregate::runAggregateWithRoutingCtx(
     boost::optional<AggregateCommandRequest> originalRequest,
     boost::optional<ExplainOptions::Verbosity> verbosity,
     BSONObjBuilder* result,
-    std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext) {
+    std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext,
+    bool alreadyDesugared) {
 
     return runAggregateImpl(opCtx,
                             routingCtx,
@@ -1196,27 +1235,62 @@ Status ClusterAggregate::runAggregateWithRoutingCtx(
                             originalRequest,
                             verbosity,
                             result,
-                            ifrContext);
+                            ifrContext,
+                            alreadyDesugared);
 }
 
-Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
-                                          const AggregateCommandRequest& request,
-                                          const ResolvedView& resolvedView,
-                                          const NamespaceString& requestedNss,
-                                          const PrivilegeVector& privileges,
-                                          boost::optional<ExplainOptions::Verbosity> verbosity,
-                                          BSONObjBuilder* result) {
-    struct RetryOnViewState {
-        ResolvedView resolvedView;
+Status ClusterAggregate::retryOnViewOrIFRKickbackError(
+    OperationContext* opCtx,
+    const AggregateCommandRequest& request,
+    const std::variant<ResolvedView, IFRFlagRetryInfo>& errInfo,
+    const NamespaceString& requestedNss,
+    const PrivilegeVector& privileges,
+    boost::optional<ExplainOptions::Verbosity> verbosity,
+    BSONObjBuilder* result,
+    std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext) {
+    struct RetryOnViewOrIFRKickbackState {
+        boost::optional<ResolvedView> resolvedView;
         stdx::unordered_set<IncrementalRolloutFeatureFlag*> ifrFlagsToDisableOnRetries;
     };
 
-    auto viewRetryBody = [&](RetryOnViewState& state) {
+    // Use the provided IFRContext if available, otherwise create a new one. This ensures consistent
+    // flag values between the initial runAggregate() call and retries on view errors.
+    if (!ifrContext) {
+        ifrContext = std::make_shared<IncrementalFeatureRolloutContext>();
+    }
+
+    auto viewRetryBody = [&](RetryOnViewOrIFRKickbackState& state) {
         auto& currentResolvedView = state.resolvedView;
         auto& ifrFlagsToDisableOnRetries = state.ifrFlagsToDisableOnRetries;
 
-        auto resolvedAggRequest =
-            PipelineResolver::buildRequestWithResolvedPipeline(currentResolvedView, request);
+        // Disable flags directly on the shared IFRContext. Track potentially multiple IFR flags.
+        // For example, consider the following case:
+        // 1. runAggregate with IFR Flag A enabled
+        // 2. IFRFlagRetryInfo gets thrown signalling to disable IFR Flag A
+        // 3. runAggregate retries with IFR Flag A pre-disabled
+        // 4. IFRFlagRetryInfo gets thrown signalling to disable IFR Flag B
+        // The correct behavior for the next retry is to run with both IFR Flags A and B
+        // disabled. The ifrFlagsToDisableOnRetries set accumulates flags across retries, so once
+        // a flag is disabled, it stays disabled for subsequent retries.
+        for (auto* ifrFlag : ifrFlagsToDisableOnRetries) {
+            ifrContext->disableFlag(*ifrFlag);
+        }
+
+        auto [resolvedAggRequest, userLPP] = [&] {
+            if (!currentResolvedView) {
+                // We don't have a view to resolve (i.e. this is an IFR flag retry). Just make a
+                // copy of the original agg request for the retry.
+                return PipelineResolver::MongosViewRequestResult{request, boost::none};
+            }
+
+            // Build the resolved aggregation request from the view, handling special cases for
+            // mongot pipelines, timeseries views, and invoking ViewPolicy callbacks for
+            // extension stages.
+            PipelineResolver::MongosPipelineHelpers helpers{makeExpressionContext,
+                                                            resolveInvolvedNamespaces};
+            return PipelineResolver::buildResolvedMongosViewRequest(
+                opCtx, request, *currentResolvedView, requestedNss, verbosity, ifrContext, helpers);
+        }();
 
         result->resetToEmpty();
 
@@ -1230,28 +1304,17 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
         // killCursors calls against the view have access.
         Namespaces nsStruct;
         nsStruct.requestedNss = requestedNss;
-        nsStruct.executionNss = currentResolvedView.getNamespace();
-
-        // Create a new IFR context for the retry aggregate command.
-        // Track potentially multiple IFR flags. For example, consider the following case:
-        // 1. runAggregate with IFR Flag A enabled
-        // 2. IFRFlagRetryInfo gets thrown signalling to disable IFR Flag A
-        // 3. runAggregate retries with IFR Flag A pre-disabled
-        // 4. IFRFlagRetryInfo gets thrown signalling to disable IFR Flag B
-        // The correct behavior for the next retry is to run with both IFR Flags A and B
-        // disabled.
-        auto ifrContext = std::make_shared<IncrementalFeatureRolloutContext>();
-        for (auto* ifrFlag : ifrFlagsToDisableOnRetries) {
-            ifrContext->disableFlag(*ifrFlag);
-        }
+        nsStruct.executionNss =
+            currentResolvedView ? currentResolvedView->getNamespace() : requestedNss;
 
         uassert(ErrorCodes::OptionNotSupportedOnView,
                 "$rankFusion and $scoreFusion are unsupported on timeseries collections",
-                !(currentResolvedView.timeseries() && request.getIsHybridSearch()));
+                !currentResolvedView ||
+                    !(currentResolvedView->timeseries() && request.getIsHybridSearch()));
 
         sharding::router::CollectionRouter router(opCtx, nsStruct.executionNss);
         router.routeWithRoutingContext(
-            "ClusterAggregate::retryOnViewError",
+            "ClusterAggregate::retryOnViewOrIFRKickbackError",
             [&](OperationContext* opCtx, RoutingContext& routingCtx) {
                 // For a sharded time-series collection, the routing is based on both routing table
                 // and the bucketMaxSpanSeconds value. We need to make sure we use the
@@ -1290,19 +1353,23 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
                     resolvedAggRequest.setPipeline(patchedPipeline);
                 }
 
+                const auto alreadyDesugared = userLPP.has_value();
                 uassertStatusOK(runAggregateWithRoutingCtx(
                     opCtx,
                     routingCtx,
                     nsStruct,
                     resolvedAggRequest,
-                    LiteParsedPipeline(
-                        resolvedAggRequest, true, LiteParserOptions{.ifrContext = ifrContext}),
+                    userLPP ? *userLPP
+                            : LiteParsedPipeline(resolvedAggRequest,
+                                                 true,
+                                                 LiteParserOptions{.ifrContext = ifrContext}),
                     privileges,
-                    boost::make_optional(currentResolvedView),
+                    currentResolvedView,
                     boost::make_optional(request),
                     verbosity,
                     result,
-                    ifrContext));
+                    ifrContext,
+                    alreadyDesugared));
             });
 
         return Status::OK();
@@ -1310,8 +1377,7 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
 
     // Retry if IFRFlagRetry is thrown. On retry, disable the flag in the ifrContext.
     auto onIFRError = [&](const ExceptionFor<ErrorCodes::IFRFlagRetry>& ex,
-                          RetryOnViewState& state) {
-        vector_search_metrics::onViewKickbackRetryCount.increment(1);
+                          RetryOnViewOrIFRKickbackState& state) {
         state.ifrFlagsToDisableOnRetries.insert(IncrementalRolloutFeatureFlag::findByName(
             ex.extraInfo<IFRFlagRetryInfo>()->getDisabledFlagName()));
     };
@@ -1319,18 +1385,34 @@ Status ClusterAggregate::retryOnViewError(OperationContext* opCtx,
     // If the underlying namespace was changed to a view during retry, then re-run the aggregation
     // on the new resolved namespace.
     auto onError = [&](ExceptionFor<ErrorCodes::CommandOnShardedViewNotSupportedOnMongod>& ex,
-                       RetryOnViewState& state) {
+                       RetryOnViewOrIFRKickbackState& state) {
         state.resolvedView = *ex.extraInfo<ResolvedView>();
     };
+
+    RetryOnViewOrIFRKickbackState retryState;
+    visit(OverloadedVisitor{[&](const ResolvedView& resolvedView) {
+                                // Note that we initialize the IFR flags to disable with the vector
+                                // search extension feature
+                                // flag. This is because we know that the extension is not allowed
+                                // to run on views, so we might as well pre-disable it regardless of
+                                // the feature flag value to prevent unnecessary retries. This is
+                                // purely an optimization - the retry logic would work with or
+                                // without this initialization.
+                                // TODO SERVER-116994 Initialize this as an empty set.
+                                retryState.ifrFlagsToDisableOnRetries.insert(
+                                    &feature_flags::gFeatureFlagVectorSearchExtension);
+                                retryState.resolvedView = resolvedView;
+                            },
+                            [&](const IFRFlagRetryInfo& ifrRetryInfo) {
+                                retryState.ifrFlagsToDisableOnRetries.insert(
+                                    IncrementalRolloutFeatureFlag::findByName(
+                                        ifrRetryInfo.getDisabledFlagName()));
+                            }},
+          errInfo);
+
     return retryOnWithState(
-        "ClusterAggregate::retryOnViewError",
-        // Note that we initialize the IFR flags to disable with the vector search extension feature
-        // flag. This is because we know that the extension is not allowed to run on views, so we
-        // might as well pre-disable it regardless of the feature flag value to prevent unnecessary
-        // retries. This is purely an optimization - the retry logic would work with or without this
-        // initialization.
-        // TODO SERVER-116994 Initialize this as an empty set.
-        RetryOnViewState{resolvedView, {&feature_flags::gFeatureFlagVectorSearchExtension}},
+        "ClusterAggregate::retryOnViewOrIFRKickbackError",
+        std::move(retryState),
         kMaxViewRetries,
         viewRetryBody,
         makeErrorHandler<ErrorCodes::CommandOnShardedViewNotSupportedOnMongod>(onError),

@@ -50,7 +50,6 @@
 #include "mongo/db/curop.h"
 #include "mongo/db/exec/agg/exchange_stage.h"
 #include "mongo/db/exec/disk_use_options_gen.h"
-#include "mongo/db/extension/host/extension_vector_search_server_status.h"
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/fle_crud.h"
 #include "mongo/db/ifr_flag_retry_info.h"
@@ -118,6 +117,7 @@
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/db/transaction/transaction_participant.h"
+#include "mongo/db/views/pipeline_resolver.h"
 #include "mongo/db/views/resolved_view.h"
 #include "mongo/db/views/view.h"
 #include "mongo/logv2/log.h"
@@ -993,10 +993,8 @@ SecondParseRequirement maybeApplyViewPipeline(const AggExState& aggExState,
     }
 
     // Desugar the viewPipeline and apply it to the desugared user pipeline.
-    auto viewInfo = aggExState.getResolvedView().toViewInfo(aggExState.getOriginalNss());
-    LiteParsedDesugarer::desugar(viewInfo.viewPipeline.get());
-
-    desugaredLPP->handleView(viewInfo);
+    PipelineResolver::applyViewToLiteParsed(
+        desugaredLPP, aggExState.getResolvedView(), aggExState.getOriginalNss());
     return SecondParseRequirement::kReparseFromLPP;
 }
 
@@ -1049,11 +1047,7 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     // TODO SPM-4488: Once query shape can be generated from LiteParsed, a reparse will no
     // longer be required. Simplify the logic as such.
     auto desugaredLPP = aggExState.getOriginalLiteParsedPipeline().clone();
-
-    // LiteParsedDesugarer::desugar() is called on the router, so if we're from the router
-    // the pipeline is already desugared.
-    const auto desugaredHere =
-        !expCtx->getFromRouter() && LiteParsedDesugarer::desugar(&desugaredLPP);
+    const auto desugaredHere = LiteParsedDesugarer::desugar(&desugaredLPP);
     auto secondParseRequirement =
         desugaredHere ? SecondParseRequirement::kReparseFromLPP : SecondParseRequirement::kNone;
 
@@ -1152,7 +1146,7 @@ StatusWith<std::unique_ptr<Pipeline>> preparePipeline(
         aggExState.getRequest().getEncryptionInformation()->setCrudProcessed(true);
     }
 
-    if (search_helpers::isMongotPipeline(pipeline.get())) {
+    if (search_helpers::shouldPreValidateMetaDependencies(pipeline.get())) {
         // Before preparing the pipeline executor, we need to do dependency analysis to validate
         // the metadata dependencies.
         // TODO SERVER-40900 Consider performing $meta validation for all queries at this point
@@ -1504,7 +1498,6 @@ Status runAggregate(
     auto onIFRError =
         [&](const ExceptionFor<ErrorCodes::IFRFlagRetry>& ex,
             stdx::unordered_set<IncrementalRolloutFeatureFlag*>& ifrFlagsToDisableOnRetries) {
-            vector_search_metrics::onViewKickbackRetryCount.increment(1);
             ifrFlagsToDisableOnRetries.insert(IncrementalRolloutFeatureFlag::findByName(
                 ex.extraInfo<IFRFlagRetryInfo>()->getDisabledFlagName()));
         };

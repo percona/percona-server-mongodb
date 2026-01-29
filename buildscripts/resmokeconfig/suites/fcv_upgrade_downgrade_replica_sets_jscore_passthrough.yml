@@ -14,7 +14,6 @@ selector:
     - featureFlagFLE2CleanupCommand
     # TODO: SERVER-66393 Remove Feature Flag for PM-2919.
     - featureFlagTimeseriesUpdatesSupport
-    - featureFlagTimeseriesUpdatesSupport_incompatible
     # TODO: SERVER-78068 Remove Feature Flag for PM-2983
     - featureFlagRecordIdsReplicated
     # TODO: SERVER-85426 Remove Feature Flag for SPM-3541
@@ -28,9 +27,6 @@ selector:
     - uses_transactions
     # Exclude tests that require a specific fcv.
     # Once SERVER-81054 is complete this is no longer needed.
-    - requires_fcv_71
-    - requires_fcv_72
-    - requires_fcv_73
     - requires_fcv_80
     - requires_fcv_81
     - requires_fcv_82
