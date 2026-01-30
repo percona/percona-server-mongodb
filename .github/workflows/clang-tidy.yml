@@ -38,7 +38,15 @@ jobs:
     needs: changed_files
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force origin
+
+      - name: git describe
+        run: git describe --abbrev=0
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
