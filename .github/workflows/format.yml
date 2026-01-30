@@ -30,6 +30,8 @@ jobs:
 
       - name: Verify formatting
         run: |
+          # Ignore changes to MODULE.bazel.lock as it may be updated by bazel
+          git checkout -- MODULE.bazel.lock 2>/dev/null || true
           if ! git diff --quiet; then
             echo "::error::Formatting issues detected."
             echo ""
