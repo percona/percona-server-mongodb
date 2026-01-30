@@ -98,7 +98,7 @@ public:
     }
 
 private:
-    boost::optional<std::string> _apiVersion;
+    std::optional<std::string> _apiVersion;
     boost::optional<bool> _apiStrict;
     boost::optional<bool> _apiDeprecationErrors;
 };

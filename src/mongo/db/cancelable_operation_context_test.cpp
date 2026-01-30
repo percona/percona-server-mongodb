@@ -148,7 +148,7 @@ TEST_F(CancelableOperationContextTest, SafeWhenDestructedBeforeCancellationSourc
     auto client = serviceCtx->getService()->makeClient("CancelableOperationContextTest");
 
     CancellationSource cancelSource;
-    boost::optional<CancelableOperationContext> opCtx;
+    std::optional<CancelableOperationContext> opCtx;
     opCtx.emplace(client->makeOperationContext(), cancelSource.token(), executor());
 
     opCtx.reset();
