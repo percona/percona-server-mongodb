@@ -38,22 +38,20 @@ jobs:
     needs: changed_files
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: |
+          git fetch --tags --force origin
+          git describe --abbrev=0
 
       - name: Setup environment
         uses: ./.github/actions/setup-env
 
       - name: Setup AWS SDK
         uses: ./.github/actions/setup-aws-sdk
-
-      - name: Bazel cache
-        uses: actions/cache@v4
-        id: bazel_cache
-        with:
-          path: |
-            ~/.cache/bazel
-            ~/.cache/bazelisk
-          key: ${{ runner.os }}-bazel-cache
 
       - name: clang-tidy-sarif cache
         uses: actions/cache@v4
