@@ -46,15 +46,6 @@ jobs:
       - name: Setup AWS SDK
         uses: ./.github/actions/setup-aws-sdk
 
-      - name: Bazel cache
-        uses: actions/cache@v4
-        id: bazel_cache
-        with:
-          path: |
-            ~/.cache/bazel
-            ~/.cache/bazelisk
-          key: ${{ runner.os }}-bazel-cache
-
       - name: clang-tidy-sarif cache
         uses: actions/cache@v4
         id: clang_tidy_sarif_cache
