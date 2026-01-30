@@ -120,7 +120,7 @@ public:
 private:
     struct ValueInfo {
         std::vector<std::size_t> indexes;
-        boost::optional<ValueType> value;
+        std::optional<ValueType> value;
         bool isValueCommon{true};
     };
 
