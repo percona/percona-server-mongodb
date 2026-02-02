@@ -23,7 +23,8 @@ def get_mongo_arch(args):
 def get_mongo_version(args):
     proc = subprocess.run(["git", "describe", "--abbrev=0"], capture_output=True, text=True)
     if proc.returncode != 0:
-        raise RuntimeError(f"Failed to get git tag name (git describe failure): {proc.stderr.strip()}")
+        print(f"Failed to get git tag name (git describe failure): '{proc.stderr.strip()}'")
+        return ""
 
     # Remove a tag prefix
     res = proc.stdout.strip()
@@ -31,7 +32,7 @@ def get_mongo_version(args):
     PERCONA_TAG_PREFIX = "psmdb-"  # e.g. res = 'psmdb-7.0.22-12-44-g80c7fa9d709'
     for p in [UPSTREAM_TAG_PREFIX, PERCONA_TAG_PREFIX]:
         if res.startswith(p):
-            res = res[len(p):]
+            res = res[len(p) :]
             break
 
     return res
