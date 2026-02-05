@@ -32,6 +32,7 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/ftdc/collector.h"
 #include "mongo/db/ftdc/controller.h"
+#include "mongo/db/ftdc/ftdc_server_gen.h"
 #include "mongo/db/ftdc/ftdc_system_stats.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/errno_util.h"
@@ -373,7 +374,7 @@ public:
 
         // Skip the disks section if we could not find any disks.
         // This can happen when we do not have permission to /sys/block for instance.
-        if (!_disksStringData.empty()) {
+        if (gDiagnosticDataCollectionEnableSystemMetricsDisks.load() && !_disksStringData.empty()) {
             BSONObjBuilder subObjBuilder(builder.subobjStart("disks"_sd));
             processStatusErrors(procparser::parseProcDiskStatsFile(
                                     "/proc/diskstats"_sd, _disksStringData, &subObjBuilder),
@@ -381,7 +382,7 @@ public:
             subObjBuilder.doneFast();
         }
 
-        {
+        if (gDiagnosticDataCollectionEnableSystemMetricsMounts.load()) {
             BSONObjBuilder subObjBuilder(builder.subobjStart("mounts"_sd));
             processStatusErrors(
                 procparser::parseProcSelfMountStatsFile("/proc/self/mountinfo"_sd, &subObjBuilder),
