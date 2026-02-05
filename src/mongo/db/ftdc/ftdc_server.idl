@@ -93,6 +93,20 @@ server_parameters:
     cpp_vartype: 'AtomicWord<bool>'
     cpp_varname: gDiagnosticDataCollectionEnableLatencyHistograms
 
+  diagnosticDataCollectionEnableSystemMetricsDisks:
+    description: "Enable the capture of 'disks' subsection of system metrics in FTDC."
+    default: true
+    set_at: [startup, runtime]
+    cpp_vartype: 'AtomicWord<bool>'
+    cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsDisks
+
+  diagnosticDataCollectionEnableSystemMetricsMounts:
+    description: "Enable the capture of 'mounts' subsection of system metrics in FTDC."
+    default: true
+    set_at: [startup, runtime]
+    cpp_vartype: 'AtomicWord<bool>'
+    cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsMounts
+
   diagnosticDataCollectionVerboseTCMalloc:
      description: "Enable the capture of verbose tcmalloc in FTDC."
      set_at: [startup, runtime]
