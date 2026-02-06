@@ -1,6 +1,13 @@
 - name: stepdown_and_fcv_hooks
   value:
     executor:
+      archive:
+        hooks:
+          - FCVUpgradeDowngradeInBackground
+          - ContinuousStepdown
+          - CheckReplOplogs
+          - CheckReplDBHash
+          - ValidateCollections
       hooks:
         - class: FCVUpgradeDowngradeInBackground
           shell_options:
@@ -33,7 +40,7 @@
         - class: CleanEveryN
           n: 20
 
-- name: sharding_stepdown_kill_and_fcv_hooks
+- name: sharding_stepdown_and_fcv_hooks
   value:
     executor:
       archive:
@@ -47,7 +54,6 @@
           - CleanEveryN
       hooks:
         - class: ContinuousStepdown
-          randomize_kill: true
         - class: CheckReplDBHash
         - class: CheckMetadataConsistencyInBackground
         - class: ValidateCollections
@@ -60,7 +66,7 @@
         - class: CleanEveryN
           n: 20
 
-- name: sharding_shell_options_fcv
+- name: sharding_stepdown_and_fcv_shell_options
   value:
     executor:
       config:
@@ -96,7 +102,6 @@
               # Inform the tests that we are running with stepdown hook
               runningWithConfigStepdowns: true
               runningWithShardStepdowns: true
-              killShards: true
           # We specify nodb so the shell used by each test will attempt to connect after loading the
           # retry logic in auto_retry_on_network_error.js.
           nodb: ""
@@ -108,6 +113,7 @@
       - featureFlagFLE2CleanupCommand
       # TODO: SERVER-66393 Remove Feature Flag for PM-2919.
       - featureFlagTimeseriesUpdatesSupport
+      - featureFlagTimeseriesUpdatesSupport_incompatible
       # TODO: SERVER-78068 Remove Feature Flag for PM-2983
       - featureFlagRecordIdsReplicated
       # TODO: SERVER-85426 Remove Feature Flag for SPM-3541

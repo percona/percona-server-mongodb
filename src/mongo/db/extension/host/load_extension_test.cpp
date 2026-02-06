@@ -286,12 +286,8 @@ TEST_F(LoadExtensionsTest, LoadMatchTopNDesugarExtensionSucceeds) {
 
     // Full Parse expansion
     {
-        auto parsedPipeline = pipeline_factory::makePipeline(pipeline,
-                                                             expCtx,
-                                                             {.optimize = false,
-                                                              .alreadyOptimized = false,
-                                                              .attachCursorSource = false,
-                                                              .desugar = true});
+        auto parsedPipeline =
+            pipeline_factory::makePipeline(pipeline, expCtx, pipeline_factory::kDesugarOnly);
         ASSERT_EQ(parsedPipeline->size(), 4U);
 
         auto it = parsedPipeline->getSources().begin();
@@ -527,6 +523,14 @@ TEST_F(ExtensionErrorsTest, ExtensionUasserts) {
     std::vector<BSONObj> pipeline = {
         BSON("$assert" << BSON("errmsg" << "a new error" << "code" << 54321 << "assertionType"
                                         << "uassert"))};
+    /**
+     * TODO SERVER-117648: Once we statically link extensions even when they are part of unit tests,
+     * remove all uses of releaseGlobalObservabilityContext(). For more context, see the detailed
+     * comment in the releaseGlobalObservabilityContext declaration (i.e extension_status.h)
+     */
+    auto obsCtx = mongo::extension::releaseGlobalObservabilityContext();
+    ScopeGuard contextGuard(
+        [&]() { mongo::extension::setGlobalObservabilityContext(std::move(obsCtx)); });
     ASSERT_THROWS_CODE(
         pipeline_factory::makePipeline(pipeline, expCtx, pipeline_factory::kOptionsMinimal),
         AssertionException,
@@ -539,6 +543,14 @@ TEST_F(ExtensionErrorsTest, ExtensionUasserts) {
 
 using ExtensionErrorsTestDeathTest = ExtensionErrorsTest;
 DEATH_TEST_REGEX_F(ExtensionErrorsTestDeathTest, ExtensionTasserts, "98765.*another new error") {
+    /**
+     * TODO SERVER-117648: Once we statically link extensions even when they are part of unit tests,
+     * remove all uses of releaseGlobalObservabilityContext(). For more context, see the detailed
+     * comment in the releaseGlobalObservabilityContext declaration (i.e extension_status.h)
+     */
+    auto obsCtx = mongo::extension::releaseGlobalObservabilityContext();
+    ScopeGuard contextGuard(
+        [&]() { mongo::extension::setGlobalObservabilityContext(std::move(obsCtx)); });
     std::vector<BSONObj> pipeline = {
         BSON("$assert" << BSON("errmsg" << "another new error" << "code" << 98765 << "assertionType"
                                         << "tassert"))};

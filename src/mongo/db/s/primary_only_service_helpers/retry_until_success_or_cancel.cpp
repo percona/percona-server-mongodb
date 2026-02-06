@@ -34,8 +34,6 @@
 namespace mongo {
 namespace primary_only_service_helpers {
 
-const Backoff RetryUntilSuccessOrCancel::kBackoff{Seconds(1), Milliseconds::max()};
-
 RetryUntilSuccessOrCancel::RetryUntilSuccessOrCancel(
     StringData serviceName,
     std::shared_ptr<executor::ScopedTaskExecutor> taskExecutor,

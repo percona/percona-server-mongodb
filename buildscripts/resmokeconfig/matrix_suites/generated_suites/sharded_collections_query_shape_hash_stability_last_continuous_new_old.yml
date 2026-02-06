@@ -4,7 +4,7 @@
 # AND REGENERATE THE MATRIX SUITES.
 #
 # matrix suite mapping file: buildscripts/resmokeconfig/matrix_suites/mappings/sharded_collections_query_shape_hash_stability_last_continuous_new_old.yml
-# regenerate matrix suites: buildscripts/resmoke.py generate-matrix-suites && bazel run //:format
+# regenerate matrix suites: buildscripts/resmoke.py generate-matrix-suites
 ##########################################################
 description:
   This suite runs through all existing core tests and ensures that the
@@ -97,8 +97,6 @@ selector:
     - jstests/core/query/query_settings/query_shape_hash_in_slow_query_logs.js
     - jstests/core/timeseries/ddl/timeseries_collection_uuid.js
     - jstests/core/query/parsing/collection_uuid_write_commands.js
-    - jstests/core/timeseries/write/timeseries_hint_id.js
-    - jstests/core/timeseries/write/timeseries_update_arbitrary_updates_not_enabled.js
     - src/mongo/db/modules/enterprise/jstests/fle2/basic_create_collection.js
     - src/mongo/db/modules/enterprise/jstests/fle2/fle2_bulk_write.js
     - jstests/core/index/express.js
