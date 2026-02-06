@@ -1544,6 +1544,8 @@ StatusWith<HostAndPort> InitialSyncerFCB::_chooseSyncSource(WithLock lk) {
                 return;
             }
 
+            // Changing the featureCompatibilityVersion during initial sync is unsafe.
+            // (Generic FCV reference): This FCV check should exist across LTS binary versions.
             auto version = fcvParseSW.getValue();
             if (serverGlobalParams.featureCompatibility.acquireFCVSnapshot()
                     .isUpgradingOrDowngrading(version)) {
