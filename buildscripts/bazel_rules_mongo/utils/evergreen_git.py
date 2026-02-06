@@ -37,11 +37,11 @@ def get_mongodb_remote(repo: Repo) -> Remote:
         assert len(parts) >= 2, f"Unexpected git remote url: {url}"
         owner = parts[-2].split(":")[-1]
 
-        if owner in ("10gen", "mongodb", "evergreen-ci", "mongodb-ets", "realm", "mongodb-js"):
+        if owner in ("percona", "10gen", "mongodb", "evergreen-ci", "mongodb-ets", "realm", "mongodb-js"):
             possible_remotes[remote.name] = remote
 
-    # prefer "origin" then "upstream"
-    for name in ["origin", "upstream"]:
+    # prefer "percona" then "origin" then "upstream"
+    for name in ["percona", "origin", "upstream"]:
         if name in possible_remotes:
             picked_remote = possible_remotes[name]
             break
