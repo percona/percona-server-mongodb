@@ -76,6 +76,13 @@ public:
 class FindAndModifyOp {
 public:
     static write_ops::FindAndModifyCommandReply parseResponse(const BSONObj& obj);
+
+    /**
+     * Validates a findAndModify command request for obvious errors and uasserts if the request is
+     * invalid. The validation performed here is in addition to the basic field validation done by
+     * the IDL parser.
+     */
+    static void validateCommandRequest(const write_ops::FindAndModifyCommandRequest& request);
 };
 
 namespace write_ops {
@@ -130,7 +137,8 @@ int getUpdateSizeEstimate(const BSONObj& q,
                           const boost::optional<mongo::BSONObj>& sort,
                           const mongo::BSONObj& hint,
                           const boost::optional<UUID>& sampleId,
-                          bool includeAllowShardKeyUpdatesWithoutFullShardKeyInQuery);
+                          bool includeAllowShardKeyUpdatesWithoutFullShardKeyInQuery,
+                          boost::optional<int32_t> includeQueryStatsMetricsForOpIndex);
 int getDeleteSizeEstimate(const BSONObj& q,
                           const boost::optional<mongo::BSONObj>& collation,
                           const mongo::BSONObj& hint,

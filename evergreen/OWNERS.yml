@@ -38,10 +38,13 @@ filters:
       - 10gen/devprod-build
   - "perf-submission.sh":
     approvers:
-      - 10gen/devprod-performance-analysis
+      - 10gen/devprod-performance-infrastructure
   - "streams*":
     approvers:
       - 10gen/streams-engine
+  - "selinux_*":
+    approvers:
+      - 10gen/server-security
   - "generate_sast_report.sh":
     approvers:
       - 10gen/devprod-release-infrastructure
@@ -52,8 +55,5 @@ filters:
     approvers:
       - 10gen/devprod-build
   - "verify_extension_visibility_test.sh":
-    approvers:
-      - 10gen/query-integration-extensions-api
-  - "functions/setup_mongot_extension.sh":
     approvers:
       - 10gen/query-integration-extensions-api

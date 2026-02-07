@@ -269,6 +269,10 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./buildscripts/resmokelib/OWNERS.yml
 /buildscripts/resmokelib/ @10gen/devprod-correctness @svc-auto-approve-bot
 
+# The following patterns are parsed from ./buildscripts/resmokelib/extensions/OWNERS.yml
+/buildscripts/resmokelib/extensions/**/* @10gen/query-integration-extensions-api @svc-auto-approve-bot
+/buildscripts/resmokelib/extensions/**/OWNERS.yml @10gen/query-integration-staff-leads @svc-auto-approve-bot
+
 # The following patterns are parsed from ./buildscripts/resmokelib/testing/OWNERS.yml
 /buildscripts/resmokelib/testing/**/queryable_server.py @10gen/server-backup-restore @svc-auto-approve-bot
 
@@ -293,7 +297,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/secondary_lag.py @10gen/server-jstest-infra @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/stepdown.py @10gen/server-jstest-infra @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/wait_for_replication.py @10gen/server-jstest-infra @svc-auto-approve-bot
-/buildscripts/resmokelib/testing/hooks/**/generate_and_check_perf_results.py @10gen/devprod-performance-analysis @svc-auto-approve-bot
+/buildscripts/resmokelib/testing/hooks/**/generate_and_check_perf_results.py @10gen/devprod-performance-infrastructure @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/replicaset_transition_to_and_from_csrs.py @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/drop_sessions_collection.py @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
 /buildscripts/resmokelib/testing/hooks/**/rotate_execution_control_params.py @10gen/server-workload-resilience @svc-auto-approve-bot
@@ -434,13 +438,13 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/package* @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/validate_compile_commands.py @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/packager_crypt_py_run.sh @10gen/devprod-build @svc-auto-approve-bot
-/evergreen/perf-submission.sh @10gen/devprod-performance-analysis @svc-auto-approve-bot
+/evergreen/perf-submission.sh @10gen/devprod-performance-infrastructure @svc-auto-approve-bot
 /evergreen/streams* @10gen/streams-engine @svc-auto-approve-bot
+/evergreen/selinux_* @10gen/server-security @svc-auto-approve-bot
 /evergreen/generate_sast_report.sh @10gen/devprod-release-infrastructure @svc-auto-approve-bot
 /evergreen/write_sast_report_env_file.sh @10gen/devprod-release-infrastructure @svc-auto-approve-bot
 /evergreen/generate_symbol_check_report.py @10gen/devprod-build @svc-auto-approve-bot
 /evergreen/verify_extension_visibility_test.sh @10gen/query-integration-extensions-api @svc-auto-approve-bot
-/evergreen/functions/setup_mongot_extension.sh @10gen/query-integration-extensions-api @svc-auto-approve-bot
 
 # The following patterns are parsed from ./evergreen/functions/security_reporting_scripts/OWNERS.yml
 /evergreen/functions/security_reporting_scripts/ @10gen/platsec-server @svc-auto-approve-bot
@@ -1192,7 +1196,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/upgrade_downgrade_sharded_cluster_remove_shard_state.js @10gen/server-catalog-and-routing-ddl @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/cluster_parameters_disabled_correctly_after_downgrade.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
 /jstests/multiVersion/genericSetFCVUsage/**/priority_port_downgrade_checks.js @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
-/jstests/multiVersion/genericSetFCVUsage/**/upgrade_downgrade_viewless_timeseries_*.js @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
+/jstests/multiVersion/genericSetFCVUsage/**/*upgrade_downgrade_viewless_timeseries_*.js @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/multiVersion/genericSetFCVUsage/collection_write_path/OWNERS.yml
 /jstests/multiVersion/genericSetFCVUsage/collection_write_path/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
@@ -1635,6 +1639,9 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/resmoke_selftest/OWNERS.yml
 /jstests/resmoke_selftest/**/* @10gen/devprod-correctness @svc-auto-approve-bot
+
+# The following patterns are parsed from ./jstests/selinux/OWNERS.yml
+/jstests/selinux/**/* @10gen/server-security @svc-auto-approve-bot
 
 # The following patterns are parsed from ./jstests/serial_run/OWNERS.yml
 /jstests/serial_run/**/allow_partial_results_with_maxTimeMS* @10gen/query-execution-router @svc-auto-approve-bot
@@ -3002,6 +3009,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/timeseries/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
 /src/mongo/db/timeseries/**/*catalog_helper* @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
 /src/mongo/db/timeseries/**/upgrade_downgrade_viewless_timeseries* @10gen/server-catalog-and-routing-shard-catalog @svc-auto-approve-bot
+/src/mongo/db/timeseries/**/upgrade_downgrade_viewless_timeseries_sharded_cluster* @10gen/server-catalog-and-routing-ddl @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/timeseries/bucket_catalog/OWNERS.yml
 /src/mongo/db/timeseries/bucket_catalog/**/* @10gen/server-timeseries-bucket-catalog @svc-auto-approve-bot

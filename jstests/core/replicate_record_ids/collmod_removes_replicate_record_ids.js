@@ -10,6 +10,9 @@
  *   expects_explicit_underscore_id_index,
  *   requires_non_retryable_commands, # common tag in collMod tests.
  *   featureFlagRecordIdsReplicated,
+ *   # TODO (SERVER-118693): Check if this tag can be removed.
+ *   # Unsetting 'recordIdsReplicated' option with the collMod command can create a test-only race condition during initial sync.
+ *   incompatible_with_initial_sync,
  * ]
  */
 
@@ -59,9 +62,8 @@ assert(
     "collMod failed to remove recordIdsReplicated flag from collection options",
 );
 
-// Running collMod on a collection that does not replicate record IDs is disallowed.
-let error = assert.commandFailedWithCode(db.runCommand({collMod: collName, recordIdsReplicated: false}), 8650600);
-jsTestLog("Error from running collMod on a collection that does not replicate record IDs: " + tojson(error));
+// Running collMod to unset 'recordIdsReplicated' on a collection that does not replicate record IDs is allowed.
+assert.commandWorked(db.runCommand({collMod: collName, recordIdsReplicated: false}));
 
 // Modifying with a true 'recordIdsReplicated' value is not allowed
 assert.commandFailedWithCode(db.runCommand({collMod: collName, recordIdsReplicated: true}), ErrorCodes.InvalidOptions);
