@@ -315,6 +315,8 @@ def main() -> int:
     third_party_libs.remove("sasl")
     # This is not a real third party, its just the local ssl pretending to be boringssl
     third_party_libs.remove("boringssl_replacement")
+    # This is just a build file that gets inserted into a third party
+    third_party_libs.remove("wasmtime")
     error_manager = lint_sbom(input_file, output_file, third_party_libs, should_format)
     error_manager.print_errors()
 

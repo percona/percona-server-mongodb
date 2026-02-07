@@ -159,6 +159,8 @@ public:
 
     void promoteToLeader() override;
 
+    void demoteFromLeader() override;
+
     void setStableTimestamp(Timestamp stableTimestamp, bool force = false) override;
 
     Timestamp getStableTimestamp() const override;

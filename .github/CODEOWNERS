@@ -2265,6 +2265,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/mongo/db/modules/atlas/src/disagg_storage/**/log_service.proto @10gen/server-disagg-storage @svc-auto-approve-bot
 /src/mongo/db/modules/atlas/src/disagg_storage/**/sls_config_* @10gen/server-pali @svc-auto-approve-bot
 /src/mongo/db/modules/atlas/src/disagg_storage/**/unit_test* @10gen/server-pali @svc-auto-approve-bot
+/src/mongo/db/modules/atlas/src/disagg_storage/**/cell_metadata* @10gen/server-pali @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/modules/atlas/src/disagg_storage/block_cache/OWNERS.yml
 /src/mongo/db/modules/atlas/src/disagg_storage/block_cache/**/* @10gen/server-pali @svc-auto-approve-bot
@@ -2854,8 +2855,8 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 # The following patterns are parsed from ./src/mongo/db/repl/split_horizon/OWNERS.yml
 /src/mongo/db/repl/split_horizon/**/* @10gen/server-split-horizon @svc-auto-approve-bot
 
-# The following patterns are parsed from ./src/mongo/db/replicated_size_and_count_metadata_manager/OWNERS.yml
-/src/mongo/db/replicated_size_and_count_metadata_manager/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
+# The following patterns are parsed from ./src/mongo/db/replicated_fast_count/OWNERS.yml
+/src/mongo/db/replicated_fast_count/**/* @10gen/server-collection-write-path @svc-auto-approve-bot
 
 # The following patterns are parsed from ./src/mongo/db/router_role/OWNERS.yml
 /src/mongo/db/router_role/**/* @10gen/server-catalog-and-routing-routing-and-topology @svc-auto-approve-bot
@@ -3419,6 +3420,7 @@ WORKSPACE.bazel @10gen/devprod-build @svc-auto-approve-bot
 /src/third_party/**/unicode-8.0.0 @10gen/query-execution @svc-auto-approve-bot
 /src/third_party/**/unwind @10gen/server-programmability @svc-auto-approve-bot
 /src/third_party/**/valgrind @10gen/devprod-build @svc-auto-approve-bot
+/src/third_party/**/wasmtime @10gen/query-integration-features @svc-auto-approve-bot
 /src/third_party/**/wiredtiger @10gen/storage-engines @svc-auto-approve-bot
 /src/third_party/**/yaml-cpp @10gen/server-security @svc-auto-approve-bot
 /src/third_party/**/zlib @10gen/server-networking-and-observability @svc-auto-approve-bot
