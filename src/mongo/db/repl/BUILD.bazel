@@ -642,8 +642,8 @@ mongo_cc_library(
 
 mongo_cc_library(
     name = "abstract_async_component",
-    srcs = [
-        "abstract_async_component.cpp",
+    hdrs = [
+        "abstract_async_component.h",
     ],
     deps = [
         "//src/mongo:base",
@@ -819,6 +819,7 @@ mongo_cc_library(
         ":set_multikey_metadata_oplog_entry_idl",
         ":timestamp_block",
         ":truncate_range_oplog_entry_idl",
+        "//src/mongo/crypto:oplog_key_entry_handler",
         "//src/mongo/db:change_stream_pre_images_collection_manager",
         "//src/mongo/db:dbdirectclient",
         "//src/mongo/db:dbhelpers",
@@ -1890,6 +1891,7 @@ mongo_cc_unit_test(
         "oplog_fetcher_test.cpp",
         "oplog_insert_record_id_test.cpp",
         "oplog_test.cpp",
+        "oplog_update_record_id_test.cpp",
         "oplog_writer_batcher_test.cpp",
         "oplog_writer_impl_test.cpp",
         "oplog_writer_test.cpp",

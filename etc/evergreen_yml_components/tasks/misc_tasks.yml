@@ -1972,7 +1972,7 @@ tasks:
             GITHUB_TOKEN: ${github_token}
 
   - name: update_sbom
-    tags: ["auxiliary", "assigned_to_jira_team_platsec_server"]
+    tags: ["auxiliary", "assigned_to_jira_team_platsec_ssdlc"]
     exec_timeout_secs: 3600 # 60 minute timeout
     commands:
       - command: manifest.load
@@ -2052,7 +2052,7 @@ tasks:
 
   - name: upload_sbom_via_silkbomb_if_changed
     allowed_requesters: ["commit"]
-    tags: ["auxiliary", "assigned_to_jira_team_platsec_server"]
+    tags: ["auxiliary", "assigned_to_jira_team_platsec_ssdlc"]
     exec_timeout_secs: 600 # 10 minute timeout
     commands:
       - command: manifest.load
@@ -2136,6 +2136,9 @@ tasks:
   - name: version_burn_in_gen
     run_on: ubuntu2404-medium
     tags: ["assigned_to_jira_team_devprod_correctness", "auxiliary"]
+    depends_on:
+      - name: version_expansions_gen
+        variant: generate-tasks-for-version
     commands:
       - command: manifest.load
       - func: "git get shallow project"
@@ -2146,6 +2149,14 @@ tasks:
       - func: "cleanup environment"
       - func: "set up venv"
       - func: "upload pip requirements"
+      - func: "get engflow creds"
+      - func: "build all resmoke configs"
+        vars:
+          targets: //...
+          bazel_args: >-
+            --build_tag_filters=resmoke_config
+            --noincompatible_enable_cc_toolchain_resolution
+            --repo_env=no_c++_toolchain=1
       - func: "generate version burn in"
 
   - name: version_gen
@@ -2348,4 +2359,26 @@ tasks:
         params:
           binary: bash
           args:
-            - "./src/buildscripts/bazel_testbuilds/verify_coredump_test.sh"
+            - "./src/buildscripts/bazel_testbuilds/verify_unittest_coredump_test.sh"
+
+  - name: verify_resmoke_coredump
+    tags: ["assigned_to_jira_team_devprod_correctness", "auxiliary"]
+    exec_timeout_secs: 1800 # 30 minute timeout
+    commands:
+      - command: manifest.load
+      - func: "git get project and add git tag"
+      - func: "f_expansions_write"
+      - func: "kill processes"
+      - func: "cleanup environment"
+      - func: "set up venv"
+      - func: "get engflow creds"
+      - command: subprocess.exec
+        display_name: "Verify resmoke coredump generation"
+        type: test
+        timeout_secs: 1800 # 30 minutes
+        params:
+          binary: bash
+          include_expansions_in_env:
+            - workdir
+          args:
+            - "./src/buildscripts/bazel_testbuilds/verify_resmoke_coredump_test.sh"

@@ -381,3 +381,24 @@ feature_flags:
         cpp_varname: gFeatureFlagExtensionViewsAndUnionWith
         default: false
         fcv_gated: false
+
+    featureFlag2dsphereIndexVersion4:
+        description: "Feature flag to enable v4 of 2dsphereIndexVersion."
+        cpp_varname: gFeatureFlag2dsphereIndexVersion4
+        default: true
+        fcv_gated: true
+        version: 8.3
+
+    featureFlagCostBasedRanker:
+        description: "Feature flag to enable the cost-based ranker for query plans."
+        cpp_varname: gFeatureFlagCostBasedRanker
+        default: false
+        fcv_gated: false
+        incremental_rollout_phase: in_development
+
+    featureFlagSbeEqLookupUnwind:
+        description: "Feature flag to enable $lookup-$unwind in SBE."
+        cpp_varname: gFeatureFlagSbeEqLookupUnwind
+        default: false
+        fcv_gated: false
+        incremental_rollout_phase: in_development

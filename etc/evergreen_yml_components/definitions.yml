@@ -1254,6 +1254,23 @@ functions:
         OTEL_PARENT_ID: ${otel_parent_id}
         OTEL_COLLECTOR_DIR: "../build/OTelTraces/"
 
+  "execute resmoke tests with asp js engine":
+    &execute_resmoke_tests_with_asp_js_engine_token
+    command: subprocess.exec
+    display_name: "execute resmoke tests with asp js engine"
+    type: test
+    params:
+      binary: bash
+      args:
+        - "./src/evergreen/resmoke_tests_execute.sh"
+      env:
+        OTEL_TRACE_ID: ${otel_trace_id}
+        OTEL_PARENT_ID: ${otel_parent_id}
+        OTEL_COLLECTOR_DIR: "../build/OTelTraces/"
+        # Path to the asp-js-engine module cloned via Evergreen modules
+        ASP_JS_ENGINE_PATH: ${workdir}/asp-js-engine
+        HAS_JS_ENGINE: ${HAS_JS_ENGINE|}
+
   "execute resmoke tests via bazel sh": &execute_resmoke_tests_via_bazel_sh
     command: subprocess.exec
     display_name: "execute resmoke tests via bazel sh"
@@ -1265,6 +1282,7 @@ functions:
         build_variant: ${build_variant}
         distro_id: ${distro_id}
         execution: ${execution}
+        generate_burn_in_targets: ${generate_burn_in_targets}
         otel_parent_id: ${otel_parent_id}
         otel_trace_id: ${otel_trace_id}
         project: ${project}
@@ -1283,23 +1301,19 @@ functions:
     - *f_expansions_write
     - *execute_resmoke_tests_via_bazel_sh
 
-  "download build events json":
-    - command: s3.get
-      display_name: "download build events json"
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        bucket: mciuploads
-        remote_file: ${project}/${version_id}/${build_variant}/resmoke_tests/build_events.json
-        local_file: "build_events.json"
-
   "fetch remote test results":
+    - *f_expansions_write
     - command: subprocess.exec
       params:
         binary: bash
         add_expansions_to_env: true
         args:
           - "./src/evergreen/fetch_remote_test_results.sh"
+    - command: expansions.update
+      params:
+        file: "${workdir}/results/test_failures_exist.yml"
+        ignore_missing_file: true
+    - *f_expansions_write
 
   "assume ECR role": &assume_ecr_role
     command: ec2.assume_role
@@ -1410,6 +1424,7 @@ functions:
       optional: true
       files:
         - src/generated_resmoke_config/*.json
+        - src/generated_bazel_tasks.json
 
   "generate version":
     - *f_expansions_write
@@ -1428,6 +1443,8 @@ functions:
     - *validate_generate_tasks_config
 
   "generate version burn in":
+    - *get_version_expansions
+    - *apply_version_expansions
     - *f_expansions_write
     - *configure_evergreen_api_credentials
     - command: subprocess.exec
@@ -1441,6 +1458,17 @@ functions:
     - *validate_generate_tasks_config
     - *upload_burn_in_generate_tasks_config
     - *generate_resmoke_tasks_config
+    - command: s3.put
+      params:
+        optional: true
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: src/generated_bazel_tasks.json
+        remote_file: ${project}/${version_id}/${build_variant}/{task_name}/generated_bazel_tasks.json
+        bucket: mciuploads
+        permissions: private
+        visibility: signed
+        content_type: application/json
 
   "initialize multiversion tasks":
     - *f_expansions_write
@@ -1647,6 +1675,75 @@ functions:
     - *sign_macos_dev_binaries
     - *multiversion_exclude_tags_generate
     - *execute_resmoke_tests_with_aws_credentials
+      # The existence of the "run_tests_infrastructure_failure" file indicates this failure isn't
+      # directly actionable. We use type=setup rather than type=system or type=test for this command
+    # because we don't intend for any human to look at this failure.
+    - *check_run_tests_infrastructure_failure
+    - *check_resmoke_failure
+
+  # Run streams tests that require access to the private asp-js-engine repo
+  # Clone the asp-js-engine module and restore git history/tags so resmoke's git describe works
+  # Re-fetch and extract binaries after git clone because the clone overwrites src/ (including tarballs and dist-test/)
+  # Copy asp-js-engine from src/ to workdir where resmoke expects it (ASP_JS_ENGINE_PATH=${workdir}/asp-js-engine)
+  "run streams tests":
+    - *f_expansions_write
+    - *git_get_shallow_streams_project
+    - *restore_git_history_and_tags
+    # Copy asp-js-engine module from src/ to workdir where ASP_JS_ENGINE_PATH expects it
+    - command: subprocess.exec
+      display_name: "copy asp-js-engine to workdir"
+      params:
+        binary: bash
+        args:
+          - "-c"
+          - |
+            set -o errexit
+            set -o verbose
+            # git.get_project clones into src/, so asp-js-engine module is at src/asp-js-engine/asp-js-engine
+            # ASP_JS_ENGINE_PATH expects it at ${workdir}/asp-js-engine with package.json at root
+            rm -rf asp-js-engine
+            cp -r src/asp-js-engine/asp-js-engine asp-js-engine
+    - *fetch_binaries
+    - *fetch_binaries_zstd
+    - *fetch_tgz_binary_shas
+    - *fetch_and_verify_binaries_sha
+    - *fetch_and_verify_binaries_sha_zstd
+    - *fetch_jstestshell
+    - *verify_jstestshell_sha
+    - *extract_binaries
+    - *extract_jstestshell
+    - *configure_evergreen_api_credentials
+    - *determine_task_timeout
+    - *update_task_timeout_expansions
+    - *f_expansions_write
+    - *update_task_timeout
+    - *f_expansions_write
+    - *set_code_coverage_expansion
+    - *f_expansions_write
+    - command: expansions.update
+      params:
+        env:
+          CEDAR_USER: ${cedar_user}
+          CEDAR_API_KEY: ${cedar_api_key}
+        updates:
+          - key: aws_key_remote
+            value: ${mongodatafiles_aws_key}
+          - key: aws_profile_remote
+            value: mongodata_aws
+          - key: aws_secret_remote
+            value: ${mongodatafiles_aws_secret}
+    - *f_expansions_write
+    - *set_up_remote_credentials
+    - *f_expansions_write
+    - *determine_resmoke_jobs
+    - *update_resmoke_jobs_expansions
+    - *f_expansions_write
+    - *configure_evergreen_api_credentials
+    - *sign_macos_dev_binaries
+    - *multiversion_exclude_tags_generate
+    - *assume_ecr_role
+    - *fetch_module_images
+    - *execute_resmoke_tests_with_asp_js_engine_token
       # The existence of the "run_tests_infrastructure_failure" file indicates this failure isn't
       # directly actionable. We use type=setup rather than type=system or type=test for this command
     # because we don't intend for any human to look at this failure.
@@ -2842,6 +2939,65 @@ functions:
         aws_secret: ${aws_secret}
         local_file: src/hang_analyzer_task.json
         remote_file: ${project}/${build_variant}/${revision}/hang_analyzer_tasks/${task_name}-${build_id}.json
+        bucket: mciuploads
+        permissions: public-read
+        content_type: application/json
+        display_name: Generated Hang Analyzer Task Config - Execution ${execution}
+        optional: true
+    - command: generate.tasks
+      params:
+        optional: true
+        files:
+          - src/hang_analyzer_task.json
+    - command: subprocess.exec
+      params:
+        binary: bash
+        args:
+          - "src/evergreen/run_python_script.sh"
+          - "buildscripts/resmokelib/hang_analyzer/attach_core_analyzer_task.py"
+    - command: attach.artifacts
+      params:
+        optional: true
+        exact_file_names: true
+        files:
+          - src/core_analyzer_artifact.json
+    - command: s3.put
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: src/core_analyzer_results.txt
+        remote_file: ${core_analyzer_results_url}
+        bucket: mciuploads
+        permissions: public-read
+        content_type: text/plain
+        display_name: Core Analyzer Results
+        optional: true
+
+  "generate result task hang analyzer":
+    - command: expansions.update
+      params:
+        updates:
+          - key: core_analyzer_results_url
+            value: ${project}/${build_variant}/${task_id}/${execution}/core-analyzer-results.tgz
+          - key: parent_task_id
+            value: ${parent_task_id}
+    - *f_expansions_write
+    - command: subprocess.exec
+      display_name: "Generate core analysis task"
+      params:
+        binary: bash
+        include_expansions_in_env:
+          - workdir
+          - test_failures_exist
+        args:
+          - "src/evergreen/generate_core_analysis_task.sh"
+          - "--tests-use-bazel"
+    - command: s3.put
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        local_file: src/hang_analyzer_task.json
+        remote_file: ${project}/${build_variant}/${revision}/hang_analyzer_tasks/${task_id}.json
         bucket: mciuploads
         permissions: public-read
         content_type: application/json

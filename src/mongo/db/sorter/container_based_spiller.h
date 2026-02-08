@@ -288,16 +288,6 @@ public:
             _opCtx, _ru, _collection, _container, _stats, opts, _currKey, settings);
     };
 
-    std::shared_ptr<sorter::Iterator<Key, Value>> makeIterator(
-        std::unique_ptr<SortedStorageWriter<Key, Value>> writer) override {
-        return writer->done();
-    }
-
-    std::unique_ptr<sorter::Iterator<Key, Value>> makeIteratorUnique(
-        std::unique_ptr<SortedStorageWriter<Key, Value>> writer) override {
-        return writer->doneUnique();
-    }
-
     size_t getIteratorSize() override {
         return sizeof(sorter::ContainerIterator<Key, Value>);
     };
@@ -316,8 +306,14 @@ public:
     };
 
     boost::optional<boost::filesystem::path> getSpillDirPath() override {
-        // TODO SERVER-117548 Call ident::getDirectory when function returns full path.
-        return boost::filesystem::path(storageGlobalParams.dbpath + "/_tmp");
+        auto ident = _container.ident();
+        invariant(ident);
+        auto dir = ident::getDirectory(ident->getIdent());
+        boost::filesystem::path path{storageGlobalParams.dbpath};
+        if (!dir.empty()) {
+            path /= std::string{dir};
+        }
+        return path;
     };
 
     /**
@@ -351,18 +347,20 @@ public:
                           IntegerKeyedContainer& container,
                           SorterContainerStats& stats,
                           boost::optional<DatabaseName> dbName,
-                          SorterChecksumVersion checksumVersion)
+                          SorterChecksumVersion checksumVersion,
+                          int64_t batchSize)
         : SorterSpillerBase<Key, Value>(std::make_unique<ContainerBasedSorterStorage<Key, Value>>(
-              opCtx, ru, collection, container, stats, 1, std::move(dbName), checksumVersion)) {}
+              opCtx, ru, collection, container, stats, 1, std::move(dbName), checksumVersion)),
+          _opCtx(opCtx),
+          _batchSize(batchSize) {}
 
-    std::unique_ptr<SorterStorage<Key, Value>> mergeSpills(
-        const SortOptions& opts,
-        const SorterSpillerBase<Key, Value>::Settings& settings,
-        SorterStats& stats,
-        std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
-        SorterSpillerBase<Key, Value>::Comparator comp,
-        std::size_t numTargetedSpills,
-        std::size_t numParallelSpills) override {
+    void mergeSpills(const SortOptions& opts,
+                     const SorterSpillerBase<Key, Value>::Settings& settings,
+                     SorterStats& stats,
+                     std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
+                     SorterSpillerBase<Key, Value>::Comparator comp,
+                     std::size_t numTargetedSpills,
+                     std::size_t numParallelSpills) override {
         std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>> oldIters;
         while (iters.size() > numTargetedSpills) {
             oldIters.swap(iters);
@@ -396,7 +394,7 @@ public:
                     _containerBasedStorage().remove(current);
                 }
 
-                iters.push_back(this->_storage->makeIterator(std::move(writer)));
+                iters.push_back(writer->done());
                 _current += numSpilled;
                 _containerBasedStorage().updateCurrKey(_current);
 
@@ -405,7 +403,6 @@ public:
             }
             oldIters.clear();
         }
-        return std::move(this->_storage);
     }
 
 private:
@@ -419,14 +416,24 @@ private:
         std::span<std::pair<Key, Value>> data,
         uint32_t idx) override {
         auto writer = this->_storage->makeWriter(opts, settings);
+        int64_t numAdded = 0;
+        boost::optional<WriteUnitOfWork> wuow{boost::in_place_init, &_opCtx};
         for (auto&& [key, value] : data.subspan(idx)) {
             writer->addAlreadySorted(key, value);
+            ++numAdded;
             ++_current;
+            if (numAdded % _batchSize == 0) {
+                wuow->commit();
+                wuow.emplace(&_opCtx);
+            }
         }
+        wuow->commit();
         _containerBasedStorage().updateCurrKey(_current);
         return std::move(writer);
     }
 
+    OperationContext& _opCtx;
+    int64_t _batchSize;
     int64_t _current = 1;
 };
 

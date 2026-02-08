@@ -39,6 +39,7 @@
 #include "mongo/db/storage/container.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/recovery_unit_noop.h"
+#include "mongo/db/storage/storage_options.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
 
@@ -47,6 +48,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include <boost/filesystem/path.hpp>
 
 namespace mongo::sorter {
 namespace {
@@ -512,9 +515,14 @@ TEST_F(SortedContainerWriterTest, ContainerWriterAllowsNullValueWithNonNullKey) 
     exhaustIterators<IntWrapper, NullValue>(writer);
 }
 
-class ContainerBasedSpillerTest : public ServiceContextMongoDTest {};
+class ContainerBasedSpillerTest : public ServiceContextMongoDTest,
+                                  public testing::WithParamInterface<int64_t> {};
 
-TEST_F(ContainerBasedSpillerTest, Spill) {
+INSTANTIATE_TEST_SUITE_P(ContainerBasedSpillerTest,
+                         ContainerBasedSpillerTest,
+                         testing::Values(1, 2, 4));
+
+TEST_P(ContainerBasedSpillerTest, Spill) {
     auto opCtx = makeOperationContext();
 
     auto replCoord = dynamic_cast<repl::ReplicationCoordinatorMock*>(
@@ -535,7 +543,8 @@ TEST_F(ContainerBasedSpillerTest, Spill) {
         container,
         stats,
         ns.dbName(),
-        SorterChecksumVersion::v2};
+        SorterChecksumVersion::v2,
+        /*batchSize=*/GetParam()};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{{50, {}}, {100, {}}, {75, {}}, {125, {}}};
     std::span span{data};
@@ -556,7 +565,7 @@ TEST_F(ContainerBasedSpillerTest, Spill) {
     EXPECT_EQ(it2->next().first, 125);
 }
 
-TEST_F(ContainerBasedSpillerTest, MergeSpills) {
+TEST_P(ContainerBasedSpillerTest, MergeSpills) {
     auto opCtx = makeOperationContext();
 
     auto replCoord = dynamic_cast<repl::ReplicationCoordinatorMock*>(
@@ -577,7 +586,8 @@ TEST_F(ContainerBasedSpillerTest, MergeSpills) {
         container,
         containerStats,
         ns.dbName(),
-        SorterChecksumVersion::v2};
+        SorterChecksumVersion::v2,
+        /*batchSize=*/GetParam()};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{
         {50, {}}, {100, {}}, {75, {}}, {125, {}}, {25, {}}};
@@ -592,7 +602,7 @@ TEST_F(ContainerBasedSpillerTest, MergeSpills) {
         SortOptions{}, SorterSpiller<IntWrapper, NullValue>::Settings{}, span.subspan(4, 1), 0));
 
     SorterStats sorterStats{nullptr};
-    auto storage = spiller.mergeSpills(
+    spiller.mergeSpills(
         SortOptions{},
         SorterSpiller<IntWrapper, NullValue>::Settings{},
         sorterStats,
@@ -600,7 +610,6 @@ TEST_F(ContainerBasedSpillerTest, MergeSpills) {
         [](const IntWrapper& left, const IntWrapper& right) { return IWComparator{}(left, right); },
         2,
         2);
-    spiller.setStorage(std::move(storage));
 
     EXPECT_EQ(iterators.size(), 2);
     EXPECT_EQ(container.entries().size(), data.size());
@@ -620,7 +629,7 @@ TEST_F(ContainerBasedSpillerTest, MergeSpills) {
     EXPECT_FALSE(iterators[1]->more());
 }
 
-TEST_F(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
+TEST_P(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
     auto opCtx = makeOperationContext();
 
     auto replCoord = dynamic_cast<repl::ReplicationCoordinatorMock*>(
@@ -641,7 +650,8 @@ TEST_F(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
         container,
         containerStats,
         ns.dbName(),
-        SorterChecksumVersion::v2};
+        SorterChecksumVersion::v2,
+        /*batchSize=*/GetParam()};
 
     std::vector<std::pair<IntWrapper, NullValue>> data{{50, {}},
                                                        {100, {}},
@@ -664,7 +674,7 @@ TEST_F(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
     }
 
     SorterStats sorterStats{nullptr};
-    auto storage = spiller.mergeSpills(
+    spiller.mergeSpills(
         SortOptions{},
         SorterSpiller<IntWrapper, NullValue>::Settings{},
         sorterStats,
@@ -672,7 +682,6 @@ TEST_F(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
         [](const IntWrapper& left, const IntWrapper& right) { return IWComparator{}(left, right); },
         3,
         2);
-    spiller.setStorage(std::move(storage));
 
     EXPECT_EQ(iterators.size(), 3);
     EXPECT_EQ(container.entries().size(), data.size());
@@ -702,6 +711,51 @@ TEST_F(ContainerBasedSpillerTest, MergeSpillsMultiplePasses) {
     ASSERT_TRUE(iterators[2]->more());
     EXPECT_EQ(iterators[2]->next().first, 175);
     EXPECT_FALSE(iterators[2]->more());
+}
+
+TEST_P(ContainerBasedSpillerTest, SpillDirPathFromIdent) {
+    auto opCtx = makeOperationContext();
+
+    auto ns = NamespaceString::createNamespaceString_forTest("test", "container_based_spiller");
+    CollectionMock coll{ns};
+    CollectionPtr collPtr{&coll};
+    SorterContainerStats stats{nullptr};
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtx.get());
+
+    const boost::filesystem::path basePath{storageGlobalParams.dbpath};
+    const auto dbComponent = ident::createDBNamePathComponent(ns.dbName());
+    const auto sorterStem = "sorter";
+
+    struct TestCase {
+        bool directoryPerDB;
+        bool directoryForIndexes;
+        boost::filesystem::path expectedPath;
+    };
+    const std::vector<TestCase> testCases = {
+        {false, false, basePath},
+        {false, true, basePath},
+        {true, false, basePath / dbComponent},
+        {true, true, basePath / dbComponent},
+    };
+
+    for (const auto& testCase : testCases) {
+        auto indexIdent = ident::generateNewIndexIdent(
+            ns.dbName(), testCase.directoryPerDB, testCase.directoryForIndexes);
+        auto internalIdent = ident::generateNewInternalIndexBuildIdent(sorterStem, indexIdent);
+        ViewableIntegerKeyedContainer container{std::make_shared<Ident>(internalIdent)};
+        ContainerBasedSorterStorage<IntWrapper, NullValue> storage{*opCtx,
+                                                                   ru,
+                                                                   collPtr,
+                                                                   container,
+                                                                   stats,
+                                                                   /*currKey=*/0,
+                                                                   ns.dbName(),
+                                                                   SorterChecksumVersion::v2};
+
+        auto spillPath = storage.getSpillDirPath();
+        ASSERT(spillPath);
+        EXPECT_EQ(*spillPath, testCase.expectedPath);
+    }
 }
 
 }  // namespace

@@ -129,6 +129,16 @@ last-continuous:
       ticket: SERVER-117623
     - test_file: jstests/sharding/index_not_cloned_on_non_owner_shards.js
       ticket: SERVER-102165
+    - test_file: jstests/sharding/unshard_collection_with_failover_during_commit.js
+      ticket: SERVER-117340
+    - test_file: jstests/core/cluster_parameters/cluster_parameter_commands.js
+      ticket: SERVER-117009
+    - test_file: jstests/noPassthrough/server_parameters/cluster_parameter_validate.js
+      ticket: SERVER-117009
+    - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries_force_redistribution.js
+      ticket: SERVER-111411
+    - test_file: jstests/replsets/configurable_fetcher_timeout.js
+      ticket: SERVER-106165
   suites: null
 last-lts:
   all:
@@ -586,8 +596,8 @@ last-lts:
       ticket: SERVER-99618
     - test_file: jstests/concurrency/fsm_workloads/ddl/collMod/collMod_options_with_index_ops.js
       ticket: SERVER-107819
-    - test_file: jstests/sharding/check_metadata_consistency.js
-      ticket: SERVER-98664
+    - test_file: jstests/core_sharding/check_metadata_consistency_basic.js
+      ticket: SERVER-117010
     - test_file: jstests/core/timeseries/query/bucket_unpacking_with_limit.js
       ticket: SERVER-100299
     - test_file: jstests/core_sharding/ddl/shard_collection_outside_db_primary_index_compatibility.js
@@ -624,8 +634,6 @@ last-lts:
       ticket: SERVER-97229
     - test_file: jstests/replsets/auth_coordinateCommitTransaction.js
       ticket: SERVER-103618
-    - test_file: jstests/sharding/check_metadata_consistency.js
-      ticket: SERVER-102084
     - test_file: jstests/sharding/configsvr_metadata_commands_require_majority_write_concern.js
       ticket: SERVER-102312
     - test_file: jstests/sharding/resharding_oplog_fetcher_repl_lag.js
@@ -758,4 +766,14 @@ last-lts:
       ticket: SERVER-116528
     - test_file: jstests/sharding/index_not_cloned_on_non_owner_shards.js
       ticket: SERVER-102165
+    - test_file: jstests/sharding/unshard_collection_with_failover_during_commit.js
+      ticket: SERVER-117340
+    - test_file: jstests/core/cluster_parameters/cluster_parameter_commands.js
+      ticket: SERVER-117009
+    - test_file: jstests/noPassthrough/server_parameters/cluster_parameter_validate.js
+      ticket: SERVER-117009
+    - test_file: jstests/sharding/resharding_timeseries/reshard_timeseries_force_redistribution.js
+      ticket: SERVER-111411
+    - test_file: jstests/replsets/configurable_fetcher_timeout.js
+      ticket: SERVER-106165
   suites: null

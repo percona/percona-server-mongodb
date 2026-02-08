@@ -31,11 +31,11 @@
 
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/admission/execution_control/execution_admission_context.h"
 #include "mongo/db/admission/execution_control/execution_control_stats.h"
 #include "mongo/db/admission/execution_control/throughput_probing.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/service_context.h"
-#include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/tenant_id.h"
 #include "mongo/util/concurrency/ticketholder.h"
 #include "mongo/util/modules.h"
@@ -231,6 +231,11 @@ public:
      * levels. The throughput probing parameter must be enabled before calling this function.
      */
     void startThroughputProbe();
+
+    /**
+     * Sets the period for the throughput probing periodic job.
+     */
+    void setProbingPeriod(Milliseconds period);
 
 private:
     /**

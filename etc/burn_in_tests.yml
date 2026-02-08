@@ -1,7 +1,7 @@
 # This file is used to exclude suites, tasks or tests from running in the burn_in_test task.
 selector:
   js_test:
-    # Exclude list of resmoke.py suite names.
+    # Exclude list of resmoke.py suite names or resmoke_suite_test target names.
     exclude_suites:
       # Requires an HTTP server to be running in the background.
       - queryable_wt
@@ -15,6 +15,8 @@ selector:
       - streams_aspio_iceberg_2
       - streams_aspio_iceberg_3
       - streams_aspio_iceberg_4
+      - streams_aspio_iceberg_5
+      - streams_aspio_utilities
       - streams_aspio_pubsub
     # Exclude list of etc/evergreen.yml task names.
     exclude_tasks:

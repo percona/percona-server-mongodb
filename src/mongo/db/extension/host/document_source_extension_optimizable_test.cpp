@@ -47,6 +47,7 @@
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
 #include "mongo/db/pipeline/search/document_source_internal_search_id_lookup.h"
+#include "mongo/db/pipeline/visitors/document_source_visitor_docs_needed_bounds.h"
 #include "mongo/idl/server_parameter_test_controller.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
@@ -2158,7 +2159,8 @@ TEST_F(DocumentSourceExtensionOptimizableTest, DistributedPlanLogicReturnsNoneWh
 }
 
 namespace {
-class InvalidDPLLogicalStage : public sdk::shared_test_stages::TransformLogicalAggStage {
+class InvalidDPLLogicalStageWithMismatch
+    : public sdk::shared_test_stages::TransformLogicalAggStage {
 public:
     boost::optional<sdk::DistributedPlanLogic> getDistributedPlanLogic() const override {
         sdk::DistributedPlanLogic dpl;
@@ -2175,18 +2177,48 @@ public:
         return dpl;
     }
 };
+
+class InvalidDPLLogicalStageWithHostAllocatedExtension
+    : public sdk::shared_test_stages::TransformLogicalAggStage {
+public:
+    boost::optional<sdk::DistributedPlanLogic> getDistributedPlanLogic() const override {
+        sdk::DistributedPlanLogic dpl;
+
+        {
+            std::vector<VariantDPLHandle> elements;
+            // Using createHostAggStageParseNode with extension stage BSON.
+            elements.emplace_back(sdk::HostServicesAPI::getInstance()->createHostAggStageParseNode(
+                BSON(std::string(sdk::shared_test_stages::kTransformName) << BSONObj())));
+            dpl.mergingPipeline = sdk::DPLArrayContainer(std::move(elements));
+        }
+
+        return dpl;
+    }
+};
 }  // namespace
 
 TEST_F(DocumentSourceExtensionOptimizableTest,
        DistributedPlanLogicReturnsErrorWhenGivenMismatchedLogicalStage) {
     auto logicalStage =
-        new sdk::ExtensionLogicalAggStage(std::make_unique<InvalidDPLLogicalStage>());
+        new sdk::ExtensionLogicalAggStage(std::make_unique<InvalidDPLLogicalStageWithMismatch>());
     auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
 
     auto optimizable = host::DocumentSourceExtensionOptimizable::create(
         getExpCtx(), std::move(logicalStageHandle), MongoExtensionStaticProperties{});
 
     ASSERT_THROWS_CODE(optimizable->distributedPlanLogic(nullptr), AssertionException, 11513800);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest,
+       DistributedPlanLogicReturnsErrorWhenGivenDPLWithHostAllocatedExtension) {
+    auto logicalStage = new sdk::ExtensionLogicalAggStage(
+        std::make_unique<InvalidDPLLogicalStageWithHostAllocatedExtension>());
+    auto logicalStageHandle = LogicalAggStageHandle(logicalStage);
+
+    auto optimizable = host::DocumentSourceExtensionOptimizable::create(
+        getExpCtx(), std::move(logicalStageHandle), MongoExtensionStaticProperties{});
+
+    ASSERT_THROWS_CODE(optimizable->distributedPlanLogic(nullptr), AssertionException, 11882000);
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest, DistributedPlanLogicWithMergeOnlyStage) {
@@ -2455,6 +2487,19 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
                          MongoExtensionFirstStageViewApplicationPolicy::kDoNothing,
                          ViewPolicy::kFirstStageApplicationPolicy::kDoNothing,
                          viewNss.coll().data());
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest, ExtensionStageDocsNeededBoundsReturnsUnknown) {
+    auto astNode = std::make_unique<sdk::shared_test_stages::TransformAggStageAstNode>();
+    AggStageAstNodeHandle handle{new sdk::ExtensionAggStageAstNode(std::move(astNode))};
+    auto extensionStage =
+        host::DocumentSourceExtensionOptimizable::create(getExpCtx(), std::move(handle));
+
+    auto pipeline = Pipeline::create({extensionStage}, getExpCtx());
+    auto bounds = extractDocsNeededBounds(*pipeline);
+
+    ASSERT_TRUE(std::holds_alternative<docs_needed_bounds::Unknown>(bounds.getMinBounds()));
+    ASSERT_TRUE(std::holds_alternative<docs_needed_bounds::Unknown>(bounds.getMaxBounds()));
 }
 
 }  // namespace mongo::extension

@@ -440,6 +440,7 @@ ReshardingRecipientService::RecipientStateMachine::_runUntilStrictConsistencyOrE
                 stdx::lock_guard<stdx::mutex> lk(_mutex);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorStarted, status);
                 ensureFulfilledPromise(lk, _changeStreamsMonitorCompleted, status);
+                ensureFulfilledPromise(lk, _transitionedToCreateCollection, status);
             }
 
             return _retryingCancelableOpCtxFactory
@@ -862,13 +863,15 @@ ExecutorFuture<void> ReshardingRecipientService::RecipientStateMachine::
 
 SemiFuture<void>
 ReshardingRecipientService::RecipientStateMachine::fulfillAllDonorsPreparedToDonate(
-    CloneDetails cloneDetails, const CancellationToken& cancelToken) {
+    CloneDetails cloneDetails) {
     {
         stdx::lock_guard<stdx::mutex> lk(_mutex);
+        _assertRecipientInitialized(lk);
         ensureFulfilledPromise(lk, _allDonorsPreparedToDonate, cloneDetails);
     }
 
-    return future_util::withCancellation(_transitionedToCreateCollection.getFuture(), cancelToken);
+    return future_util::withCancellation(_transitionedToCreateCollection.getFuture(),
+                                         _cancelState->getAbortOrStepdownToken());
 }
 
 void ReshardingRecipientService::RecipientStateMachine::
@@ -934,9 +937,7 @@ void ReshardingRecipientService::RecipientStateMachine::
             _metadata.getTempReshardingNss(), _metadata.getReshardingUUID(), createCollRequest);
         notifyChangeStreamsOnShardCollection(opCtx.get(), notification);
 
-        if (resharding::gFeatureFlagReshardingVerification.isEnabled(
-                VersionContext::getDecoration(opCtx.get()),
-                serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+        if (resharding::gReshardingCollectionOptionsVerification.load()) {
             auto [sourceCollOptions, _] = _externalState->getCollectionOptions(
                 opCtx.get(),
                 _metadata.getSourceNss(),
@@ -1305,9 +1306,7 @@ ReshardingRecipientService::RecipientStateMachine::_buildIndexThenTransitionToAp
                 .thenRunOn(**executor)
                 .then([this, &factory](const ReplIndexBuildState::IndexCatalogStats& stats) {
                     if (auto opCtx = factory.makeOperationContext(&cc());
-                        resharding::gFeatureFlagReshardingVerification.isEnabled(
-                            VersionContext::getDecoration(opCtx.get()),
-                            serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
+                        resharding::gReshardingIndexVerification.load()) {
                         auto [sourceIdxSpecs, _] = _externalState->getCollectionIndexes(
                             opCtx.get(),
                             _metadata.getSourceNss(),
@@ -2255,6 +2254,13 @@ otel::traces::Span ReshardingRecipientService::RecipientStateMachine::_startSpan
     auto span = otel::traces::Span::start(telemetryCtx, spanName, keepSpan);
     TRACING_SPAN_ATTR(span, "reshardingUUID", _metadata.getReshardingUUID().toString());
     return span;
+}
+
+void ReshardingRecipientService::RecipientStateMachine::_assertRecipientInitialized(
+    WithLock) const {
+    uassert(ErrorCodes::PrimaryOnlyServiceInitializing,
+            "Recipient is still undergoing initialization",
+            _cancelState != nullptr);
 }
 
 }  // namespace mongo

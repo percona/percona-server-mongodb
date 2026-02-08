@@ -103,7 +103,7 @@ filters:
   - "direct_shard_connection_ddls_on_replicaset.js":
     approvers:
       - 10gen/server-catalog-and-routing-routing-and-topology
-  - "transition_to_dedicated_config_server.js":
+  - "transition_to_dedicated_config_server*.js":
     approvers:
       - 10gen/server-catalog-and-routing-routing-and-topology
   - "direct_shard_connection_ddls_during_promotion_to_*.js":
@@ -160,3 +160,6 @@ filters:
   - "set_fcv*.js":
     approvers:
       - 10gen/server-catalog-and-routing-routing-and-topology
+  - "hashed_shard_key_index_optional_shard_collection.js":
+    approvers:
+      - 10gen/server-cluster-scalability

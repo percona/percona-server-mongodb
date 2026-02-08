@@ -32,12 +32,11 @@
 #include "mongo/base/status_with.h"
 #include "mongo/db/exec/classic/subplan.h"
 #include "mongo/db/exec/runtime_planners/classic_runtime_planner/planner_interface.h"
+#include "mongo/db/exec/runtime_planners/planner_interface.h"
 #include "mongo/db/query/compiler/ce/sampling/sampling_estimator_impl.h"
 #include "mongo/db/query/compiler/optimizer/cost_based_ranker/estimates.h"
 #include "mongo/db/query/plan_ranking/cbr_plan_ranking.h"
 #include "mongo/db/query/plan_ranking/plan_ranker.h"
-#include "mongo/db/query/query_execution_knobs_gen.h"
-#include "mongo/db/query/query_integration_knobs_gen.h"
 #include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/logv2/log.h"
 
@@ -109,18 +108,14 @@ StatusWith<PlanRankingResult> getBestCBRPlan(OperationContext* opCtx,
 }
 
 // TODO SERVER-117372. Populate explains output.
-StatusWith<PlanRankingResult> CostBasedPlanRankingStrategy::rankPlans(
-    OperationContext* opCtx,
-    CanonicalQuery& query,
-    QueryPlannerParams& plannerParams,
-    PlanYieldPolicy::YieldPolicy yieldPolicy,
-    const MultipleCollectionAccessor& collections,
-    PlannerData plannerData) {
+StatusWith<PlanRankingResult> CostBasedPlanRankingStrategy::rankPlans(PlannerData& plannerData) {
+    OperationContext* opCtx = plannerData.opCtx;
+    CanonicalQuery& query = *plannerData.cq;
+    QueryPlannerParams& plannerParams = const_cast<QueryPlannerParams&>(*plannerData.plannerParams);
+    PlanYieldPolicy::YieldPolicy yieldPolicy = plannerData.yieldPolicy;
+    const MultipleCollectionAccessor& collections = plannerData.collections;
     // TODO SERVER-115496 refactor and move to plan_ranking
-    auto topLevelSampleFieldNames =
-        ce::extractTopLevelFieldsFromMatchExpression(query.getPrimaryMatchExpression());
-    auto statusWithMultiPlanSolns =
-        QueryPlanner::plan(query, plannerParams, topLevelSampleFieldNames);
+    auto statusWithMultiPlanSolns = QueryPlanner::plan(query, plannerParams);
     if (!statusWithMultiPlanSolns.isOK()) {
         return statusWithMultiPlanSolns.getStatus().withContext(
             str::stream() << "error processing query: " << query.toStringForErrorMsg()

@@ -80,6 +80,7 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         hide_initial_sync_node_from_conn_string=False,
         launch_mongot=False,
         load_all_extensions=False,
+        skip_extensions_signature_verification=False,
         router_endpoint_for_mongot: Optional[int] = None,
         disagg_base_config=None,
         use_priority_ports=False,
@@ -102,7 +103,9 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
                 logger=self.logger,
                 mongod_options=self.mongod_options,
             )
-            add_extensions_signature_pub_key_path(self.mongod_options)
+            add_extensions_signature_pub_key_path(
+                skip_extensions_signature_verification, self.config, self.mongod_options
+            )
 
         # Automatically download and configure mongot-extension if needed.
         if "mongot-extension" in self.mongod_options.get("loadExtensions", ""):
@@ -1298,7 +1301,8 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
         excluded_any_db_collections = ["system.profile"]
 
         base_hashes = {}
-        filter = {"type": "collection"}
+        # Exclude views.
+        filter = {"type": {"$ne": "view"}}
         for node in self.nodes:
             client = interface.build_client(node, self.auth_options)
             # Skip validating collections for arbiters.
@@ -1319,6 +1323,10 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
                 db = client.get_database(db_name)
                 for coll in db.list_collections(filter=filter):
                     coll_name = coll["name"]
+                    # TODO(SERVER-118882): Remove this once 9.0 becomes last LTS.
+                    # Filter out system.buckets.* collections.
+                    if coll_name.startswith("system.buckets."):
+                        continue
                     # Skip excluded collections which all live in the 'config' database.
                     if db_name == "config" and coll_name in excluded_config_collections:
                         continue

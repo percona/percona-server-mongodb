@@ -39,9 +39,6 @@ filters:
   - "generated_suites/*pqs*":
     approvers:
       - 10gen/query-execution-query-settings
-  - "generated_suites/replica_sets_recordids_replicated_jscore_passthrough.yml":
-    approvers:
-      - 10gen/server-collection-write-path
   - "generated_suites/*execution_control*":
     approvers:
       - 10gen/server-workload-resilience
@@ -57,3 +54,6 @@ filters:
   - "generated_suites/vector_search_extension*":
     approvers:
       - 10gen/query-integration-extensions-api
+  - "generated_suites/sharding*kill_primaries*":
+    approvers:
+      - 10gen/server-catalog-and-routing

@@ -1482,18 +1482,6 @@ tasks:
       - func: "generate resmoke tasks"
 
   - <<: *gen_task_template
-    name: replica_sets_recordids_replicated_jscore_passthrough_gen
-    tags:
-      [
-        "assigned_to_jira_team_server_repl",
-        "default",
-        "requires_all_feature_flags",
-        "recordids_replicated",
-      ]
-    commands:
-      - func: "generate resmoke tasks"
-
-  - <<: *gen_task_template
     name: replica_sets_terminate_primary_jscore_passthrough_gen
     # TODO(SERVER-69951) remove "incompatible_debug_mode" tag
     tags:
@@ -2422,6 +2410,21 @@ tasks:
       - func: "generate resmoke tasks"
         vars:
           suite: disagg_two_nodes_repl_jscore_passthrough
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_repl_jscore_passthrough_secondary_reads_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_repl",
+        "default",
+        "large",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_repl_jscore_passthrough_secondary_reads
           use_large_distro: "true"
 
   - <<: *gen_task_template

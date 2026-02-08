@@ -6,7 +6,9 @@ import {
     getRejectedPlans,
     getWinningPlanFromExplain,
     isIxscan,
+    isCountScan,
 } from "jstests/libs/query/analyze_plan.js";
+import {getCBRConfig, restoreCBRConfig} from "jstests/libs/query/cbr_utils.js";
 
 const collName = jsTestName();
 const coll = db[collName];
@@ -18,9 +20,9 @@ for (let i = 0; i < 10000; i++) {
 }
 assert.commandWorked(coll.insertMany(docs));
 
-assert.commandWorked(coll.createIndexes([{a: 1}, {b: 1}]));
+assert.commandWorked(coll.createIndexes([{a: 1}, {b: 1}, {a: 1, b: 1}]));
 
-function runTest() {
+function runTestIxscan() {
     const explain = coll
         .explain("allPlansExecution")
         .find({a: {$gte: 1}, b: {$gte: 2}, c: 1})
@@ -38,24 +40,34 @@ function runTest() {
     }
 }
 
-const prevPlanRankerMode = assert.commandWorked(db.adminCommand({setParameter: 1, planRankerMode: "automaticCE"})).was;
-const prevAutoPlanRankingStrategy = assert.commandWorked(
-    assert.commandWorked(db.adminCommand({getParameter: 1, automaticCEPlanRankingStrategy: 1})),
-).automaticCEPlanRankingStrategy;
+function runTestFastScan() {
+    const explain = coll
+        .explain("allPlansExecution")
+        .find({a: {$gte: 0}})
+        .count();
+
+    assertExplainCount({explainResults: explain, expectedCount: 10000});
+    assert(isCountScan(db, getWinningPlanFromExplain(explain)), {explain});
+
+    const rejectedPlans = getRejectedPlans(explain);
+    // We throw away all other plans if we have a fast count.
+    assert(rejectedPlans.length == 0, {explain});
+}
+
+const prevCBRConfig = getCBRConfig(db);
+assert.commandWorked(
+    db.adminCommand({setParameter: 1, featureFlagCostBasedRanker: true, internalQueryCBRCEMode: "automaticCE"}),
+);
+
 try {
     const cbrFallbackStrategies = ["CBRForNoMultiplanningResults", "CBRCostBasedRankerChoice"];
 
     for (const cbrFallbackStrategy of cbrFallbackStrategies) {
         jsTest.log.info("Running with:", {cbrFallbackStrategy});
         assert.commandWorked(db.adminCommand({setParameter: 1, automaticCEPlanRankingStrategy: cbrFallbackStrategy}));
-        runTest();
+        runTestIxscan();
+        runTestFastScan();
     }
 } finally {
-    assert.commandWorked(
-        db.adminCommand({
-            setParameter: 1,
-            planRankerMode: prevPlanRankerMode,
-            automaticCEPlanRankingStrategy: prevAutoPlanRankingStrategy,
-        }),
-    );
+    restoreCBRConfig(db, prevCBRConfig);
 }

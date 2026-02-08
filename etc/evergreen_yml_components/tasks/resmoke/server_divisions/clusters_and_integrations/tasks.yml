@@ -801,18 +801,6 @@ tasks:
             - "src/evergreen/external_auth_gcp_setup.sh"
       - func: "run tests"
 
-  - <<: *task_template
-    name: external_auth_windows
-    # Disabled until windows-2016-dc is replaced with newer DC distro with Python 3.13 (see SERVER-117162)
-    disable: true
-    tags: ["assigned_to_jira_team_server_security", "experimental"]
-    commands:
-      - func: "do setup"
-      - func: "run tests"
-        vars:
-          suite: external_auth
-          resmoke_args: --includeWithAnyTags=requires_domain_controller
-
   ## fetch_and_run_libfuzzertests - get input corpora from s3 and run libfuzzertests ##
   - name: fetch_and_run_libfuzzertests
     tags: ["assigned_to_jira_team_server_security", "experimental"]
@@ -3135,6 +3123,22 @@ tasks:
           resmoke_jobs_max: 10
 
   - <<: *gen_task_template
+    name: disagg_sharded_colls_jscore_passthrough_secondary_reads_with_balancer_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "large",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_sharded_colls_jscore_passthrough_secondary_reads_with_balancer
+          use_large_distro: "true"
+          resmoke_jobs_max: 2
+
+  - <<: *gen_task_template
     name: disagg_concurrency_sharded_replication_gen
     tags:
       [
@@ -3156,7 +3160,75 @@ tasks:
         vars:
           suite: disagg_concurrency_sharded_replication
           use_large_distro: "true"
-          resmoke_jobs_max: 1
+
+  - <<: *gen_task_template
+    name: disagg_concurrency_sharded_replication_with_balancer_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "incompatible_mac",
+        "incompatible_ppc",
+        "incompatible_s390x",
+        "incompatible_debug_mode",
+        "concurrency",
+        "common",
+        "read_concern_maj",
+        "large",
+        "sharded",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_concurrency_sharded_replication_with_balancer
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_concurrency_sharded_causal_consistency_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "incompatible_mac",
+        "incompatible_ppc",
+        "incompatible_s390x",
+        "incompatible_debug_mode",
+        "concurrency",
+        "common",
+        "read_concern_maj",
+        "large",
+        "sharded",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_concurrency_sharded_causal_consistency
+          use_large_distro: "true"
+
+  - <<: *gen_task_template
+    name: disagg_concurrency_sharded_causal_consistency_with_balancer_gen
+    tags:
+      [
+        "assigned_to_jira_team_server_catalog_and_routing",
+        "default",
+        "incompatible_mac",
+        "incompatible_ppc",
+        "incompatible_s390x",
+        "incompatible_debug_mode",
+        "concurrency",
+        "common",
+        "read_concern_maj",
+        "large",
+        "sharded",
+        "requires_extra_system_deps",
+      ]
+    commands:
+      - func: "generate resmoke tasks"
+        vars:
+          suite: disagg_concurrency_sharded_causal_consistency_with_balancer
+          use_large_distro: "true"
 
 ################################################
 #                 Task Groups                  #

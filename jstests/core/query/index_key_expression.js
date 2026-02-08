@@ -10,8 +10,31 @@
  * ]
  */
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
+import {isStableFCVSuite} from "jstests/libs/feature_compatibility_version.js";
+
+// TODO (SERVER-117130): Remove the mongos pinning once the related issue is resolved.
+// When a database is dropped, a stale router will report "database not found" error for
+// deletes (instead of "ok") when pauseMigrationsDuringMultiUpdates is enabled.
+if (TestData.pauseMigrationsDuringMultiUpdates) {
+    TestData.pinToSingleMongos = true;
+}
 
 const collection = db.index_key_expression;
+
+/**
+ * Helper function to get the appropriate 2dsphere index version based on feature flag.
+ * Returns version 4 if the feature flag is enabled and we're in a stable FCV suite.
+ * Returns version 3 otherwise (to avoid having to drop v4 indexes during FCV transitions).
+ */
+function get2dsphereIndexVersion() {
+    const version = FeatureFlagUtil.isPresentAndEnabled(db, "2dsphereIndexVersion4") ? 4 : 3;
+    if (!isStableFCVSuite()) {
+        // If we are upgrading/downgrading the FCV, avoid having to drop any v4 indexes by pinning the version to 3.
+        // TODO SERVER-118561 Remove this when 9.0 is last LTS.
+        return 3;
+    }
+    return version;
+}
 
 /**
  * Returns the hash of the provided BSON element that is compatible with 'hashed' indexes.
@@ -19,6 +42,9 @@ const collection = db.index_key_expression;
 function getHash(bsonElement) {
     return assert.commandWorked(db.runCommand({_hashBSONElement: bsonElement, seed: 0})).out;
 }
+
+// Get the appropriate 2dsphere index version for this test run.
+const twoDSphereIndexVersion = get2dsphereIndexVersion();
 
 // A dictionary consisting of various test scenarios that must be run against the
 // '$_internalIndexKey'.
@@ -587,7 +613,7 @@ const testScenarios = [
         },
         spec: {
             key: {"data.geo": "2dsphere_bucket"},
-            "2dsphereIndexVersion": 3,
+            "2dsphereIndexVersion": twoDSphereIndexVersion,
             name: "2dsphereBucketIndex",
         },
         expectedIndexKeys: [
@@ -611,7 +637,7 @@ const testScenarios = [
         },
         spec: {
             key: {"data.geo1": "2dsphere_bucket", "data.geo2": "2dsphere_bucket"},
-            "2dsphereIndexVersion": 3,
+            "2dsphereIndexVersion": twoDSphereIndexVersion,
             name: "2dsphereBucketIndex",
         },
         expectedIndexKeys: [
@@ -649,7 +675,7 @@ const testScenarios = [
         },
         spec: {
             key: {"data.geo2": "2dsphere_bucket", "data.geo1": "2dsphere_bucket"},
-            "2dsphereIndexVersion": 3,
+            "2dsphereIndexVersion": twoDSphereIndexVersion,
             name: "2dsphereBucketIndex",
         },
         expectedIndexKeys: [
@@ -687,7 +713,7 @@ const testScenarios = [
         },
         spec: {
             key: {"data.geo1": "2dsphere_bucket", "data.geo2": 1},
-            "2dsphereIndexVersion": 3,
+            "2dsphereIndexVersion": twoDSphereIndexVersion,
             name: "2dsphereBucketIndex",
         },
         expectedIndexKeys: [
@@ -719,7 +745,7 @@ const testScenarios = [
         },
         spec: {
             key: {"data.none1": "2dsphere_bucket"},
-            "2dsphereIndexVersion": 3,
+            "2dsphereIndexVersion": twoDSphereIndexVersion,
             name: "2dsphereBucketIndex",
         },
         expectedIndexKeys: [],
@@ -731,7 +757,7 @@ const testScenarios = [
         },
         spec: {
             key: {"data.geo": "2dsphere_bucket"},
-            "2dsphereIndexVersion": 3,
+            "2dsphereIndexVersion": twoDSphereIndexVersion,
             name: "2dsphereBucketIndex",
         },
         expectedErrorCode: 183934, // Can't extract geo keys: unknown GeoJSON type.
@@ -747,7 +773,7 @@ const testScenarios = [
         },
         spec: {
             key: {"data.geo": "2dsphere_bucket"},
-            "2dsphereIndexVersion": 3,
+            "2dsphereIndexVersion": twoDSphereIndexVersion,
             name: "2dsphereBucketIndex",
         },
         expectedErrorCode: 6540600, // Time-series bucket documents must have 'control' object present.

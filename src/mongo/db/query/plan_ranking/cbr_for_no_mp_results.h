@@ -41,16 +41,9 @@
 
 namespace mongo {
 namespace plan_ranking {
-class CBRForNoMPResultsStrategy {
+class CBRForNoMPResultsStrategy : public PlanRankingStrategy {
 public:
-    ~CBRForNoMPResultsStrategy() = default;
-
-    StatusWith<PlanRankingResult> rankPlans(CanonicalQuery& query,
-                                            QueryPlannerParams& plannerParams,
-                                            PlanYieldPolicy::YieldPolicy yieldPolicy,
-                                            const MultipleCollectionAccessor& collections,
-                                            OperationContext* opCtx,
-                                            PlannerData plannerData);
+    StatusWith<plan_ranking::PlanRankingResult> rankPlans(PlannerData& pd) override;
 
 protected:
     // TODO SERVER-115496. Once solutions are received as argument, this no longer needs to be

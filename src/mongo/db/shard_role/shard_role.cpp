@@ -43,6 +43,7 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/router_role/routing_cache/shard_cannot_refresh_due_to_locks_held_exception.h"
 #include "mongo/db/rss/replicated_storage_service.h"
+#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/direct_connection_util.h"
 #include "mongo/db/shard_role/lock_manager/d_concurrency.h"
@@ -383,16 +384,24 @@ std::variant<CollectionPtr, std::shared_ptr<const ViewDefinition>> acquireLocalC
 
     auto coll = getCollection(nss);
 
-    if (!coll && forRestore) {
-        // Throw `InterruptedDueToTimeseriesUpgradeDowngrade` if this is a timeseries collection
-        // that has been concurrently upgraded/downgraded.
+    // We are temporarly guarding this code under the ViewlessTimeseries feature flag
+    // to make sure it will be only executed in the binary version where
+    // viewless timeseries are enabled.
+    // (Ignore FCV check): This code is backward compatible.
+    if (forRestore && gFeatureFlagViewlessTimeseriesUpgradeDowngradeRetriableError.isEnabled() &&
+        prerequisites.uuid && !coll) {
+        // Between yielding and restoring the acquisition, the target collection disappeared.
+        // If this has been caused by a timeseries upgrade/downgrade that renamed the timeseries
+        // buckets collection then throw a `InterruptedDueToTimeseriesUpgradeDowngrade` retriable
+        // error.
         // TODO SERVER-117477 remove this logic once 9.0 becomes last LTS and all timeseries
         // collection are viewless.
         const auto otherTimeseriesNss = nss.isTimeseriesBucketsCollection()
             ? nss.getTimeseriesViewNamespace()
             : nss.makeTimeseriesBucketsNamespace();
         auto otherTimeseriesColl = getCollection(otherTimeseriesNss);
-        if (otherTimeseriesColl && otherTimeseriesColl->isTimeseriesCollection()) {
+        if (otherTimeseriesColl && otherTimeseriesColl->isTimeseriesCollection() &&
+            otherTimeseriesColl->uuid() == prerequisites.uuid) {
             uasserted(
                 ErrorCodes::InterruptedDueToTimeseriesUpgradeDowngrade,
                 fmt::format("Operation on collection '{}' was interrupted due to a time-series "

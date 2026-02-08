@@ -2079,7 +2079,7 @@ class RunPlugin(PluginInterface):
             dest="fuzz_mongod_configs",
             help="Randomly chooses mongod parameters that were not specified.",
             metavar="MODE",
-            choices=("normal"),
+            choices=("normal",),
         )
 
         mongodb_server_options.add_argument(
@@ -2133,6 +2133,13 @@ class RunPlugin(PluginInterface):
             dest="load_all_extensions",
             action="store_true",
             help="Loads all available test extensions in the server upon startup.",
+        )
+
+        mongodb_server_options.add_argument(
+            "--skipExtensionsSignatureVerification",
+            dest="skip_extensions_signature_verification",
+            action="store_true",
+            help="Skips extensions signature verification at load time during server startup.",
         )
 
         internal_options = parser.add_argument_group(

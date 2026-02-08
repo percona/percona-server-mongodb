@@ -417,12 +417,6 @@ public:
     std::unique_ptr<SortedStorageWriter<Key, Value>> makeWriter(
         const SortOptions& opts, const Settings& settings = Settings()) override;
 
-    std::shared_ptr<Iterator<Key, Value>> makeIterator(
-        std::unique_ptr<SortedStorageWriter<Key, Value>> writer) override;
-
-    std::unique_ptr<Iterator<Key, Value>> makeIteratorUnique(
-        std::unique_ptr<SortedStorageWriter<Key, Value>> writer) override;
-
     size_t getIteratorSize() override;
 
     std::shared_ptr<Iterator<Key, Value>> getSortedIterator(const SorterRange& range,
@@ -452,19 +446,6 @@ template <typename Key, typename Value>
 std::unique_ptr<SortedStorageWriter<Key, Value>> FileBasedSorterStorage<Key, Value>::makeWriter(
     const SortOptions& opts, const Settings& settings) {
     return std::make_unique<SortedFileWriter<Key, Value>>(opts, _file, settings);
-}
-
-template <typename Key, typename Value>
-std::shared_ptr<sorter::Iterator<Key, Value>> FileBasedSorterStorage<Key, Value>::makeIterator(
-    std::unique_ptr<SortedStorageWriter<Key, Value>> writer) {
-    return writer->done();
-}
-
-template <typename Key, typename Value>
-std::unique_ptr<sorter::Iterator<Key, Value>>
-FileBasedSorterStorage<Key, Value>::makeIteratorUnique(
-    std::unique_ptr<SortedStorageWriter<Key, Value>> writer) {
-    return writer->doneUnique();
 }
 
 template <typename Key, typename Value>
@@ -531,14 +512,13 @@ public:
               file, tempDir, dbName, checksumVersion)),
           _fileStats(file->getFileStats()) {}
 
-    std::unique_ptr<SorterStorage<Key, Value>> mergeSpills(
-        const SortOptions& opts,
-        const Settings& settings,
-        SorterStats& stats,
-        std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
-        Comparator comp,
-        std::size_t numTargetedSpills,
-        std::size_t numParallelSpills) override;
+    void mergeSpills(const SortOptions& opts,
+                     const Settings& settings,
+                     SorterStats& stats,
+                     std::vector<std::shared_ptr<sorter::Iterator<Key, Value>>>& iters,
+                     Comparator comp,
+                     std::size_t numTargetedSpills,
+                     std::size_t numParallelSpills) override;
 
 private:
     std::unique_ptr<SortedStorageWriter<Key, Value>> _spill(const SortOptions& opts,
@@ -558,7 +538,7 @@ private:
 };
 
 template <typename Key, typename Value>
-std::unique_ptr<SorterStorage<Key, Value>> FileBasedSorterSpiller<Key, Value>::mergeSpills(
+void FileBasedSorterSpiller<Key, Value>::mergeSpills(
     const SortOptions& opts,
     const Settings& settings,
     SorterStats& sorterStats,
@@ -612,7 +592,7 @@ std::unique_ptr<SorterStorage<Key, Value>> FileBasedSorterSpiller<Key, Value>::m
                 writer->addAlreadySorted(pair.first, pair.second);
                 ++pairCount;
             }
-            iters.push_back(sorterStorage.makeIterator(std::move(writer)));
+            iters.push_back(writer->done());
             sorterStats.incrementSpilledRanges();
             sorterStats.incrementSpilledKeyValuePairs(pairCount);
         }
@@ -626,7 +606,7 @@ std::unique_ptr<SorterStorage<Key, Value>> FileBasedSorterSpiller<Key, Value>::m
     }
 
     LOGV2_INFO(6033100, "Finished merging spills");
-    return std::make_unique<FileBasedSorterStorage<Key, Value>>(std::move(sorterStorage));
+    this->_storage = std::make_unique<FileBasedSorterStorage<Key, Value>>(std::move(sorterStorage));
 }
 
 }  // namespace sorter

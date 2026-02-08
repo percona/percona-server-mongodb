@@ -464,8 +464,8 @@ RollbackImpl::_namespacesAndUUIDsForOp(const OplogEntry& oplogEntry) {
         uuids.insert(opUUID.get());
     }
 
-    // No namespaces for a no-op.
-    if (opType == OpTypeEnum::kNoop) {
+    // No namespaces for a no-op or keyMaterial.
+    if (opType == OpTypeEnum::kNoop || opType == OpTypeEnum::kKeyMaterial) {
         return std::make_pair(std::set<NamespaceString>(), std::set<UUID>());
     }
 
@@ -499,6 +499,14 @@ RollbackImpl::_namespacesAndUUIDsForOp(const OplogEntry& oplogEntry) {
                 if (auto uuidSW = UUID::parse(obj.getField("dropTarget")); uuidSW.isOK()) {
                     uuids.insert(uuidSW.getValue());
                 }
+                break;
+            }
+            case OplogEntry::CommandType::kUpgradeDowngradeViewlessTimeseries: {
+                // Viewless timeseries upgrade/downgrade works like a rename from
+                // 'coll' to 'system.buckets.coll' or vice versa, so add both namespaces.
+                auto mainNss = CommandHelpers::parseNsCollectionRequired(opNss.dbName(), obj);
+                namespaces.insert(mainNss);
+                namespaces.insert(mainNss.makeTimeseriesBucketsNamespace());
                 break;
             }
             case OplogEntry::CommandType::kDbCheck:
@@ -970,7 +978,7 @@ Status RollbackImpl::_processRollbackOp(OperationContext* opCtx, const OplogEntr
     }
 
     // No information to record for a no-op.
-    if (opType == OpTypeEnum::kNoop) {
+    if (opType == OpTypeEnum::kNoop || opType == OpTypeEnum::kKeyMaterial) {
         return Status::OK();
     }
 

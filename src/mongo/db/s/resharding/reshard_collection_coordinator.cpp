@@ -154,12 +154,21 @@ ExecutorFuture<void> ReshardCollectionCoordinator::_runImpl(
                         _doc.getKey());
             }
 
+            BSONObj translatedKey;
+            if (cmOld.isTimeseriesCollection() &&
+                resharding::isOrdinaryReshardCollection(provenance)) {
+                auto tsOptions = cmOld.getTimeseriesFields().get().getTimeseriesOptions();
+                translatedKey =
+                    shardkeyutil::validateAndTranslateTimeseriesShardKey(tsOptions, *_doc.getKey());
+            }
+
             StateDoc newDoc(_doc);
             newDoc.setOldShardKey(currentShardKey);
             newDoc.setOldCollectionUUID(cmOld.getUUID());
             _updateStateDocument(opCtx, std::move(newDoc));
 
-            ConfigsvrReshardCollection configsvrReshardCollection(nss(), *(_doc.getKey()));
+            auto finalShardKey = translatedKey.isEmpty() ? *_doc.getKey() : translatedKey;
+            ConfigsvrReshardCollection configsvrReshardCollection(nss(), finalShardKey);
             configsvrReshardCollection.setDbName(nss().dbName());
             configsvrReshardCollection.setUnique(_doc.getUnique());
             configsvrReshardCollection.setCollation(_doc.getCollation());
@@ -205,23 +214,6 @@ ExecutorFuture<void> ReshardCollectionCoordinator::_runImpl(
                             << "MoveCollection can only be called on an unsharded collection.",
                         !cmOld.isSharded());
             } else if (resharding::isUnshardCollection(provenance)) {
-                // If the collection is already unsharded, this request should be a no-op. Check
-                // that the user didn't specify a "to" shard other than the shard the collection
-                // lives on - if it is different, return an error.
-                if (!cmOld.isSharded()) {
-                    if (_doc.getShardDistribution()) {
-                        std::set<ShardId> currentShards;
-                        cmOld.getAllShardIds(&currentShards);
-                        const auto toShard = _doc.getShardDistribution().get().front().getShard();
-                        uassert(ErrorCodes::NamespaceNotSharded,
-                                "Collection is already unsharded. Call moveCollection to move this "
-                                "collection to a different shard.",
-                                currentShards.find(toShard) != currentShards.end());
-                    }
-
-                    return;
-                }
-
                 // Pick the "to" shard if the client did not specify one.
                 if (!_doc.getShardDistribution()) {
                     auto toShard = sharding_util::selectLeastLoadedNonDrainingShard(opCtx);
@@ -243,7 +235,7 @@ ExecutorFuture<void> ReshardCollectionCoordinator::_runImpl(
                                    "when using the forceRedistribution option. The "
                                    "forceRedistribution option is meant for redistributing the "
                                    "collection to a different set of shards.",
-                            cmOld.getShardKeyPattern().isShardKey(*(_doc.getKey())));
+                            cmOld.getShardKeyPattern().isShardKey(finalShardKey));
                 }
             }
 
