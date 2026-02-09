@@ -41,6 +41,7 @@ a notice will be included in
 | [Intel® Decimal Floating-Point Math Library]         | BSD-3-Clause                                   | 2.0.1                                    |                      | ✗                               |
 | [JSON Schema Store]                                  | Apache-2.0                                     | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
+| [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | ✗                    | ✗                               |
 | [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |
 | [libmongocrypt]                                      | Apache-2.0                                     | 1.15.0                                   | ✗                    | ✗                               |
 | [LibTomCrypt]                                        | Unlicense                                      | 1.18.2                                   | ✗                    | ✗                               |
@@ -102,6 +103,7 @@ a notice will be included in
 [googletest]: https://github.com/google/googletest.git
 [gperftools]: https://github.com/gperftools/gperftools.git
 [immer]: https://github.com/arximboldi/immer.git
+[libarchive]: https://www.libarchive.org
 [libdwarf]: https://github.com/davea42/libdwarf-code.git
 [libmongocrypt]: https://github.com/mongodb/libmongocrypt.git
 [libunwind]: https://github.com/libunwind/libunwind.git
