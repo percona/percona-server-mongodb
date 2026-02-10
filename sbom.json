@@ -2505,6 +2505,50 @@
         ]
       },
       "scope": "required"
+    },
+    {
+      "supplier": {
+        "name": "Organization: github"
+      },
+      "name": "libarchive",
+      "version": "3.8.4",
+      "licenses": [
+        {
+          "license": {
+            "name": "A mix of BSD-2-Clause and others",
+            "url": "https://github.com/libarchive/libarchive/blob/v3.4.0/COPYING"
+          }
+        }
+      ],
+      "purl": "pkg:github/libarchive/libarchive@v3.8.4",
+      "properties": [
+        {
+          "name": "internal:team_responsible",
+          "value": "Percona Server for MongoDB Team"
+        },
+        {
+          "name": "emits_persisted_data",
+          "value": "true"
+        },
+        {
+          "name": "info_link",
+          "value": "https://www.libarchive.org"
+        },
+        {
+          "name": "import_script_path",
+          "value": "src/third_party/libarchive/scripts/import.sh"
+        }
+      ],
+      "type": "library",
+      "bom-ref": "pkg:github/libarchive/libarchive@v3.8.4",
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/third_party/libarchive"
+          }
+        ]
+      },
+      "scope": "required"
     }
   ],
   "dependencies": [
@@ -2557,7 +2601,8 @@
         "pkg:github/nlohmann/json@v3.11.3",
         "pkg:github/wiredtiger/wiredtiger@12.0.0",
         "pkg:github/davea42/libdwarf-code@libdwarf-2.1.0",
-        "pkg:github/jeremy-rifkin/cpptrace@v1.0.3"
+        "pkg:github/jeremy-rifkin/cpptrace@v1.0.3",
+        "pkg:github/libarchive/libarchive@v3.8.4"
       ]
     },
     {
@@ -2746,6 +2791,10 @@
     },
     {
       "ref": "pkg:pypi/ocspresponder@0.5.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "pkg:github/libarchive/libarchive@v3.8.4",
       "dependsOn": []
     }
   ]
