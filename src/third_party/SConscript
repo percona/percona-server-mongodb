@@ -18,7 +18,6 @@ Import([
 snappySuffix = '-1.1.7'
 icuSuffix = '-57.1'
 tomcryptSuffix = '-1.18.2'
-libarchiveSuffix = '-3.4.0'
 libkmipSuffix = '-0ecda33'
 variantSuffix = '-1.4.0'
 
@@ -31,7 +30,7 @@ thirdPartyEnvironmentModifications = {
         ],
     },
     'percona_incl': {'CPPPATH': ['#/src/third_party/install/include'], },
-    'libarchive': {'CPPPATH': ['#/src/third_party/libarchive' + libarchiveSuffix], },
+    'libarchive': {'CPPPATH': ['#/src/third_party/libarchive/dist'], },
     'libkmip': {'CPPPATH': ['#/src/third_party/libkmip' + libkmipSuffix + '/libkmip/include'], },
     'kmippp': {'CPPPATH': ['#/src/third_party/libkmip' + libkmipSuffix], },
     'folly': {'CPPPATH': ['#src/third_party/folly/dist'], },
@@ -760,10 +759,9 @@ if env.TargetOSIs('linux') and env['ENABLE_GRPC_BUILD']:
 
 libarchiveEnv = env.Clone()
 libarchiveEnv.InjectThirdParty(libraries=['libarchive'])
-libarchiveEnv.SConscript('libarchive' + libarchiveSuffix + '/libarchive/SConscript',
-                         exports={'env': libarchiveEnv})
+libarchiveEnv.SConscript('libarchive/SConscript', exports={'env': libarchiveEnv})
 libarchiveEnv = libarchiveEnv.Clone(LIBDEPS_INTERFACE=[
-    'libarchive' + libarchiveSuffix + '/libarchive/libarchive',
+    'libarchive/libarchive',
 ])
 
 libarchiveEnv.Library(target='shim_libarchive', source=[

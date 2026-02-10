@@ -1,0 +1,127 @@
+diff --git a/libarchive/archive_read_disk_posix.c b/libarchive/archive_read_disk_posix.c
+index 94fa8fe..b17b1b6 100644
+--- a/libarchive/archive_read_disk_posix.c
++++ b/libarchive/archive_read_disk_posix.c
+@@ -2005,7 +2005,7 @@ tree_dup(int fd)
+ {
+ 	int new_fd;
+ #ifdef F_DUPFD_CLOEXEC
+-	static volatile int can_dupfd_cloexec = 1;
++	static volatile int can_dupfd_cloexec = 1;  // NOLINT(mongo-volatile-check)
+ 
+ 	if (can_dupfd_cloexec) {
+ 		new_fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+diff --git a/libarchive/archive_read_open_filename.c b/libarchive/archive_read_open_filename.c
+index a910eef..0b60ff2 100644
+--- a/libarchive/archive_read_open_filename.c
++++ b/libarchive/archive_read_open_filename.c
+@@ -132,6 +132,7 @@ archive_read_open_filenames(struct archive *a, const char **filenames,
+ 		mine->block_size = block_size;
+ 		mine->fd = -1;
+ 		mine->buffer = NULL;
++		// NOLINTNEXTLINE(bugprone-signed-char-misuse)
+ 		mine->st_mode = mine->use_lseek = 0;
+ 		if (filename == NULL || filename[0] == '\0') {
+ 			mine->filename_type = FNT_STDIN;
+diff --git a/libarchive/archive_read_support_format_iso9660.c b/libarchive/archive_read_support_format_iso9660.c
+index 1635228..2ef84c4 100644
+--- a/libarchive/archive_read_support_format_iso9660.c
++++ b/libarchive/archive_read_support_format_iso9660.c
+@@ -3276,7 +3276,7 @@ isodate7_valid(const unsigned char *v)
+ 	int hour = v[3];
+ 	int minute = v[4];
+ 	int second = v[5];
+-	int gmt_off = (signed char)v[6];
++	int gmt_off = (signed char)v[6];  // NOLINT(bugprone-signed-char-misuse)
+ 
+ 	/* ECMA-119 9.1.5 "If all seven values are zero, it shall mean
+ 	 * that the date is unspecified" */
+@@ -3332,6 +3332,7 @@ isodate7(const unsigned char *v)
+ 	tm.tm_min = v[4];
+ 	tm.tm_sec = v[5];
+ 	/* v[6] is the signed timezone offset, in 1/4-hour increments. */
++	// NOLINTNEXTLINE(bugprone-signed-char-misuse)
+ 	offset = ((const signed char *)v)[6];
+ 	if (offset > -48 && offset < 52) {
+ 		tm.tm_hour -= offset / 4;
+@@ -3360,7 +3361,7 @@ isodate17_valid(const unsigned char *v)
+ 	int minute = (v[10] - '0') * 10 + (v[11] - '0');
+ 	int second = (v[12] - '0') * 10 + (v[13] - '0');
+ 	int hundredths = (v[14] - '0') * 10 + (v[15] - '0');
+-	int gmt_off = (signed char)v[16];
++	int gmt_off = (signed char)v[16];  // NOLINT(bugprone-signed-char-misuse)
+ 
+ 	if (year == 0 && month == 0 && day == 0
+ 	    && hour == 0 && minute == 0 && second == 0
+@@ -3421,6 +3422,7 @@ isodate17(const unsigned char *v)
+ 	tm.tm_min = (v[10] - '0') * 10 + (v[11] - '0');
+ 	tm.tm_sec = (v[12] - '0') * 10 + (v[13] - '0');
+ 	/* v[16] is the signed timezone offset, in 1/4-hour increments. */
++	// NOLINTNEXTLINE(bugprone-signed-char-misuse)
+ 	offset = ((const signed char *)v)[16];
+ 	if (offset > -48 && offset < 52) {
+ 		tm.tm_hour -= offset / 4;
+diff --git a/libarchive/archive_read_support_format_lha.c b/libarchive/archive_read_support_format_lha.c
+index abf8b87..4c92ab2 100644
+--- a/libarchive/archive_read_support_format_lha.c
++++ b/libarchive/archive_read_support_format_lha.c
+@@ -2634,6 +2634,7 @@ lzh_read_pt_bitlen(struct lzh_stream *strm, int start, int end)
+ 		if ((c = lzh_br_bits(br, 3)) == 7) {
+ 			if (!lzh_br_read_ahead(strm, br, 13))
+ 				return (i);
++			// NOLINTNEXTLINE(bugprone-signed-char-misuse)
+ 			c = bitlen_tbl[lzh_br_bits(br, 13) & 0x3FF];
+ 			if (c)
+ 				lzh_br_consume(br, c - 3);
+diff --git a/libarchive/archive_read_support_format_zip.c b/libarchive/archive_read_support_format_zip.c
+index 0c86ce9..7f53845 100644
+--- a/libarchive/archive_read_support_format_zip.c
++++ b/libarchive/archive_read_support_format_zip.c
+@@ -608,7 +608,7 @@ process_extra(struct archive_read *a, struct archive_entry *entry,
+ 				    "Incomplete extended time field");
+ 				return ARCHIVE_FAILED;
+ 			}
+-			flags = p[offset];
++			flags = p[offset];  // NOLINT(bugprone-signed-char-misuse)
+ 			offset++;
+ 			datasize--;
+ 			/* Flag bits indicate which dates are present. */
+@@ -700,7 +700,7 @@ process_extra(struct archive_read *a, struct archive_entry *entry,
+ 			/* We only support first 7 bits of bitmap; skip rest. */
+ 			while ((bitmap_last & 0x80) != 0
+ 			    && datasize >= 1) {
+-				bitmap_last = p[offset];
++				bitmap_last = p[offset];  // NOLINT(bugprone-signed-char-misuse)
+ 				offset += 1;
+ 				datasize -= 1;
+ 			}
+@@ -891,6 +891,7 @@ process_extra(struct archive_read *a, struct archive_entry *entry,
+ 				zip_entry->aes_extra.vendor =
+ 				    archive_le16dec(p + offset);
+ 				/* AES encryption strength. */
++				// NOLINTNEXTLINE(bugprone-signed-char-misuse)
+ 				zip_entry->aes_extra.strength = p[offset + 4];
+ 				/* Actual compression method. */
+ 				zip_entry->aes_extra.compression =
+diff --git a/libarchive/archive_string.c b/libarchive/archive_string.c
+index 740308b..172c882 100644
+--- a/libarchive/archive_string.c
++++ b/libarchive/archive_string.c
+@@ -2383,7 +2383,7 @@ _utf8_to_unicode(uint32_t *pwc, const char *s, size_t n)
+ 	ch = (unsigned char)*s;
+ 	if (ch == 0)
+ 		return (0); /* Standard:  return 0 for end-of-string. */
+-	cnt = utf8_count[ch];
++	cnt = utf8_count[ch];  // NOLINT(bugprone-signed-char-misuse)
+ 
+ 	/* Invalid sequence or there are not plenty bytes. */
+ 	if (n < (size_t)cnt) {
+@@ -3866,7 +3866,7 @@ best_effort_strncat_to_utf16(struct archive_string *as16, const void *_p,
+ 
+ 	utf16 = as16->s + as16->length;
+ 	while (remaining--) {
+-		unsigned c = *s++;
++		unsigned c = *s++;  // NOLINT(bugprone-signed-char-misuse)
+ 		if (c > 127) {
+ 			/* We cannot handle it. */
+ 			c = UNICODE_R_CHAR;
