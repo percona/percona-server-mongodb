@@ -51,6 +51,7 @@ a notice will be included in
 | [gRPC (C++)]                                         | Apache-2.0                        | 1.46.6                                   |                      | ✗                               |
 | [gperftools]                                         | BSD-3-Clause                      | 2.9.1                                    |                      | ✗                               |
 | [immer]                                              | BSL-1.0                           | 0b3aaf699b9d6f2e89f8e2b6d1221c307e02bda3 |                      | ✗                               |
+| [libarchive]                                         | A mix of BSD-2-Clause and others  | 3.8.4                                    | ✗                    | ✗                               |
 | [libmongocrypt]                                      | Apache-2.0                        | e656245b7ebc742df210c8156b9aac41bdd5d113 | ✗                    | ✗                               |
 | [librdkafka - The Apache Kafka C/C++ library]        | BSD-2-Clause                      | 2.0.2                                    |                      | ✗                               |
 | [libunwind]                                          | MIT                               | 1.6.1                                    |                      | ✗                               |
@@ -93,6 +94,7 @@ a notice will be included in
 [gRPC (C++)]: https://github.com/grpc/grpc.git
 [gperftools]: https://github.com/gperftools/gperftools.git
 [immer]: https://github.com/arximboldi/immer.git
+[libarchive]: https://www.libarchive.org
 [libmongocrypt]: https://github.com/mongodb/libmongocrypt.git
 [librdkafka - The Apache Kafka C/C++ library]: https://github.com/confluentinc/librdkafka.git
 [libunwind]: https://github.com/libunwind/libunwind.git
