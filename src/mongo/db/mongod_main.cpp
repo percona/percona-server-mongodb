@@ -122,6 +122,7 @@
 #include "mongo/db/keys_collection_manager.h"
 #include "mongo/db/keys_collection_manager_gen.h"
 #include "mongo/db/ldap/ldap_manager.h"
+#include "mongo/db/local_executor.h"
 #include "mongo/db/log_process_details.h"
 #include "mongo/db/logical_session_cache_factory_mongod.h"
 #include "mongo/db/logical_time_validator.h"
@@ -830,6 +831,8 @@ ExitCode _initAndListen(ServiceContext* serviceContext, int listenPort) {
     if (audit::initializeManager) {
         audit::initializeManager(startupOpCtx.get());
     }
+
+    getLocalExecutor(serviceContext)->startup();
 
     // This is for security on certain platforms (nonce generation)
     srand((unsigned)(curTimeMicros64()) ^ (unsigned(uintptr_t(&startupOpCtx))));  // NOLINT
@@ -2147,6 +2150,15 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         stopMongoDFTDC();
     }
 
+    {
+        TimeElapsedBuilderScopedTimer scopedTimer(serviceContext->getFastClockSource(),
+                                                  "Shut down standalone executor",
+                                                  &shutdownTimeElapsedBuilder);
+        LOGV2_OPTIONS(10175800, {LogComponent::kDefault}, "Shutting down the standalone executor");
+        getLocalExecutor(serviceContext)->shutdown();
+        getLocalExecutor(serviceContext)->join();
+    }
+
     LOGV2(20565, "Now exiting");
 
     audit::logShutdown(client);
@@ -2250,6 +2262,8 @@ int mongod_main(int argc, char* argv[]) {
 
         quickExit(ExitCode::auditRotateError);
     }
+
+    setLocalExecutor(service, createLocalExecutor(service, "Standalone"));
 
     setUpCatalog(service);
     setUpReplication(service);
