@@ -275,6 +275,7 @@ const allCommands = {
     },
     auditGetOptions: {
         command: {auditGetOptions: 1},
+        isAdminCommand: true,
     },
     authenticate: {
         // Skipping command because it requires additional authentication setup.
