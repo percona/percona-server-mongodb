@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 shell_quote_string() {
-    echo "$1" | sed -e 's,\([^a-zA-Z0-9/_.=-]\),\\\1,g'
+  echo "$1" | sed -e 's,\([^a-zA-Z0-9/_.=-]\),\\\1,g'
 }
 
-usage() {
+usage () {
     cat <<EOF
 Usage: $0 [OPTIONS]
     The following options may be given :
@@ -27,55 +27,59 @@ Usage: $0 [OPTIONS]
         --help) usage ;;
 Example $0 --builddir=/tmp/PSMDB --get_sources=1 --build_src_rpm=1 --build_rpm=1
 EOF
-    exit 1
+        exit 1
 }
 
-append_arg_to_args() {
-    args="$args "$(shell_quote_string "$1")
+append_arg_to_args () {
+  args="$args "$(shell_quote_string "$1")
 }
 
 parse_arguments() {
     pick_args=
-    if test "$1" = PICK-ARGS-FROM-ARGV; then
+    if test "$1" = PICK-ARGS-FROM-ARGV
+    then
         pick_args=1
         shift
     fi
 
-    for arg; do
+    for arg do
         val=$(echo "$arg" | sed -e 's;^--[^=]*=;;')
         case "$arg" in
-        --builddir=*) WORKDIR="$val" ;;
-        --build_src_rpm=*) SRPM="$val" ;;
-        --build_src_deb=*) SDEB="$val" ;;
-        --build_rpm=*) RPM="$val" ;;
-        --build_deb=*) DEB="$val" ;;
-        --get_sources=*) SOURCE="$val" ;;
-        --build_tarball=*) TARBALL="$val" ;;
-        --branch=*) BRANCH="$val" ;;
-        --repo=*) REPO="$val" ;;
-        --install_deps=*) INSTALL="$val" ;;
-        --psm_ver=*) PSM_VER="$val" ;;
-        --psm_release=*) PSM_RELEASE="$val" ;;
-        --mongo_tools_tag=*) MONGO_TOOLS_TAG="$val" ;;
-        --jenkins_mode=*) JENKINS_MODE="$val" ;;
-        --debug=*) DEBUG="$val" ;;
-        --special_targets=*) SPECIAL_TAR="$val" ;;
-        --help) usage ;;
-        *)
-            if test -n "$pick_args"; then
-                append_arg_to_args "$arg"
-            fi
-            ;;
+            --builddir=*) WORKDIR="$val" ;;
+            --build_src_rpm=*) SRPM="$val" ;;
+            --build_src_deb=*) SDEB="$val" ;;
+            --build_rpm=*) RPM="$val" ;;
+            --build_deb=*) DEB="$val" ;;
+            --get_sources=*) SOURCE="$val" ;;
+            --build_tarball=*) TARBALL="$val" ;;
+            --branch=*) BRANCH="$val" ;;
+            --repo=*) REPO="$val" ;;
+            --install_deps=*) INSTALL="$val" ;;
+            --psm_ver=*) PSM_VER="$val" ;;
+            --psm_release=*) PSM_RELEASE="$val" ;;
+            --mongo_tools_tag=*) MONGO_TOOLS_TAG="$val" ;;
+            --jenkins_mode=*) JENKINS_MODE="$val" ;;
+            --debug=*) DEBUG="$val" ;;
+            --special_targets=*) SPECIAL_TAR="$val" ;;
+            --help) usage ;;
+            *)
+              if test -n "$pick_args"
+              then
+                  append_arg_to_args "$arg"
+              fi
+              ;;
         esac
     done
 }
 
-check_workdir() {
-    if [ "x$WORKDIR" = "x$CURDIR" ]; then
+check_workdir(){
+    if [ "x$WORKDIR" = "x$CURDIR" ]
+    then
         echo >&2 "Current directory cannot be used for building!"
         exit 1
     else
-        if ! test -d "$WORKDIR"; then
+        if ! test -d "$WORKDIR"
+        then
             echo >&2 "$WORKDIR is not a directory."
             exit 1
         fi
@@ -83,34 +87,31 @@ check_workdir() {
     return
 }
 
-add_percona_yum_repo() {
-    if [ ! -f /etc/yum.repos.d/percona-dev.repo ]; then
-        wget http://jenkins.percona.com/yum-repo/percona-dev.repo
-        mv -f percona-dev.repo /etc/yum.repos.d/
-    fi
-    return
-}
-
-get_sources() {
+get_sources(){
     cd "${WORKDIR}"
-    if [ "${SOURCE}" = 0 ]; then
+    if [ "${SOURCE}" = 0 ]
+    then
         echo "Sources will not be downloaded"
         return 0
     fi
     PRODUCT=percona-server-mongodb
-    echo "PRODUCT=${PRODUCT}" >percona-server-mongodb-50.properties
-    echo "PSM_BRANCH=${PSM_BRANCH}" >>percona-server-mongodb-50.properties
-    echo "JEMALLOC_TAG=${JEMALLOC_TAG}" >>percona-server-mongodb-50.properties
-    echo "BUILD_NUMBER=${BUILD_NUMBER}" >>percona-server-mongodb-50.properties
-    echo "BUILD_ID=${BUILD_ID}" >>percona-server-mongodb-50.properties
+    JEMALLOC_TAG=psmdb-3.2.11-3.1
+
+    echo "PRODUCT=${PRODUCT}" > percona-server-mongodb-83.properties
+    echo "PSM_BRANCH=${PSM_BRANCH}" >> percona-server-mongodb-83.properties
+    echo "JEMALLOC_TAG=${JEMALLOC_TAG}" >> percona-server-mongodb-83.properties
+    echo "BUILD_NUMBER=${BUILD_NUMBER}" >> percona-server-mongodb-83.properties
+    echo "BUILD_ID=${BUILD_ID}" >> percona-server-mongodb-83.properties
     git clone "$REPO"
     retval=$?
-    if [ $retval != 0 ]; then
+    if [ $retval != 0 ]
+    then
         echo "There were some issues during repo cloning from github. Please retry one more time"
         exit 1
     fi
     cd percona-server-mongodb
-    if [ ! -z "$BRANCH" ]; then
+    if [ ! -z "$BRANCH" ]
+    then
         git reset --hard
         git clean -xdf
         git checkout "$BRANCH"
@@ -128,19 +129,20 @@ get_sources() {
         MONGO_TOOLS_TAG="r${PSM_VER}"
     fi
 
-    echo "{" >version.json
-    echo "    \"version\": \"${PSM_VER}-${PSM_RELEASE}\"," >>version.json
-    echo "    \"githash\": \"${REVISION_LONG}\"" >>version.json
-    echo "}" >>version.json
+    echo "{" > version.json
+    echo "    \"version\": \"${PSM_VER}-${PSM_RELEASE}\"," >> version.json
+    echo "    \"githash\": \"${REVISION_LONG}\"" >> version.json
+    echo "}" >> version.json
     #
 
     PRODUCT_FULL=${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
-    echo "PRODUCT_FULL=${PRODUCT_FULL}" >>${WORKDIR}/percona-server-mongodb-50.properties
-    echo "VERSION=${PSM_VER}" >>${WORKDIR}/percona-server-mongodb-50.properties
-    echo "RELEASE=${PSM_RELEASE}" >>${WORKDIR}/percona-server-mongodb-50.properties
-    echo "MONGO_TOOLS_TAG=${MONGO_TOOLS_TAG}" >>${WORKDIR}/percona-server-mongodb-50.properties
+    echo "PRODUCT_FULL=${PRODUCT_FULL}" >> ${WORKDIR}/percona-server-mongodb-83.properties
+    echo "VERSION=${PSM_VER}" >> ${WORKDIR}/percona-server-mongodb-83.properties
+    echo "RELEASE=${PSM_RELEASE}" >> ${WORKDIR}/percona-server-mongodb-83.properties
+    echo "MONGO_TOOLS_TAG=${MONGO_TOOLS_TAG}" >> ${WORKDIR}/percona-server-mongodb-83.properties
 
-    echo "REVISION=${REVISION}" >>${WORKDIR}/percona-server-mongodb-50.properties
+    echo "REVISION=${REVISION}" >> ${WORKDIR}/percona-server-mongodb-83.properties
+    echo "REVISION_LONG=${REVISION_LONG}" >> ${WORKDIR}/percona-server-mongodb-83.properties
     rm -fr debian rpm
     cp -a percona-packaging/manpages .
     cp -a percona-packaging/docs/* .
@@ -154,27 +156,43 @@ get_sources() {
     git checkout $MONGO_TOOLS_TAG
     sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' set_goenv.sh
     sed -i 's|GitCommit="$(git rev-parse HEAD)"|GitCommit="$PSMDB_TOOLS_COMMIT_HASH"|' set_goenv.sh
-    echo "export PSMDB_TOOLS_COMMIT_HASH=\"$(git rev-parse HEAD)\"" >set_tools_revision.sh
-    echo "export PSMDB_TOOLS_REVISION=\"${PSM_VER}-${PSM_RELEASE}\"" >>set_tools_revision.sh
+    echo "export PSMDB_TOOLS_COMMIT_HASH=\"$(git rev-parse HEAD)\"" > set_tools_revision.sh
+    echo "export PSMDB_TOOLS_REVISION=\"${PSM_VER}-${PSM_RELEASE}\"" >> set_tools_revision.sh
     chmod +x set_tools_revision.sh
+    export GOROOT="/usr/local/go/"
+    export GOPATH=$PWD/../
+    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
+    export GOBINPATH="/usr/local/go/bin"
+
+    # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
+    #if [ x"$ARCH" = "xaarch64" ]; then
+        sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || exit 1
+    #fi
+
     cd ${WORKDIR}
-    source percona-server-mongodb-50.properties
+    source percona-server-mongodb-83.properties
     #
 
     mv percona-server-mongodb ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
+
     cd ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
-    git clone https://github.com/aws/aws-sdk-cpp.git
-    cd aws-sdk-cpp
-    git reset --hard
-    git clean -xdf
-    git checkout 1.9.379
-    git submodule update --init --recursive
-    mkdir build
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
+    sed -i 's:build-id:build-id=sha1:' SConstruct
+
+        git clone https://github.com/aws/aws-sdk-cpp.git
+            cd aws-sdk-cpp
+                git reset --hard
+                git clean -xdf
+                git checkout 1.9.379
+                git submodule update --init --recursive
+                mkdir build
     cd ../../
     tar --owner=0 --group=0 --exclude=.* -czf ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
-    echo "UPLOAD=UPLOAD/experimental/BUILDS/${PRODUCT}-5.0/${PRODUCT}-${PSM_VER}-${PSM_RELEASE}/${PSM_BRANCH}/${REVISION}/${BUILD_ID}" >>percona-server-mongodb-50.properties
-    mkdir $WORKDIR/source_tarball
-    mkdir $CURDIR/source_tarball
+    echo "UPLOAD=UPLOAD/experimental/BUILDS/${PRODUCT}-8.3/${PRODUCT}-${PSM_VER}-${PSM_RELEASE}/${PSM_BRANCH}/${REVISION}/${BUILD_ID}" >> percona-server-mongodb-83.properties
+    mkdir -p $WORKDIR/source_tarball
+    mkdir -p $CURDIR/source_tarball
     cp ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz $WORKDIR/source_tarball
     cp ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz $CURDIR/source_tarball
     cd $CURDIR
@@ -182,12 +200,18 @@ get_sources() {
     return
 }
 
-get_system() {
+get_system(){
     if [ -f /etc/redhat-release ]; then
         GLIBC_VER_TMP="$(rpm glibc -qa --qf %{VERSION})"
         RHEL=$(rpm --eval %rhel)
         ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
         OS_NAME="el$RHEL"
+        OS="rpm"
+    elif [ -f /etc/amazon-linux-release ]; then
+        GLIBC_VER_TMP="$(rpm glibc -qa --qf %{VERSION})"
+        RHEL=$(rpm --eval %amzn)
+        ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
+        OS_NAME="amzn$RHEL"
         OS="rpm"
     else
         GLIBC_VER_TMP="$(dpkg-query -W -f='${Version}' libc6 | awk -F'-' '{print $1}')"
@@ -196,20 +220,68 @@ get_system() {
         OS="deb"
     fi
     export GLIBC_VER=".glibc${GLIBC_VER_TMP}"
+
+    local major="$(echo ${GLIBC_VER_TMP} | cut -d '.' -f 1)"
+    local minor="$(echo ${GLIBC_VER_TMP} | cut -d '.' -f 2)"
+    if [ "$major" -gt 2 ] || [ "$major" -eq 2 -a "$minor" -ge 34 ]; then
+      echo "${GLIBC_TUNABLES}"
+      export GLIBC_TUNABLES="glibc.pthread.rseq=0"
+      echo "glibc version is ${GLIBC_VER_TMP} >= 2.34, setting env variable GLIBC_TUNABLES=glibc.pthread.rseq=0"
+    fi
+
     return
 }
 
 install_golang() {
-    wget https://golang.org/dl/go1.15.7.linux-amd64.tar.gz -O /tmp/golang1.15.tar.gz
-    tar --transform=s,go,go1.15, -zxf /tmp/golang1.15.tar.gz
-    rm -rf /usr/local/go1.15 /usr/local/go1.11 /usr/local/go1.8 /usr/local/go1.9 /usr/local/go1.9.2 /usr/local/go
-    mv go1.15 /usr/local/
-    ln -s /usr/local/go1.15 /usr/local/go
+    if [ "$ARCH" = "x86_64" ]; then
+      GO_ARCH="amd64"
+    elif [ "$ARCH" = "aarch64" ]; then
+      GO_ARCH="arm64"
+    else
+        echo "Unsupported architecture: $ARCH"
+        return 1
+    fi
+
+    GO_VERSION="1.25.7"
+    GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+    GO_SHA="${GO_TAR}.sha256"
+    GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
+    SHA_URL="https://downloads.percona.com/downloads/packaging/go/${GO_SHA}"
+    DL_PATH="/tmp/${GO_TAR}"
+    SHA_PATH="/tmp/${GO_SHA}"
+
+    while :; do
+        #if wget --spider "$GO_URL" && wget --spider "$SHA_URL"; then
+        if wget --spider "$GO_URL"; then
+            wget -q "$GO_URL" -O "$DL_PATH"
+            break
+            #wget -q "$SHA_URL" -O "$SHA_PATH"
+
+            #EXPECTED_SHA=$(awk '{print $1}' "$SHA_PATH")
+            #ACTUAL_SHA=$(sha256sum "$DL_PATH" | awk '{print $1}')
+
+            #if [ "$EXPECTED_SHA" = "$ACTUAL_SHA" ]; then
+            #    echo "SHA256 verification passed."
+            #    break
+            #else
+            #    echo "SHA256 verification failed! Retrying in 10 seconds..."
+            #    rm -f "$DL_PATH" "$SHA_PATH"
+            #fi
+        else
+            echo "Go archive not available. Retrying in 10 seconds..."
+        fi
+        sleep 10
+    done
+
+    tar --transform=s,go,go${GO_VERSION}, -zxf "$DL_PATH"
+    rm -rf /usr/local/go*
+    mv go${GO_VERSION} /usr/local/
+    ln -s /usr/local/go${GO_VERSION} /usr/local/go
 }
 
-install_gcc_8_centos() {
+install_gcc_centos(){
     if [ "${RHEL}" -lt 8 ]; then
-        yum -y install gcc-c++ devtoolset-8-gcc-c++ devtoolset-8-binutils cmake3 python38
+        yum -y install  gcc-c++ devtoolset-8-gcc-c++ devtoolset-8-binutils cmake3 python38
         source /opt/rh/devtoolset-8/enable
     else
         yum -y install binutils gcc gcc-c++
@@ -217,245 +289,222 @@ install_gcc_8_centos() {
 
 }
 
-install_gcc_8_deb() {
-    if [ x"${DEBIAN}" = xxenial ]; then
-        wget https://jenkins.percona.com/downloads/gcc8/gcc-8.3.0_Ubuntu-xenial-x64.tar.gz -O /tmp/gcc-8.3.0_Ubuntu-xenial-x64.tar.gz
-        CUR_DIR=$PWD
-        cd /tmp
-        tar -zxf gcc-8.3.0_Ubuntu-xenial-x64.tar.gz
-        rm -rf /usr/local/gcc-8.3.0
-        mv gcc-8.3.0 /usr/local/
-        cd $CUR_DIR
-    fi
-    if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
+install_gcc_deb(){
+    if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xbuster ]; then
         apt-get -y install gcc-8 g++-8
     fi
-    if [ x"${DEBIAN}" = xbullseye ]; then
+    if [ x"${DEBIAN}" = xbullseye -o x"${DEBIAN}" = xjammy ]; then
         apt-get -y install gcc-10 g++-10
     fi
-    if [ x"${DEBIAN}" = xstretch ]; then
-        wget https://jenkins.percona.com/downloads/gcc8/gcc-8.3.0_Debian-stretch-x64.tar.gz -O /tmp/gcc-8.3.0_Debian-stretch-x64.tar.gz
-        tar -zxf /tmp/gcc-8.3.0_Debian-stretch-x64.tar.gz
-        rm -rf /usr/local/gcc-8.3.0
-        mv gcc-8.3.0 /usr/local/
-    fi
 }
 
-set_compiler() {
-    if [ "x$OS" = "xdeb" ]; then
-        if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
-            export CC=/usr/bin/gcc-8
-            export CXX=/usr/bin/g++-8
-        elif [ x"${DEBIAN}" = xbullseye ]; then
-            export CC=/usr/bin/gcc-10
-            export CXX=/usr/bin/g++-10
-        else
-            export CC=/usr/local/gcc-8.3.0/bin/gcc-8.3
-            export CXX=/usr/local/gcc-8.3.0/bin/g++-8.3
-        fi
-    else
-        if [ "x${RHEL}" == "x8" ]; then
-            export CC=/usr/bin/gcc
-            export CXX=/usr/bin/g++
-        else
-            export CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
-            export CXX=/opt/rh/devtoolset-8/root/usr/bin/g++
-        fi
+set_compiler(){
+    if [ x"$RHEL" != x2023 ]; then
+        export CC=/opt/mongodbtoolchain/v4/bin/gcc
+        export CXX=/opt/mongodbtoolchain/v4/bin/g++
     fi
+    return
 }
 
-fix_rules() {
-    if [ x"${DEBIAN}" = xfocal -o x"${DEBIAN}" = xbionic -o x"${DEBIAN}" = xdisco -o x"${DEBIAN}" = xbuster ]; then
-        sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-8|' debian/rules
-        sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-8|' debian/rules
-    elif [ x"${DEBIAN}" = xbullseye ]; then
-        sed -i 's|CC = gcc-5|CC = /usr/bin/gcc-10|' debian/rules
-        sed -i 's|CXX = g++-5|CXX = /usr/bin/g++-10|' debian/rules
-    else
-        sed -i 's|CC = gcc-5|CC = /usr/local/gcc-8.3.0/bin/gcc-8.3|' debian/rules
-        sed -i 's|CXX = g++-5|CXX = /usr/local/gcc-8.3.0/bin/g++-8.3|' debian/rules
-    fi
-    sed -i 's:release:release --disable-warnings-as-errors :g' debian/rules
+fix_rules(){
+    sed -i 's|CC = gcc-5|CC = /opt/mongodbtoolchain/v4/bin/gcc|' debian/rules
+    sed -i 's|CXX = g++-5|CXX = /opt/mongodbtoolchain/v4/bin/g++|' debian/rules
+    return
 }
 
-aws_sdk_build() {
+aws_sdk_build(){
     cd $WORKDIR
-    git clone https://github.com/aws/aws-sdk-cpp.git
-    cd aws-sdk-cpp
-    git reset --hard
-    git clean -xdf
-    git checkout 1.9.379
-    git submodule update --init --recursive
-    mkdir build
-    cd build
-    CMAKE_CMD="cmake"
-    if [ -f /etc/redhat-release ]; then
-        RHEL=$(rpm --eval %rhel)
-        if [ x"$RHEL" = x6 ]; then
-            CMAKE_CMD="cmake3"
-        fi
-    fi
-    set_compiler
-    if [ -z "${CC}" -a -z "${CXX}" ]; then
-        ${CMAKE_CMD} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON || exit $?
-    else
-        ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON || exit $?
-    fi
-    make -j4 || exit $?
-    make install
+        git clone https://github.com/aws/aws-sdk-cpp.git
+        cd aws-sdk-cpp
+            git reset --hard
+            git clean -xdf
+            git checkout 1.9.379
+            git submodule update --init --recursive
+            mkdir build
+            cd build
+            CMAKE_CMD="cmake"
+            set_compiler
+            CMAKE_CXX_FLAGS=""
+            if [ x"${DEBIAN}" = xjammy -o x"${DEBIAN}" = xbookworm -o x"${DEBIAN}" = xnoble ]; then
+                CMAKE_CXX_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
+                CMAKE_C_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=maybe-uninitialized -Wno-error=uninitialized "
+            fi
+            if [ -z "${CC}" -a -z "${CXX}" ]; then
+                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr || exit $?
+            else
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DAUTORUN_UNIT_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr || exit $?
+            fi
+            make -j${NCPU} || exit $?
+            make install
     cd ${WORKDIR}
 }
 
 install_deps() {
-    if [ $INSTALL = 0 ]; then
+    if [ $INSTALL = 0 ]
+    then
         echo "Dependencies will not be installed"
-        return
+        return;
     fi
-    if [ $(id -u) -ne 0 ]; then
+    if [ $( id -u ) -ne 0 ]
+    then
         echo "It is not possible to instal dependencies. Please run as root"
         exit 1
     fi
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
+      if [ x"$RHEL" = x9 ]; then
+        # Exclude openssl package upgrade for RHEL 9 to prevent rockylinux9 compatibility issues
+        OPENSSL_EXCLUDE="--exclude=openssl --exclude=openssl-libs --exclude=openssl-fips-provider --exclude=openssl-fips-provider-so --nobest"
+        yum clean all
+        yum -y update --exclude=openssl* --security
+      else
+        OPENSSL_EXCLUDE=""
         yum -y update
-        yum -y install wget
-        add_percona_yum_repo
-        wget http://jenkins.percona.com/yum-repo/percona-dev.repo
-        mv -f percona-dev.repo /etc/yum.repos.d/
+      fi
+      yum -y install wget sudo
+      yum -y install perl
+      if [ x"$RHEL" != x2023 ]; then
+          install_mongodbtoolchain
+      fi
+      if [ x"$ARCH" = "xx86_64" ]; then
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
         yum clean all
         yum install -y patchelf
-        RHEL=$(rpm --eval %rhel)
-        if [ x"$RHEL" = x6 ]; then
-            yum -y install epel-release
-            yum -y install rpmbuild rpm-build libpcap-devel gcc make cmake gcc-c++ openssl-devel git
-            yum -y install cyrus-sasl-devel snappy-devel zlib-devel bzip2-devel libpcap-devel
-            yum -y install scons make rpm-build rpmbuild percona-devtoolset-gcc percona-devtoolset-binutils
-            yum -y install percona-devtoolset-gcc-c++ percona-devtoolset-libstdc++-devel percona-devtoolset-valgrind-devel
-            yum -y install python27 python27-devel rpmlint libcurl-devel e2fsprogs-devel expat-devel lz4-devel git cmake3
-            yum -y install openldap-devel krb5-devel xz-devel
-            wget https://bootstrap.pypa.io/get-pip.py
-            python2.7 get-pip.py
-            rm -rf /usr/bin/python2
-            ln -s /usr/bin/python2.7 /usr/bin/python2
-        elif [ x"$RHEL" = x7 ]; then
-            yum -y install epel-release
-            yum -y install rpmbuild rpm-build libpcap-devel gcc make cmake gcc-c++ openssl-devel
-            yum -y install cyrus-sasl-devel snappy-devel zlib-devel bzip2-devel scons rpmlint
-            yum -y install rpm-build git libopcodes libcurl-devel rpmlint e2fsprogs-devel expat-devel lz4-devel which
-            yum -y install openldap-devel krb5-devel xz-devel
+      fi
+      if [ x"$RHEL" = x7 ]; then
+        yum -y install epel-release
+        yum -y install rpmbuild rpm-build libpcap-devel gcc make cmake gcc-c++ openssl-devel
+        yum -y install cyrus-sasl-devel cyrus-sasl-plain snappy-devel zlib-devel bzip2-devel rpmlint
+        yum -y install rpm-build git libopcodes libcurl-devel rpmlint e2fsprogs-devel expat-devel lz4-devel which
+        yum -y install openldap-devel krb5-devel xz-devel
+        yum -y install libzstd
 
-            yum -y install centos-release-scl
-            yum-config-manager --enable centos-sclo-rh-testing
-            yum -y install rh-python38-python rh-python38-python-devel rh-python38-python-pip
-            source /opt/rh/rh-python38/enable
+        yum -y install centos-release-scl
+        yum-config-manager --enable centos-sclo-rh-testing
+        yum -y install devtoolset-9
+        yum -y install devtoolset-11-elfutils devtoolset-11-dwz
 
-            pip install --upgrade pip
-            pip install --user setuptools --upgrade
-            pip3.8 install --user typing pyyaml regex Cheetah3
-            pip2.7 install --user typing pyyaml regex Cheetah Cheetah3
-        else
-            yum -y install bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
-            yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
-            yum -y install python2-scons python2-pip which
-            yum -y install redhat-rpm-config python2-devel e2fsprogs-devel expat-devel lz4-devel
-            yum -y install openldap-devel krb5-devel xz-devel
-            yum -y install python38 python38-devel python38-pip
-        fi
-        if [ "x${RHEL}" == "x8" ]; then
-            /usr/bin/pip3.8 install --user typing pyyaml regex Cheetah3
-            /usr/bin/pip2.7 install --user typing pyyaml regex Cheetah
-        fi
-        wget https://curl.se/download/curl-7.66.0.tar.gz
-        tar -xvzf curl-7.66.0.tar.gz
-        cd curl-7.66.0
-        ./configure
-        make
-        make install
-        cd ../
-        #
-        install_golang
-        install_gcc_8_centos
-        if [ -f /opt/rh/devtoolset-8/enable ]; then
-            source /opt/rh/devtoolset-8/enable
-            source /opt/rh/rh-python38/enable
-        fi
+        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+
         pip install --upgrade pip
+        pip install --user setuptools --upgrade
+        pip install --user typing pyyaml regex Cheetah3
+      elif [ x"$RHEL" = x8 ]; then
+        yum-config-manager --enable ol8_codeready_builder
+        yum -y install epel-release
+        yum -y install bzip2-devel libpcap-devel snappy-devel rpm-build rpmlint
+        yum -y install cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
+        yum -y install  which
+        yum -y install redhat-rpm-config e2fsprogs-devel expat-devel lz4-devel
+        yum -y install openldap-devel krb5-devel xz-devel
+        yum -y install gcc-toolset-9 gcc-c++
+        yum -y install gcc-toolset-11-dwz gcc-toolset-11-elfutils
+        yum -y install python38 python38-devel python38-pip
+
+        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        /usr/bin/pip install --user typing pyyaml regex Cheetah3
+      elif [ x"$RHEL" = x9  -o x"$RHEL" = x2023 ]; then
+        dnf config-manager --enable ol9_codeready_builder
+
+        yum -y install $OPENSSL_EXCLUDE oracle-epel-release-el9
+        yum -y install $OPENSSL_EXCLUDE bzip2-devel libpcap-devel snappy-devel gcc gcc-c++ rpm-build rpmlint
+        yum -y install $OPENSSL_EXCLUDE cmake cyrus-sasl-devel make openssl-devel zlib-devel libcurl-devel git
+        yum -y install $OPENSSL_EXCLUDE python3 python3-pip python3-devel
+
+        yum -y install $OPENSSL_EXCLUDE redhat-rpm-config which e2fsprogs-devel expat-devel lz4-devel
+        yum -y install $OPENSSL_EXCLUDE openldap-devel krb5-devel xz-devel
+        yum -y install $OPENSSL_EXCLUDE perl
+        /usr/bin/pip install --upgrade pip setuptools --ignore-installed
+        /usr/bin/pip install --user typing pyyaml==5.3.1 regex Cheetah3
+
+      fi
+      wget https://curl.se/download/curl-7.77.0.tar.gz -O curl-7.77.0.tar.gz
+      tar -xzf curl-7.77.0.tar.gz
+      cd curl-7.77.0
+        ./configure --with-openssl
+        make -j${NCPU}
+        make install
+      cd ../
+#
+      install_golang
+      if [ x"$RHEL" = x8 ]; then
+        if [ -f /opt/rh/gcc-toolset-9/enable ]; then
+          source /opt/rh/gcc-toolset-9/enable
+          source /opt/rh/gcc-toolset-11/enable
+        fi
+      fi
+      if [ x"$RHEL" = x2023 ]; then
+          yum install -y lld
+          yum install -y python3.11*
+          alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 11
+          alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 10
+          alternatives --auto python3
+      fi
+      pip install --upgrade pip
 
     else
-        apt-get -y update
-        DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https software-properties-common
-        export DEBIAN=$(lsb_release -sc)
-        export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
-        wget https://repo.percona.com/apt/pool/testing/p/percona-release/percona-release_1.0-27.generic_all.deb && dpkg -i percona-release_1.0-27.generic_all.deb
-        if [ x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xbionic" -o x"${DEBIAN}" = "xfocal" ]; then
-            add-apt-repository -y ppa:deadsnakes/ppa
-        elif [ x"${DEBIAN}" = "xstretch" -o x"${DEBIAN}" = "xbuster" ]; then
-            wget https://people.debian.org/~paravoid/python-all/unofficial-python-all.asc
-            mv unofficial-python-all.asc /etc/apt/trusted.gpg.d/
-            echo "deb http://people.debian.org/~paravoid/python-all ${DEBIAN} main" | tee /etc/apt/sources.list.d/python-all.list
-        fi
-        percona-release enable tools testing
-        apt-get update
-        if [ x"${DEBIAN}" = "xbullseye" ]; then
-            INSTALL_LIST="python3 python3-dev python3-pip"
-        else
-            INSTALL_LIST="python3.7 python3.7-dev dh-systemd"
-        fi
-        INSTALL_LIST="${INSTALL_LIST} git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
-        INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf"
-        if [ x"${DEBIAN}" != "xstretch" -a x"${DEBIAN}" != "xbullseye" ]; then
-            INSTALL_LIST="${INSTALL_LIST} python3.7-distutils"
-        fi
-        until apt-get -y install dirmngr; do
-            sleep 1
-            echo "waiting"
-        done
-        until DEBIAN_FRONTEND=noninteractive apt-get -y install ${INSTALL_LIST}; do
-            sleep 1
-            echo "waiting"
-        done
-        apt-get -y install libext2fs-dev || apt-get -y install e2fslibs-dev
-        install_golang
-        install_gcc_8_deb
-        wget https://bootstrap.pypa.io/get-pip.py
-        if [ x"${DEBIAN}" = "xbullseye" ]; then
-            update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1
-        else
-            update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1
-            ln -sf /usr/bin/python3.7 /usr/bin/python3
-        fi
-        python get-pip.py
-        easy_install pip
-        pip install setuptools
-    fi
-    if [ x"${DEBIAN}" = "xstretch" ]; then
-        LIBCURL_DEPS="libidn2-0-dev libldap2-dev libnghttp2-dev libnss3-dev libpsl-dev librtmp-dev libssh2-1-dev libssl1.0-dev"
-        until DEBIAN_FRONTEND=noninteractive apt-get -y install ${LIBCURL_DEPS}; do
-            sleep 1
-            echo "waiting"
-        done
-        wget http://curl.haxx.se/download/curl-7.66.0.tar.gz
-        tar -xvzf curl-7.66.0.tar.gz
-        cd curl-7.66.0
-        ./configure --enable-static --disable-shared --disable-dependency-tracking --disable-symbol-hiding --enable-versioned-symbols --enable-threaded-resolver --with-lber-lib=lber --with-gssapi=/usr --with-libssh2 --with-nghttp2 --with-zsh-functions-dir=/usr/share/zsh/vendor-completions --with-ca-path=/etc/ssl/certs --with-ca-bundle=/etc/ssl/certs/ca-certificates.crt --with-ssl
-        make
-        make install
-        cd ../
-        CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
-        export LDFLAGS="${LDFLAGS} ${CURL_LINKFLAGS}"
+      apt-get -y update
+      DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https software-properties-common
+      export DEBIAN=$(lsb_release -sc)
+      export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
+      wget https://repo.percona.com/apt/pool/main/p/percona-release/percona-release_1.0-27.generic_all.deb && dpkg -i percona-release_1.0-27.generic_all.deb
+      percona-release enable tools testing
+      apt-get update
+      if [ x"${DEBIAN}" = "xfocal" ]; then
+        INSTALL_LIST="dh-systemd"
+      fi
+      INSTALL_LIST="${INSTALL_LIST} git valgrind liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
+      INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf libexpat1-dev sudo libfile-copy-recursive-perl"
+      until apt-get -y install dirmngr; do
+        sleep 1
+        echo "waiting"
+      done
+      until DEBIAN_FRONTEND=noninteractive apt-get -y install ${INSTALL_LIST}; do
+        sleep 1
+        echo "waiting"
+      done
+      apt-get -y install libext2fs-dev || apt-get -y install e2fslibs-dev
+      install_golang
+
+      install_mongodbtoolchain
+      PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+      update-alternatives --install /usr/bin/python python /opt/mongodbtoolchain/v4/bin/python3.10 1
+
+      wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
+      python get-pip.py
+      easy_install pip
+      pip install setuptools
     fi
     aws_sdk_build
-    return
+    #keep symbol table in the binary
+    sed -i 's:$strip, "--remove-section=.comment":$strip, "--strip-debug", "--remove-section=.comment":g' /usr/bin/dh_strip
+    return;
 }
 
-get_tar() {
+install_mongodbtoolchain(){
+    #curl -o toolchain_installer.sh https://jenkins.percona.com/downloads/mongodbtoolchain/installer.sh
+    curl -O https://downloads.percona.com/downloads/packaging/toolchain_installer.tar.gz
+    tar -zxvf toolchain_installer.tar.gz
+    if [ ! -z "${RHEL}" ]; then
+        OS_CODE_NAME=${RHEL}
+    else
+        OS_CODE_NAME=${DEBIAN}
+    fi
+    export USER=$(whoami)
+    #bash -x ./toolchain_installer.sh -k --download-url https://jenkins.percona.com/downloads/mongodbtoolchain/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
+    bash -x ./installer.sh --keep-download --download-dir /tmp/ --download-url https://downloads.percona.com/downloads/packaging/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
+    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+}
+
+get_tar(){
     TARBALL=$1
     TARFILE=$(basename $(find $WORKDIR/$TARBALL -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
-    if [ -z $TARFILE ]; then
+    if [ -z $TARFILE ]
+    then
         TARFILE=$(basename $(find $CURDIR/$TARBALL -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
-        if [ -z $TARFILE ]; then
+        if [ -z $TARFILE ]
+        then
             echo "There is no $TARBALL for build"
             exit 1
         else
@@ -467,13 +516,15 @@ get_tar() {
     return
 }
 
-get_deb_sources() {
+get_deb_sources(){
     param=$1
     echo $param
     FILE=$(basename $(find $WORKDIR/source_deb -name "percona-server-mongodb*.$param" | sort | tail -n1))
-    if [ -z $FILE ]; then
+    if [ -z $FILE ]
+    then
         FILE=$(basename $(find $CURDIR/source_deb -name "percona-server-mongodb*.$param" | sort | tail -n1))
-        if [ -z $FILE ]; then
+        if [ -z $FILE ]
+        then
             echo "There is no sources for build"
             exit 1
         else
@@ -485,26 +536,42 @@ get_deb_sources() {
     return
 }
 
-build_srpm() {
-    if [ $SRPM = 0 ]; then
+build_srpm(){
+    if [ $SRPM = 0 ]
+    then
         echo "SRC RPM will not be created"
-        return
+        return;
     fi
-    if [ "x$OS" = "xdeb" ]; then
+    if [ "x$OS" = "xdeb" ]
+    then
         echo "It is not possible to build src rpm here"
         exit 1
     fi
     cd $WORKDIR
     get_tar "source_tarball"
     rm -fr rpmbuild
-    ls | grep -v tar.gz | xargs rm -rf
+    ls | grep -v tar.gz | grep -v percona-server-mongodb-83.properties | xargs rm -rf
     TARFILE=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     SRC_DIR=${TARFILE%.tar.gz}
+    tar xzf ${WORKDIR}/${TARFILE}
+    source ${WORKDIR}/percona-server-mongodb-83.properties
+    cd ${PRODUCT_FULL}
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelignore
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazeliskrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelversion
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc.psmdb
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.npmrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.prettierignore 
+    cd ..
+    tar --owner=0 --group=0 -czf ${PRODUCT_FULL}.tar.gz ${PRODUCT_FULL}
     #
     mkdir -vp rpmbuild/{SOURCES,SPECS,BUILD,SRPMS,RPMS}
-    tar vxzf ${WORKDIR}/${TARFILE} --wildcards '*/percona-packaging' --strip=1
+    tar xzf ${WORKDIR}/${TARFILE} --wildcards '*/percona-packaging' --strip=1
     SPEC_TMPL=$(find percona-packaging/redhat -name 'percona-server-mongodb.spec.template' | sort | tail -n1)
     #
+    wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
+    mv call-home.sh rpmbuild/SOURCES
     cp -av percona-packaging/conf/* rpmbuild/SOURCES
     cp -av percona-packaging/redhat/mongod.* rpmbuild/SOURCES
     #
@@ -514,15 +581,37 @@ build_srpm() {
     sed -i 's:@@LOGDIR@@:mongo:g' rpmbuild/SOURCES/percona-server-mongodb-helper.sh
     #
     sed -e "s:@@SOURCE_TARBALL@@:$(basename ${TARFILE}):g" \
-        -e "s:@@VERSION@@:${VERSION}:g" \
-        -e "s:@@RELEASE@@:${RELEASE}:g" \
-        -e "s:@@SRC_DIR@@:$SRC_DIR:g" \
-        ${SPEC_TMPL} >rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
+    -e "s:@@VERSION@@:${VERSION}:g" \
+    -e "s:@@RELEASE@@:${RELEASE}:g" \
+    -e "s:@@SRC_DIR@@:$SRC_DIR:g" \
+    -e "s:@@PSMDB_GIT_HASH@@:${REVISION_LONG}:g" \
+    ${SPEC_TMPL} > rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     mv -fv ${TARFILE} ${WORKDIR}/rpmbuild/SOURCES
-    if [ -f /opt/rh/devtoolset-8/enable ]; then
-        source /opt/rh/devtoolset-8/enable
-        source /opt/rh/rh-python38/enable
+    if [ x"$RHEL" = x7 ]; then
+      if [ -f /opt/rh/devtoolset-9/enable ]; then
+        source /opt/rh/devtoolset-9/enable
+        source /opt/rh/devtoolset-11/enable
+      fi
+    elif [ x"$RHEL" = x8 ]; then
+      if [ -f /opt/rh/gcc-toolset-9/enable ]; then
+        source /opt/rh/gcc-toolset-9/enable
+        source /opt/rh/gcc-toolset-11/enable
+      fi
     fi
+
+    cd ${WORKDIR}/rpmbuild/SPECS
+    line_number=$(grep -n SOURCE999 percona-server-mongodb.spec | awk -F ':' '{print $1}')
+    cp ../SOURCES/call-home.sh ./
+    awk -v n=$line_number 'NR <= n {print > "part1.txt"} NR > n {print > "part2.txt"}' percona-server-mongodb.spec
+    head -n -1 part1.txt > temp && mv temp part1.txt
+    echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> part1.txt
+    cat call-home.sh >> part1.txt
+    echo "CALLHOME" >> part1.txt
+    cat part2.txt >> part1.txt
+    rm -f call-home.sh part2.txt
+    mv part1.txt percona-server-mongodb.spec
+    cd ${WORKDIR}
+
     rpmbuild -bs --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .generic" rpmbuild/SPECS/$(basename ${SPEC_TMPL%.template})
     mkdir -p ${WORKDIR}/srpm
     mkdir -p ${CURDIR}/srpm
@@ -531,19 +620,23 @@ build_srpm() {
     return
 }
 
-build_rpm() {
-    if [ $RPM = 0 ]; then
+build_rpm(){
+    if [ $RPM = 0 ]
+    then
         echo "RPM will not be created"
-        return
+        return;
     fi
-    if [ "x$OS" = "xdeb" ]; then
+    if [ "x$OS" = "xdeb" ]
+    then
         echo "It is not possible to build rpm here"
         exit 1
     fi
     SRC_RPM=$(basename $(find $WORKDIR/srpm -name 'percona-server-mongodb*.src.rpm' | sort | tail -n1))
-    if [ -z $SRC_RPM ]; then
+    if [ -z $SRC_RPM ]
+    then
         SRC_RPM=$(basename $(find $CURDIR/srpm -name 'percona-server-mongodb*.src.rpm' | sort | tail -n1))
-        if [ -z $SRC_RPM ]; then
+        if [ -z $SRC_RPM ]
+        then
             echo "There is no src rpm for build"
             echo "You can create it using key --build_src_rpm=1"
             exit 1
@@ -562,50 +655,76 @@ build_rpm() {
     rpm2cpio ${SRC_RPM} | cpio -id
     TARF=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
     tar vxzf ${TARF} --wildcards '*/etc' --strip=1
-    if [ -f /opt/rh/devtoolset-8/enable ]; then
-        source /opt/rh/devtoolset-8/enable
-        source /opt/rh/rh-python38/enable
+    tar vxzf ${TARF} --wildcards '*/buildscripts' --strip=1
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
+    rm -rf install_bazel.py
+    if [ x"$RHEL" = x7 ]; then
+      if [ -f /opt/rh/devtoolset-9/enable ]; then
+        source /opt/rh/devtoolset-9/enable
+        source /opt/rh/devtoolset-11/enable
+      fi
+    elif [ x"$RHEL" = x8 ]; then
+      if [ -f /opt/rh/gcc-toolset-9/enable ]; then
+        source /opt/rh/gcc-toolset-9/enable
+        source /opt/rh/gcc-toolset-11/enable
+        mv /usr/bin/python3 /usr/bin/python3_old
+      fi
+    elif [ x"$RHEL" = x9 ]; then
+      mv /usr/bin/python3 /usr/bin/python3_old
     fi
-    RHEL=$(rpm --eval %rhel)
-    ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
-    if [ "x${RHEL}" == "x6" ]; then
+    if [ "x${RHEL}" == "x2023" ]; then
         pip install --upgrade pip
+        pip install --user  requirements_parser
         pip install --user -r etc/pip/dev-requirements.txt
         pip install --user -r etc/pip/evgtest-requirements.txt
+        pip install --user -r etc/pip/compile-requirements.txt
+        export PYTHONPATH="/usr/local/lib64/python3.11/site-packages:/usr/local/lib/python3.11/site-packages:$PYTHONPATH"
+#        export CC=/usr/bin/gcc
+#        export CXX=/usr/bin/g++
     else
-        pip3.8 install --upgrade pip
-        pip3.8 install --user -r etc/pip/dev-requirements.txt
-        pip3.8 install --user -r etc/pip/evgtest-requirements.txt
+         PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+    fi
+#        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+        pip install --upgrade pip
+
+    # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+    pip install pyyaml==5.4.1 --no-build-isolation
+    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
+
+    pip install 'poetry==2.0.0' 'pyproject-hooks==1.2.0'
+    pip install 'mongo_tooling_metrics==1.0.8' 'retry' 'psutil' 'Cheetah3'
+
+
+    if [ "x${RHEL}" != "x2023" ]; then
+        echo "CC and CXX should be modified once correct compiller would be installed on Centos"
+        export CC=/opt/mongodbtoolchain/v4/bin/gcc
+        export CXX=/opt/mongodbtoolchain/v4/bin/g++
+        #update toolchain pathes to know about installed poetry
+        toolchain_revision=$(tar -ztf /tmp/mongodbtoolchain.tar.gz | head -1 | sed 's/\/$//')
+        /opt/mongodbtoolchain/revisions/${toolchain_revision}/scripts/install.sh
     fi
     #
     cd $WORKDIR
-    if [ -f /opt/rh/devtoolset-8/enable ]; then
-        source /opt/rh/devtoolset-8/enable
-        source /opt/rh/rh-python38/enable
-    fi
 
-    echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-    if [ "x${RHEL}" == "x8" ]; then
-        export CC=/usr/bin/gcc
-        export CXX=/usr/bin/g++
-    else
-        export CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
-        export CXX=/opt/rh/devtoolset-8/root/usr/bin/g++
-    fi
+    echo "RHEL=${RHEL}" >> percona-server-mongodb-83.properties
+    echo "ARCH=${ARCH}" >> percona-server-mongodb-83.properties
     #
-    echo "RHEL=${RHEL}" >>percona-server-mongodb-50.properties
-    echo "ARCH=${ARCH}" >>percona-server-mongodb-50.properties
     #
-    file /usr/bin/scons
-    #
-    #if [ "x${RHEL}" == "x6" ]; then
     [[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
     export GOROOT="/usr/local/go/"
     export GOPATH=$(pwd)/
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
+    export PATH="/usr/bin:/usr/local/go/bin:$PATH:$GOPATH"
     export GOBINPATH="/usr/local/go/bin"
-    #fi
+
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+    if [ "x${RHEL}" == "x2023" ]; then
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
+    else
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+    fi
     rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --rebuild rpmbuild/SRPMS/$SRC_RPM
 
     return_code=$?
@@ -618,12 +737,14 @@ build_rpm() {
     cp rpmbuild/RPMS/*/*.rpm ${CURDIR}/rpm
 }
 
-build_source_deb() {
-    if [ $SDEB = 0 ]; then
+build_source_deb(){
+    if [ $SDEB = 0 ]
+    then
         echo "Source deb package will not be created"
-        return
+        return;
     fi
-    if [ "x$OS" = "xrpm" ]; then
+    if [ "x$OS" = "xrpm" ]
+    then
         echo "It is not possible to build source deb here"
         exit 1
     fi
@@ -646,14 +767,32 @@ build_source_deb() {
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/mongod.default
     sed -i 's:@@LOGDIR@@:mongodb:g' ${BUILDDIR}/debian/percona-server-mongodb-helper.sh
     #
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
+        sed -i 's:dh-systemd,::' ${BUILDDIR}/debian/control
+    fi
+    #
     mv ${BUILDDIR}/debian/mongod.default ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.default
     mv ${BUILDDIR}/debian/mongod.service ${BUILDDIR}/debian/percona-server-mongodb-server.mongod.service
     #
     mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
     cd ${BUILDDIR}
+
+    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
     pip install --upgrade pip
-    pip install -r etc/pip/dev-requirements.txt
-    pip install -r etc/pip/evgtest-requirements.txt
+
+    # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+    pip install pyyaml==5.4.1 --no-build-isolation
+    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
+
+    pip install 'poetry==2.0.0' 'pyproject-hooks==1.2.0'
+    pip install 'mongo_tooling_metrics==1.0.8' 'retry' 'psutil' 'Cheetah3'
+
+    #update toolchain pathes to know about installed poetry
+    toolchain_revision=$(tar -ztf /tmp/mongodbtoolchain.tar.gz | head -1 | sed 's/\/$//')
+    /opt/mongodbtoolchain/revisions/${toolchain_revision}/scripts/install.sh
+    poetry env use /opt/mongodbtoolchain/v4/bin/python3
+    poetry install --no-root --sync
 
     set_compiler
     fix_rules
@@ -666,23 +805,26 @@ build_source_deb() {
     cp *.debian.tar.* $WORKDIR/source_deb
     cp *_source.changes $WORKDIR/source_deb
     cp *.dsc $WORKDIR/source_deb
-    cp *.orig.tar.gz $WORKDIR/source_deb
     cp *.debian.tar.* $CURDIR/source_deb
     cp *_source.changes $CURDIR/source_deb
     cp *.dsc $CURDIR/source_deb
+    cp *.orig.tar.gz $WORKDIR/source_deb
     cp *.orig.tar.gz $CURDIR/source_deb
 }
 
-build_deb() {
-    if [ $DEB = 0 ]; then
+build_deb(){
+    if [ $DEB = 0 ]
+    then
         echo "Deb package will not be created"
-        return
+        return;
     fi
-    if [ "x$OS" = "xrmp" ]; then
+    if [ "x$OS" = "xrpm" ]
+    then
         echo "It is not possible to build deb here"
         exit 1
     fi
-    for file in 'dsc' 'orig.tar.gz' 'changes' 'debian.tar*'; do
+    for file in 'dsc' 'orig.tar.gz' 'changes' 'debian.tar*'
+    do
         get_deb_sources $file
     done
     cd $WORKDIR
@@ -691,8 +833,9 @@ build_deb() {
     export DEBIAN=$(lsb_release -sc)
     export ARCH=$(echo $(uname -m) | sed -e 's:i686:i386:g')
     #
-    echo "DEBIAN=${DEBIAN}" >>percona-server-mongodb-50.properties
-    echo "ARCH=${ARCH}" >>percona-server-mongodb-50.properties
+    echo "DEBIAN=${DEBIAN}" >> ${WORKDIR}/percona-server-mongodb-83.properties
+    echo "ARCH=${ARCH}" >> ${WORKDIR}/percona-server-mongodb-83.properties
+    source ${WORKDIR}/percona-server-mongodb-83.properties
 
     #
     DSC=$(basename $(find . -name '*.dsc' | sort | tail -n1))
@@ -700,28 +843,70 @@ build_deb() {
     dpkg-source -x ${DSC}
     #
     cd ${PRODUCT}-${VERSION}
+    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
+
     pip install --upgrade pip
-    pip install -r etc/pip/dev-requirements.txt
-    pip install -r etc/pip/evgtest-requirements.txt
+
+    # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+    pip install pyyaml==5.4.1 --no-build-isolation
+    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
+
+    pip install 'poetry==2.0.0' 'pyproject-hooks==1.2.0'
+    pip install 'mongo_tooling_metrics==1.0.8' 'retry' 'psutil' 'Cheetah3'
+
+    #update toolchain pathes to know about installed poetry
+    toolchain_revision=$(tar -ztf /tmp/mongodbtoolchain.tar.gz | head -1 | sed 's/\/$//')
+    /opt/mongodbtoolchain/revisions/${toolchain_revision}/scripts/install.sh
+    poetry env use /opt/mongodbtoolchain/v4/bin/python3
+    poetry install --no-root --sync
+
     #
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelignore
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazeliskrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelversion
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc.psmdb
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.npmrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.prettierignore
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
     cp -av percona-packaging/debian/rules debian/
     set_compiler
     fix_rules
-    if [ x"${DEBIAN}" = "xbullseye" ]; then
+
+    if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' debian/control
-        sed -i 's:etc/:/etc/:g' debian/percona-server-mongodb-server.conffiles
     fi
     sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' mongo-tools/set_goenv.sh
     sed -i 's|GitCommit="$(git rev-parse HEAD)"|GitCommit="$PSMDB_TOOLS_COMMIT_HASH"|' mongo-tools/set_goenv.sh
     sed -i 's|go build|go build -a -x|' mongo-tools/build.sh
     sed -i 's|exit $ec||' mongo-tools/build.sh
     . ./mongo-tools/set_tools_revision.sh
+
+    export PSMDB_VERSION="${VERSION}-${RELEASE}"
+    export PSMDB_GIT_HASH="${REVISION_LONG}"
+
     dch -m -D "${DEBIAN}" --force-distribution -v "${VERSION}-${RELEASE}.${DEBIAN}" 'Update distribution'
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    if [ x"${DEBIAN}" = "xstretch" ]; then
-        CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
-        export LINKFLAGS="${LINKFLAGS} ${CURL_LINKFLAGS}"
-    fi
+
+    export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
+
+    cd debian/
+        wget https://raw.githubusercontent.com/Percona-Lab/telemetry-agent/phase-0/call-home.sh
+        sed -i 's:exit 0::' percona-server-mongodb-server.postinst
+        echo "cat <<'CALLHOME' > /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
+        cat call-home.sh >> percona-server-mongodb-server.postinst
+        echo "CALLHOME" >> percona-server-mongodb-server.postinst
+        echo 'bash +x /tmp/call-home.sh -f "PRODUCT_FAMILY_PSMDB" -v '"${PSM_VER}-${PSM_RELEASE}"' -d "PACKAGE" &>/dev/null || :' >> percona-server-mongodb-server.postinst
+        echo "chgrp percona-telemetry /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server.postinst
+        echo "chmod 664 /usr/local/percona/telemetry_uuid &>/dev/null || :" >> percona-server-mongodb-server.postinst
+        echo "rm -rf /tmp/call-home.sh" >> percona-server-mongodb-server.postinst
+        echo "exit 0" >> percona-server-mongodb-server.postinst
+        rm -f call-home.sh
+    cd ../
+
     export GOROOT="/usr/local/go/"
     export GOPATH=$PWD/../
     export PATH="/usr/local/go/bin:$PATH:$GOPATH"
@@ -733,13 +918,15 @@ build_deb() {
     cp $WORKDIR/*.deb $CURDIR/deb
 }
 
-build_tarball() {
-    if [ $TARBALL = 0 ]; then
+build_tarball(){
+    if [ $TARBALL = 0 ]
+    then
         echo "Binary tarball will not be created"
-        return
+        return;
     fi
     get_tar "source_tarball"
     cd $WORKDIR
+    source ${WORKDIR}/percona-server-mongodb-83.properties
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
 
     #
@@ -748,54 +935,60 @@ build_tarball() {
     export PATH=/usr/local/go/bin:$PATH
     #
     #
-    PSM_TARGETS="mongod mongos mongo mongobridge perconadecrypt $SPECIAL_TAR"
+    PSM_TARGETS="mongod mongos perconadecrypt mongobridge $SPECIAL_TAR"
     PSM_REAL_TARGETS=() # transformed targets with 'install-' prefix
-    for pp in $PSM_TARGETS; do
+    for pp in $PSM_TARGETS
+    do
         # using regex to find '=' characters in string
         # don't touch if it starts from '-' character or 'install-' string
         # also don't change parameter if it contains slash to preserve targets specifying full path to unittests or object files
         if [[ $pp =~ ^install-|^-|=|/ ]]; then
             # if - or = is found parameter is unchanged
-            PSM_REAL_TARGETS+=($pp)
+            PSM_REAL_TARGETS+=( $pp )
         else
             # otherwise add 'install-' prefix required by hygienic build
-            PSM_REAL_TARGETS+=(install-$pp)
+            PSM_REAL_TARGETS+=( install-$pp )
         fi
     done
 
     TARBALL_SUFFIX=""
     if [ ${DEBUG} = 1 ]; then
-        TARBALL_SUFFIX=".dbg"
+    TARBALL_SUFFIX=".dbg"
     fi
     if [ -f /etc/debian_version ]; then
         set_compiler
     fi
     #
-    if [ -f /etc/redhat-release ]; then
-        #export OS_RELEASE="centos$(lsb_release -sr | awk -F'.' '{print $1}')"
-        RHEL=$(rpm --eval %rhel)
-        if [ -f /opt/rh/devtoolset-8/enable ]; then
-            source /opt/rh/devtoolset-8/enable
-            source /opt/rh/rh-python38/enable
+    if [ -f /etc/redhat-release -o -f /etc/amazon-linux-release ]; then
+    #export OS_RELEASE="centos$(lsb_release -sr | awk -F'.' '{print $1}')"
+        if [ x"$RHEL" = x7 ]; then
+            if [ -f /opt/rh/devtoolset-9/enable ]; then
+              source /opt/rh/devtoolset-9/enable
+              source /opt/rh/devtoolset-11/enable
+            fi
+        elif [ x"$RHEL" = x8 ]; then
+            if [ -f /opt/rh/gcc-toolset-9/enable ]; then
+              source /opt/rh/gcc-toolset-9/enable
+              source /opt/rh/gcc-toolset-11/enable
+            fi
         fi
-        echo "CC and CXX should be modified once correct compiller would be installed on Centos"
-        if [ "x${RHEL}" == "x8" ]; then
+        if [ "x${RHEL}" != "x2023" ]; then
+            echo "CC and CXX should be modified once correct compiller would be installed on Centos"
+            export CC=/opt/mongodbtoolchain/v4/bin/gcc
+            export CXX=/opt/mongodbtoolchain/v4/bin/g++
+        else
             export CC=/usr/bin/gcc
             export CXX=/usr/bin/g++
-        else
-            export CC=/opt/rh/devtoolset-8/root/usr/bin/gcc
-            export CXX=/opt/rh/devtoolset-8/root/usr/bin/g++
         fi
     fi
     #
-    ARCH=$(uname -m 2>/dev/null || true)
+    ARCH=$(uname -m 2>/dev/null||true)
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | grep -v "tools" | tail -n1))
     PSMDIR=${TARFILE%.tar.gz}
     PSMDIR_ABS=${WORKDIR}/${PSMDIR}
     TOOLSDIR=${PSMDIR}/mongo-tools
     TOOLSDIR_ABS=${WORKDIR}/${TOOLSDIR}
     TOOLS_TAGS="ssl sasl"
-    NJOBS=4
 
     tar xzf $TARFILE
     rm -f $TARFILE
@@ -807,7 +1000,7 @@ build_tarball() {
     export CFLAGS="${CFLAGS:-} -fno-omit-frame-pointer"
     export CXXFLAGS="${CFLAGS}"
     if [ ${DEBUG} = 1 ]; then
-        export CXXFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
+    export CXXFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
     fi
     export INSTALLDIR=/usr/local
     export AWS_LIBS=/usr/local
@@ -817,17 +1010,27 @@ build_tarball() {
 
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
-    if [ "x${RHEL}" == "x8" ]; then
-        pip3.6 install --upgrade pip
-        pip3.6 install --user -r etc/pip/dev-requirements.txt
-        pip3.6 install --user -r etc/pip/evgtest-requirements.txt
-    else
+    if [ "x${RHEL}" != "x2023" ]; then
+        export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
         pip install --upgrade pip
-        pip install --user -r etc/pip/dev-requirements.txt
-        pip install --user -r etc/pip/evgtest-requirements.txt
     fi
-    if [ -f /etc/redhat-release ]; then
-        RHEL=$(rpm --eval %rhel)
+    # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
+    pip install pyyaml==5.4.1 --no-build-isolation
+    pip install 'referencing<0.30.0' --no-build-isolation
+    pip install 'jsonschema-specifications<=2023.07.1' --no-build-isolation
+
+    pip install 'poetry==2.0.0' 'pyproject-hooks==1.2.0'
+    pip install 'mongo_tooling_metrics==1.0.8' 'retry' 'psutil' 'Cheetah3'
+
+    #update toolchain pathes to know about installed poetry
+    if [ "x${RHEL}" != "x2023" ]; then
+    toolchain_revision=$(tar -ztf /tmp/mongodbtoolchain.tar.gz | head -1 | sed 's/\/$//')
+        /opt/mongodbtoolchain/revisions/${toolchain_revision}/scripts/install.sh
+        poetry env use /opt/mongodbtoolchain/v4/bin/python3
+    fi
+    poetry install --no-root --sync
+
+    if [ -f /etc/redhat-release -o -f /etc/amazon-linux-release ]; then
         if [ $RHEL = 7 -o $RHEL = 8 ]; then
             if [ -d aws-sdk-cpp ]; then
                 rm -rf aws-sdk-cpp
@@ -840,15 +1043,27 @@ build_tarball() {
             git clean -xdf
             git checkout 1.9.379
             git submodule update --init --recursive
+            if [[ x"${RHEL}" =~ ^x(7|8|9|2023)$ ]]; then
+                sed -i 's:v0.4.42:v0.6.10:' third-party/CMakeLists.txt
+                sed -i 's:"-Werror" ::' cmake/compiler_settings.cmake
+            fi
             mkdir build
             cd build
             set_compiler
-            if [ -z "${CC}" -a -z "${CXX}" ]; then
-                cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
-            else
-                cmake CC=${CC} CXX=${CXX} .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" || exit $?
+            if [ x"${DEBIAN}" = xjammy ]; then
+                CMAKE_CXX_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=deprecated-declarations -Wno-error=uninitialized "
+                CMAKE_C_FLAGS=" -Wno-error=maybe-uninitialized -Wno-error=maybe-uninitialized -Wno-error=uninitialized "
             fi
-            make -j4 || exit $?
+            CMAKE_CMD="cmake"
+#            if [ x"$RHEL" = x7 ]; then
+#                CMAKE_CMD="cmake3"
+#            fi
+            if [ -z "${CC}" -a -z "${CXX}" ]; then
+                ${CMAKE_CMD} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF || exit $?
+            else
+                ${CMAKE_CMD} CC=${CC} CXX=${CXX} .. -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}" -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}" -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${INSTALLDIR_AWS}" -DAUTORUN_UNIT_TESTS=OFF || exit $?
+            fi
+            make -j${NCPU} || exit $?
             make install
             mkdir -p ${INSTALLDIR}/include/
             mkdir -p ${INSTALLDIR}/lib/
@@ -859,25 +1074,33 @@ build_tarball() {
         fi
     fi
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-    if [ x"${DEBIAN}" = "xstretch" ]; then
-        CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
-        export LINKFLAGS="${LINKFLAGS} ${CURL_LINKFLAGS}"
-    fi
-    if [ ${DEBUG} = 0 ]; then
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j$NJOBS --use-sasl-client --wiredtiger --audit --inmemory --hotbackup CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
+    if [ "x${RHEL}" == "x2023" ]; then
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 "
     else
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --audit --ssl --dbg=on -j$NJOBS --use-sasl-client \
-            CPPPATH="${INSTALLDIR}/include ${AWS_LIBS}/include" LIBPATH="${INSTALLDIR}/lib ${AWS_LIBS}/lib ${AWS_LIBS}/lib64" LINKFLAGS="${LINKFLAGS}" --wiredtiger --inmemory --hotbackup ${PSM_REAL_TARGETS[@]} || exit $?
+        export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
     fi
-    #
-    # scons install doesn't work - it installs the binaries not linked with fractal tree
-    #scons --prefix=$PWD/$PSMDIR install
-    #
+    if [ x"${DEBIAN}" = "xstretch" ]; then
+      CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
+      export OPT_LINKFLAGS="${OPT_LINKFLAGS} ${CURL_LINKFLAGS}"
+    fi
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelignore
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazeliskrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelversion
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.bazelrc.psmdb
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.npmrc
+    wget https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/${BRANCH}/.prettierignore
+    python3 buildscripts/install_bazel.py
+    export PATH=\/root/.local/bin:$PATH >> ~/.bashrc
+    source ~/.bashrc
+    bazel clean --expunge || true
+    bazel build --config=psmdb_opt_release --define=MONGO_VERSION=${VERSION}-${RELEASE} --define=GIT_COMMIT_HASH=${REVISION_LONG} install-dist-test
+    rm -rf .[^.]*
     mkdir -p ${PSMDIR}/bin
     for target in ${PSM_TARGETS[@]}; do
-        cp -f build/install/bin/$target ${PSMDIR}/bin
+        cp -fL bazel-bin/install-dist-test/bin/${target#"bazel-bin/install-dist-test/bin/"} ${PSMDIR}/bin
         if [ ${DEBUG} = 0 ]; then
-            strip --strip-debug ${PSMDIR}/bin/${target}
+            strip --strip-debug ${PSMDIR}/bin/${target#"bazel-bin/install-dist-test/bin/"}
         fi
     done
     #
@@ -894,8 +1117,8 @@ build_tarball() {
     cp -r ${WORKDIR}/${TOOLSDIR} ./
     cd mongo-tools
     . ./set_tools_revision.sh
-    sed -i '12d' buildscript/build.go
-    sed -i '167,176d' buildscript/build.go
+    sed -i '14d' buildscript/build.go
+    sed -i '226,234d' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
@@ -908,11 +1131,8 @@ build_tarball() {
 
     # Patch needed libraries
     cd "${PSMDIR_ABS}/${PSMDIR}"
-    if [ ! -d lib/private ]; then
-        mkdir -p lib/private
-    fi
-    LIBLIST="libcrypto.so libssl.so libsasl2.so librtmp.so libssl3.so libsmime3.so libnss3.so libnssutil3.so libplds4.so libplc4.so libnspr4.so libssl3.so liblzma.so libidn.so"
-    DIRLIST="bin lib/private"
+    LIBLIST=""
+    DIRLIST="bin"
 
     LIBPATH=""
 
@@ -964,14 +1184,31 @@ build_tarball() {
         done
     }
 
+    function fix_sasl_lib {
+        # Details are in tickets PSMDB-950 PSMDB-1153 PSMDB-1261
+        patchelf --remove-needed libsasl2.so.3 bin/mongod
+        patchelf --remove-needed libsasl2.so.2 bin/mongod
+        patchelf --remove-needed libsasl2.so.3 bin/mongo
+        patchelf --remove-needed libsasl2.so.2 bin/mongo
+        patchelf --remove-needed libsasl2.so.3 bin/mongos
+        patchelf --remove-needed libsasl2.so.2 bin/mongos
+
+        # Details are in tickets PSMDB-1160
+        if [ "x$OS" = "xrpm" ]
+        then
+            patchelf --remove-needed libsasl2.so bin/mongod
+            patchelf --remove-needed libsasl2.so bin/mongo
+        fi
+    }
+
     function replace_libs {
         local elf_path=$1
         for libpath_sorted in ${LIBPATH}; do
             for elf in $(find ${elf_path} -maxdepth 1 -exec file {} \; | grep 'ELF ' | cut -d':' -f1); do
-                LDD=$(ldd ${elf} | grep ${libpath_sorted} | head -n1 | awk '{print $1}')
+                LDD=$(ldd ${elf} | grep ${libpath_sorted}|head -n1|awk '{print $1}')
                 lib_realpath_basename="$(basename $(readlink -f ${libpath_sorted}))"
                 lib_without_version_suffix="$(echo ${lib_realpath_basename} | awk -F"." 'BEGIN { OFS = "." }{ print $1, $2}')"
-                if [[ ! -z $LDD ]]; then
+                if [[ ! -z $LDD  ]]; then
                     echo "Replacing lib ${lib_realpath_basename} to ${lib_without_version_suffix} for ${elf}"
                     patchelf --replace-needed ${LDD} ${lib_without_version_suffix} ${elf}
                 fi
@@ -1023,6 +1260,9 @@ build_tarball() {
             replace_libs ${DIR}
         done
 
+        # Use system libsasl2 for some binaries
+        fix_sasl_lib
+
         # Create and replace by sparse file to reduce size
         create_sparse bin
         replace_binaries bin
@@ -1033,8 +1273,16 @@ build_tarball() {
         done
     }
 
+    PSMDIR_ORIGINAL=${PSMDIR}
+
+    if [[ x"${OS}" == "xrpm" ]]; then
+        GLIBC_VER=".ol"${RHEL}
+    else
+        GLIBC_VER="."${DEBIAN}
+    fi
+
     cd ${PSMDIR_ABS}
-    mv ${PSMDIR} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
+    mv ${PSMDIR_ORIGINAL} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
 
     if [[ ${DEBUG} = 0 ]]; then
         cp -r ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX} ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal
@@ -1051,15 +1299,15 @@ build_tarball() {
     tar --owner=0 --group=0 -czf ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}.tar.gz ${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}
     DIRNAME="tarball"
     if [ "${DEBUG}" = 1 ]; then
-        DIRNAME="debug"
+    DIRNAME="debug"
     fi
     mkdir -p ${WORKDIR}/${DIRNAME}
     mkdir -p ${CURDIR}/${DIRNAME}
     cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}.tar.gz ${WORKDIR}/${DIRNAME}
     cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}.tar.gz ${CURDIR}/${DIRNAME}
     if [[ ${DEBUG} = 0 ]]; then
-        cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal.tar.gz ${WORKDIR}/${DIRNAME}
-        cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal.tar.gz ${CURDIR}/${DIRNAME}
+    cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal.tar.gz ${WORKDIR}/${DIRNAME}
+    cp ${WORKDIR}/${PSMDIR}-${ARCH}${GLIBC_VER}${TARBALL_SUFFIX}-minimal.tar.gz ${CURDIR}/${DIRNAME}
     fi
 }
 
@@ -1082,9 +1330,10 @@ INSTALL=0
 RPM_RELEASE=1
 DEB_RELEASE=1
 REVISION=0
+REVISION_LONG=0
 BRANCH="master"
 REPO="https://github.com/percona/percona-server-mongodb.git"
-PSM_VER="5.0.0"
+PSM_VER="8.3.0"
 PSM_RELEASE="1"
 MONGO_TOOLS_TAG="master"
 PRODUCT=percona-server-mongodb
@@ -1095,7 +1344,13 @@ RELEASE=${PSM_RELEASE}
 PRODUCT_FULL=${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
 PSM_BRANCH=${BRANCH}
 if [ ${DEBUG} = 1 ]; then
-    TARBALL=1
+  TARBALL=1
+fi
+if test -e "/proc/cpuinfo"
+then
+    NCPU="$(grep -c ^processor /proc/cpuinfo)"
+else
+    NCPU=4
 fi
 
 check_workdir
