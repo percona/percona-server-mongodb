@@ -101,7 +101,12 @@ TEST(AsioSocketTimeoutTest, TimeoutDefaultsToZero) {
 TEST(AsioSocketTimeoutTest, TimeoutSetAndGetAreConsistent) {
     timeoutOptionTest([](auto& socket, auto option, const char* name) {
         using Option = decltype(option);
-        const auto duration = std::chrono::milliseconds(42);
+        // Use a duration that is an exact multiple of 20ms (the LCM of jiffy sizes for
+        // HZ=100, 250, and 1000). On Linux kernels prior to 5.1, SO_RCVTIMEO/SO_SNDTIMEO are
+        // stored internally as jiffies using ceiling division, so a value like 42ms would be
+        // rounded up (e.g. to 44ms on HZ=250 or 50ms on HZ=100), causing ASSERT_EQ to fail.
+        // Newer kernels (5.1+) store timeouts as ktime_t and preserve the exact value.
+        const auto duration = std::chrono::milliseconds(100);
         option = Option(duration);
         asio::error_code error;
         socket.set_option(option, error);
