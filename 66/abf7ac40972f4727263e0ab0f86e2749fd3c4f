@@ -1,0 +1,23 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "47cd7e1382a581d4add0556a27dafb3af849d683",
+    "merge_commit": "9ec2f30b6bcd5031becdf788725379521b60a0a4"
+  },
+  "solution": {
+    "response": {
+      "summary": "Dummy change in oidc",
+      "resolved": {
+        "src/mongo/db/auth/oidc/oidc_identity_providers_registry_test.cpp": "Modified by human"
+      },
+      "unresolved": {},
+      "review_notes": null
+    },
+    "author": {
+      "name": "Pawel Lebioda",
+      "email": "pawel.lebioda@percona.com",
+      "type": "human"
+    },
+    "commit_sha": "66abf7ac40972f4727263e0ab0f86e2749fd3c4f"
+  }
+}
