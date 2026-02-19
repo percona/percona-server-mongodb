@@ -177,7 +177,7 @@ TEST(StackTrace, PosixFormat) {
     std::string trace;
     stacktrace_test_detail::RecursionParam param{3, [&] {
                                                      StringStackTraceSink sink{trace};
-                                                     printStackTrace(sink);
+                                                     printStructuredStackTrace(sink);
                                                  }};
     stacktrace_test_detail::recurseWithLinkage(param, 3);
 
@@ -303,7 +303,8 @@ TEST(StackTrace, WindowsFormat) {
 
 std::string traceString() {
     std::ostringstream os;
-    printStackTrace(os);
+    OstreamStackTraceSink sink{os};
+    printStructuredStackTrace(sink);
     return os.str();
 }
 

@@ -41,7 +41,8 @@
 
 // "static" means internal linkage only for functions at namespace scope.
 MONGO_COMPILER_NOINLINE static void staticFunction(std::ostream& s) {
-    mongo::printStackTrace(s);
+    mongo::OstreamStackTraceSink sink{s};
+    mongo::printStructuredStackTrace(sink);
     PREVENT_TAIL_CALL;
 }
 
