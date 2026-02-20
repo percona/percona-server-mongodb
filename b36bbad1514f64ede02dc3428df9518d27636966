@@ -1,0 +1,25 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "edafae46b71b579a30ed03a675e8e2e25ee8db23",
+    "merge_commit": "9ec2f30b6bcd5031becdf788725379521b60a0a4"
+  },
+  "solution": {
+    "response": {
+      "summary": "Merge pull request #140 from plebioda/mergai/PSMDB-1931-merging-workflow-edafae46b71-9ec2f30b6bc/solution",
+      "resolved": {
+        "MODULE.bazel.lock": "Resolved by human (was previously unresolved)",
+        "bazel/utils.bzl": "Resolved by human (was previously unresolved)"
+      },
+      "unresolved": {},
+      "modified": {},
+      "review_notes": "Resolve conflicts for merge '9ec2f30b6bc' into 'PSMDB-1931-merging-workflow'"
+    },
+    "author": {
+      "name": "Pawel Lebioda",
+      "email": "pawel.lebioda89@gmail.com",
+      "type": "human"
+    },
+    "commit_sha": "b36bbad1514f64ede02dc3428df9518d27636966"
+  }
+}
