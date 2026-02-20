@@ -1,0 +1,25 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "edafae46b71b579a30ed03a675e8e2e25ee8db23",
+    "merge_commit": "9ec2f30b6bcd5031becdf788725379521b60a0a4"
+  },
+  "solution": {
+    "response": {
+      "summary": "Resolve conflicts for merge commit '9ec2f30b6bc' into PSMDB-1931-merging-workflow",
+      "resolved": {
+        "MODULE.bazel.lock": "Resolved by human (was previously unresolved)",
+        "bazel/utils.bzl": "Resolved by human (was previously unresolved)"
+      },
+      "unresolved": {},
+      "modified": {},
+      "review_notes": "Resolved merge conflicts by combining changes in `bazel/utils.bzl` and\nregenerating `MODULE.bazel.lock` after temporarily resolving its\nconflict.\n\nResolved:\n\tbazel/utils.bzl\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+    },
+    "author": {
+      "name": "Pawel Lebioda",
+      "email": "pawel.lebioda@percona.com",
+      "type": "human"
+    },
+    "commit_sha": "e54a5061591344e153da1b34f70b587d03940f76"
+  }
+}
