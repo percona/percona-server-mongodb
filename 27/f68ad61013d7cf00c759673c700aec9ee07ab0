@@ -1,0 +1,93 @@
+{
+  "merge_info": {
+    "target_branch": "PSMDB-1931-merging-workflow",
+    "target_branch_sha": "edafae46b71b579a30ed03a675e8e2e25ee8db23",
+    "merge_commit": "9ec2f30b6bcd5031becdf788725379521b60a0a4"
+  },
+  "mergai_version": "0.1.dev111+gc2eff4572.d20260220",
+  "conflict_context": {
+    "ours_commit": "edafae46b71b579a30ed03a675e8e2e25ee8db23",
+    "theirs_commit": "9ec2f30b6bcd5031becdf788725379521b60a0a4",
+    "base_commit": "9e55e7357b58f1a317c75fa25a4bc77e12ce57cc",
+    "files": [
+      "MODULE.bazel.lock",
+      "bazel/utils.bzl"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "bazel/utils.bzl": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex 16a792aba4f,fac77cb40d6..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -214,1 -214,1 +214,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"YyPGLMC0nHT6z0vyn4KLfyiFJkAs0xu78iipK87sK5s=\",\n++||||||| 9e55e7357b5\n++        \"bzlTransitiveDigest\": \"+A8+m4Yrx4uimRvBWXvBV3YBqdtE8BnO1wrTKXhAxA0=\",\n++=======\n+         \"bzlTransitiveDigest\": \"d7d7d90UiWbgNAe+UNjVp0658ntOeokEMK2OPybABow=\",\n++>>>>>>> 9ec2f30b6bcd5031becdf788725379521b60a0a4",
+      "bazel/utils.bzl": "diff --cc bazel/utils.bzl\nindex 2440bf95490,e7f958a9da6..00000000000\n--- a/bazel/utils.bzl\n+++ b/bazel/utils.bzl\n@@@ -165,2 -165,1 +165,7 @@@ def get_host_distro_major_version(repos\n++<<<<<<< HEAD\n +        \"Oracle Linux Server 8*\": \"rhel8\",\n +        \"Oracle Linux Server 9*\": \"rhel9\",\n++||||||| 9e55e7357b5\n++=======\n+         \"Fedora*\": \"rhel10\",\n++>>>>>>> 9ec2f30b6bcd5031becdf788725379521b60a0a4"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "9ec2f30b6bcd5031becdf788725379521b60a0a4"
+      ],
+      "bazel/utils.bzl": [
+        "9ec2f30b6bcd5031becdf788725379521b60a0a4"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "9ec2f30b6bcd5031becdf788725379521b60a0a4",
+    "merged_commits": [
+      "9ec2f30b6bcd5031becdf788725379521b60a0a4",
+      "0bca3c14715ac48414df60f69198f35a73b6b005",
+      "6d1d857e312df93ec78bacb3a8ef8e4b961efafa",
+      "bf50dcfcff8bdbd82ca16561405e23f8d3dabc28",
+      "8071258bd4d3e11728ec07857040123f3b9d8076",
+      "2172ce3864dc3c3fd3c33c882116d348296e7ac6",
+      "564a579b26c6acfbc2b33e0ab5a7888d7aa10887",
+      "337aba8985c8269cff874c8d6733afdf672aaa7b",
+      "4205ea87d4f91f9ca10ce05295cc74552982fbea",
+      "2903c02520c06f1d796b5de8aa79a68b0dc24d23",
+      "116c48c2baf416ae048a46cf8ace79a263f806cd",
+      "c799266a816f97846041ae5c172e93e3d8520def",
+      "5e60e6d895600fdc797ba9f97657b4525fadd185",
+      "ebac97dd4799c5e9781d4bfa0b463d6f9b2171ec",
+      "af6a2bcc0a673f98331ad4c6858a5e3a9253b189",
+      "01c189fe13c5d734690d245c2d5e1cb055d9c4a2",
+      "afd7ce1b02131b6fcfab9f8e9b17a9aeb607b625",
+      "b4df72287e6aea42af26282af43fa7bdbc00be9f",
+      "2e51f38a5cec92d50d903d96066d0510ec63f513",
+      "33e1f70fc24b11bc0f9a2d927c3ccdbee6bf42fb",
+      "2a7878f8fad13075fff42bb21a4497d94802748d",
+      "b52264249144558ab7033bb8bc71d0912fac29a8",
+      "8cd8da5f4b26791881e3f213fe3b8f261edd941f",
+      "7f6d9ba6ca2f37c0347300365695e3c0633dc9c6",
+      "461cece6527797377af0d68cfcee828eba1424c5",
+      "1f8f33ab828e7eaab23f9fe8c48b948ae5d9251f",
+      "1bca02a7429f8fa5ed62ca8e8731df43a6e16fef",
+      "8dea2535392e062fd1b2dd742559e01f223b8314",
+      "365d187a7d1e8b608cd112e4e9d527028077454b",
+      "4faa2ee576296b3fad45069cb74e3ae01802f7d6",
+      "ac17ed6c3a97ee797eee680a251ce586fe812703",
+      "f5a68dc08880c9cf71d917165994dccf1eb0c6f4",
+      "faaac5007421e162d5d1f39461923e05b44bad03",
+      "5378c53014b4243cf7025f0f63863bbe94edb999",
+      "eaeaed0ef426862516207725d464610af9582e57",
+      "77fc2a762366e007d2e5b08cd096f7c7f6ef9b6c",
+      "d916f7636079b34451c471bc46fea4cb2abc0df8",
+      "4afb05822c9d85f2c898a781f61324158ddff56f",
+      "3f0ee3e7d8e462ba6750c5170d713726c9e60a14",
+      "7c2f4a01337baeca8c98eae7147679591a0b93d1",
+      "06de9d50cd40c32d4ffea7b4167f14f83664e5a4",
+      "55d3cc2af70d16625167257698c77791f6e9046d",
+      "fa392c22626f970806effaca3c23f830608e9d34",
+      "6edba451efbfe789a83f72c26a2daab561806507",
+      "9e648d6c9245da371e95764925206ece58a4d4c8"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/utils.bzl",
+        "src/mongo/db/initialize_server_global_state.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  }
+}
