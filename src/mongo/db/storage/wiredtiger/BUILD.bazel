@@ -62,39 +62,7 @@ mongo_cc_library(
         "//src/mongo/db/storage/wiredtiger:wiredtiger_stats.cpp",
         "//src/mongo/db/storage/wiredtiger:wiredtiger_util.cpp",
     ],
-    linkopts = select({
-        # When linking statically, don't use the dynamic AWS libraries even if
-        # they are available. For dynamic linking, prefer the dynamic AWS
-        # libraries but if they are absent, resort to the static ones.
-        "//bazel/config:linkstatic_enabled": [
-            "-Wl,--push-state,-Bstatic",
-        ],
-        "//conditions:default": [],
-    }) + [
-        # S3 and its dependencies
-        # order is important here
-        "-laws-cpp-sdk-transfer",
-        "-laws-cpp-sdk-s3",
-        "-laws-cpp-sdk-core",
-        "-laws-crt-cpp",
-        "-laws-c-event-stream",
-        "-laws-c-mqtt",
-        "-laws-c-s3",
-        "-laws-c-auth",
-        "-laws-c-http",
-        "-laws-c-compression",
-        "-laws-c-io",
-        "-laws-c-cal",
-        "-laws-c-sdkutils",
-        "-ls2n",
-        "-laws-checksums",
-        "-laws-c-common",
-    ] + select({
-        "//bazel/config:linkstatic_enabled": [
-            "-Wl,--pop-state",
-        ],
-        "//conditions:default": [],
-    }) + [
+    linkopts = [
         "-lcurl",
     ],
     deps = [
@@ -142,6 +110,7 @@ mongo_cc_library(
         "//src/mongo/util/concurrency:spin_lock",
         "//src/mongo/util/concurrency:ticketholder",
         "//src/mongo/util/options_parser",
+        "//src/third_party/aws-sdk-cpp:aws-sdk",
         "//src/third_party/libarchive",
         "//src/third_party/snappy",
         "//src/third_party/wiredtiger",
